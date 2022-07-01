@@ -66,7 +66,9 @@ class PcodeEmulatorMixin(SimEngineBase):
             # FIXME: Hacking this on here but ideally should use "scratch".
             self._pcode_tmps = {}  # FIXME: Consider alignment requirements
 
-            for op in self._current_ins.ops:
+            offset = self.state.scratch.statement_offset
+            self.state.scratch.statement_offset = 0
+            for op in self._current_ins.ops[offset:]:
                 self._current_op = op
                 self._current_behavior = irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
                 l.debug("Executing p-code op: %s", self._current_op)
@@ -160,7 +162,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         l.debug("Storing %s %x %s %d", space_name, varnode.offset, value, varnode.size)
         if space_name == "register":
             self.state.registers.store(
-                self._map_register_name(varnode), value, size=varnode.size
+                self._map_register_name(varnode), value, size=varnode.size, endness=self.project.arch.register_endness
             )
 
         elif space_name == "unique":
@@ -189,11 +191,15 @@ class PcodeEmulatorMixin(SimEngineBase):
         if space_name == "const":
             return claripy.BVV(varnode.offset, size*8)
         elif space_name == "register":
-            return self.state.registers.load(self._map_register_name(varnode), size=size)
+            return self.state.registers.load(self._map_register_name(varnode), size=size, endness=self.project.arch.register_endness)
         elif space_name == "unique":
             # FIXME: Support loading data of different sizes. For now, assume
             # size of values read are same as size written.
-            assert self._pcode_tmps[varnode.offset].size() == size*8
+            try:
+                assert self._pcode_tmps[varnode.offset].size() == size*8
+            except KeyError:
+                self._pcode_tmps[varnode.offset] = claripy.BVV(0, size*8)
+
             return self._pcode_tmps[varnode.offset]
         elif space_name in ("ram", "mem"):
             val = self.state.memory.load(varnode.offset, endness=self.project.arch.memory_endness, size=size)
@@ -238,7 +244,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         if spc.name in ("ram", "mem"):
             res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
         elif spc.name in "register":
-            res = self.state.registers.load(off, size=out.size, endness=self.project.arch.memory_endness)
+            res = self.state.registers.load(off, size=out.size, endness=self.project.arch.register_endness)
         else:
             raise NotImplementedError("Load from unhandled address space")
         l.debug("Loaded %s from offset %s", res, off)
@@ -255,7 +261,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         if spc.name in ("ram", "mem"):
             self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
         elif spc.name == "register":
-            self.state.registers.store(off, data, endness=self.project.arch.memory_endness)
+            self.state.registers.store(off, data, endness=self.project.arch.register_endness)
         else:
             raise NotImplementedError("Store to unhandled address space")
 
@@ -265,12 +271,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         dest_addr = self._current_op.inputs[0].get_addr()
         if dest_addr.is_constant:
-            # raise NotImplementedError("p-code relative branch not supported yet")
-            l.warning("p-code relative branch not supported yet")
-            return
+            expr = self.state.scratch.ins_addr
+            self.state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
+        else:
+            expr = dest_addr.offset
 
         self.state.scratch.exit_handled = True
-        expr = dest_addr.offset
         self.successors.add_successor(
             self.state,
             expr,
@@ -284,18 +290,20 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code conditional branch operation.
         """
+        exit_state = self.state.copy()
         cond = self._get_value(self._current_op.inputs[1])
         dest_addr = self._current_op.inputs[0].get_addr()
+
         if dest_addr.is_constant:
-            # raise NotImplementedError("p-code relative branch not supported yet")
-            l.warning("p-code relative branch not supported yet")
-            return
+            expr = exit_state.scratch.ins_addr
+            exit_state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
+        else:
+            expr = dest_addr.offset
 
 
-        exit_state = self.state.copy()
         self.successors.add_successor(
             exit_state,
-            dest_addr.offset,
+            expr,
             cond != 0,
             "Ijk_Boring",
             exit_stmt_idx=DEFAULT_STATEMENT,
@@ -346,8 +354,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         self.state.scratch.exit_handled = True
         expr = self._current_op.inputs[0].get_addr().offset
+        print("CALL", hex(expr), self.state.scratch.guard)
         self.successors.add_successor(
-            self.state,
+            self.state.copy(),
             expr,
             self.state.scratch.guard,
             "Ijk_Call",
@@ -371,7 +380,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         )
 
     def _execute_callother(self) -> None:
-        raise NotImplementedError("CALLOTHER emulation not currently supported")
+        raise AngrError("CALLOTHER emulation not currently supported")
 
     def _execute_multiequal(self) -> None:
         raise NotImplementedError("MULTIEQUAL appearing in unheritaged code?")
@@ -387,3 +396,5 @@ class PcodeEmulatorMixin(SimEngineBase):
 
     def _execute_new(self) -> None:
         raise NotImplementedError("Cannot currently emulate new operator")
+
+from ...errors import AngrError
