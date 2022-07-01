@@ -27,6 +27,11 @@ class SimEngineVRVEX(
     """
     state: 'VariableRecoveryStateBase'
 
+    def __init__(self, *args, call_info=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.call_info = call_info or {}
+
     # Statement handlers
 
     def _handle_Put(self, stmt):
@@ -141,13 +146,9 @@ class SimEngineVRVEX(
 
     # Function handlers
 
-    def _handle_function_concrete(self, func_addr: int):
-        try:
-            func: Function = self.project.kb.functions[func_addr]
-        except KeyError:
-            return None
+    def _handle_function_concrete(self, func: Function):
         if func.prototype is None or func.calling_convention is None:
-            return None
+            return
 
         for arg_loc in func.calling_convention.arg_locs(func.prototype):
             for loc in arg_loc.get_footprint():
@@ -164,21 +165,10 @@ class SimEngineVRVEX(
                             addr = RichR(loc.stack_offset + one_sp)
                             self._load(addr, loc.size)
 
-        return None
-
     def _process_block_end(self):
         current_addr = self.state.block_addr
-        try:
-            current_func: Function = self.kb.functions[self.func_addr]
-        except KeyError:
-            # ??? WHY DOES THIS HAPPEN
-            return
-        node = current_func.get_node(current_addr)
-        if node not in current_func.transition_graph: # e.g. None
-            return
-        for successor, data in current_func.transition_graph.succ[node].items():
-            if data['type'] == 'call' or data.get('outside', False):
-                self._handle_function_concrete(successor.addr)
+        for target_func in self.call_info.get(current_addr, []):
+            self._handle_function_concrete(target_func)
 
     def _handle_Const(self, expr):
         return RichR(claripy_value(expr.con.type, expr.con.value, size=expr.con.size),

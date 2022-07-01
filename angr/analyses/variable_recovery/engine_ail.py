@@ -25,10 +25,11 @@ class SimEngineVRAIL(
 ):
     state: 'VariableRecoveryFastState'
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, call_info=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._reference_spoffset: bool = False
+        self.call_info = call_info or {}
 
     # Statement handlers
 

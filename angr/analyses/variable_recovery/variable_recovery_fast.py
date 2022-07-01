@@ -3,6 +3,8 @@ from typing import Optional, List, Tuple
 import logging
 from collections import defaultdict
 
+import networkx
+
 import claripy
 import pyvex
 import ailment
@@ -191,17 +193,26 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     Recover "variables" from a function by keeping track of stack pointer offsets and pattern matching VEX statements.
 
     If calling conventions are recovered prior to running VariableRecoveryFast, variables can be recognized more
-    accurately. However, it is not a requirement.
+    accurately. However, it is not a requirement. In this case, the function graph you pass must contain information
+    indicating the call-out sites inside the analyzed function. These graph edges must be annotated with either
+    ``"type": "call"`` or ``"outside": True``.
     """
 
-    def __init__(self, func, func_graph=None, max_iterations=2, low_priority=False, track_sp=True,
-                 func_args: Optional[List[SimVariable]]=None, store_live_variables=False):
-        """
-
-        :param knowledge.Function func:  The function to analyze.
-        :param int max_iterations:
-        :param clinic:
-        """
+    def __init__(
+            self,
+            func: Function,
+            func_graph: Optional[networkx.DiGraph]=None,
+            max_iterations: int=2,
+            low_priority=False,
+            track_sp=True,
+            func_args: Optional[List[SimVariable]]=None,
+            store_live_variables=False
+    ):
+        func_graph_with_calls = func_graph or func.transition_graph
+        call_info = defaultdict(list)
+        for node_from, node_to, data in func_graph_with_calls.edges(data=True):
+            if data.get('type', None) == 'call' or data.get('outside', False):
+                call_info[node_from.addr].append(self.kb.functions.get_by_addr(node_to.addr))
 
         function_graph_visitor = FunctionGraphVisitor(func, graph=func_graph)
 
@@ -218,8 +229,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._track_sp = track_sp and self.project.arch.sp_offset is not None
         self._func_args = func_args
 
-        self._ail_engine = SimEngineVRAIL(self.project, self.kb)
-        self._vex_engine = SimEngineVRVEX(self.project, self.kb)
+        self._ail_engine = SimEngineVRAIL(self.project, self.kb, call_info=call_info)
+        self._vex_engine = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
         self._node_iterations = defaultdict(int)
 
