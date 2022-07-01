@@ -3,6 +3,7 @@ import unittest
 import logging
 
 import angr
+import claripy
 
 
 l = logging.getLogger('angr_tests.veritesting')
@@ -65,6 +66,39 @@ class TestVeritesting(unittest.TestCase):
         for var in state.solver._solver.variables:
             assert "state_merge" not in var
 
+    def _run_veritesting_skm(self,arch):
+        proj = angr.Project(os.path.join(location, arch, "veritesting_skm"))
+
+        # start the analysis after the call to lexer_read_line
+        start_address = 0x4024ae
+        state = proj.factory.blank_state(addr=0x4024ae, remove_options={angr.sim_options.UNICORN})
+
+        # set up the structures for the user_input
+        byte = claripy.BVS('user_byte', 8) # Symbolic variable for user_input
+        SPACE = claripy.Or((byte == 32), (byte == 9))
+        NUM   = claripy.And(byte >= 48, byte <= 57)
+        NL    = (byte == 10)
+        MULOP = claripy.Or(byte == 42, byte ==  47)
+        ADDOP = claripy.Or(byte == 43, byte ==  45)
+        constraint = claripy.Or(NUM, ADDOP, MULOP, NL, SPACE)
+        state.add_constraints(constraint)
+
+        # set up memory
+        LINEPTR = 0xCAFEBABE # fake addr
+        state.memory.store(LINEPTR, byte)
+        state.memory.store(LINEPTR + 1, 0)  # NULL term the string!
+
+        # stack
+        state.regs.rax = LINEPTR
+        state.regs.rbp = 0xDEADBEEF  # STACK
+        state.regs.rdi = LINEPTR  # 64 bit Intel calling convention - RDI gets arg0
+
+        simgr = proj.factory.simgr(state, veritesting=True)
+        is_successful = 0x402517
+        should_abort = 0x402521
+        simgr.explore(find=is_successful, avoid=should_abort)
+        assert simgr.found
+
     def test_veritesting_a(self):
         # This is the most basic test
         self._run_veritesting_a('x86_64')
@@ -73,6 +107,11 @@ class TestVeritesting(unittest.TestCase):
         # Advanced stuff - it tests for the ability to inline simple functions
         # as well as simple syscalls like read/write
         self._run_veritesting_b('x86_64')
+
+    def test_veritesting_skm(self):
+        # More advanced stuff, this binary will do double state merging,
+        # which requires merged states to be correct
+        self._run_veritesting_skm('x86_64')
 
 if __name__ == "__main__":
     unittest.main()
