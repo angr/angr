@@ -224,13 +224,17 @@ class LiveDefinitions:
                 return 0
             elif addr.op == "__add__":
                 if len(addr.args) == 2:
-                    return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) \
-                           + LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
-                if len(addr.args) == 1:
+                    off0 = LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True)
+                    off1 = LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
+                    if off0 is not None and off1 is not None:
+                        return off0 + off1
+                elif len(addr.args) == 1:
                     return 0
             elif addr.op == "__sub__" and len(addr.args) == 2:
-                return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) \
-                       - LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
+                off0 = LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True)
+                off1 = LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
+                if off0 is not None and off1 is not None:
+                    return off0 - off1
         return None
 
     @staticmethod
