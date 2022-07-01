@@ -213,7 +213,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             # fast path: no memory objects, no unconstrained positions, and only one concrete value
             if not memory_objects and not unconstrained_in and len(set(cv for cv, _ in concretes)) == 1:
                 cv = concretes[0][0]
-                self.store(b, cv, size=1, cooperate=True, page_addr=page_addr)
+                self.store(b, cv, size=1, cooperate=True, page_addr=page_addr, memory=memory)
                 continue
 
             # convert all concrete values into memory objects
