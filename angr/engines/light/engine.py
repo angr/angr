@@ -79,7 +79,7 @@ class SimEngineLight(
 
         # local variables
         self.state = None
-        self.arch = None
+        self.arch: archinfo.Arch = None
         self.block = None
         self._call_stack = None
 

@@ -94,7 +94,7 @@ class Function(Serializable):
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self.calling_convention = None  # type: Optional[SimCC]
+        self.calling_convention: Optional[SimCC] = None
         # Function prototype
         self.prototype = None  # type: Optional[SimTypeFunction]
         self.is_prototype_guessed: bool = True
