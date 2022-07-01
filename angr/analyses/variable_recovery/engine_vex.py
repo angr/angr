@@ -168,7 +168,11 @@ class SimEngineVRVEX(
 
     def _process_block_end(self):
         current_addr = self.state.block_addr
-        current_func: Function = self.kb.functions[self.func_addr]
+        try:
+            current_func: Function = self.kb.functions[self.func_addr]
+        except KeyError:
+            # ??? WHY DOES THIS HAPPEN
+            pass
         node = current_func.get_node(current_addr)
         if node not in current_func.transition_graph: # e.g. None
             return
