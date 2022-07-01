@@ -243,7 +243,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if our_mo is None:
                     # this object does not exist in the current page. do the store
                     new_object = SimMemoryObject(merged_val, page_addr + b, memory_objects[0][0].endness)
-                    self.store(b, new_object, size=list(mo_lengths)[0], cooperate=True, memory=memory)
+                    self.store(b, new_object, size=list(mo_lengths)[0], cooperate=True, page_addr=page_addr, memory=memory)
                     merged_objects.add(new_object)
                 else:
                     # do the replacement
