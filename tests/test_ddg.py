@@ -57,13 +57,13 @@ def perform_one(binary_path):
     20 | PUT(rip) = 0x0000000000400671
     """
 
-    cl1 = CodeLocation(0x400667, 3)
+    cl1 = CodeLocation(0x400667, ins_addr=0x400667,stmt_idx=3)
     in_edges = ddg.graph.in_edges([cl1], data=True)
     # Where the memory address comes from
-    memaddr_src = CodeLocation(0x400667, 2)
+    memaddr_src = CodeLocation(0x400667, ins_addr=0x400667, stmt_idx=2)
     # Where the data comes from
-    data_src_0 = CodeLocation(0x40064C, 26)
-    data_src_1 = CodeLocation(0x400667, 19)
+    data_src_0 = CodeLocation(0x40064C, ins_addr=0x40065e, stmt_idx=26)
+    data_src_1 = CodeLocation(0x400667, ins_addr=0x40066d, stmt_idx=19)
     assert len(in_edges) == 3
     assert (data_src_0, cl1) in [(src, dst) for src, dst, _ in in_edges]
     assert (data_src_1, cl1) in [(src, dst) for src, dst, _ in in_edges]
