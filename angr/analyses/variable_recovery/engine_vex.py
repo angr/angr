@@ -141,20 +141,6 @@ class SimEngineVRVEX(
 
     # Function handlers
 
-    def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use,useless-return
-        if func_addr.data.op == 'BVV':
-            self._handle_function_concrete(func_addr.data.args[0])
-
-        if self.state.is_top(func_addr.data):
-            current_addr = self.state.block_addr
-            current_func: Function = self.kb.functions[self.func_addr]
-            node = current_func.get_node(current_addr)
-            for successor in node.successors():
-                if isinstance(successor, Function):
-                    self._handle_function_concrete(successor.addr)
-
-        return None
-
     def _handle_function_concrete(self, func_addr: int):
         try:
             func: Function = self.project.kb.functions[func_addr]
@@ -179,6 +165,16 @@ class SimEngineVRVEX(
                             self._load(addr, loc.size)
 
         return None
+
+    def _process_block_end(self):
+        current_addr = self.state.block_addr
+        current_func: Function = self.kb.functions[self.func_addr]
+        node = current_func.get_node(current_addr)
+        if node not in current_func.transition_graph: # e.g. None
+            return
+        for successor, data in current_func.transition_graph.succ[node].items():
+            if data['type'] == 'call' or data.get('outside', False):
+                self._handle_function_concrete(successor.addr)
 
     def _handle_Const(self, expr):
         return RichR(claripy_value(expr.con.type, expr.con.value, size=expr.con.size),

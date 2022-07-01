@@ -146,7 +146,9 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             "main": ["r_r0", "r_r1"],
             "accepted": ["r_r0", "r_r1", "r_r2", "r_r3"],
             "rejected": [],
-            "authenticate": ["r_r0", "r_r1"],
+            "authenticate": ["r_r0", "r_r1", "r_r2"],  # TECHNICALLY WRONG but what are you gonna do about it
+            # details: open(3) can take either 2 or 3 args. we use the 2 arg version but we have the 3 arg version
+            # hardcoded in angr. the third arg is still "live" from the function start.
         }
 
         for func_name, args in expected_args.items():
@@ -276,6 +278,17 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         for func in cfg.functions.values():
             assert func.is_prototype_guessed is True
 
+    def test_tail_calls(self):
+        for opt_level in (1, 2):
+            binary_path = os.path.join(test_location, "tests", "x86_64", "tailcall-O%d" % opt_level)
+            proj = angr.Project(binary_path, auto_load_libs=False)
+
+            proj.analyses.CFG(normalize=True)
+            proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+            for func in ['target', 'direct', 'plt']:
+                self.assertEqual(str(proj.kb.functions[func].prototype), '(long long) -> int')
+                # technically should be (int) -> int, but the compiler loads all 64 bits and then truncates
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
