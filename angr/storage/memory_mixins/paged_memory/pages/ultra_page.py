@@ -243,7 +243,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if our_mo is None:
                     # this object does not exist in the current page. do the store
                     new_object = SimMemoryObject(merged_val, page_addr + b, memory_objects[0][0].endness)
-                    self.store(b, new_object, size=list(mo_lengths)[0], cooperate=True, page_addr=page_addr, memory=memory)
+                    self.store(b, new_object, size=list(mo_lengths)[0],
+                               cooperate=True, page_addr=page_addr, memory=memory)
                     merged_objects.add(new_object)
                 else:
                     # do the replacement
@@ -256,7 +257,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             else:
                 # get the size that we can merge easily. This is the minimum of
                 # the size of all memory objects and unallocated spaces.
-                min_size = min([mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects])
+                min_size = min(mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects)
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
                         if um._contains(b + i, page_addr):
