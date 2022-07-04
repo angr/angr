@@ -763,8 +763,11 @@ class State {
 		// Result of all memory reads executed. VEX statement ID -> memory read result
 		std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
 
-		// Address of all bytes to which symbolic value is written in this run
-		std::unordered_set<uint64_t> symbolic_mem_writes;
+		// Address of all bytes to which symbolic value is written in this run and number of writes to them
+		std::unordered_map<address_t, uint64_t> symbolic_mem_writes;
+
+		// Address of all bytes to which symbolic value is written by this block
+		std::unordered_set<address_t> block_symbolic_mem_writes;
 
 		// Address of concrete writes in block to re-execute. Value will be saved in commit by when write will be
 		// complete

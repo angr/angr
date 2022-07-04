@@ -261,26 +261,32 @@ void State::commit() {
 
 	// Remove instructions whose effects are overwritten by subsequent instructions from the re-execute list
 	for (auto &stmts_to_erase_entry: symbolic_stmts_to_erase) {
-		std::vector<std::vector<vex_stmt_details_t>::iterator> stmts_to_erase_it;
-		std::vector<std::unordered_map<address_t, uint64_t>::iterator> sym_mem_deps_to_erase;
 		auto block_it = blocks_with_symbolic_stmts.begin() + stmts_to_erase_entry.first;
 		auto first_stmt_it = block_it->symbolic_stmts.begin();
 		for (auto &stmt_offset: stmts_to_erase_entry.second) {
-			stmts_to_erase_it.push_back(first_stmt_it + stmt_offset);
-		}
-		for (auto &stmt_to_erase_it: stmts_to_erase_it) {
-			for (auto &sym_mem_dep: stmt_to_erase_it->symbolic_mem_deps) {
+			auto stmt_to_erase = first_stmt_it + stmt_offset;
+			for (auto &sym_mem_dep: stmt_to_erase->symbolic_mem_deps) {
 				auto elem = symbolic_mem_deps.find(sym_mem_dep);
 				elem->second--;
 				if (elem->second == 0) {
 					// No more statements to be re-executed require this symbolic memory dependency.
-					sym_mem_deps_to_erase.push_back(elem);
+					symbolic_mem_deps.erase(elem);
 				}
 			}
-			block_it->symbolic_stmts.erase(stmt_to_erase_it);
-		}
-		for (auto &sym_mem_dep: sym_mem_deps_to_erase) {
-			symbolic_mem_deps.erase(sym_mem_dep);
+			if (stmt_to_erase->has_memory_write && (stmt_to_erase->mem_write_addr != -1)) {
+				// Statement has a symbolic write that need not be tracked since it won't be re-executed
+				auto write_start_addr = stmt_to_erase->mem_write_addr;
+				auto write_end_addr = stmt_to_erase->mem_write_addr + stmt_to_erase->mem_write_size;
+				for (auto byte_addr = write_start_addr; byte_addr < write_end_addr; byte_addr++) {
+					auto elem = symbolic_mem_writes.find(byte_addr);
+					elem->second--;
+					if (elem->second == 0) {
+						// No more statements to be re-executed write symbolic to this address.
+						symbolic_mem_writes.erase(elem);
+					}
+				}
+			}
+			block_it->symbolic_stmts.erase(stmt_to_erase);
 		}
 	}
 	// Save details of symbolic instructions in current block
@@ -338,6 +344,16 @@ void State::commit() {
 		else {
 			// A previous concrete write to same address is marked for re-execution. Update its value.
 			reexec_write_entry->second = concrete_value;
+		}
+	}
+	// Update details of symbolic writes in the block
+	for (auto &write_addr: block_symbolic_mem_writes) {
+		auto elem = symbolic_mem_writes.find(write_addr);
+		if (elem == symbolic_mem_writes.end()) {
+			symbolic_mem_writes.emplace(write_addr, 1);
+		}
+		else {
+			elem->second++;
 		}
 	}
 	// Sync all block level taint statuses reads with state's taint statuses and block level
@@ -743,7 +759,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	if (is_dst_symbolic) {
 		// Track details of symbolic memory write. Remove any concrete writes to same location marked for re-execution.
 		for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
-			symbolic_mem_writes.emplace(byte_addr);
+			block_symbolic_mem_writes.emplace(byte_addr);
 			auto prev_write_reexec_entry = concrete_writes_to_reexecute.find(byte_addr);
 			if (prev_write_reexec_entry != concrete_writes_to_reexecute.end()) {
 				concrete_writes_to_reexecute.erase(prev_write_reexec_entry);
@@ -775,11 +791,6 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 				// The concrete write write overwrites a symbolic value that is needed during re-execution. Track
 				// details of concrete write for later re-execution
 				erase_previous_mem_write = false;
-				if (symbolic_mem_writes.count(symbolic_mem_dep.first) > 0) {
-					// This concrete write will be overwritten by a previous symbolic write during re-execution
-					// leading to a write-write conflict. Record address for re-executing concrete write later.
-					block_concrete_writes_to_reexecute.emplace(symbolic_mem_dep.first);
-				}
 			}
 		}
 		for (auto &symbolic_mem_dep: block_symbolic_mem_deps) {
@@ -787,11 +798,12 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 				// The concrete write write overwrites a symbolic value that is needed during re-execution. Track
 				// details of concrete write for later re-execution
 				erase_previous_mem_write = false;
-				if (symbolic_mem_writes.count(symbolic_mem_dep) > 0) {
-					// This concrete write will be overwritten by a previous symbolic write during re-execution
-					// leading to a write-write conflict. Record address for re-executing concrete write later.
-					block_concrete_writes_to_reexecute.emplace(symbolic_mem_dep);
-				}
+			}
+		}
+		// Check if there is a symbolic write to same location. If no, then there is no write to erase.
+		for (auto byte_addr = curr_write_start_addr; byte_addr <= curr_write_end_addr; byte_addr++) {
+			if ((symbolic_mem_writes.count(byte_addr) == 0) && (block_symbolic_mem_writes.count(byte_addr) == 0)) {
+				erase_previous_mem_write = false;
 			}
 		}
 		// The destination is not a memory dependency of some instruction to be re-executed. We now check if any
@@ -824,9 +836,13 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	}
 	if (!is_dst_symbolic) {
 		for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
-			// We are writing a concrete value to the same address as some concrete write to be reexecuted. Record
-			// address to later update concrete value to write.
 			if (concrete_writes_to_reexecute.find(byte_addr) != concrete_writes_to_reexecute.end()) {
+				// We are writing a concrete value to the same address as some concrete write to be reexecuted. Record
+				// address to later update concrete value to write.
+				block_concrete_writes_to_reexecute.emplace(byte_addr);
+			}
+			else if ((symbolic_mem_writes.count(byte_addr) > 0) || (block_symbolic_mem_writes.count(byte_addr) > 0)) {
+				// A previous symbolic write to same location will be re-executed and so re-execute concrete write.
 				block_concrete_writes_to_reexecute.emplace(byte_addr);
 			}
 		}
