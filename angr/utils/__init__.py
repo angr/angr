@@ -3,6 +3,7 @@ from .timing import timethis
 from . import graph
 from . import constants
 from . import enums_conv
+from . import lazy_import
 
 
 def looks_like_sql(s: str) -> bool:
