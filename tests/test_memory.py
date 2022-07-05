@@ -578,7 +578,7 @@ def test_light_memory():
 
 
 def test_crosspage_store():
-    for memcls in [UltraPageMemory, ListPageMemory, MVPageMemory, ]:
+    for memcls in [UltraPageMemory, ListPageMemory, ]:
         state = SimState(arch='x86', mode='symbolic', plugins={'memory': memcls()})
 
         state.regs.sp = 0xbaaafffc
