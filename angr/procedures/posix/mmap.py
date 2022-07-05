@@ -98,11 +98,13 @@ class mmap(angr.SimProcedure):
                 # This page is already mapped
 
                 if flags & MAP_FIXED:
-                    l.debug('... = -1 (MAP_FIXED failure)')
-                    return self.state.solver.BVV(-1, self.state.arch.bits)
-
-                # Can't give you that address. Find a different one and loop back around to try again.
-                addr = self.allocate_memory(size)
+                    l.debug("... discard the overlapping region (MAP_FIXED feature)")
+                    # TODO: actually implement the logic to allocate the rest
+                    l.debug('... = %#x', addr)
+                    break
+                else:
+                    # Can't give you that address. Find a different one and loop back around to try again.
+                    addr = self.allocate_memory(size)
 
         # If the mapping comes with a file descriptor
         if sim_fd:
