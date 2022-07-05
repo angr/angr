@@ -118,7 +118,7 @@ class mmap(angr.SimProcedure):
             # read data
             saved_pos = sim_fd.tell()
             sim_fd.seek(self.state.solver.eval(offset), whence="start")
-            data, _ = sim_fd.read_data(size)
+            data, _ = sim_fd.read_data(size, concrete=True)
             sim_fd.seek(saved_pos, whence="start")
             self.state.memory.store(addr, data)
 

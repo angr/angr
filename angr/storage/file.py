@@ -245,7 +245,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         kwargs['extra_constraints'] = tuple(kwargs.get('extra_constraints', ())) + (self._size == size,)
         return self.state.solver.eval(data, **kwargs)
 
-    def read(self, pos, size, **kwargs):
+    def read(self, pos, size, concrete=False, **kwargs):
         disable_actions = kwargs.pop('disable_actions', False)
         inspect = kwargs.pop('inspect', True)
 
@@ -261,14 +261,20 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         else:
             passed_max_size = self.state.solver.eval(size)
             if passed_max_size > 2**13:
-                l.warning("Program performing extremely large reads")
+                l.warning("Program performing extremely large reads of %d bytes", passed_max_size)
+
+        if concrete:
+            content = self.concrete_load(pos, passed_max_size, writing=True,
+                                         disable_actions=disable_actions, inspect=inspect)
+        else:
+            content = self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect)
 
         # Step 2.1: check for the possibility of EOFs
         # If it's not possible to EOF (because there's no EOF), this is very simple!
         if not self.has_end:
             # bump the storage size as we read
             self._size = self.state.solver.If(size + pos > self._size, size + pos, self._size)
-            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
+            return content, size, size + pos
 
         # Step 2.2: check harder for the possibility of EOFs
         # This is the size if we're reading to the end of the file
@@ -276,19 +282,18 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         distance_to_eof = self.state.solver.If(self.state.solver.SLE(distance_to_eof, 0), 0, distance_to_eof)
 
         # try to frontload some constraint solving to see if it's impossible for this read to EOF
+
         if self.state.solver.satisfiable(extra_constraints=(size > distance_to_eof,)):
             # it's possible to EOF
             # final size = min(passed_size, max(distance_to_eof, 0))
             real_size = self.state.solver.If(size >= distance_to_eof, distance_to_eof, size)
-
-            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), \
-                   real_size, real_size + pos
+            return content, real_size, real_size + pos
         else:
             # it's not possible to EOF
             # we don't need to constrain or min/max the output size because there are already constraints asserting
             # that the total filesize is pretty big
             # note: this assumes that constraints cannot be removed
-            return self.load(pos, passed_max_size, disable_actions=disable_actions, inspect=inspect), size, size + pos
+            return content, size, size + pos
 
     def write(self, pos, data, size=None, events=True, **kwargs):
         if events:
@@ -807,9 +812,9 @@ class SimFileDescriptor(SimFileDescriptorBase):
         self._pos = 0
         self.flags = flags
 
-    def read_data(self, size, **kwargs):
+    def read_data(self, size, concrete=False, **kwargs):
         size = self._prep_read(size)
-        data, realsize, self._pos = self.file.read(self._pos, size)
+        data, realsize, self._pos = self.file.read(self._pos, size, concrete=concrete)
         return data, realsize
 
     def write_data(self, data, size=None, **kwargs):
@@ -933,9 +938,9 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
         self._read_pos = 0
         self._write_pos = 0
 
-    def read_data(self, size, **kwargs):
+    def read_data(self, size, concrete=False, **kwargs):
         size = self._prep_read(size)
-        data, realsize, self._read_pos = self._read_file.read(self._read_pos, size)
+        data, realsize, self._read_pos = self._read_file.read(self._read_pos, size, concrete=concrete)
         return data, realsize
 
     def write_data(self, data, size=None, **kwargs):
