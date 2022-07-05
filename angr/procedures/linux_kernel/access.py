@@ -1,3 +1,4 @@
+#pylint:disable=arguments-differ,unused-argument,missing-class-docstring
 import angr
 
 ######################################
@@ -5,7 +6,6 @@ import angr
 ######################################
 
 class access(angr.SimProcedure):
-    #pylint:disable=arguments-differ,unused-argument
 
     def run(self, pathname, mode):
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
