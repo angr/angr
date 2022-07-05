@@ -461,6 +461,7 @@ class SimSystemPosix(SimStatePlugin):
                 raise SimPosixError("file %s does not exist on mount %s" % (guest_path, mount))
             size = stat.st_size
             mode = stat.st_mode
+            ino = stat.st_ino
         else:
             # now we know it is not mounted, do the same as before
             if not fd:
@@ -468,10 +469,11 @@ class SimSystemPosix(SimStatePlugin):
             else:
                 mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
             size = self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')) # st_size
+            ino = 0
 
         # return this weird bogus zero value to keep code paths in libc simple :\
         return Stat(self.state.solver.BVV(0, 64), # st_dev
-                    self.state.solver.BVV(0, 64), # st_ino
+                    self.state.solver.BVV(ino, 64), # st_ino
                     self.state.solver.BVV(0, 64), # st_nlink
                     mode, # st_mode
                     self.state.solver.BVV(0, 32), # st_uid (lol root)
