@@ -183,7 +183,7 @@ class PagedMemoryMixin(MemoryMixin):
             written_size = 0
 
             while written_size < sub_size:
-                sub_data, sub_data_base, sub_data_size = sub_gen.send(sub_size)
+                sub_data, sub_data_base, sub_data_size = sub_gen.send(sub_size - written_size)
                 # calculate the actual to write
                 if sub_data_base < pageno * self.page_size:
                     # if the memory object starts before the page, adjust the sub_data_size accordingly

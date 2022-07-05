@@ -206,8 +206,10 @@ class MemoryObjectSetMixin(CooperationBase):
             while pos < len(sorted_offsets):
                 mos = set(offset_to_mos[sorted_offsets[pos]])
                 first_mo = next(iter(mos))
-                cur_addr += size
+                old_size = size
+
                 size = yield mos, first_mo.base, first_mo.length
+                cur_addr += min(first_mo.length, old_size)
                 if sorted_offsets[pos] + first_mo.length <= cur_addr - addr - page_addr:
                     pos += 1
 

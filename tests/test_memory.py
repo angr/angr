@@ -1,5 +1,5 @@
+# pylint:disable=line-too-long,missing-class-docstring
 import time
-import os
 
 import claripy
 
@@ -615,6 +615,37 @@ def test_mv_crosspage_store():
         all_bytes = state.memory.load(4096 - 3, size = 9)
         assert state.solver.eval_one(all_bytes.one_value()) == (1337 << 40) | 13371337
 
+        data = {0: {claripy.BVS("TOP", 32), claripy.BVV(0x56495254, 32)},
+                4: {claripy.BVV(47, 8), claripy.BVV(85, 8)},
+                5: {claripy.BVS("TOP", 32), claripy.BVV(0x414c5f53, 32)},
+                9: {claripy.BVV(69, 8), claripy.BVV(47, 8)},
+                10: {claripy.BVV(0x52564552, 32), claripy.BVV(0x56495254, 32), claripy.BVS("TOP", 32), claripy.BVV(0x63757272, 32)},
+                14: {claripy.BVV(101, 8), claripy.BVV(47, 8), claripy.BVV(46, 8), claripy.BVV(85, 8)},
+                15: {claripy.BVV(0x656e74, 24), claripy.BVV(0x6e7400, 24), claripy.BVV(0x414c5f, 24), claripy.BVS("TOP", 24)},
+                18: {claripy.BVV(114, 8), claripy.BVS("TOP", 8), claripy.BVV(83, 8), claripy.BVV(47, 8)},
+                19: {claripy.BVV(0x45525645, 32), claripy.BVS("TOP", 32), claripy.BVV(0x2e747278, 32), claripy.BVV(0x795b2564, 32)},
+                23: {claripy.BVV(46, 8), claripy.BVV(82, 8), claripy.BVV(0, 8), claripy.BVV(93, 8)},
+                24: {claripy.BVV(0x74727800, 32), claripy.BVV(0x2e69705b, 32), claripy.BVV(0x2e656e74, 32)},
+                28: {claripy.BVV(0x72795b25645d2e69705b25645d2e636f75, 136), claripy.BVV(0x25645d2e636f756e74203d2025643b0a00, 136)},
+                45: {claripy.BVV(110, 8), claripy.BVV(47, 8)},
+                46: {claripy.BVV(0x74203d20, 32), claripy.BVS("TOP", 32)},
+                50: {claripy.BVV(37, 8), claripy.BVV(47, 8)},
+                51: {claripy.BVS("TOP", 32), claripy.BVV(0x56495254, 32),
+                     claripy.BVV(0x63757272, 32), claripy.BVV(0x643b0a00, 32)},
+                55: {claripy.BVV(101, 8), claripy.BVV(85, 8), claripy.BVV(47, 8)},
+                56: {claripy.BVV(0x6e7400, 24), claripy.BVV(0x414c5f, 24), claripy.BVS("TOP", 24)},
+                59: {claripy.BVS("TOP", 8)},
+                60: {claripy.BVV(0x45525645, 32), claripy.BVS("TOP", 32), claripy.BVV(0x2e747278, 32)},
+                64: {claripy.BVV(46, 8), claripy.BVV(82, 8), claripy.BVV(0, 8)},
+                65: {claripy.BVV(0x74727800, 32), claripy.BVV(0x2e656e74, 32)},
+                69: {claripy.BVV(0x72795b25645d2e69705b25645d2e636f756e74203d2025643b0a00, 216)},
+                96: {claripy.BVV(47, 8)},
+                97: {claripy.BVS("TOP", 32)},
+                101: {claripy.BVV(0x2e74727800, 40)},
+                }
+        mv = MultiValues(offset_to_values=data)
+        state.memory.store(0x7ffeff9c, mv)  # should not crash
+
 
 def test_crosspage_read():
     state = SimState(arch='ARM')
@@ -839,7 +870,7 @@ def test_conditional_concretization():
 
     cond = state.solver.BoolS('cond')
     addr = state.solver.BVS('addr', 32)
-    
+
     state.memory.store(addr, 0x12345678, size=4, condition=cond, endness=state.arch.memory_endness)
     val = state.memory.load(addr, size=4, condition=cond, endness=state.arch.memory_endness)
     assert set(state.solver.eval_upto(cond, 2)) == {True, False}
