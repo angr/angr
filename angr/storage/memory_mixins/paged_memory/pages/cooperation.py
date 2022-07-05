@@ -1,5 +1,5 @@
 import claripy
-from typing import List, Tuple, Set, Dict, Union, Optional
+from typing import List, Tuple, Set, Dict, Union, Optional, Any
 
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .multi_values import MultiValues
@@ -18,10 +18,11 @@ class CooperationBase:
         pass
 
     @classmethod
-    def _decompose_objects(cls, addr, data, endness, **kwargs):
+    def _decompose_objects(cls, addr, data, endness, **kwargs) -> Tuple[Any,int,int]:
         """
         A bidirectional generator. No idea if this is overengineered. Usage is that you send it a size to use
-        and it yields an object to store for the next n bytes.
+        and it yields a tuple of three elements: the object to store for the next n bytes, the base address of the
+        object, and the size of the object.
         """
         pass
 
@@ -40,7 +41,7 @@ class CooperationBase:
             sub_gen = cls._zero_objects(addr, size, **kwargs)
 
         next(sub_gen)
-        sub_data, _ = sub_gen.send(size)
+        sub_data, _, _ = sub_gen.send(size)
         sub_gen.close()
         return sub_data
 
@@ -107,7 +108,7 @@ class MemoryObjectMixin(CooperationBase):
         size = yield
         while True:
             cur_addr += size
-            size = yield memory_object, memory_object.length
+            size = yield memory_object, memory_object.base, memory_object.length
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):
@@ -204,10 +205,10 @@ class MemoryObjectSetMixin(CooperationBase):
             pos = 0
             while pos < len(sorted_offsets):
                 mos = set(offset_to_mos[sorted_offsets[pos]])
-                mo_length = next(iter(mos)).length
+                first_mo = next(iter(mos))
                 cur_addr += size
-                size = yield mos, mo_length
-                if sorted_offsets[pos] + mo_length <= cur_addr - addr - page_addr:
+                size = yield mos, first_mo.base, first_mo.length
+                if sorted_offsets[pos] + first_mo.length <= cur_addr - addr - page_addr:
                     pos += 1
 
         else:
@@ -220,7 +221,7 @@ class MemoryObjectSetMixin(CooperationBase):
                                              label=label)
             _ = yield
             while True:
-                _ = yield { obj }, obj.length
+                _ = yield { obj }, obj.base, obj.length
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):
@@ -247,15 +248,16 @@ class BasicClaripyCooperation(CooperationBase):
             offset = 0
             while True:
                 data_slice = data.get_bytes(offset, size)
+                data_slide_base = addr + offset
                 offset += size
-                size = yield data_slice, data_slice.length
+                size = yield data_slice, data_slide_base, data_slice.length
         else:
             size = yield
             offset = len(data) // (memory.state.arch.byte_width if memory is not None else 8)
             while True:
                 offset -= size
                 data_slice = data.get_bytes(offset, size)
-                size = yield data_slice, data_slice.length
+                size = yield data_slice, addr + offset, data_slice.length
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):

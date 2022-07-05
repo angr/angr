@@ -10,14 +10,15 @@ from angr.storage.memory_mixins import (
     UltraPagesMixin,
     ListPagesMixin,
     PagedMemoryMixin,
-)
-from angr.storage.memory_mixins import (
     MultiValuedMemory,
+    MVListPagesMixin,
 )
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr import SimState, SIM_PROCEDURES
 from angr import options as o
 from angr.state_plugins import SimSystemPosix, SimLightRegisters
 from angr.storage.file import SimFile
+
 
 class UltraPageMemory(
     DataNormalizationMixin,
@@ -28,6 +29,7 @@ class UltraPageMemory(
 ):
     pass
 
+
 class ListPageMemory(
     DataNormalizationMixin,
     SizeNormalizationMixin,
@@ -36,6 +38,16 @@ class ListPageMemory(
     PagedMemoryMixin,
 ):
     pass
+
+
+class MVPageMemory(
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    MVListPagesMixin,
+    PagedMemoryMixin,
+):
+    pass
+
 
 def test_copy():
     s = SimState(arch="AMD64", mode="symbolic")
@@ -566,7 +578,7 @@ def test_light_memory():
 
 
 def test_crosspage_store():
-    for memcls in [UltraPageMemory, ListPageMemory]:
+    for memcls in [UltraPageMemory, ListPageMemory, MVPageMemory, ]:
         state = SimState(arch='x86', mode='symbolic', plugins={'memory': memcls()})
 
         state.regs.sp = 0xbaaafffc
@@ -582,6 +594,26 @@ def test_crosspage_store():
 
         state.memory.store(state.regs.sp, symbol, endness='Iend_LE')
         assert state.memory.load(state.regs.sp, 8) is symbol.reversed
+
+
+def test_mv_crosspage_store():
+    for memcls in [MVPageMemory, ]:
+        state = SimState(arch='x86', mode='symbolic', plugins={'memory': memcls()})
+
+        mv = MultiValues(offset_to_values={0: {claripy.BVV(1337, 32)}, 4: {claripy.BVV(13371337, 8 * 5)}})
+        state.memory.store(4096 - 3, mv)
+
+        first_three_bytes = state.memory.load(4096 - 3, size=3)
+        assert state.solver.eval_one(first_three_bytes.one_value()) == 1337 >> 8
+
+        next_one_byte = state.memory.load(4096, size=1)
+        assert state.solver.eval_one(next_one_byte.one_value()) == 1337 & 0xff
+
+        first_four_bytes = state.memory.load(4096 - 3, size=4)
+        assert state.solver.eval_one(first_four_bytes.one_value()) == 1337
+
+        all_bytes = state.memory.load(4096 - 3, size = 9)
+        assert state.solver.eval_one(all_bytes.one_value()) == (1337 << 40) | 13371337
 
 
 def test_crosspage_read():
@@ -820,6 +852,7 @@ if __name__ == '__main__':
     test_address_wrap()
     test_concrete_load()
     test_crosspage_store()
+    test_mv_crosspage_store()
     test_crosspage_read()
     test_fast_memory()
     test_light_memory()
