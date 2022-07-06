@@ -1173,7 +1173,7 @@ class SimStruct(NamedTypeMixin, SimType):
     def alignment(self):
         if self._align is not None:
             return self._align
-        return max(val.alignment for val in self.fields.values() if not isinstance(val, SimTypeBottom))
+        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.fields.values())
 
     def _refine_dir(self):
         return list(self.fields.keys())
@@ -2901,14 +2901,17 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             fields = OrderedDict()
 
         # Don't forget that "type[]" has a different meaning in structures than in functions
-        if len(fields) > 0 and isinstance(fields[next(reversed(fields))], SimTypeArray):
-            raise NotImplementedError("Sorry, we have no support of flexible array members")
+        for field, ty in fields.items():
+            if isinstance(ty, SimTypeArray):
+                fields[field] = SimTypeFixedSizeArray(ty.elem_type, 0)
 
         if decl.name is not None:
             key = 'struct ' + decl.name
             struct = extra_types.get(key, None)
+            from_global = False
             if struct is None:
                 struct = ALL_TYPES.get(key, None)
+                from_global = True
                 if struct is not None:
                     struct = struct.with_arch(arch)
 
@@ -2918,7 +2921,11 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             elif not struct.fields:
                 struct.fields = fields
             elif fields and struct.fields != fields:
-                raise ValueError("Redefining body of " + key)
+                if from_global:
+                    struct = SimStruct(fields, decl.name)
+                    struct._arch = arch
+                else:
+                    raise ValueError("Redefining body of " + key)
 
             extra_types[key] = struct
         else:
