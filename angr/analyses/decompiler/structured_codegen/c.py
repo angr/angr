@@ -971,15 +971,16 @@ class CGoto(CStatement):
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield "/* ", None
+        if self.codegen.comment_gotos:
+            yield "/* ", None
         yield "goto ", self
         yield from self.target.c_repr_chunks()
         yield ";", self
-        yield " */", None
+        if self.codegen.comment_gotos:
+            yield " */", None
         yield "\n", self
 
 
@@ -1801,8 +1802,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
-                 flavor=None, stmt_comments=None, expr_comments=None, show_externs=True, externs=None,
-                 const_formats=None):
+                 comment_gotos=True, flavor=None, stmt_comments=None, expr_comments=None, show_externs=True,
+                 externs=None, const_formats=None):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1854,6 +1855,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cnode2ailexpr: Optional[Dict[CExpression,Expr.Expression]] = None
         self._indent = indent
         self.show_casts = show_casts
+        self.comment_gotos = comment_gotos
         self.braces_on_own_lines = braces_on_own_lines
         self.use_compound_assignments = use_compound_assignments
         self.show_local_types = show_local_types
@@ -1882,6 +1884,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.braces_on_own_lines = value
             elif option.param == 'show_casts':
                 self.show_casts = value
+            elif option.param == 'comment_gotos':
+                self.comment_gotos = value
             elif option.param == 'use_compound_assignments':
                 self.use_compound_assignments = value
             elif option.param == 'show_local_types':
