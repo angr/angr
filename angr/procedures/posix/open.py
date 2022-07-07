@@ -1,3 +1,4 @@
+import copy
 import angr
 
 ######################################
@@ -7,7 +8,15 @@ import angr
 class open(angr.SimProcedure): #pylint:disable=W0622
     #pylint:disable=arguments-differ,unused-argument
 
-    def run(self, p_addr, flags, mode):
+    # enormous, catastrophically bad hack
+    def execute(self, *args, **kwargs):
+        if self.prototype is not None and len(self.prototype.args) == 3:
+            self.prototype = copy.copy(self.prototype)
+            self.prototype.args = self.prototype.args[:2]
+
+        return super().execute(*args, **kwargs)
+
+    def run(self, p_addr, flags):
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
         p_strlen = self.inline_call(strlen, p_addr)
