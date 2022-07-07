@@ -223,21 +223,17 @@ class PagedMemoryMixin(MemoryMixin):
             for changed_page, changed_offsets in self.changed_pages(o).items():
                 if changed_offsets is None:
                     changed_pages_and_offsets[changed_page] = None
+                elif changed_page not in changed_pages_and_offsets: # changed_offsets is a set of offsets (ints)
+                    # update our dict
+                    changed_pages_and_offsets[changed_page] = changed_offsets
+                elif changed_pages_and_offsets[changed_page] is None: # changed_page in our dict
+                    # in at least one `other` memory can we not determine the changed offsets
+                    # do nothing
+                    pass
                 else:
-                    # changed_offsets is a set of offsets (ints)
-                    if changed_page not in changed_pages_and_offsets:
-                        # update our dict
-                        changed_pages_and_offsets[changed_page] = changed_offsets
-                    else:
-                        # changed_page in our dict
-                        if changed_pages_and_offsets[changed_page] is None:
-                            # in at least one `other` memory can we not determine the changed offsets
-                            # do nothing
-                            pass
-                        else:
-                            # union changed_offsets with known ones
-                            changed_pages_and_offsets[changed_page] = \
-                                changed_pages_and_offsets[changed_page].union(changed_offsets)
+                    # union changed_offsets with known ones
+                    changed_pages_and_offsets[changed_page] = \
+                        changed_pages_and_offsets[changed_page].union(changed_offsets)
 
         if merge_conditions is None:
             merge_conditions = [None] * (len(list(others)) + 1)
