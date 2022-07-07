@@ -280,7 +280,7 @@ def run_similarity(binpath, depth, prehook=None):
             so.TRACK_MEMORY_MAPPING,
             so.COMPOSITE_SOLVER,
         },
-        right_add_options={so.INITIALIZE_ZERO_REGISTERS},
+        right_add_options={so.ZERO_FILL_UNCONSTRAINED_REGISTERS, so.ZERO_FILL_UNCONSTRAINED_MEMORY},
         right_remove_options={
             so.LAZY_SOLVES,
             so.TRACK_MEMORY_MAPPING,
