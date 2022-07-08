@@ -7,6 +7,7 @@
 
 import logging
 from typing import Union, Optional, Iterable, Sequence, Tuple
+import copy
 
 import archinfo
 from archinfo import ArchARM
@@ -246,15 +247,55 @@ class IRSB:
         return self._exit_statements
 
     def copy(self) -> "IRSB":
-        raise NotImplementedError()
-
-    def extend(self, extendwith: "IRSB") -> None:
         """
-        Appends an irsb to the current irsb. The irsb that is appended is invalidated. The appended irsb's jumpkind and
-        default exit are used.
+        Copy by creating an empty IRSB and then filling in the leftover
+        attributes. Copy is made as deep as possible
+        """
+        new = IRSB.empty_block(
+            arch = self.arch,
+            addr = self.addr,
+        )
+
+        new._set_attributes(
+            nxt = self.next,
+            jumpkind = self.jumpkind,
+            direct_next = self.direct_next,
+                # deepcopy call to 'pickle' fails.
+                # shallow copy should work since _instructions shouldn't mutate
+            instructions = copy.copy(self._instructions),
+            # statements = None, #unused
+            # instruction_addresses = None # computed
+            # tyenv = None # unused
+            # exit_statements = None # currently unused
+            # default_exit_target = None # currently unused
+            # size = None # computed
+        )
+
+        return new
+
+    def extend(self, extendwith: "IRSB") -> "IRSB":
+        """
+        Appends an irsb to the current irsb. The irsb that is appended is invalidated.
+        The appended irsb's jumpkind and default exit are used.
         :param extendwith: The IRSB to append to this IRSB
         """
-        raise NotImplementedError()
+        # see _set_attributes call in 'copy' def for notes on other attributes
+        self._set_attributes(
+            nxt = extendwith.next,
+            jumpkind = extendwith.jumpkind,
+            direct_next = extendwith.direct_next,
+            instructions = copy.copy(self._instructions),
+        )
+
+        # append instructions if new
+        addrs = self.instruction_addresses
+        newinsns = list(filter(lambda insn: insn.address not in addrs, extendwith._instructions))
+        self._instructions.extend(newinsns)
+
+        # reset disassem. now disassem will be recomputed if irsb.disassembly is called
+        self._disassembly = None
+
+        return self
 
     def invalidate_direct_next(self) -> None:
         self._direct_next = None
@@ -396,7 +437,7 @@ class IRSB:
         return self.default_exit_target is not None
 
     def _set_attributes(
-        self,
+        self: "IRSB",
         statements: Iterable = None,
         nxt: Optional[int] = None,
         tyenv = None, # Unused, kept for compatibility
