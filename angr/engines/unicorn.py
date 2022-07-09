@@ -100,6 +100,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         # Save breakpoints for restoring later
         saved_mem_read_breakpoints = copy.copy(self.state.inspect._breakpoints["mem_read"])
+        saved_mem_write_breakpoints = copy.copy(self.state.inspect._breakpoints["mem_write"])
         for reg_name, reg_value in block_details["registers"]:
             self.state.registers.store(reg_name, reg_value, inspect=False, disable_actions=True)
 
@@ -110,6 +111,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                 # Insert breakpoint to set the correct memory read address
                 self.state.inspect.b('mem_read', when=BP_BEFORE, action=self._set_correct_mem_read_addr)
 
+            self.state.inspect.b('mem_write', when=BP_AFTER, action=self._save_mem_write_addrs)
             execute_default_exit = True
             # Execute handler from HeavyVEXMixin for the statement
             vex_stmt = vex_block.statements[stmt_entry['stmt_idx']]
@@ -122,6 +124,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
             # Restore breakpoints
             self.state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
+            self.state.inspect._breakpoints["mem_write"] = copy.copy(saved_mem_write_breakpoints)
             del self._instr_mem_reads
 
         if execute_default_exit and block_details["has_symbolic_exit"]:
@@ -139,6 +142,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         recent_bbl_addrs = None
         stop_details = None
 
+        self._instr_mem_write_addrs = set()  # pylint:disable=attribute-defined-outside-init
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_vex_stmts():
             self.state.scratch.guard = self.state.solver.true
             try:
@@ -226,6 +230,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             except SimValueError as e:
                 l.error(e)
 
+        del self._instr_mem_write_addrs
 
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
@@ -256,7 +261,11 @@ class SimEngineUnicorn(SuccessorsMixin):
                 mem_read_address = next_val["address"]
 
             if next_val["symbolic"]:
-                mem_read_taint_map.append(1)
+                if next_val["address"] in self._instr_mem_write_addrs:
+                    # This address was modified during re-execution. Ignore taint reported by native interface
+                    mem_read_taint_map.append(-1)
+                else:
+                    mem_read_taint_map.append(1)
             else:
                 mem_read_taint_map.append(0)
 
@@ -265,13 +274,14 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         assert state.inspect.mem_read_length == mem_read_size
         state.inspect.mem_read_address = state.solver.BVV(mem_read_address, state.inspect.mem_read_address.size())
-        # Since read is (partially) concrete, insert breakpoint to return the correct concrete value
-        self.state.inspect.b('mem_read', mem_read_address=mem_read_address, when=BP_AFTER,
-                             action=functools.partial(self._set_correct_mem_read_val, value=mem_read_val,
-                             taint_map=mem_read_taint_map))
+        if mem_read_taint_map.count(-1) != mem_read_size:
+            # Since read is might need bitmap adjustment, insert breakpoint to return the correct concrete value
+            self.state.inspect.b('mem_read', mem_read_address=mem_read_address, when=BP_AFTER,
+                                 action=functools.partial(self._set_correct_mem_read_val, value=mem_read_val,
+                                 taint_map=mem_read_taint_map))
 
     def _set_correct_mem_read_val(self, state, value, taint_map):  # pylint: disable=no-self-use
-        if taint_map.count(1) == 0:
+        if taint_map.count(0) == state.inspect.mem_read_length:
             # The value is completely concrete
             if state.arch.memory_endness == archinfo.Endness.LE:
                 state.inspect.mem_read_expr = state.solver.BVV(value[::-1])
@@ -286,7 +296,9 @@ class SimEngineUnicorn(SuccessorsMixin):
             for offset, taint in enumerate(taint_map):
                 page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
                 saved_taints.append(state.memory._pages[page_num].symbolic_bitmap[page_off])
-                state.memory._pages[page_num].symbolic_bitmap[page_off] = taint
+                if taint != -1:
+                    # Current taint may not be correct so update it.
+                    state.memory._pages[page_num].symbolic_bitmap[page_off] = taint
 
             # Perform memory read
             state.inspect.mem_read_expr = state.memory.load(mem_read_address, mem_read_length,
@@ -297,6 +309,10 @@ class SimEngineUnicorn(SuccessorsMixin):
             for offset, saved_taint in enumerate(saved_taints):
                 page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
                 state.memory._pages[page_num].symbolic_bitmap[page_off] = saved_taint
+
+    def _save_mem_write_addrs(self, state):
+        mem_write_addr = state.solver.eval(state.inspect.mem_write_address)
+        self._instr_mem_write_addrs.update(range(mem_write_addr, mem_write_addr + state.inspect.mem_write_length))
 
     def process_successors(self, successors, **kwargs):
         state = self.state
