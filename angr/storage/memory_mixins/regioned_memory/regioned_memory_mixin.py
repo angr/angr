@@ -405,8 +405,11 @@ class RegionedMemoryMixin(MemoryMixin):
                 # Convert it to a ValueSet first by annotating it
                 addr_e = addr_e.annotate(RegionAnnotation('global', 0, addr_e._model_vsa))
 
-            for region, offset in addr_e._model_vsa.items():
-                yield region, offset
-
+            model_vsa = addr_e._model_vsa
+            if isinstance(model_vsa, ValueSet):
+                for region, offset in model_vsa.items():
+                    yield region, offset
+            else:
+                raise SimAbstractMemoryError('Cannot parse address as a VSA ValueSet')
         else:
             raise SimAbstractMemoryError('Unsupported address type %s' % type(addr_e))
