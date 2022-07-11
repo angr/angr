@@ -124,8 +124,6 @@ def test_stops():
     )
     pg_segfault = p.factory.simulation_manager(s_segfault).run()
     p_segfault = pg_segfault.errored[0].state
-    # TODO: fix the permissions segfault to commit if it's a MEM_FETCH
-    # this will extend the last simunicorn one more block
     _compare_trace(
         p_segfault.history.descriptions,
         [

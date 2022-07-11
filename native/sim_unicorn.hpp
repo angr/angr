@@ -821,7 +821,7 @@ class State {
 		/*
 		* commit all memory actions.
 		*/
-		void commit();
+		void commit(uint64_t address);
 
 		/*
 		 * undo recent memory actions.
