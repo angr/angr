@@ -124,6 +124,8 @@ def test_stops():
     )
     pg_segfault = p.factory.simulation_manager(s_segfault).run()
     p_segfault = pg_segfault.errored[0].state
+    # TODO: fix the permissions segfault to commit if it's a MEM_FETCH
+    # this will extend the last simunicorn one more block
     _compare_trace(
         p_segfault.history.descriptions,
         [
@@ -278,7 +280,7 @@ def run_similarity(binpath, depth, prehook=None):
             so.TRACK_MEMORY_MAPPING,
             so.COMPOSITE_SOLVER,
         },
-        right_add_options={so.ZERO_FILL_UNCONSTRAINED_REGISTERS, so.ZERO_FILL_UNCONSTRAINED_MEMORY},
+        right_add_options={so.ZERO_FILL_UNCONSTRAINED_REGISTERS},
         right_remove_options={
             so.LAZY_SOLVES,
             so.TRACK_MEMORY_MAPPING,
