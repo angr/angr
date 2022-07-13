@@ -121,12 +121,14 @@ uc_err State::start(address_t pc, uint64_t step) {
 	}
 
 	uc_err out = uc_emu_start(uc, unicorn_next_instr_addr, 0, 0, 0);
+	if (stop_details.stop_reason != STOP_NOSTART) {
+        rollback();
+	}
+
 	if (out == UC_ERR_OK && stop_details.stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
 		// handle edge case where we stop because we reached our bogus stop address (0)
-		commit(0);
 		stop_details.stop_reason = STOP_ZEROPAGE;
 	}
-	rollback();
 
 	if (out == UC_ERR_INSN_INVALID) {
 		stop_details.stop_reason = STOP_NODECODE;
