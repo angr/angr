@@ -4,6 +4,8 @@ import types
 from collections import defaultdict
 from typing import List, Tuple, DefaultDict
 import logging
+import traceback
+import pathlib
 
 import claripy
 import mulpyplexer
@@ -435,6 +437,18 @@ class SimulationManager:
             if self._hierarchy:
                 self._hierarchy.unreachable_state(state)
                 self._hierarchy.simplify()
+
+        except claripy.ClaripySolverInterruptError as e:
+            l.warning("Adding a state to the 'interrupted' stash. If you pressed ctrl-c you may want to press it again.")
+            for frame, line in reversed(list(traceback.walk_tb(e.__traceback__))):
+                module = frame.f_globals.get('__name__', '').split('.')
+                function = frame.f_code.co_name
+                lineno = frame.f_lineno
+                if module[0] == 'claripy' or module in (['angr', 'state_plugins', 'solver'], ['angr', 'state_plugins', 'sim_action_object']):
+                    continue
+                state.history.add_event("interrupt", module=module, function=function, lineno=lineno)
+                break
+            stashes = {'interrupted': [state]}
 
         except tuple(self._resilience) as e:
             self._errored.append(ErrorRecord(state, e, sys.exc_info()[2]))
