@@ -18,26 +18,32 @@ import claripy
 # The more sane approach
 #
 
+OP_ATTRS_PATTERN = re.compile(
+    r'^Iop_'
+    r'(?P<generic_name>\D+?)??'
+    r'(?P<from_type>[IFDV])??'
+    r'(?P<from_signed>[US])??'
+    r'(?P<from_size>\d+)??'
+    r'(?P<from_signed_back>[US])??'
+    # this screws up CmpLE: r'(?P<e_flag>E)??'
+    r'('
+    r'(?P<from_side>HL|HI|L|LO|lo)??'
+    r'(?P<conversion>to|as)'
+    r'(?P<to_type>Int|I|F|D|V)??'
+    r'(?P<to_size>\d+)??'
+    r'(?P<to_signed>[US])??'
+    r')??'
+    # special logic for SetV128lo32/64
+    r'('
+    r'(?P<set_side>lo)'
+    r'(?P<set_size>\d+)'
+    r')??'
+    r'(?P<vector_info>\d+U?S?F?0?x\d+)??'
+    r'(?P<rounding_mode>_R([ZPNM]))?$')
+
 
 def op_attrs(p):
-    m = re.match(r'^Iop_'
-                 r'(?P<generic_name>\D+?)??'
-                 r'(?P<from_type>[IFDV])??'
-                 r'(?P<from_signed>[US])??'
-                 r'(?P<from_size>\d+)??'
-                 r'(?P<from_signed_back>[US])??'
-                 # this screws up CmpLE: r'(?P<e_flag>E)??' \
-                 r'('
-                 r'(?P<from_side>HL|HI|L|LO)??'
-                 r'(?P<conversion>to|as)'
-                 r'(?P<to_type>Int|I|F|D|V)??'
-                 r'(?P<to_size>\d+)??'
-                 r'(?P<to_signed>[US])??'
-                 r')??'
-                 r'(?P<vector_info>\d+U?S?F?0?x\d+)??'
-                 r'(?P<rounding_mode>_R([ZPNM]))?$',
-                 p
-                 )
+    m = OP_ATTRS_PATTERN.match(p)
 
     if not m:
         return None
@@ -182,11 +188,17 @@ class SimIROp:
     """
     A symbolic version of a Vex IR operation.
     """
+
+    __slots__ = ('name', 'op_attrs', '_generic_name', '_from_size', '_from_side', '_from_type', '_from_signed',
+                 '_to_size', '_to_type', '_to_signed', '_set_side', '_set_size', '_conversion', '_vector_size',
+                 '_vector_signed', '_vector_type', '_vector_zero', '_vector_count', '_rounding_mode', '_output_type',
+                 '_output_size_bits', '_float', '_calculate', )
+
     def __init__(self, name, **attrs):
         self.name = name
         self.op_attrs = attrs
 
-        self._generic_name = None
+        self._generic_name: str = None
         self._from_size = None
         self._from_side = None
         self._from_type = None
@@ -194,6 +206,8 @@ class SimIROp:
         self._to_size = None
         self._to_type = None
         self._to_signed = None
+        self._set_side = None
+        self._set_size = None
         self._conversion = None
         self._vector_size = None
         self._vector_signed = None
@@ -217,7 +231,6 @@ class SimIROp:
         size_check = self._to_size is None or (self._to_size*2 if self._generic_name == 'DivMod' else self._to_size) == self._output_size_bits
         if not size_check:
             raise SimOperationError("VEX output size doesn't match detected output size")
-
 
         #
         # Some categorization
@@ -1103,6 +1116,19 @@ class SimIROp:
         vec_0 = args[0].chop(self._vector_size)
         vec_1 = args[1].chop(self._vector_size)
         return claripy.Concat(*(vec_0[::2] + vec_1[::2]))
+
+    def _op_generic_Set(self, args):
+        if self._set_side != "lo":
+            raise NotImplementedError(f"Unsupported set_side {self._set_side}")
+        if self._set_size in {32, 64}:
+            if self._set_size != args[1].size():
+                raise SimOperationError(f"Unexpected args[1] size {args[1].size()}")
+            v = claripy.Concat(
+                args[0][args[0].size() - 1 : self._set_size],
+                args[1]
+            )
+            return v
+        raise NotImplementedError(f"Unsupported set_size {self._set_size}")
 
 
     #def _op_Iop_Yl2xF64(self, args):
