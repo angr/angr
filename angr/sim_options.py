@@ -112,6 +112,7 @@ CONSTRAINT_TRACKING_IN_SOLVER = "CONSTRAINT_TRACKING_IN_SOLVER"
 
 # this is an internal option to automatically track dependencies in SimProcedures
 AUTO_REFS = "AUTO_REFS"
+ADD_AUTO_REFS = "ADD_AUTO_REFS"
 
 # Whether we should track dependencies in SimActions
 # If none of the ref options above exist, this option does nothing

@@ -28,7 +28,7 @@ class ProcedureMixin:
         if procedure.is_syscall:
             state._inspect('syscall', BP_BEFORE, syscall_name=procedure.display_name)
 
-        cleanup_options = o.AUTO_REFS not in state.options
+        cleanup_options = o.AUTO_REFS not in state.options and o.ADD_AUTO_REFS in state.options
         if cleanup_options:
             state.options.add(o.AST_DEPS)
             state.options.add(o.AUTO_REFS)
