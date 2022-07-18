@@ -115,7 +115,7 @@ class RootCauseAnalysis(Analysis):
             # cannot determine
             return None
 
-        if len(self.expression_source[expr]) == 1:
+        if isinstance(self.expression_source[expr], int):
             # this is a memory address
             return "config_var", ("unknown", self.expression_source[expr], "int", 4)
 
