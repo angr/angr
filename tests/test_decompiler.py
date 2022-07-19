@@ -948,10 +948,12 @@ class TestDecompiler(unittest.TestCase):
         dw = d.codegen.cfunc.statements.statements[1]
         assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
         stmts = dw.body.statements
-        assert len(stmts) == 3
-        assert stmts[0].lhs.unified_variable == stmts[2].rhs.operand.unified_variable
-        assert stmts[1].lhs.unified_variable == stmts[2].lhs.operand.unified_variable
-        assert dw.condition.lhs.expr.operand.unified_variable == stmts[1].lhs.unified_variable
+        assert len(stmts) == 5
+        assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
+        assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
+        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
+        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
+        assert dw.condition.lhs.expr.operand.variable == stmts[2].lhs.variable
 
     def test_decompiling_nl_i386_pie(self):
         bin_path = os.path.join(test_location, "i386", "nl")
