@@ -148,10 +148,8 @@ class STOP:
     STOP_UNSUPPORTED_STMT_UNKNOWN = 25
     STOP_UNSUPPORTED_EXPR_UNKNOWN = 26
     STOP_UNKNOWN_MEMORY_WRITE_SIZE = 27
-    STOP_SYMBOLIC_MEM_DEP_NOT_LIVE = 28
-    STOP_SYSCALL_ARM    = 29
-    STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK = 30
-    STOP_X86_CPUID = 31
+    STOP_SYSCALL_ARM    = 28
+    STOP_X86_CPUID      = 29
 
     stop_message = {}
     stop_message[STOP_NORMAL]        = "Reached maximum steps"
@@ -183,16 +181,12 @@ class STOP:
     stop_message[STOP_UNSUPPORTED_STMT_UNKNOWN]= "Canoo propagate symbolic taint for unsupported VEX statement type"
     stop_message[STOP_UNSUPPORTED_EXPR_UNKNOWN]= "Cannot propagate symbolic taint for unsupported VEX expression"
     stop_message[STOP_UNKNOWN_MEMORY_WRITE_SIZE] = "Unicorn failed to determine size of memory write"
-    stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE] = "A symbolic memory dependency on stack is no longer in scope"
     stop_message[STOP_SYSCALL_ARM]   = "ARM syscalls are currently not supported by SimEngineUnicorn"
-    stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK] = ("An instruction in current block overwrites a symbolic "
-                                                               "value needed for re-executing some instruction in same "
-                                                               "block")
     stop_message[STOP_X86_CPUID] = "Block executes cpuid which should be handled in VEX engine"
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR, STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
         STOP_SYMBOLIC_WRITE_ADDR, STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET, STOP_SYSCALL_ARM,
-        STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK, STOP_X86_CPUID]
+        STOP_X86_CPUID]
 
     unsupported_reasons = [STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
         STOP_UNSUPPORTED_STMT_CAS, STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY,
@@ -1333,7 +1327,7 @@ class Unicorn(SimStatePlugin):
             for address, value in zip(write_addrs, write_values):
                 state.memory.store(address, value, 1)
 
-        if unicorn_obj.stop_reason in {STOP.STOP_NORMAL, STOP.STOP_SYSCALL, STOP.STOP_SYMBOLIC_MEM_DEP_NOT_LIVE}:
+        if unicorn_obj.stop_reason in {STOP.STOP_NORMAL, STOP.STOP_SYSCALL}:
             unicorn_obj.countdown_nonunicorn_blocks = 0
         elif unicorn_obj.stop_reason == STOP.STOP_STOPPOINT:
             unicorn_obj.countdown_nonunicorn_blocks = 0
