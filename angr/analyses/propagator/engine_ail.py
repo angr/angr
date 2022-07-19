@@ -339,6 +339,7 @@ class SimEnginePropagatorAIL(
         addr = self._expr(expr.addr)
 
         addr_expr = addr.one_expr
+        var_defat = None
 
         if addr_expr is not None:
             if isinstance(addr_expr, Expr.StackBaseOffset) and not isinstance(expr.addr, Expr.StackBaseOffset):
@@ -350,6 +351,7 @@ class SimEnginePropagatorAIL(
                 # Stack variable.
                 var = self.state.load_stack_variable(sp_offset, expr.size, endness=expr.endness)
                 if var is not None:
+                    var_defat = var.one_defat
                     # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
                     # replacing stack variables, unless this is in the middle of a call statement.
                     if self.state._inside_call_stmt:
@@ -369,7 +371,8 @@ class SimEnginePropagatorAIL(
         else:
             new_expr = expr
         prop_value = PropValue.from_value_and_details(
-            self.state.top(expr.size * self.arch.byte_width), expr.size, new_expr, self._codeloc()
+            self.state.top(expr.size * self.arch.byte_width), expr.size, new_expr,
+            self._codeloc() if var_defat is None else var_defat
         )
         return prop_value
 
@@ -855,6 +858,12 @@ class SimEnginePropagatorAIL(
                               avoid: Optional[Expr.Expression]=None) -> bool:
 
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
+
+        # re-evaluate the expr to get its latest definition
+        if isinstance(expr, Expr.Load):
+            v = self._expr(expr)
+            if v.one_defat is not None and v.one_defat != self._codeloc() and v.one_defat != expr_defat:
+                return True
 
         walker = OutdatedDefinitionWalker(expr, expr_defat, self.state, avoid=avoid)
         walker.walk_expression(expr)
