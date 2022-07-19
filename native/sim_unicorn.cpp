@@ -2019,7 +2019,7 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 				return;
 			}
 		}
-		if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
+		if ((sink_taint_status == TAINT_STATUS_SYMBOLIC) || (addr_taint_status == TAINT_STATUS_SYMBOLIC)) {
 			// Save the memory location written to be marked as symbolic in write hook
 			block_mem_writes_taint_data.emplace_back(taint_sink.instr_addr, true, taint_sink.value_size);
 			// Mark instruction as needing symbolic execution
