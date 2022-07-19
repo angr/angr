@@ -13,6 +13,8 @@ from angr.analyses import (
     CFGFast,
     Decompiler,
 )
+from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.Logger(__name__)
 
@@ -749,6 +751,39 @@ class TestDecompiler(unittest.TestCase):
         code = code.replace(" ", "").replace("\n", "")
         assert "{}" not in code, "Found empty code blocks in decompilation output. This may indicate some " \
                                  "assignments are incorrectly removed."
+
+    def test_decompiling_amp_challenge03_arm_expr_swapping(self):
+        bin_path = os.path.join(test_location, "armhf", "decompiler", "challenge_03")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
+        func = cfg.functions['main']
+
+        binop_operators = {
+            OpDescriptor(0x400a1d, 0, 0x400a27, "CmpGT"): "CmpLE"
+        }
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, binop_operators=binop_operators)
+        assert dec.codegen is not None, "Failed to decompile function %r." % func
+        self._print_decompilation_result(dec)
+        code = dec.codegen.text
+
+        # make sure there are no empty code blocks
+        lines = [ line.strip(" ") for line in code.split("\n") ]
+        #   v25 = select(v27, &stack_base-200, NULL, NULL, &v19);
+        select_var = None
+        select_line = None
+        for idx, line in enumerate(lines):
+            m = re.search(r"(v\d+) = select\(v", line)
+            if m is not None:
+                select_line = idx
+                select_var = m.group(1)
+                break
+
+        assert select_var, "Failed to find the variable that stores the result from select()"
+        #   if (0 <= v25)
+        next_line = lines[select_line + 1]
+        assert next_line.startswith(f"if (0 <= {select_var})")
 
     def test_decompiling_fauxware_mipsel(self):
         bin_path = os.path.join(test_location, "mipsel", "fauxware")

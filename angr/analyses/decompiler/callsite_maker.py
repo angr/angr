@@ -135,7 +135,7 @@ class CallSiteMaker(Analysis):
                         new_stmts = new_stmts[:-1]
 
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
-        # simplification steps in the future, which may decide to remove statements that stores arguments on the stack.
+        # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
         if stack_arg_locs:
             sp_offset = self._stack_pointer_tracker.offset_before(last_stmt.ins_addr, self.project.arch.sp_offset)
             if sp_offset is None:

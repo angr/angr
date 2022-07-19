@@ -58,7 +58,7 @@ class ExpressionReplacer(AILBlockWalker):
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
                      block: Optional['AILBlock']) -> Any:
         if expr == self._target_expr:
-            new_expr = self._callback(self._block_addr, expr)
+            new_expr = self._callback(self._block_addr, stmt_idx, stmt.ins_addr, expr)
             return new_expr
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -93,12 +93,12 @@ class ITEExprConverter(OptimizationPass):
                         block_walker = ExpressionReplacer(block_addr, expr, self._convert_expr)
                         block_walker.walk(block)
 
-    def _convert_expr(self, block_addr: int, atom: Expression) -> Optional[Expression]:
+    def _convert_expr(self, block_addr: int, stmt_idx: int, ins_addr: int, atom: Expression) -> Optional[Expression]:
         rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(subject=self._func, func_graph=self._graph)
 
         # find the corresponding definition
         defs = [ ]
-        loc = CodeLocation(block_addr, 0)
+        loc = CodeLocation(block_addr, stmt_idx, ins_addr=ins_addr)
         for def_, expr in rda.all_uses.get_uses_by_location(loc, exprs=True):
             if expr == atom:
                 defs.append(def_)

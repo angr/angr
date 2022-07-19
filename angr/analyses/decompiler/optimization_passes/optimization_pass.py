@@ -26,30 +26,20 @@ class OptimizationPassStage(Enum):
     AFTER_GLOBAL_SIMPLIFICATION = 1
     AFTER_VARIABLE_RECOVERY = 2
     DURING_REGION_IDENTIFICATION = 3
+    AFTER_STRUCTURING = 4
 
 
-class OptimizationPass:
+class BaseOptimizationPass:
     """
-    The base class for any function-level graph optimization pass.
+    The base class for any optimization pass.
     """
 
     ARCHES = [ ]  # strings of supported architectures
     PLATFORMS = [ ]  # strings of supported platforms. Can be one of the following: "win32", "linux"
     STAGE: int = None  # Specifies when this optimization pass should be executed
 
-    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, variable_kb=None,
-                 region_identifier=None, reaching_definitions=None, **kwargs):  # pylint:disable=unused-argument
+    def __init__(self, func):
         self._func: 'Function' = func
-        # self._blocks is just a cache
-        self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
-        self._blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = blocks_by_addr_and_idx
-        self._graph = graph  # type: Optional[networkx.DiGraph]
-        self._variable_kb = variable_kb
-        self._ri = region_identifier
-        self._rd = reaching_definitions
-
-        # output
-        self.out_graph = None  # type: Optional[networkx.DiGraph]
 
     @property
     def project(self):
@@ -58,14 +48,6 @@ class OptimizationPass:
     @property
     def kb(self):
         return self.project.kb
-
-    @property
-    def blocks_by_addr(self) -> Dict[int,Set[ailment.Block]]:
-        return self._blocks_by_addr
-
-    @property
-    def blocks_by_addr_and_idx(self) -> Dict[Tuple[int,Optional[int]],ailment.Block]:
-        return self._blocks_by_addr_and_idx
 
     def analyze(self):
 
@@ -91,6 +73,34 @@ class OptimizationPass:
         :returns: None
         """
         raise NotImplementedError()
+
+
+class OptimizationPass(BaseOptimizationPass):
+    """
+    The base class for any function-level graph optimization pass.
+    """
+
+    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, variable_kb=None,
+                 region_identifier=None, reaching_definitions=None, **kwargs):  # pylint:disable=unused-argument
+        super().__init__(func)
+        # self._blocks is just a cache
+        self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
+        self._blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = blocks_by_addr_and_idx
+        self._graph = graph  # type: Optional[networkx.DiGraph]
+        self._variable_kb = variable_kb
+        self._ri = region_identifier
+        self._rd = reaching_definitions
+
+        # output
+        self.out_graph = None  # type: Optional[networkx.DiGraph]
+
+    @property
+    def blocks_by_addr(self) -> Dict[int,Set[ailment.Block]]:
+        return self._blocks_by_addr
+
+    @property
+    def blocks_by_addr_and_idx(self) -> Dict[Tuple[int,Optional[int]],ailment.Block]:
+        return self._blocks_by_addr_and_idx
 
     #
     # Util methods
@@ -171,3 +181,15 @@ class OptimizationPass:
     @staticmethod
     def _is_sub(expr):
         return isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Sub"
+
+
+class SequenceOptimizationPass(BaseOptimizationPass):
+
+    ARCHES = [ ]  # strings of supported architectures
+    PLATFORMS = [ ]  # strings of supported platforms. Can be one of the following: "win32", "linux"
+    STAGE: int = None  # Specifies when this optimization pass should be executed
+
+    def __init__(self, func, seq=None, **kwargs):
+        super().__init__(func)
+        self.seq = seq
+        self.out_seq = None
