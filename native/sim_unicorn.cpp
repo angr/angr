@@ -181,7 +181,7 @@ void State::stop(stop_t reason, bool do_commit) {
 			sym_stmt.stmt_idx = stmt.stmt_idx;
 			sym_stmt.memory_values = stmt.memory_values;
 			sym_stmt.memory_values_count = stmt.memory_values_count;
-			sym_stmt.has_memory_dep = stmt.has_concrete_memory_dep;
+			sym_stmt.has_memory_dep = stmt.has_concrete_memory_dep || stmt.has_symbolic_memory_dep;
 			sym_block.symbolic_stmts.emplace_back(sym_stmt);
 		}
 		block_details_to_return.emplace_back(sym_block);
@@ -261,26 +261,32 @@ void State::commit() {
 
 	// Remove instructions whose effects are overwritten by subsequent instructions from the re-execute list
 	for (auto &stmts_to_erase_entry: symbolic_stmts_to_erase) {
-		std::vector<std::vector<vex_stmt_details_t>::iterator> stmts_to_erase_it;
-		std::vector<std::unordered_map<address_t, std::pair<uint64_t, uint64_t>>::iterator> sym_mem_deps_to_erase;
 		auto block_it = blocks_with_symbolic_stmts.begin() + stmts_to_erase_entry.first;
 		auto first_stmt_it = block_it->symbolic_stmts.begin();
 		for (auto &stmt_offset: stmts_to_erase_entry.second) {
-			stmts_to_erase_it.push_back(first_stmt_it + stmt_offset);
-		}
-		for (auto &stmt_to_erase_it: stmts_to_erase_it) {
-			for (auto &sym_mem_dep: stmt_to_erase_it->symbolic_mem_deps) {
-				auto elem = symbolic_mem_deps.find(sym_mem_dep.first);
-				assert(elem->second.first == sym_mem_dep.second);
-				elem->second.second--;
-				if (elem->second.second == 0) {
-					sym_mem_deps_to_erase.push_back(elem);
+			auto stmt_to_erase = first_stmt_it + stmt_offset;
+			for (auto &sym_mem_dep: stmt_to_erase->symbolic_mem_deps) {
+				auto elem = symbolic_mem_deps.find(sym_mem_dep);
+				elem->second--;
+				if (elem->second == 0) {
+					// No more statements to be re-executed require this symbolic memory dependency.
+					symbolic_mem_deps.erase(elem);
 				}
 			}
-			block_it->symbolic_stmts.erase(stmt_to_erase_it);
-		}
-		for (auto &sym_mem_dep: sym_mem_deps_to_erase) {
-			symbolic_mem_deps.erase(sym_mem_dep);
+			if (stmt_to_erase->has_memory_write && (stmt_to_erase->mem_write_addr != -1)) {
+				// Statement has a symbolic write that need not be tracked since it won't be re-executed
+				auto write_start_addr = stmt_to_erase->mem_write_addr;
+				auto write_end_addr = stmt_to_erase->mem_write_addr + stmt_to_erase->mem_write_size;
+				for (auto byte_addr = write_start_addr; byte_addr < write_end_addr; byte_addr++) {
+					auto elem = symbolic_mem_writes.find(byte_addr);
+					elem->second--;
+					if (elem->second == 0) {
+						// No more statements to be re-executed write symbolic to this address.
+						symbolic_mem_writes.erase(elem);
+					}
+				}
+			}
+			block_it->symbolic_stmts.erase(stmt_to_erase);
 		}
 	}
 	// Save details of symbolic instructions in current block
@@ -291,17 +297,13 @@ void State::commit() {
 			if (symbolic_stmt.has_symbolic_memory_dep) {
 				for (auto &mem_value: block_mem_reads_map.at(symbolic_stmt.stmt_idx).memory_values) {
 					if (mem_value.is_value_symbolic) {
+						symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address);
 						auto elem = symbolic_mem_deps.find(mem_value.address);
 						if (elem == symbolic_mem_deps.end()) {
-							symbolic_mem_deps.emplace(mem_value.address, std::make_pair(mem_value.size, 1));
-							symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address, mem_value.size);
+							symbolic_mem_deps.emplace(mem_value.address, 1);
 						}
 						else {
-							if (elem->second.first < mem_value.size) {
-								elem->second.first = mem_value.size;
-							}
-							symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address, elem->second.first);
-							elem->second.second++;
+							elem->second++;
 						}
 					}
 				}
@@ -310,17 +312,13 @@ void State::commit() {
 				if (dep_stmt.has_symbolic_memory_dep) {
 					for (auto &mem_value: block_mem_reads_map.at(dep_stmt.stmt_idx).memory_values) {
 						if (mem_value.is_value_symbolic) {
+							symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address);
 							auto elem = symbolic_mem_deps.find(mem_value.address);
 							if (elem == symbolic_mem_deps.end()) {
-								symbolic_mem_deps.emplace(mem_value.address, std::make_pair(mem_value.size, 1));
-								symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address, mem_value.size);
+								symbolic_mem_deps.emplace(mem_value.address, 1);
 							}
 							else {
-								if (elem->second.first < mem_value.size) {
-									elem->second.first = mem_value.size;
-								}
-								symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address, elem->second.first);
-								elem->second.second++;
+								elem->second++;
 							}
 						}
 					}
@@ -333,6 +331,30 @@ void State::commit() {
 	}
 	if (curr_block_details.block_addr == trace_last_block_addr) {
 		trace_last_block_curr_count += 1;
+	}
+	// Update details of concrete writes to re-execute
+	for (auto &write_addr: block_concrete_writes_to_reexecute) {
+		uint8_t concrete_value;
+		uc_mem_read(uc, write_addr, &concrete_value, 1);
+		auto reexec_write_entry = concrete_writes_to_reexecute.find(write_addr);
+		if (reexec_write_entry == concrete_writes_to_reexecute.end()) {
+			// This is a new concrete write that needs to be re-executed
+			concrete_writes_to_reexecute.emplace(write_addr, concrete_value);
+		}
+		else {
+			// A previous concrete write to same address is marked for re-execution. Update its value.
+			reexec_write_entry->second = concrete_value;
+		}
+	}
+	// Update details of symbolic writes in the block
+	for (auto &write_addr: block_symbolic_mem_writes) {
+		auto elem = symbolic_mem_writes.find(write_addr);
+		if (elem == symbolic_mem_writes.end()) {
+			symbolic_mem_writes.emplace(write_addr, 1);
+		}
+		else {
+			elem->second++;
+		}
 	}
 	// Sync all block level taint statuses reads with state's taint statuses and block level
 	// symbolic instruction list with state's symbolic instruction list
@@ -347,6 +369,7 @@ void State::commit() {
 	block_concrete_registers.clear();
 	block_stmt_concrete_regs.clear();
 	block_symbolic_mem_deps.clear();
+	block_concrete_writes_to_reexecute.clear();
 	curr_block_details.reset();
 	block_mem_reads_data.clear();
 	block_mem_reads_map.clear();
@@ -733,66 +756,94 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 			}
 		}
 	}
-	if (is_dst_symbolic && !is_interrupt) {
-		// Save the details of memory location written to in the statement details
-		for (auto &symbolic_stmt: curr_block_details.symbolic_stmts) {
-			if ((symbolic_stmt.instr_addr == curr_instr_addr) && symbolic_stmt.has_memory_write) {
-				symbolic_stmt.mem_write_addr = address;
-				symbolic_stmt.mem_write_size = size;
-				break;
+	if (is_dst_symbolic) {
+		// Track details of symbolic memory write. Remove any concrete writes to same location marked for re-execution.
+		for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
+			block_symbolic_mem_writes.emplace(byte_addr);
+			auto prev_write_reexec_entry = concrete_writes_to_reexecute.find(byte_addr);
+			if (prev_write_reexec_entry != concrete_writes_to_reexecute.end()) {
+				concrete_writes_to_reexecute.erase(prev_write_reexec_entry);
+			}
+			auto curr_block_write_reexec_entry = block_concrete_writes_to_reexecute.find(byte_addr);
+			if (curr_block_write_reexec_entry != block_concrete_writes_to_reexecute.end()) {
+				block_concrete_writes_to_reexecute.erase(curr_block_write_reexec_entry);
+			}
+		}
+		if (!is_interrupt) {
+			// Save the details of memory location written to in the statement details
+			for (auto &symbolic_stmt: curr_block_details.symbolic_stmts) {
+				if ((symbolic_stmt.instr_addr == curr_instr_addr) && symbolic_stmt.has_memory_write) {
+					symbolic_stmt.mem_write_addr = address;
+					symbolic_stmt.mem_write_size = size;
+					break;
+				}
 			}
 		}
 	}
 	if ((find_tainted(address, size) != -1) & (!is_dst_symbolic)) {
 		// We are writing to a memory location that is currently symbolic. If the destination if a memory dependency
 		// of some instruction to be re-executed, we need to re-execute that instruction before continuing.
-		auto write_start_addr = address;
-		auto write_end_addr = address + size;
+		auto curr_write_start_addr = address;
+		auto curr_write_end_addr = address + size - 1;
+		bool erase_previous_mem_write = true;
 		for (auto &symbolic_mem_dep: symbolic_mem_deps) {
-			auto symbolic_start_addr = symbolic_mem_dep.first;
-			auto symbolic_end_addr = symbolic_start_addr + symbolic_mem_dep.second.first;
-			if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
-				// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
-				// will be lost. Stop execution.
-				stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
-				return;
+			if ((curr_write_start_addr <= symbolic_mem_dep.first) && (symbolic_mem_dep.first <= curr_write_end_addr)) {
+				// The concrete write write overwrites a symbolic value that is needed during re-execution. Track
+				// details of concrete write for later re-execution
+				erase_previous_mem_write = false;
 			}
 		}
 		for (auto &symbolic_mem_dep: block_symbolic_mem_deps) {
-			auto symbolic_start_addr = symbolic_mem_dep.first;
-			auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
-			if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
-				// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
-				// will be lost. Stop execution.
-				stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK);
-				return;
+			if ((curr_write_start_addr <= symbolic_mem_dep) && (symbolic_mem_dep <= curr_write_end_addr)) {
+				// The concrete write write overwrites a symbolic value that is needed during re-execution. Track
+				// details of concrete write for later re-execution
+				erase_previous_mem_write = false;
+			}
+		}
+		// Check if there is a symbolic write to same location. If no, then there is no write to erase.
+		for (auto byte_addr = curr_write_start_addr; byte_addr <= curr_write_end_addr; byte_addr++) {
+			if ((symbolic_mem_writes.count(byte_addr) == 0) && (block_symbolic_mem_writes.count(byte_addr) == 0)) {
+				erase_previous_mem_write = false;
 			}
 		}
 		// The destination is not a memory dependency of some instruction to be re-executed. We now check if any
 		// instructions to be re-executed write to this same location. If there is one, they need not be re-executed
 		// since this concrete write nullifies their effects.
-		auto curr_write_start_addr = address;
-		auto curr_write_end_addr = address + size;
-		auto first_block_it = blocks_with_symbolic_stmts.begin();
-		for (auto block_it = first_block_it; block_it != blocks_with_symbolic_stmts.end(); block_it++) {
-			std::unordered_set<uint32_t> stmts_to_erase;
-			auto first_stmt_it = block_it->symbolic_stmts.begin();
-			for (auto sym_stmt_it = first_stmt_it; sym_stmt_it != block_it->symbolic_stmts.end(); sym_stmt_it++) {
-				int64_t symbolic_write_start_addr = sym_stmt_it->mem_write_addr;
-				if (symbolic_write_start_addr == -1) {
-					// Instruction does not write a symbolic write to memory. No need to check this.
-					continue;
+		if (erase_previous_mem_write) {
+			auto first_block_it = blocks_with_symbolic_stmts.begin();
+			for (auto block_it = first_block_it; block_it != blocks_with_symbolic_stmts.end(); block_it++) {
+				std::unordered_set<uint32_t> stmts_to_erase;
+				auto first_stmt_it = block_it->symbolic_stmts.begin();
+				for (auto sym_stmt_it = first_stmt_it; sym_stmt_it != block_it->symbolic_stmts.end(); sym_stmt_it++) {
+					int64_t symbolic_write_start_addr = sym_stmt_it->mem_write_addr;
+					if (symbolic_write_start_addr == -1) {
+						// Instruction does not write a symbolic write to memory. No need to check this.
+						continue;
+					}
+					int64_t symbolic_write_end_addr = sym_stmt_it->mem_write_addr + sym_stmt_it->mem_write_size;
+					if ((curr_write_start_addr <= symbolic_write_start_addr) && (symbolic_write_end_addr <= curr_write_end_addr)) {
+						// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
+						// instruction need not be re-executed
+						// TODO: How to handle partial overwrite?
+						stmts_to_erase.emplace(sym_stmt_it - first_stmt_it);
+					}
 				}
-				int64_t symbolic_write_end_addr = sym_stmt_it->mem_write_addr + sym_stmt_it->mem_write_size;
-				if ((curr_write_start_addr <= symbolic_write_start_addr) && (symbolic_write_end_addr <= curr_write_end_addr)) {
-					// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
-					// instruction need not be re-executed
-					// TODO: How to handle partial overwrite?
-					stmts_to_erase.emplace(sym_stmt_it - first_stmt_it);
+				if (stmts_to_erase.size() > 0) {
+					symbolic_stmts_to_erase.emplace(block_it - first_block_it, stmts_to_erase);
 				}
 			}
-			if (stmts_to_erase.size() > 0) {
-				symbolic_stmts_to_erase.emplace(block_it - first_block_it, stmts_to_erase);
+		}
+	}
+	if (!is_dst_symbolic) {
+		for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
+			if (concrete_writes_to_reexecute.find(byte_addr) != concrete_writes_to_reexecute.end()) {
+				// We are writing a concrete value to the same address as some concrete write to be reexecuted. Record
+				// address to later update concrete value to write.
+				block_concrete_writes_to_reexecute.emplace(byte_addr);
+			}
+			else if ((symbolic_mem_writes.count(byte_addr) > 0) || (block_symbolic_mem_writes.count(byte_addr) > 0)) {
+				// A previous symbolic write to same location will be re-executed and so re-execute concrete write.
+				block_concrete_writes_to_reexecute.emplace(byte_addr);
 			}
 		}
 	}
@@ -1732,13 +1783,14 @@ void State::propagate_taints() {
 }
 
 void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size) {
-	memory_value_t memory_read_value;
+	std::vector<memory_value_t> memory_read_values;
 	address_t curr_instr_addr;
 	int64_t curr_stmt_idx;
+	bool is_mem_read_symbolic;
 
-	auto tainted = find_tainted(read_address, read_size);
+	is_mem_read_symbolic = (find_tainted(read_address, read_size) != -1);
 	if (is_symbolic_tracking_disabled()) {
-		if (tainted != -1) {
+		if (is_mem_read_symbolic) {
 			// Symbolic register tracking is disabled but memory location has symbolic data.
 			// We switch to VEX engine then.
 			stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
@@ -1749,24 +1801,26 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	}
 
 	// Save info about the memory read
-	memory_read_value.reset();
-	memory_read_value.address = read_address;
-	memory_read_value.size = read_size;
-	if (tainted != -1) {
-		memory_read_value.is_value_symbolic = true;
-	}
-	else {
-		memory_read_value.is_value_symbolic = false;
-		read_memory_value(read_address, read_size, memory_read_value.value, MAX_MEM_ACCESS_SIZE);
+	for (auto i = 0; i < read_size; i++) {
+		memory_value_t memory_value;
+		memory_value.address = read_address + i;
+		if (find_tainted(read_address + i, 1) != -1) {
+			memory_value.is_value_symbolic = true;
+		}
+		else {
+			memory_value.is_value_symbolic = false;
+			uc_mem_read(uc, memory_value.address, &memory_value.value, 1);
+		}
+		memory_read_values.emplace_back(memory_value);
 	}
 
-	if (!memory_read_value.is_value_symbolic && !symbolic_read_in_progress && (symbolic_registers.size() == 0) &&
+	if (!is_mem_read_symbolic && !symbolic_read_in_progress && (symbolic_registers.size() == 0) &&
 	    (block_symbolic_registers.size() == 0) && (block_symbolic_temps.size() == 0)) {
 		// The value read from memory is concrete and there are no symbolic registers or VEX temps. No need to propagate
 		// taint. Since we cannot rely on the unicorn engine to find out current instruction correctly, we simply save
 		// the memory read value in a list for now and rebuild the map later if needed using instruction info from VEX
 		// block
-		block_mem_reads_data.emplace_back(memory_read_value);
+		block_mem_reads_data.insert(block_mem_reads_data.end(), memory_read_values.begin(), memory_read_values.end());
 		return;
 	}
 
@@ -1777,7 +1831,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		curr_block_details.vex_lift_result = lift_block(curr_block_details.block_addr, curr_block_details.block_size);
 		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0)) {
 			// Failed to lift block to VEX.
-			if (memory_read_value.is_value_symbolic) {
+			if (is_mem_read_symbolic) {
 				// Since we are processing VEX block for the first time, there are no symbolic registers/VEX temps.
 				// Thus, it is sufficient to check if the value read from memory is symbolic.
 				stop(STOP_VEX_LIFT_FAILED);
@@ -1810,7 +1864,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 						auto &next_mem_read = block_mem_reads_data.front();
 						mem_read_result.memory_values.emplace_back(next_mem_read);
 						mem_read_result.is_mem_read_symbolic |= next_mem_read.is_value_symbolic;
-						mem_read_result.read_size += next_mem_read.size;
+						mem_read_result.read_size += 1;
 						block_mem_reads_data.erase(block_mem_reads_data.begin());
 						if (mem_read_result.read_size == vex_stmt_taint_entry_it->second.mem_read_size) {
 							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx, mem_read_result);
@@ -1855,15 +1909,15 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	auto mem_reads_map_entry = block_mem_reads_map.find(curr_stmt_idx);
 	if (mem_reads_map_entry == block_mem_reads_map.end()) {
 		mem_read_result_t mem_read_result;
-		mem_read_result.memory_values.emplace_back(memory_read_value);
-		mem_read_result.is_mem_read_symbolic = memory_read_value.is_value_symbolic;
+		mem_read_result.memory_values = memory_read_values;
+		mem_read_result.is_mem_read_symbolic = is_mem_read_symbolic;
 		mem_read_result.read_size = read_size;
 		block_mem_reads_map.emplace(curr_stmt_idx, mem_read_result);
 	}
 	else {
 		auto &mem_read_entry = block_mem_reads_map.at(curr_stmt_idx);
-		mem_read_entry.memory_values.emplace_back(memory_read_value);
-		mem_read_entry.is_mem_read_symbolic |= memory_read_value.is_value_symbolic;
+		mem_read_entry.memory_values.insert(mem_read_entry.memory_values.end(), memory_read_values.begin(), memory_read_values.end());
+		mem_read_entry.is_mem_read_symbolic |= is_mem_read_symbolic;
 		mem_read_entry.read_size += read_size;
 	}
 
@@ -1965,7 +2019,7 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 				return;
 			}
 		}
-		if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
+		if ((sink_taint_status == TAINT_STATUS_SYMBOLIC) || (addr_taint_status == TAINT_STATUS_SYMBOLIC)) {
 			// Save the memory location written to be marked as symbolic in write hook
 			block_mem_writes_taint_data.emplace_back(taint_sink.instr_addr, true, taint_sink.value_size);
 			// Mark instruction as needing symbolic execution
@@ -2056,13 +2110,7 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 		if (vex_stmt_details.has_symbolic_memory_dep) {
 			for (auto &mem_value: block_mem_reads_map.at(taint_sink.stmt_idx).memory_values) {
 				if (mem_value.is_value_symbolic) {
-					auto elem = block_symbolic_mem_deps.find(mem_value.address);
-					if (elem == block_symbolic_mem_deps.end()) {
-						block_symbolic_mem_deps.emplace(mem_value.address, mem_value.size);
-					}
-					else if (elem->second < mem_value.size) {
-						elem->second = mem_value.size;
-					}
+					block_symbolic_mem_deps.emplace(mem_value.address);
 				}
 			}
 		}
@@ -2093,12 +2141,6 @@ vex_stmt_details_t State::compute_vex_stmt_details(const vex_stmt_taint_entry_t 
 		stmt_details.has_symbolic_memory_dep = false;
 	}
 	return stmt_details;
-}
-
-void State::read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const {
-	memset(result, 0, result_size);
-	uc_mem_read(uc, address, result, size);
-	return;
 }
 
 void State::start_propagating_taint() {
@@ -2201,7 +2243,7 @@ void State::save_concrete_memory_deps(vex_stmt_details_t &vex_stmt_det) {
 	}
 	while (!vex_stmts_to_process.empty()) {
 		auto &curr_stmt = vex_stmts_to_process.front();
-		if (curr_stmt->has_concrete_memory_dep) {
+		if ((curr_stmt->has_concrete_memory_dep) || (curr_stmt->has_symbolic_memory_dep && !curr_stmt->has_read_from_symbolic_addr)) {
 			archived_memory_values.emplace_back(block_mem_reads_map.at(curr_stmt->stmt_idx).memory_values);
 			curr_stmt->memory_values = &(archived_memory_values.back()[0]);
 			curr_stmt->memory_values_count = archived_memory_values.back().size();
@@ -2224,32 +2266,6 @@ bool State::is_block_next_target_symbolic() const {
 	auto& block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
 	auto block_next_target_taint_status = get_final_taint_status(block_taint_entry.block_next_entities);
 	return (block_next_target_taint_status != TAINT_STATUS_CONCRETE);
-}
-
-bool State::check_symbolic_stack_mem_dependencies_liveness() const {
-	// Stop concrete execution if a stack frame was deallocated and if any symbolic memory dependencies were present
-	// on that stack frame.
-	address_t curr_stack_top_addr = get_stack_pointer();
-	if (curr_stack_top_addr <= prev_stack_top_addr) {
-		// No change in stack frame and so no need to perform a liveness check.
-		// TODO: What is stack growth direction is different?
-		return true;
-	}
-	for (auto &symbolic_mem_dep: symbolic_mem_deps) {
-		if ((curr_stack_top_addr > symbolic_mem_dep.first) && (symbolic_mem_dep.first > prev_stack_top_addr)) {
-			// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
-			// and could be overwritten by future code. We stop concrete execution here to avoid that.
-			return false;
-		}
-	}
-	for (auto &symbolic_mem_dep: block_symbolic_mem_deps) {
-		if ((curr_stack_top_addr > symbolic_mem_dep.first) && (symbolic_mem_dep.first > prev_stack_top_addr)) {
-			// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
-			// and could be overwritten by future code. We stop concrete execution here to avoid that.
-			return false;
-		}
-	}
-	return true;
 }
 
 void State::set_curr_block_details(address_t block_address, int32_t block_size) {
@@ -2617,12 +2633,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	if (!state->check_symbolic_stack_mem_dependencies_liveness()) {
-		state->stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE, true);
-		return;
-	}
 	state->commit();
-	state->update_previous_stack_top();
 	state->set_curr_block_details(address, size);
 	state->step(address, size);
 
@@ -2990,3 +3001,20 @@ void simunicorn_get_details_of_blocks_with_symbolic_vex_stmts(State *state, sym_
 	}
 	return;
 }
+
+// Concrete writes to re-execute
+extern "C"
+uint64_t simunicorn_get_count_of_writes_to_reexecute(State *state) {
+	return state->concrete_writes_to_reexecute.size();
+}
+
+extern "C"
+void simunicorn_get_concrete_writes_to_reexecute(State *state, uint64_t *addrs, uint8_t *values) {
+	uint64_t count = 0;
+	for (auto &entry: state->concrete_writes_to_reexecute) {
+		addrs[count] = entry.first;
+		values[count] = entry.second;
+		count++;
+	}
+	return;
+ }

@@ -42,3 +42,5 @@ EXPORTS
   simunicorn_set_fd_bytes
   simunicorn_set_random_syscall_data
   simunicorn_set_vex_cc_reg_data
+  simunicorn_get_count_of_writes_to_reexecute
+  simunicorn_get_concrete_writes_to_reexecute

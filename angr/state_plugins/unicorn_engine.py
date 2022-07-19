@@ -71,8 +71,7 @@ class MemoryValue(ctypes.Structure):
 
     _fields_ = [
         ('address', ctypes.c_uint64),
-        ('value', ctypes.c_uint8 * _MAX_MEM_ACCESS_SIZE),
-        ('size', ctypes.c_uint64),
+        ('value', ctypes.c_uint8),
         ('is_value_symbolic', ctypes.c_bool)
     ]
 
@@ -149,10 +148,8 @@ class STOP:
     STOP_UNSUPPORTED_STMT_UNKNOWN = 25
     STOP_UNSUPPORTED_EXPR_UNKNOWN = 26
     STOP_UNKNOWN_MEMORY_WRITE_SIZE = 27
-    STOP_SYMBOLIC_MEM_DEP_NOT_LIVE = 28
-    STOP_SYSCALL_ARM    = 29
-    STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK = 30
-    STOP_X86_CPUID = 31
+    STOP_SYSCALL_ARM    = 28
+    STOP_X86_CPUID      = 29
 
     stop_message = {}
     stop_message[STOP_NORMAL]        = "Reached maximum steps"
@@ -184,16 +181,12 @@ class STOP:
     stop_message[STOP_UNSUPPORTED_STMT_UNKNOWN]= "Canoo propagate symbolic taint for unsupported VEX statement type"
     stop_message[STOP_UNSUPPORTED_EXPR_UNKNOWN]= "Cannot propagate symbolic taint for unsupported VEX expression"
     stop_message[STOP_UNKNOWN_MEMORY_WRITE_SIZE] = "Unicorn failed to determine size of memory write"
-    stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE] = "A symbolic memory dependency on stack is no longer in scope"
     stop_message[STOP_SYSCALL_ARM]   = "ARM syscalls are currently not supported by SimEngineUnicorn"
-    stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK] = ("An instruction in current block overwrites a symbolic "
-                                                               "value needed for re-executing some instruction in same "
-                                                               "block")
     stop_message[STOP_X86_CPUID] = "Block executes cpuid which should be handled in VEX engine"
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR, STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
         STOP_SYMBOLIC_WRITE_ADDR, STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET, STOP_SYSCALL_ARM,
-        STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK, STOP_X86_CPUID]
+        STOP_X86_CPUID]
 
     unsupported_reasons = [STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
         STOP_UNSUPPORTED_STMT_CAS, STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY,
@@ -455,6 +448,9 @@ def _load_native():
                          ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_vex_cc_reg_data', None, state_t, ctypes.POINTER(ctypes.c_uint64),
                          ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'get_count_of_writes_to_reexecute', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'get_concrete_writes_to_reexecute', None, state_t, ctypes.POINTER(ctypes.c_uint64),
+                         ctypes.POINTER(ctypes.c_uint8))
 
         l.info('native plugin is enabled')
 
@@ -1036,8 +1032,8 @@ class Unicorn(SimStatePlugin):
 
         def _get_memory_values(memory_values):
             for memory_value in memory_values:
-                yield {"address": memory_value.address, "value": bytes(memory_value.value[:memory_value.size]),
-                       "size": memory_value.size, "symbolic": memory_value.is_value_symbolic}
+                yield {"address": memory_value.address, "value": bytes([memory_value.value]),
+                       "symbolic": memory_value.is_value_symbolic}
 
         def _get_vex_stmt_details(symbolic_stmts):
             for instr in symbolic_stmts:
@@ -1322,7 +1318,16 @@ class Unicorn(SimStatePlugin):
             stdout.write_data(string)
             i += 1
 
-        if unicorn_obj.stop_reason in {STOP.STOP_NORMAL, STOP.STOP_SYSCALL, STOP.STOP_SYMBOLIC_MEM_DEP_NOT_LIVE}:
+        # Re-execute concrete writes
+        count_of_writes_to_reexecute = _UC_NATIVE.get_count_of_writes_to_reexecute(self._uc_state)
+        if count_of_writes_to_reexecute > 0:
+            write_addrs = (ctypes.c_uint64 * count_of_writes_to_reexecute)()
+            write_values = (ctypes.c_uint8 * count_of_writes_to_reexecute)()
+            _UC_NATIVE.get_concrete_writes_to_reexecute(self._uc_state, write_addrs, write_values)
+            for address, value in zip(write_addrs, write_values):
+                state.memory.store(address, value, 1)
+
+        if unicorn_obj.stop_reason in {STOP.STOP_NORMAL, STOP.STOP_SYSCALL}:
             unicorn_obj.countdown_nonunicorn_blocks = 0
         elif unicorn_obj.stop_reason == STOP.STOP_STOPPOINT:
             unicorn_obj.countdown_nonunicorn_blocks = 0

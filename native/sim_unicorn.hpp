@@ -131,26 +131,21 @@ namespace std {
 
 struct memory_value_t {
 	uint64_t address;
-    uint8_t value[MAX_MEM_ACCESS_SIZE];
-    uint64_t size;
+	uint8_t value;
 	bool is_value_symbolic;
 
 	bool operator==(const memory_value_t &other_mem_value) const {
-		if ((address != other_mem_value.address) || (size != other_mem_value.size) ||
+		if ((address != other_mem_value.address) || (value != other_mem_value.value) ||
 			(is_value_symbolic != other_mem_value.is_value_symbolic)) {
 			return false;
 		}
-		return (memcmp(value, other_mem_value.value, size) == 0);
+		return true;
 	}
 
 	memory_value_t() {
-		reset();
-	}
-
-	void reset() {
 		address = 0;
-		size = 0;
-		memset(value, 0, MAX_MEM_ACCESS_SIZE);
+		value = 0;
+		is_value_symbolic = false;
 	}
 };
 
@@ -210,7 +205,7 @@ struct vex_stmt_details_t {
 	// Mark fields as mutable so that they can be updated after inserting into std::set
 	mutable memory_value_t *memory_values;
 	mutable uint64_t memory_values_count;
-	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
+	std::unordered_set<address_t> symbolic_mem_deps;
 	std::set<vex_stmt_details_t> stmt_deps;
 	std::unordered_set<register_value_t> reg_deps;
 
@@ -359,9 +354,7 @@ enum stop_t {
 	STOP_UNSUPPORTED_EXPR_GETI,
 	STOP_UNSUPPORTED_EXPR_UNKNOWN,
 	STOP_UNKNOWN_MEMORY_WRITE_SIZE,
-	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE,
 	STOP_SYSCALL_ARM,
-	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK,
 	STOP_X86_CPUID,
 };
 
@@ -580,7 +573,6 @@ class State {
 	bool symbolic_read_in_progress;
 
 	address_t unicorn_next_instr_addr;
-	address_t prev_stack_top_addr;
 
 	// Vector of values from previous memory reads. Serves as archival storage for pointers in details
 	// of symbolic instructions returned via ctypes to Python land.
@@ -607,12 +599,11 @@ class State {
 	// Count of blocks executed in native interface
 	int64_t executed_blocks_count;
 
-	// Details of symbolic memory dependencies of all VEX statements to be re-executed. Stores address and size of
-	// memory location and number of VEX statements the location is a dependency of. Only dependencies of statements
-	// that will be re-executed are tracked.
-	std::unordered_map<address_t, std::pair<uint64_t, uint64_t>> symbolic_mem_deps;
+	// Details of symbolic memory dependencies of all VEX statements to be re-executed. Stores address and number of VEX
+	// statements the location is a dependency of. Only dependencies of statements that will be re-executed are tracked.
+	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
 	// Symbolic memory dependencies of all symbolic VEX statements in current block.
-	std::unordered_map<address_t, uint64_t> block_symbolic_mem_deps;
+	std::unordered_set<address_t> block_symbolic_mem_deps;
 
 	// Private functions
 
@@ -770,6 +761,19 @@ class State {
 		// Result of all memory reads executed. VEX statement ID -> memory read result
 		std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
 
+		// Address of all bytes to which symbolic value is written in this run and number of writes to them
+		std::unordered_map<address_t, uint64_t> symbolic_mem_writes;
+
+		// Address of all bytes to which symbolic value is written by this block
+		std::unordered_set<address_t> block_symbolic_mem_writes;
+
+		// Address of concrete writes in block to re-execute. Value will be saved in commit by when write will be
+		// complete
+		std::unordered_set<uint64_t> block_concrete_writes_to_reexecute;
+
+		// Concrete writes to re-execute to avoid write-write conflicts
+		std::unordered_map<uint64_t, uint8_t> concrete_writes_to_reexecute;
+
 		// List of instructions that should be executed symbolically; used to store data to return
 		std::vector<sym_block_details_t> block_details_to_return;
 
@@ -858,13 +862,9 @@ class State {
 
 		void propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size);
 
-		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
-
 		void start_propagating_taint();
 
 		void continue_propagating_taint();
-
-		bool check_symbolic_stack_mem_dependencies_liveness() const;
 
 		void set_curr_block_details(address_t block_address, int32_t block_size);
 
@@ -902,11 +902,6 @@ class State {
 
 		inline bool is_symbolic_taint_propagation_disabled() const {
 			return (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed);
-		}
-
-		inline void update_previous_stack_top() {
-			prev_stack_top_addr = get_stack_pointer();
-			return;
 		}
 };
 
