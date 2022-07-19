@@ -290,6 +290,9 @@ class PropagatorAILState(PropagatorState):
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
+        # last_stack_store stores the most recent stack store statement with a non-concrete or unresolvable address. we
+        # use this information to determine if stack reads after this store can be safely resolved to definitions prior
+        # to the stack read.
         self.last_stack_store: Optional[Tuple[int,int,ailment.Stmt.Store]] = None
         self.global_stores: List[Tuple[int,int,Any,ailment.Stmt.Store]] = [ ]
 

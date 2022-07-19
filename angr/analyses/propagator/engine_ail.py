@@ -86,7 +86,6 @@ class SimEnginePropagatorAIL(
         # is it accessing the stack?
         sp_offset = self.extract_offset_to_sp(addr.one_expr) if addr.one_expr is not None else None
         if sp_offset is not None:
-            self.state.last_stack_store = (self.block.addr, self.stmt_idx, stmt)
             if isinstance(data.one_expr, Expr.StackBaseOffset):
                 # convert it to a BV
                 expr = data.one_expr
@@ -112,12 +111,15 @@ class SimEnginePropagatorAIL(
 
         else:
             addr_concrete = addr.one_expr
-            self.state.global_stores.append((self.block.addr, self.stmt_idx, addr_concrete, stmt))
-
-            if addr_concrete is not None and isinstance(addr_concrete, Expr.Const) and isinstance(stmt.size, int):
-                # set equivalence
-                var = SimMemoryVariable(addr_concrete.value, stmt.size)
-                self.state.add_equivalence(self._codeloc(), var, stmt.data)
+            if addr_concrete is None:
+                # it can be a potential stack store with a variable offset
+                self.state.last_stack_store = (self.block.addr, self.stmt_idx, stmt)
+            else:
+                self.state.global_stores.append((self.block.addr, self.stmt_idx, addr_concrete, stmt))
+                if isinstance(addr_concrete, Expr.Const) and isinstance(stmt.size, int):
+                    # set equivalence
+                    var = SimMemoryVariable(addr_concrete.value, stmt.size)
+                    self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -339,6 +341,10 @@ class SimEnginePropagatorAIL(
         addr_expr = addr.one_expr
 
         if addr_expr is not None:
+            if isinstance(addr_expr, Expr.StackBaseOffset) and not isinstance(expr.addr, Expr.StackBaseOffset):
+                l.debug("Add a replacement: %s with %s", expr.addr, addr_expr)
+                self.state.add_replacement(self._codeloc(), expr.addr, addr_expr)
+
             sp_offset = self.extract_offset_to_sp(addr_expr)
             if sp_offset is not None:
                 # Stack variable.
