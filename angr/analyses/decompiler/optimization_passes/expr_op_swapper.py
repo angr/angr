@@ -45,7 +45,8 @@ class OuterWalker(SequenceWalker):
                 node.condition = self._swap_expr_op(new_op, node.condition)
         return super()._handle_ConditionalBreak(node, **kwargs)
 
-    def _swap_expr_op(self, new_op: str, atom: Expression) -> Optional[Expression]:
+    @staticmethod
+    def _swap_expr_op(new_op: str, atom: Expression) -> Optional[Expression]:
         if new_op != atom.op:
             # swap
             new_expr = BinaryOp(
