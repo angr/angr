@@ -456,12 +456,12 @@ class ConditionProcessor:
     # Expression conversion
     #
 
-    def _convert_extract(self, hi, lo, expr, memo=None):
+    def _convert_extract(self, hi, lo, expr, tags, memo=None):
         # ailment does not support Extract. We translate Extract to Convert and shift.
         if lo == 0:
-            # TODO: Keep track of tags
             return ailment.Expr.Convert(None, expr.size(), hi + 1, False,
                                         self.convert_claripy_bool_ast(expr, memo=memo),
+                                        **tags,
                                         )
 
         raise NotImplementedError("This case will be implemented once encountered.")
@@ -492,57 +492,63 @@ class ConditionProcessor:
         if cond.op in {"BVS", "BoolS"} and cond.args[0] in self._condition_mapping:
             return self._condition_mapping[cond.args[0]]
 
-        def _binary_op_reduce(op, args, signed=False):
+        def _binary_op_reduce(op, args, tags, signed=False):
             r = None
             for arg in args:
                 if r is None:
                     r = self.convert_claripy_bool_ast(arg, memo=memo)
                 else:
-                    # TODO: Keep track of tags
-                    r = ailment.Expr.BinaryOp(None, op, (r, self.convert_claripy_bool_ast(arg, memo=memo)), signed)
+                    r = ailment.Expr.BinaryOp(None, op, (r, self.convert_claripy_bool_ast(arg, memo=memo)), signed,
+                                              **tags)
             return r
 
-        def _unary_op_reduce(op, arg):
+        def _unary_op_reduce(op, arg, tags):
             r = self.convert_claripy_bool_ast(arg, memo=memo)
             # TODO: Keep track of tags
-            return ailment.Expr.UnaryOp(None, op, r)
+            return ailment.Expr.UnaryOp(None, op, r, **tags)
 
         _mapping = {
-            'Not': lambda cond_: _unary_op_reduce('Not', cond_.args[0]),
-            'And': lambda cond_: _binary_op_reduce('LogicalAnd', cond_.args),
-            'Or': lambda cond_: _binary_op_reduce('LogicalOr', cond_.args),
-            '__le__': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, signed=True),
-            'SLE': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, signed=True),
-            '__lt__': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, signed=True),
-            'SLT': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, signed=True),
-            'UGT': lambda cond_: _binary_op_reduce('CmpGT', cond_.args),
-            'UGE': lambda cond_: _binary_op_reduce('CmpGE', cond_.args),
-            '__gt__': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, signed=True),
-            '__ge__': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, signed=True),
-            'SGT': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, signed=True),
-            'SGE': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, signed=True),
-            'ULT': lambda cond_: _binary_op_reduce('CmpLT', cond_.args),
-            'ULE': lambda cond_: _binary_op_reduce('CmpLE', cond_.args),
-            '__eq__': lambda cond_: _binary_op_reduce('CmpEQ', cond_.args),
-            '__ne__': lambda cond_: _binary_op_reduce('CmpNE', cond_.args),
-            '__add__': lambda cond_: _binary_op_reduce('Add', cond_.args, signed=False),
-            '__sub__': lambda cond_: _binary_op_reduce('Sub', cond_.args),
-            '__mul__': lambda cond_: _binary_op_reduce('Mul', cond_.args),
-            '__xor__': lambda cond_: _binary_op_reduce('Xor', cond_.args),
-            '__or__': lambda cond_: _binary_op_reduce('Or', cond_.args, signed=False),
-            '__and__': lambda cond_: _binary_op_reduce('And', cond_.args),
-            '__lshift__': lambda cond_: _binary_op_reduce('Shl', cond_.args),
-            '__rshift__': lambda cond_: _binary_op_reduce('Sar', cond_.args),
-            '__floordiv__': lambda cond_: _binary_op_reduce('Div', cond_.args),
-            'LShR': lambda cond_: _binary_op_reduce('Shr', cond_.args),
-            'BVV': lambda cond_: ailment.Expr.Const(None, None, cond_.args[0], cond_.size()),
-            'BoolV': lambda cond_: ailment.Expr.Const(None, None, True, 1) if cond_.args[0] is True
-                                                                        else ailment.Expr.Const(None, None, False, 1),
-            'Extract': lambda cond_: self._convert_extract(*cond_.args, memo=memo),
+            'Not': lambda cond_, tags: _unary_op_reduce('Not', cond_.args[0], tags),
+            'And': lambda cond_, tags: _binary_op_reduce('LogicalAnd', cond_.args, tags),
+            'Or': lambda cond_, tags: _binary_op_reduce('LogicalOr', cond_.args, tags),
+            '__le__': lambda cond_, tags: _binary_op_reduce('CmpLE', cond_.args, tags, signed=True),
+            'SLE': lambda cond_, tags: _binary_op_reduce('CmpLE', cond_.args, tags, signed=True),
+            '__lt__': lambda cond_, tags: _binary_op_reduce('CmpLT', cond_.args, tags, signed=True),
+            'SLT': lambda cond_, tags: _binary_op_reduce('CmpLT', cond_.args, tags, signed=True),
+            'UGT': lambda cond_, tags: _binary_op_reduce('CmpGT', cond_.args, tags),
+            'UGE': lambda cond_, tags: _binary_op_reduce('CmpGE', cond_.args, tags),
+            '__gt__': lambda cond_, tags: _binary_op_reduce('CmpGT', cond_.args, tags, signed=True),
+            '__ge__': lambda cond_, tags: _binary_op_reduce('CmpGE', cond_.args, tags, signed=True),
+            'SGT': lambda cond_, tags: _binary_op_reduce('CmpGT', cond_.args, tags, signed=True),
+            'SGE': lambda cond_, tags: _binary_op_reduce('CmpGE', cond_.args, tags, signed=True),
+            'ULT': lambda cond_, tags: _binary_op_reduce('CmpLT', cond_.args, tags),
+            'ULE': lambda cond_, tags: _binary_op_reduce('CmpLE', cond_.args, tags),
+            '__eq__': lambda cond_, tags: _binary_op_reduce('CmpEQ', cond_.args, tags),
+            '__ne__': lambda cond_, tags: _binary_op_reduce('CmpNE', cond_.args, tags),
+            '__add__': lambda cond_, tags: _binary_op_reduce('Add', cond_.args, tags, signed=False),
+            '__sub__': lambda cond_, tags: _binary_op_reduce('Sub', cond_.args, tags),
+            '__mul__': lambda cond_, tags: _binary_op_reduce('Mul', cond_.args, tags),
+            '__xor__': lambda cond_, tags: _binary_op_reduce('Xor', cond_.args, tags),
+            '__or__': lambda cond_, tags: _binary_op_reduce('Or', cond_.args, tags, signed=False),
+            '__and__': lambda cond_, tags: _binary_op_reduce('And', cond_.args, tags),
+            '__lshift__': lambda cond_, tags: _binary_op_reduce('Shl', cond_.args, tags),
+            '__rshift__': lambda cond_, tags: _binary_op_reduce('Sar', cond_.args, tags),
+            '__floordiv__': lambda cond_, tags: _binary_op_reduce('Div', cond_.args, tags),
+            'LShR': lambda cond_, tags: _binary_op_reduce('Shr', cond_.args, tags),
+            'BVV': lambda cond_, tags: ailment.Expr.Const(None, None, cond_.args[0], cond_.size(), **tags),
+            'BoolV': lambda cond_, tags: ailment.Expr.Const(None, None, True, 1, **tags) if cond_.args[0] is True
+                                        else ailment.Expr.Const(None, None, False, 1, **tags),
+            'Extract': lambda cond_, tags: self._convert_extract(*cond_.args, tags, memo=memo),
         }
 
         if cond.op in _mapping:
-            return _mapping[cond.op](cond)
+            if cond in self._ast2annotations:
+                cond_tags = self._ast2annotations.get(cond)
+            elif claripy.Not(cond) in self._ast2annotations:
+                cond_tags = self._ast2annotations.get(claripy.Not(cond))
+            else:
+                cond_tags = { }
+            return _mapping[cond.op](cond, cond_tags)
         raise NotImplementedError(("Condition variable %s has an unsupported operator %s. "
                                    "Consider implementing.") % (cond, cond.op))
 

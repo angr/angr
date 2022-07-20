@@ -40,6 +40,7 @@ class Decompiler(Analysis):
                  expr_comments=None,
                  stmt_comments=None,
                  ite_exprs=None,
+                 binop_operators=None,
                  decompile=True,
                  regen_clinic=True,
                  ):
@@ -59,6 +60,7 @@ class Decompiler(Analysis):
         self._expr_comments = expr_comments
         self._stmt_comments = stmt_comments
         self._ite_exprs = ite_exprs
+        self._binop_operators = binop_operators
         self._regen_clinic = regen_clinic
 
         self.clinic = None  # mostly for debugging purposes
@@ -79,8 +81,10 @@ class Decompiler(Analysis):
             old_codegen = cache.codegen
             old_clinic = cache.clinic
             ite_exprs = cache.ite_exprs if self._ite_exprs is None else self._ite_exprs
+            binop_operators = cache.binop_operators if self._binop_operators is None else self._binop_operators
         except KeyError:
-            ite_exprs = None
+            ite_exprs = self._ite_exprs
+            binop_operators = self._binop_operators
             old_codegen = None
             old_clinic = None
 
@@ -107,6 +111,7 @@ class Decompiler(Analysis):
 
         cache = DecompilationCache(self.func.addr)
         cache.ite_exprs = ite_exprs
+        cache.binop_operators = binop_operators
 
         # convert function blocks to AIL blocks
         progress_callback = lambda p, **kwargs: self._update_progress(p * (70 - 5) / 100. + 5, **kwargs)
@@ -155,10 +160,12 @@ class Decompiler(Analysis):
 
         # simplify it
         s = self.project.analyses.RegionSimplifier(self.func, rs.result, kb=self.kb, variable_kb=clinic.variable_kb)
+        seq_node = s.result
+        seq_node = self._run_post_structuring_simplification_passes(seq_node, binop_operators=cache.binop_operators)
         self._update_progress(85., text='Generating code')
 
         codegen = self.project.analyses.StructuredCodeGenerator(
-            self.func, s.result, cfg=self._cfg,
+            self.func, seq_node, cfg=self._cfg,
             flavor=self._flavor,
             func_args=clinic.arg_list,
             kb=self.kb,
@@ -222,6 +229,20 @@ class Decompiler(Analysis):
                                                             kb=self.kb)
 
         return ail_graph, ri
+
+    @timethis
+    def _run_post_structuring_simplification_passes(self, seq_node, **kwargs):
+
+        for pass_ in self._optimization_passes:
+
+            if pass_.STAGE != OptimizationPassStage.AFTER_STRUCTURING:
+                continue
+
+            a = pass_(self.func, seq=seq_node, **kwargs)
+            if a.out_seq:
+                seq_node = a.out_seq
+
+        return seq_node
 
     def _set_global_variables(self):
 
