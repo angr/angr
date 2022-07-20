@@ -86,7 +86,6 @@ class SimEnginePropagatorAIL(
         # is it accessing the stack?
         sp_offset = self.extract_offset_to_sp(addr.one_expr) if addr.one_expr is not None else None
         if sp_offset is not None:
-            self.state.last_stack_store = (self.block.addr, self.stmt_idx, stmt)
             if isinstance(data.one_expr, Expr.StackBaseOffset):
                 # convert it to a BV
                 expr = data.one_expr
@@ -112,12 +111,15 @@ class SimEnginePropagatorAIL(
 
         else:
             addr_concrete = addr.one_expr
-            self.state.global_stores.append((self.block.addr, self.stmt_idx, addr_concrete, stmt))
-
-            if addr_concrete is not None and isinstance(addr_concrete, Expr.Const) and isinstance(stmt.size, int):
-                # set equivalence
-                var = SimMemoryVariable(addr_concrete.value, stmt.size)
-                self.state.add_equivalence(self._codeloc(), var, stmt.data)
+            if addr_concrete is None:
+                # it can be a potential stack store with a variable offset
+                self.state.last_stack_store = (self.block.addr, self.stmt_idx, stmt)
+            else:
+                self.state.global_stores.append((self.block.addr, self.stmt_idx, addr_concrete, stmt))
+                if isinstance(addr_concrete, Expr.Const) and isinstance(stmt.size, int):
+                    # set equivalence
+                    var = SimMemoryVariable(addr_concrete.value, stmt.size)
+                    self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -337,13 +339,19 @@ class SimEnginePropagatorAIL(
         addr = self._expr(expr.addr)
 
         addr_expr = addr.one_expr
+        var_defat = None
 
         if addr_expr is not None:
+            if isinstance(addr_expr, Expr.StackBaseOffset) and not isinstance(expr.addr, Expr.StackBaseOffset):
+                l.debug("Add a replacement: %s with %s", expr.addr, addr_expr)
+                self.state.add_replacement(self._codeloc(), expr.addr, addr_expr)
+
             sp_offset = self.extract_offset_to_sp(addr_expr)
             if sp_offset is not None:
                 # Stack variable.
                 var = self.state.load_stack_variable(sp_offset, expr.size, endness=expr.endness)
                 if var is not None:
+                    var_defat = var.one_defat
                     # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
                     # replacing stack variables, unless this is in the middle of a call statement.
                     if self.state._inside_call_stmt:
@@ -363,7 +371,8 @@ class SimEnginePropagatorAIL(
         else:
             new_expr = expr
         prop_value = PropValue.from_value_and_details(
-            self.state.top(expr.size * self.arch.byte_width), expr.size, new_expr, self._codeloc()
+            self.state.top(expr.size * self.arch.byte_width), expr.size, new_expr,
+            self._codeloc() if var_defat is None else var_defat
         )
         return prop_value
 
@@ -850,6 +859,8 @@ class SimEnginePropagatorAIL(
 
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
-        walker = OutdatedDefinitionWalker(expr, expr_defat, self.state, avoid=avoid)
+        walker = OutdatedDefinitionWalker(expr, expr_defat, self.state,
+                                          avoid=avoid,
+                                          extract_offset_to_sp=self.extract_offset_to_sp)
         walker.walk_expression(expr)
         return walker.out_dated
