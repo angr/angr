@@ -14,7 +14,7 @@ class SimEvent(object):
         self.arch = state.arch
 
     def __repr__(self):
-        return "<SimEvent %s %d, with fields %s>" % (self.type, self.id, self.objects.keys())
+        return "<SimEvent %s %d, with fields %s>" % (self.type, self.id, ', '.join(self.objects.keys()))
 
     def _copy_event(self):
         c = self.__class__.__new__(self.__class__)

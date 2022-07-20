@@ -1,3 +1,4 @@
+import claripy.errors
 from . import ExplorationTechnique
 from .common import condition_to_lambda
 from .. import sim_options
@@ -121,8 +122,11 @@ class Explorer(ExplorationTechnique):
             l.warning("Unicorn may step over states that match the condition (find or avoid) without stopping.")
             self._warned_unicorn = True
 
-        findable = self.find(state)
-        avoidable = self.avoid(state)
+        try:
+            findable = self.find(state)
+            avoidable = self.avoid(state)
+        except claripy.errors.ClaripySolverInterruptError:
+            return 'interrupted'
 
         if not findable and not avoidable:
             if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:

@@ -62,7 +62,7 @@ class TLSMixin:
     """
 
     def __new__(cls, *args, **kwargs):
-        obj = super().__new__(cls, *args, **kwargs)
+        obj = super().__new__(cls)
         obj.__local = threading.local()
         return obj
 
