@@ -107,8 +107,8 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                             self.out_dated = True
                             break
                     if not self.out_dated:
-                        # if there has been a stack store whose address cannot be resolved or concretized, we see if this
-                        # store happens after the current definition. if so, we mark it as out-dated
+                        # if there has been a stack store whose address cannot be resolved or concretized, we see if
+                        # this store happens after the current definition. if so, we mark it as out-dated
                         if self.state.last_stack_store is not None \
                                 and not self._check_store_precedes_load(*self.state.last_stack_store[:2],
                                                                         self.expr_defat.block_addr,
