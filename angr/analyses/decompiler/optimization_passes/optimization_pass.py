@@ -1,3 +1,4 @@
+# pylint:disable=unused-argument
 from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING
 from enum import Enum
 
@@ -81,7 +82,7 @@ class OptimizationPass(BaseOptimizationPass):
     """
 
     def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, variable_kb=None,
-                 region_identifier=None, reaching_definitions=None, **kwargs):  # pylint:disable=unused-argument
+                 region_identifier=None, reaching_definitions=None, **kwargs):
         super().__init__(func)
         # self._blocks is just a cache
         self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
@@ -184,6 +185,9 @@ class OptimizationPass(BaseOptimizationPass):
 
 
 class SequenceOptimizationPass(BaseOptimizationPass):
+    """
+    The base class for any sequence node optimization pass.
+    """
 
     ARCHES = [ ]  # strings of supported architectures
     PLATFORMS = [ ]  # strings of supported platforms. Can be one of the following: "win32", "linux"

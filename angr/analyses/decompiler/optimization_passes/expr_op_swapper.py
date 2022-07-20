@@ -17,6 +17,9 @@ _l = logging.getLogger(__name__)
 
 
 class OuterWalker(SequenceWalker):
+    """
+    A sequence walker that finds nodes and invokes expression replacer to replace expressions.
+    """
     def __init__(self, desc):
         super().__init__()
         self.desc: Dict[OpDescriptor,str] = desc
