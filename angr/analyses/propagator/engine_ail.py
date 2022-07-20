@@ -859,12 +859,8 @@ class SimEnginePropagatorAIL(
 
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
-        # re-evaluate the expr to get its latest definition
-        if isinstance(expr, Expr.Load):
-            v = self._expr(expr)
-            if v.one_defat is not None and v.one_defat != self._codeloc() and v.one_defat != expr_defat:
-                return True
-
-        walker = OutdatedDefinitionWalker(expr, expr_defat, self.state, avoid=avoid)
+        walker = OutdatedDefinitionWalker(expr, expr_defat, self.state,
+                                          avoid=avoid,
+                                          extract_offset_to_sp=self.extract_offset_to_sp)
         walker.walk_expression(expr)
         return walker.out_dated
