@@ -1,4 +1,4 @@
-from typing import Optional, Set, Dict, Tuple, Any, TYPE_CHECKING
+from typing import Optional, Set, Dict, Tuple, Any, List, TYPE_CHECKING
 
 from .clinic import Clinic
 from .structured_codegen import BaseStructuredCodeGenerator
@@ -20,6 +20,7 @@ class DecompilationCache:
         "clinic",
         "ite_exprs",
         "binop_operators",
+        "refactor_vector",
     )
 
     def __init__(self, addr):
@@ -30,6 +31,7 @@ class DecompilationCache:
         self.clinic: Optional[Clinic] = None
         self.ite_exprs: Optional[Set[Tuple[int, Any]]] = None
         self.binop_operators: Optional[Dict["OpDescriptor", str]] = None
+        self.refactor_vector: Optional[List] = None
 
     @property
     def local_types(self):

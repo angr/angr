@@ -14,14 +14,15 @@ class CascadingConditionTransformer(SequenceWalker):
     `if { ... } else if { ... } else if { ... }`.
     """
 
-    def __init__(self, node):
+    def __init__(self, node, walk=True):
         handlers = {
             ConditionNode: self._handle_Condition,
         }
         super().__init__(handlers)
         self.cascading_if_node: Optional[CascadingConditionNode] = None
 
-        self.walk(node)
+        if walk:
+            self.walk(node)
 
     def _negate_ailexpr(self, expr: ailment.Expression) -> ailment.Expression:
         return ailment.UnaryOp(None, "Not", expr, **expr.tags)

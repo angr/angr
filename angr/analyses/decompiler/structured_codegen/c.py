@@ -45,6 +45,7 @@ from ..structuring.structurer_nodes import (
     ContinueNode,
     CascadingConditionNode,
 )
+from ..structurer_node_path import NodePath, ConditionNodeChildren, CascadingConditionElseNode
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
@@ -184,10 +185,11 @@ class CConstruct:
     Acts as the base class for all other representation constructions.
     """
 
-    __slots__ = ("codegen",)
+    __slots__ = ("codegen", "path")
 
-    def __init__(self, codegen):
+    def __init__(self, codegen=None, path=None):
         self.codegen: "StructuredCodeGenerator" = codegen
+        self.path: Optional[NodePath] = path
 
     def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
@@ -244,6 +246,10 @@ class CConstruct:
                             CBinaryOp,
                             CUnaryOp,
                             CAssignment,
+                            # the following classes are for refactoring
+                            CIfElse,
+                            CWhileLoop,
+                            CDoWhileLoop,
                         ),
                     ):
                         if pos_to_node is not None:
@@ -874,7 +880,8 @@ class CIfElse(CStatement):
                     yield " ", None
                 yield "else ", self
 
-            yield "if ", self
+            yield "if", self
+            yield " ", None
             yield "(", paren
             yield from condition.c_repr_chunks()
             yield ")", paren
@@ -2220,7 +2227,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             arg_list = []
 
-        obj = self._handle(self._sequence)
+        root_path = NodePath([])
+        obj = self._handle(self._sequence, path=root_path)
 
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
 
@@ -2700,7 +2708,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Handlers
     #
 
-    def _handle(self, node, is_expr: bool = True, lvalue: bool = False):
+    def _handle(self, node, is_expr: bool = True, lvalue: bool = False, path: Optional[NodePath] = None):
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
 
@@ -2710,26 +2718,34 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 # special case for Call
                 converted = handler(node, is_expr=is_expr)
             else:
-                converted = handler(node, lvalue=lvalue)
+                converted = handler(node, lvalue=lvalue, path=path)
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
-    def _handle_Code(self, node, **kwargs):
-        return self._handle(node.node, is_expr=False)
+    def _handle_Code(self, node, path: Optional[NodePath] = None, **kwargs):
+        if path is not None:
+            path = path.copy()
+            path.append((CodeNode, None))
+        return self._handle(node.node, is_expr=False, path=path)
 
-    def _handle_Sequence(self, seq, **kwargs):
+    def _handle_Sequence(self, seq, path: Optional[NodePath] = None, **kwargs):
         lines = []
 
-        for node in seq.nodes:
-            lines.append(self._handle(node, is_expr=False))
+        for idx, node in enumerate(seq.nodes):
+            if path is not None:
+                subpath = path.copy()
+                subpath.append((SequenceNode, idx))
+            else:
+                subpath = None
+            lines.append(self._handle(node, path=subpath, is_expr=False))
 
         if not lines:
-            return CStatements([], codegen=None)
+            return CStatements([], path=path, codegen=None)
 
-        return CStatements(lines, codegen=self) if len(lines) > 1 else lines[0]
+        return CStatements(lines, path=path, codegen=self) if len(lines) > 1 else lines[0]
 
-    def _handle_Loop(self, loop_node, **kwargs):
+    def _handle_Loop(self, loop_node, path: Optional[NodePath] = None, **kwargs):
         tags = {"ins_addr": loop_node.addr}
 
         if loop_node.sort == "while":
@@ -2759,53 +2775,84 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             raise NotImplementedError()
 
-    def _handle_Condition(self, condition_node: ConditionNode, **kwargs):
+    def _handle_Condition(self, condition_node: ConditionNode, path: Optional[NodePath] = None, **kwargs):
         tags = {"ins_addr": condition_node.addr}
 
-        condition_and_nodes = [
-            (
-                self._handle(condition_node.condition),
-                self._handle(condition_node.true_node, is_expr=False) if condition_node.true_node else None,
-            )
-        ]
+        if condition_node.true_node:
+            if path is not None:
+                subpath = path.copy()
+                subpath.append((ConditionNode, ConditionNodeChildren.TrueNode))
+            else:
+                subpath = None
+            true_node = self._handle(condition_node.true_node, path=subpath, is_expr=False)
+        else:
+            true_node = None
 
-        else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
+        condition_and_nodes = [(self._handle(condition_node.condition), true_node)]
+
+        if condition_node.false_node is not None:
+            if path is not None:
+                subpath = path.copy()
+                subpath.append((ConditionNode, ConditionNodeChildren.FalseNode))
+            else:
+                subpath = None
+            else_node = self._handle(condition_node.false_node, path=subpath, is_expr=False)
+        else:
+            else_node = None
 
         code = CIfElse(
             condition_and_nodes,
             else_node=else_node,
             tags=tags,
+            path=path,
             codegen=self,
         )
         return code
 
-    def _handle_CascadingCondition(self, cond_node: CascadingConditionNode, **kwargs):
+    def _handle_CascadingCondition(self, cond_node: CascadingConditionNode, path: Optional[NodePath] = None, **kwargs):
         tags = {"ins_addr": cond_node.addr}
 
-        condition_and_nodes = [
-            (self._handle(cond), self._handle(node, is_expr=False)) for cond, node in cond_node.condition_and_nodes
-        ]
-        else_node = self._handle(cond_node.else_node) if cond_node.else_node is not None else None
+        condition_and_nodes = []
+        for idx, (cond, node) in enumerate(cond_node.condition_and_nodes):
+            if path is not None:
+                subpath = path.copy()
+                subpath.append((CascadingConditionNode, idx))
+            else:
+                subpath = None
+            condition_and_nodes.append((self._handle(cond), self._handle(node, path=subpath, is_expr=False)))
+
+        if cond_node.else_node is not None:
+            if path is not None:
+                subpath = path.copy()
+                subpath.append((CascadingConditionNode, CascadingConditionElseNode))
+            else:
+                subpath = None
+            else_node = self._handle(cond_node.else_node, path=subpath)
+        else:
+            else_node = None
 
         code = CIfElse(
             condition_and_nodes,
             else_node=else_node,
             tags=tags,
+            path=path,
             codegen=self,
         )
         return code
 
-    def _handle_ConditionalBreak(self, node, **kwargs):
+    def _handle_ConditionalBreak(self, node, path: Optional[NodePath] = None, **kwargs):  # pylint:disable=no-self-use
         tags = {"ins_addr": node.addr}
 
         return CIfBreak(self._handle(node.condition), tags=tags, codegen=self)
 
-    def _handle_Break(self, node, **kwargs):
+    def _handle_Break(
+        self, node, path: Optional[NodePath] = None, **kwargs
+    ):  # pylint:disable=no-self-use,unused-argument
         tags = {"ins_addr": node.addr}
 
         return CBreak(tags=tags, codegen=self)
 
-    def _handle_MultiNode(self, node, **kwargs):
+    def _handle_MultiNode(self, node, path: Optional[NodePath] = None, **kwargs):  # pylint:disable=no-self-use
         lines = []
 
         for n in node.nodes:
@@ -2814,7 +2861,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CStatements(lines, codegen=self) if len(lines) > 1 else lines[0]
 
-    def _handle_SwitchCase(self, node, **kwargs):
+    def _handle_SwitchCase(self, node, path: Optional[NodePath] = None, **kwargs):
         """
 
         :param SwitchCaseNode node:
@@ -2828,12 +2875,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         switch_case = CSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
         return switch_case
 
-    def _handle_Continue(self, node, **kwargs):
+    def _handle_Continue(
+        self, node, path: Optional[NodePath] = None, **kwargs
+    ):  # pylint:disable=no-self-use,unused-argument
         tags = {"ins_addr": node.addr}
 
         return CContinue(tags=tags, codegen=self)
 
-    def _handle_AILBlock(self, node, **kwargs):
+    def _handle_AILBlock(self, node, path: Optional[NodePath] = None, **kwargs):
         """
 
         :param Block node:
@@ -2856,7 +2905,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # AIL statement handlers
     #
 
-    def _handle_Stmt_Store(self, stmt: Stmt.Store, **kwargs):
+    def _handle_Stmt_Store(self, stmt: Stmt.Store, path: Optional[NodePath] = None, **kwargs):
         cdata = self._handle(stmt.data)
 
         if cdata.type.size != stmt.size * self.project.arch.byte_width:
@@ -2883,13 +2932,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Assignment(self, stmt, **kwargs):
+    def _handle_Stmt_Assignment(self, stmt, path: Optional[NodePath] = None, **kwargs):
         cdst = self._handle(stmt.dst, lvalue=True)
         csrc = self._handle(stmt.src, lvalue=False)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
+    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, path: Optional[NodePath] = None, **kwargs):
         try:
             # Try to handle it as a normal function call
             if not isinstance(stmt.target, str):
@@ -2947,10 +2996,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return result
 
-    def _handle_Stmt_Jump(self, stmt: Stmt.Jump, **kwargs):
+    def _handle_Stmt_Jump(self, stmt: Stmt.Jump, path: Optional[NodePath] = None, **kwargs):
         return CGoto(self._handle(stmt.target), stmt.target_idx, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_ConditionalJump(self, stmt: Stmt.ConditionalJump, **kwargs):
+    def _handle_Stmt_ConditionalJump(self, stmt: Stmt.ConditionalJump, path: Optional[NodePath] = None, **kwargs):
         else_node = (
             None
             if stmt.false_target is None
@@ -2964,7 +3013,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
         return ifelse
 
-    def _handle_Stmt_Return(self, stmt: Stmt.Return, **kwargs):
+    def _handle_Stmt_Return(self, stmt: Stmt.Return, path: Optional[NodePath] = None, **kwargs):
         if not stmt.ret_exprs:
             return CReturn(None, tags=stmt.tags, codegen=self)
         elif len(stmt.ret_exprs) == 1:

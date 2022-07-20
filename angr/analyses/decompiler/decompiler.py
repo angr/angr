@@ -59,6 +59,7 @@ class Decompiler(Analysis):
         stmt_comments=None,
         ite_exprs=None,
         binop_operators=None,
+        refactor_vector=None,
         decompile=True,
         regen_clinic=True,
         update_memory_data: bool = True,
@@ -82,6 +83,7 @@ class Decompiler(Analysis):
         self._stmt_comments = stmt_comments
         self._ite_exprs = ite_exprs
         self._binop_operators = binop_operators
+        self._refactor_vector = refactor_vector
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
 
@@ -105,9 +107,11 @@ class Decompiler(Analysis):
             old_clinic = cache.clinic
             ite_exprs = cache.ite_exprs if self._ite_exprs is None else self._ite_exprs
             binop_operators = cache.binop_operators if self._binop_operators is None else self._binop_operators
+            refactor_vector = cache.refactor_vector if self._refactor_vector is None else self._refactor_vector
         except KeyError:
             ite_exprs = self._ite_exprs
             binop_operators = self._binop_operators
+            refactor_vector = self._refactor_vector
             old_codegen = None
             old_clinic = None
 
@@ -147,6 +151,7 @@ class Decompiler(Analysis):
         cache = DecompilationCache(self.func.addr)
         cache.ite_exprs = ite_exprs
         cache.binop_operators = binop_operators
+        cache.refactor_vector = refactor_vector
 
         # convert function blocks to AIL blocks
         def progress_callback(p, **kwargs):
@@ -231,7 +236,11 @@ class Decompiler(Analysis):
         )
         seq_node = s.result
         seq_node = self._run_post_structuring_simplification_passes(
-            seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager
+            seq_node,
+            binop_operators=cache.binop_operators,
+            goto_manager=s.goto_manager,
+            # refactor_vector might be updated by Refactoring to remove refactor steps that are no longer working
+            refactor_vector=refactor_vector,
         )
         self._update_progress(85.0, text="Generating code")
 
