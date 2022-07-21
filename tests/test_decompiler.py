@@ -751,6 +751,7 @@ class TestDecompiler(unittest.TestCase):
         code = code.replace(" ", "").replace("\n", "")
         assert "{}" not in code, "Found empty code blocks in decompilation output. This may indicate some " \
                                  "assignments are incorrectly removed."
+        assert '"o"' in code and '"x"' in code, "CFG failed to recognize single-byte strings."
 
     def test_decompiling_amp_challenge03_arm_expr_swapping(self):
         bin_path = os.path.join(test_location, "armhf", "decompiler", "challenge_03")
