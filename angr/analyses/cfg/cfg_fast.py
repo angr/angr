@@ -2756,13 +2756,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return r
 
         try:
-            data = self.project.loader.memory.load(data_addr, 1024)
+            data = self.project.loader.memory.load(data_addr, min(1024, max_size))
         except KeyError:
             data = b''
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if len(data) >= 4 and data[1] == 0 and data[3] == 0 and data[0] in self.PRINTABLES:
+        if len(data) >= 4 and data[1] == 0 and data[2] != 0 and data[3] == 0 and data[0] in self.PRINTABLES:
             def can_decode(n):
                 try:
                     data[:n*2].decode('utf_16_le')
