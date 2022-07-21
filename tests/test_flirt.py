@@ -1,6 +1,6 @@
-# pylint:disable=missing-class-docstring,no-self-use
-import unittest
+# pylint: disable=missing-class-docstring,disable=no-self-use
 import os.path
+import unittest
 
 from common import bin_location
 import angr
@@ -20,7 +20,6 @@ class TestFlirt(unittest.TestCase):
         assert cfg.functions[0x436980].name == "__mempcpy_chk_avx512_no_vzeroupper"
         assert cfg.functions[0x436980].is_default_name is False
         assert cfg.functions[0x436980].from_signature == "flirt"
-
 
     def test_armhf_elf_static_using_armel_libc(self):
         binary_path = os.path.join(bin_location, "tests", "armhf", "amp_challenge_07.gcc")

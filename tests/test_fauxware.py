@@ -1,13 +1,15 @@
+# pylint: disable=missing-class-docstring,no-self-use
 import gc
-import os
-import unittest
-import pickle
 import logging
+import os
+import pickle
+import unittest
+
 from common import slow_test
 
 import angr
-
 from angr.state_plugins.history import HistoryIter
+
 
 l = logging.getLogger("angr.tests")
 test_location = os.path.join(
@@ -214,6 +216,7 @@ class TestFauxware(unittest.TestCase):
 
     def test_nodecode_mips(self):
         self._run_nodecode("mips")
+
 
 if __name__ == "__main__":
     unittest.main()
