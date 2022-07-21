@@ -1,5 +1,5 @@
+# pylint: disable=missing-class-docstring,disable=no-self-use
 import os
-import sys
 import angr
 import subprocess
 import unittest
