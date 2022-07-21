@@ -1,13 +1,14 @@
+# pylint: disable=missing-class-docstring,no-self-use
 import gc
-import os
-import unittest
-import pickle
 import logging
+import os
+import pickle
 import unittest
+
+from common import slow_test
 
 import angr
 from angr.state_plugins.history import HistoryIter
-from common import slow_test
 
 
 l = logging.getLogger("angr.tests")
