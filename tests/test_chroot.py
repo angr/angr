@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,no-self-use
 import angr
 import unittest
 from angr.state_plugins.posix import Flags
