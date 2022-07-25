@@ -26,10 +26,8 @@ class ConvConstMullAShift(PeepholeOptimizationExprBase):
                     divisor = self._check_divisor(pow(2, V), C, ndigits)
                     if divisor is not None:
                         new_const = Const(None, None, divisor, V)
-                        new_div = BinaryOp(inner.idx, 'Div', [X, new_const], inner.signed, **inner.tags),
-                        new_expr = Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
-                                           new_div, **expr.tags)
-                        return new_expr
+                        new_div = BinaryOp(inner.idx, 'Div', [X, new_const], inner.signed, **inner.tags)
+                        return new_div
 
             elif isinstance(expr.operand, BinaryOp) and expr.operand.op in {"Add", "Sub"}:
                 expr0, expr1 = expr.operand.operands
@@ -55,9 +53,7 @@ class ConvConstMullAShift(PeepholeOptimizationExprBase):
                                 new_const = Const(None, None, divisor, V)
                                 new_div = BinaryOp(expr0.operands[0].idx, 'Div', [X, new_const],
                                                    expr0.operands[0].signed, **expr0.operands[0].tags)
-                                new_expr = Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
-                                                   new_div, **expr.tags)
-                                return new_expr
+                                return new_div
 
     @staticmethod
     def _check_divisor(a, b, ndigits=6):

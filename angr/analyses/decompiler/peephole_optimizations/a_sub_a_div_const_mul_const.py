@@ -14,8 +14,7 @@ class ASubADivConstMulConst(PeepholeOptimizationExprBase):
         if expr.op == "Sub" and len(expr.operands) == 2 \
                 and isinstance(expr.operands[1], BinaryOp) and expr.operands[1].op == "Mul" \
                 and isinstance(expr.operands[1].operands[1], Const):
-            a0 = expr.operands[0]
-            op1 = expr.operands[1]
+            a0, op1 = expr.operands
             op1_left = op1.operands[0]
             mul_const = expr.operands[1].operands[1]
 
