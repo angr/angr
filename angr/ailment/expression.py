@@ -530,7 +530,11 @@ class Load(Expression):
         return self.addr.has_atom(atom, identity=identity)
 
     def replace(self, old_expr, new_expr):
-        r, replaced_addr = self.addr.replace(old_expr, new_expr)
+        if self.addr == old_expr:
+            r = True
+            replaced_addr = new_expr
+        else:
+            r, replaced_addr = self.addr.replace(old_expr, new_expr)
 
         if r:
             return True, Load(self.idx, replaced_addr, self.size, self.endness, **self.tags)
