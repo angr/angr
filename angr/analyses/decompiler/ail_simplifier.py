@@ -230,6 +230,12 @@ class AILSimplifier(Analysis):
                     for use_loc, use_expr in use_exprs:
                         old_block = addr_and_idx_to_block.get((use_loc.block_addr, use_loc.block_idx))
                         the_block = self.blocks.get(old_block, old_block)
+                        tags = use_expr.tags
+                        if "reg_name" not in tags:
+                            tags["reg_name"] = self.project.arch.translate_register_name(
+                                def_.atom.reg_offset,
+                                size=to_size * self.project.arch.byte_width
+                            )
                         new_use_expr = Register(use_expr.idx,
                                                 None,
                                                 def_.atom.reg_offset,

@@ -156,7 +156,9 @@ class SimEnginePropagatorAIL(
                         self.state.top(self.arch.bits), self.arch.bytes, expr_stmt.ret_expr, self._codeloc()
                     )
                     self.state.store_register(
-                        Expr.Register(None, expr_stmt.ret_expr.variable, expr_stmt.ret_expr.reg_offset, self.arch.bits),
+                        Expr.Register(None, expr_stmt.ret_expr.variable, expr_stmt.ret_expr.reg_offset, self.arch.bits,
+                                      reg_name=self.arch.translate_register_name(expr_stmt.ret_expr.reg_offset,
+                                                                                 size=self.arch.bits)),
                         v
                     )
                 else:
