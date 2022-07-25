@@ -501,7 +501,8 @@ class VEXIRSBConverter(Converter):
             # TODO: is there a conditional call?
 
             ret_reg_offset = manager.arch.ret_offset
-            ret_expr = Register(manager.next_atom(), None, ret_reg_offset, manager.arch.bits)
+            ret_expr = Register(manager.next_atom(), None, ret_reg_offset, manager.arch.bits,
+                                reg_name=manager.arch.translate_register_name(ret_reg_offset, size=manager.arch.bits))
 
             statements.append(Call(manager.next_atom(),
                                    VEXExprConverter.convert(irsb.next, manager),
