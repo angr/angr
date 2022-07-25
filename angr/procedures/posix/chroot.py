@@ -18,3 +18,4 @@ class chroot(angr.SimProcedure):
         
         self.state.fs.mount('/', angr.SimHostFilesystem(newPath))
         return 0
+    
