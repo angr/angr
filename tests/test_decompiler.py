@@ -1139,6 +1139,18 @@ class TestDecompiler(unittest.TestCase):
         mul7 = [line for line in lines if re.match(retexpr + r" = v\d+ \* 7;", line.strip(" ")) is not None]
         assert len(mul7) == 1, "Cannot find statement v2 = v0 * 7."
 
+    def test_decompiling_simple_ctfbin_modulo(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "simple_ctfbin_modulo")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+        d = proj.analyses.Decompiler(proj.kb.functions["encrypt"])
+        self._print_decompilation_result(d)
+
+        assert "% 61" in d.codegen.text, "Modulo simplification failed."
+
 
 if __name__ == "__main__":
     unittest.main()
