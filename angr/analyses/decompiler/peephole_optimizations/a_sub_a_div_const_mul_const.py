@@ -1,4 +1,4 @@
-from ailment.expression import BinaryOp, Const
+from ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -16,19 +16,36 @@ class ASubADivConstMulConst(PeepholeOptimizationExprBase):
                 and isinstance(expr.operands[1].operands[1], Const):
             a0 = expr.operands[0]
             op1 = expr.operands[1]
+            op1_left = op1.operands[0]
             mul_const = expr.operands[1].operands[1]
-            if isinstance(op1.operands[0], BinaryOp) and op1.operands[0].op == "Div" and \
-                    isinstance(op1.operands[0].operands[1], Const):
-                a1 = op1.operands[0].operands[0]
-                div_const = op1.operands[0].operands[1]
+
+            if isinstance(op1_left, Convert) \
+                    and isinstance(a0, Convert) \
+                    and op1_left.to_bits == a0.to_bits \
+                    and op1_left.from_bits == a0.from_bits:
+                # Convert(a) - (Convert(a / N)) * N  ==>  Convert(a) % N
+                conv_expr = a0
+                a0 = a0.operand
+                op1_left = op1_left.operand
+            else:
+                conv_expr = None
+
+            if isinstance(op1_left, BinaryOp) and op1_left.op == "Div" and \
+                    isinstance(op1_left.operands[1], Const):
+                # a - (a / N) * N  ==>  a % N
+                a1 = op1_left.operands[0]
+                div_const = op1_left.operands[1]
 
                 if a0.likes(a1) and mul_const.value == div_const.value:
+                    operands = [a0, div_const]
                     mod = BinaryOp(expr.idx, "DivMod",
-                                   [a0,
-                                    div_const
-                                   ],
+                                   operands,
                                    False,
+                                   bits=a0.bits,
                                    **expr.tags)
+                    if conv_expr is not None:
+                        mod = Convert(conv_expr.idx, conv_expr.from_bits, conv_expr.to_bits, conv_expr.is_signed,
+                                      mod, **conv_expr.tags)
                     return mod
 
         return None

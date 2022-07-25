@@ -47,4 +47,19 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 and expr.operands[1].value == 1:
             return expr.operands[0]
 
+        elif expr.op in {"Shr", "Sar"} \
+                and isinstance(expr.operands[1], Const) \
+                and isinstance(expr.operands[0], BinaryOp) \
+                and expr.operands[0].op == "Shr" \
+                and isinstance(expr.operands[0].operands[1], Const):
+            # (a >> M) >> N  ==>  a >> (M + N)
+            const_a = expr.operands[0].operands[1]
+            const_b = expr.operands[1]
+            const = Const(const_b.idx, None, const_a.value + const_b.value, const_b.bits, **const_b.tags)
+            return BinaryOp(expr.idx, expr.op,
+                            (expr.operands[0].operands[0], const),
+                            False,
+                            bits=expr.bits,
+                            **expr.tags)
+
         return None
