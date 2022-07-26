@@ -25,6 +25,7 @@ lib.add('pwrite64', P['posix']['pwrite64'])
 lib.add('socket', P['posix']['socket'])
 lib.add('recvfrom', P['posix']['recvfrom'])
 lib.add('select', P['posix']['select'])
+lib.add('chroot', P['posix']['chroot'])
 
 lib.add_alias('exit', 'exit_group')
 lib.add_alias('getuid', 'geteuid')
