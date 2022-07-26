@@ -1,9 +1,9 @@
 # pylint:disable=missing-class-docstring,no-self-use
-import angr
+import os
 import unittest
+import angr
 from angr.state_plugins.posix import Flags
 
-import os
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
