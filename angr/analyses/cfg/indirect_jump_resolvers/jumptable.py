@@ -604,6 +604,27 @@ class BSSHook:
             self._written_addrs.add(i)
 
 
+class MIPSGPHook:
+    """
+    Hooks all reads from and writes into the gp register for MIPS32 binaries.
+    """
+    def __init__(self, gp_offset: int, gp: int):
+        self.gp_offset = gp_offset
+        self.gp = gp
+
+    def gp_register_read_hook(self, state):
+        read_offset = state.inspect.reg_read_offset
+        read_length = state.inspect.reg_read_length
+        if state.solver.eval(read_offset) == self.gp_offset and read_length == 4:
+            state.inspect.reg_read_expr = claripy.BVV(self.gp, size=32)
+
+    def gp_register_write_hook(self, state):
+        write_offset = state.inspect.reg_write_offset
+        write_length = state.inspect.reg_write_length
+        if state.solver.eval(write_offset) == self.gp_offset and write_length == 4:
+            state.inspect.reg_write_expr = claripy.BVV(self.gp, size=32)
+
+
 #
 # Main class
 #
@@ -770,6 +791,23 @@ class JumpTableResolver(IndirectJumpResolver):
                 start_state.inspect.add_breakpoint('mem_write', bss_memory_write_bp)
                 bss_memory_read_bp = BP(when=BP_BEFORE, enabled=True, action=bss_hook.bss_memory_read_hook)
                 start_state.inspect.add_breakpoint('mem_read', bss_memory_read_bp)
+
+            if self.project.arch.name == "MIPS32":
+                # instrument all reads from gp and all writes to gp
+                gp = None
+                try:
+                    func = cfg.kb.functions.get_by_addr(func_addr)
+                    if func.info and "gp" in func.info:
+                        gp = func.info["gp"]
+                except KeyError:
+                    pass
+                if gp is not None:
+                    mips_gp_hook = MIPSGPHook(self.project.arch.registers['gp'][0],
+                                              gp)
+                    mips_gp_read_bp = BP(when=BP_AFTER, enabled=True, action=mips_gp_hook.gp_register_read_hook)
+                    mips_gp_write_bp = BP(when=BP_AFTER, enabled=True, action=mips_gp_hook.gp_register_write_hook)
+                    start_state.inspect.add_breakpoint('reg_read', mips_gp_read_bp)
+                    start_state.inspect.add_breakpoint('reg_write', mips_gp_write_bp)
 
             # instrument specified store/put/load statements
             self._instrument_statements(start_state, stmts_to_instrument, regs_to_initialize)
