@@ -53,6 +53,9 @@ class ConvConstMullAShift(PeepholeOptimizationExprBase):
                                 new_const = Const(None, None, divisor, V)
                                 new_div = BinaryOp(expr0.operands[0].idx, 'Div', [X, new_const],
                                                    expr0.operands[0].signed, **expr0.operands[0].tags)
+                                # we cannot drop the convert
+                                new_div = Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
+                                                  new_div, **expr.tags)
                                 return new_div
 
     @staticmethod
