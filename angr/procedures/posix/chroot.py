@@ -1,7 +1,12 @@
-import angr
 import os
+import angr
 
 class chroot(angr.SimProcedure):
+    #pylint:disable=arguments-differ,unused-argument
+    """
+    Chroot will change the root directory of a file system to a new folder from your current position
+    """
+
     def run(self, file_path):
         size = 0
         while True:
@@ -15,7 +20,6 @@ class chroot(angr.SimProcedure):
 
         if not os.path.exists(newPath):
             return -1
-        
+
         self.state.fs.mount('/', angr.SimHostFilesystem(newPath))
         return 0
-    
