@@ -1802,7 +1802,7 @@ class CClosingObject:
 
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
-                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
+                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=16,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
                  comment_gotos=True, flavor=None, stmt_comments=None, expr_comments=None, show_externs=True,
                  externs=None, const_formats=None):
