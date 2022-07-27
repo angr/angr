@@ -61,7 +61,8 @@ class AILSimplifier(Analysis):
                  remove_dead_memdefs=False,
                  stack_arg_offsets: Optional[Set[Tuple[int,int]]]=None,
                  unify_variables=False,
-                 ail_manager: Optional['Manager']=None):
+                 ail_manager: Optional['Manager']=None,
+                 gp: Optional[int]=None):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions = None
@@ -71,6 +72,7 @@ class AILSimplifier(Analysis):
         self._stack_arg_offsets = stack_arg_offsets
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
+        self._gp = gp
 
         self._calls_to_remove: Set[CodeLocation] = set()
         self._assignments_to_remove: Set[CodeLocation] = set()
@@ -148,7 +150,7 @@ class AILSimplifier(Analysis):
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
-        prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
+        prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph, gp=self._gp)
         self._propagator = prop
         return prop
 
@@ -332,7 +334,7 @@ class AILSimplifier(Analysis):
         replaced = False
         for (block_addr, block_idx), reps in replacements_by_block_addrs_and_idx.items():
             block = blocks_by_addr_and_idx[(block_addr, block_idx)]
-            r, new_block = BlockSimplifier._replace_and_build(block, reps)
+            r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp)
             replaced |= r
             self.blocks[block] = new_block
 

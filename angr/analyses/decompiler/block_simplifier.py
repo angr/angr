@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call
-from ailment.expression import Expression, Tmp, Load
+from ailment.expression import Expression, Tmp, Load, Const
 
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
@@ -87,7 +87,8 @@ class BlockSimplifier(Analysis):
     def _simplify_block_once(self, block):
 
         # propagator
-        propagator = self.project.analyses.Propagator(block=block, stack_pointer_tracker=self._stack_pointer_tracker)
+        propagator = self.project.analyses.Propagator(block=block, func_addr=self.func_addr,
+                                                      stack_pointer_tracker=self._stack_pointer_tracker)
         replacements = list(propagator._states.values())[0]._replacements
         if replacements:
             _, new_block = self._replace_and_build(block, replacements)
@@ -99,7 +100,8 @@ class BlockSimplifier(Analysis):
         return new_block
 
     @staticmethod
-    def _replace_and_build(block, replacements, replace_assignment_dsts: bool=False) -> Tuple[bool,'Block']:
+    def _replace_and_build(block, replacements, replace_assignment_dsts: bool=False,
+                           gp: Optional[int]=None) -> Tuple[bool,'Block']:
 
         new_statements = block.statements[::]
         replaced = False
@@ -107,8 +109,10 @@ class BlockSimplifier(Analysis):
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
                 stmt = new_statements[codeloc.stmt_idx]
-                if isinstance(old, Load) and not isinstance(stmt, Call):
-                    # skip memory-based replacement for non-Call statements
+                if isinstance(old, Load) \
+                        and not isinstance(stmt, Call) \
+                        and not (gp is not None and isinstance(new, Const) and new.value == gp):
+                    # skip memory-based replacement for non-Call and non-gp-loading statements
                     continue
                 if stmt == old:
                     # replace this statement

@@ -177,6 +177,11 @@ class Clinic(Analysis):
         self._update_progress(45., text="Simplifying function 1")
         self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False)
 
+        # Run simplification passes again. there might be more chances for peephole optimizations after function-level
+        # simplification
+        self._update_progress(38., text="Simplifying blocks 2")
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False)
+
         # clear _blocks_by_addr_and_size so no one can use it again
         # TODO: Totally remove this dict
         self._blocks_by_addr_and_size = None
@@ -192,7 +197,7 @@ class Clinic(Analysis):
 
         # After global optimization, there might be more chances for peephole optimizations.
         # Simplify blocks for the second time
-        self._update_progress(60., text="Simplifying blocks 2")
+        self._update_progress(60., text="Simplifying blocks 3")
         ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
                                           stack_pointer_tracker=spt)
 
@@ -201,7 +206,7 @@ class Clinic(Analysis):
         self._simplify_function(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
                                 stack_arg_offsets=stackarg_offsets, unify_variables=True)
 
-        self._update_progress(68., text="Simplifying blocks 3")
+        self._update_progress(68., text="Simplifying blocks 4")
         ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
                                           stack_pointer_tracker=spt)
 
@@ -456,6 +461,7 @@ class Clinic(Analysis):
             unify_variables=unify_variables,
             stack_arg_offsets=stack_arg_offsets,
             ail_manager=self._ail_manager,
+            gp=self.function.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -464,7 +470,8 @@ class Clinic(Analysis):
         return simp.simplified
 
     @timethis
-    def _run_simplification_passes(self, ail_graph, stage: int = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
+    def _run_simplification_passes(self, ail_graph,
+                                   stage: OptimizationPassStage = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
                                    variable_kb=None, **kwargs):
 
         addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
