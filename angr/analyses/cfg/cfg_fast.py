@@ -3863,7 +3863,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _lifter_register_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
 
-        if self.project.arch.name in {"MIPS64"} or is_arm_arch(self.project.arch):
+        if self.project.arch.name in {"MIPS64", "MIPS32"} or is_arm_arch(self.project.arch):
             self._ro_region_cdata_cache = [ ]
             for segment in self.project.loader.main_object.segments:
                 if segment.is_readable and not segment.is_writable:
@@ -3872,7 +3872,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._ro_region_cdata_cache.append(content_buf)
                     pyvex.pvc.register_readonly_region(segment.vaddr, segment.memsize, content_buf)
 
-            if self.project.arch.name == "MIPS64":
+            if self.project.arch.name in {"MIPS64", "MIPS32"}:
                 # also map .got
                 for section in self.project.loader.main_object.sections:
                     if section.name == ".got":
@@ -4035,7 +4035,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             return None, None, None, None
 
             initial_regs = None
-            if self.project.arch.name == "MIPS64":
+            if self.project.arch.name in {"MIPS64", "MIPS32"}:
                 initial_regs = [
                     (self.project.arch.registers['t9'][0],
                      self.project.arch.registers['t9'][1],

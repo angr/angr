@@ -356,7 +356,10 @@ class SimEnginePropagatorAIL(
                     var_defat = var.one_defat
                     # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
                     # replacing stack variables, unless this is in the middle of a call statement.
-                    if self.state._inside_call_stmt:
+                    if self.state._inside_call_stmt \
+                            or (self.state._gp is not None
+                                and not self.state.is_top(var.value)
+                                and var.value._model_concrete.value == self.state._gp):
                         if var.one_expr is not None:
                             if not self.is_using_outdated_def(var.one_expr, var.one_defat, avoid=expr.addr):
                                 l.debug("Add a replacement: %s with %s", expr, var.one_expr)
