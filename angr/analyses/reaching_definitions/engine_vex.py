@@ -403,11 +403,16 @@ class SimEngineRDVEX(
                     # try to load it from the static memory backer
                     # TODO: Is this still required?
                     try:
-                        vs = MultiValues(offset_to_values={0: {
-                            claripy.BVV(
-                                self.project.loader.memory.unpack_word(addr_v, size=size),
-                                size * self.arch.byte_width
-                            )}})
+                        val = self.project.loader.memory.unpack_word(addr_v, size=size)
+                        section = self.project.loader.find_section_containing(addr_v)
+                        if val == 0 and (not section or section.is_writable):
+                            vs = MultiValues(offset_to_values={0: {self.state.top(size*self.arch.byte_width)}})
+                        else:
+                            vs = MultiValues(offset_to_values={0: {
+                                claripy.BVV(
+                                    val,
+                                    size * self.arch.byte_width
+                                )}})
                     except KeyError:
                         continue
 
