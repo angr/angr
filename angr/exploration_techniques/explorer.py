@@ -2,6 +2,7 @@ import claripy.errors
 from . import ExplorationTechnique
 from .common import condition_to_lambda
 from .. import sim_options
+from ..state_plugins.sim_event import resource_event
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -96,19 +97,6 @@ class Explorer(ExplorationTechnique):
         base_extra_stop_points = set(kwargs.pop("extra_stop_points", []))
         return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
-    def _classify(self, addr, findable, avoidable):
-        if self.avoid_priority:
-            if avoidable and (avoidable is True or addr in avoidable):
-                return self.avoid_stash
-            elif findable and (findable is True or addr in findable):
-                return self.find_stash
-        else:
-            if findable and (findable is True or addr in findable):
-                return self.find_stash
-            elif avoidable and (avoidable is True or addr in avoidable):
-                return self.avoid_stash
-        return None
-
     # make it more natural to deal with the intended dataflow
     def filter(self, simgr, state, **kwargs):
         stash = self._filter_inner(state)
@@ -123,20 +111,24 @@ class Explorer(ExplorationTechnique):
             self._warned_unicorn = True
 
         try:
+            if self.avoid_priority:
+                avoidable = self.avoid(state)
+                if avoidable and (avoidable is True or state.addr in avoidable):
+                    return self.avoid_stash
             findable = self.find(state)
-            avoidable = self.avoid(state)
-        except claripy.errors.ClaripySolverInterruptError:
+            if findable and (findable is True or state.addr in findable):
+                return self.find_stash
+            if not self.avoid_priority:
+                avoidable = self.avoid(state)
+                if avoidable and (avoidable is True or state.addr in avoidable):
+                    return self.avoid_stash
+        except claripy.errors.ClaripySolverInterruptError as e:
+            resource_event(state, e)
             return 'interrupted'
 
-        if not findable and not avoidable:
-            if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
-                if state.addr not in self.ok_blocks:
-                    return self.avoid_stash
-            return None
-
-        stash = self._classify(state.addr, findable, avoidable)
-        if stash is not None:
-            return stash
+        if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
+            if state.addr not in self.ok_blocks:
+                return self.avoid_stash
 
         return None
 

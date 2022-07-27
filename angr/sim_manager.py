@@ -17,6 +17,7 @@ from .sim_state import SimState
 from .state_hierarchy import StateHierarchy
 from .errors import AngrError, SimUnsatError, SimulationManagerError
 from .sim_options import LAZY_SOLVES
+from .state_plugins.sim_event import resource_event
 
 l = logging.getLogger(name=__name__)
 
@@ -52,6 +53,7 @@ class SimulationManager:
     :param completion_mode: A function describing how multiple exploration techniques with the ``complete``
                             hook set will interact. By default, the builtin function ``any``.
     :param techniques:      A list of techniques that should be pre-set to use with this manager.
+    :param suggestions:     Whether to automatically install the Suggestions exploration technique. Default True.
 
     :ivar errored:          Not a stash, but a list of ErrorRecords. Whenever a step raises an exception that we catch,
                             the state and some information about the error are placed in this list. You can adjust the
@@ -78,6 +80,7 @@ class SimulationManager:
             errored=None,
             completion_mode=any,
             techniques=None,
+            suggestions=True,
             **kwargs):
         super().__init__()
 
@@ -105,6 +108,9 @@ class SimulationManager:
             self._resilience = ()
         else:
             self._resilience = tuple(resilience)
+
+        if suggestions:
+            self.use_technique(Suggestions())
 
         # 8<----------------- Compatibility layer -----------------
 
@@ -186,7 +192,8 @@ class SimulationManager:
                                   resilience=self._resilience,
                                   auto_drop=self._auto_drop,
                                   completion_mode=self.completion_mode,
-                                  errored=self._errored)
+                                  errored=self._errored,
+                                  suggestions=False)
         HookSet.copy_hooks(self, simgr, ExplorationTechnique._hook_list)
         return simgr
 
@@ -241,7 +248,7 @@ class SimulationManager:
     #
 
     def explore(self, stash='active', n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None,
-                num_find=1, **kwargs):
+                num_find=1, avoid_priority=False, **kwargs):
         """
         Tick stash "stash" forward (up to "n" times or until "num_find" states are found), looking for condition "find",
         avoiding condition "avoid". Stores found states into "find_stash' and avoided states into "avoid_stash".
@@ -257,7 +264,15 @@ class SimulationManager:
         preemptively avoided.
         """
         num_find += len(self._stashes[find_stash]) if find_stash in self._stashes else 0
-        tech = self.use_technique(Explorer(find, avoid, find_stash, avoid_stash, cfg, num_find))
+        tech = self.use_technique(Explorer(
+            find,
+            avoid,
+            find_stash,
+            avoid_stash,
+            cfg,
+            num_find,
+            avoid_priority=avoid_priority,
+        ))
 
         # Modify first Veritesting so that they can work together.
         deviation_filter_saved = None
@@ -448,14 +463,7 @@ class SimulationManager:
                 self._hierarchy.simplify()
 
         except claripy.ClaripySolverInterruptError as e:
-            for frame, line in reversed(list(traceback.walk_tb(e.__traceback__))):
-                module = frame.f_globals.get('__name__', '').split('.')
-                function = frame.f_code.co_name
-                lineno = frame.f_lineno
-                if module[0] == 'claripy' or module in (['angr', 'state_plugins', 'solver'], ['angr', 'state_plugins', 'sim_action_object']):
-                    continue
-                state.history.add_event("interrupt", module=module, function=function, lineno=lineno, reason=e.args[0])
-                break
+            resource_event(state, e)
             stashes = {'interrupted': [state]}
 
         except tuple(self._resilience) as e:
@@ -884,4 +892,4 @@ class ErrorRecord:
     def __eq__(self, other):
         return self is other or self.state is other
 
-from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer
+from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, Suggestions
