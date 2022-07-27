@@ -55,7 +55,10 @@ class Suggestions(ExplorationTechnique):
             with self.lock:  # do not interleave logs
                 self.report(state, event)
 
-    def report(self, state, event):
+        return simgr
+
+    @staticmethod
+    def report(state, event):
         if once('suggestion_technique'):
             l.warning("Some of your states hit a resource limit. set logger %s to INFO for suggestions.", __name__)
             l.info("Create your simulation manager with `suggestions=False` to disable this.")
@@ -79,15 +82,18 @@ class Suggestions(ExplorationTechnique):
 
             log = []
             for history in state.history.lineage:
-                for event in history.recent_events:
-                    if isinstance(event, SimActionConstraint):
-                        constraint = event.constraint.ast
+                for constraint_event in history.recent_events:
+                    if isinstance(constraint_event, SimActionConstraint):
+                        constraint = constraint_event.constraint.ast
                         if constraint is history.jump_guard:
                             src_addr = history.jump_source
                             dst_addr = history.jump_target
                             transition_type = 'jumping'
                         else:
-                            src_addr = event.ins_addr if event.sim_procedure is None else event.sim_procedure.addr
+                            if constraint_event.sim_procedure is None:
+                                src_addr = constraint_event.ins_addr
+                            else:
+                                src_addr = constraint_event.sim_procedure.addr
                             block = state.block(src_addr, num_inst=2)
                             try:
                                 dst_addr = block.instruction_addrs[1]

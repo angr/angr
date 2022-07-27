@@ -1,4 +1,5 @@
-import angr # type annotations; pylint:disable=unused-import,missing-class-docstring,wrong-import-position
+# pylint:disable=unused-import,missing-class-docstring,wrong-import-position
+import angr  # type annotations
 
 
 class ExplorationTechnique:
