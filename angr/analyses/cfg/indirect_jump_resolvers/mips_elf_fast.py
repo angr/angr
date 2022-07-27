@@ -1,4 +1,5 @@
-from typing import Dict, TYPE_CHECKING
+# pylint:disable=too-many-boolean-expressions
+from typing import Dict, Optional, Tuple, TYPE_CHECKING
 import logging
 
 import pyvex
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
+
+# hit_case_0, hit_case_1, miss = 0, 0, 0
 
 
 class OverwriteTmpValueCallback:
@@ -81,6 +84,36 @@ class MipsElfFastResolver(IndirectJumpResolver):
                   ignored_regs=('gp',), cross_insn_opt=False, stop_at_calls=True, max_level=max_level
                   )
 
+        func = cfg.kb.functions.function(addr=func_addr)
+        gp_value = func.info.get('gp', None)
+
+        # see if gp is used on this slice at all
+        gp_used = self._is_gp_used_on_slice(project, b)
+        if gp_used and gp_value is None:
+            # this might a special case: gp is only used once in this function, and it can be initialized right
+            # before its use site.
+            # however, it should have been determined in CFGFast
+            # cannot determine the value of gp. quit
+            l.warning('Failed to determine value of register gp for function %#x.', func.addr)
+            return False, [ ]
+
+        # global hit_case_0, hit_case_1, miss
+
+        if gp_value is not None:
+            target = self._try_handle_simple_case_0(gp_value, b)
+            if target is not None:
+                # hit_case_0 += 1
+                # print(f"hit/miss: {hit_case_0 + hit_case_1}/{miss}, {hit_case_0}|{hit_case_1}")
+                return True, [ target ]
+            target = self._try_handle_simple_case_1(gp_value, b)
+            if target is not None:
+                # hit_case_1 += 1
+                # print(f"hit/miss: {hit_case_0 + hit_case_1}/{miss}, {hit_case_0}|{hit_case_1}")
+                return True, [ target ]
+
+        # miss += 1
+        # print(f"hit/miss: {hit_case_0 + hit_case_1}/{miss}, {hit_case_0}|{hit_case_1}")
+
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
         if not sources:
             return False, []
@@ -100,26 +133,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
                                             },
                                             )
         state.regs._t9 = func_addr
-        func = cfg.kb.functions.function(addr=func_addr)
 
-        # see if gp is used on this slice at all
-        gp_used = self._is_gp_used_on_slice(project, b)
-
-        gp_value = None
         if gp_used:
-            if 'gp' not in func.info:
-                # this might a special case: gp is only used once in this function, and it can be initialized right
-                # before its use site.
-                # however, it should have been determined in CFGFast
-                # cannot determine the value of gp. quit
-                pass
-            else:
-                gp_value = func.info['gp']
-
-            if gp_value is None:
-                l.warning('Failed to determine value of register gp for function %#x.', func.addr)
-                return False, []
-
             # Special handling for cases where `gp` is stored on the stack
             gp_offset = project.arch.registers['gp'][0]
             self._set_gp_load_callback(state, b, project, gp_offset, gp_value)
@@ -147,6 +162,253 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
         l.info("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
         return False, [ ]
+
+    def _try_handle_simple_case_0(self, gp: int, blade: Blade) -> Optional[int]:
+        # we only attempt to support the following case:
+        #  + A | t37 = GET:I32(gp)
+        #  + B | t36 = Add32(t37,0xffff8624)
+        #  + C | t38 = LDbe:I32(t36)
+        #  + D | PUT(t9) = t38
+        #  + E | t8 = GET:I32(t9)
+        #  Next: t8
+
+        nodes_with_no_outedges = [ ]
+        for node in blade.slice.nodes():
+            if blade.slice.out_degree(node) == 0:
+                nodes_with_no_outedges.append(node)
+        if len(nodes_with_no_outedges) != 1:
+            return None
+
+        end_node = nodes_with_no_outedges[0]
+        if end_node[-1] != DEFAULT_STATEMENT:
+            return None
+
+        end_block = self.project.factory.block(end_node[0], cross_insn_opt=blade._cross_insn_opt).vex
+        if not isinstance(end_block.next, pyvex.IRExpr.RdTmp):
+            return None
+        next_tmp = end_block.next.tmp
+
+        # step backward
+
+        # E
+        previous_node = self._previous_node(blade, end_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) or not isinstance(stmt.data, pyvex.IRExpr.Get):
+            return None
+        if stmt.tmp != next_tmp:
+            return None
+        if stmt.data.offset != self.project.arch.registers["t9"][0]:
+            return None
+
+        # D
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.Put) or not isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+            return None
+        if stmt.offset != self.project.arch.registers["t9"][0]:
+            return None
+        data_tmp = stmt.data.tmp
+
+        # C
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                or not isinstance(stmt.data, pyvex.IRExpr.Load) \
+                or not isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp):
+            return None
+        if stmt.tmp != data_tmp:
+            return None
+        addr_tmp = stmt.data.addr.tmp
+
+        # B
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                or stmt.tmp != addr_tmp \
+                or not isinstance(stmt.data, pyvex.IRExpr.Binop) \
+                or stmt.data.op != "Iop_Add32" \
+                or not isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) \
+                or not isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+            return None
+        add_tmp = stmt.data.args[0].tmp
+        add_const = stmt.data.args[1].con.value
+
+        # A
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                or stmt.tmp != add_tmp \
+                or not isinstance(stmt.data, pyvex.IRExpr.Get):
+            return None
+        if stmt.data.offset != self.project.arch.registers["gp"][0]:
+            return None
+
+        # matching complete
+        addr = (gp + add_const) & 0xffff_ffff
+        try:
+            target = self.project.loader.memory.unpack_word(addr, size=4)
+            return target
+        except KeyError:
+            return None
+
+    def _try_handle_simple_case_1(self, gp: int, blade: Blade) -> Optional[int]:
+        # we only attempt to support the following case:
+        #  + A | t22 = GET:I32(gp)
+        #  + B | t21 = Add32(t22,0xffff8020)
+        #  + C | t23 = LDbe:I32(t21)
+        #  + D | PUT(t9) = t23
+        #  + E | t27 = GET:I32(t9)
+        #  + F | t26 = Add32(t27,0x00007cec)
+        #  + G | PUT(t9) = t26
+        #  + H | t4 = GET:I32(t9)
+        #  + Next: t4
+
+        nodes_with_no_outedges = [ ]
+        for node in blade.slice.nodes():
+            if blade.slice.out_degree(node) == 0:
+                nodes_with_no_outedges.append(node)
+        if len(nodes_with_no_outedges) != 1:
+            return None
+
+        end_node = nodes_with_no_outedges[0]
+        if end_node[-1] != DEFAULT_STATEMENT:
+            return None
+
+        end_block = self.project.factory.block(end_node[0], cross_insn_opt=blade._cross_insn_opt).vex
+        if not isinstance(end_block.next, pyvex.IRExpr.RdTmp):
+            return None
+        next_tmp = end_block.next.tmp
+
+        # step backward
+
+        # H
+        previous_node = self._previous_node(blade, end_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) or not isinstance(stmt.data, pyvex.IRExpr.Get):
+            return None
+        if stmt.tmp != next_tmp:
+            return None
+        if stmt.data.offset != self.project.arch.registers["t9"][0]:
+            return None
+
+        # G
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.Put) or not isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+            return None
+        if stmt.offset != self.project.arch.registers["t9"][0]:
+            return None
+        t9_tmp_G = stmt.data.tmp
+
+        # F
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                or not stmt.tmp == t9_tmp_G \
+                or not isinstance(stmt.data, pyvex.IRExpr.Binop) \
+                or stmt.data.op != "Iop_Add32" \
+                or not isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) \
+                or not isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+            return None
+        t9_tmp_F = stmt.data.args[0].tmp
+        t9_add_const = stmt.data.args[1].con.value
+
+        # E
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) or not isinstance(stmt.data, pyvex.IRExpr.Get):
+            return None
+        if stmt.tmp != t9_tmp_F:
+            return None
+        if stmt.data.offset != self.project.arch.registers["t9"][0]:
+            return None
+
+        # D
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.Put) or not isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+            return None
+        if stmt.offset != self.project.arch.registers["t9"][0]:
+            return None
+        t9_tmp_D = stmt.data.tmp
+
+        # C
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                or not isinstance(stmt.data, pyvex.IRExpr.Load) \
+                or not isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp):
+            return None
+        if stmt.tmp != t9_tmp_D:
+            return None
+        addr_tmp = stmt.data.addr.tmp
+
+        # B
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                or stmt.tmp != addr_tmp \
+                or not isinstance(stmt.data, pyvex.IRExpr.Binop) \
+                or stmt.data.op != "Iop_Add32" \
+                or not isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp) \
+                or not isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
+            return None
+        add_tmp = stmt.data.args[0].tmp
+        add_const = stmt.data.args[1].con.value
+
+        # A
+        previous_node = self._previous_node(blade, previous_node)
+        if previous_node is None:
+            return None
+        stmt = end_block.statements[previous_node[1]]
+        if not isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                or stmt.tmp != add_tmp \
+                or not isinstance(stmt.data, pyvex.IRExpr.Get):
+            return None
+        if stmt.data.offset != self.project.arch.registers["gp"][0]:
+            return None
+
+        # matching complete
+        addr = (gp + add_const) & 0xffff_ffff
+        try:
+            target_0 = self.project.loader.memory.unpack_word(addr, size=4)
+            target = (target_0 + t9_add_const) & 0xffff_ffff
+            return target
+        except KeyError:
+            return None
+
+    @staticmethod
+    def _previous_node(blade: Blade, curr_node: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        if blade.slice.in_degree(curr_node) != 1:
+            return None
+        nn = next(iter(blade.slice.predecessors(curr_node)))
+        if nn[0] != curr_node[0]:
+            return None
+        return nn
 
     @staticmethod
     def _set_gp_load_callback(state, blade, project, gp_offset, gp_value):
