@@ -359,6 +359,7 @@ class SimEnginePropagatorAIL(
                     if self.state._inside_call_stmt \
                             or (self.state._gp is not None
                                 and not self.state.is_top(var.value)
+                                and var.value.concrete
                                 and var.value._model_concrete.value == self.state._gp):
                         if var.one_expr is not None:
                             if not self.is_using_outdated_def(var.one_expr, var.one_defat, avoid=expr.addr):
