@@ -118,7 +118,7 @@ def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Option
         return None
 
     # TODO: Add more operations
-    if last_stmt.condition.op == 'CmpLE':
+    if isinstance(last_stmt.condition, ailment.Expr.BinaryOp) and last_stmt.condition.op == 'CmpLE':
         if not isinstance(last_stmt.condition.operands[1], ailment.Expr.Const):
             return None
         cmp_ub = last_stmt.condition.operands[1].value
