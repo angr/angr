@@ -1095,7 +1095,8 @@ class TestDecompiler(unittest.TestCase):
 
         assert "max_width = (int)xdectoumax(" in d.codegen.text or "max_width = xdectoumax(" in d.codegen.text
         assert "goal_width = xdectoumax(" in d.codegen.text
-        assert "max_width = goal_width + 10;" in d.codegen.text
+        assert "max_width = goal_width + 10;" in d.codegen.text \
+               or "max_width = ((int)(goal_width + 10));" in d.codegen.text
 
     def test_expr_collapsing(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "deep_expr")
