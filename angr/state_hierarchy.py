@@ -1,5 +1,4 @@
 import logging
-import threading
 import weakref
 import itertools
 from contextlib import contextmanager
@@ -7,6 +6,8 @@ import gc
 import networkx
 
 import claripy
+
+from .misc.picklable_lock import PicklableRLock
 
 l = logging.getLogger(name=__name__)
 
@@ -27,7 +28,7 @@ class StateHierarchy:
         self._reverse_weakref_cache = {} # map from weakref to object id
         self._pending_cleanup = set()
         self._defer_cleanup = False
-        self._lock = threading.RLock()
+        self._lock = PicklableRLock()
 
     def __getstate__(self):
         gc.collect()

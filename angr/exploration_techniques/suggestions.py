@@ -1,9 +1,9 @@
 import logging
-import threading
 import claripy
 
 from . import ExplorationTechnique
 from ..misc.ux import once
+from ..misc.picklable_lock import PicklableLock
 from ..state_plugins.sim_action import SimActionConstraint
 from ..state_plugins.sim_action_object import SimActionObject
 
@@ -35,7 +35,7 @@ class Suggestions(ExplorationTechnique):
     def __init__(self):
         super().__init__()
         self.suggested = set()
-        self.lock = threading.Lock()
+        self.lock = PicklableLock()
 
     def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)

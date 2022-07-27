@@ -1,17 +1,16 @@
 import sys
 import itertools
-import threading
 import types
 from collections import defaultdict
 from typing import List, Tuple, DefaultDict
 import logging
-import traceback
 
 import claripy
 import mulpyplexer
 
 from .misc.hookset import HookSet
 from .misc.ux import once
+from .misc.picklable_lock import PicklableLock
 from .errors import SimError, SimMergeError
 from .sim_state import SimState
 from .state_hierarchy import StateHierarchy
@@ -87,7 +86,7 @@ class SimulationManager:
         self._project = project
         self.completion_mode = completion_mode
         self._errored = []
-        self._lock = threading.Lock()
+        self._lock = PicklableLock()
 
         if stashes is None:
             stashes = self._create_integral_stashes()
