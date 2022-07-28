@@ -42,7 +42,7 @@ class AllocHelper:
     def translate(self, val, base):
         if type(val) is SimStructValue:
             return SimStructValue(val.struct, {
-                field: self.translate(subval, base) for field, subval in val.fields.items()
+                field: self.translate(subval, base) for field, subval in val._values.items()
             })
         if isinstance(val, claripy.Bits):
             return val.replace(self.base, base)
@@ -87,7 +87,7 @@ class AllocHelper:
         if type(val) is SimStructValue:
             return SimStructArg(val.struct, {
                 field: cls.stack_loc(subval, arch, offset + val.struct.offsets[field])
-                for field, subval in val.fields.items()
+                for field, subval in val._values.items()
             })
         raise TypeError(type(val))
 
