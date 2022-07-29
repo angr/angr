@@ -1,3 +1,5 @@
+# pylint: disable=no-self-use,unused-private-member
+
 import abc
 import sys
 import logging
@@ -25,7 +27,7 @@ class SimEngineBase:
     __tls = ('state',)
 
     def __getstate__(self):
-        return self.project,
+        return (self.project,)
 
     def __setstate__(self, state):
         self.project = state[0]
@@ -62,7 +64,7 @@ class TLSMixin:
     """
 
     def __new__(cls, *args, **kwargs):
-        obj = super().__new__(cls, *args, **kwargs)
+        obj = super().__new__(cls)
         obj.__local = threading.local()
         return obj
 

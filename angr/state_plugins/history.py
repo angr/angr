@@ -322,13 +322,18 @@ class SimStateHistory(SimStatePlugin):
 
     def reachable(self):
         if self._satisfiable is not None:
-            pass
-        elif self.state is not None:
-            self._satisfiable = self.state.solver.satisfiable()
-        else:
-            solver = claripy.Solver()
-            solver.add(self._all_constraints)
-            self._satisfiable = solver.satisfiable()
+            return self._satisfiable
+
+        if self.state is not None:
+            try:
+                self._satisfiable = self.state.solver.satisfiable()
+                return self._satisfiable
+            except ReferenceError:
+                pass
+
+        solver = claripy.Solver()
+        solver.add(self._all_constraints)
+        self._satisfiable = solver.satisfiable()
 
         return self._satisfiable
 

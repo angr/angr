@@ -1,42 +1,5 @@
-import angr # type annotations; pylint:disable=unused-import,missing-class-docstring,wrong-import-position
-
-# 8<----------------- Compatibility layer -----------------
-class ExplorationTechniqueMeta(type):
-    def __new__(cls, name, bases, attrs):
-        import inspect  # pylint:disable=import-outside-toplevel
-        if name != 'ExplorationTechniqueCompat':
-            if 'step' in attrs and not inspect.getfullargspec(attrs['step']).defaults:
-                attrs['step'] = cls._step_factory(attrs['step'])
-            if 'filter' in attrs and inspect.getfullargspec(attrs['filter']).args[1] != 'simgr':
-                attrs['filter'] = cls._filter_factory(attrs['filter'])
-            if 'step_state' in attrs and inspect.getfullargspec(attrs['step_state']).args[1] != 'simgr':
-                attrs['step_state'] = cls._step_state_factory(attrs['step_state'])
-        return type.__new__(cls, name, bases, attrs)
-
-    @staticmethod
-    def _step_factory(step):
-        def step_wrapped(self, simgr, stash='active', **kwargs):
-            return step(self, simgr, stash, **kwargs)
-        return step_wrapped
-
-    @staticmethod
-    def _filter_factory(func):  # pylint:disable=redefined-builtin
-        def filter_wrapped(self, simgr, state, filter_func=None):
-            result = func(self, state)  # pylint:disable=no-value-for-parameter
-            if result is None:
-                result = simgr.filter(state, filter_func=filter_func)
-            return result
-        return filter_wrapped
-
-    @staticmethod
-    def _step_state_factory(step_state):
-        def step_state_wrapped(self, simgr, state, successor_func=None, **kwargs):
-            result = step_state(self, state, **kwargs)
-            if result is None:
-                result = simgr.step_state(state, successor_func=successor_func, **kwargs)
-            return result
-        return step_state_wrapped
-# ------------------- Compatibility layer --------------->8
+# pylint:disable=unused-import,missing-class-docstring,wrong-import-position
+import angr  # type annotations
 
 
 class ExplorationTechnique:
@@ -48,14 +11,7 @@ class ExplorationTechnique:
 
     Any number of these methods may be overridden by a subclass.
     To use an exploration technique, call ``simgr.use_technique`` with an *instance* of the technique.
-
-    .. warning:: There is currently installed a compatibility layer for the previous version of this API. This
-                 layer requires that implementations of ExplorationTechnique use the same argument names as the
-                 original methods, or else it will mangle the behvior.
     """
-    # 8<----------------- Compatibility layer -----------------
-    __metaclass__ = ExplorationTechniqueMeta
-    # ------------------- Compatibility layer --------------->8
 
     # this is the master list of hook functinos
     _hook_list = ('step', 'filter', 'selector', 'step_state', 'successors')
@@ -190,3 +146,4 @@ from .memory_watcher import MemoryWatcher
 from .bucketizer import Bucketizer
 from .local_loop_seer import LocalLoopSeer
 from .timeout import Timeout
+from .suggestions import Suggestions

@@ -11,7 +11,7 @@ FAKE_ADDR = 0x100000
 # pylint: disable=no-self-use
 class TestActions(unittest.TestCase):
     def test_procedure_actions(self):
-        s = SimState(arch='AMD64')
+        s = SimState(arch='AMD64', add_options={angr.options.ADD_AUTO_REFS})
 
         s.registers.store('rbx', 2)
         proc = SIM_PROCEDURES['testing']['retreg'](reg='rbx')

@@ -10,11 +10,13 @@ import mulpyplexer
 
 from .misc.hookset import HookSet
 from .misc.ux import once
+from .misc.picklable_lock import PicklableLock
 from .errors import SimError, SimMergeError
 from .sim_state import SimState
 from .state_hierarchy import StateHierarchy
 from .errors import AngrError, SimUnsatError, SimulationManagerError
 from .sim_options import LAZY_SOLVES
+from .state_plugins.sim_event import resource_event
 
 l = logging.getLogger(name=__name__)
 
@@ -50,6 +52,7 @@ class SimulationManager:
     :param completion_mode: A function describing how multiple exploration techniques with the ``complete``
                             hook set will interact. By default, the builtin function ``any``.
     :param techniques:      A list of techniques that should be pre-set to use with this manager.
+    :param suggestions:     Whether to automatically install the Suggestions exploration technique. Default True.
 
     :ivar errored:          Not a stash, but a list of ErrorRecords. Whenever a step raises an exception that we catch,
                             the state and some information about the error are placed in this list. You can adjust the
@@ -76,12 +79,14 @@ class SimulationManager:
             errored=None,
             completion_mode=any,
             techniques=None,
+            suggestions=True,
             **kwargs):
         super().__init__()
 
         self._project = project
         self.completion_mode = completion_mode
         self._errored = []
+        self._lock = PicklableLock()
 
         if stashes is None:
             stashes = self._create_integral_stashes()
@@ -102,6 +107,9 @@ class SimulationManager:
             self._resilience = ()
         else:
             self._resilience = tuple(resilience)
+
+        if suggestions:
+            self.use_technique(Suggestions())
 
         # 8<----------------- Compatibility layer -----------------
 
@@ -174,6 +182,8 @@ class SimulationManager:
     def copy(self, deep=False): # pylint: disable=arguments-differ
         """
         Make a copy of this simulation manager. Pass ``deep=True`` to copy all the states in it as well.
+
+        If the current callstack includes hooked methods, the already-called methods will not be included in the copy.
         """
         simgr = SimulationManager(self._project,
                                   stashes=self._copy_stashes(deep=deep),
@@ -181,7 +191,9 @@ class SimulationManager:
                                   resilience=self._resilience,
                                   auto_drop=self._auto_drop,
                                   completion_mode=self.completion_mode,
-                                  errored=self._errored)
+                                  errored=self._errored,
+                                  suggestions=False)
+        HookSet.copy_hooks(self, simgr, ExplorationTechnique._hook_list)
         return simgr
 
     #
@@ -235,7 +247,7 @@ class SimulationManager:
     #
 
     def explore(self, stash='active', n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None,
-                num_find=1, **kwargs):
+                num_find=1, avoid_priority=False, **kwargs):
         """
         Tick stash "stash" forward (up to "n" times or until "num_find" states are found), looking for condition "find",
         avoiding condition "avoid". Stores found states into "find_stash' and avoided states into "avoid_stash".
@@ -251,7 +263,15 @@ class SimulationManager:
         preemptively avoided.
         """
         num_find += len(self._stashes[find_stash]) if find_stash in self._stashes else 0
-        tech = self.use_technique(Explorer(find, avoid, find_stash, avoid_stash, cfg, num_find))
+        tech = self.use_technique(Explorer(
+            find,
+            avoid,
+            find_stash,
+            avoid_stash,
+            cfg,
+            num_find,
+            avoid_priority=avoid_priority,
+        ))
 
         # Modify first Veritesting so that they can work together.
         deviation_filter_saved = None
@@ -311,7 +331,7 @@ class SimulationManager:
             return False
         return self.completion_mode(tech.complete(self) for tech in self._techniques if tech._is_overriden('complete'))
 
-    def step(self, stash='active', n=None, selector_func=None, step_func=None,
+    def step(self, stash='active', target_stash=None, n=None, selector_func=None, step_func=None, error_list=None,
              successor_func=None, until=None, filter_func=None, **run_args):
         """
         Step a stash of states forward and categorize the successors appropriately.
@@ -320,6 +340,8 @@ class SimulationManager:
         categorization process.
 
         :param stash:           The name of the stash to step (default: 'active')
+        :param target_stash:    The name of the stash to put the results in (default: same as ``stash``)
+        :param error_list:      The list to put ErroredState objects in (default: ``self.errored``)
         :param selector_func:   If provided, should be a function that takes a state and returns a
                                 boolean. If True, the state will be stepped. Otherwise, it will be
                                 kept as-is.
@@ -363,6 +385,8 @@ class SimulationManager:
                             successor_func=successor_func, filter_func=filter_func, **run_args)
         # ------------------ Compatibility layer ---------------->8
         bucket = defaultdict(list)
+        target_stash = target_stash or stash
+        error_list = error_list if error_list is not None else self._errored
 
         for state in self._fetch_states(stash=stash):
 
@@ -378,16 +402,16 @@ class SimulationManager:
                 bucket[stash].append(state)
                 continue
 
-            pre_errored = len(self._errored)
+            pre_errored = len(error_list)
 
-            successors = self.step_state(state, successor_func=successor_func, **run_args)
+            successors = self.step_state(state, successor_func=successor_func, error_list=error_list, **run_args)
             # handle degenerate stepping cases here. desired behavior:
             # if a step produced only unsat states, always add them to the unsat stash since this usually indicates bugs
             # if a step produced sat states and save_unsat is False, drop the unsats
             # if a step produced no successors, period, add the original state to deadended
 
             # first check if anything happened besides unsat. that gates all this behavior
-            if not any(v for k, v in successors.items() if k != 'unsat') and len(self._errored) == pre_errored:
+            if not any(v for k, v in successors.items() if k != 'unsat') and len(error_list) == pre_errored:
                 # then check if there were some unsats
                 if successors.get('unsat', []):
                     # only unsats. current setup is acceptable.
@@ -402,23 +426,24 @@ class SimulationManager:
                     successors.pop('unsat', None)
 
             for to_stash, successor_states in successors.items():
-                bucket[to_stash or stash].extend(successor_states)
+                bucket[to_stash or target_stash].extend(successor_states)
 
         self._clear_states(stash=stash)
         for to_stash, states in bucket.items():
             for state in states:
                 if self._hierarchy:
                     self._hierarchy.add_state(state)
-            self._store_states(to_stash or stash, states)
+            self._store_states(to_stash or target_stash, states)
 
         if step_func is not None:
             return step_func(self)
         return self
 
-    def step_state(self, state, successor_func=None, **run_args):
+    def step_state(self, state, successor_func=None, error_list=None, **run_args):
         """
         Don't use this function manually - it is meant to interface with exploration techniques.
         """
+        error_list = error_list if error_list is not None else self._errored
         try:
             successors = self.successors(state, successor_func=successor_func, **run_args)
             stashes = {None: successors.flat_successors,
@@ -427,7 +452,7 @@ class SimulationManager:
 
         except (SimUnsatError, claripy.UnsatError) as e:
             if LAZY_SOLVES not in state.options:
-                self._errored.append(ErrorRecord(state, e, sys.exc_info()[2]))
+                error_list.append(ErrorRecord(state, e, sys.exc_info()[2]))
                 stashes = {}
             else:
                 stashes = {'pruned': [state]}
@@ -436,8 +461,12 @@ class SimulationManager:
                 self._hierarchy.unreachable_state(state)
                 self._hierarchy.simplify()
 
+        except claripy.ClaripySolverInterruptError as e:
+            resource_event(state, e)
+            stashes = {'interrupted': [state]}
+
         except tuple(self._resilience) as e:
-            self._errored.append(ErrorRecord(state, e, sys.exc_info()[2]))
+            error_list.append(ErrorRecord(state, e, sys.exc_info()[2]))
             stashes = {}
 
         return stashes
@@ -504,6 +533,15 @@ class SimulationManager:
         """
         self._store_states(stash, states)
         return self
+
+    def absorb(self, simgr):
+        """
+        Collect all the states from ``simgr`` and put them in their corresponding stashes in this manager.
+        This will not modify ``simgr``.
+        """
+        for stash in simgr.stashes:
+            self._store_states(stash, simgr.stashes[stash])
+        self._errored.extend(simgr._errored)
 
     def move(self, from_stash, to_stash, filter_func=None):
         """
@@ -703,9 +741,10 @@ class SimulationManager:
 
     def _store_states(self, stash, states):
         if stash not in self._auto_drop:
-            if stash not in self._stashes:
-                self._stashes[stash] = []
-            self._stashes[stash].extend(states)
+            with self._lock:
+                if stash not in self._stashes:
+                    self._stashes[stash] = []
+                self._stashes[stash].extend(states)
 
     def _clear_states(self, stash):
         for _stash in (list(self._stashes) if stash == self.ALL else [stash]):
@@ -852,4 +891,4 @@ class ErrorRecord:
     def __eq__(self, other):
         return self is other or self.state is other
 
-from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer
+from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, Suggestions
