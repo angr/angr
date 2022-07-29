@@ -9,13 +9,18 @@ import claripy
 import ailment
 
 from ...utils.lazy_import import lazy_import
+from ...utils import is_pyinstaller
 from ...utils.graph import dominates, shallow_reverse
 from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
 from .structurer_nodes import (EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode, BreakNode,
                                ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode, CascadingConditionNode)
 
-sympy = lazy_import("sympy")
+if is_pyinstaller():
+    # PyInstaller is not happy with lazy import
+    import sympy
+else:
+    sympy = lazy_import("sympy")
 
 
 l = logging.getLogger(__name__)
