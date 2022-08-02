@@ -27,3 +27,15 @@ class ReachingDefinitionsModel:
         new.all_definitions = self.all_definitions.copy()
         new.all_uses = self.all_uses.copy()
         return new
+
+    def merge(self, model: 'ReachingDefinitionsModel'):
+        for k, v in model.observed_results.items():
+            if k not in self.observed_results:
+                self.observed_results[k] = v
+            else:
+                merged, merge_occured = self.observed_results[k].merge(v)
+                if merge_occured:
+                    self.observed_results[k] = merged
+        self.all_definitions.union(model.all_definitions)
+        self.all_uses.merge(model.all_uses)
+
