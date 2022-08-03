@@ -1,4 +1,5 @@
-from typing import Dict, Set, Optional, Tuple, Any, Union, TYPE_CHECKING
+# pylint:disable=unsubscriptable-object
+from typing import Set, Optional, Tuple, Any, Union, TYPE_CHECKING
 
 from ...utils.cowdict import DefaultChainMapCOW
 from ...code_location import CodeLocation
@@ -8,6 +9,9 @@ if TYPE_CHECKING:
 
 
 class Uses:
+    """
+    Describes uses (including the use location and the use expression) for definitions.
+    """
 
     __slots__ = ('_uses_by_definition', '_uses_by_location' )
 
@@ -128,12 +132,11 @@ class Uses:
 
         return u
 
-    def merge(self, other) -> bool:
+    def merge(self, other: 'Uses') -> bool:
         """
         Merge an instance of <Uses> into the current instance.
 
-        :param angr.angr.analyses.reaching_definitions.uses.Uses other: The other <Uses> from which the data will be added
-                                                                        to the current instance.
+        :param other: The other <Uses> from which the data will be added to the current instance.
         :return: True if any merge occurred, False otherwise
         """
         merge_occurred = False
