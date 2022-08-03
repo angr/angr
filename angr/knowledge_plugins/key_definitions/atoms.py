@@ -71,6 +71,9 @@ class GuardUse(Atom):
 
     __hash__ = Atom.__hash__
 
+    def _core_hash(self):
+        return hash((GuardUse, self.target))
+
 
 class FunctionCall(Atom):
     __slots__ = ('target', 'callsite')
