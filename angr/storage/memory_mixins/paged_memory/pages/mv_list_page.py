@@ -2,6 +2,7 @@
 import logging
 from typing import Optional, List, Set, Tuple, Union, Callable
 
+from angr.utils.dynamic_dictlist import DynamicDictList
 from .....storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
 from .cooperation import MemoryObjectSetMixin
@@ -26,19 +27,21 @@ class MVListPage(
     def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.content: List[Optional[Union[_MOTYPE,Set[_MOTYPE]]]] = content
+        self.content: DynamicDictList[Optional[Union[_MOTYPE,Set[_MOTYPE]]]] = \
+            DynamicDictList(max_size=memory.page_size, content=content) if content is not None else None
         self.stored_offset = set()
         self._mo_cmp: Optional[Callable] = mo_cmp
 
-        if content is None:
+        if self.content is None:
             if memory is not None:
-                self.content: List[Optional[Union[_MOTYPE,Set[_MOTYPE]]]] = [None] * memory.page_size
+                self.content: DynamicDictList[Optional[Union[_MOTYPE,Set[_MOTYPE]]]] = \
+                    DynamicDictList(max_size=memory.page_size)
 
         self.sinkhole: Optional[_MOTYPE] = sinkhole
 
     def copy(self, memo) -> 'MVListPage':
         o = super().copy(memo)
-        o.content = list(self.content)
+        o.content = DynamicDictList(max_size=self.content.max_size, content=self.content)
         o.sinkhole = self.sinkhole
         o.stored_offset = self.stored_offset.copy()
         o._mo_cmp = self._mo_cmp
@@ -102,7 +105,7 @@ class MVListPage(
 
         if size == len(self.content) and addr == 0 and len(data) == 1:
             self.sinkhole = next(iter(data))
-            self.content = [None] * len(self.content)
+            self.content = DynamicDictList(max_size=len(self.content))
             self.stored_offset = set()
         else:
             if not weak:

@@ -2,6 +2,7 @@
 import logging
 from typing import Optional, List, Set, Tuple
 
+from angr.utils.dynamic_dictlist import DynamicDictList
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
 from .cooperation import MemoryObjectMixin
@@ -17,18 +18,19 @@ class ListPage(MemoryObjectMixin, PageBase):
     def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.content: List[Optional[SimMemoryObject]] = content
+        self.content: Optional[DynamicDictList[Optional[SimMemoryObject]]] = \
+            DynamicDictList(max_size=memory.page_size, content=content) if content is not None else None
         self.stored_offset = set()
-        if content is None:
+        if self.content is None:
             if memory is not None:
-                self.content: List[Optional[SimMemoryObject]] = [None] * memory.page_size  # TODO: this isn't the best
+                self.content: DynamicDictList[Optional[SimMemoryObject]] = DynamicDictList(max_size=memory.page_size)
         self._mo_cmp = mo_cmp
 
         self.sinkhole: Optional[SimMemoryObject] = sinkhole
 
     def copy(self, memo):
         o = super().copy(memo)
-        o.content = list(self.content)
+        o.content = DynamicDictList(max_size=self.content.max_size, content=self.content)
         o.stored_offset = self.stored_offset.copy()
         o.sinkhole = self.sinkhole
         o._mo_cmp = self._mo_cmp
@@ -85,7 +87,7 @@ class ListPage(MemoryObjectMixin, PageBase):
 
         if size == len(self.content) and addr == 0:
             self.sinkhole = data
-            self.content = [None]*len(self.content)
+            self.content = DynamicDictList(max_size=len(self.content))
         else:
             max_addr = min(addr + size, len(self.content))
             for subaddr in range(addr, max_addr):
