@@ -251,11 +251,9 @@ class LiveDefinitions:
         for anno in symvar.annotations:
             if isinstance(anno, DefinitionAnnotation):
                 annotations_to_remove.append(anno)
-        if annotations_to_remove:
-            symvar = symvar.remove_annotations(annotations_to_remove)
 
         # annotate with the new definition annotation
-        return symvar.annotate(DefinitionAnnotation(definition))
+        return symvar.annotate(DefinitionAnnotation(definition), remove_annotations=annotations_to_remove)
 
     @staticmethod
     def extract_defs(symvar: claripy.ast.Base) -> Generator[Definition,None,None]:
