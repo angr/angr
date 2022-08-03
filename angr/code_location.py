@@ -7,7 +7,7 @@ class CodeLocation:
     name (for SimProcedures).
     """
 
-    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', 'block_idx', )
+    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', 'block_idx', '_hash', )
 
     def __init__(self, block_addr: int, stmt_idx: Optional[int], sim_procedure=None, ins_addr: Optional[int]=None,
                  context: Optional[Tuple[int]]=None, block_idx: int=None, **kwargs):
@@ -29,10 +29,12 @@ class CodeLocation:
         self.ins_addr: Optional[int] = ins_addr
         self.context: Optional[Tuple[int]] = context
         self.block_idx = block_idx
+        self._hash = None
 
         self.info: Optional[Dict] = None
 
-        self._store_kwargs(**kwargs)
+        if kwargs:
+            self._store_kwargs(**kwargs)
 
     def __repr__(self):
         if self.block_addr is None:
@@ -97,7 +99,10 @@ class CodeLocation:
         """
         returns the hash value of self.
         """
-        return hash((self.block_addr, self.stmt_idx, self.sim_procedure, self.ins_addr, self.context, self.block_idx))
+        if self._hash is None:
+            self._hash = hash((self.block_addr, self.stmt_idx, self.sim_procedure, self.ins_addr, self.context,
+                               self.block_idx))
+        return self._hash
 
     def _store_kwargs(self, **kwargs):
         if self.info is None:

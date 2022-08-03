@@ -16,7 +16,10 @@ class Atom:
     It could either be a Tmp (temporary variable), a Register, a MemoryLocation.
     """
 
-    __slots__ = ()
+    __slots__ = ('_hash', )
+
+    def __init__(self):
+        self._hash = None
 
     def __repr__(self):
         raise NotImplementedError()
@@ -40,6 +43,14 @@ class Atom:
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
+    def _core_hash(self):
+        raise NotImplementedError()
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = self._core_hash()
+        return self._hash
+
 
 class GuardUse(Atom):
     """
@@ -48,6 +59,7 @@ class GuardUse(Atom):
     __slots__ = ("target",)
 
     def __init__(self, target):
+        super().__init__()
         self.target = target
 
     def __repr__(self):
@@ -57,11 +69,17 @@ class GuardUse(Atom):
     def size(self) -> int:
         raise NotImplementedError()
 
+    __hash__ = Atom.__hash__
+
+    def _core_hash(self):
+        return hash((GuardUse, self.target))
+
 
 class FunctionCall(Atom):
     __slots__ = ('target', 'callsite')
 
     def __init__(self, target, callsite):
+        super().__init__()
         self.target = target
         self.callsite = callsite
 
@@ -80,7 +98,9 @@ class FunctionCall(Atom):
     def __eq__(self, other):
         return type(other) is FunctionCall and self.callsite == other.callsite
 
-    def __hash__(self):
+    __hash__ = Atom.__hash__
+
+    def _core_hash(self):
         return hash(self.callsite)
 
     @property
@@ -92,6 +112,7 @@ class ConstantSrc(Atom):
     __slots__ = ('const',)
 
     def __init__(self, const):
+        super().__init__()
         self.const = const
 
     def __repr__(self):
@@ -100,7 +121,9 @@ class ConstantSrc(Atom):
     def __eq__(self, other):
         return type(other) is ConstantSrc and self.const == other.const
 
-    def __hash__(self):
+    __hash__ = Atom.__hash__
+
+    def _core_hash(self):
         return hash(self.const)
 
     @property
@@ -125,7 +148,9 @@ class Tmp(Atom):
     def __eq__(self, other):
         return type(other) is Tmp and self.tmp_idx == other.tmp_idx
 
-    def __hash__(self):
+    __hash__ = Atom.__hash__
+
+    def _core_hash(self):
         return hash(('tmp', self.tmp_idx))
 
     @property
@@ -160,7 +185,9 @@ class Register(Atom):
                self.reg_offset == other.reg_offset and \
                self.size == other.size
 
-    def __hash__(self):
+    __hash__ = Atom.__hash__
+
+    def _core_hash(self):
         return hash(('reg', self.reg_offset, self.size))
 
     @property
@@ -231,5 +258,7 @@ class MemoryLocation(Atom):
                self.size == other.size and \
                self.endness == other.endness
 
-    def __hash__(self):
+    __hash__ = Atom.__hash__
+
+    def _core_hash(self):
         return hash(('mem', self.addr, self.size, self.endness))
