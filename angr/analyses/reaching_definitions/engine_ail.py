@@ -276,7 +276,7 @@ class SimEngineRDAIL(
             if var.reg_offset == return_reg_offset:
                 # Skip the return variable
                 continue
-            self.state.kill_definitions(var)
+            self.state.kill_definitions(Register(var.reg_offset, var.size))
 
         # kill all cc_ops
         if 'cc_op' in self.arch.registers:
