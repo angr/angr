@@ -1,6 +1,7 @@
-from typing import Dict, Set, Optional, Tuple, Any, Union, TYPE_CHECKING
-from collections import defaultdict
+# pylint:disable=unsubscriptable-object
+from typing import Set, Optional, Tuple, Any, Union, TYPE_CHECKING
 
+from ...utils.cowdict import DefaultChainMapCOW
 from ...code_location import CodeLocation
 
 if TYPE_CHECKING:
@@ -8,12 +9,19 @@ if TYPE_CHECKING:
 
 
 class Uses:
+    """
+    Describes uses (including the use location and the use expression) for definitions.
+    """
 
     __slots__ = ('_uses_by_definition', '_uses_by_location' )
 
-    def __init__(self):
-        self._uses_by_definition: Dict['Definition',Set[Tuple[CodeLocation,Optional[Any]]]] = defaultdict(set)
-        self._uses_by_location: Dict[CodeLocation, Set[Tuple['Definition',Optional[Any]]]] = defaultdict(set)
+    def __init__(self,
+                 uses_by_definition: Optional[DefaultChainMapCOW]=None,
+                 uses_by_location: Optional[DefaultChainMapCOW]=None):
+        self._uses_by_definition: DefaultChainMapCOW['Definition',Set[Tuple[CodeLocation,Optional[Any]]]] = \
+            DefaultChainMapCOW(set, collapse_threshold=25) if uses_by_definition is None else uses_by_definition
+        self._uses_by_location: DefaultChainMapCOW[CodeLocation, Set[Tuple['Definition',Optional[Any]]]] = \
+            DefaultChainMapCOW(set, collapse_threshold=25) if uses_by_location is None else uses_by_location
 
     def add_use(self, definition: "Definition", codeloc: CodeLocation, expr: Optional[Any]=None):
         """
@@ -117,18 +125,18 @@ class Uses:
 
         :return:    Return a new <Uses> instance containing the same data.
         """
-        u = Uses()
-        u._uses_by_definition = defaultdict(set, ((k, set(v)) for k, v in self._uses_by_definition.items()))
-        u._uses_by_location = defaultdict(set, ((k, set(v)) for k, v in self._uses_by_location.items()))
+        u = Uses(
+            uses_by_definition=self._uses_by_definition.copy(),
+            uses_by_location=self._uses_by_location.copy(),
+        )
 
         return u
 
-    def merge(self, other) -> bool:
+    def merge(self, other: 'Uses') -> bool:
         """
         Merge an instance of <Uses> into the current instance.
 
-        :param angr.angr.analyses.reaching_definitions.uses.Uses other: The other <Uses> from which the data will be added
-                                                                        to the current instance.
+        :param other: The other <Uses> from which the data will be added to the current instance.
         :return: True if any merge occurred, False otherwise
         """
         merge_occurred = False

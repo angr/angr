@@ -3,7 +3,7 @@
 
 import os
 import pickle
-from unittest import TestCase
+from unittest import TestCase, main
 
 import ailment
 import angr
@@ -484,3 +484,7 @@ class TestReachingDefinitions(TestCase):
 
         block = project.factory.block(project.entry, cross_insn_opt=False)
         _ = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=block, track_tmps=False)  # it should not crash
+
+
+if __name__ == "__main__":
+    main()

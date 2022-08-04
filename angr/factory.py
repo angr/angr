@@ -115,7 +115,7 @@ class AngrObjectFactory:
         :param addr:            The address the state should start at instead of the entry point.
         :param args:            Any additional positional arguments will be used as arguments to the function call.
 
-        The following parametrs are optional.
+        The following parameters are optional.
 
         :param base_state:      Use this SimState as the base for the new state instead of a blank state.
         :param cc:              Optionally provide a SimCC object to use a specific calling convention.

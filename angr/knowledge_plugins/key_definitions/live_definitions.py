@@ -80,6 +80,12 @@ class LiveDefinitions:
                  stack_definitions=None,
                  memory_definitions=None,
                  heap_definitions=None,
+                 tmps=None,
+                 register_uses=None,
+                 stack_uses=None,
+                 heap_uses=None,
+                 memory_uses=None,
+                 tmp_uses=None,
                  ):
 
         self.project = None
@@ -107,7 +113,7 @@ class LiveDefinitions:
                                                   skip_missing_values_during_merging=False,
                                                   page_kwargs={'mo_cmp': self._mo_cmp}) \
             if heap_definitions is None else heap_definitions
-        self.tmps: Dict[int, Set[Definition]] = {}
+        self.tmps: Dict[int, Set[Definition]] = {} if tmps is None else tmps
 
         # set state
         self.register_definitions.set_state(self)
@@ -115,12 +121,13 @@ class LiveDefinitions:
         self.memory_definitions.set_state(self)
         self.heap_definitions.set_state(self)
 
-        self.register_uses = Uses()
-        self.stack_uses = Uses()
-        self.heap_uses = Uses()
-        self.memory_uses = Uses()
-        self.uses_by_codeloc: Dict[CodeLocation,Set[Definition]] = defaultdict(set)
-        self.tmp_uses: Dict[int,Set[CodeLocation]] = defaultdict(set)
+        self.register_uses = Uses() if register_uses is None else register_uses
+        self.stack_uses = Uses() if stack_uses is None else stack_uses
+        self.heap_uses = Uses() if heap_uses is None else heap_uses
+        self.memory_uses = Uses() if memory_uses is None else memory_uses
+        self.tmp_uses: Dict[int,Set[CodeLocation]] = defaultdict(set) if tmp_uses is None else tmp_uses
+
+        self.uses_by_codeloc: Dict[CodeLocation, Set[Definition]] = defaultdict(set)
 
     def __repr__(self):
         ctnt = "LiveDefs"
@@ -134,14 +141,13 @@ class LiveDefinitions:
                              stack_definitions=self.stack_definitions.copy(),
                              heap_definitions=self.heap_definitions.copy(),
                              memory_definitions=self.memory_definitions.copy(),
+                             tmps=self.tmps.copy(),
+                             register_uses=self.register_uses.copy(),
+                             stack_uses=self.stack_uses.copy(),
+                             heap_uses=self.heap_uses.copy(),
+                             memory_uses=self.memory_uses.copy(),
+                             tmp_uses=self.tmp_uses.copy(),
                              )
-
-        rd.tmps = self.tmps.copy()
-        rd.register_uses = self.register_uses.copy()
-        rd.stack_uses = self.stack_uses.copy()
-        rd.heap_uses = self.heap_uses.copy()
-        rd.memory_uses = self.memory_uses.copy()
-        rd.tmp_uses = self.tmp_uses.copy()
 
         return rd
 
@@ -251,11 +257,9 @@ class LiveDefinitions:
         for anno in symvar.annotations:
             if isinstance(anno, DefinitionAnnotation):
                 annotations_to_remove.append(anno)
-        if annotations_to_remove:
-            symvar = symvar.remove_annotations(annotations_to_remove)
 
         # annotate with the new definition annotation
-        return symvar.annotate(DefinitionAnnotation(definition))
+        return symvar.annotate(DefinitionAnnotation(definition), remove_annotations=annotations_to_remove)
 
     @staticmethod
     def extract_defs(symvar: claripy.ast.Base) -> Generator[Definition,None,None]:
