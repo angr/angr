@@ -34,6 +34,8 @@ class BlockSimplifier(Analysis):
                  peephole_optimizations: Optional[Iterable[Union[Type[PeepholeOptimizationStmtBase],
                                                                  Type[PeepholeOptimizationExprBase]]]]=None,
                  stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None,
+                 cached_reaching_definitions=None,
+                 cached_propagator=None,
                  ):
         """
         :param block:   The AIL block to simplify. Setting it to None to skip calling self._analyze(), which is useful
@@ -59,8 +61,8 @@ class BlockSimplifier(Analysis):
         self.result_block = None
 
         # cached Propagator and ReachingDefinitions results. Clear them if the block is updated
-        self._propagator = None
-        self._reaching_definitions = None
+        self._propagator = cached_propagator
+        self._reaching_definitions = cached_reaching_definitions
 
         if self.block is not None:
             self._analyze()

@@ -1,7 +1,7 @@
 import copy
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import logging
-from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any, TYPE_CHECKING
+from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any, NamedTuple, TYPE_CHECKING
 
 import networkx
 
@@ -30,6 +30,9 @@ if TYPE_CHECKING:
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
 l = logging.getLogger(name=__name__)
+
+
+BlockCache = namedtuple('BlockCache', ('rd', 'prop'))
 
 
 class Clinic(Analysis):
@@ -162,11 +165,15 @@ class Clinic(Analysis):
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
             ail_graph = self._make_returns(ail_graph)
 
+        # cached block-level reaching definition analysis results and propagator results
+        block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = None
+
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
         self._update_progress(35., text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False)
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False,
+                                          cache=block_simplification_cache)
 
         # Run simplification passes
         self._update_progress(40., text="Running simplifications 1")
@@ -180,7 +187,8 @@ class Clinic(Analysis):
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
         self._update_progress(38., text="Simplifying blocks 2")
-        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False)
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False,
+                                          cache=block_simplification_cache)
 
         # clear _blocks_by_addr_and_size so no one can use it again
         # TODO: Totally remove this dict
@@ -199,7 +207,7 @@ class Clinic(Analysis):
         # Simplify blocks for the second time
         self._update_progress(60., text="Simplifying blocks 3")
         ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
-                                          stack_pointer_tracker=spt)
+                                          stack_pointer_tracker=spt, cache=block_simplification_cache)
 
         # Simplify the entire function for the third time
         self._update_progress(65., text="Simplifying function 3")
@@ -208,7 +216,7 @@ class Clinic(Analysis):
 
         self._update_progress(68., text="Simplifying blocks 4")
         ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
-                                          stack_pointer_tracker=spt)
+                                          stack_pointer_tracker=spt, cache=block_simplification_cache)
 
         # Make function arguments
         self._update_progress(70., text="Making argument list")
@@ -385,12 +393,15 @@ class Clinic(Analysis):
         return graph
 
     @timethis
-    def _simplify_blocks(self, ail_graph: networkx.DiGraph, remove_dead_memdefs=False, stack_pointer_tracker=None):
+    def _simplify_blocks(self, ail_graph: networkx.DiGraph, remove_dead_memdefs=False, stack_pointer_tracker=None,
+                         cache: Optional[Dict[ailment.Block,NamedTuple]]=None):
         """
         Simplify all blocks in self._blocks.
 
         :param ail_graph:               The AIL function graph.
         :param stack_pointer_tracker:   The RegisterDeltaTracker analysis instance.
+        :param cache:                   A block-level cache that stores reaching definition analysis results and
+                                        propagation results.
         :return:                        None
         """
 
@@ -398,7 +409,8 @@ class Clinic(Analysis):
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(ail_block, remove_dead_memdefs=remove_dead_memdefs,
-                                              stack_pointer_tracker=stack_pointer_tracker)
+                                              stack_pointer_tracker=stack_pointer_tracker,
+                                              cache=cache)
             key = ail_block.addr, ail_block.idx
             blocks_by_addr_and_idx[key] = simplified
 
@@ -413,7 +425,7 @@ class Clinic(Analysis):
 
         return ail_graph
 
-    def _simplify_block(self, ail_block, remove_dead_memdefs=False, stack_pointer_tracker=None):
+    def _simplify_block(self, ail_block, remove_dead_memdefs=False, stack_pointer_tracker=None, cache=None):
         """
         Simplify a single AIL block.
 
@@ -422,13 +434,26 @@ class Clinic(Analysis):
         :return:                        A simplified AIL block.
         """
 
+        cached_rd, cached_prop = None, None
+        if cache:
+            cache_item = cache.get(ail_block, None)
+            if cache_item:
+                # cache hit
+                cached_rd = cache_item.rd
+                cached_prop = cache_item.prop
+
         simp = self.project.analyses.AILBlockSimplifier(
             ail_block,
             self.function.addr,
             remove_dead_memdefs=remove_dead_memdefs,
             stack_pointer_tracker=stack_pointer_tracker,
             peephole_optimizations=self.peephole_optimizations,
+            cached_reaching_definitions=cached_rd,
+            cached_propagator=cached_prop,
         )
+        # update the cache
+        if cache is not None:
+            cache[simp.result_block] = BlockCache(simp._reaching_definitions, simp._propagator)
         return simp.result_block
 
     @timethis
