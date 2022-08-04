@@ -9,6 +9,9 @@ if TYPE_CHECKING:
 
 # TODO: Make ReachingDefinitionsModel serializable
 class ReachingDefinitionsModel:
+    """
+    Models the definitions, uses, and memory of a ReachingDefinitionState object
+    """
     def __init__(self, func_addr: Optional[int]=None):
         self.func_addr = func_addr  # do not use. only for pretty-printing
         self.observed_results: Dict[Tuple[str, int, int], LiveDefinitions] = {}
@@ -38,4 +41,3 @@ class ReachingDefinitionsModel:
                     self.observed_results[k] = merged
         self.all_definitions.union(model.all_definitions)
         self.all_uses.merge(model.all_uses)
-
