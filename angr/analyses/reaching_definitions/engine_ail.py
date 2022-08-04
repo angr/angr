@@ -106,11 +106,7 @@ class SimEngineRDAIL(
 
         handler = self._stmt_handlers.get(type(stmt), None)
         if handler is not None:
-            #start = perf_counter_ns()
             handler(stmt)
-            #elapsed = perf_counter_ns() - start
-            #if self.block.addr == 0x400899:
-            #    print(f".. _handle_Stmt took {elapsed / 1000} microseconds")
         else:
             self.l.warning('Unsupported statement type %s.', type(stmt).__name__)
 
@@ -235,12 +231,16 @@ class SimEngineRDAIL(
             l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
             cc = self.project.factory.cc()
 
-        killed_vars = [ ailment.Expr.Register(None, None, *self.arch.registers[reg_name])
+        killed_vars = [ ailment.Expr.Register(None, None,
+                                              self.arch.registers[reg_name][0],
+                                              self.arch.registers[reg_name][1] * self.arch.byte_width)
                         for reg_name in cc.CALLER_SAVED_REGS ]
 
         # Add uses
         if used_exprs is None:
-            used_exprs = [ ailment.Expr.Register(None, None, *self.arch.registers[reg_name])
+            used_exprs = [ ailment.Expr.Register(None, None,
+                                                 self.arch.registers[reg_name][0],
+                                                 self.arch.registers[reg_name][1] * self.arch.byte_width)
                            for reg_name in cc.ARG_REGS ]
         for expr in used_exprs:
             self._expr(expr)
