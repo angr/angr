@@ -297,7 +297,8 @@ class SimEngineUnicorn(SuccessorsMixin):
                     # Byte is concrete. Use value reported by native interface
                     actual_value.append(state.solver.BVV(value[offset], 8))
                 else:
-                    page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
+                    curr_byte_addr = mem_read_address + offset
+                    page_num, page_off = state.memory._divide_addr(state.solver.eval(curr_byte_addr))
                     saved_taint = None
                     if expected_taint == 1:
                         # Byte should be symbolic but not modified during re-execution so current taint might be
@@ -305,7 +306,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                         saved_taint = state.memory._pages[page_num].symbolic_bitmap[page_off]
                         state.memory._pages[page_num].symbolic_bitmap[page_off] = expected_taint
 
-                    actual_value.append(state.memory.load(mem_read_address + offset, 1, inspect=False, disable_actions=True))
+                    actual_value.append(state.memory.load(curr_byte_addr, 1, inspect=False, disable_actions=True))
                     if expected_taint == 1:
                         # Restore saved taint
                         state.memory._pages[page_num].symbolic_bitmap[page_off] = saved_taint
