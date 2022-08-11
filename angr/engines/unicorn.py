@@ -290,25 +290,31 @@ class SimEngineUnicorn(SuccessorsMixin):
         else:
             # The value may be partially concrete. Set the symbolic bitmap to read correct value and restore it
             mem_read_address = state.inspect.mem_read_address
-            mem_read_length = state.inspect.mem_read_length
-            saved_taints = []
             # Save current symbolic taint bitmap and set it to what read expects
-            for offset, taint in enumerate(taint_map):
-                page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
-                saved_taints.append(state.memory._pages[page_num].symbolic_bitmap[page_off])
-                if taint != -1:
-                    # Current taint may not be correct so update it.
-                    state.memory._pages[page_num].symbolic_bitmap[page_off] = taint
+            actual_value = []
+            for offset, expected_taint in enumerate(taint_map):
+                if expected_taint == 0:
+                    # Byte is concrete. Use value reported by native interface
+                    actual_value.append(state.solver.BVV(value[offset], 8))
+                else:
+                    curr_byte_addr = mem_read_address + offset
+                    page_num, page_off = state.memory._divide_addr(state.solver.eval(curr_byte_addr))
+                    saved_taint = None
+                    if expected_taint == 1:
+                        # Byte should be symbolic but not modified during re-execution so current taint might be
+                        # incorrect. Update current taint before performing read
+                        saved_taint = state.memory._pages[page_num].symbolic_bitmap[page_off]
+                        state.memory._pages[page_num].symbolic_bitmap[page_off] = expected_taint
 
-            # Perform memory read
-            state.inspect.mem_read_expr = state.memory.load(mem_read_address, mem_read_length,
-                                                            endness=state.arch.memory_endness, inspect=False,
-                                                            disable_actions=True)
+                    actual_value.append(state.memory.load(curr_byte_addr, 1, inspect=False, disable_actions=True))
+                    if expected_taint == 1:
+                        # Restore saved taint
+                        state.memory._pages[page_num].symbolic_bitmap[page_off] = saved_taint
 
-            # Restore symbolic taint bitmap
-            for offset, saved_taint in enumerate(saved_taints):
-                page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
-                state.memory._pages[page_num].symbolic_bitmap[page_off] = saved_taint
+            if state.arch.memory_endness == archinfo.Endness.LE:
+                actual_value = actual_value[::-1]
+
+            state.inspect.mem_read_expr = state.solver.Concat(*actual_value)
 
     def _save_mem_write_addrs(self, state):
         mem_write_addr = state.solver.eval(state.inspect.mem_write_address)
