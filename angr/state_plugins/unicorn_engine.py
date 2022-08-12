@@ -402,7 +402,7 @@ def _load_native():
 
         #_setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
         _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_bool,
-                         ctypes.c_bool)
+                         ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, 'dealloc', None, state_t)
         _setup_prototype(h, 'hook', None, state_t)
         _setup_prototype(h, 'unhook', None, state_t)
@@ -1100,7 +1100,9 @@ class Unicorn(SimStatePlugin):
         # tricky: using unicorn handle from unicorn.Uc object
         handle_symb_addrs = options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options
         handle_symb_conds = options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS in self.state.options
-        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key, simos_val, handle_symb_addrs, handle_symb_conds)
+        handle_symbolic_syscalls = options.UNICORN_HANDLE_SYMBOLIC_SYSCALLS in self.state.options
+        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key, simos_val, handle_symb_addrs, handle_symb_conds,
+                                          handle_symbolic_syscalls)
 
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
                 options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:
