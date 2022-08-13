@@ -48,6 +48,7 @@ class TRANSMIT_RECORD(ctypes.Structure):
     """
 
     _fields_ = [
+        ('fd', ctypes.c_uint32),
         ('data', ctypes.c_void_p),
         ('count', ctypes.c_uint32)
     ]
@@ -1310,6 +1311,7 @@ class Unicorn(SimStatePlugin):
         # process the concrete transmits
         i = 0
         stdout = state.posix.get_fd(1)
+        stderr = state.posix.get_fd(2)
 
         while True:
             record = _UC_NATIVE.process_transmit(self._uc_state, i)
@@ -1317,7 +1319,10 @@ class Unicorn(SimStatePlugin):
                 break
 
             string = ctypes.string_at(record.contents.data, record.contents.count)
-            stdout.write_data(string)
+            if record.contents.fd == 1:
+                stdout.write_data(string)
+            elif record.contents.fd == 2:
+                stderr.write_data(string)
             i += 1
 
         # Re-execute concrete writes

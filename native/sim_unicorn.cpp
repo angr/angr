@@ -2526,11 +2526,8 @@ void State::perform_cgc_transmit() {
 	uint32_t fd, buf, count, tx_bytes;
 
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
-	if (fd == 2) {
-		// we won't try to handle fd 2 prints here, they are uncommon.
-		return;
-	}
-	else if (fd == 0 || fd == 1) {
+	if (fd < 3) {
+		// Process transmits to fd 0, 1 or 2 only.
 		uc_reg_read(uc, UC_X86_REG_ECX, &buf);
 		uc_reg_read(uc, UC_X86_REG_EDX, &count);
 		uc_reg_read(uc, UC_X86_REG_ESI, &tx_bytes);
@@ -2577,17 +2574,17 @@ void State::perform_cgc_transmit() {
 			return;
 		}
 
-		transmit_records.push_back({dup_buf, count});
+		transmit_records.push_back({fd, dup_buf, count});
 		int result = 0;
 		uc_reg_write(uc, UC_X86_REG_EAX, &result);
 		symbolic_registers.erase(8);
 		symbolic_registers.erase(9);
 		symbolic_registers.erase(10);
 		symbolic_registers.erase(11);
-		interrupt_handled = true;
 		syscall_count++;
-		return;
 	}
+	interrupt_handled = true;
+	return;
 }
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
