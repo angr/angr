@@ -2429,6 +2429,11 @@ void State::perform_cgc_receive() {
 		return;
 	}
 
+	if (fd == 1) {
+		// Python land maps 1 to 0 so do the same here for receives run on stdout.
+		fd = 0;
+	}
+
 	if (fd_details.count(fd) == 0) {
 		// fd stream has not been initialized in native interface. Can't perform receive.
 		return;
