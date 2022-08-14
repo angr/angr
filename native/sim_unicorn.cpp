@@ -2425,6 +2425,7 @@ void State::perform_cgc_receive() {
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
 	if (fd > 2) {
 		// Ignore any fds > 2
+		interrupt_handled = true;
 		return;
 	}
 
