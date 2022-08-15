@@ -405,14 +405,17 @@ class SimEngineRDVEX(
                     try:
                         val = self.project.loader.memory.unpack_word(addr_v, size=size)
                         section = self.project.loader.find_section_containing(addr_v)
+                        missing_atom = MemoryLocation(addr_v, size)
+                        missing_def = Definition(missing_atom, ExternalCodeLocation())
                         if val == 0 and (not section or section.is_writable):
-                            vs = MultiValues(offset_to_values={0: {self.state.top(size*self.arch.byte_width)}})
+                            top = self.state.top(size*self.arch.byte_width)
+                            v = self.state.annotate_with_def(top, missing_def)
                         else:
-                            vs = MultiValues(offset_to_values={0: {
-                                claripy.BVV(
-                                    val,
-                                    size * self.arch.byte_width
-                                )}})
+                            v = self.state.annotate_with_def(claripy.BVV(val,size * self.arch.byte_width), missing_def)
+                        vs = MultiValues(offset_to_values={0: {v}})
+                        # write it back
+                        self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
+                        self.state.all_definitions.add(missing_def)
                     except KeyError:
                         continue
 
@@ -1018,6 +1021,9 @@ class SimEngineRDVEX(
 
         func_addr_int: int = func_addr_v._model_concrete.value
 
+        codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
+        self.state.mark_call(codeloc, func_addr_int)
+
         # direct calls
         symbol: Optional[Symbol] = None
         if not self.project.loader.main_object.contains_addr(func_addr_int):
@@ -1028,14 +1034,12 @@ class SimEngineRDVEX(
 
         executed_rda = False
         if symbol is not None:
-            codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
             executed_rda, state = self._function_handler.handle_external_function_symbol(self.state,
                                                                                          symbol=symbol,
                                                                                          src_codeloc=codeloc)
             self.state = state
 
         elif is_internal is True:
-            codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
             executed_rda, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
                 self.state,
                 func_addr_int,
