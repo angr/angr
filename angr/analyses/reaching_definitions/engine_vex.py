@@ -1030,15 +1030,14 @@ class SimEngineRDVEX(
             is_internal = True
 
         executed_rda = False
+        codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
         if symbol is not None:
-            codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
             executed_rda, state = self._function_handler.handle_external_function_symbol(self.state,
                                                                                          symbol=symbol,
                                                                                          src_codeloc=codeloc)
             self.state = state
 
         elif is_internal is True:
-            codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
             executed_rda, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
                 self.state,
                 func_addr_int,
@@ -1061,6 +1060,8 @@ class SimEngineRDVEX(
                                                                                 src_codeloc=self._codeloc())
             self.state = state
         skip_cc = executed_rda
+
+        self.state.mark_call(codeloc, func_addr_int)
 
         return skip_cc
 
