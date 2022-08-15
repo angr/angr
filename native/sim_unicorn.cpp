@@ -2530,6 +2530,8 @@ void State::perform_cgc_transmit() {
 	// basically an implementation of the cgc transmit syscall
 	//printf(".. TRANSMIT!\n");
 	uint32_t fd, buf, count, tx_bytes;
+	uint64_t skip_next_map_request;
+	uc_err err;
 
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
 	if (fd < 3) {
@@ -2542,16 +2544,16 @@ void State::perform_cgc_transmit() {
 		// TODO: Can transmit also work with symbolic bytes?
 		void *dup_buf = malloc(count);
 		uint32_t tmp_tx;
-		if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK) {
-			//printf("... fault on buf\n");
-			free(dup_buf);
-			return;
-		}
 
-		if (tx_bytes != 0 && uc_mem_read(uc, tx_bytes, &tmp_tx, 4) != UC_ERR_OK) {
-			//printf("... fault on tx\n");
-			free(dup_buf);
-			return;
+		err = uc_mem_read(uc, buf, dup_buf, count);
+		if (err == UC_ERR_READ_UNMAPPED) {
+			skip_next_map_request = 0;
+			py_mem_callback(uc, UC_MEM_READ_UNMAPPED, buf, count, 0, (void*)skip_next_map_request);
+			if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK) {
+				//printf("... fault on buf\n");
+				free(dup_buf);
+				return;
+			}
 		}
 
 		if (!handle_symbolic_syscalls && (find_tainted(buf, count) != -1)) {
