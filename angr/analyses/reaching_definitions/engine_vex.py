@@ -405,14 +405,14 @@ class SimEngineRDVEX(
                     try:
                         val = self.project.loader.memory.unpack_word(addr_v, size=size)
                         section = self.project.loader.find_section_containing(addr_v)
+                        missing_atom = MemoryLocation(addr_v, size)
+                        missing_def = Definition(missing_atom, ExternalCodeLocation())
                         if val == 0 and (not section or section.is_writable):
-                            vs = MultiValues(offset_to_values={0: {self.state.top(size*self.arch.byte_width)}})
+                            top = self.state.top(size*self.arch.byte_width)
+                            v = self.state.annotate_with_def(top, missing_def)
                         else:
-                            vs = MultiValues(offset_to_values={0: {
-                                claripy.BVV(
-                                    val,
-                                    size * self.arch.byte_width
-                                )}})
+                            v = self.state.annotate_with_def(claripy.BVV(val,size * self.arch.byte_width), missing_def)
+                        vs = MultiValues(offset_to_values={0: {v}})
                     except KeyError:
                         continue
 
