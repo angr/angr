@@ -415,6 +415,7 @@ class SimEngineRDVEX(
                         vs = MultiValues(offset_to_values={0: {v}})
                         # write it back
                         self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
+                        self.state.all_definitions.add(missing_def)
                     except KeyError:
                         continue
 
