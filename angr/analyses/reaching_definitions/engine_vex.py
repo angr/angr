@@ -1021,6 +1021,9 @@ class SimEngineRDVEX(
 
         func_addr_int: int = func_addr_v._model_concrete.value
 
+        codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
+        self.state.mark_call(codeloc, func_addr_int)
+
         # direct calls
         symbol: Optional[Symbol] = None
         if not self.project.loader.main_object.contains_addr(func_addr_int):
@@ -1030,7 +1033,6 @@ class SimEngineRDVEX(
             is_internal = True
 
         executed_rda = False
-        codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
         if symbol is not None:
             executed_rda, state = self._function_handler.handle_external_function_symbol(self.state,
                                                                                          symbol=symbol,
@@ -1060,8 +1062,6 @@ class SimEngineRDVEX(
                                                                                 src_codeloc=self._codeloc())
             self.state = state
         skip_cc = executed_rda
-
-        self.state.mark_call(codeloc, func_addr_int)
 
         return skip_cc
 

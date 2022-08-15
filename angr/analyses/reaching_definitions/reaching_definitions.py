@@ -378,7 +378,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
 
         # update all definitions and all uses
         self.all_definitions |= state.all_definitions
-        for use in [state.stack_uses, state.heap_uses, state.register_uses]:
+        for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
 
         if self._node_iterations[block_key] < self._max_iterations:
