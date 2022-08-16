@@ -2555,6 +2555,11 @@ void State::perform_cgc_transmit() {
 				return;
 			}
 		}
+		else {
+			// Read failed due to some other error. Abort.
+			free(dup_buf);
+			return;
+		}
 
 		if (!handle_symbolic_syscalls && (find_tainted(buf, count) != -1)) {
 			//printf("... symbolic data\n");
