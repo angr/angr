@@ -160,7 +160,8 @@ def test_manual_recursion():
 
 def test_cgc_receive_unicorn_native_interface():
     """
-    Test if unicorn native interface handles CGC receive syscall correctly. Receives with symbolic arguments also tested.
+    Test if unicorn native interface handles CGC receive syscall correctly. Receives with symbolic arguments also
+    tested.
     """
 
     binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00038")
@@ -705,9 +706,7 @@ def run_all():
         print("#" * (len(name) + 8))
 
     functions = globals()
-    all_functions = dict(
-        filter((lambda kv: kv[0].startswith("test_")), functions.items())
-    )
+    all_functions = {fn_name: fn_obj for (fn_name, fn_obj) in functions.items() if fn_name.startswith("test_")}
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], "__call__"):
             print_test_name(f)
