@@ -1022,7 +1022,6 @@ class SimEngineRDVEX(
         func_addr_int: int = func_addr_v._model_concrete.value
 
         codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
-        self.state.mark_call(codeloc, func_addr_int)
 
         # direct calls
         symbol: Optional[Symbol] = None
@@ -1061,6 +1060,8 @@ class SimEngineRDVEX(
             executed_rda, state = self._function_handler.handle_unknown_call(self.state,
                                                                                 src_codeloc=self._codeloc())
             self.state = state
+
+        self.state.mark_call(codeloc, func_addr_int)
         skip_cc = executed_rda
 
         return skip_cc
