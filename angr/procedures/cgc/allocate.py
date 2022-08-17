@@ -1,13 +1,14 @@
+import logging
+
 import claripy
 import angr
-import logging
 
 l = logging.getLogger(name=__name__)
 
 cgc_flag_page_start_addr = 0x4347c000
 
 class allocate(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ,missing-class-docstring
 
     def run(self, length, is_x, addr): #pylint:disable=unused-argument
         if self.state.solver.symbolic(length):
