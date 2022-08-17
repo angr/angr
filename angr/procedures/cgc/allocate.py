@@ -4,6 +4,8 @@ import logging
 
 l = logging.getLogger(name=__name__)
 
+cgc_flag_page_start_addr = 0x4347c000
+
 class allocate(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
@@ -20,33 +22,43 @@ class allocate(angr.SimProcedure):
                 (self.state.cgc.addr_invalid(addr), self.state.cgc.EFAULT),
             ), self.state.solver.BVV(0, self.state.arch.bits))
 
+        if self.state.solver.max_int(r) != 0:
+            # allocate did not succeed. Abort.
+            return r
+
         aligned_length = ((length + 0xfff) // 0x1000) * 0x1000
 
         if isinstance(self.state.cgc.allocation_base, int):
             self.state.cgc.allocation_base = self.state.solver.BVV(self.state.cgc.allocation_base, self.state.arch.bits)
 
-        chosen = sinkhole_chosen = self.state.cgc.get_max_sinkhole(aligned_length)
+        chosen = self.state.cgc.get_max_sinkhole(aligned_length)
         if chosen is None:
+            # No sinkhole that can accommodate the requested size exists
             chosen = self.state.cgc.allocation_base - aligned_length
+            allocation_base_conc = self.state.solver.eval(self.state.cgc.allocation_base)
+            chosen_conc = self.state.solver.eval(chosen)
+            if chosen_conc <= cgc_flag_page_start_addr < allocation_base_conc:
+                # Chosen memory overlaps with flag page. Add non-overlapping part as a sinkhole and allocate space after
+                # the flag page
+                sinkhole_size = allocation_base_conc - cgc_flag_page_start_addr - 0x1000
+                if sinkhole_size != 0:
+                    self.state.cgc.add_sinkhole(cgc_flag_page_start_addr + 0x1000, sinkhole_size)
 
-        self.state.memory.store(addr, chosen, size=self.state.arch.bytes, condition=self.state.solver.And(r == 0, addr != 0), endness='Iend_LE')
+                chosen = self.state.solver.BVV(cgc_flag_page_start_addr - aligned_length, self.state.arch.bits)
 
-        if sinkhole_chosen is None:
-            self.state.cgc.allocation_base -= self.state.solver.If(r == 0,
-                    aligned_length,
-                    self.state.solver.BVV(0, self.state.arch.bits))
+            self.state.cgc.allocation_base = chosen
+
+        self.state.memory.store(addr, chosen, size=self.state.arch.bytes, condition=self.state.solver.And(addr != 0), endness='Iend_LE')
 
         # PROT_READ | PROT_WRITE default
         permissions = self.state.solver.BVV(1 | 2, 3)
         permissions |= self.state.solver.If(is_x != 0, claripy.BVV(4, 3), claripy.BVV(0, 3))
 
-        if self.state.solver.max_int(r) == 0:  # map only on success
-
-            chosen_conc = self.state.solver.eval(chosen)
-            l.debug("Allocating [%#x, %#x]", chosen_conc, chosen_conc + aligned_length - 1)
-            self.state.memory.map_region(
-                    chosen_conc,
-                    aligned_length,
-                    permissions
-                    )
+        chosen_conc = self.state.solver.eval(chosen)
+        l.debug("Allocating [%#x, %#x]", chosen_conc, chosen_conc + aligned_length - 1)
+        self.state.memory.map_region(
+                chosen_conc,
+                aligned_length,
+                permissions
+                )
         return r
