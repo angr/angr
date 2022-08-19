@@ -7,6 +7,7 @@ import bisect
 
 import networkx
 
+from ...engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from ...misc.ux import once
 from ...protos import cfg_pb2, primitives_pb2
 from ...serializable import Serializable
@@ -272,7 +273,7 @@ class CFGModel(Serializable):
         if isinstance(addr, int):
             # slower path
             # find all potential addresses that the block may cover
-            pos = bisect.bisect_left(self._node_addrs, max(addr - 400, 0))
+            pos = bisect.bisect_left(self._node_addrs, max(addr - VEX_IRSB_MAX_SIZE, 0))
 
             is_cfgemulated = self.ident == "CFGEmulated"
 
