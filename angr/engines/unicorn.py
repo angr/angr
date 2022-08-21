@@ -28,7 +28,8 @@ class SimEngineUnicorn(SuccessorsMixin):
     - extra_stop_points:   A collection of addresses at which execution should halt
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._block_stop_cache = set()
         self._ignore_stop_reasons = STOP.unsupported_reasons + \
             [STOP.STOP_STOPPOINT, STOP.STOP_ERROR, STOP.STOP_NODECODE, STOP.STOP_SYSCALL, STOP.STOP_EXECNONE, \
