@@ -28,6 +28,14 @@ class SimEngineUnicorn(SuccessorsMixin):
     - extra_stop_points:   A collection of addresses at which execution should halt
     """
 
+    def __init__(self):
+        self._block_stop_cache = set()
+        self._ignore_stop_reasons = STOP.unsupported_reasons + \
+            [STOP.STOP_STOPPOINT, STOP.STOP_ERROR, STOP.STOP_NODECODE, STOP.STOP_SYSCALL, STOP.STOP_EXECNONE, \
+             STOP.STOP_ZEROPAGE, STOP.STOP_NOSTART, STOP.STOP_SEGFAULT, STOP.STOP_ZERO_DIV, STOP.STOP_NODECODE, \
+             STOP.STOP_HLT, STOP.STOP_SYSCALL_ARM, STOP.STOP_X86_CPUID]
+
+
     def __check(self, num_inst=None, **kwargs):  # pylint: disable=unused-argument
         state = self.state
         if o.UNICORN not in state.options:
@@ -75,6 +83,10 @@ class SimEngineUnicorn(SuccessorsMixin):
             l.info("failed register check")
             return False
 
+        if state.addr in self._block_stop_cache:
+            l.info("Block will likely not execute in native interface")
+            return False
+
         return True
 
     @staticmethod
@@ -83,13 +95,6 @@ class SimEngineUnicorn(SuccessorsMixin):
         state.unicorn.countdown_symbolic_stop -= 1
         state.unicorn.countdown_unsupported_stop -= 1
         state.unicorn.countdown_stop_point -= 1
-
-    @staticmethod
-    def __reset_countdowns(state, next_state):
-        next_state.unicorn.countdown_symbolic_stop = 0
-        next_state.unicorn.countdown_unsupported_stop = 0
-        next_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
-        next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
 
     def _execute_block_instrs_in_vex(self, block_details):
         if block_details["block_addr"] not in self.block_details_cache:
@@ -381,7 +386,6 @@ class SimEngineUnicorn(SuccessorsMixin):
         except SimValueError:
             # it's trying to set a symbolic register somehow
             # fail out, force fallback to next engine
-            self.__reset_countdowns(successors.initial_state, state)
             return super().process_successors(successors, **kwargs)
 
         try:
@@ -398,10 +402,14 @@ class SimEngineUnicorn(SuccessorsMixin):
             state.unicorn.destroy(self.state)
 
         state = self.state
+        if state.unicorn.stop_reason in self._ignore_stop_reasons:
+            if state.unicorn.steps == 0:
+                self._block_stop_cache.add(state.addr)
+            else:
+                self._block_stop_cache.add(state.unicorn.stop_details.block_addr)
 
         if state.unicorn.steps == 0 or state.unicorn.stop_reason == STOP.STOP_NOSTART:
             # fail out, force fallback to next engine
-            self.__reset_countdowns(successors.initial_state, state)
             # TODO: idk what the consequences of this might be. If this failed step can actually change non-unicorn
             # state then this is bad news.
             return super().process_successors(successors, **kwargs)
