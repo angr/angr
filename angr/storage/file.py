@@ -421,7 +421,8 @@ class SimPackets(SimFileBase):
     def set_state(self, state):
         super().set_state(state)
         # sanitize the lengths in self.content now that we know the wordsize
-        for i in range(self.sanitized, len(self.content)):
+        # getattr because we want to support old pickles without this attribute (TODO remove this)
+        for i in range(getattr(self, 'sanitized', 0), len(self.content)):
             data, length = self.content[i]
             if type(length) is int:
                 self.content[i] = (data, claripy.BVV(length, state.arch.bits))
@@ -560,7 +561,7 @@ class SimPackets(SimFileBase):
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
         o = type(self)(name=self.name, write_mode=self.write_mode, content=self.content, ident=self.ident, concrete=self.concrete)
-        o.sanitized = self.sanitized
+        o.sanitized = getattr(self, "sanitized", 0)
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
