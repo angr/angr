@@ -48,7 +48,8 @@ def op_concretize(op):
         if all(c.op == 'BVV' for _, c in cases):
             raise CCallMultivaluedException(cases, op)
     if op.op != 'BVV':
-        raise SimError("Hit a symbolic conditional operation. Something has gone wildly wrong.")
+        raise SimError("Hit a symbolic conditional operation (need If or BVV, got %s). " % op.op +
+           "Something has gone wildly wrong.")
     return op.args[0]
 
 def strip_simaction(val):
