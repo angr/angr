@@ -869,7 +869,7 @@ class SimIROp:
         rm = self._translate_rm(args[0] if rm_exists else claripy.BVV(0, 32))
         arg = args[1 if rm_exists else 0]
 
-        return arg.val_to_fp(claripy.fp.FSort.from_size(self._output_size_bits), signed=True, rm=rm)
+        return arg.val_to_fp(claripy.fp.FSort.from_size(self._output_size_bits), signed=self._from_signed != 'U', rm=rm)
 
     def _op_fp_to_fp(self, args):
         rm_exists = self._from_size != 32 or self._to_size != 64
