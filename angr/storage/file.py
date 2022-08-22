@@ -537,6 +537,8 @@ class SimPackets(SimFileBase):
             size = self.state.solver.BVV(size, self.state.arch.bits)
 
         # sanity check on packet number and determine if data is already present
+        if pos is None:
+            pos = len(self.content)
         if pos < 0:
             raise SimFileError("SimPacket.write(%d): Negative packet number?" % pos)
         elif pos > len(self.content):
