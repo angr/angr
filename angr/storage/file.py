@@ -403,6 +403,7 @@ class SimPackets(SimFileBase):
 
         self.write_mode = write_mode
         self.content = content
+        self.sanitized = 0
 
         if self.content is None:
             self.content = []
@@ -420,13 +421,15 @@ class SimPackets(SimFileBase):
     def set_state(self, state):
         super().set_state(state)
         # sanitize the lengths in self.content now that we know the wordsize
-        for i, (data, length) in enumerate(self.content):
+        for i in range(self.sanitized, len(self.content)):
+            data, length = self.content[i]
             if type(length) is int:
                 self.content[i] = (data, claripy.BVV(length, state.arch.bits))
             elif len(length) < state.arch.bits:
                 self.content[i] = (data, length.zero_extend(state.arch.bits - len(length)))
             elif len(length) != state.arch.bits:
                 raise TypeError('Bad bitvector size for length in SimPackets.content')
+        self.sanitized = len(self.content)
 
     @property
     def size(self):
@@ -556,7 +559,9 @@ class SimPackets(SimFileBase):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        return type(self)(name=self.name, write_mode=self.write_mode, content=self.content, ident=self.ident, concrete=self.concrete)
+        o = type(self)(name=self.name, write_mode=self.write_mode, content=self.content, ident=self.ident, concrete=self.concrete)
+        o.sanitized = self.sanitized
+        return o
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         for o in others:
