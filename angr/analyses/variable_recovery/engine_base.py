@@ -191,7 +191,7 @@ class SimEngineVRBase(SimEngineLight):
                 if vs is None:
                     top = self.state.top(self.arch.byte_width)
                     top = self.state.annotate_with_variables(top, [(0, variable)])
-                    vs = MultiValues(offset_to_values={0: {top}})
+                    vs = MultiValues(top)
                 self.state.stack_region.store(stack_addr, vs)
 
         elif self.state.is_global_variable_address(data):
@@ -239,7 +239,7 @@ class SimEngineVRBase(SimEngineLight):
 
         if offset in (self.arch.ip_offset, self.arch.sp_offset, self.arch.lr_offset):
             # only store the value. don't worry about variables.
-            v = MultiValues(offset_to_values={0: {richr.data}})
+            v = MultiValues(richr.data)
             self.state.register_region.store(offset, v)
             return
 
@@ -265,7 +265,7 @@ class SimEngineVRBase(SimEngineLight):
 
         # FIXME: The offset does not have to be 0
         annotated_data = self.state.annotate_with_variables(data, [(0, variable)])
-        v = MultiValues(offset_to_values={0: {annotated_data}})
+        v = MultiValues(annotated_data)
         self.state.register_region.store(offset, v)
         # register with the variable manager
         self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
