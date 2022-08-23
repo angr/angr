@@ -402,7 +402,7 @@ class SimEngineRDAIL(
 
         # extract Definitions
         defs: Optional[Iterable[Definition]] = None
-        for vs in value.values.values():
+        for vs in value.values():
             for v in vs:
                 if defs is None:
                     defs = self.state.extract_defs(v)
@@ -432,8 +432,8 @@ class SimEngineRDAIL(
             alt = None  # pylint:disable=unused-variable
 
         # convert addrs from MultiValues to a list of valid addresses
-        if len(addrs.values) == 1:
-            addrs_v = next(iter(addrs.values.values()))
+        if addrs.count() == 1:
+            addrs_v = next(iter(addrs.values()))
         else:
             top = self.state.top(bits)
             # annotate it
@@ -485,8 +485,8 @@ class SimEngineRDAIL(
         bits = expr.to_bits
         size = bits // self.arch.byte_width
 
-        if len(to_conv.values) == 1 and 0 in to_conv.values:
-            values = to_conv.values[0]
+        if to_conv.count() == 1 and 0 in to_conv._values:
+            values = to_conv._values[0]
         else:
             top = self.state.top(expr.to_bits)
             # annotate it
@@ -577,15 +577,15 @@ class SimEngineRDAIL(
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
             # adding a single value to a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
-                    vs = {v + expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
+                    vs = {v + expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # adding a single value to a multivalue
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
-                    vs = {v + expr0_v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
+                    vs = {v + expr0_v for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             # adding two single values together
@@ -610,15 +610,15 @@ class SimEngineRDAIL(
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
             # subtracting a single value from a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
-                    vs = {v - expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
+                    vs = {v - expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # subtracting a single value from a multivalue
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
-                    vs = {expr0_v - v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
+                    vs = {expr0_v - v for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -689,17 +689,17 @@ class SimEngineRDAIL(
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 >> expr1_v
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
                     vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr0.values[0]}
+                          for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
                     vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr1.values[0]}
+                          for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -723,17 +723,17 @@ class SimEngineRDAIL(
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 >> expr1_v
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
                     vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr0.values[0]}
+                          for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
                     vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr1.values[0]}
+                          for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -757,17 +757,17 @@ class SimEngineRDAIL(
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 << expr1_v
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
                     vs = {((v << expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr0.values[0]}
+                          for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
                     vs = {((expr0_v << v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr1.values[0]}
+                          for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -793,15 +793,15 @@ class SimEngineRDAIL(
 
         if expr0_v is None and expr1_v is not None:
             # expr1_v & each value in expr0
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
-                    vs = {v & expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
+                    vs = {v & expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v & each value in expr1
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
-                    vs = {expr0_v & v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
+                    vs = {expr0_v & v for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             # special handling for stack alignment
@@ -829,15 +829,15 @@ class SimEngineRDAIL(
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
             # expr1_v | each value in expr0
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
-                    vs = {v | expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
+                    vs = {v | expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v | each value in expr1
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
-                    vs = {expr0_v | v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
+                    vs = {expr0_v | v for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -895,15 +895,15 @@ class SimEngineRDAIL(
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
             # expr1_v ^ each value in expr0
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
-                    vs = {v ^ expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
+                    vs = {v ^ expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v ^ each value in expr1
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
-                    vs = {expr0_v ^ v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
+                    vs = {expr0_v ^ v for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -927,15 +927,15 @@ class SimEngineRDAIL(
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
             # concatenate expr1_v with each value in expr0
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                if all(v.concrete for v in expr0.values[0]):
-                    vs = {claripy.Concat(v, expr1_v) for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                if all(v.concrete for v in expr0[0]):
+                    vs = {claripy.Concat(v, expr1_v) for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # concatenate expr0_v with each value in expr1
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                if all(v.concrete for v in expr1.values[0]):
-                    vs = {claripy.Concat(expr0_v, v) for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                if all(v.concrete for v in expr1[0]):
+                    vs = {claripy.Concat(expr0_v, v) for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:

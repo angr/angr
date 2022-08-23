@@ -253,7 +253,7 @@ class BlockSimplifier(Analysis):
                     else:
                         continue
                     if vs is not None:
-                        for values in vs.values.values():
+                        for values in vs.values():
                             for value in values:
                                 defs_.update(live_defs.extract_defs(value))
 

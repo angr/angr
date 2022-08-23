@@ -193,7 +193,7 @@ class MemoryObjectSetMixin(CooperationBase):
 
             size = yield
             offset_to_mos: Dict[int,Set[SimMemoryObject]] = {}
-            for offset, vs in data.values.items():
+            for offset, vs in data.items():
                 offset_to_mos[offset] = set()
                 for v in vs:
                     offset_to_mos[offset].add(SimMemoryObject(

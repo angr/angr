@@ -240,7 +240,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             existing_vars = set()
             try:
                 vs: MultiValues = self.stack_region.load(self.stack_addr_from_offset(stack_offset), size=1)
-                for values in vs.values.values():
+                for values in vs.values():
                     for v in values:
                         for offset, var in self.extract_variables(v):
                             existing_vars.add((offset, var))
@@ -287,7 +287,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 vs: MultiValues = self.stack_region.load(self.stack_addr_from_offset(stack_offset),
                                                          size=mem_read_length,
                                                          endness=endness)
-                for values in vs.values.values():
+                for values in vs.values():
                     for v in values:
                         for offset, var in self.extract_variables(v):
                             existing_variables.add((offset, var))

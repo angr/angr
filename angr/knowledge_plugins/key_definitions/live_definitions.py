@@ -276,7 +276,7 @@ class LiveDefinitions:
         if sp_v is None:
             # multiple values of sp exists. still return a value if there is only one value (maybe with different
             # definitions)
-            values = [v for v in next(iter(sp_values.values.values())) if self.get_stack_offset(v) is not None]
+            values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
             assert len({self.get_stack_offset(v) for v in values}) == 1
             return self.get_stack_address(values[0])
 
@@ -370,7 +370,7 @@ class LiveDefinitions:
         else:
             definition: Definition = Definition(atom, code_loc, dummy=dummy, tags=tags)
             d = MultiValues()
-            for offset, vs in data.values.items():
+            for offset, vs in data.items():
                 for v in vs:
                     d.add_value(offset, self.annotate_with_def(v, definition))
 
@@ -464,7 +464,7 @@ class LiveDefinitions:
                 values: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size)
             except SimMemoryMissingError:
                 return
-            for vs in values.values.values():
+            for vs in values.values():
                 for v in vs:
                     yield from self.extract_defs(v)
         elif isinstance(atom, MemoryLocation):
@@ -474,7 +474,7 @@ class LiveDefinitions:
                     mv: MultiValues = self.stack_definitions.load(stack_addr, size=atom.size, endness=atom.endness)
                 except SimMemoryMissingError:
                     return
-                for vs in mv.values.values():
+                for vs in mv.values():
                     for v in vs:
                         yield from self.extract_defs(v)
             elif isinstance(atom.addr, HeapAddress):
@@ -482,7 +482,7 @@ class LiveDefinitions:
                     mv: MultiValues = self.heap_definitions.load(atom.addr.value, size=atom.size, endness=atom.endness)
                 except SimMemoryMissingError:
                     return
-                for vs in mv.values.values():
+                for vs in mv.values():
                     for v in vs:
                         yield from self.extract_defs(v)
             elif isinstance(atom.addr, int):
@@ -490,7 +490,7 @@ class LiveDefinitions:
                     values = self.memory_definitions.load(atom.addr, size=atom.size, endness=atom.endness)
                 except SimMemoryMissingError:
                     return
-                for vs in values.values.values():
+                for vs in values.values():
                     for v in vs:
                         yield from self.extract_defs(v)
             else:
@@ -548,11 +548,11 @@ class LiveDefinitions:
     def _add_register_use(self, atom: Register, code_loc: CodeLocation, expr: Optional[Any]=None) -> None:
         # get all current definitions
         try:
-            values: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size)
+            mvs: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size)
         except SimMemoryMissingError:
             return
 
-        for vs in values.values.values():
+        for vs in mvs.values():
             for v in vs:
                 for def_ in self.extract_defs(v):
                     self._add_register_use_by_def(def_, code_loc, expr=expr)

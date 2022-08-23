@@ -348,7 +348,7 @@ class ReachingDefinitionsState:
         if mv is not None:
             defs = set()
             values = set()
-            for vs in mv.values.values():
+            for vs in mv.values():
                 for v in vs:
                     values.add(v)
                     defs |= set(self.extract_defs(v))

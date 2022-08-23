@@ -166,7 +166,7 @@ class SimEngineVRBase(SimEngineLight):
 
                     if vs is not None:
                         # extract variables
-                        for values in vs.values.values():
+                        for values in vs.values():
                             for v in values:
                                 for var_stack_offset, var in self.state.extract_variables(v):
                                     existing_vars.append((var, var_stack_offset))
@@ -350,7 +350,7 @@ class SimEngineVRBase(SimEngineLight):
             addr_and_variables = set()
             try:
                 vs: MultiValues = self.state.stack_region.load(stack_addr, size, endness=endness)
-                for values in vs.values.values():
+                for values in vs.values():
                     for value in values:
                         addr_and_variables.update(self.state.extract_variables(value))
             except SimMemoryMissingError:
@@ -429,7 +429,7 @@ class SimEngineVRBase(SimEngineLight):
                 pass
 
         if values is not None:
-            for vs in values.values.values():
+            for vs in values.values():
                 for v in vs:
                     for var_offset, var in self.state.extract_variables(v):
                         variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
@@ -573,7 +573,7 @@ class SimEngineVRBase(SimEngineLight):
 
                 all_vars: Set[Tuple[int,SimVariable]] = set()
                 if values:
-                    for vs in values.values.values():
+                    for vs in values.values():
                         for v in vs:
                             for _, var_ in self.state.extract_variables(v):
                                 if isinstance(var_, SimStackVariable):
@@ -777,7 +777,7 @@ class SimEngineVRBase(SimEngineLight):
             if values is None:
                 r_value = self.state.top(size * self.arch.byte_width)
             else:
-                r_value = next(iter(next(iter(values.values.values()))))
+                r_value = next(iter(next(iter(values.values()))))
             return RichR(r_value, variable=None, typevar=None)
 
         if not values:
@@ -794,7 +794,7 @@ class SimEngineVRBase(SimEngineLight):
 
             value_list = [{ value }]
         else:
-            value_list = list(values.values.values())
+            value_list = list(values.values())
 
         variable_set = set()
         for value_set in value_list:
