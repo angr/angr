@@ -13,7 +13,7 @@ from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC, SimStructArg, SimArrayArg
 from ...utils.constants import DEFAULT_STATEMENT
-from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
 from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -147,11 +147,11 @@ class SimEngineRDVEX(
                 if self.state.is_heap_address(d):
                     heap_offset = self.state.get_heap_offset(d)
                     if heap_offset is not None:
-                        self.state.add_use(MemoryLocation(HeapAddress(heap_offset), 1), self._codeloc())
+                        self.state.add_heap_use(heap_offset, 1, 'Iend_BE', self._codeloc())
                 elif self.state.is_stack_address(d):
                     stack_offset = self.state.get_stack_offset(d)
                     if stack_offset is not None:
-                        self.state.add_use(MemoryLocation(SpOffset(self.arch.bits, stack_offset), 1), self._codeloc())
+                        self.state.add_stack_use(stack_offset, 1, 'Iend_BE', self._codeloc())
 
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
@@ -161,7 +161,7 @@ class SimEngineRDVEX(
         size = stmt.data.result_size(self.tyenv) // 8
         data = self._expr(stmt.data)
 
-        if data.count() == 1:
+        if addr.count() == 1:
             addrs = next(iter(addr.values()))
             self._store_core(addrs, size, data, endness=stmt.endness)
 
@@ -171,7 +171,7 @@ class SimEngineRDVEX(
 
         if claripy.is_true(guard_v):
             addr = self._expr(stmt.addr)
-            if data.count() == 1:
+            if addr.count() == 1:
                 addrs = next(iter(addr.values()))
                 size = stmt.data.result_size(self.tyenv) // 8
                 data = self._expr(stmt.data)
@@ -182,7 +182,7 @@ class SimEngineRDVEX(
             # guard.data == {True, False}
             # get current data
             addr = self._expr(stmt.addr)
-            if data.count() == 1:
+            if addr.count() == 1:
                 addrs = next(iter(addr.values()))
                 size = stmt.data.result_size(self.tyenv) // 8
                 data_old = self._load_core(addrs, size, stmt.endness)
@@ -304,7 +304,7 @@ class SimEngineRDVEX(
     def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[MultiValues]:
         tmp: int = expr.tmp
 
-        self.state.add_use(Tmp(tmp, expr.result_size(self.tyenv) // self.arch.byte_width), self._codeloc())
+        self.state.add_tmp_use(tmp, self._codeloc())
 
         if tmp in self.tmps:
             return self.tmps[tmp]
@@ -338,9 +338,13 @@ class SimEngineRDVEX(
 
         if current_defs is None:
             # no defs can be found. add a fake definition
-            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
+            mv = self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
+            current_defs = set()
+            for vs in mv.values():
+                for v in vs:
+                    current_defs |= self.state.extract_defs(v)
 
-        self.state.add_use(reg_atom, self._codeloc())
+        self.state.add_register_use_by_defs(current_defs, self._codeloc())
 
         return values
 
@@ -359,9 +363,10 @@ class SimEngineRDVEX(
         top = self.state.top(bits)
         # annotate it
         dummy_atom = MemoryLocation(0, size)
-        top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
+        def_ = Definition(dummy_atom, ExternalCodeLocation())
+        top = self.state.annotate_with_def(top, def_)
         # add use
-        self.state.add_use(dummy_atom, self._codeloc())
+        self.state.add_memory_use_by_def(def_, self._codeloc())
         return MultiValues(top)
 
     def _load_core(self, addrs: Iterable[claripy.ast.Base], size: int, endness: str) -> MultiValues:
@@ -377,19 +382,20 @@ class SimEngineRDVEX(
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
                         vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=endness)
+                        # extract definitions
+                        defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                     except SimMemoryMissingError:
                         continue
 
-                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=endness)
-                    self.state.add_use(memory_location, self._codeloc())
+                    self.state.add_stack_use_by_defs(defs, self._codeloc())
                     result = result.merge(vs) if result is not None else vs
 
             elif self.state.is_heap_address(addr):
                 # Load data from the heap
                 heap_offset = self.state.get_heap_offset(addr)
                 vs: MultiValues = self.state.heap_definitions.load(heap_offset, size=size, endness=endness)
-                memory_location = MemoryLocation(HeapAddress(heap_offset), size, endness=endness)
-                self.state.add_use(memory_location, self._codeloc())
+                defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                self.state.add_heap_use_by_defs(defs, self._codeloc())
                 result = result.merge(vs) if result is not None else vs
 
             else:
@@ -399,6 +405,7 @@ class SimEngineRDVEX(
                 # Load data from a global region
                 try:
                     vs: MultiValues = self.state.memory_definitions.load(addr_v, size=size, endness=endness)
+                    defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
                     # try to load it from the static memory backer
                     # TODO: Is this still required?
@@ -416,14 +423,12 @@ class SimEngineRDVEX(
                         # write it back
                         self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
                         self.state.all_definitions.add(missing_def)
+                        defs = { missing_def }
                     except KeyError:
                         continue
 
+                self.state.add_memory_use_by_defs(defs, self._codeloc())
                 result = result.merge(vs) if result is not None else vs
-
-                # FIXME: _add_memory_use() iterates over the same loop
-                memory_location = MemoryLocation(addr_v, size, endness=endness)
-                self.state.add_use(memory_location, self._codeloc())
 
         if result is None:
             result = MultiValues(self.state.top(size * self.arch.byte_width))
@@ -1087,14 +1092,16 @@ class SimEngineRDVEX(
             for arg in cc.arg_locs(proto):
                 if isinstance(arg, SimRegArg):
                     reg_offset, reg_size = self.arch.registers[arg.reg_name]
+                    self.state.add_register_use(reg_offset, reg_size, code_loc)
+
                     atom = Register(reg_offset, reg_size)
-                    self.state.add_use(atom, code_loc)
                     self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimStackArg):
+                    self.state.add_stack_use(arg.stack_offset, arg.size, self.arch.memory_endness, code_loc)
+
                     atom = MemoryLocation(SpOffset(self.arch.bits,
                                           arg.stack_offset),
                                           arg.size * self.arch.byte_width)
-                    self.state.add_use(atom, code_loc)
                     self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimStructArg):
                     min_stack_offset = None
@@ -1105,23 +1112,26 @@ class SimEngineRDVEX(
                             elif min_stack_offset > subargloc.stack_offset:
                                 min_stack_offset = subargloc.stack_offset
                         elif isinstance(subargloc, SimRegArg):
+                            self.state.add_register_use(subargloc.reg_offset, subargloc.size, code_loc)
+
                             atom = Register(subargloc.reg_offset, subargloc.size)
-                            self.state.add_use(atom, code_loc)
                             self._tag_definitions_of_atom(atom, func_addr_int)
 
                     if min_stack_offset is not None:
+                        self.state.add_stack_use(min_stack_offset, arg.size, self.arch.memory_endness, code_loc)
+
                         atom = MemoryLocation(SpOffset(self.arch.bits,
                                               min_stack_offset),
                                               arg.size * self.arch.byte_width)
-                        self.state.add_use(atom, code_loc)
                         self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimArrayArg):
                     min_stack_offset = None
                     max_stack_loc = None
                     for subargloc in arg.locs:
                         if isinstance(subargloc, SimRegArg):
+                            self.state.add_register_use(subargloc.reg_offset, subargloc.size, code_loc)
+
                             atom = Register(subargloc.reg_offset, subargloc.size)
-                            self.state.add_use(atom, code_loc)
                             self._tag_definitions_of_atom(atom, func_addr_int)
                         elif isinstance(subargloc, SimStackArg):
                             if min_stack_offset is None:
@@ -1136,10 +1146,12 @@ class SimEngineRDVEX(
                             raise TypeError("Unsupported argument type %s" % type(subargloc))
 
                     if min_stack_offset is not None:
+                        self.state.add_stack_use(min_stack_offset, max_stack_loc - min_stack_offset,
+                                                 self.arch.memory_endness, code_loc)
+
                         atom = MemoryLocation(SpOffset(self.arch.bits,
                                               min_stack_offset),
                                               max_stack_loc - min_stack_offset)
-                        self.state.add_use(atom, code_loc)
                         self._tag_definitions_of_atom(atom, func_addr_int)
                 else:
                     raise TypeError("Unsupported argument type %s" % type(arg))

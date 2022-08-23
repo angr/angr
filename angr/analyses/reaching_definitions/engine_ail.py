@@ -14,7 +14,7 @@ from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ...knowledge_plugins.key_definitions.live_definitions import Definition
+from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
 from .subject import SubjectType
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
@@ -314,7 +314,7 @@ class SimEngineRDAIL(
                         and reg.vex_offset not in {self.arch.sp_offset, self.arch.bp_offset, self.arch.ip_offset, }
                         and (isinstance(cc.RETURN_VAL, SimRegArg) and reg.name != cc.RETURN_VAL.reg_name)
                 ):
-                    self.state.add_use(Register(reg.vex_offset, reg.size), codeloc)
+                    self.state.add_register_use(reg.vex_offset, reg.size, codeloc)
 
         if stmt.ret_exprs:
             # Handle return expressions
@@ -334,13 +334,13 @@ class SimEngineRDAIL(
                 else:
                     offset = cc.arch.registers[ret_val.reg_name][0] + ret_val.reg_offset
                     size = ret_val.size
-                self.state.add_use(Register(offset, size), codeloc)
+                self.state.add_register_use(offset, size, codeloc)
             else:
                 l.error("Cannot handle CC with non-register return value location")
 
         # base pointer
         # TODO: Check if the stack base pointer is used as a stack base pointer in this function or not
-        self.state.add_use(Register(self.project.arch.bp_offset, self.project.arch.bits // 8), codeloc)
+        self.state.add_register_use(self.project.arch.bp_offset, self.project.arch.bytes, codeloc)
         # We don't add sp since stack pointers are supposed to be get rid of in AIL. this is definitely a hack though
         # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8), codeloc)
 
@@ -367,7 +367,7 @@ class SimEngineRDAIL(
 
     def _ail_handle_Tmp(self, expr: ailment.Expr.Tmp) -> MultiValues:
 
-        self.state.add_use(Tmp(expr.tmp_idx, expr.size), self._codeloc())
+        self.state.add_tmp_use(expr.tmp_idx, self._codeloc())
 
         tmp = super()._ail_handle_Tmp(expr)
         if tmp is None:
@@ -438,9 +438,10 @@ class SimEngineRDAIL(
             top = self.state.top(bits)
             # annotate it
             dummy_atom = MemoryLocation(0, size, endness=expr.endness)
-            top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
+            def_ = Definition(dummy_atom, ExternalCodeLocation())
+            top = self.state.annotate_with_def(top, def_)
             # add use
-            self.state.add_use(dummy_atom, self._codeloc(), expr=expr)
+            self.state.add_memory_use_by_def(def_, self._codeloc(), expr=expr)
             return MultiValues(top)
 
         result: Optional[MultiValues] = None
@@ -452,11 +453,11 @@ class SimEngineRDAIL(
                 concrete_addr: int = addr._model_concrete.value
                 try:
                     vs: MultiValues = self.state.memory_definitions.load(concrete_addr, size=size, endness=expr.endness)
+                    defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
                     continue
 
-                memory_location = MemoryLocation(concrete_addr, size, endness=expr.endness)
-                self.state.add_use(memory_location, self._codeloc(), expr=expr)
+                self.state.add_memory_use_by_defs(defs, self._codeloc(), expr=expr)
                 result = result.merge(vs) if result is not None else vs
             elif self.state.is_stack_address(addr):
                 stack_offset = self.state.get_stack_offset(addr)
@@ -464,11 +465,11 @@ class SimEngineRDAIL(
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
                         vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=expr.endness)
+                        defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                     except SimMemoryMissingError:
                         continue
 
-                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=expr.endness)
-                    self.state.add_use(memory_location, self._codeloc(), expr=expr)
+                    self.state.add_memory_use_by_defs(defs, self._codeloc(), expr=expr)
                     result = result.merge(vs) if result is not None else vs
             else:
                 l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
@@ -491,9 +492,10 @@ class SimEngineRDAIL(
             top = self.state.top(expr.to_bits)
             # annotate it
             dummy_atom = MemoryLocation(0, size, endness=self.arch.memory_endness)
-            top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
+            def_ = Definition(dummy_atom, ExternalCodeLocation())
+            top = self.state.annotate_with_def(top, def_)
             # add use
-            self.state.add_use(dummy_atom, self._codeloc(), expr=expr)
+            self.state.add_memory_use_by_def(def_, self._codeloc(), expr=expr)
             return MultiValues(top)
 
         converted = set()
