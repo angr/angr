@@ -414,8 +414,7 @@ class SimEngineRDAIL(
             self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), value)
         else:
             codeloc = self._codeloc()
-            for def_ in defs:
-                self.state.add_use_by_def(def_, codeloc, expr=expr)
+            self.state.add_register_use_by_defs(defs, codeloc, expr=expr)
 
         return value
 
