@@ -289,32 +289,48 @@ class SimEngineUnicorn(SuccessorsMixin):
                 state.inspect.mem_read_expr = state.solver.BVV(value)
         else:
             # The value may be partially concrete. Set the symbolic bitmap to read correct value and restore it
-            mem_read_address = state.inspect.mem_read_address
-            # Save current symbolic taint bitmap and set it to what read expects
-            actual_value = []
-            for offset, expected_taint in enumerate(taint_map):
-                if expected_taint == 0:
-                    # Byte is concrete. Use value reported by native interface
-                    actual_value.append(state.solver.BVV(value[offset], 8))
-                else:
-                    curr_byte_addr = mem_read_address + offset
-                    page_num, page_off = state.memory._divide_addr(state.solver.eval(curr_byte_addr))
-                    saved_taint = None
-                    if expected_taint == 1:
-                        # Byte should be symbolic but not modified during re-execution so current taint might be
-                        # incorrect. Update current taint before performing read
-                        saved_taint = state.memory._pages[page_num].symbolic_bitmap[page_off]
-                        state.memory._pages[page_num].symbolic_bitmap[page_off] = expected_taint
+            mem_read_addr = state.solver.eval(state.inspect.mem_read_address)
+            mem_read_len = state.inspect.mem_read_length
+            saved_taints = []
+            for offset in range(mem_read_len):
+                page_num, page_off = state.memory._divide_addr(mem_read_addr + offset)
+                page_obj = state.memory._get_page(page_num, writing=False)
+                saved_taints.append(page_obj.symbolic_bitmap[page_off])
 
-                    actual_value.append(state.memory.load(curr_byte_addr, 1, inspect=False, disable_actions=True))
-                    if expected_taint == 1:
-                        # Restore saved taint
-                        state.memory._pages[page_num].symbolic_bitmap[page_off] = saved_taint
+            restore_taints = False
+            if saved_taints != taint_map:
+                # Symbolic bitmap needs fixing before reading value from memory.
+                restore_taints = True
+                for offset, expected_taint in enumerate(taint_map):
+                    if expected_taint != -1:
+                        page_num, page_off = state.memory._divide_addr(mem_read_addr + offset)
+                        page_obj = state.memory._get_page(page_num, writing=False)
+                        page_obj.symbolic_bitmap[page_off] = expected_taint
 
-            if state.arch.memory_endness == archinfo.Endness.LE:
-                actual_value = actual_value[::-1]
+            curr_value = state.memory.load(mem_read_addr, mem_read_len, endness=state.arch.memory_endness,
+                                           inspect=False, disable_actions=True)
+            if restore_taints:
+                for offset, saved_taint in enumerate(saved_taints):
+                    page_num, page_off = state.memory._divide_addr(mem_read_addr + offset)
+                    page_obj = state.memory._get_page(page_num, writing=False)
+                    page_obj.symbolic_bitmap[page_off] = saved_taint
 
-            state.inspect.mem_read_expr = state.solver.Concat(*actual_value)
+            if taint_map.count(0) != 0:
+                # Update concrete bytes using values reported by native interface
+                curr_value_bytes = curr_value.chop(8)
+                if state.arch.memory_endness == archinfo.Endness.LE:
+                    curr_value_bytes.reverse()
+
+                for offset, expected_taint in enumerate(taint_map):
+                    if expected_taint == 0:
+                        curr_value_bytes[offset] = state.solver.BVV(value[offset], 8)
+
+                if state.arch.memory_endness == archinfo.Endness.LE:
+                    curr_value_bytes = reversed(curr_value_bytes)
+
+                curr_value = state.solver.Concat(*curr_value_bytes)
+
+            state.inspect.mem_read_expr = curr_value
 
     def _save_mem_write_addrs(self, state):
         mem_write_addr = state.solver.eval(state.inspect.mem_write_address)
