@@ -1,11 +1,16 @@
-import os
+from typing import Set, Sequence, Optional, Mapping, Any, TYPE_CHECKING
+from tempfile import NamedTemporaryFile
 import logging
 import unittest
-from typing import TYPE_CHECKING
+import subprocess
+import os
+
+import pyvex
 
 import angr
 from angr.knowledge_plugins.cfg import IndirectJumpType
 from angr.analyses.cfg import CFGFast
+from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import IndirectJump
@@ -13,6 +18,36 @@ if TYPE_CHECKING:
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.getLogger("angr.tests.test_jumptables")
+
+
+def compile_c_to_angr_project(c_code: str, cflags: Optional[Sequence[str]] = None,
+                              project_kwargs: Optional[Mapping[str, Any]] = None):
+    # pylint:disable=consider-using-with
+    """
+    Compile `c_code` and return an angr project with the resulting binary.
+    """
+    src, dst = None, None
+    try:
+        src = NamedTemporaryFile(mode='w', delete=False, suffix='.c')
+        src.write(c_code)
+        src.close()
+
+        dst = NamedTemporaryFile(delete=False)
+        dst.close()
+
+        call_args = ['cc'] + (cflags or []) + ['-o', dst.name, src.name]
+        l.debug('Compiling with: %s', ' '.join(call_args))
+        l.debug('Source:\n%s', c_code)
+        subprocess.check_call(call_args)
+        proj = angr.Project(dst.name, **(project_kwargs or {}))
+
+    finally:
+        if dst and os.path.exists(dst.name):
+            os.remove(dst.name)
+        if src and os.path.exists(src.name):
+            os.remove(src.name)
+
+    return proj
 
 
 class J:
@@ -342,6 +377,118 @@ class TestJumpTableResolver(unittest.TestCase):
             0x40d1f8
         ]
 
+
+class TestJumpTableResolverCallTables(unittest.TestCase):
+    """
+    Call table tests for JumpTableResolver
+    """
+
+    @staticmethod
+    def _make_call_graph_edge_set_by_name(proj: angr.Project, src: str, dsts: Set[str]):
+        """
+        Create set of edges {src->dsts : for d in dsts} by name
+        """
+        return {(proj.kb.labels.lookup(src), proj.kb.labels.lookup(dst), 0) for dst in dsts}
+
+    def _run_calltable_test(self, c_code: str, src: str, dsts: Set[str], cflags: Optional[Sequence[str]] = None):
+        """
+        Compile `c_code`, load the binary in a project, check JumpTableResolver can properly recover jump targets
+        """
+        proj = compile_c_to_angr_project(c_code, cflags, dict(auto_load_libs=False))
+
+        # Run initial CFG, without attempting indirect jump resolve
+        cfg = proj.analyses.CFGFast(resolve_indirect_jumps=False)
+
+        # Check that CFG analysis was unable to resolve these jumps
+        expected_edges = self._make_call_graph_edge_set_by_name(proj, src, dsts)
+        assert len(expected_edges.intersection(set(cfg.functions.callgraph.edges))) == 0
+
+        func = proj.kb.functions[src]
+        if l.level == logging.DEBUG:
+            l.debug('Function Disassembly:\n%s', proj.analyses.Disassembly(func).render())
+
+        # Verify exactly 1 block with an indirect Ijk_[Call|Boring] jumpkind
+        blocks = [b for b in func.blocks if b.vex.jumpkind in ('Ijk_Call', 'Ijk_Boring')
+                                            and not isinstance(b.vex.next, pyvex.expr.Const)]
+        assert len(blocks) == 1, f'Expected 1 block with indirect Ijk_[Call|Boring] jumpkind, got {len(blocks)}'
+
+        block = blocks[0]
+        irsb = block.vex
+        jtr = JumpTableResolver(proj)
+
+        # Verify JumpTableResolver accepts this job
+        assert jtr.filter(cfg, block.addr, func.addr, block, irsb.jumpkind), 'JumpTableResolver denied solving'
+
+        # Verify JumpTableResolver is correctly resolving table
+        r, t = jtr.resolve(cfg, block.addr, func.addr, block, irsb.jumpkind)
+        assert r, 'JumpTableResolver failed'
+        l.debug('JumpTableResolver returned %d targets: %s', len(t), ', '.join([hex(n) for n in t]))
+        assert set(t) == {proj.kb.labels.lookup(d) for d in dsts}
+
+        # Check that CFG analysis is able to correctly resolve the indirect jumps with JumpTableResolver
+        cfg = proj.analyses.CFGFast(indirect_jump_resolvers=[jtr])
+        expected_edges = self._make_call_graph_edge_set_by_name(proj, src, dsts)
+        assert expected_edges.issubset(set(cfg.functions.callgraph.edges))
+
+    def _run_common_test_matrix(self, c_code):
+        # XXX: On x86 with PIE, call get_pc_thunk() is used to calculate table address. Can't handle it yet.
+        cflags = []
+        for arch_flags in [[], ['-m32', '-fno-pie']]:  # AMD64, x86
+            for opt_level in range(0, 3):
+                subtest_cflags = cflags + [f'-O{opt_level}'] + arch_flags
+                with self.subTest(cflags=subtest_cflags):
+                    self._run_calltable_test(c_code, 'src_func', {f'dst_func_{i}' for i in range(4)},
+                                             cflags=subtest_cflags)
+
+    calltable_common_code = '''
+        #include <stdlib.h>
+
+        int dst_func_0(int x, int y) { return x + y; }
+        int dst_func_1(int x, int y) { return x - y; }
+        int dst_func_2(int x, int y) { return x * y; }
+        int dst_func_3(int x, int y) { return x / y; }
+
+        typedef int (*calltable_entry_t)(int x, int y);
+        calltable_entry_t table[] = {dst_func_0, dst_func_1, dst_func_2, dst_func_3};
+
+        int src_func(int i, int x, int y);
+
+        int main(int argc, char *argv[]) {
+            return src_func(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]));
+        }
+        '''
+
+    # Force compiler emitting calls for all optimization levels via return value mutation
+
+    def test_calltable_resolver_without_check(self):
+        self._run_common_test_matrix(self.calltable_common_code + '''
+            int src_func(int i, int x, int y) {
+                return table[i](x, y) & 0xff;
+            }''')
+
+    def test_calltable_resolver_with_check(self):
+        self._run_common_test_matrix(self.calltable_common_code + '''
+            int src_func(int i, int x, int y) {
+                return ( (i < 4) ? table[i](x, y) : 0 ) & 0xff;
+            }''')
+
+    # Expect tail-call optimization to the jump target for the following tests on higher optimization levels
+
+    def test_calltable_resolver_without_check_tailcall(self):
+        self._run_common_test_matrix(self.calltable_common_code + '''
+            int src_func(int i, int x, int y) {
+                return table[i](x, y);
+            }''')
+
+    def test_calltable_resolver_with_check_tailcall(self):
+        self._run_common_test_matrix(self.calltable_common_code + '''
+            int src_func(int i, int x, int y) {
+                if (i < 4) {
+                    return table[i](x, y);
+                } else {
+                    return 0;
+                }
+            }''')
 
 if __name__ == "__main__":
     unittest.main()
