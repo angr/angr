@@ -32,7 +32,7 @@ class J:
 # pylint:disable=line-too-long,no-self-use
 class TestJumpTableResolver(unittest.TestCase):
     """
-    Test cases for jump table resolver
+    Test cases for JumpTableResolver
     """
 
     @staticmethod
@@ -45,6 +45,19 @@ class TestJumpTableResolver(unittest.TestCase):
                                         ("%#x" % j.table_addr) if j.table_addr is not None else "None",
                                         ("%#x" % jumptable_addr) if jumptable_addr is not None else "None",
                                     )
+            expected = set(j.entries)
+            recovered = set(jump_tables[j.block_addr].jumptable_entries)
+
+            if expected != recovered:
+                missing = expected - recovered
+                l.error('Expected table %#x referenced from %#x to have %d entries, it has %d:', j.table_addr, j.block_addr,
+                        len(expected), len(recovered))
+                if len(missing):
+                    l.error('- Missing (%d): %s', len(missing), ', '.join([hex(a) for a in missing]))
+                extra = recovered - expected
+                if extra:
+                    l.error('- Extra (%d): %s', len(extra), ', '.join([hex(a) for a in extra]))
+
             assert j.entries == jump_tables[j.block_addr].jumptable_entries
 
     def test_amd64_dir_gcc_O0(self):
