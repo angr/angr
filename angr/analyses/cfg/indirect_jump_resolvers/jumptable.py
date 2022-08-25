@@ -1,5 +1,6 @@
 from typing import Tuple, Optional, Dict, Sequence
 import logging
+import functools
 from collections import defaultdict, OrderedDict
 
 import pyvex
@@ -31,14 +32,22 @@ l = logging.getLogger(name=__name__)
 
 
 class NotAJumpTableNotification(AngrError):
-    pass
+    """
+    Exception raised to indicate this is not (or does not appear to be) a jump table.
+    """
 
 
 class UninitReadMeta:
+    """
+    Uninitialized read remapping details.
+    """
     uninit_read_base = 0xc000000
 
 
 class AddressTransferringTypes:
+    """
+    Types of address transfer.
+    """
     Assignment = 0
     SignedExtension = 1
     UnsignedExtension = 2
@@ -48,6 +57,10 @@ class AddressTransferringTypes:
 
 
 class JumpTargetBaseAddr:
+    """
+    Model for jump targets and their data origin.
+    """
+
     def __init__(self, stmt_loc, stmt, tmp, base_addr=None, tmp_1=None):
         self.stmt_loc = stmt_loc
         self.stmt = stmt
@@ -133,6 +146,9 @@ class JumpTableProcessorState:
 
 
 class RegOffsetAnnotation(claripy.Annotation):
+    """
+    Register Offset annotation.
+    """
 
     __slots__ = ('reg_offset', )
 
@@ -180,12 +196,10 @@ class JumpTableProcessor(
         self._SPOFFSET_BASE = claripy.BVS('SpOffset', self.project.arch.bits, explicit_name=True)
         self._REGOFFSET_BASE: Dict[int,claripy.ast.BV] = {}
 
-    @staticmethod
-    def _top(size: int):
+    def _top(self, size: int):
         return None
 
-    @staticmethod
-    def _is_top(expr) -> bool:
+    def _is_top(self, expr) -> bool:
         return expr is None
 
     @staticmethod
@@ -494,6 +508,10 @@ class JumpTableProcessor(
 #
 
 class StoreHook:
+    """
+    Hook for memory stores.
+    """
+
     @staticmethod
     def hook(state):
         write_length = state.inspect.mem_write_length
@@ -505,6 +523,9 @@ class StoreHook:
 
 
 class LoadHook:
+    """
+    Hook for memory loads.
+    """
 
     def __init__(self):
         self._var = None
@@ -520,6 +541,10 @@ class LoadHook:
 
 
 class PutHook:
+    """
+    Hook for register writes.
+    """
+
     @staticmethod
     def hook(state):
         state.inspect.reg_write_expr = state.solver.BVS('instrumented_put',
@@ -527,6 +552,9 @@ class PutHook:
 
 
 class RegisterInitializerHook:
+    """
+    Hook for register init.
+    """
 
     def __init__(self, reg_offset, reg_bits, value):
         self.reg_offset = reg_offset
@@ -538,6 +566,10 @@ class RegisterInitializerHook:
 
 
 class BSSHook:
+    """
+    Hook for BSS read/write.
+    """
+
     def __init__(self, project, bss_regions):
         self.project = project
         self._bss_regions = bss_regions
@@ -641,7 +673,7 @@ class JumpTableResolver(IndirectJumpResolver):
     table cannot be determined, a *guess* will be made based on how many entries in the table *appear* valid.
     """
     def __init__(self, project):
-        super(JumpTableResolver, self).__init__(project, timeless=False)
+        super().__init__(project, timeless=False)
 
         self._bss_regions = None
         # the maximum number of resolved targets. Will be initialized from CFG.
@@ -1448,6 +1480,17 @@ class JumpTableResolver(IndirectJumpResolver):
             conversions = list(reversed(list(v for v in all_addr_holders.values()
                                                 if v[0] is not AddressTransferringTypes.Assignment)))
             if conversions:
+                def handle_signed_ext(a):
+                    return (a | 0xffffffff00000000) if a >= 0x80000000 else a
+                def handle_unsigned_ext(a):
+                    return a
+                def handle_trunc_64_32(a):
+                    return a & 0xffffffff
+                def handle_or1(a):
+                    return a | 1
+                def handle_lshift(num_bits, a):
+                    return a << num_bits
+
                 invert_conversion_ops = []
                 for conv in conversions:
                     if len(conv) == 1:
@@ -1456,21 +1499,20 @@ class JumpTableResolver(IndirectJumpResolver):
                         conversion_op, args = conv[0], conv[1:]
                     if conversion_op is AddressTransferringTypes.SignedExtension:
                         if args == (32, 64):
-                            lam = lambda a: (a | 0xffffffff00000000) if a >= 0x80000000 else a
+                            lam = handle_signed_ext
                         else:
                             raise NotImplementedError("Unsupported signed extension operation.")
                     elif conversion_op is AddressTransferringTypes.UnsignedExtension:
-                        lam = lambda a: a
+                        lam = handle_unsigned_ext
                     elif conversion_op is AddressTransferringTypes.Truncation:
                         if args == (64, 32):
-                            lam = lambda a: a & 0xffffffff
+                            lam = handle_trunc_64_32
                         else:
                             raise NotImplementedError("Unsupported truncation operation.")
                     elif conversion_op is AddressTransferringTypes.Or1:
-                        lam = lambda a: a | 1
+                        lam = handle_or1
                     elif conversion_op is AddressTransferringTypes.ShiftLeft:
-                        shift_amount = args[0]
-                        lam = lambda a, sl=shift_amount: a << sl
+                        lam = functools.partial(handle_lshift, args[0])
                     else:
                         raise NotImplementedError("Unsupported conversion operation.")
                     invert_conversion_ops.append(lam)
@@ -1594,12 +1636,16 @@ class JumpTableResolver(IndirectJumpResolver):
                 raise NotImplementedError("Unsupported sort %s in stmts_to_instrument." % sort)
 
         reg_val = 0x13370000
+
+        def bp_condition(block_addr, stmt_idx, _s):
+            return _s.scratch.bbl_addr == block_addr and _s.inspect.statement == stmt_idx
+
         for block_addr, stmt_idx, reg_offset, reg_bits in regs_to_initialize:
             l.debug("Add a hook to initialize register %s at %x:%d.",
                     state.arch.translate_register_name(reg_offset, size=reg_bits),
                     block_addr, stmt_idx)
             bp = BP(when=BP_BEFORE, enabled=True, action=RegisterInitializerHook(reg_offset, reg_bits, reg_val).hook,
-                    condition=lambda _s: _s.scratch.bbl_addr == block_addr and _s.inspect.statement == stmt_idx
+                    condition=functools.partial(bp_condition, block_addr, stmt_idx)
                     )
             state.inspect.add_breakpoint('statement', bp)
             reg_val += 16
@@ -1667,7 +1713,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 display = stmt_taken if in_slice_stmts_only else True
                 if display:
                     s = "%s %x:%02d | " % ("+" if stmt_taken else " ", addr, i)
-                    s += "%s " % stmt.__str__(arch=self.project.arch, tyenv=irsb.tyenv)
+                    s += "%s " % stmt.__str__(arch=self.project.arch, tyenv=irsb.tyenv)  # pylint:disable=unnecessary-dunder-call
                     if stmt_taken:
                         s += "IN: %d" % blade.slice.in_degree((addr, i))
                     print(s)
