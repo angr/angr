@@ -776,10 +776,10 @@ class JumpTableResolver(IndirectJumpResolver):
         annotatedcfg.from_digraph(b.slice)
 
         # pylint: disable=too-many-nested-blocks
-        for src_irsb, _ in sources:
+        for block_addr, _ in sources:
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
-            start_state = self._initial_state(src_irsb, cfg, func_addr)
+            start_state = self._initial_state(block_addr, cfg, func_addr)
             # Keep IP symbolic to avoid unnecessary concretization
             start_state.options.add(o.KEEP_IP_SYMBOLIC)
             start_state.options.add(o.NO_IP_CONCRETIZATION)
@@ -1716,10 +1716,9 @@ class JumpTableResolver(IndirectJumpResolver):
                                                       )
             print(s)
 
-    def _initial_state(self, src_irsb, cfg, func_addr: int):
-
+    def _initial_state(self, block_addr, cfg, func_addr: int):
         state = self.project.factory.blank_state(
-            addr=src_irsb,
+            addr=block_addr,
             mode='static',
             add_options={
                 o.DO_RET_EMULATION,
