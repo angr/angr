@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, Sequence
 import logging
 from collections import defaultdict, OrderedDict
 
@@ -637,6 +637,8 @@ class JumpTableResolver(IndirectJumpResolver):
         - The final jump target comes from the memory.
         - The final jump target must be directly read out of the memory, without any further modification or altering.
 
+    Progressively larger program slices will be analyzed to determine jump table location and size. If the size of the
+    table cannot be determined, a *guess* will be made based on how many entries in the table *appear* valid.
     """
     def __init__(self, project):
         super(JumpTableResolver, self).__init__(project, timeless=False)
@@ -657,16 +659,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 l.warning('JumpTableResolver does not support P-Code IR yet; CFG may be incomplete.')
             return False
 
-        if is_arm_arch(self.project.arch):
-            # For ARM, we support both jump tables and "call tables" (because of how crazy ARM compilers are...)
-            if jumpkind in ('Ijk_Boring', 'Ijk_Call'):
-                return True
-        else:
-            # For all other architectures, we only expect jump tables
-            if jumpkind == 'Ijk_Boring':
-                return True
-
-        return False
+        return jumpkind in ('Ijk_Boring', 'Ijk_Call')
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
@@ -695,23 +688,26 @@ class JumpTableResolver(IndirectJumpResolver):
             if r:
                 return r, targets
 
-        return False, None
+        # Unable to resolve with accuracy, attempt a guess
+        b = Blade(cfg.graph, addr, -1, cfg=cfg, project=self.project, ignore_sp=False, ignore_bp=False,
+                  max_level=1, base_state=self.base_state, stop_at_calls=True, cross_insn_opt=True)
+        return self._resolve(cfg, addr, func_addr, b, attempt_approximate=True)
 
     #
     # Private methods
     #
 
-    def _resolve(self, cfg, addr, func_addr, b):
+    def _resolve(self, cfg, addr: int, func_addr: int, b: Blade, attempt_approximate: bool = False) \
+        -> Tuple[bool, Optional[Sequence[int]]]:
         """
         Internal method for resolving jump tables.
 
-        :param cfg:             A CFG instance.
-        :param int addr:        Address of the block where the indirect jump is.
-        :param int func_addr:   Address of the function.
-        :param Blade b:         The generated backward slice.
-        :return:                A bool indicating whether the indirect jump is resolved successfully, and a list of
-                                resolved targets.
-        :rtype:                 tuple
+        :param cfg:       A CFG instance.
+        :param addr:      Address of the block where the indirect jump is.
+        :param func_addr: Address of the function.
+        :param b:         The generated backward slice.
+        :return:          A bool indicating whether the indirect jump is resolved successfully, and a list of
+                          resolved targets.
         """
 
         project = self.project  # short-hand
@@ -733,6 +729,7 @@ class JumpTableResolver(IndirectJumpResolver):
             if is_arm_arch(self.project.arch):
                 ite_stmt, ite_stmt_loc, stmts_to_remove = self._find_load_pc_ite_statement(b, stmt_loc)
             if ite_stmt is None:
+                l.warning('Could not find load statement in this slice')
                 return False, None
 
         try:
@@ -746,6 +743,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 ij.resolved_targets = { jump_target }
                 return True, [ jump_target ]
             else:
+                l.warning('Found single constant load, but it does not appear to be a valid target')
                 return False, None
 
         # Well, we have a real jump table to resolve!
@@ -755,11 +753,15 @@ class JumpTableResolver(IndirectJumpResolver):
         # get the full range of possibilities
         b.slice.remove_nodes_from(stmts_to_remove)
 
+        stmts_to_instrument, regs_to_initialize = [], []
         try:
             stmts_to_instrument, regs_to_initialize = self._jumptable_precheck(b)
+            l.debug('jumptable_precheck provides stmts_to_instrument = %s, regs_to_initialize = %s',
+                stmts_to_instrument, regs_to_initialize)
         except NotAJumpTableNotification:
-            l.debug("Indirect jump at %#x does not look like a jump table. Skip.", addr)
-            return False, None
+            if not attempt_approximate:
+                l.debug("Indirect jump at %#x does not look like a jump table. Skip.", addr)
+                return False, None
 
         # Debugging output
         if l.level == logging.DEBUG:
@@ -852,7 +854,7 @@ class JumpTableResolver(IndirectJumpResolver):
             for r in simgr.found:
                 if load_stmt is not None:
                     ret = self._try_resolve_targets_load(r, addr, cfg, annotatedcfg, load_stmt, load_size,
-                                                         stmts_adding_base_addr, all_addr_holders)
+                                                         stmts_adding_base_addr, all_addr_holders, attempt_approximate)
                     if ret is None:
                         # Try the next state
                         continue
@@ -889,7 +891,8 @@ class JumpTableResolver(IndirectJumpResolver):
                     else:
                         all_targets = [ t_ for t_ in all_targets if t_ % alignment == 0 ]
 
-                l.info("Resolved %d targets from %#x.", len(all_targets), addr)
+                l.info("Jump table at %#x has %d targets: %s", addr, len(all_targets),
+                        ', '.join([hex(a) for a in all_targets]))
 
                 # write to the IndirectJump object in CFG
                 ij: IndirectJump = cfg.indirect_jumps[addr]
@@ -1305,7 +1308,7 @@ class JumpTableResolver(IndirectJumpResolver):
         return None
 
     def _try_resolve_targets_load(self, r, addr, cfg, annotatedcfg, load_stmt, load_size, stmts_adding_base_addr,
-                                  all_addr_holders):
+                                  all_addr_holders, attempt_approximate: bool = False):
         """
         Try loading all jump targets from a jump table or a vtable.
         """
@@ -1336,6 +1339,7 @@ class JumpTableResolver(IndirectJumpResolver):
             return None
 
         # sanity check and necessary pre-processing
+        jump_base_addr = None
         if stmts_adding_base_addr:
             if len(stmts_adding_base_addr) != 1:
                 # We do not support the cases where the base address involves more than one addition.
@@ -1353,6 +1357,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 # the proper solution requires angr to correctly determine that esi is the beginning address of the data
                 # region (in this case, 0x1d8000). we give up in such cases until we can reasonably perform a
                 # full-function data propagation before performing jump table recovery.
+                l.debug('Multiple statements adding bases, not supported yet')  # FIXME: Just check the addresses?
                 return None
             jump_base_addr = stmts_adding_base_addr[0]
             if jump_base_addr.base_addr_available:
@@ -1375,11 +1380,13 @@ class JumpTableResolver(IndirectJumpResolver):
                 # Load the concrete base address
                 jump_base_addr.base_addr = state.solver.eval(state.scratch.temps[jump_base_addr.tmp_1])
 
-        all_targets = [ ]
         jumptable_addr_vsa = jumptable_addr._model_vsa
 
         if not isinstance(jumptable_addr_vsa, claripy.vsa.StridedInterval):
             return None
+
+        all_targets = []
+        jump_table = []
 
         # we may resolve a vtable (in C, e.g., the IO_JUMPS_FUNC in libc), but the stride of this load is usually 1
         # while the read statement reads a word size at a time.
@@ -1395,6 +1402,37 @@ class JumpTableResolver(IndirectJumpResolver):
             sort = 'jumptable'
 
         if total_cases > self._max_targets:
+            if (attempt_approximate and sort == 'jumptable'
+                and stride*8 == state.arch.bits and jumptable_addr.op == '__add__'):
+                # Undetermined table size. Take a guess based on target plausibility.
+                table_base_addr = None
+                for arg in jumptable_addr.args:
+                    if arg.concrete:
+                        table_base_addr = state.solver.eval(arg)
+                        break
+
+                if table_base_addr is not None:
+                    addr = table_base_addr
+                    # FIXME: May want to support NULL targets for handlers that are not filled in / placeholders
+                    # FIXME: Try negative offsets too? (this would be unusual)
+                    l.debug('Inspecting table at %#x for plausible targets...', addr)
+                    for i in range(self._max_targets):
+                        target = cfg._fast_memory_load_pointer(addr, size=load_size)
+                        if target is None or not self._is_jumptarget_legal(target):
+                            break
+                        l.debug('- %#x[%d] -> %#x', table_base_addr, i, target)
+                        jump_table.append(target)
+                        addr += jumptable_addr_vsa.stride
+                    num_targets = len(jump_table)
+                    if num_targets == 0:
+                        l.debug("Didn't find any plausible targets in suspected jump table %#x", table_base_addr)
+                    elif num_targets == self._max_targets:
+                        l.debug('Reached maximum number of targets (%d) while scanning jump table %#x. It might not be '
+                                'a jump table, or the limit might be too low.', num_targets, table_base_addr)
+                    else:
+                        l.debug('Table at %#x has %d plausible targets', table_base_addr, num_targets)
+                        return jump_table, table_base_addr, load_size, num_targets * load_size, jump_table, sort
+
             # We resolved too many targets for this indirect jump. Something might have gone wrong.
             l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table. Try the "
                     "next source, if there is any.",
@@ -1407,8 +1445,6 @@ class JumpTableResolver(IndirectJumpResolver):
             # total_cases = int(raw_input("please give me the total cases: "))
             # jump_target = state.solver.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
             # (total_cases - 1) * 8, stride=8)
-
-        jump_table = [ ]
 
         min_jumptable_addr = state.solver.min(jumptable_addr)
         max_jumptable_addr = state.solver.max(jumptable_addr)
@@ -1484,6 +1520,10 @@ class JumpTableResolver(IndirectJumpResolver):
         # special case for ARM: if the source block is in THUMB mode, all jump targets should be in THUMB mode, too
         if is_arm_arch(self.project.arch) and (addr & 1) == 1:
             all_targets = [ target | 1 for target in all_targets ]
+
+        if len(all_targets) == 0:
+            l.warning('Could not recover jump table')
+            return None
 
         # Finally... all targets are ready
         illegal_target_found = False
