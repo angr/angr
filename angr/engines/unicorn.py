@@ -36,6 +36,14 @@ class SimEngineUnicorn(SuccessorsMixin):
              STOP.STOP_ZEROPAGE, STOP.STOP_NOSTART, STOP.STOP_SEGFAULT, STOP.STOP_ZERO_DIV, STOP.STOP_NODECODE, \
              STOP.STOP_HLT, STOP.STOP_SYSCALL_ARM, STOP.STOP_X86_CPUID]
 
+    def __getstate__(self):
+        parent_ret = super().__getstate__()
+        return (self._block_stop_cache, self._ignore_stop_reasons, parent_ret)
+
+    def __setstate__(self, args):
+        super().__setstate__(args[2])
+        self._block_stop_cache = args[0]
+        self._ignore_stop_reasons = args[1]
 
     def __check(self, num_inst=None, **kwargs):  # pylint: disable=unused-argument
         state = self.state
