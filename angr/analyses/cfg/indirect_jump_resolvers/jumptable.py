@@ -738,9 +738,10 @@ class JumpTableResolver(IndirectJumpResolver):
             return False, None
         if jump_target is not None:
             if self._is_target_valid(cfg, jump_target):
-                ij = cfg.indirect_jumps[addr]
-                ij.jumptable = False
-                ij.resolved_targets = { jump_target }
+                ij = cfg.indirect_jumps.get(addr, None)
+                if ij is not None:
+                    ij.jumptable = False
+                    ij.resolved_targets = { jump_target }
                 return True, [ jump_target ]
             else:
                 l.warning('Found single constant load, but it does not appear to be a valid target')
@@ -895,22 +896,24 @@ class JumpTableResolver(IndirectJumpResolver):
                         ', '.join([hex(a) for a in all_targets]))
 
                 # write to the IndirectJump object in CFG
-                ij: IndirectJump = cfg.indirect_jumps[addr]
-                if len(all_targets) > 1:
-                    # It can be considered a jump table only if there are more than one jump target
-                    if ij_type in (IndirectJumpType.Jumptable_AddressComputed, IndirectJumpType.Jumptable_AddressLoadedFromMemory):
-                        ij.jumptable = True
+                ij: IndirectJump = cfg.indirect_jumps.get(addr, None)
+                if ij is not None:
+                    if len(all_targets) > 1:
+                        # It can be considered a jump table only if there are more than one jump target
+                        if ij_type in (IndirectJumpType.Jumptable_AddressComputed,
+                                       IndirectJumpType.Jumptable_AddressLoadedFromMemory):
+                            ij.jumptable = True
+                        else:
+                            ij.jumptable = False
+                        ij.jumptable_addr = jumptable_addr
+                        ij.jumptable_size = jumptable_size
+                        ij.jumptable_entry_size = entry_size
+                        ij.resolved_targets = set(jump_table)
+                        ij.jumptable_entries = jump_table
+                        ij.type = ij_type
                     else:
                         ij.jumptable = False
-                    ij.jumptable_addr = jumptable_addr
-                    ij.jumptable_size = jumptable_size
-                    ij.jumptable_entry_size = entry_size
-                    ij.resolved_targets = set(jump_table)
-                    ij.jumptable_entries = jump_table
-                    ij.type = ij_type
-                else:
-                    ij.jumptable = False
-                    ij.resolved_targets = set(jump_table)
+                        ij.resolved_targets = set(jump_table)
 
                 return True, all_targets
 
