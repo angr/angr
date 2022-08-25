@@ -30,20 +30,25 @@ class SimEngineUnicorn(SuccessorsMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._block_stop_cache = set()
-        self._ignore_stop_reasons = STOP.unsupported_reasons + \
+        # Cache of details of basic blocks containing statements that need to re-executed
+        self._block_details_cache = {}
+        # Addresses of basic blocks which native interface will not execute
+        self._stop_block_addrs_cache = set()
+        # Stop reasons to track and not switch to native interface for those basic blocks
+        self._stop_reasons_to_track = STOP.unsupported_reasons + \
             [STOP.STOP_STOPPOINT, STOP.STOP_ERROR, STOP.STOP_NODECODE, STOP.STOP_SYSCALL, STOP.STOP_EXECNONE, \
              STOP.STOP_ZEROPAGE, STOP.STOP_NOSTART, STOP.STOP_SEGFAULT, STOP.STOP_ZERO_DIV, STOP.STOP_NODECODE, \
              STOP.STOP_HLT, STOP.STOP_SYSCALL_ARM, STOP.STOP_X86_CPUID]
 
     def __getstate__(self):
         parent_ret = super().__getstate__()
-        return (self._block_stop_cache, self._ignore_stop_reasons, parent_ret)
+        return (parent_ret, self._block_details_cache, self._stop_block_addrs_cache, self._stop_reasons_to_track)
 
     def __setstate__(self, args):
-        super().__setstate__(args[2])
-        self._block_stop_cache = args[0]
-        self._ignore_stop_reasons = args[1]
+        super().__setstate__(args[0])
+        self._block_details_cache = args[1]
+        self._stop_block_addrs_cache = args[2]
+        self._stop_reasons_to_track = args[3]
 
     def __check(self, num_inst=None, **kwargs):  # pylint: disable=unused-argument
         state = self.state
@@ -92,7 +97,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             l.info("failed register check")
             return False
 
-        if state.addr in self._block_stop_cache:
+        if state.addr in self._stop_block_addrs_cache:
             l.info("Block will likely not execute in native interface")
             return False
 
@@ -106,11 +111,11 @@ class SimEngineUnicorn(SuccessorsMixin):
         state.unicorn.countdown_stop_point -= 1
 
     def _execute_block_instrs_in_vex(self, block_details):
-        if block_details["block_addr"] not in self.block_details_cache:
+        if block_details["block_addr"] not in self._block_details_cache:
             vex_block = self._get_vex_block_details(block_details["block_addr"], block_details["block_size"])
-            self.block_details_cache[block_details["block_addr"]] = vex_block
+            self._block_details_cache[block_details["block_addr"]] = vex_block
         else:
-            vex_block = self.block_details_cache[block_details["block_addr"]]
+            vex_block = self._block_details_cache[block_details["block_addr"]]
 
         # Save breakpoints for restoring later
         saved_mem_read_breakpoints = copy.copy(self.state.inspect._breakpoints["mem_read"])
@@ -384,9 +389,6 @@ class SimEngineUnicorn(SuccessorsMixin):
                 # will then be handled by another engine that can more accurately step instruction-by-instruction.
                 extra_stop_points.add(bp.kwargs["instruction"])
 
-        # VEX block cache for executing instructions skipped by native interface
-        self.block_details_cache = {}  # pylint:disable=attribute-defined-outside-init
-
         # initialize unicorn plugin
         try:
             syscall_data = kwargs["syscall_data"] if "syscall_data" in kwargs else None
@@ -411,11 +413,11 @@ class SimEngineUnicorn(SuccessorsMixin):
             state.unicorn.destroy(self.state)
 
         state = self.state
-        if state.unicorn.stop_reason in self._ignore_stop_reasons:
+        if state.unicorn.stop_reason in self._stop_reasons_to_track:
             if state.unicorn.steps == 0:
-                self._block_stop_cache.add(state.addr)
+                self._stop_block_addrs_cache.add(state.addr)
             else:
-                self._block_stop_cache.add(state.unicorn.stop_details.block_addr)
+                self._stop_block_addrs_cache.add(state.unicorn.stop_details.block_addr)
 
         if state.unicorn.steps == 0 or state.unicorn.stop_reason == STOP.STOP_NOSTART:
             # fail out, force fallback to next engine
