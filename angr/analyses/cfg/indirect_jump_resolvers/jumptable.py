@@ -780,46 +780,9 @@ class JumpTableResolver(IndirectJumpResolver):
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
             start_state = self._initial_state(block_addr, cfg, func_addr)
-            # Keep IP symbolic to avoid unnecessary concretization
-            start_state.options.add(o.KEEP_IP_SYMBOLIC)
-            start_state.options.add(o.NO_IP_CONCRETIZATION)
-            # be quiet!!!!!!
-            start_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
-            start_state.options.add(o.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
-
-            # any read from an uninitialized segment should be unconstrained
-            if self._bss_regions:
-                bss_hook = BSSHook(self.project, self._bss_regions)
-                bss_memory_write_bp = BP(when=BP_AFTER, enabled=True, action=bss_hook.bss_memory_write_hook)
-                start_state.inspect.add_breakpoint('mem_write', bss_memory_write_bp)
-                bss_memory_read_bp = BP(when=BP_BEFORE, enabled=True, action=bss_hook.bss_memory_read_hook)
-                start_state.inspect.add_breakpoint('mem_read', bss_memory_read_bp)
-
-            if self.project.arch.name == "MIPS32":
-                # instrument all reads from gp and all writes to gp
-                gp = None
-                try:
-                    func = cfg.kb.functions.get_by_addr(func_addr)
-                    if func.info and "gp" in func.info:
-                        gp = func.info["gp"]
-                except KeyError:
-                    pass
-                if gp is not None:
-                    mips_gp_hook = MIPSGPHook(self.project.arch.registers['gp'][0],
-                                              gp)
-                    mips_gp_read_bp = BP(when=BP_AFTER, enabled=True, action=mips_gp_hook.gp_register_read_hook)
-                    mips_gp_write_bp = BP(when=BP_AFTER, enabled=True, action=mips_gp_hook.gp_register_write_hook)
-                    start_state.inspect.add_breakpoint('reg_read', mips_gp_read_bp)
-                    start_state.inspect.add_breakpoint('reg_write', mips_gp_write_bp)
 
             # instrument specified store/put/load statements
             self._instrument_statements(start_state, stmts_to_instrument, regs_to_initialize)
-
-            # FIXME:
-            # this is a hack: for certain architectures, we do not initialize the base pointer, since the jump table on
-            # those architectures may use the bp register to store value
-            if not self.project.arch.name in {'S390X'}:
-                start_state.regs.bp = start_state.arch.initial_sp + 0x2000
 
             self._cached_memread_addrs.clear()
             init_registers_on_demand_bp = BP(when=BP_BEFORE, enabled=True, action=self._init_registers_on_demand)
@@ -1724,12 +1687,26 @@ class JumpTableResolver(IndirectJumpResolver):
                 o.DO_RET_EMULATION,
                 o.TRUE_RET_EMULATION_GUARD,
                 o.AVOID_MULTIVALUED_READS,
+                # Keep IP symbolic to avoid unnecessary concretization
+                o.KEEP_IP_SYMBOLIC,
+                o.NO_IP_CONCRETIZATION,
+                # be quiet!!!!!!
+                o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
+                o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
             },
             remove_options={
-                               o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
-                               o.UNINITIALIZED_ACCESS_AWARENESS,
-                           } | o.refs
+               o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
+               o.UNINITIALIZED_ACCESS_AWARENESS,
+           } | o.refs
         )
+
+        # any read from an uninitialized segment should be unconstrained
+        if self._bss_regions:
+            bss_hook = BSSHook(self.project, self._bss_regions)
+            bss_memory_write_bp = BP(when=BP_AFTER, enabled=True, action=bss_hook.bss_memory_write_hook)
+            state.inspect.add_breakpoint('mem_write', bss_memory_write_bp)
+            bss_memory_read_bp = BP(when=BP_BEFORE, enabled=True, action=bss_hook.bss_memory_read_hook)
+            state.inspect.add_breakpoint('mem_read', bss_memory_read_bp)
 
         if self.project.arch.name == "MIPS32":
             try:
@@ -1738,6 +1715,27 @@ class JumpTableResolver(IndirectJumpResolver):
                     state.regs._gp = func.info["gp"]
             except KeyError:
                 pass
+
+            # instrument all reads from gp and all writes to gp
+            gp = None
+            try:
+                func = cfg.kb.functions.get_by_addr(func_addr)
+                if func.info and "gp" in func.info:
+                    gp = func.info["gp"]
+            except KeyError:
+                pass
+            if gp is not None:
+                mips_gp_hook = MIPSGPHook(self.project.arch.registers['gp'][0], gp)
+                mips_gp_read_bp = BP(when=BP_AFTER, enabled=True, action=mips_gp_hook.gp_register_read_hook)
+                mips_gp_write_bp = BP(when=BP_AFTER, enabled=True, action=mips_gp_hook.gp_register_write_hook)
+                state.inspect.add_breakpoint('reg_read', mips_gp_read_bp)
+                state.inspect.add_breakpoint('reg_write', mips_gp_write_bp)
+
+        # FIXME:
+        # this is a hack: for certain architectures, we do not initialize the base pointer, since the jump table on
+        # those architectures may use the bp register to store value
+        if not self.project.arch.name in {'S390X'}:
+            state.regs.bp = state.arch.initial_sp + 0x2000
 
         return state
 
