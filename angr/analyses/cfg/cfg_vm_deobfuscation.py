@@ -1228,12 +1228,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._insert_job(path_wrapper)
             self._register_analysis_job(path_wrapper.func_addr, path_wrapper)
 
-            # if self.data_sensitive:
-            #     state.inspect.add_breakpoint('mem_read',
-            #                                  BP(
-            #                                      BP_AFTER,
-            #                                      action=self.annotate_stack_read_value
-            #                                  ))
+        if self.data_sensitive:
+            state.inspect.add_breakpoint('mem_read',
+                                         BP(
+                                             BP_AFTER,
+                                             action=self.annotate_stack_read_value
+                                         ))
 
     def show_annotations(self, state):
         if len(state.inspect.expr_result.annotations) != 0:
@@ -1475,7 +1475,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # remove btc, btr
         cur_block = job.state.block(addr)
         for ins in cur_block.capstone.insns:
-            if ins.mnemonic in ['btc', 'bts', 'bt', 'btr']:
+            if ins.mnemonic in ['btc', 'bts', 'bt', 'btr', 'rdtsc']:
                 job.state.memory.store(ins.address, ins.size*b"\x90")
             elif ins.address in self.remove_insts:
                 job.state.memory.store(ins.address, ins.size * b"\x90")
@@ -1498,7 +1498,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 new_sim_successors.description = sim_successors.description
                 new_sim_successors.sort = sim_successors.sort
 
-                new_sim_successors.add_successor(uncon_succ, uncon_succ.solver.eval(uncon_succ.scratch.target),
+                targ_addr = uncon_succ.solver.simplify(uncon_succ.scratch.target)
+
+                if targ_addr.symbolic:
+                    targ_addr = uncon_succ.solver.eval(uncon_succ.scratch.target)
+
+                new_sim_successors.add_successor(uncon_succ, targ_addr,
                                                  uncon_succ.scratch.guard,
                                                  uncon_succ.history.jumpkind, True,
                                                  uncon_succ.scratch.exit_stmt_idx,
@@ -1512,7 +1517,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # the unconstrained successor is most likely due to a read addr memory read, so we will try to concretize the addr and the read here a
                 # nd create new states for each possible addr. We will also add the solved values as constraints and replacements so that we don't to solve for it in the future.
                 # the concrete values for the addr come from the overriden function _perform_vex_expr_Load() in InputConcretizeEngine
-                for ast in sim_successors.unconstrained_successors[0].regs.rip.leaf_asts():
+                for ast in sim_successors.unconstrained_successors[0].regs.ip.leaf_asts():
                     if ast in sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict']:
                         conc_addr_and_new_constraints = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][0]
                         if len(conc_addr_and_new_constraints) > 2:
@@ -1534,7 +1539,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             new_state.add_constraints(input_constraint)
                             new_state.solver._solver.add_replacement(input_constraint.args[0], input_constraint.args[1], invalidate_cache=False)
 
-                            new_state.regs.rip = new_state.solver.simplify(new_state.regs.rip).replace_dict(new_state.solver._solver._replacement_cache)
+                            new_state.regs.ip = new_state.solver.simplify(new_state.regs.ip).replace_dict(new_state.solver._solver._replacement_cache)
                             new_state.scratch.target = new_state.solver.simplify(new_state.scratch.target).replace_dict(new_state.solver._solver._replacement_cache)
                             new_states.append(new_state)
 
@@ -1559,6 +1564,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             import ipdb;ipdb.set_trace()
 
         l.debug("All possible successors: " + str(sim_successors.all_successors))
+
         #### Keeping only symbolic and True successors
         if self.data_sensitive:
             symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
@@ -1659,6 +1665,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations and addr not in self.project._sim_procedures:
             l.debug("Block SKIPPED! due to max_iterations")
+            import ipdb;ipdb.set_trace()
             should_skip = True
         elif self._is_call_jumpkind(job.jumpkind) and \
              self._call_depth is not None and \
