@@ -700,12 +700,16 @@ class VMDeobfuscation(Analysis):
         saved_start_state = start_state.copy()
 
         def save_vm_vpc(state):
+            # This is just a hack to make sure that when the VIP reg is being used for something else we don't track it ### NEED A BETTER AND GENERIC WAY
+            if state.project.loader.main_object.contains_addr(state.solver.eval_one(state.solver.simplify(state.inspect.reg_write_expr)) + state.globals['add_offset']):
             # Save the vm program counter to state and use it in _pre_job_handling
-            state.globals['cur_vm_vpc'] = state.solver.eval_one(state.inspect.reg_write_expr) + state.globals[
-                'add_offset']
-            # if len(state.inspect._breakpoints['reg_write']) >=2:
-            #     import ipdb;ipdb.set_trace()
-            print("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')))
+                # if 'cur_vm_vpc'in state.globals and state.globals['cur_vm_vpc'] and abs(state.globals['cur_vm_vpc'] - state.solver.eval_one(state.inspect.reg_write_expr) + state.globals['add_offset']) > 8:
+                #     import ipdb;ipdb.set_trace()
+                state.globals['cur_vm_vpc'] = state.solver.eval_one(state.solver.simplify(state.inspect.reg_write_expr)) + state.globals[
+                    'add_offset']
+                # if len(state.inspect._breakpoints['reg_write']) >=2:
+                #     import ipdb;ipdb.set_trace()
+                print("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')))
             return
 
         def activate_save_vm_vpc(state):
@@ -788,7 +792,12 @@ class VMDeobfuscation(Analysis):
 
         saved_start_state.globals.pop('concretized_load_addr_dict')
         saved_start_state.globals.pop('cur_block_id')
-        new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=None)#start_state=saved_start_state)
+        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=None)#start_state=saved_start_state)
+
+        self.symbolify_exprs(cfg, proj, symbolic_expr_locations_blockwise, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
+
+        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr,
+                                           input=verification_input)
         # clearing the saved states to save space
         for node in new_cfg.graph.nodes():
             node.input_state = None
@@ -943,6 +952,26 @@ class VMDeobfuscation(Analysis):
     #             print("Implement this!")
     #             import ipdb;ipdb.set_trace
 
+    def symbolify_exprs(self, cfg, proj, symbolic_expr_locations_blockwise, start_addr=None, vm_vpc_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None):
+        self.project.symbolic_expr_locations_blockwise = symbolic_expr_locations_blockwise
+        cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
+                                               data_sensitive=True,
+                                               vm_vpc_addr=vm_vpc_addr,
+                                               starts=(start_addr,),
+                                               initial_state=start_state,
+                                               max_iterations=1,
+                                               resolve_indirect_jumps=True,
+                                               keep_state=False,
+                                               state_add_options=angr.sim_options.refs | {angr.sim_options.DO_CCALLS},
+                                               iropt_level=1,
+                                               cfg_fast_graph=cfg_fast_graph,
+                                               avoid_runs=avoid_runs,
+                                               remove_insts=remove_insts
+                                               # enable_advanced_backward_slicing=True
+                                               )
+
+        import ipdb;ipdb.set_trace()
+
     def remove_push_ret(self, cfg, proj, start_addr, vm_vpc_addr, start_state=None,options=None):
         # this pass is to simplify push x, retn to x kind of jumps
         for node in cfg.graph.nodes():
@@ -1037,6 +1066,8 @@ class VMDeobfuscation(Analysis):
         # Method 1: using the longest living variable as the local variable
         input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
                                         concrete_fs=True, stdin=user_input)
+        if proj.arch.bits == 32:
+            input_state.registers.store(input_state.arch.registers['ss'][0], 0)
         input_state.globals['prev_rsp'] = 0
         input_state.globals['prev_vsp'] = 0
         input_state.globals['vsp_active'] = False
@@ -1518,6 +1549,8 @@ class VMDeobfuscation(Analysis):
 
         new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.DO_CCALLS, angr.sim_options.CONCRETIZE, angr.sim_options.INITIALIZE_ZERO_REGISTERS},
                                         concrete_fs=True, chroot=chroot, stdin=input)
+        if proj.arch.bits == 32:
+            new_model._nodes_by_addr[self.start_addr][0].input_state.registers.store(new_model._nodes_by_addr[self.start_addr][0].input_state.arch.registers['ss'][0], 0)
 
         # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.full_init_state(
         #     args=['./if_test.vmp.exe'],
@@ -1949,6 +1982,8 @@ class VMDeobfuscation(Analysis):
                                                            add_options=angr.sim_options.refs | {
                                                                angr.sim_options.REPLACEMENT_SOLVER,
                                                                angr.sim_options.DO_CCALLS})
+            if proj.arch.bits == 32:
+                initial_input_state.registers.store(initial_input_state.arch.registers['ss'][0], 0)
         dsa_new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=dsa_new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True, max_iterations=1,
@@ -2722,6 +2757,8 @@ class VMDeobfuscation(Analysis):
             start_state = proj.factory.blank_state(addr=start_addr,
                                                    add_options={angr.sim_options.REPLACEMENT_SOLVER,
                                                                   angr.sim_options.DO_CCALLS})
+            if proj.arch.bits == 32:
+                start_state.registers.store(start_state.arch.registers['ss'][0], 0)
         # self.annotate_and_preconstrain_sp(start_state)
 
         cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
@@ -2731,7 +2768,7 @@ class VMDeobfuscation(Analysis):
                                         initial_state=start_state,
                                         max_iterations=1,
                                         resolve_indirect_jumps=True,
-                                        keep_state=True,
+                                        keep_state=False,
                                         state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
                                         iropt_level=1,
                                         cfg_fast_graph=cfg_fast_graph,
@@ -2759,6 +2796,8 @@ class VMDeobfuscation(Analysis):
         else:
             print("Using blank state!")
             initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath", add_options={'REPLACEMENT_SOLVER','DO_CCALLS', 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS', 'SYMBOL_FILL_UNCONSTRAINED_MEMORY'})
+            if proj.arch.bits == 32:
+                initial_input_state.registers.store('ss', 0)
 
             # preconstrain the stack pointer
             actual_stack_end = initial_input_state.solver.eval(initial_input_state.regs.sp)
@@ -2817,6 +2856,8 @@ class VMDeobfuscation(Analysis):
             node = new_model._nodes[key]
             if not node.is_simprocedure:
                 new_stmts = node.irsb.statements
+                if node.addr == 0x44e41b:
+                    import ipdb;ipdb.set_trace()
                 for stmt, repl_pair in value.items():
                     for old, new in repl_pair.items():
                         ## This is for the next expression
@@ -2864,7 +2905,7 @@ class VMDeobfuscation(Analysis):
 
         ### Returning a new CFGVMDeobfuscation object with the updated graph
         print("Done")
-        return new_model
+        return new_model, prop.symbolic_expr_locations_blockwise
 
     #### This method removes stuff like empty blocks, empty instructions(Imark, AbiHints etc)
     def remove_junk(self, cfg, proj, start_addr, start_state=None):
@@ -2913,6 +2954,8 @@ class VMDeobfuscation(Analysis):
                                                            mode='fastpath',
                                                            add_options=angr.sim_options.refs | {
                                                            angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+            if proj.arch.bits == 32:
+                initial_input_state.registers.store(initial_input_state.arch.registers['ss'][0], 0)
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1)
         print("Done")
@@ -3085,6 +3128,8 @@ class VMDeobfuscation(Analysis):
                                                            mode='fastpath',
                                                            add_options=angr.sim_options.refs | {
                                                            angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+            if proj.arch.bits == 32:
+                initial_input_state.registers.store(initial_input_state.arch.registers['ss'][0], 0)
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
         print("Done")
