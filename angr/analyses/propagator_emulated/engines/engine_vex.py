@@ -16,20 +16,40 @@ class PropagatorEmulatedHeavyVEXMixin(HeavyVEXMixin):
 
     def _handle_vex_expr(self, expr: pyvex.expr.IRExpr):
         result = super()._handle_vex_expr(expr)
+        simp_result = result[0]
+        if self.state.solver.symbolic(result[0]):
+            simp_result = self.state.solver.simplify(result[0])
         # ### Only save the constant if it is not touched by the stack
         code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['cur_block_id'])
         stack_touched = False
         for annotation in result[0].annotations:
             if isinstance(annotation, StackTouchedAnnotation):
+                import ipdb;ipdb.set_trace()
                 stack_touched = True
                 break
 
         if not stack_touched:
             ### Check if the result is not symbolic and not already a constant(in which case there is no need to replace)
             ## also make sure there's only one possible solution....... if more than one possible solns then leave it as is
-            if not self.state.solver.symbolic(result[0]) and not(isinstance(expr, pyvex.expr.Const)):
+            #
+            # if self.state.globals['cur_block_id'] and self.state.globals['cur_block_id'].addr == 0x1400AB56C and self.state.scratch.stmt_idx == 11:
+            #     import ipdb;ipdb.set_trace()
+            # if self.state.solver.symbolic(result[0]) and not self.state.solver.symbolic(self.state.solver.simplify(result[0])) and "precon_sp_24_64" not in result[0].variables:
+            #     print(self.state.solver.simplify(result[0]))
+            #     import ipdb;ipdb.set_trace()
+            # if self.state.solver.symbolic(result[0]) and not self.state.solver.eval_one(self.state.solver.simplify(result[0])) and "precon_sp_24_64" not in result[0].variables:
+            #     print(self.state.solver.eval_one(self.state.solver.simplify(result[0])))
+            #     import ipdb;ipdb.set_trace()
+
+            # Check if the result is a constant but the value is different now, from the previously saved constant value
+            # if not self.state.solver.symbolic(simp_result) and expr in self.state.globals['abstract_state']._replacements[code_loc] and self.state.globals['abstract_state']._replacements[code_loc][expr].con.value != simp_result.args[0]:
+            #     print(self.state.globals['abstract_state']._replacements[code_loc][expr])
+            #     print(simp_result)
+            #     import ipdb;ipdb.set_trace()
+
+            if not self.state.solver.symbolic(simp_result) and not(isinstance(expr, pyvex.expr.Const)):
                 const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
-                if len(result[0].args) > 2:
+                if len(simp_result.args) > 2:
                     print("Hmmm possible need to simplify the expr")
                     import ipdb;ipdb.set_trace()
                 if isinstance(expr, DataSensitiveRdTmp):
@@ -38,11 +58,12 @@ class PropagatorEmulatedHeavyVEXMixin(HeavyVEXMixin):
                     elif const_class == pyvex.const.U32:
                         const_class = DataSensitiveU32
                     self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(
-                        const_class(result[0].args[0], expr.block_id)))
+                        const_class(simp_result.args[0], expr.block_id)))
                 else:
-                    self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(const_class(result[0].args[0])))
+                    self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(const_class(simp_result.args[0])))
             ### Check if the result is symbolic now, but was constant in some previous iteration and put in the replacements. If so then remove the replacement
-            elif self.state.solver.symbolic(result[0]) and expr in self.state.globals['abstract_state']._replacements[code_loc]:
+            elif self.state.solver.symbolic(simp_result) and expr in self.state.globals['abstract_state']._replacements[code_loc]:
+                #import ipdb;ipdb.set_trace()
                 del self.state.globals['abstract_state']._replacements[code_loc][expr]
         return self._instrument_vex_expr(result)
 
