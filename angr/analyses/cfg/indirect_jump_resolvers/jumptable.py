@@ -1835,7 +1835,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         jump_addr = state.scratch.temps[load_addr_tmp]
 
-        if isinstance(load_stmt, pyvex.IRStmt.LoadG):
+        if isinstance(load_stmt, pyvex.IRStmt.LoadG) and not isinstance(load_stmt.guard, pyvex.IRExpr.Const):
             # LoadG comes with a guard. We should apply this guard to the load expression
             guard_tmp = load_stmt.guard.tmp
             guard = state.scratch.temps[guard_tmp] != 0
