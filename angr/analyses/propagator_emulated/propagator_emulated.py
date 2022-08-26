@@ -163,6 +163,8 @@ class PropagatorVEXState(PropagatorState):
 
     def __init__(self, arch, replacements=None, concrete_states=None):
         super().__init__(arch, replacements=replacements, concrete_states=concrete_states)
+        # this mapping is used to decide which exprs to treat as symbolic in future analysis
+        self.symbolic_expr_locations = defaultdict(list)
 
     def __repr__(self):
         return "<PropagatorVEXState>"
@@ -291,6 +293,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._node_iterations = defaultdict(int)
         self._states = { }
         self.replacements = {}
+        self.symbolic_expr_locations_block_wise = {}
         self._engine_ail = None
         self._engine= PropagatorEmulatedEngine(project=self.project)
         self._analyze()
@@ -365,7 +368,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
                 for succ in self.graph.successors(node):
                     new_state = sim_successors.unconstrained_successors[0].copy()
-                    new_state.regs.rip = claripy.BVV(succ.addr, new_state.arch.bits)
+                    new_state.regs.ip = claripy.BVV(succ.addr, new_state.arch.bits)
                     new_sim_successors.add_successor(new_state, succ.addr,
                                                      new_state.scratch.guard,
                                                      new_state.history.jumpkind, True,
@@ -401,7 +404,12 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                     new_sim_successors.description = sim_successors.description
                     new_sim_successors.sort = sim_successors.sort
 
-                    new_sim_successors.add_successor(uncon_succ, uncon_succ.solver.eval(uncon_succ.scratch.target),
+                    targ_addr = uncon_succ.solver.simplify(uncon_succ.scratch.target)
+
+                    if targ_addr.symbolic:
+                        targ_addr = uncon_succ.solver.eval(uncon_succ.scratch.target)
+
+                    new_sim_successors.add_successor(uncon_succ, targ_addr,
                                                      uncon_succ.scratch.guard,
                                                      uncon_succ.history.jumpkind, True,
                                                      uncon_succ.scratch.exit_stmt_idx,
@@ -412,7 +420,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                     sim_successors.artifacts['irsb_direct_next'] = True
 
                 else:
-                    for ast in sim_successors.unconstrained_successors[0].regs.rip.leaf_asts():
+                    for ast in sim_successors.unconstrained_successors[0].regs.ip.leaf_asts():
                         if ast in sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict']:
                             conc_addr_and_new_constraints = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][0]
                             if len(conc_addr_and_new_constraints) > 2:
@@ -434,13 +442,16 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                 new_state.add_constraints(input_constraint)
                                 new_state.solver._solver.add_replacement(input_constraint.args[0], input_constraint.args[1], invalidate_cache=False)
 
-                                new_state.regs.rip = new_state.solver.simplify(new_state.regs.rip).replace_dict(new_state.solver._solver._replacement_cache)
+                                new_state.regs.ip = new_state.solver.simplify(new_state.regs.ip).replace_dict(new_state.solver._solver._replacement_cache)
                                 new_state.scratch.target = new_state.solver.simplify(new_state.scratch.target).replace_dict(new_state.solver._solver._replacement_cache)
 
                                 # Fill the block id
                                 for node_succ in self.graph.successors(node):
-                                    if node_succ.addr == new_state.regs.rip.args[0]:
+                                    if len(new_state.regs.ip.args) == 2 and node_succ.addr == new_state.regs.ip.args[0]:
                                         new_state.globals['cur_block_id'] = node_succ.block_id
+                                    elif len(new_state.regs.ip.args) != 2:
+                                        print("failed to set cur block id")
+                                        import ipdb;ipdb.set_trace()
                                 new_states.append(new_state)
 
                     if len(new_states) != 0:
@@ -521,6 +532,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
         self.replacements[block_key] = abstract_state._replacements
+        self.symbolic_expr_locations_block_wise[block_key] = abstract_state.symbolic_expr_locations
 
         if self._node_iterations[block_key] <= self._max_iterations:
             return True, abstract_state
