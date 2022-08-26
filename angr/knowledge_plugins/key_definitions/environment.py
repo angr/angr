@@ -61,6 +61,9 @@ class Environment:
         new_env = self._environment
 
         for other in others:
+            if not isinstance(other, Environment):
+                raise TypeError("Cannot merge Environment with %s" % type(other).__name__)
+
             keys = set(new_env.keys())
             keys |= other._environment.keys()
 
