@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 import types
@@ -15,6 +16,7 @@ from .sim_procedure import SimProcedure
 
 from .misc.ux import deprecated
 from .errors import AngrNoPluginError
+from .profiling import Profiling
 
 l = logging.getLogger(name=__name__)
 
@@ -71,7 +73,7 @@ class Project:
     :param support_selfmodifying_code:  Whether we aggressively support self-modifying code. When enabled, emulation
                                         will try to read code from the current state instead of the original memory,
                                         regardless of the current memory protections.
-    :type support_selfmodifying_code:   bool
+    :param profile:                     Enable profiling. Project.profiler will be created if it is set to True.
     :param store_function:              A function that defines how the Project should be stored. Default to pickling.
     :param load_function:               A function that defines how the Project should be loaded. Default to unpickling.
     :param analyses_preset:             The plugin preset for the analyses provider (i.e. Analyses instance).
@@ -102,11 +104,12 @@ class Project:
                  engine=None,
                  load_options: Dict[str, Any]=None,
                  translation_cache=True,
-                 support_selfmodifying_code=False,
+                 support_selfmodifying_code: bool=False,
                  store_function=None,
                  load_function=None,
                  analyses_preset=None,
                  concrete_target=None,
+                 profile=False,
                  **kwargs):
 
         # Step 1: Load the binary
@@ -228,6 +231,13 @@ class Project:
 
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
+
+        # Step 8: Profiler
+        self.profiler = Profiling() if profile else None
+        if self.profiler:
+            frame = inspect.currentframe()
+            args, _, _, values = inspect.getargvalues(frame)
+            self.profiler.project_created(self.filename, options=dict((arg, values[arg]) for arg in args))
 
     def _initialize_analyses_hub(self):
         """
