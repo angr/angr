@@ -7,6 +7,7 @@ from collections import defaultdict
 import claripy
 from claripy.annotation import Annotation
 import archinfo
+import angr
 
 from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
@@ -60,6 +61,23 @@ class DefinitionAnnotation(Annotation):
     def __repr__(self):
         return f"<{self.__class__.__name__}({repr(self.definition)})"
 
+
+class RegisterMultiValuedMemory(MultiValuedMemory):
+    def _default_value(self, addr, size, **kwargs):
+        # TODO: Make _default_value() a separate Mixin
+        if kwargs.get("name", "").startswith("merge_uc_"):
+            # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
+            # create temporary values. we simply return a TOP value here.
+            return self.state.top(size * self.state.arch.byte_width)
+        reg_atom = Register(addr, size)
+        top = self.state.top(size * self.state.arch.byte_width)
+        top = self.state.annotate_with_def(top, Definition(reg_atom, angr.analyses.reaching_definitions.external_codeloc.ExternalCodeLocation()))
+        values = MultiValues({0: {top}})
+        # # write it to registers
+        self.state.kill_and_add_definition(reg_atom, angr.analyses.reaching_definitions.external_codeloc.ExternalCodeLocation(), values)
+        return top
+
+
 # pylint: disable=W1116
 class LiveDefinitions:
     """
@@ -93,7 +111,7 @@ class LiveDefinitions:
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
 
-        self.register_definitions = MultiValuedMemory(memory_id="reg",
+        self.register_definitions = RegisterMultiValuedMemory(memory_id="reg",
                                                       top_func=self.top,
                                                       skip_missing_values_during_merging=False,
                                                       page_kwargs={'mo_cmp': self._mo_cmp}) \
