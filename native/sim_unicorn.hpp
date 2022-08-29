@@ -741,6 +741,7 @@ class State {
 		uint64_t cgc_receive_bbl;
 		int32_t cgc_transmit_sysno;
 		uint64_t cgc_transmit_bbl;
+		bool handle_symbolic_syscalls;
 
 		VexArch vex_guest;
 		VexArchInfo vex_archinfo;
@@ -782,7 +783,7 @@ class State {
 
 		uc_cb_eventmem_t py_mem_callback;
 
-		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond);
+		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond, bool symb_syscalls);
 
 		~State() {
 			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {

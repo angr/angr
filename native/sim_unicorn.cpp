@@ -25,8 +25,9 @@ extern "C" {
 #include "sim_unicorn.hpp"
 //#include "log.h"
 
-State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond):
-  uc(_uc), simos(curr_os), handle_symbolic_addrs(symb_addrs), handle_symbolic_conditions(symb_cond) {
+State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond, bool symb_syscalls):
+  uc(_uc), simos(curr_os), handle_symbolic_addrs(symb_addrs), handle_symbolic_conditions(symb_cond),
+  handle_symbolic_syscalls(symb_syscalls) {
 	hooked = false;
 	h_read = h_write = h_block = h_prot = 0;
 	max_steps = cur_steps = 0;
@@ -2550,7 +2551,7 @@ void State::perform_cgc_transmit() {
 			return;
 		}
 
-		if (find_tainted(buf, count) != -1) {
+		if (!handle_symbolic_syscalls && (find_tainted(buf, count) != -1)) {
 			//printf("... symbolic data\n");
 			free(dup_buf);
 			return;
@@ -2653,9 +2654,11 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 		assert (state->unicorn_mode == UC_MODE_32);
 
 		if (intno == 0x80) {
-			for (auto sr : state->symbolic_registers) {
-				// eax,ecx,edx,ebx,esi
-				if ((sr >= 8 && sr <= 23) || (sr >= 32 && sr <= 35)) return;
+			if (!state->handle_symbolic_syscalls) {
+				for (auto sr : state->symbolic_registers) {
+					// eax,ecx,edx,ebx,esi
+					if ((sr >= 8 && sr <= 23) || (sr >= 32 && sr <= 35)) return;
+				}
 			}
 
 			uint32_t sysno;
@@ -2700,8 +2703,9 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 extern "C"
-State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos, bool handle_symbolic_addrs, bool handle_symb_cond) {
-	State *state = new State(uc, cache_key, simos, handle_symbolic_addrs, handle_symb_cond);
+State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos, bool handle_symbolic_addrs,
+  bool handle_symb_cond, bool handle_symb_syscalls) {
+	State *state = new State(uc, cache_key, simos, handle_symbolic_addrs, handle_symb_cond, handle_symb_syscalls);
 	return state;
 }
 
