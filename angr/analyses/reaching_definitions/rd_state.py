@@ -346,12 +346,7 @@ class ReachingDefinitionsState:
                                                            endness=endness, annotated=annotated)
 
         if mv is not None:
-            defs = set()
-            values = set()
-            for vs in mv.values():
-                for v in vs:
-                    values.add(v)
-                    defs |= set(self.extract_defs(v))
+            defs = set(LiveDefinitions.extract_defs_from_mv(mv))
             self.all_definitions |= defs
 
             if self.dep_graph is not None:
@@ -362,6 +357,11 @@ class ReachingDefinitionsState:
 
                 sp_offset = self.arch.sp_offset
                 bp_offset = self.arch.bp_offset
+
+                values = set()
+                for vs in mv.values():
+                    for v in vs:
+                        values.add(v)
 
                 for used in self.codeloc_uses:
                     # sp is always used as a stack pointer, and we do not track dependencies against stack pointers.

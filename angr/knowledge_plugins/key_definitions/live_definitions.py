@@ -60,6 +60,7 @@ class DefinitionAnnotation(Annotation):
     def __repr__(self):
         return f"<{self.__class__.__name__}({repr(self.definition)})"
 
+
 # pylint: disable=W1116
 class LiveDefinitions:
     """
