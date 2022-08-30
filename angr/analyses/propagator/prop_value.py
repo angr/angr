@@ -10,11 +10,13 @@ if TYPE_CHECKING:
 class Detail:
     """
     A companion class used together with PropValue. It describes stored information at each offset (in bytes).
+
+    :ivar def_at:   Where this expression is defined, or None if it was never defined in the first place.
     """
 
     __slots__ = ('size', 'expr', 'def_at')
 
-    def __init__(self, size: int, expr: Optional[ailment.Expression], def_at: 'CodeLocation'):
+    def __init__(self, size: int, expr: Optional[ailment.Expression], def_at: Optional['CodeLocation']):
         self.size = size
         self.expr = expr
         self.def_at = def_at

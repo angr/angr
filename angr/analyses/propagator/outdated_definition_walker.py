@@ -2,18 +2,18 @@ from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from ailment import Block, Stmt, Expr
 
+from ...code_location import CodeLocation
 from ..decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
     from .propagator import PropagatorAILState
-    from angr.code_location import CodeLocation
 
 
 class OutdatedDefinitionWalker(AILBlockWalker):
     """
     Walks an AIL expression to find outdated definitions.
     """
-    def __init__(self, expr, expr_defat: 'CodeLocation', state: 'PropagatorAILState',
+    def __init__(self, expr, expr_defat: CodeLocation, state: 'PropagatorAILState',
                  avoid: Optional[Expr.Expression]=None, extract_offset_to_sp: Callable=None):
         super().__init__()
         self.expr = expr
@@ -50,18 +50,18 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                         break
                     if isinstance(detail.expr, Expr.TaggedObject):
                         if not (detail.def_at == self.expr_defat or
-                                self._check_store_precedes_load(detail.def_at.block_addr, detail.def_at.stmt_idx,
-                                                                self.expr_defat.block_addr, self.expr_defat.stmt_idx)):
+                                self._check_store_precedes_load(detail.def_at, self.expr_defat)):
                             self.out_dated = True
                             break
 
     @staticmethod
-    def _check_store_precedes_load(store_block_addr: int, store_stmt_idx: int,
-                                   load_block_addr: int, load_stmt_idx: int) -> bool:
+    def _check_store_precedes_load(store_defat: Optional[CodeLocation], load_defat: Optional[CodeLocation]) -> bool:
         """
         Check if store precedes load based on their AIL statement IDs.
         """
-        return store_block_addr == load_block_addr and store_stmt_idx <= load_stmt_idx
+        if store_defat is None or load_defat is None:
+            return True
+        return store_defat.block_addr == load_defat.block_addr and store_defat.stmt_idx <= load_defat.stmt_idx
 
     @staticmethod
     def _check_global_store_conflicts_load(store_block_addr: int, store_stmt_idx: int, addr: Any, store: Stmt.Store,
@@ -102,17 +102,15 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 else:
                     for details in curr_stackvar.offset_and_details.values():
                         if details.def_at is None or not self._check_store_precedes_load(
-                                details.def_at.block_addr, details.def_at.stmt_idx,
-                                self.expr_defat.block_addr, self.expr_defat.stmt_idx):
+                                details.def_at, self.expr_defat):
                             self.out_dated = True
                             break
                     if not self.out_dated:
                         # if there has been a stack store whose address cannot be resolved or concretized, we see if
                         # this store happens after the current definition. if so, we mark it as out-dated
                         if self.state.last_stack_store is not None \
-                                and not self._check_store_precedes_load(*self.state.last_stack_store[:2],
-                                                                        self.expr_defat.block_addr,
-                                                                        self.expr_defat.stmt_idx):
+                                and not self._check_store_precedes_load(CodeLocation(*self.state.last_stack_store[:2]),
+                                                                        self.expr_defat):
                             self.out_dated = True
             else:
                 # in cases where expr.addr cannot be resolved to a concrete stack offset, we play safe and assume
@@ -127,12 +125,11 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         elif not isinstance(expr.addr, (Expr.StackBaseOffset, Expr.Const)) \
                 and (
                 self.state.global_stores and
-                not all(self._check_store_precedes_load(store_block_addr, store_stmt_idx,
-                                                        self.expr_defat.block_addr, self.expr_defat.stmt_idx)
+                not all(self._check_store_precedes_load(CodeLocation(store_block_addr, store_stmt_idx), self.expr_defat)
                         for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores) or
                 self.state.last_stack_store is not None and
-                not self._check_store_precedes_load(*self.state.last_stack_store[:2],
-                                                    self.expr_defat.block_addr, self.expr_defat.stmt_idx)
+                not self._check_store_precedes_load(CodeLocation(*self.state.last_stack_store[:2]),
+                                                    self.expr_defat)
         ):
             # check both stack and global stores if the load address is unknown
             self.out_dated = True
