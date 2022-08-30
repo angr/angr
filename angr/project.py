@@ -94,6 +94,8 @@ class Project:
     """
     analyses: "AnalysesHub"
     arch: archinfo.Arch
+    profiler: Optional[Profiling]
+
     def __init__(self, thing,
                  default_analysis_mode=None,
                  ignore_functions=None,

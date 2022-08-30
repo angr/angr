@@ -18,7 +18,7 @@ class ProjectCreatedEvent(ProfilingEventBase):
 @dataclass
 class StateCreatedEvent(ProfilingEventBase):
     state_id: str = ""
-    addr: int = -1
+    addr: Optional[int] = -1
     parent_state_id: Optional[str] = None
 
 
@@ -47,7 +47,7 @@ class Profiling:
             ProjectCreatedEvent(binary=binary, options=options)
         )
 
-    def state_created(self, state_id: str, addr: int, parent_state_id: Optional[str]) -> None:
+    def state_created(self, state_id: str, addr: Optional[int], parent_state_id: Optional[str]) -> None:
         self.events.append(
             StateCreatedEvent(state_id=state_id, addr=addr, parent_state_id=parent_state_id)
         )

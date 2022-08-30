@@ -1,7 +1,8 @@
 import logging
-from typing import List, Optional, Union, overload
-from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+import functools
+from typing import List, Optional, Union, overload, TYPE_CHECKING
 
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
@@ -9,8 +10,29 @@ from .callable import Callable
 from .errors import AngrAssemblyError
 from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
 
+if TYPE_CHECKING:
+    from angr import Project
+
 
 l = logging.getLogger(name=__name__)
+
+
+#
+# Profiling callbacks
+#
+
+def profiling_state_created(f):
+    @functools.wraps(f)
+    def wrapped_f(self, *args, **kwargs):
+        state = f(self, *args, **kwargs)
+        if self.project.profiler is not None:
+            try:
+                state_addr = state.addr
+            except Exception:
+                state_addr = None
+            self.project.profiler.state_created(str(id(state)), state_addr, None)
+        return state
+    return wrapped_f
 
 
 class AngrObjectFactory:
@@ -21,7 +43,7 @@ class AngrObjectFactory:
         if default_engine is None:
             default_engine = UberEngine
 
-        self.project = project
+        self.project: 'Project' = project
         self._default_cc = DEFAULT_CC.get(project.arch.name, SimCCUnknown)
         self.default_engine = default_engine(project)
         self.procedure_engine = ProcedureEngine(project)
@@ -59,6 +81,7 @@ class AngrObjectFactory:
             return engine.process(*args, **kwargs)
         return self.default_engine.process(*args, **kwargs)
 
+    @profiling_state_created
     def blank_state(self, **kwargs):
         """
         Returns a mostly-uninitialized state object. All parameters are optional.
@@ -76,6 +99,7 @@ class AngrObjectFactory:
         """
         return self.project.simos.state_blank(**kwargs)
 
+    @profiling_state_created
     def entry_state(self, **kwargs) -> SimState:
         """
         Returns a state object representing the program at its entry point. All parameters are optional.
@@ -98,6 +122,7 @@ class AngrObjectFactory:
 
         return self.project.simos.state_entry(**kwargs)
 
+    @profiling_state_created
     def full_init_state(self, **kwargs):
         """
         Very much like :meth:`entry_state()`, except that instead of starting execution at the program entry point,
@@ -108,6 +133,7 @@ class AngrObjectFactory:
         """
         return self.project.simos.state_full_init(**kwargs)
 
+    @profiling_state_created
     def call_state(self, addr, *args, **kwargs):
         """
         Returns a state object initialized to the start of a given function, as if it were called with given parameters.
