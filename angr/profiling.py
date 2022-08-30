@@ -28,6 +28,12 @@ class StateStashedEvent(ProfilingEventBase):
     stash_name: str = None
 
 
+@dataclass
+class StateErroredEvent(ProfilingEventBase):
+    state_id: str = ""
+    addr: Optional[int] = None
+
+
 class Profiling:
     """
     This class saves limited profiling information about several angr events, including:
@@ -55,6 +61,11 @@ class Profiling:
     def state_stashed(self, state_id: str, stash_name: str) -> None:
         self.events.append(
             StateStashedEvent(state_id=state_id, stash_name=stash_name)
+        )
+
+    def state_errored(self, state_id: str, addr: Optional[int]) -> None:
+        self.events.append(
+            StateErroredEvent(state_id=state_id, addr=addr)
         )
 
     def dump(self, file_object) -> None:

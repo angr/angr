@@ -32,8 +32,7 @@ class TestProfiling(TestCase):
         simgr = proj.factory.simgr()
 
         simgr.explore()
-
-        print(proj.profiler.events)
+        assert len(proj.profiler.events) == 182
 
 
 if __name__ == "__main__":

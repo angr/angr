@@ -26,11 +26,7 @@ def profiling_state_created(f):
     def wrapped_f(self, *args, **kwargs):
         state = f(self, *args, **kwargs)
         if self.project.profiler is not None:
-            try:
-                state_addr = state.addr
-            except Exception:
-                state_addr = None
-            self.project.profiler.state_created(str(id(state)), state_addr, None)
+            self.project.profiler.state_created(str(id(state)), state.concrete_addr, None)
         return state
     return wrapped_f
 
