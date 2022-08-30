@@ -401,7 +401,7 @@ class JumpTableProcessor(
             # comparison of two consts... there is nothing we can do
             self.state.is_jumptable = True
             return
-        if arg0_src not in ('const', None) and arg1_src not in ('const', None):
+        if arg0_src not in {'const', None} and arg1_src not in {'const', None}:
             # this is probably not a jump table
             return
         if arg1_src == 'const':
@@ -691,7 +691,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 l.warning('JumpTableResolver does not support P-Code IR yet; CFG may be incomplete.')
             return False
 
-        return jumpkind in ('Ijk_Boring', 'Ijk_Call')
+        return jumpkind in {'Ijk_Boring', 'Ijk_Call'}
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
@@ -895,8 +895,8 @@ class JumpTableResolver(IndirectJumpResolver):
                 if ij is not None:
                     if len(all_targets) > 1:
                         # It can be considered a jump table only if there are more than one jump target
-                        if ij_type in (IndirectJumpType.Jumptable_AddressComputed,
-                                       IndirectJumpType.Jumptable_AddressLoadedFromMemory):
+                        if ij_type in {IndirectJumpType.Jumptable_AddressComputed,
+                                       IndirectJumpType.Jumptable_AddressLoadedFromMemory}:
                             ij.jumptable = True
                         else:
                             ij.jumptable = False
