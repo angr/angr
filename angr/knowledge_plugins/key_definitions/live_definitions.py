@@ -276,10 +276,9 @@ class LiveDefinitions:
         if sp_v is None:
             # multiple values of sp exists. still return a value if there is only one value (maybe with different
             # definitions)
-            values = list(filter(self.get_stack_offset, next(iter(sp_values.values.values()))))
-            if len(set(map(self.get_stack_offset, values))) == 1:
-                return self.get_stack_address(next(iter(values)))
-            assert False
+            values = [v for v in next(iter(sp_values.values.values())) if self.get_stack_offset(v) is not None]
+            assert len({self.get_stack_offset(v) for v in values}) == 1
+            return self.get_stack_address(values[0])
 
         return self.get_stack_address(sp_v)
 

@@ -120,4 +120,5 @@ class TestEnvironment(TestCase):
             second: {UNDEFINED}
         })
 
-        self.assertEqual(environment.merge(other_environment), expected_environment)
+        env, _ = environment.merge(other_environment)
+        self.assertEqual(env, expected_environment)
