@@ -761,7 +761,7 @@ class JumpTableResolver(IndirectJumpResolver):
             if is_arm_arch(self.project.arch):
                 ite_stmt, ite_stmt_loc, stmts_to_remove = self._find_load_pc_ite_statement(b, stmt_loc)
             if ite_stmt is None:
-                l.warning('Could not find load statement in this slice')
+                l.debug('Could not find load statement in this slice')
                 return False, None
 
         try:
@@ -776,7 +776,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     ij.resolved_targets = { jump_target }
                 return True, [ jump_target ]
             else:
-                l.warning('Found single constant load, but it does not appear to be a valid target')
+                l.debug('Found single constant load, but it does not appear to be a valid target')
                 return False, None
 
         # Well, we have a real jump table to resolve!
@@ -1530,7 +1530,7 @@ class JumpTableResolver(IndirectJumpResolver):
             all_targets = [ target | 1 for target in all_targets ]
 
         if len(all_targets) == 0:
-            l.warning('Could not recover jump table')
+            l.debug('Could not recover jump table')
             return None
 
         # Finally... all targets are ready
