@@ -1,12 +1,13 @@
 # pylint:disable=no-member
 import pickle
 import logging
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, DefaultDict
 from collections import defaultdict
 import bisect
 
 import networkx
 
+from ...engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from ...misc.ux import once
 from ...protos import cfg_pb2, primitives_pb2
 from ...serializable import Serializable
@@ -41,20 +42,20 @@ class CFGModel(Serializable):
         self.graph = networkx.DiGraph()
 
         # Jump tables
-        self.jump_tables: Dict[int,IndirectJump] = { }
+        self.jump_tables: Dict[int, IndirectJump] = {}
 
         # Memory references
         # A mapping between address and the actual data in memory
-        self.memory_data: Dict[int,MemoryData] = { }
+        self.memory_data: Dict[int, MemoryData] = {}
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
-        self.insn_addr_to_memory_data: Dict[int,MemoryData] = { }
+        self.insn_addr_to_memory_data: Dict[int, MemoryData] = {}
 
         # Lists of CFGNodes indexed by the address of each block. Don't serialize
-        self._nodes_by_addr = defaultdict(list)
+        self._nodes_by_addr: DefaultDict[int, List[CFGNode]] = defaultdict(list)
         # CFGNodes dict indexed by block ID. Don't serialize
-        self._nodes = { }
+        self._nodes: Dict[int, CFGNode] = {}
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
-        self._node_addrs = [ ]
+        self._node_addrs: List[int] = []
 
     #
     # Properties
@@ -272,7 +273,7 @@ class CFGModel(Serializable):
         if isinstance(addr, int):
             # slower path
             # find all potential addresses that the block may cover
-            pos = bisect.bisect_left(self._node_addrs, max(addr - 400, 0))
+            pos = bisect.bisect_left(self._node_addrs, max(addr - VEX_IRSB_MAX_SIZE, 0))
 
             is_cfgemulated = self.ident == "CFGEmulated"
 
