@@ -231,15 +231,15 @@ class Project:
         for obj in self.loader.initial_load_objects:
             self._register_object(obj, sim_proc_arch)
 
-        # Step 7: Run OS-specific configuration
-        self.simos.configure_project()
-
-        # Step 8: Profiler
+        # Step 7: Profiler
         self.profiler = Profiling() if profile else None
         if self.profiler:
             frame = inspect.currentframe()
             args, _, _, values = inspect.getargvalues(frame)
             self.profiler.project_created(self.filename, options=dict((arg, values[arg]) for arg in args))
+
+        # Step 8: Run OS-specific configuration
+        self.simos.configure_project()
 
     def _initialize_analyses_hub(self):
         """
