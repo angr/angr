@@ -28,16 +28,20 @@ class IFuncResolver(angr.SimProcedure):
     local_vars = ('saved_regs',)
 
     # pylint: disable=arguments-differ,unused-argument
-    def run(self, funcaddr=None, gotaddr=None, funcname=None):
-        self.saved_regs = {reg.name: self.state.registers.load(reg.name) for reg in self.arch.register_list if reg.argument}
-        self.call(funcaddr, (), continue_at='after_call', cc=self.cc, prototype='void *x()')
+    def run(self, funcaddr=None):
+        resolved = self.state.globals.get(('ifunc_resolution', funcaddr), None)
+        if resolved is None:
+            self.saved_regs = {reg.name: self.state.registers.load(reg.name) for reg in self.arch.register_list if reg.argument}
+            self.call(funcaddr, (), continue_at='after_call', cc=self.cc, prototype='void *x()')
+        else:
+            self.jump(resolved)
 
-    def after_call(self, funcaddr=None, gotaddr=None, funcname=None):
+    def after_call(self, funcaddr=None):
         value = self.cc.return_val(angr.sim_type.SimTypePointer(angr.sim_type.SimTypeBottom())).get_value(self.state)
         for name, val in self.saved_regs.items():
             self.state.registers.store(name, val)
 
-        self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness, priv=True)
+        self.state.globals[('ifunc_resolution', funcaddr)] = value
         self.jump(value)
 
     def __repr__(self):
