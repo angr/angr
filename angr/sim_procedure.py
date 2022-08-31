@@ -438,7 +438,7 @@ class SimProcedure:
         self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
 
 
-    def call(self, addr, args, continue_at, cc=None, prototype=None):
+    def call(self, addr, args, continue_at, cc=None, prototype=None, jumpkind='Ijk_Call'):
         """
         Add an exit representing calling another function via pointer.
 
@@ -477,7 +477,7 @@ class SimProcedure:
             call_state.regs.t9 = addr
 
         self._exit_action(call_state, addr)
-        self.successors.add_successor(call_state, addr, call_state.solver.true, 'Ijk_Call')
+        self.successors.add_successor(call_state, addr, call_state.solver.true, jumpkind)
 
         if o.DO_RET_EMULATION in self.state.options:
             # we need to set up the call because the continuation will try to tear it down
@@ -487,13 +487,13 @@ class SimProcedure:
             guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.solver.false
             self.successors.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
 
-    def jump(self, addr):
+    def jump(self, addr, jumpkind='Ijk_Boring'):
         """
         Add an exit representing jumping to an address.
         """
         self.inhibit_autoret = True
         self._exit_action(self.state, addr)
-        self.successors.add_successor(self.state, addr, self.state.solver.true, 'Ijk_Boring')
+        self.successors.add_successor(self.state, addr, self.state.solver.true, jumpkind)
 
     def exit(self, exit_code):
         """
