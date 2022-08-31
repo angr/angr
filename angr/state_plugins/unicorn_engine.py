@@ -184,13 +184,13 @@ class STOP:
     stop_message[STOP_SYSCALL_ARM]   = "ARM syscalls are currently not supported by SimEngineUnicorn"
     stop_message[STOP_X86_CPUID] = "Block executes cpuid which should be handled in VEX engine"
 
-    symbolic_stop_reasons = [STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR, STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
-        STOP_SYMBOLIC_WRITE_ADDR, STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET, STOP_SYSCALL_ARM,
-        STOP_X86_CPUID]
+    symbolic_stop_reasons = {STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR, STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
+        STOP_SYMBOLIC_WRITE_ADDR, STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET,
+        STOP_SYSCALL_ARM, STOP_X86_CPUID}
 
-    unsupported_reasons = [STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
+    unsupported_reasons = {STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
         STOP_UNSUPPORTED_STMT_CAS, STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY,
-        STOP_UNSUPPORTED_STMT_UNKNOWN, STOP_UNSUPPORTED_EXPR_UNKNOWN, STOP_VEX_LIFT_FAILED]
+        STOP_UNSUPPORTED_STMT_UNKNOWN, STOP_UNSUPPORTED_EXPR_UNKNOWN, STOP_VEX_LIFT_FAILED}
 
     @staticmethod
     def name_stop(num):
@@ -1270,7 +1270,7 @@ class Unicorn(SimStatePlugin):
         unicorn_obj.stop_details = _UC_NATIVE.get_stop_details(self._uc_state)
         unicorn_obj.stop_reason = unicorn_obj.stop_details.stop_reason
         unicorn_obj.stop_message = STOP.get_stop_msg(unicorn_obj.stop_reason)
-        if unicorn_obj.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
+        if unicorn_obj.stop_reason in (STOP.symbolic_stop_reasons | STOP.unsupported_reasons) or \
           unicorn_obj.stop_reason in {STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED}:
             stop_block_addr = unicorn_obj.stop_details.block_addr
             stop_block_size = unicorn_obj.stop_details.block_size
