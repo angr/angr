@@ -35,10 +35,10 @@ class SimEngineUnicorn(SuccessorsMixin):
         # Addresses of basic blocks which native interface will not execute
         self._stop_block_addrs_cache = set()
         # Stop reasons to track and not switch to native interface for those basic blocks
-        self._stop_reasons_to_track = STOP.unsupported_reasons
-        self._stop_reasons_to_track.update({STOP.STOP_STOPPOINT, STOP.STOP_ERROR, STOP.STOP_NODECODE,
-             STOP.STOP_SYSCALL, STOP.STOP_EXECNONE, STOP.STOP_ZEROPAGE, STOP.STOP_NOSTART, STOP.STOP_SEGFAULT,
-             STOP.STOP_ZERO_DIV, STOP.STOP_HLT, STOP.STOP_SYSCALL_ARM, STOP.STOP_X86_CPUID})
+        self._stop_reasons_to_track = STOP.unsupported_reasons | \
+            {STOP.STOP_STOPPOINT, STOP.STOP_ERROR, STOP.STOP_NODECODE, STOP.STOP_SYSCALL, STOP.STOP_EXECNONE,
+             STOP.STOP_ZEROPAGE, STOP.STOP_NOSTART, STOP.STOP_SEGFAULT, STOP.STOP_ZERO_DIV, STOP.STOP_HLT, \
+             STOP.STOP_SYSCALL_ARM, STOP.STOP_X86_CPUID}
 
     def __getstate__(self):
         parent_ret = super().__getstate__()
@@ -438,7 +438,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                         state._inspect('irsb', BP_AFTER, address=bbl_addr)
                     break
 
-        if (state.unicorn.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or
+        if (state.unicorn.stop_reason in (STOP.symbolic_stop_reasons | STOP.unsupported_reasons) or
             state.unicorn.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED)):
             l.info(state.unicorn.stop_message)
 

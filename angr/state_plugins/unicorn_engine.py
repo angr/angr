@@ -1270,7 +1270,7 @@ class Unicorn(SimStatePlugin):
         unicorn_obj.stop_details = _UC_NATIVE.get_stop_details(self._uc_state)
         unicorn_obj.stop_reason = unicorn_obj.stop_details.stop_reason
         unicorn_obj.stop_message = STOP.get_stop_msg(unicorn_obj.stop_reason)
-        if unicorn_obj.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
+        if unicorn_obj.stop_reason in (STOP.symbolic_stop_reasons | STOP.unsupported_reasons) or \
           unicorn_obj.stop_reason in {STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED}:
             stop_block_addr = unicorn_obj.stop_details.block_addr
             stop_block_size = unicorn_obj.stop_details.block_size
