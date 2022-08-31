@@ -469,6 +469,14 @@ class SimulationManager:
             error_list.append(ErrorRecord(state, e, sys.exc_info()[2]))
             stashes = {}
 
+        if self._project.profiler is not None:
+            for stash_name, succs in stashes.items():
+                for succ_state in succs:
+                    self._project.profiler.state_stashed(str(id(succ_state)), stash_name)
+            if error_list:
+                for record in error_list:
+                    self._project.profiler.state_errored(str(id(record.state)), record.state.concrete_addr)
+
         return stashes
 
     def filter(self, state, filter_func=None):  # pylint:disable=no-self-use
@@ -492,8 +500,19 @@ class SimulationManager:
         Don't use this function manually - it is meant to interface with exploration techniques.
         """
         if successor_func is not None:
-            return successor_func(state, **run_args)
-        return self._project.factory.successors(state, **run_args)
+            succs = successor_func(state, **run_args)
+        else:
+            succs = self._project.factory.successors(state, **run_args)
+        if self._project.profiler is not None:
+            for succ_state in succs.all_successors:
+                try:
+                    succ_state_addr = succ_state.addr
+                except Exception:
+                    succ_state_addr = None
+                self._project.profiler.state_created(
+                    str(id(succ_state)), succ_state_addr, str(id(state))
+                )
+        return succs
 
     #
     #   ...

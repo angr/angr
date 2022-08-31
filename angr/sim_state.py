@@ -5,7 +5,7 @@ import weakref
 
 import logging
 
-from typing import Type, TypeVar, TYPE_CHECKING
+from typing import Type, TypeVar, Optional, Union, TYPE_CHECKING
 
 from archinfo import Arch
 
@@ -364,6 +364,20 @@ class SimState(PluginHub):
         if isinstance(ip, SootAddressDescriptor):
             return ip
         return self.solver.eval_one(self.regs._ip)
+
+    @property
+    def concrete_addr(self) -> Optional[Union[int,SootAddressDescriptor]]:
+        """
+        Get the concrete address of the instruction pointer, without triggering SimInspect breakpoints or generating
+        SimActions. An address is returned, or None is returned if the instruction pointer is symbolic.
+
+        :return:    The concrete address of the state, or None if the address is symbolic.
+        """
+
+        ip = self.regs._ip
+        if isinstance(ip, SootAddressDescriptor):
+            return ip
+        return self.solver.eval_one(self.regs._ip, default=None)
 
     @property
     def arch(self) -> Arch:
