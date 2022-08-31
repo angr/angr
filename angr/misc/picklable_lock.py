@@ -8,8 +8,8 @@ class PicklableLock:
     """
     _LOCK = threading.Lock
 
-    def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
-        self._lock = self._LOCK()
+    def __init__(self, *args, **kwargs):
+        self._lock = self.__class__._LOCK(*args, **kwargs)  # pylint: disable=too-many-function-args
 
     def __enter__(self):
         return self._lock.__enter__()
