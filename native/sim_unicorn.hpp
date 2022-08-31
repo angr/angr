@@ -509,6 +509,7 @@ struct mem_update_t {
 };
 
 struct transmit_record_t {
+	uint32_t fd;
 	void *data;
 	uint32_t count;
 };

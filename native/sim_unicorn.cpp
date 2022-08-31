@@ -2425,7 +2425,13 @@ void State::perform_cgc_receive() {
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
 	if (fd > 2) {
 		// Ignore any fds > 2
+		interrupt_handled = true;
 		return;
+	}
+
+	if (fd == 1) {
+		// Python land maps 1 to 0 so do the same here for receives run on stdout.
+		fd = 0;
 	}
 
 	if (fd_details.count(fd) == 0) {
@@ -2524,13 +2530,12 @@ void State::perform_cgc_transmit() {
 	// basically an implementation of the cgc transmit syscall
 	//printf(".. TRANSMIT!\n");
 	uint32_t fd, buf, count, tx_bytes;
+	uint64_t skip_next_map_request;
+	uc_err err;
 
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
-	if (fd == 2) {
-		// we won't try to handle fd 2 prints here, they are uncommon.
-		return;
-	}
-	else if (fd == 0 || fd == 1) {
+	if (fd < 3) {
+		// Process transmits to fd 0, 1 or 2 only.
 		uc_reg_read(uc, UC_X86_REG_ECX, &buf);
 		uc_reg_read(uc, UC_X86_REG_EDX, &count);
 		uc_reg_read(uc, UC_X86_REG_ESI, &tx_bytes);
@@ -2539,14 +2544,19 @@ void State::perform_cgc_transmit() {
 		// TODO: Can transmit also work with symbolic bytes?
 		void *dup_buf = malloc(count);
 		uint32_t tmp_tx;
-		if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK) {
-			//printf("... fault on buf\n");
-			free(dup_buf);
-			return;
-		}
 
-		if (tx_bytes != 0 && uc_mem_read(uc, tx_bytes, &tmp_tx, 4) != UC_ERR_OK) {
-			//printf("... fault on tx\n");
+		err = uc_mem_read(uc, buf, dup_buf, count);
+		if (err == UC_ERR_READ_UNMAPPED) {
+			skip_next_map_request = 0;
+			py_mem_callback(uc, UC_MEM_READ_UNMAPPED, buf, count, 0, (void*)skip_next_map_request);
+			if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK) {
+				//printf("... fault on buf\n");
+				free(dup_buf);
+				return;
+			}
+		}
+		else if (err != UC_ERR_OK) {
+			// Read failed due to some other error. Abort.
 			free(dup_buf);
 			return;
 		}
@@ -2577,17 +2587,17 @@ void State::perform_cgc_transmit() {
 			return;
 		}
 
-		transmit_records.push_back({dup_buf, count});
+		transmit_records.push_back({fd, dup_buf, count});
 		int result = 0;
 		uc_reg_write(uc, UC_X86_REG_EAX, &result);
 		symbolic_registers.erase(8);
 		symbolic_registers.erase(9);
 		symbolic_registers.erase(10);
 		symbolic_registers.erase(11);
-		interrupt_handled = true;
 		syscall_count++;
-		return;
 	}
+	interrupt_handled = true;
+	return;
 }
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
