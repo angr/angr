@@ -2555,7 +2555,7 @@ void State::perform_cgc_transmit() {
 				return;
 			}
 		}
-		else {
+		else if (err != UC_ERR_OK) {
 			// Read failed due to some other error. Abort.
 			free(dup_buf);
 			return;
