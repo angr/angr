@@ -161,7 +161,7 @@ class SimLinux(SimUserland):
                                     display_name='IFuncResolver.' + reloc.symbol.name,
                                     funcaddr=gotvalue,
                                 )
-                                self.project.hook(gotvalue, proc)
+                                self.project.hook(gotvalue, proc, replace=True)
 
 
     def syscall_abi(self, state):
