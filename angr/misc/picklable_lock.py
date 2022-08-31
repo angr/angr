@@ -1,5 +1,6 @@
 import threading
 
+
 class PicklableLock:
     """
     Normal thread-locks are not pickleable. This provides a pickleable lock by mandating that the lock is unlocked
@@ -7,8 +8,8 @@ class PicklableLock:
     """
     _LOCK = threading.Lock
 
-    def __init__(self, *args, **kwargs):
-        self._lock = self._LOCK(*args, **kwargs)  # pylint: disable=too-many-function-args
+    def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
+        self._lock = self._LOCK()
 
     def __enter__(self):
         return self._lock.__enter__()
@@ -29,6 +30,7 @@ class PicklableLock:
         if self.locked():
             raise TypeError("Why are you pickling a locked lock")
         return type(self), ()
+
 
 class PicklableRLock(PicklableLock):
     """
