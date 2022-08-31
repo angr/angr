@@ -41,38 +41,6 @@ class SimLinux(SimUserland):
         self.vsyscall_addr = None
 
     def configure_project(self): # pylint: disable=arguments-differ
-        # maybe move this into archinfo?
-        if self.arch.name == 'X86':
-            syscall_abis = ['i386']
-        elif self.arch.name == 'AMD64':
-            syscall_abis = ['i386', 'amd64']
-        elif self.arch.name.startswith('ARM'):
-            syscall_abis = ['arm']
-            if self.arch.name == 'ARMHF':
-                syscall_abis.append('armhf')
-        elif self.arch.name == 'AARCH64':
-            syscall_abis = ['aarch64']
-        # https://www.linux-mips.org/wiki/WhatsWrongWithO32N32N64
-        elif self.arch.name == 'MIPS32':
-            syscall_abis = ['mips-o32']
-        elif self.arch.name == 'MIPS64':
-            syscall_abis = ['mips-n32', 'mips-n64']
-        elif self.arch.name == 'PPC32':
-            syscall_abis = ['ppc']
-        elif self.arch.name == 'PPC64':
-            syscall_abis = ['ppc64']
-        elif self.arch.name == 'RISCV':
-            syscall_abis = ['riscv32']
-        else:
-            syscall_abis = [] # ?
-
-        tls_obj = self.project.loader.tls.new_thread()
-        if isinstance(self.project.arch, ArchAMD64):
-            self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5f43414e41525900)  # _CANARY\x00
-            self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
-        elif isinstance(self.project.arch, ArchX86):
-            self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
-
         self._is_core = isinstance(self.project.loader.main_object, ELFCore)
 
         if not self._is_core:
@@ -119,6 +87,48 @@ class SimLinux(SimUserland):
                 if isinstance(self.project.arch, ArchAMD64):
                     self.project.loader.memory.pack_word(_rtld_global_ro.rebased_addr + 0x0D0, 2)  # cpu features: kind = amd
 
+            tls_obj = self.project.loader.tls.new_thread()
+            if isinstance(self.project.arch, ArchAMD64):
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5f43414e41525900)  # _CANARY\x00
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
+            elif isinstance(self.project.arch, ArchX86):
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
+
+        if isinstance(self.project.arch, ArchARM):
+            # https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
+            for func_name in P['linux_kernel']:
+                if not func_name.startswith('_kuser_'):
+                    continue
+                func = P['linux_kernel'][func_name]
+                self.project.hook(func.kuser_addr, func())
+        elif isinstance(self.project.arch, ArchAArch64):
+            self.project.hook(R_AARCH64_TLSDESC.RESOLVER_ADDR, P['linux_loader']['tlsdesc_resolver']())
+
+        # maybe move this into archinfo?
+        if self.arch.name == 'X86':
+            syscall_abis = ['i386']
+        elif self.arch.name == 'AMD64':
+            syscall_abis = ['i386', 'amd64']
+        elif self.arch.name.startswith('ARM'):
+            syscall_abis = ['arm']
+            if self.arch.name == 'ARMHF':
+                syscall_abis.append('armhf')
+        elif self.arch.name == 'AARCH64':
+            syscall_abis = ['aarch64']
+        # https://www.linux-mips.org/wiki/WhatsWrongWithO32N32N64
+        elif self.arch.name == 'MIPS32':
+            syscall_abis = ['mips-o32']
+        elif self.arch.name == 'MIPS64':
+            syscall_abis = ['mips-n32', 'mips-n64']
+        elif self.arch.name == 'PPC32':
+            syscall_abis = ['ppc']
+        elif self.arch.name == 'PPC64':
+            syscall_abis = ['ppc64']
+        elif self.arch.name == 'RISCV':
+            syscall_abis = ['riscv32']
+        else:
+            syscall_abis = [] # ?
+
         super(SimLinux, self).configure_project(syscall_abis)
 
         if not self._is_core:
@@ -153,15 +163,6 @@ class SimLinux(SimUserland):
                                 )
                                 self.project.hook(gotvalue, proc)
 
-        if isinstance(self.project.arch, ArchARM):
-            # https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
-            for func_name in P['linux_kernel']:
-                if not func_name.startswith('_kuser_'):
-                    continue
-                func = P['linux_kernel'][func_name]
-                self.project.hook(func.kuser_addr, func())
-        elif isinstance(self.project.arch, ArchAArch64):
-            self.project.hook(R_AARCH64_TLSDESC.RESOLVER_ADDR, P['linux_loader']['tlsdesc_resolver']())
 
     def syscall_abi(self, state):
         if state.arch.name != 'AMD64':
