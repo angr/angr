@@ -150,7 +150,6 @@ class SimLinux(SimUserland):
                                 proc = P['linux_loader']['IFuncResolver'](
                                     display_name='IFuncResolver.' + reloc.symbol.name,
                                     funcaddr=gotvalue,
-                                    funcname=reloc.symbol.name,
                                 )
                                 self.project.hook(gotvalue, proc)
 
