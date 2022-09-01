@@ -1,7 +1,6 @@
 # pylint: disable=no-self-use,unused-private-member
 
 import abc
-import sys
 import logging
 import threading
 from typing import Optional
@@ -63,7 +62,7 @@ class TLSMixin:
     MAGIC MAGIC MAGIC
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs): # pylint:disable=unused-argument
         obj = super().__new__(cls)
         obj.__local = threading.local()
         return obj
@@ -83,7 +82,7 @@ class TLSMixin:
                     setattr(cls, attr, TLSProperty(attr))
 
 
-class TLSProperty:
+class TLSProperty: # pylint:disable=missing-class-docstring
     def __init__(self, name):
         self.name = name
 
@@ -112,7 +111,7 @@ class SuccessorsMixin(SimEngine):
 
     __tls = ('successors',)
 
-    def process(self, state, *args, **kwargs):
+    def process(self, state, *args, **kwargs):  # pylint:disable=unused-argument
         """
         Perform execution with a state.
 
@@ -158,10 +157,10 @@ class SuccessorsMixin(SimEngine):
         self.successors = new_state._inspect_getattr('sim_successors', self.successors)
         try:
             self.process_successors(self.successors, **kwargs)
-        except SimException:
+        except SimException as e:
             if o.EXCEPTION_HANDLING not in old_state.options:
                 raise
-            old_state.project.simos.handle_exception(self, *sys.exc_info())
+            old_state.project.simos.handle_exception(self.successors, self, e)
 
         new_state._inspect('engine_process', when=BP_AFTER, sim_successors=self.successors, address=addr)
         self.successors = new_state._inspect_getattr('sim_successors', self.successors)
@@ -202,7 +201,7 @@ class SuccessorsMixin(SimEngine):
         """
         successors.processed = False  # mark failure
 
-
+# pylint:disable=wrong-import-position
 from .. import sim_options as o
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
 from .successors import SimSuccessors

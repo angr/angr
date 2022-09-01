@@ -317,9 +317,7 @@ class SimOS:
 
         :param successors:      The SimSuccessors object currently being executed on
         :param engine:          The engine that was processing this step
-        :param exc_type:        The value of sys.exc_info()[0] from the error, the type of the exception that was raised
-        :param exc_value:       The value of sys.exc_info()[1] from the error, the actual exception object
-        :param exc_traceback:   The value of sys.exc_info()[2] from the error, the traceback from the exception
+        :param exception:       The actual exception object
         """
         raise exception
     # Dummy stuff to allow this API to be used freely
