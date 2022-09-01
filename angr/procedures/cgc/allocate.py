@@ -52,11 +52,13 @@ class allocate(angr.SimProcedure):
                 if sinkhole_size != 0:
                     self.state.cgc.add_sinkhole(self.state.project.loader.max_addr, sinkhole_size)
 
-                chosen = self.state.solver.BVV(self.state.project.loader.min_addr - aligned_length, self.state.arch.bits)
+                chosen = self.state.solver.BVV(self.state.project.loader.min_addr - aligned_length,
+                                               self.state.arch.bits)
 
             self.state.cgc.allocation_base = chosen
 
-        self.state.memory.store(addr, chosen, size=self.state.arch.bytes, condition=self.state.solver.And(addr != 0), endness='Iend_LE')
+        self.state.memory.store(addr, chosen, size=self.state.arch.bytes, condition=self.state.solver.And(addr != 0),
+                                endness='Iend_LE')
 
         # PROT_READ | PROT_WRITE default
         permissions = self.state.solver.BVV(1 | 2, 3)
