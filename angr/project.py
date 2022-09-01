@@ -107,6 +107,7 @@ class Project:
                  load_function=None,
                  analyses_preset=None,
                  concrete_target=None,
+                 eager_ifunc_resolution=None,
                  **kwargs):
 
         # Step 1: Load the binary
@@ -178,6 +179,7 @@ class Project:
         self._ignore_functions = ignore_functions
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
+        self._eager_ifunc_resolution = eager_ifunc_resolution
         self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
 
         if self._support_selfmodifying_code:

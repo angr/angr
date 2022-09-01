@@ -22,7 +22,7 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(
-        s, hierarchy=False, save_unconstrained=crash_mode
+        s, hierarchy=None, save_unconstrained=crash_mode
     )
     t = angr.exploration_techniques.Tracer(
         trace,
@@ -88,7 +88,7 @@ def tracer_linux(filename, test_name, stdin, add_options=None, remove_options=No
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(
-        s, hierarchy=False, save_unconstrained=crash_mode
+        s, hierarchy=None, save_unconstrained=crash_mode
     )
     t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr)
     simgr.use_technique(t)
@@ -157,9 +157,11 @@ def test_manual_recursion():
     assert crash_path is not None
     assert crash_state is not None
 
+
 def test_cgc_receive_unicorn_native_interface():
     """
-    Test if unicorn native interface handles CGC receive syscall correctly
+    Test if unicorn native interface handles CGC receive syscall correctly. Receives with symbolic arguments also
+    tested.
     """
 
     binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00038")
@@ -168,7 +170,7 @@ def test_cgc_receive_unicorn_native_interface():
     )
     output_initial_bytes = b""
     add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
-                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS, angr.options.UNICORN_HANDLE_SYMBOLIC_SYSCALLS}
     trace_cgc_with_pov_file(
         binary,
         "tracer_cgc_receive_unicorn_native_interface",
@@ -201,7 +203,7 @@ def test_cgc_receive_unicorn_native_interface_rx_bytes():
 
 def test_cgc_random_syscall_handling_native_interface():
     """
-    Test if random syscal is correctly handled in native interface
+    Test if random syscall is correctly handled in native interface. Random with symbolic arguments also tested.
     """
 
     binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00011")
@@ -210,7 +212,8 @@ def test_cgc_random_syscall_handling_native_interface():
     )
     output_file = os.path.join(bin_location, "tests_data", "cgc_povs", "KPRCA_00011_stdout.txt")
     add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_CGC_RANDOM_SYSCALL,
-                   angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES, angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES, angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_SYSCALLS}
 
     rand_syscall_data = {
         'random': [
@@ -227,8 +230,6 @@ def test_cgc_random_syscall_handling_native_interface():
     with open(output_file, 'rb') as fh:
         output_bytes = fh.read()
 
-    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
-                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
     trace_cgc_with_pov_file(
         binary,
         "tracer_cgc_receive_unicorn_native_interface_rx_bytes",
@@ -237,6 +238,7 @@ def test_cgc_random_syscall_handling_native_interface():
         add_options=add_options,
         syscall_data=rand_syscall_data
     )
+
 
 def test_cgc_se1_palindrome_raw():
     b = os.path.join(bin_location, "tests", "cgc", "sc1_0b32aa01_01")
@@ -659,6 +661,32 @@ def test_symbolic_memory_dependencies_liveness():
     )
 
 
+def test_symbolic_cgc_transmit_handling_in_native_interface():
+    """
+    Check if CGC transmit syscall with symbolic arguments is handled in native interface when tracing.
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "CROMU_00008")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "CROMU_00008_POV_00000.xml"
+    )
+    output_initial_bytes = (
+        b"> You logged in.\n> First name: Last name: User name: Birthdate (mm/dd/yy hh:mm:ss): "
+        b"Date is: 12/21/1983 5:43:21\nData added, record 0\n"
+        b"> Enter search express (firstname or fn, lastname or ln, username or un, birthdate or bd,"
+        b" operators ==, !=, >, <, AND and OR):\n"
+    )
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS, angr.options.UNICORN_HANDLE_SYMBOLIC_SYSCALLS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_symbolic_cgc_transmit_handling_in_native_interface",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options
+    )
+
+
 def test_user_controlled_code_execution():
     # Test user controlled code execution where instruction pointer is concrete and code is symbolic
     binary = os.path.join(bin_location, "tests", "cgc", "NRFIN_00034")
@@ -678,9 +706,7 @@ def run_all():
         print("#" * (len(name) + 8))
 
     functions = globals()
-    all_functions = dict(
-        filter((lambda kv: kv[0].startswith("test_")), functions.items())
-    )
+    all_functions = {fn_name: fn_obj for (fn_name, fn_obj) in functions.items() if fn_name.startswith("test_")}
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], "__call__"):
             print_test_name(f)

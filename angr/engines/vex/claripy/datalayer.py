@@ -104,7 +104,10 @@ class ClaripyDataMixin(VEXMixin):
     # op support
 
     def _perform_vex_expr_ITE(self, cond, ifTrue, ifFalse):
-        return claripy.If(cond != 0, ifTrue, ifFalse)
+        try:
+            return claripy.If(cond != 0, ifTrue, ifFalse)
+        except claripy.ClaripyError as e:
+            raise errors.SimError("Claripy failed") from e
 
     def _perform_vex_expr_Op(self, op, args):
         # TODO: get rid of these hacks (i.e. state options and modes) and move these switches into engine properties
@@ -136,4 +139,7 @@ class ClaripyDataMixin(VEXMixin):
             else:
                 raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
             evaluated_cases = [(case, func(self.state, *args[:i], value_, *args[i+1:])) for case, value_ in cases]
-            return claripy.ite_cases(evaluated_cases, value(ty, 0))
+            try:
+                return claripy.ite_cases(evaluated_cases, value(ty, 0))
+            except claripy.ClaripyError as ce:
+                raise errors.SimOperationError("Claripy failed") from ce

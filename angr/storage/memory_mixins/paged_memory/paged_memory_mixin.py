@@ -164,7 +164,7 @@ class PagedMemoryMixin(MemoryMixin):
         if pageoff + size <= self.page_size:
             written_size = 0
             while written_size < size:
-                sub_data, sub_data_size = sub_gen.send(size - written_size)
+                sub_data, sub_data_base, sub_data_size = sub_gen.send(size - written_size)
                 page = self._get_page(pageno, True, **kwargs)
                 sub_data_size = min(sub_data_size, size - written_size)
                 page.store(pageoff + written_size, sub_data, size=sub_data_size, endness=endness,
@@ -183,7 +183,11 @@ class PagedMemoryMixin(MemoryMixin):
             written_size = 0
 
             while written_size < sub_size:
-                sub_data, sub_data_size = sub_gen.send(sub_size)
+                sub_data, sub_data_base, sub_data_size = sub_gen.send(sub_size - written_size)
+                # calculate the actual to write
+                if sub_data_base < pageno * self.page_size:
+                    # if the memory object starts before the page, adjust the sub_data_size accordingly
+                    sub_data_size = sub_data_base + sub_data_size - pageno * self.page_size
                 sub_data_size = min(sub_data_size, sub_size - written_size)
                 page.store(pageoff + written_size, sub_data, size=sub_data_size, endness=endness,
                            page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs)
@@ -219,21 +223,17 @@ class PagedMemoryMixin(MemoryMixin):
             for changed_page, changed_offsets in self.changed_pages(o).items():
                 if changed_offsets is None:
                     changed_pages_and_offsets[changed_page] = None
+                elif changed_page not in changed_pages_and_offsets: # changed_offsets is a set of offsets (ints)
+                    # update our dict
+                    changed_pages_and_offsets[changed_page] = changed_offsets
+                elif changed_pages_and_offsets[changed_page] is None: # changed_page in our dict
+                    # in at least one `other` memory can we not determine the changed offsets
+                    # do nothing
+                    pass
                 else:
-                    # changed_offsets is a set of offsets (ints)
-                    if changed_page not in changed_pages_and_offsets:
-                        # update our dict
-                        changed_pages_and_offsets[changed_page] = changed_offsets
-                    else:
-                        # changed_page in our dict
-                        if changed_pages_and_offsets[changed_page] is None:
-                            # in at least one `other` memory can we not determine the changed offsets
-                            # do nothing
-                            pass
-                        else:
-                            # union changed_offsets with known ones
-                            changed_pages_and_offsets[changed_page] = \
-                                changed_pages_and_offsets[changed_page].union(changed_offsets)
+                    # union changed_offsets with known ones
+                    changed_pages_and_offsets[changed_page] = \
+                        changed_pages_and_offsets[changed_page].union(changed_offsets)
 
         if merge_conditions is None:
             merge_conditions = [None] * (len(list(others)) + 1)

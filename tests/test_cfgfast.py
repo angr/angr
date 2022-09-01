@@ -185,7 +185,6 @@ class TestCfgfast(unittest.TestCase):
                 0x4006D4,  # frame_dummy
                 0x400708,
                 0x400710,  # authenticate
-                0x400814,
                 0x400814,  # accepted
                 0x400868,  # rejected
                 0x4008C0,  # main
@@ -1080,6 +1079,16 @@ class TestCfgfastDataReferences(unittest.TestCase):
         refs = list(xrefs.get_xrefs_by_dst(0x405bb0))
         assert len(refs) == 1
         assert set(x.ins_addr for x in refs) == {0x4011dd}
+
+    def test_data_references_wide_string(self):
+        path = os.path.join(test_location, 'x86_64', 'windows', 'fauxware-wide.exe')
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True)
+        recovered_strings = [d.content for d in cfg.memory_data.values() if d.sort == MemoryDataSort.UnicodeString]
+
+        for testme in ('SOSNEAKY', 'Welcome to the admin console, trusted user!\n', 'Go away!\n', 'Username: \n'):
+            assert testme.encode('utf-16-le') in recovered_strings
 
 
 if __name__ == "__main__":

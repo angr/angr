@@ -5,10 +5,11 @@ from . import ExplorationTechnique
 l = logging.getLogger(name=__name__)
 
 class ManualMergepoint(ExplorationTechnique):
-    def __init__(self, address, wait_counter=10):
+    def __init__(self, address, wait_counter=10, prune=True):
         super(ManualMergepoint, self).__init__()
         self.address = address
         self.wait_counter_limit = wait_counter
+        self.prune = prune
         self.wait_counter = 0
         self.stash = 'merge_waiting_%#x_%x' % (self.address, id(self))
         self.filter_marker = 'skip_next_filter_%#x' % self.address
@@ -72,7 +73,7 @@ class ManualMergepoint(ExplorationTechnique):
             simgr.move(self.stash, 'merge_tmp', lambda s: s.callstack == exemplar_callstack)
             l.debug("...%d with unique callstack #%d", len(simgr.merge_tmp), num_unique)
             if len(simgr.merge_tmp) > 1:
-                simgr = simgr.merge(stash='merge_tmp')
+                simgr = simgr.merge(stash='merge_tmp', prune=self.prune)
             simgr = simgr.move('merge_tmp', stash)
 
         return simgr

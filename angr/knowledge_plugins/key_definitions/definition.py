@@ -18,7 +18,7 @@ class Definition:
     :ivar tags:     A set of tags containing information about the definition gathered during analyses.
     """
 
-    __slots__ = ('atom', 'codeloc', 'data', 'dummy', 'tags')
+    __slots__ = ('atom', 'codeloc', 'data', 'dummy', 'tags', '_hash', )
 
     def __init__(self, atom: Atom, codeloc: CodeLocation, dummy: bool=False, tags: Set[Tag]=None):
 
@@ -26,6 +26,7 @@ class Definition:
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy
         self.tags = tags or set()
+        self._hash = None
 
     def __eq__(self, other):
         return self.atom == other.atom and self.codeloc == other.codeloc
@@ -45,7 +46,9 @@ class Definition:
                f"Tags: {pretty_tags}"
 
     def __hash__(self):
-        return hash((self.atom, self.codeloc))
+        if self._hash is None:
+            self._hash = hash((self.atom, self.codeloc))
+        return self._hash
 
     @property
     def offset(self) -> int:

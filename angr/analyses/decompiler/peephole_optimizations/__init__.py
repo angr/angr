@@ -18,6 +18,7 @@ from .conv_a_sub0_shr_and import ConvASub0ShrAnd
 from .eager_eval import EagerEvaluation
 from .one_sub_bool import OneSubBool
 from .bool_expr_xor_1 import BoolExprXor1
+from .bitwise_or_to_logical_or import BitwiseOrToLogicalOr
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks
 from .remove_redundant_nots import RemoveRedundantNots
 from .remove_redundant_shifts import RemoveRedundantShifts

@@ -44,7 +44,7 @@ class TestLiveDefinitions(TestCase):
         other_live_definitions = LiveDefinitions(self.arch)
         other_live_definitions.kill_and_add_definition(self.sp_register, 0x1, other_sp_value)
         # Then merge them.
-        live_definitions_with_multiple_sps = live_definitions.merge(other_live_definitions)
+        live_definitions_with_multiple_sps, _ = live_definitions.merge(other_live_definitions)
 
         self.assertRaises(AssertionError, live_definitions_with_multiple_sps.get_sp)
 
@@ -62,7 +62,7 @@ class TestLiveDefinitions(TestCase):
         other_live_definitions = LiveDefinitions(self.arch)
         other_live_definitions.kill_and_add_definition(self.sp_register, 0x2, sp_value)
         # Then merge them.
-        live_definitions_with_multiple_sps = live_definitions.merge(other_live_definitions)
+        live_definitions_with_multiple_sps, _ = live_definitions.merge(other_live_definitions)
 
         retrieved_sp_value = live_definitions_with_multiple_sps.get_sp()
 

@@ -94,35 +94,6 @@ class SimLinux(SimUserland):
             elif isinstance(self.project.arch, ArchX86):
                 self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
 
-            # Only set up ifunc resolution if we are using the ELF backend on AMD64
-            if isinstance(self.project.loader.main_object, MetaELF):
-                if isinstance(self.project.arch, (ArchAMD64, ArchX86)):
-                    for binary in self.project.loader.all_objects:
-                        if not isinstance(binary, MetaELF):
-                            continue
-                        for reloc in binary.relocs:
-                            if reloc.symbol is None or reloc.resolvedby is None:
-                                continue
-                            try:
-                                if reloc.resolvedby.subtype != ELFSymbolType.STT_GNU_IFUNC:
-                                    continue
-                            except ValueError:  # base class Symbol throws this, meaning we don't have an ELFSymbol, etc
-                                continue
-                            gotaddr = reloc.rebased_addr
-                            gotvalue = self.project.loader.memory.unpack_word(gotaddr)
-                            if self.project.is_hooked(gotvalue):
-                                continue
-                            # Replace it with a ifunc-resolve simprocedure!
-                            kwargs = {
-                                'funcaddr': gotvalue,
-                                'gotaddr': gotaddr,
-                                'funcname': reloc.symbol.name
-                            }
-                            # TODO: should this be replaced with hook_symbol?
-                            randaddr = self.project.loader.extern_object.allocate()
-                            self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](display_name='IFuncResolver.' + reloc.symbol.name, **kwargs))
-                            self.project.loader.memory.pack_word(gotaddr, randaddr)
-
         if isinstance(self.project.arch, ArchARM):
             # https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
             for func_name in P['linux_kernel']:
@@ -159,6 +130,39 @@ class SimLinux(SimUserland):
             syscall_abis = [] # ?
 
         super(SimLinux, self).configure_project(syscall_abis)
+
+        if not self._is_core:
+            # Only set up ifunc resolution if we are using the ELF backend on AMD64
+            if isinstance(self.project.loader.main_object, MetaELF):
+                if isinstance(self.project.arch, (ArchAMD64, ArchX86)):
+                    for binary in self.project.loader.all_objects:
+                        if not isinstance(binary, MetaELF):
+                            continue
+                        for reloc in binary.relocs:
+                            if reloc.symbol is None or reloc.resolvedby is None:
+                                continue
+                            try:
+                                if reloc.resolvedby.subtype != ELFSymbolType.STT_GNU_IFUNC:
+                                    continue
+                            except ValueError:  # base class Symbol throws this, meaning we don't have an ELFSymbol, etc
+                                continue
+                            gotaddr = reloc.rebased_addr
+                            gotvalue = self.project.loader.memory.unpack_word(gotaddr)
+                            if self.project.is_hooked(gotvalue):
+                                continue
+                            if self.project._eager_ifunc_resolution:
+                                # Resolve it!
+                                resolver = self.project.factory.callable(gotvalue, 'void *x()', concrete_only=True)
+                                result = resolver()._model_concrete.value
+                                self.project.loader.memory.pack_word(gotaddr, result)
+                            else:
+                                # Replace it with an ifunc-resolve simprocedure!
+                                proc = P['linux_loader']['IFuncResolver'](
+                                    display_name='IFuncResolver.' + reloc.symbol.name,
+                                    funcaddr=gotvalue,
+                                )
+                                self.project.hook(gotvalue, proc, replace=True)
+
 
     def syscall_abi(self, state):
         if state.arch.name != 'AMD64':

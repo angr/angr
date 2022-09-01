@@ -3,6 +3,8 @@ from .timing import timethis
 from . import graph
 from . import constants
 from . import enums_conv
+from . import lazy_import
+from .env import is_pyinstaller
 
 
 def looks_like_sql(s: str) -> bool:

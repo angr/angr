@@ -20,6 +20,9 @@ from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
 from .reaching_definitions.function_handler import FunctionHandler
 
 if TYPE_CHECKING:
+    from angr.code_location import CodeLocation
+    from angr.analyses.reaching_definitions.dep_graph import DepGraph
+    from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
     from ..knowledge_plugins.functions import Function
     from ..knowledge_plugins.cfg import CFGModel
     from ..knowledge_plugins.key_definitions.uses import Uses
@@ -105,7 +108,9 @@ class CallingConventionAnalysis(Analysis):
         if self._function.is_simprocedure:
             if self._function.prototype is None:
                 # try our luck
-                self._function.find_declaration()
+                # we set ignore_binary_name to True because the binary name SimProcedures is "cle##externs" and does not
+                # match any library name
+                self._function.find_declaration(ignore_binary_name=True)
 
             self.cc = self._function.calling_convention
             self.prototype = self._function.prototype

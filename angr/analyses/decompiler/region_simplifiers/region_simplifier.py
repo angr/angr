@@ -50,6 +50,8 @@ class RegionSimplifier(Analysis):
         r = self._simplify_cascading_ifs(r)
         #
         r = self._simplify_loops(r)
+        # Remove empty nodes again
+        r = self._remove_empty_nodes(r)
 
         self.result = r
 

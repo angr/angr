@@ -6,6 +6,8 @@ from archinfo import Arch
 from .optimization_pass import OptimizationPassStage
 from .stack_canary_simplifier import StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
+from .expr_op_swapper import ExprOpSwapper
+from .ite_expr_converter import ITEExprConverter
 from .multi_simplifier import MultiSimplifier
 from .div_simplifier import DivSimplifier
 from .mod_simplifier import ModSimplifier
@@ -27,6 +29,8 @@ _all_optimization_passes = [
     (RetAddrSaveSimplifier, True),
     (X86GccGetPcSimplifier, True),
     (EagerReturnsSimplifier, True),
+    (ITEExprConverter, True),
+    (ExprOpSwapper, True),
 ]
 
 def get_optimization_passes(arch, platform):

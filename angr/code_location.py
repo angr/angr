@@ -7,7 +7,7 @@ class CodeLocation:
     name (for SimProcedures).
     """
 
-    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', 'block_idx', )
+    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', 'block_idx', '_hash', )
 
     def __init__(self, block_addr: int, stmt_idx: Optional[int], sim_procedure=None, ins_addr: Optional[int]=None,
                  context: Optional[Tuple[int]]=None, block_idx: int=None, **kwargs):
@@ -29,10 +29,12 @@ class CodeLocation:
         self.ins_addr: Optional[int] = ins_addr
         self.context: Optional[Tuple[int]] = context
         self.block_idx = block_idx
+        self._hash = None
 
         self.info: Optional[Dict] = None
 
-        self._store_kwargs(**kwargs)
+        if kwargs:
+            self._store_kwargs(**kwargs)
 
     def __repr__(self):
         if self.block_addr is None:
@@ -80,11 +82,15 @@ class CodeLocation:
         return type(self) is type(other) and self.block_addr == other.block_addr and \
                 self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure and \
                 self.context == other.context and \
-                self.block_idx == other.block_idx
+                self.block_idx == other.block_idx and \
+                self.ins_addr == other.ins_addr
 
     def __lt__(self, other):
         if self.block_addr != other.block_addr:
             return self.block_addr < other.block_addr
+        if self.ins_addr is not None and other.ins_addr is not None:
+            if self.ins_addr != other.ins_addr:
+                return self.ins_addr < other.ins_addr
         if self.stmt_idx != other.stmt_idx:
             return self.stmt_idx < other.stmt_idx
         return False
@@ -93,7 +99,10 @@ class CodeLocation:
         """
         returns the hash value of self.
         """
-        return hash((self.block_addr, self.stmt_idx, self.sim_procedure, self.context, self.block_idx))
+        if self._hash is None:
+            self._hash = hash((self.block_addr, self.stmt_idx, self.sim_procedure, self.ins_addr, self.context,
+                               self.block_idx))
+        return self._hash
 
     def _store_kwargs(self, **kwargs):
         if self.info is None:

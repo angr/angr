@@ -2065,7 +2065,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 # TODO: Support more jumpkinds
                 l.debug("Unsupported jumpkind %s", jumpkind)
-                l.debug("Instruction address: %#x", ins_addr)
+                if isinstance(ins_addr, int):
+                    l.debug("Instruction address: %#x", ins_addr)
 
         return jobs
 
@@ -2756,13 +2757,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return r
 
         try:
-            data = self.project.loader.memory.load(data_addr, 1024)
+            data = self.project.loader.memory.load(data_addr, min(1024, max_size))
         except KeyError:
             data = b''
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if len(data) >= 4 and data[1] == 0 and data[3] == 0 and data[0] in self.PRINTABLES:
+        if len(data) >= 4 and data[1] == 0 and data[2] != 0 and data[3] == 0 and data[0] in self.PRINTABLES:
             def can_decode(n):
                 try:
                     data[:n*2].decode('utf_16_le')
@@ -2783,6 +2784,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if running_failures > 3:
                             break
 
+                if content_holder is not None:
+                    string_data = data[:last_success * 2]
+                    if string_data.endswith(b'\x00\x00'):
+                        string_data = string_data[:-2]
+                    content_holder.append(string_data)
                 return MemoryDataSort.UnicodeString, last_success
 
         if data:
@@ -3858,7 +3864,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _lifter_register_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
 
-        if self.project.arch.name in {"MIPS64"} or is_arm_arch(self.project.arch):
+        if self.project.arch.name in {"MIPS64", "MIPS32"} or is_arm_arch(self.project.arch):
             self._ro_region_cdata_cache = [ ]
             for segment in self.project.loader.main_object.segments:
                 if segment.is_readable and not segment.is_writable:
@@ -3867,7 +3873,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._ro_region_cdata_cache.append(content_buf)
                     pyvex.pvc.register_readonly_region(segment.vaddr, segment.memsize, content_buf)
 
-            if self.project.arch.name == "MIPS64":
+            if self.project.arch.name in {"MIPS64", "MIPS32"}:
                 # also map .got
                 for section in self.project.loader.main_object.sections:
                     if section.name == ".got":
@@ -4030,7 +4036,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             return None, None, None, None
 
             initial_regs = None
-            if self.project.arch.name == "MIPS64":
+            if self.project.arch.name in {"MIPS64", "MIPS32"}:
                 initial_regs = [
                     (self.project.arch.registers['t9'][0],
                      self.project.arch.registers['t9'][1],

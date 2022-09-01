@@ -19,6 +19,8 @@ from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBrea
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
+    from ailment import Expression
+
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.knowledge_plugins.functions import Function
 
@@ -971,15 +973,16 @@ class CGoto(CStatement):
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield "/* ", None
+        if self.codegen.comment_gotos:
+            yield "/* ", None
         yield "goto ", self
         yield from self.target.c_repr_chunks()
         yield ";", self
-        yield " */", None
+        if self.codegen.comment_gotos:
+            yield " */", None
         yield "\n", self
 
 
@@ -1799,10 +1802,10 @@ class CClosingObject:
 
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
-                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
+                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=16,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
-                 flavor=None, stmt_comments=None, expr_comments=None, show_externs=True, externs=None,
-                 const_formats=None):
+                 comment_gotos=True, flavor=None, stmt_comments=None, expr_comments=None, show_externs=True,
+                 externs=None, const_formats=None):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1850,9 +1853,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self._variables_in_use: Optional[Dict] = None
         self._inlined_strings: Set[SimMemoryVariable] = set()
-        self._memo: Optional[Dict[Tuple[Expr,bool],CExpression]] = None
+        self.ailexpr2cnode: Optional[Dict[Tuple[Expr.Expression, bool], CExpression]] = None
+        self.cnode2ailexpr: Optional[Dict[CExpression, Expr.Expression]] = None
         self._indent = indent
         self.show_casts = show_casts
+        self.comment_gotos = comment_gotos
         self.braces_on_own_lines = braces_on_own_lines
         self.use_compound_assignments = use_compound_assignments
         self.show_local_types = show_local_types
@@ -1881,6 +1886,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.braces_on_own_lines = value
             elif option.param == 'show_casts':
                 self.show_casts = value
+            elif option.param == 'comment_gotos':
+                self.comment_gotos = value
             elif option.param == 'use_compound_assignments':
                 self.use_compound_assignments = value
             elif option.param == 'show_local_types':
@@ -1893,7 +1900,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._variables_in_use = {}
 
         # memo
-        self._memo = {}
+        self.ailexpr2cnode = {}
 
         if self._func_args:
             arg_list = [self._handle(arg) for arg in self._func_args]
@@ -1902,7 +1909,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         obj = self._handle(self._sequence)
 
-        self._memo = None  # clear the memo since it's useless now
+        self.cnode2ailexpr = dict((v, k[0]) for k, v in self.ailexpr2cnode.items())
 
         self.cfunc = CFunction(self._func.addr, self._func.name, self._func.prototype, arg_list, obj,
                                self._variables_in_use, self._variable_kb.variables[self._func.addr],
@@ -2292,8 +2299,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle(self, node, is_expr: bool=True):
 
-        if (node, is_expr) in self._memo:
-            return self._memo[(node, is_expr)]
+        if (node, is_expr) in self.ailexpr2cnode:
+            return self.ailexpr2cnode[(node, is_expr)]
 
         handler: Optional[Callable] = self._handlers.get(node.__class__, None)
         if handler is not None:
@@ -2302,7 +2309,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 converted = handler(node, is_expr=is_expr)
             else:
                 converted = handler(node)
-            self._memo[(node, is_expr)] = converted
+            self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 

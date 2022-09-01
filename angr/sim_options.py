@@ -112,6 +112,7 @@ CONSTRAINT_TRACKING_IN_SOLVER = "CONSTRAINT_TRACKING_IN_SOLVER"
 
 # this is an internal option to automatically track dependencies in SimProcedures
 AUTO_REFS = "AUTO_REFS"
+ADD_AUTO_REFS = "ADD_AUTO_REFS"
 
 # Whether we should track dependencies in SimActions
 # If none of the ref options above exist, this option does nothing
@@ -176,6 +177,9 @@ UNICORN_HANDLE_SYMBOLIC_ADDRESSES = "UNICORN_HANDLE_SYMBOLIC_ADDRESSES"
 
 # Indicates if symbolic conditions should be handled in unicorn or not
 UNICORN_HANDLE_SYMBOLIC_CONDITIONS = "UNICORN_HANDLE_SYMBOLIC_CONDITIONS"
+
+# Handle syscalls in unicorn even if arguments are symbolic
+UNICORN_HANDLE_SYMBOLIC_SYSCALLS = "UNICORN_HANDLE_SYMBOLIC_SYSCALLS"
 
 # floating point support
 SUPPORT_FLOATING_POINT = "SUPPORT_FLOATING_POINT"

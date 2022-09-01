@@ -152,10 +152,8 @@ class SequenceWalker:
             self._handle(node.else_node, parent=node, index=-1)
         return None
 
-    @staticmethod
-    def _handle_ConditionalBreak(node: ConditionalBreakNode, **kwargs):
+    def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):  # pylint:disable=no-self-use
         return None
 
-    @staticmethod
-    def _handle_Noop(*args, **kwargs):
+    def _handle_Noop(self, *args, **kwargs):  # pylint:disable=no-self-use
         return None

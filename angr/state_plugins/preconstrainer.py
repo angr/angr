@@ -145,7 +145,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         if o.REPLACEMENT_SOLVER in self.state.options:
             new_constraints = self.state.solver.constraints
         else:
-            new_constraints = list(filter(lambda x: x.cache_key not in precon_cache_keys, self.state.solver.constraints))
+            new_constraints = [x for x in self.state.solver.constraints if x.cache_key not in precon_cache_keys]
 
 
         if self.state.has_plugin("zen_plugin"):
@@ -175,7 +175,9 @@ class SimStatePreconstrainer(SimStatePlugin):
 
         for solver in subsolvers:
             solver.timeout = 1000 * 10  # 10 seconds
-            if not solver.satisfiable():
+            try:
+                solver.satisfiable()
+            except claripy.errors.ClaripySolverInterruptError:
                 for var in solver.variables:
                     if var in self.variable_map:
                         self.state.add_constraints(self.variable_map[var])

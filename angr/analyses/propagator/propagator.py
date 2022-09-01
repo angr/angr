@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, Union, List, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, Union, List
 from collections import defaultdict
 import logging
 
@@ -12,15 +12,13 @@ from ... import sim_options
 from ...storage.memory_mixins import LabeledMemory
 from ...errors import SimMemoryMissingError
 from ...code_location import CodeLocation  # pylint:disable=unused-import
+from ...storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .. import register_analysis
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
-from .prop_value import PropValue
-
-if TYPE_CHECKING:
-    from angr.storage import SimMemoryObject
+from .prop_value import PropValue, Detail
 
 
 _l = logging.getLogger(name=__name__)
@@ -32,12 +30,12 @@ class PropagatorState:
     """
 
     __slots__ = ('arch', 'gpr_size', '_prop_count', '_only_consts', '_replacements', '_equivalence', 'project',
-                 '_store_tops', '__weakref__', )
+                 '_store_tops', '_gp', '__weakref__', )
 
     _tops = {}
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
-                 store_tops=True):
+                 store_tops=True, gp=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
@@ -48,6 +46,9 @@ class PropagatorState:
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
         self._store_tops = store_tops
 
+        # architecture-specific information
+        self._gp: Optional[int] = gp  # Value of gp for MIPS32 and 64 binaries
+
         self.project = project
 
     def __repr__(self):
@@ -57,12 +58,19 @@ class PropagatorState:
         return weakref.proxy(self)
 
     @staticmethod
-    def _mo_cmp(mo_self: 'SimMemoryObject', mo_other: 'SimMemoryObject', addr: int, size: int):  # pylint:disable=unused-argument
+    def _mo_cmp(mo_self: Union['SimMemoryObject','SimLabeledMemoryObject'],
+                mo_other: Union['SimMemoryObject','SimLabeledMemoryObject'],
+                addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
         if mo_self.object.symbolic or mo_other.object.symbolic:
-            return mo_self.object is mo_other.object
+            if type(mo_self) is SimLabeledMemoryObject and type(mo_other) is SimLabeledMemoryObject:
+                return mo_self.label == mo_other.label and mo_self.object is mo_other.object
+            if type(mo_self) is SimMemoryObject and type(mo_other) is SimMemoryObject:
+                return mo_self.object is mo_other.object
+            # SimMemoryObject vs SimLabeledMemoryObject -> the label must be different
+            return False
         return None
 
     @staticmethod
@@ -162,9 +170,9 @@ class PropagatorVEXState(PropagatorState):
     __slots__ = ('_registers', '_stack_variables', 'do_binops', )
 
     def __init__(self, arch, project=None, registers=None, local_variables=None, replacements=None, only_consts=False,
-                 prop_count=None, do_binops=True, store_tops=True):
+                 prop_count=None, do_binops=True, store_tops=True, gp=None):
         super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
-                         prop_count=prop_count, store_tops=store_tops)
+                         prop_count=prop_count, store_tops=store_tops, gp=gp)
         self.do_binops = do_binops
         self._registers = LabeledMemory(
             memory_id='reg',
@@ -194,6 +202,7 @@ class PropagatorVEXState(PropagatorState):
             only_consts=self._only_consts,
             do_binops=self.do_binops,
             store_tops=self._store_tops,
+            gp=self._gp,
         )
 
         return cp
@@ -267,10 +276,9 @@ class PropagatorAILState(PropagatorState):
                  '_inside_call_stmt', 'last_stack_store', 'global_stores')
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
-                 stack_variables=None, registers=None):
+                 stack_variables=None, registers=None, gp=None):
         super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
-                         prop_count=prop_count,
-                         equivalence=equivalence)
+                         prop_count=prop_count, equivalence=equivalence, gp=gp)
 
         self._stack_variables = LabeledMemory(memory_id='mem',
                                               top_func=self.top,
@@ -285,6 +293,9 @@ class PropagatorAILState(PropagatorState):
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
+        # last_stack_store stores the most recent stack store statement with a non-concrete or unresolvable address. we
+        # use this information to determine if stack reads after this store can be safely resolved to definitions prior
+        # to the stack read.
         self.last_stack_store: Optional[Tuple[int,int,ailment.Stmt.Store]] = None
         self.global_stores: List[Tuple[int,int,Any,ailment.Stmt.Store]] = [ ]
 
@@ -302,6 +313,7 @@ class PropagatorAILState(PropagatorState):
             stack_variables=self._stack_variables.copy(),
             registers=self._registers.copy(),
             # drop tmps
+            gp=self._gp,
         )
 
         return rd
@@ -453,14 +465,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
                  load_callback=None, stack_pointer_tracker=None, only_consts=False, completed_funcs=None,
-                 do_binops=True, store_tops=True, vex_cross_insn_opt=False):
-        if func is not None:
-            if block is not None:
-                raise ValueError('You cannot specify both "func" and "block".')
-            # traversing a function
+                 do_binops=True, store_tops=True, vex_cross_insn_opt=False, func_addr: Optional[int]=None,
+                 gp: Optional[int]=None):
+        if block is None and func is not None:
+            # only func is specified. traversing a function
             graph_visitor = FunctionGraphVisitor(func, func_graph)
         elif block is not None:
-            # traversing a block
+            # traversing a block (but func might be specified at the same time to provide extra information, e.g., the
+            # value for register t9 for MIPS32/64 binaries)
             graph_visitor = SingleNodeGraphVisitor(block)
         else:
             raise ValueError('Unsupported analysis target.')
@@ -470,6 +482,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         self._base_state = base_state
         self._function = func
+        self._func_addr = func_addr if func_addr is not None else (None if func is None else func.addr)
         self._max_iterations = max_iterations
         self._load_callback = load_callback
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
@@ -478,6 +491,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._do_binops = do_binops
         self._store_tops = store_tops
         self._vex_cross_insn_opt = vex_cross_insn_opt
+        self._gp = gp
 
         self._node_iterations = defaultdict(int)
         self._states = {}
@@ -518,12 +532,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
-            state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts)
+            state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts,
+                                       gp=self._gp)
             ail = True
         else:
             # VEX
             state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts,
-                                       do_binops=self._do_binops, store_tops=self._store_tops)
+                                       do_binops=self._do_binops, store_tops=self._store_tops,
+                                       gp=self._gp)
             spoffset_var = self._engine_vex.sp_offset(0)
             ail = False
             state.store_register(self.project.arch.sp_offset,
@@ -532,16 +548,34 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                                  )
 
         if self.project.arch.name == "MIPS64":
-            if self._function is not None:
+            if self._func_addr is not None:
                 if ail:
-                    state.store_register(ailment.Expr.Register(None, None, self.project.arch.registers['t9'][0],
-                                                               self.project.arch.registers['t9'][0]),
-                                         PropValue(claripy.BVV(self._function.addr, 64)),
+                    reg_expr = ailment.Expr.Register(None, None, self.project.arch.registers['t9'][0],
+                                                     self.project.arch.registers['t9'][1])
+                    reg_value = ailment.Expr.Const(None, None, self._func_addr, 64)
+                    state.store_register(reg_expr,
+                                         PropValue(claripy.BVV(self._func_addr, 64),
+                                                   offset_and_details={0: Detail(8, reg_value, CodeLocation(0, 0))}),
                                          )
                 else:
                     state.store_register(self.project.arch.registers['t9'][0],  # pylint:disable=too-many-function-args
                                          self.project.arch.registers['t9'][1],
-                                         claripy.BVV(self._function.addr, 64),
+                                         claripy.BVV(self._func_addr, 64),
+                                         )
+        elif self.project.arch.name == "MIPS32":
+            if self._func_addr is not None:
+                if ail:
+                    reg_expr = ailment.Expr.Register(None, None, self.project.arch.registers['t9'][0],
+                                                                 self.project.arch.registers['t9'][1])
+                    reg_value = ailment.Expr.Const(None, None, self._func_addr, 32)
+                    state.store_register(reg_expr,
+                                         PropValue(claripy.BVV(self._func_addr, 32),
+                                                   offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))}),
+                                         )
+                else:
+                    state.store_register(self.project.arch.registers['t9'][0],  # pylint:disable=too-many-function-args
+                                         self.project.arch.registers['t9'][1],
+                                         claripy.BVV(self._func_addr, 32),
                                          )
 
         self._initial_state = state

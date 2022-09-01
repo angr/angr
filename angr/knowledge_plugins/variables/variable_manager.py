@@ -81,6 +81,7 @@ class VariableManagerInternal(Serializable):
         self._variables_to_unified_variables: Dict[SimVariable, SimVariable] = { }
 
         self._phi_variables = { }
+        self._variables_to_phivars = defaultdict(set)
         self._phi_variables_by_block = defaultdict(set)
 
         self.types = TypesStore(self.manager._kb)
@@ -184,7 +185,8 @@ class VariableManagerInternal(Serializable):
         for phi, vars_ in self._phi_variables.items():
             for var in vars_:
                 if var not in self._variables and var not in self._phi_variables:
-                    l.error("Saving a variable which is not in the registered list. The database is likely corrupted.")
+                    l.error("Ignore variable %s because it is not in the registered list.", var.ident)
+                    continue
                 relation = variables_pb2.Phi2Var()
                 relation.phi_ident = phi.ident
                 relation.var_ident = var.ident
@@ -252,9 +254,16 @@ class VariableManagerInternal(Serializable):
             model._variables_to_unified_variables[variable] = unified
 
         for phi2var in cmsg.phi2var:
-            phi = variable_by_ident[phi2var.phi_ident]
-            var = variable_by_ident[phi2var.var_ident]
+            phi = variable_by_ident.get(phi2var.phi_ident, None)
+            if phi is None:
+                l.warning("Phi variable %s is not found in variable_by_ident.", phi2var.phi_ident)
+                continue
+            var = variable_by_ident.get(phi2var.var_ident, None)
+            if var is None:
+                l.warning("Variable %s is not found in variable_by_ident.", phi2var.var_ident)
+                continue
             model._phi_variables[phi].add(var)
+            model._variables_to_phivars[var].add(phi)
 
         # TODO: Types
 
@@ -385,7 +394,11 @@ class VariableManagerInternal(Serializable):
                 existing_phis.add(var)
             else:
                 non_phis.add(var)
-        if len(existing_phis) == 1:
+            if var in self._variables_to_phivars:
+                for phivar in self._variables_to_phivars[var]:
+                    existing_phis.add(phivar)
+
+        if len(existing_phis) >= 1:
             existing_phi = next(iter(existing_phis))
             if block_addr in self._phi_variables_by_block and existing_phi in self._phi_variables_by_block[block_addr]:
                 if not non_phis.issubset(self.get_phi_subvariables(existing_phi)):
@@ -411,6 +424,8 @@ class VariableManagerInternal(Serializable):
         # Keep a record of all phi variables
         self._phi_variables[a] = set(variables)
         self._phi_variables_by_block[block_addr].add(a)
+        for var in variables:
+            self._variables_to_phivars[var].add(a)
 
         return a
 

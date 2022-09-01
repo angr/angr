@@ -85,6 +85,10 @@ class MemoryData(Serializable):
             self.content = loader.memory.load(self.addr, self.size)
             if self.content.endswith(b"\x00"):
                 self.content = self.content.strip(b"\x00")
+        elif self.sort == MemoryDataSort.UnicodeString:
+            self.content = loader.memory.load(self.addr, self.size)
+            while self.content.endswith(b"\x00\x00"):
+                self.content = self.content[:-2]
         else:
             # FIXME: Other types are not supported yet
             return

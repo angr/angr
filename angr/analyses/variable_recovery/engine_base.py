@@ -259,7 +259,7 @@ class SimEngineVRBase(SimEngineLight):
                                                'register'),
                                            region=self.func_addr
                                            )
-            self.variable_manager[self.func_addr].set_variable('register', offset, variable)
+            self.variable_manager[self.func_addr].add_variable('register', offset, variable)
         else:
             variable, _ = next(iter(existing_vars))
 

@@ -1,5 +1,5 @@
 from .successors import SimSuccessors
-from .engine import SimEngine, SuccessorsMixin
+from .engine import SimEngine, SuccessorsMixin, TLSMixin
 
 from .vex import HeavyVEXMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
 from .procedure import ProcedureMixin, ProcedureEngine
@@ -23,7 +23,8 @@ class UberEngine(
         SimInspectMixin,
         HeavyResilienceMixin,
         SootMixin,
-        HeavyVEXMixin
+        HeavyVEXMixin,
+        TLSMixin,
 ):
     pass
 

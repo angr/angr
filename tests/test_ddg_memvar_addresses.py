@@ -1,5 +1,8 @@
-import angr
+# pylint: disable=missing-class-docstring,disable=no-self-use
 import os
+import unittest
+
+import angr
 
 test_location = str(
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../binaries/tests")
@@ -7,33 +10,29 @@ test_location = str(
 arches = {"i386", "x86_64"}
 
 
-def main():
-    test_ddg_memvar_addresses()
+class TestDdgMemvarAddresses(unittest.TestCase):
+    def test_ddg_memvar_addresses(self):
+        for arch in arches:
+            self.run_ddg_memvar_addresses(arch)
 
+    def run_ddg_memvar_addresses(self, arch):
+        test_file = os.path.join(test_location, arch, "simple_data_dependence")
+        proj = angr.Project(test_file, auto_load_libs=False)
+        cfg = proj.analyses.CFGEmulated(
+            context_sensitivity_level=2,
+            keep_state=True,
+            state_add_options=angr.sim_options.refs,
+        )
+        ddg = proj.analyses.DDG(cfg)
 
-def test_ddg_memvar_addresses():
-    for arch in arches:
-        run_ddg_memvar_addresses(arch)
-
-
-def run_ddg_memvar_addresses(arch):
-    test_file = os.path.join(test_location, arch, "simple_data_dependence")
-    proj = angr.Project(test_file, auto_load_libs=False)
-    cfg = proj.analyses.CFGEmulated(
-        context_sensitivity_level=2,
-        keep_state=True,
-        state_add_options=angr.sim_options.refs,
-    )
-    ddg = proj.analyses.DDG(cfg)
-
-    for node in ddg._data_graph.nodes():
-        if isinstance(node.variable, angr.sim_variable.SimMemoryVariable):
-            assert (
-                0 <= node.variable.addr < (1 << proj.arch.bits)
-            ), "Program variable {} has an invalid address: {}".format(
-                node.variable, node.variable.addr
-            )
+        for node in ddg._data_graph.nodes():
+            if isinstance(node.variable, angr.sim_variable.SimMemoryVariable):
+                assert (
+                        0 <= node.variable.addr < (1 << proj.arch.bits)
+                ), "Program variable {} has an invalid address: {}".format(
+                    node.variable, node.variable.addr
+                )
 
 
 if __name__ == "__main__":
-    main()
+    unittest.main()

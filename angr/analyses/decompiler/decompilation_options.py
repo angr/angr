@@ -53,6 +53,16 @@ options = [
         clears_cache=False,
     ),
     O(
+        "Comment gotos",
+        "Disabling this option will uncomment gotos currently shown in output.",
+        bool,
+        "codegen",
+        "comment_gotos",
+        category="Display",
+        default_value=True,
+        clears_cache=False,
+    ),
+    O(
         "Braces on own lines",
         "Highly controversial. Disable this to see \"} else {\".",
         bool,

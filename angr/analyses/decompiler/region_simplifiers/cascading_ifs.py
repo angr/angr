@@ -57,13 +57,17 @@ class CascadingIfsRemover(SequenceWalker):
                     last_node = node.true_node.nodes[0]
 
                 true_node = last_node
+            elif isinstance(node.true_node, ConditionNode):
+                true_node = node.true_node
+            else:
+                return
 
-                if isinstance(true_node, ConditionNode) and \
-                        true_node.true_node is not None and \
-                        true_node.false_node is None:
-                    node.condition = ailment.BinaryOp(None, "LogicalAnd", (node.condition, true_node.condition), False,
-                                                      **node.condition.tags)
-                    node.true_node = true_node.true_node
+            if isinstance(true_node, ConditionNode) and \
+                    true_node.true_node is not None and \
+                    true_node.false_node is None:
+                node.condition = ailment.BinaryOp(None, "LogicalAnd", (node.condition, true_node.condition), False,
+                                                  **node.condition.tags)
+                node.true_node = true_node.true_node
 
     @staticmethod
     def is_empty_node(node):

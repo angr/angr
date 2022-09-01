@@ -138,15 +138,6 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
         if self._observation_points and any(not type(op) is tuple for op in self._observation_points):
             raise ValueError('"observation_points" must be tuples.')
 
-        if type(self) is ReachingDefinitionsAnalysis and \
-                not self._observe_all and \
-                not self._observation_points and \
-                not self._observe_callback and \
-                not self._dep_graph:
-            l.warning('No observation point is specified. '
-                      'You cannot get any analysis result from performing the analysis.'
-                      )
-
         self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
         self._engine_vex = SimEngineRDVEX(self.project, self._call_stack, self._maximum_local_call_depth,
@@ -248,16 +239,21 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
         :param op_type:     Type of the bbservation point. Must be one of the following: OP_BEFORE, OP_AFTER.
         """
 
-        key: ObservationPoint = ('node', node_addr, op_type)
+        key = None
 
         observe = False
 
         if self._observe_all:
             observe = True
-        elif self._observation_points is not None and key in self._observation_points:
-            observe = True
+            key: ObservationPoint = ('node', node_addr, op_type)
+        elif self._observation_points is not None:
+            key: ObservationPoint = ('node', node_addr, op_type)
+            if key in self._observation_points:
+                observe = True
         elif self._observe_callback is not None:
             observe = self._observe_callback('node', addr=node_addr, state=state, op_type=op_type)
+            if observe:
+                key: ObservationPoint = ('node', node_addr, op_type)
 
         if observe:
             self.observed_results[key] = state.live_definitions
@@ -277,16 +273,21 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
         :param op_type:     Type of the observation point. Must be one of the following: OP_BEORE, OP_AFTER.
         """
 
-        key: ObservationPoint = ('insn', insn_addr, op_type)
+        key = None
         observe = False
 
         if self._observe_all:
             observe = True
-        elif self._observation_points is not None and key in self._observation_points:
-            observe = True
+            key: ObservationPoint = ('insn', insn_addr, op_type)
+        elif self._observation_points is not None:
+            key: ObservationPoint = ('insn', insn_addr, op_type)
+            if key in self._observation_points:
+                observe = True
         elif self._observe_callback is not None:
             observe = self._observe_callback('insn', addr=insn_addr, stmt=stmt, block=block, state=state,
                                              op_type=op_type)
+            if observe:
+                key: ObservationPoint = ('insn', insn_addr, op_type)
 
         if not observe:
             return
@@ -377,7 +378,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
 
         # update all definitions and all uses
         self.all_definitions |= state.all_definitions
-        for use in [state.stack_uses, state.heap_uses, state.register_uses]:
+        for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
 
         if self._node_iterations[block_key] < self._max_iterations:

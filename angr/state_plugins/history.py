@@ -137,9 +137,6 @@ class SimStateHistory(SimStatePlugin):
         # correct results when using constraints_since()
         self.parent = common_ancestor if common_ancestor is not None else self.parent
 
-        self.recent_events = [
-                e.recent_events for e in itertools.chain([self], others) if not isinstance(e, SimActionConstraint)
-        ]
 
         # rebuild recent constraints
         recent_constraints = [h.constraints_since(common_ancestor) for h in itertools.chain([self], others)]
@@ -152,6 +149,9 @@ class SimStateHistory(SimStatePlugin):
             combined_constraint = self.state.solver.Or(
                 *[self.state.solver.And(*history_constraints) for history_constraints in recent_constraints]
             )
+        self.recent_events = [
+                e.recent_events for e in itertools.chain([self], others) if not isinstance(e, SimActionConstraint)
+        ]
         self.recent_events.append(SimActionConstraint(self.state, combined_constraint))
 
         # hard to say what we should do with these others list of things...
@@ -322,13 +322,18 @@ class SimStateHistory(SimStatePlugin):
 
     def reachable(self):
         if self._satisfiable is not None:
-            pass
-        elif self.state is not None:
-            self._satisfiable = self.state.solver.satisfiable()
-        else:
-            solver = claripy.Solver()
-            solver.add(self._all_constraints)
-            self._satisfiable = solver.satisfiable()
+            return self._satisfiable
+
+        if self.state is not None:
+            try:
+                self._satisfiable = self.state.solver.satisfiable()
+                return self._satisfiable
+            except ReferenceError:
+                pass
+
+        solver = claripy.Solver()
+        solver.add(self._all_constraints)
+        self._satisfiable = solver.satisfiable()
 
         return self._satisfiable
 

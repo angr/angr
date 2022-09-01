@@ -403,11 +403,19 @@ class SimEngineRDVEX(
                     # try to load it from the static memory backer
                     # TODO: Is this still required?
                     try:
-                        vs = MultiValues(offset_to_values={0: {
-                            claripy.BVV(
-                                self.project.loader.memory.unpack_word(addr_v, size=size),
-                                size * self.arch.byte_width
-                            )}})
+                        val = self.project.loader.memory.unpack_word(addr_v, size=size)
+                        section = self.project.loader.find_section_containing(addr_v)
+                        missing_atom = MemoryLocation(addr_v, size)
+                        missing_def = Definition(missing_atom, ExternalCodeLocation())
+                        if val == 0 and (not section or section.is_writable):
+                            top = self.state.top(size*self.arch.byte_width)
+                            v = self.state.annotate_with_def(top, missing_def)
+                        else:
+                            v = self.state.annotate_with_def(claripy.BVV(val,size * self.arch.byte_width), missing_def)
+                        vs = MultiValues(offset_to_values={0: {v}})
+                        # write it back
+                        self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
+                        self.state.all_definitions.add(missing_def)
                     except KeyError:
                         continue
 
@@ -1013,6 +1021,8 @@ class SimEngineRDVEX(
 
         func_addr_int: int = func_addr_v._model_concrete.value
 
+        codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
+
         # direct calls
         symbol: Optional[Symbol] = None
         if not self.project.loader.main_object.contains_addr(func_addr_int):
@@ -1023,12 +1033,12 @@ class SimEngineRDVEX(
 
         executed_rda = False
         if symbol is not None:
-            codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
-            executed_rda, state = self._function_handler.handle_external_function_symbol(self.state, symbol=symbol, src_codeloc=codeloc)
+            executed_rda, state = self._function_handler.handle_external_function_symbol(self.state,
+                                                                                         symbol=symbol,
+                                                                                         src_codeloc=codeloc)
             self.state = state
 
         elif is_internal is True:
-            codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
             executed_rda, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
                 self.state,
                 func_addr_int,
@@ -1050,6 +1060,8 @@ class SimEngineRDVEX(
             executed_rda, state = self._function_handler.handle_unknown_call(self.state,
                                                                                 src_codeloc=self._codeloc())
             self.state = state
+
+        self.state.mark_call(codeloc, func_addr_int)
         skip_cc = executed_rda
 
         return skip_cc
@@ -1089,13 +1101,16 @@ class SimEngineRDVEX(
                     self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimStructArg):
                     min_stack_offset = None
-                    for subargfield, subargloc in arg.locs.items():
-                        if not isinstance(subargloc, SimStackArg):
-                            raise TypeError(f"Unexpected: Field {subargfield} in {arg} is not a stack location.")
-                        if min_stack_offset is None:
-                            min_stack_offset = subargloc.stack_offset
-                        elif min_stack_offset > subargloc.stack_offset:
-                            min_stack_offset = subargloc.stack_offset
+                    for _, subargloc in arg.locs.items():
+                        if isinstance(subargloc, SimStackArg):
+                            if min_stack_offset is None:
+                                min_stack_offset = subargloc.stack_offset
+                            elif min_stack_offset > subargloc.stack_offset:
+                                min_stack_offset = subargloc.stack_offset
+                        elif isinstance(subargloc, SimRegArg):
+                            atom = Register(subargloc.reg_offset, subargloc.size)
+                            self.state.add_use(atom, code_loc)
+                            self._tag_definitions_of_atom(atom, func_addr_int)
 
                     if min_stack_offset is not None:
                         atom = MemoryLocation(SpOffset(self.arch.bits,

@@ -100,8 +100,8 @@ class MVListPage(
 
         data: Set[_MOTYPE]
 
-        if size == len(self.content) and addr == 0:
-            self.sinkhole = data
+        if size == len(self.content) and addr == 0 and len(data) == 1:
+            self.sinkhole = next(iter(data))
             self.content = [None] * len(self.content)
             self.stored_offset = set()
         else:

@@ -1,3 +1,4 @@
+# pylint:disable=line-too-long
 import logging
 import math
 
@@ -39,29 +40,6 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                         X = operand_expr.operands[0].operands[0]
                         new_const = Expr.Const(expr.idx, None, divisor, 64)
                         return Expr.BinaryOp(expr.idx, 'DivMod', [X, new_const], expr.signed, **expr.tags)
-
-        if expr.from_bits == 64 and expr.to_bits == 32 \
-                and isinstance(expr.operand, Expr.BinaryOp) and expr.operand.op == "Shr" \
-                and isinstance(expr.operand.operands[1], Expr.Const) and expr.operand.operands[1].value == expr.to_bits:
-            inner = expr.operand.operands[0]
-            if isinstance(inner, Expr.BinaryOp) and inner.op == "Mull":
-                operand_0, operand_1 = inner.operands
-
-                if isinstance(operand_1, Expr.Const) and not isinstance(operand_0, Expr.Const):
-                    # swap them
-                    operand_0, operand_1 = operand_1, operand_0
-
-                if isinstance(operand_0, Expr.Const) and not isinstance(operand_1, Expr.Const) and operand_0.bits == 32:
-                    bits = operand_0.bits
-                    C = operand_0.value
-                    X = operand_1
-                    V = bits
-                    ndigits = 5 if V == 32 else 6
-                    divisor = self._check_divisor(pow(2, V), C, ndigits)
-                    if divisor is not None and X:
-                        new_const = Expr.Const(None, None, divisor, V)
-                        new_expr = Expr.BinaryOp(inner.idx, 'Div', [X, new_const], inner.signed, **inner.tags)
-                        return new_expr
 
         return super()._ail_handle_Convert(expr)
 
@@ -270,6 +248,69 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
             return Expr.BinaryOp(expr.idx, 'Div', [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
+
+    def _ail_handle_Add(self, expr):
+
+        if len(expr.operands) != 2:
+            return super()._ail_handle_Add(expr)
+
+        op0 = self._expr(expr.operands[0])
+        op1 = self._expr(expr.operands[1])
+
+        matched, new_expr = self._match_signed_division_add_operands(op0, op1)
+        if matched:
+            return new_expr
+        matched, new_expr = self._match_signed_division_add_operands(op1, op0)  # pylint:disable=arguments-out-of-order
+        if matched:
+            return new_expr
+
+        return super()._ail_handle_Add(expr)
+
+    def _match_signed_division_add_operands(self, op0, op1):
+        # From: Add((Conv(64->32, ((Load(addr=stack_base+4, size=4, endness=Iend_LE) Mulls 0x55555556<32>) >> 0x20<8>)) >> 0x1f<8>),
+        #            Conv(64->32, ((Load(addr=stack_base+4, size=4, endness=Iend_LE) Mulls 0x55555556<32>) >> 0x20<8>)))
+        # To: Load(addr=stack_base+4, size=4, endness=Iend_LE) /s 3
+
+        # op0
+        if not (isinstance(op0, Expr.BinaryOp) and op0.op == "Shr"
+                and isinstance(op0.operands[1], Expr.Const) and op0.operands[1].value == 0x1f):
+            return False, None
+        if not (isinstance(op0.operands[0], Expr.Convert)
+                and op0.operands[0].from_bits == 64
+                and op0.operands[0].to_bits == 32):
+            return False, None
+
+        op0_inner = op0.operands[0].operand
+        if not (isinstance(op0_inner, Expr.BinaryOp) and op0_inner.op == "Shr"
+                and isinstance(op0_inner.operands[1], Expr.Const) and op0_inner.operands[1].value == 32):
+            return False, None
+
+        # op1
+        if not op1 == op0.operands[0]:
+            return False, None
+
+        # extract
+        inner = op0_inner.operands[0]
+        if isinstance(inner, Expr.BinaryOp) and inner.op == "Mull" and inner.signed:
+            operand_0, operand_1 = inner.operands
+
+            if isinstance(operand_1, Expr.Const) and not isinstance(operand_0, Expr.Const):
+                # swap them
+                operand_0, operand_1 = operand_1, operand_0
+
+            if isinstance(operand_0, Expr.Const) and not isinstance(operand_1, Expr.Const) and operand_0.bits == 32:
+                bits = operand_0.bits
+                C = operand_0.value
+                X = operand_1
+                V = bits
+                ndigits = 5 if V == 32 else 6
+                divisor = self._check_divisor(pow(2, V), C, ndigits)
+                if divisor is not None and X:
+                    new_const = Expr.Const(None, None, divisor, V)
+                    new_expr = Expr.BinaryOp(inner.idx, 'Div', [X, new_const], inner.signed, **inner.tags)
+                    return True, new_expr
+
+        return False, None
 
 
 class DivSimplifier(OptimizationPass):

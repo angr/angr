@@ -13,6 +13,8 @@ from angr.analyses import (
     CFGFast,
     Decompiler,
 )
+from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.Logger(__name__)
 
@@ -319,7 +321,7 @@ class TestDecompiler(unittest.TestCase):
         f = cfg.functions[0x404410]
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
-        l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
     def test_decompiling_true_1804_x86_64(self):
         # true in Ubuntu 18.04, with -O2, has special optimizations that
@@ -417,7 +419,7 @@ class TestDecompiler(unittest.TestCase):
         ]
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
-        l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
         # with EagerReturnSimplifier applied, there should be no goto!
@@ -749,6 +751,40 @@ class TestDecompiler(unittest.TestCase):
         code = code.replace(" ", "").replace("\n", "")
         assert "{}" not in code, "Found empty code blocks in decompilation output. This may indicate some " \
                                  "assignments are incorrectly removed."
+        assert '"o"' in code and '"x"' in code, "CFG failed to recognize single-byte strings."
+
+    def test_decompiling_amp_challenge03_arm_expr_swapping(self):
+        bin_path = os.path.join(test_location, "armhf", "decompiler", "challenge_03")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
+        func = cfg.functions['main']
+
+        binop_operators = {
+            OpDescriptor(0x400a1d, 0, 0x400a27, "CmpGT"): "CmpLE"
+        }
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, binop_operators=binop_operators)
+        assert dec.codegen is not None, "Failed to decompile function %r." % func
+        self._print_decompilation_result(dec)
+        code = dec.codegen.text
+
+        # make sure there are no empty code blocks
+        lines = [ line.strip(" ") for line in code.split("\n") ]
+        #   v25 = select(v27, &stack_base-200, NULL, NULL, &v19);
+        select_var = None
+        select_line = None
+        for idx, line in enumerate(lines):
+            m = re.search(r"(v\d+) = select\(v", line)
+            if m is not None:
+                select_line = idx
+                select_var = m.group(1)
+                break
+
+        assert select_var, "Failed to find the variable that stores the result from select()"
+        #   if (0 <= v25)
+        next_line = lines[select_line + 1]
+        assert next_line.startswith(f"if (0 <= {select_var})")
 
     def test_decompiling_fauxware_mipsel(self):
         bin_path = os.path.join(test_location, "mipsel", "fauxware")
@@ -1059,7 +1095,8 @@ class TestDecompiler(unittest.TestCase):
 
         assert "max_width = (int)xdectoumax(" in d.codegen.text or "max_width = xdectoumax(" in d.codegen.text
         assert "goal_width = xdectoumax(" in d.codegen.text
-        assert "max_width = goal_width + 10;" in d.codegen.text
+        assert "max_width = goal_width + 10;" in d.codegen.text \
+               or "max_width = ((int)(goal_width + 10));" in d.codegen.text
 
     def test_expr_collapsing(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "deep_expr")
@@ -1076,6 +1113,45 @@ class TestDecompiler(unittest.TestCase):
         d.codegen.regenerate_text()
         new_len = len(d.codegen.text)
         assert new_len > old_len, "un-collapsing node should expand decompilation output"
+
+    def test_decompiling_division3(self):
+        bin_path = os.path.join(test_location, "i386", "decompiler", "division3")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        proj.analyses.CFGFast(normalize=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                               "linux")
+        all_optimization_passes = [ p for p in all_optimization_passes
+                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
+        d = proj.analyses.Decompiler(proj.kb.functions["division3"], optimization_passes=all_optimization_passes)
+        self._print_decompilation_result(d)
+
+        # get the returned expression from the return statement
+        # e.g., retexpr will be "v2" if the return statement is "  return v2;"
+        lines = d.codegen.text.split("\n")
+        retexpr = [ line for line in lines if "return " in line ][0].strip(" ;")[7:]
+
+        # find the statement "v2 = v0 / 3"
+        div3 = [ line for line in lines if re.match(retexpr + r" = v\d+ / 3;", line.strip(" ")) is not None]
+        assert len(div3) == 1, "Cannot find statement v2 = v0 / 3."
+        # find the statement "v2 = v0 * 7"
+        mul7 = [line for line in lines if re.match(retexpr + r" = v\d+ \* 7;", line.strip(" ")) is not None]
+        assert len(mul7) == 1, "Cannot find statement v2 = v0 * 7."
+
+    def test_decompiling_simple_ctfbin_modulo(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "simple_ctfbin_modulo")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+        d = proj.analyses.Decompiler(proj.kb.functions["encrypt"])
+        self._print_decompilation_result(d)
+
+        assert "% 61" in d.codegen.text, "Modulo simplification failed."
+
 
 if __name__ == "__main__":
     unittest.main()

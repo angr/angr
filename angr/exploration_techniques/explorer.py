@@ -1,13 +1,17 @@
+import logging
+import claripy
+
 from . import ExplorationTechnique
 from .common import condition_to_lambda
 from .. import sim_options
+from ..state_plugins.sim_event import resource_event
 
-import logging
 l = logging.getLogger(name=__name__)
 
 class Explorer(ExplorationTechnique):
     """
-    Search for up to "num_find" paths that satisfy condition "find", avoiding condition "avoid". Stashes found paths into "find_stash' and avoided paths into "avoid_stash".
+    Search for up to "num_find" paths that satisfy condition "find", avoiding condition "avoid". Stashes found paths
+    into "find_stash' and avoided paths into "avoid_stash".
 
     The "find" and "avoid" parameters may be any of:
 
@@ -19,10 +23,20 @@ class Explorer(ExplorationTechnique):
     any paths which cannot possibly reach a success state without going through a failure state will be
     preemptively avoided.
 
-    If either the "find" or "avoid" parameter is a function returning a boolean, and a path triggers both conditions, it will be added to the find stash, unless "avoid_priority" is set to True.
+    If either the "find" or "avoid" parameter is a function returning a boolean, and a path triggers both conditions,
+    it will be added to the find stash, unless "avoid_priority" is set to True.
     """
-    def __init__(self, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, avoid_priority=False):
-        super(Explorer, self).__init__()
+    def __init__(
+            self,
+            find=None,
+            avoid=None,
+            find_stash='found',
+            avoid_stash='avoid',
+            cfg=None,
+            num_find=1,
+            avoid_priority=False
+    ):
+        super().__init__()
         self.find, static_find = condition_to_lambda(find)
         self.avoid, static_avoid = condition_to_lambda(avoid)
         self.find_stash = find_stash
@@ -38,7 +52,7 @@ class Explorer(ExplorationTechnique):
         self._warned_unicorn = False
 
         # TODO: This is a hack for while CFGFast doesn't handle procedure continuations
-        from .. import analyses
+        from .. import analyses  # pylint: disable=import-outside-toplevel
         if isinstance(cfg, analyses.CFGFast):
             l.error("CFGFast is currently inappropriate for use with Explorer.")
             l.error("Usage of the CFG has been disabled for this explorer.")
@@ -49,7 +63,7 @@ class Explorer(ExplorationTechnique):
 
             # we need the find addresses to be determined statically
             if not static_find:
-                l.error("You must provide at least one 'find' address as a number, set, list, or tuple if you provide a CFG.")
+                l.error("You must provide at least one numeric 'find' address if you provide a CFG.")
                 l.error("Usage of the CFG has been disabled for this explorer.")
                 self.cfg = None
                 return
@@ -88,25 +102,14 @@ class Explorer(ExplorationTechnique):
             l.warning("Providing an incomplete CFG can cause viable paths to be discarded!")
 
     def setup(self, simgr):
-        if not self.find_stash in simgr.stashes: simgr.stashes[self.find_stash] = []
-        if not self.avoid_stash in simgr.stashes: simgr.stashes[self.avoid_stash] = []
+        if not self.find_stash in simgr.stashes:
+            simgr.stashes[self.find_stash] = []
+        if not self.avoid_stash in simgr.stashes:
+            simgr.stashes[self.avoid_stash] = []
 
     def step(self, simgr, stash='active', **kwargs):
         base_extra_stop_points = set(kwargs.pop("extra_stop_points", []))
         return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
-
-    def _classify(self, addr, findable, avoidable):
-        if self.avoid_priority:
-            if avoidable and (avoidable is True or addr in avoidable):
-                return self.avoid_stash
-            elif findable and (findable is True or addr in findable):
-                return self.find_stash
-        else:
-            if findable and (findable is True or addr in findable):
-                return self.find_stash
-            elif avoidable and (avoidable is True or addr in avoidable):
-                return self.avoid_stash
-        return None
 
     # make it more natural to deal with the intended dataflow
     def filter(self, simgr, state, **kwargs):
@@ -121,18 +124,25 @@ class Explorer(ExplorationTechnique):
             l.warning("Unicorn may step over states that match the condition (find or avoid) without stopping.")
             self._warned_unicorn = True
 
-        findable = self.find(state)
-        avoidable = self.avoid(state)
-
-        if not findable and not avoidable:
-            if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
-                if state.addr not in self.ok_blocks:
+        try:
+            if self.avoid_priority:
+                avoidable = self.avoid(state)
+                if avoidable and (avoidable is True or state.addr in avoidable):
                     return self.avoid_stash
-            return None
+            findable = self.find(state)
+            if findable and (findable is True or state.addr in findable):
+                return self.find_stash
+            if not self.avoid_priority:
+                avoidable = self.avoid(state)
+                if avoidable and (avoidable is True or state.addr in avoidable):
+                    return self.avoid_stash
+        except claripy.errors.ClaripySolverInterruptError as e:
+            resource_event(state, e)
+            return 'interrupted'
 
-        stash = self._classify(state.addr, findable, avoidable)
-        if stash is not None:
-            return stash
+        if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
+            if state.addr not in self.ok_blocks:
+                return self.avoid_stash
 
         return None
 
