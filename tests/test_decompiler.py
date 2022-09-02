@@ -476,7 +476,7 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
 
         argc_name = "a0"  # update this variable once the decompiler picks up
-                           # argument names from the common definition of main()
+                          # argument names from the common definition of main()
 
         assert len(re.search(rf'({argc_name}),', code).groups()) == 1 #Should always appear as argument
         assert re.search(rf'({argc_name})\)*;', code) is None #Should never appear in variable list
