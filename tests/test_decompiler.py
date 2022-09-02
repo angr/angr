@@ -475,10 +475,11 @@ class TestDecompiler(unittest.TestCase):
         l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
         code = dec.codegen.text
 
-        argc_name = " a0"  # update this variable once the decompiler picks up
+        argc_name = "a0"  # update this variable once the decompiler picks up
                            # argument names from the common definition of main()
-        assert argc_name in code
-        assert code.count(argc_name) == 1  # it should only appear once
+
+        assert len(re.search(rf'({argc_name}),', code).groups()) == 1 #Should always appear as argument
+        assert re.search(rf'({argc_name})\)*;', code) is None #Should never appear in variable list
 
     def test_decompiling_strings_c_representation(self):
 
