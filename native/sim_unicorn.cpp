@@ -1102,13 +1102,25 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 			}
 			case Ist_Exit:
 			{
+				stmt_taint_entry.sink.entity_type = TAINT_ENTITY_NONE;
+				stmt_taint_entry.is_exit = true;
+				stmt_taint_entry.sink.instr_addr = curr_instr_addr;
+				stmt_taint_entry.sink.stmt_idx = stmt_idx;
 				auto result = process_vex_expr(stmt->Ist.Exit.guard, vex_block->tyenv, curr_instr_addr, stmt_idx, last_entity_setter, true);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				block_taint_entry.exit_stmt_guard_expr_deps.insert(result.taint_sources.begin(), result.taint_sources.end());
+				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+				if (result.mem_read_size != 0) {
+					stmt_taint_entry.mem_read_size += result.mem_read_size;
+					stmt_taint_entry.has_memory_read = true;
+				}
+				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
+				block_taint_entry.has_exit_stmt = true;
+				stmt_taint_entry.reset();
 				break;
 			}
 			case Ist_IMark:
@@ -1761,24 +1773,8 @@ void State::propagate_taints() {
 		propagate_taint_of_one_stmt(curr_stmt_taint_data);
 	}
 	// If we reached here, execution has reached the end of the block
-	if (!stopped) {
-		if (curr_block_details.vex_lift_failed && ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))) {
-			// There are symbolic registers but VEX lift failed so we can't determine
-			// status of guard condition
-			stop(STOP_VEX_LIFT_FAILED);
-			return;
-		}
-		else if (is_block_exit_guard_symbolic()) {
-			if (handle_symbolic_conditions) {
-				curr_block_details.has_symbolic_exit = true;
-			}
-			else {
-				stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
-			}
-		}
-		else if (!handle_symbolic_conditions && is_block_next_target_symbolic()) {
-			stop(STOP_SYMBOLIC_BLOCK_EXIT_TARGET);
-		}
+	if (!stopped && !handle_symbolic_conditions && is_block_next_target_symbolic()) {
+		stop(STOP_SYMBOLIC_BLOCK_EXIT_TARGET);
 	}
 	return;
 }
@@ -2032,7 +2028,7 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 			block_mem_writes_taint_data.emplace_back(taint_sink.instr_addr, false, taint_sink.value_size);
 		}
 	}
-	else if (taint_sink.entity_type != TAINT_ENTITY_NONE) {
+	else if ((taint_sink.entity_type != TAINT_ENTITY_NONE) || vex_stmt_taint_entry.is_exit) {
 		taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
 		if (final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
 			if (handle_symbolic_addrs) {
@@ -2108,6 +2104,15 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 		}
 	}
 	else if (is_stmt_symbolic) {
+		if (vex_stmt_taint_entry.is_exit) {
+			if (handle_symbolic_conditions) {
+				curr_block_details.has_symbolic_exit = true;
+			}
+			else {
+				stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
+				return;
+			}
+		}
 		if (vex_stmt_details.has_symbolic_memory_dep) {
 			for (auto &mem_value: block_mem_reads_map.at(taint_sink.stmt_idx).memory_values) {
 				if (mem_value.is_value_symbolic) {
@@ -2115,7 +2120,8 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 				}
 			}
 		}
-		if ((taint_sink.entity_type == TAINT_ENTITY_REG) || (taint_sink.entity_type == TAINT_ENTITY_MEM)) {
+		if ((taint_sink.entity_type == TAINT_ENTITY_REG) || (taint_sink.entity_type == TAINT_ENTITY_MEM)
+		  || vex_stmt_taint_entry.is_exit) {
 			curr_block_details.symbolic_stmts.emplace_back(vex_stmt_details);
 		}
 	}
@@ -2255,12 +2261,6 @@ void State::save_concrete_memory_deps(vex_stmt_details_t &vex_stmt_det) {
 		}
 	}
 	return;
-}
-
-bool State::is_block_exit_guard_symbolic() const {
-	auto& block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
-	auto block_exit_guard_taint_status = get_final_taint_status(block_taint_entry.exit_stmt_guard_expr_deps);
-	return (block_exit_guard_taint_status != TAINT_STATUS_CONCRETE);
 }
 
 bool State::is_block_next_target_symbolic() const {

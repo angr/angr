@@ -375,10 +375,14 @@ struct vex_stmt_taint_entry_t {
 	// Count number of bytes written to memory by the instruction
 	uint32_t mem_write_size;
 
+	// Is statement a VEX exit?
+	bool is_exit;
+
 	bool operator==(const vex_stmt_taint_entry_t &other_stmt) const {
 		return (sink == other_stmt.sink) && (sources == other_stmt.sources) &&
 			   (ite_cond_entity_list == other_stmt.ite_cond_entity_list) &&
 			   (has_memory_read == other_stmt.has_memory_read) &&
+			   (is_exit == other_stmt.is_exit) &&
 			   (mem_read_size == other_stmt.mem_read_size) &&
 			   (mem_write_size == other_stmt.mem_write_size);
 	}
@@ -392,6 +396,7 @@ struct vex_stmt_taint_entry_t {
 		sources.clear();
 		ite_cond_entity_list.clear();
 		has_memory_read = false;
+		is_exit = false;
 		mem_read_size = 0;
 		mem_write_size = 0;
 		return;
@@ -400,8 +405,8 @@ struct vex_stmt_taint_entry_t {
 
 struct block_taint_entry_t {
 	std::map<int64_t, vex_stmt_taint_entry_t> block_stmts_taint_data;
-	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
 	bool has_cpuid_instr;
+	bool has_exit_stmt;
 	bool has_unsupported_stmt_or_expr_type;
 	stop_t unsupported_stmt_stop_reason;
 	std::unordered_set<taint_entity_t> block_next_entities;
@@ -409,8 +414,8 @@ struct block_taint_entry_t {
 
 	block_taint_entry_t() {
 		block_stmts_taint_data.clear();
-		exit_stmt_guard_expr_deps.clear();
 		has_cpuid_instr = false;
+		has_exit_stmt = false;
 		has_unsupported_stmt_or_expr_type = false;
 		block_next_entities.clear();
 		vex_cc_setter_stmts.clear();
@@ -419,7 +424,7 @@ struct block_taint_entry_t {
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (block_stmts_taint_data == other_entry.block_stmts_taint_data) &&
 			   (has_cpuid_instr == other_entry.has_cpuid_instr) &&
-			   (exit_stmt_guard_expr_deps == other_entry.exit_stmt_guard_expr_deps) &&
+			   (has_exit_stmt == other_entry.has_exit_stmt) &&
 			   (vex_cc_setter_stmts == other_entry.vex_cc_setter_stmts) &&
 			   (block_next_entities == other_entry.block_next_entities);
 	}
@@ -631,7 +636,6 @@ class State {
 
 	int32_t get_vex_expr_result_size(IRExpr *expr, IRTypeEnv* tyenv) const;
 
-	bool is_block_exit_guard_symbolic() const;
 	bool is_block_next_target_symbolic() const;
 	bool is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const;
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
