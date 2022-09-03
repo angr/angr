@@ -154,6 +154,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         # Restore breakpoints
         for succ_state in self.successors.successors:
             succ_state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
+            succ_state.inspect._breakpoints["mem_write"] = copy.copy(saved_mem_read_breakpoints)
 
         del self.stmt_idx
 
