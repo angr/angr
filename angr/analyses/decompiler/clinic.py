@@ -182,7 +182,7 @@ class Clinic(Analysis):
 
         # Simplify the entire function for the first time
         self._update_progress(45., text="Simplifying function 1")
-        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False, narrow_expressions=True)
+        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False)
 
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
@@ -201,7 +201,7 @@ class Clinic(Analysis):
         # Simplify the entire function for the second time
         self._update_progress(55., text="Simplifying function 2")
         self._simplify_function(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
-                                stack_arg_offsets=stackarg_offsets, unify_variables=True)
+                                stack_arg_offsets=stackarg_offsets, unify_variables=True, narrow_expressions=True)
 
         # After global optimization, there might be more chances for peephole optimizations.
         # Simplify blocks for the second time
