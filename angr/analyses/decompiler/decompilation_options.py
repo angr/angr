@@ -43,6 +43,17 @@ options = [
         default_value=False,
     ),
     O(
+        "Leave the largest loop successor tree outside the loop region",
+        "During region identification, treating the largest successor tree of a loop as a member of the loop body "
+        "sometimes leads to seemingly unnatural and gigantic loops. Enabling this option will treat such successor "
+        "trees not as a member of the loop body.",
+        bool,
+        "region_identifier",
+        "largest_successor_tree_outside_loop",
+        category="Graph",
+        default_value=True,
+    ),
+    O(
         "Show casts",
         "Disabling this option will blindly remove all C typecast constructs from pseudocode output.",
         bool,

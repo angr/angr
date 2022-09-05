@@ -10,15 +10,14 @@ from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
 from ...utils import timethis
 from .. import Analysis, AnalysesHub
-from .optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from .region_identifier import RegionIdentifier
+from .optimization_passes.optimization_pass import OptimizationPassStage
 from .optimization_passes import get_default_optimization_passes
 from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
 
-if TYPE_CHECKING:
-    from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
 l = logging.getLogger(name=__name__)
 
@@ -66,6 +65,7 @@ class Decompiler(Analysis):
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
         self.cache: Optional[DecompilationCache] = None
+        self.options_by_class = None
 
         if decompile:
             self._decompile()
@@ -88,11 +88,11 @@ class Decompiler(Analysis):
             old_codegen = None
             old_clinic = None
 
-        options_by_class = defaultdict(list)
+        self.options_by_class = defaultdict(list)
 
         if self._options:
             for o, v in self._options:
-                options_by_class[o.cls].append((o, v))
+                self.options_by_class[o.cls].append((o, v))
 
         # set global variables
         self._set_global_variables()
@@ -128,7 +128,7 @@ class Decompiler(Analysis):
                                                   must_struct=self._vars_must_struct,
                                                   cache=cache,
                                                   progress_callback=progress_callback,
-                                                  **self.options_to_params(options_by_class['clinic'])
+                                                  **self.options_to_params(self.options_by_class['clinic'])
                                                   )
         else:
             clinic = old_clinic
@@ -148,7 +148,9 @@ class Decompiler(Analysis):
         cond_proc = ConditionProcessor(self.project.arch)
 
         # recover regions
-        ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
+        ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+            self.func, graph=clinic.graph, cond_proc=cond_proc,
+            **self.options_to_params(self.options_by_class['region_identifier']))
         # run optimizations that may require re-RegionIdentification
         self.clinic.graph, ri = self._run_region_simplification_passes(clinic.graph, ri, clinic.reaching_definitions,
                                                                        ite_exprs=ite_exprs)
@@ -174,7 +176,7 @@ class Decompiler(Analysis):
             stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
             const_formats=old_codegen.const_formats if old_codegen is not None else None,
             externs=clinic.externs,
-            **self.options_to_params(options_by_class['codegen'])
+            **self.options_to_params(self.options_by_class['codegen'])
         )
         self._update_progress(90., text='Finishing up')
 
@@ -225,8 +227,9 @@ class Decompiler(Analysis):
 
                 cond_proc = ConditionProcessor(self.project.arch)
                 # always update RI on graph change
-                ri = self.project.analyses.RegionIdentifier(self.func, graph=ail_graph, cond_proc=cond_proc,
-                                                            kb=self.kb)
+                ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+                    self.func, graph=ail_graph, cond_proc=cond_proc,
+                    **self.options_to_params(self.options_by_class['region_identifier']))
 
         return ail_graph, ri
 

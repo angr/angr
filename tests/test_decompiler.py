@@ -1101,6 +1101,12 @@ class TestDecompiler(unittest.TestCase):
         assert "max_width = goal_width + 10;" in d.codegen.text \
                or "max_width = ((int)(goal_width + 10));" in d.codegen.text
 
+        # by default, largest_successor_tree_outside_loop in RegionIdentifier is set to True, which means the
+        # getopt_long() == -1 case should be entirely left outside the loop. by ensuring the call to error(0x1) is
+        # within the last few lines of decompilation output, we ensure the -1 case is indeed outside the loop.
+        last_three_lines = "\n".join(line.strip(" ") for line in d.codegen.text.split("\n")[-4:])
+        assert "error(0x1, *(__errno_location()), \"%s\");" in last_three_lines
+
     def test_expr_collapsing(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "deep_expr")
         proj = angr.Project(bin_path, auto_load_libs=False)
