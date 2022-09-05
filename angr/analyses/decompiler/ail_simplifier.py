@@ -62,7 +62,8 @@ class AILSimplifier(Analysis):
                  stack_arg_offsets: Optional[Set[Tuple[int,int]]]=None,
                  unify_variables=False,
                  ail_manager: Optional['Manager']=None,
-                 gp: Optional[int]=None):
+                 gp: Optional[int]=None,
+                 narrow_expressions=False):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions = None
@@ -73,6 +74,7 @@ class AILSimplifier(Analysis):
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
         self._gp = gp
+        self._narrow_expressions = narrow_expressions
 
         self._calls_to_remove: Set[CodeLocation] = set()
         self._assignments_to_remove: Set[CodeLocation] = set()
@@ -83,44 +85,51 @@ class AILSimplifier(Analysis):
 
     def _simplify(self):
 
-        _l.debug("Narrowing expressions")
-        narrowed_exprs = self._narrow_exprs()
-        self.simplified |= narrowed_exprs
-        if narrowed_exprs:
-            self._rebuild_func_graph()
-            return
+        if self._narrow_expressions:
+            _l.debug("Narrowing expressions")
+            narrowed_exprs = self._narrow_exprs()
+            self.simplified |= narrowed_exprs
+            if narrowed_exprs:
+                _l.debug("... expressions narrowed")
+                self._rebuild_func_graph()
+                self._clear_cache()
 
         _l.debug("Folding expressions")
         folded_exprs = self._fold_exprs()
         self.simplified |= folded_exprs
         if folded_exprs:
+            _l.debug("... expressions folded")
             self._rebuild_func_graph()
             # reaching definition analysis results are no longer reliable
-            return
+            self._clear_cache()
 
         _l.debug("Rewriting ccalls")
         ccalls_rewritten = self._rewrite_ccalls()
         self.simplified |= ccalls_rewritten
         if ccalls_rewritten:
+            _l.debug("... ccalls rewritten")
             self._rebuild_func_graph()
-            return
+            self._clear_cache()
 
         if self._unify_vars:
             _l.debug("Unifying local variables")
             r = self._unify_local_variables()
             if r:
+                _l.debug("... local variables unified")
                 self.simplified = True
                 self._rebuild_func_graph()
             # _fold_call_exprs() may set self._calls_to_remove, which will be honored in _remove_dead_assignments()
             _l.debug("Folding call expressions")
             r = self._fold_call_exprs()
             if r:
+                _l.debug("... call expressions folded")
                 self.simplified = True
                 self._rebuild_func_graph()
 
         _l.debug("Removing dead assignments")
         r = self._remove_dead_assignments()
         if r:
+            _l.debug("... dead assignments removed")
             self.simplified = True
             self._rebuild_func_graph()
 
