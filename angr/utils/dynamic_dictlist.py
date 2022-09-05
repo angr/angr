@@ -16,7 +16,10 @@ VT = TypeVar("VT")
 class DynamicDictList(Generic[VT]):
     """
     A list-like container class that internally uses dicts to store values when the number of values is less than the
-    threshold. Keys must be ints.
+    threshold `LIST2DICT_THRESHOLD`. Keys must be ints.
+
+    The default thresholds are determined according to experiments described at
+    https://github.com/angr/angr/pull/3471#issuecomment-1236515950.
     """
 
     __slots__ = ('list_content', 'dict_content', 'max_size')
@@ -85,4 +88,4 @@ class DynamicDictList(Generic[VT]):
             for i in range(self.max_size):
                 yield self.dict_content.get(i, None)
         else:
-            return iter(self.list_content)
+            yield from self.list_content
