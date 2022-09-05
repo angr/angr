@@ -399,25 +399,28 @@ class VariableManagerInternal(Serializable):
                     existing_phis.add(phivar)
 
         if len(existing_phis) >= 1:
-            existing_phi = next(iter(existing_phis))
-            if block_addr in self._phi_variables_by_block and existing_phi in self._phi_variables_by_block[block_addr]:
-                if not non_phis.issubset(self.get_phi_subvariables(existing_phi)):
-                    # Update the variables that this phi variable represents
-                    self._phi_variables[existing_phi] |= non_phis
-                return existing_phi
+            # iterate through existing phi variables to see if any of it is already used as the phi variable for this
+            # block. if so, we reuse it to avoid redundant variable allocations
+            for existing_phi in existing_phis:
+                if block_addr in self._phi_variables_by_block and existing_phi in self._phi_variables_by_block[block_addr]:
+                    if not non_phis.issubset(self.get_phi_subvariables(existing_phi)):
+                        # Update the variables that this phi variable represents
+                        self._phi_variables[existing_phi] |= non_phis
+                    return existing_phi
 
         # allocate a new phi variable
         repre = next(iter(variables))
         repre_type = type(repre)
+        repre_size = max(var.size for var in variables)
         if repre_type is SimRegisterVariable:
             ident_sort = 'register'
-            a = SimRegisterVariable(repre.reg, repre.size, ident=self.next_variable_ident(ident_sort))
+            a = SimRegisterVariable(repre.reg, repre_size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimMemoryVariable:
             ident_sort = 'global'
-            a = SimMemoryVariable(repre.addr, repre.size, ident=self.next_variable_ident(ident_sort))
+            a = SimMemoryVariable(repre.addr, repre_size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimStackVariable:
             ident_sort = 'stack'
-            a = SimStackVariable(repre.offset, repre.size, ident=self.next_variable_ident(ident_sort))
+            a = SimStackVariable(repre.offset, repre_size, ident=self.next_variable_ident(ident_sort))
         else:
             raise TypeError('make_phi_node(): Unsupported variable type "%s".' % type(repre))
 

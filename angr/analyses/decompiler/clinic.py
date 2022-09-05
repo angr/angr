@@ -826,7 +826,7 @@ class Clinic(Analysis):
                         final_reg_vars.add(reg_var)
             else:
                 final_reg_vars = reg_vars
-            if len(final_reg_vars) == 1:
+            if len(final_reg_vars) >= 1:
                 reg_var, offset = next(iter(final_reg_vars))
                 expr.variable = reg_var
                 expr.variable_offset = offset
@@ -866,7 +866,7 @@ class Clinic(Analysis):
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(variables) == 1:
+            if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
                 expr.variable_offset = offset
@@ -878,7 +878,7 @@ class Clinic(Analysis):
 
         elif type(expr) is ailment.Expr.UnaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(variables) == 1:
+            if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
                 expr.variable_offset = offset
@@ -890,7 +890,7 @@ class Clinic(Analysis):
 
         elif type(expr) is ailment.Expr.ITE:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(variables) == 1:
+            if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
                 expr.variable_offset = offset
@@ -904,7 +904,7 @@ class Clinic(Analysis):
 
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            if len(variables) == 1:
+            if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
                 expr.variable_offset = offset
