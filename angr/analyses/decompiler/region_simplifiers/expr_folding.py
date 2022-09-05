@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring,unused-argument
 from collections import defaultdict
-from typing import Optional, Any, Dict, TYPE_CHECKING
+from typing import Optional, Any, Dict, Set, Tuple, DefaultDict, TYPE_CHECKING
 
 import ailment
 from ailment import Expression, Block
@@ -123,7 +123,10 @@ class ExpressionCounter(SequenceWalker):
             ailment.Block: self._handle_Block,
         }
 
-        self.assignments = defaultdict(set)
+        # each element in the set is a tuple of (source of the assignment statement, a tuple of unified variables that
+        # the current assignment depends on, StatementLocation of the assignment statement, a Boolean variable that
+        # indicates if ExpressionUseFinder has succeeded or not)
+        self.assignments: DefaultDict[Any,Set[Tuple]] = defaultdict(set)
         self.uses = { }
         self._variable_manager: 'VariableManagerInternal' = variable_manager
 
@@ -148,10 +151,13 @@ class ExpressionCounter(SequenceWalker):
                         dependency_finder = ExpressionUseFinder()
                         dependency_finder.walk_expression(stmt.src)
                         if not dependency_finder.unsupported:
-                            dependencies = set(self._u(v) for v in dependency_finder.uses)
-                            self.assignments[u].add((stmt.src,
-                                                     tuple(dependencies),
-                                                     StatementLocation(node.addr, node.idx, idx)))
+                            dependencies = tuple(set(self._u(v) for v in dependency_finder.uses))
+                        else:
+                            dependencies = ()
+                        self.assignments[u].add((stmt.src,
+                                                 tuple(dependencies),
+                                                 StatementLocation(node.addr, node.idx, idx),
+                                                 not dependency_finder.unsupported))
             if (isinstance(stmt, ailment.Stmt.Call)
                     and isinstance(stmt.ret_expr, ailment.Expr.Register)
                     and stmt.ret_expr.variable is not None):
@@ -160,10 +166,13 @@ class ExpressionCounter(SequenceWalker):
                     dependency_finder = ExpressionUseFinder()
                     dependency_finder.walk_expression(stmt)
                     if not dependency_finder.unsupported:
-                        dependencies = set(self._u(v) for v in dependency_finder.uses)
-                        self.assignments[u].add((stmt,
-                                                 tuple(dependencies),
-                                                 StatementLocation(node.addr, node.idx, idx)))
+                        dependencies = tuple(set(self._u(v) for v in dependency_finder.uses))
+                    else:
+                        dependencies = ()
+                    self.assignments[u].add((stmt,
+                                             tuple(dependencies),
+                                             StatementLocation(node.addr, node.idx, idx),
+                                             not dependency_finder.unsupported))
 
         # walk the block and find uses of variables
         use_finder = ExpressionUseFinder()

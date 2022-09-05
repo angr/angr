@@ -71,7 +71,9 @@ class RegionSimplifier(Analysis):
                     and var in expr_counter.assignments \
                     and len(expr_counter.assignments[var]) == 1:
 
-                definition, deps, loc = next(iter(expr_counter.assignments[var]))
+                definition, deps, loc, deps_succeeded = next(iter(expr_counter.assignments[var]))
+                if not deps_succeeded:
+                    continue
                 # make sure all variables that var depends on has only been assigned once
                 fail = False
                 for dep_var in deps:
