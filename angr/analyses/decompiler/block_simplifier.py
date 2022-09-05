@@ -217,7 +217,6 @@ class BlockSimplifier(Analysis):
             return block
 
         rd = self._compute_reaching_definitions(block)
-        used_tmp_indices = set(rd.one_result.tmp_uses.keys())
         live_defs: 'LiveDefinitions' = rd.one_result
 
         # Find dead assignments
@@ -270,11 +269,19 @@ class BlockSimplifier(Analysis):
                     if d not in defs_:
                         dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
+        used_tmps = set()
+        # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well
+        for tmp, used_locs in rd.one_result.tmp_uses.items():
+            used_at = set(loc.stmt_idx for loc in used_locs)
+            if used_at.issubset(dead_defs_stmt_idx):
+                continue
+            used_tmps.add(tmp)
+
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
                 if type(stmt.dst) is Tmp:
-                    if stmt.dst.tmp_idx not in used_tmp_indices:
+                    if stmt.dst.tmp_idx not in used_tmps:
                         continue
 
                 # is it a dead virgin?
