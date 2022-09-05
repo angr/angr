@@ -187,6 +187,15 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
     def variable_list_repr_chunks(self, indent=0):
 
+        def _varname_to_id(varname: str) -> int:
+            # extract id from default variable name "v{id}"
+            if varname.startswith("v"):
+                try:
+                    return int(varname[1:])
+                except ValueError:
+                    pass
+            return 0
+
         unified_to_var_and_types: Dict[SimVariable,Set[Tuple[CVariable,SimType]]] = defaultdict(set)
 
         arg_set: Set[SimVariable] = set()
@@ -223,7 +232,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         indent_str = self.indent_str(indent)
 
         for variable, cvar_and_vartypes in sorted(unified_to_var_and_types.items(),
-                                                  key=lambda x: x[0].name if x[0].name else ""):
+                                                  key=lambda x: _varname_to_id(x[0].name) if x[0].name else 0):
 
             yield indent_str, None
 
