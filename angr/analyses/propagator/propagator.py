@@ -443,8 +443,8 @@ class PropagatorAILState(PropagatorState):
 
 class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
-    PropagatorAnalysis propagates values (either constant values or variables) and expressions inside a block or across
-    a function.
+    PropagatorAnalysis implements copy propagation. It propagates values (either constant values or variables) and
+    expressions inside a block or across a function.
 
     PropagatorAnalysis supports both VEX and AIL. The VEX propagator only performs constant propagation. The AIL
     propagator performs both constant propagation and copy propagation of depth-N expressions.

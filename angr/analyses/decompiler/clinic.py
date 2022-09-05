@@ -182,7 +182,7 @@ class Clinic(Analysis):
 
         # Simplify the entire function for the first time
         self._update_progress(45., text="Simplifying function 1")
-        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False)
+        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False, narrow_expressions=True)
 
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
@@ -458,21 +458,24 @@ class Clinic(Analysis):
 
     @timethis
     def _simplify_function(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None, unify_variables=False,
-                           max_iterations: int = 8) -> None:
+                           max_iterations: int = 8, narrow_expressions=False) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
         """
 
-        for _ in range(max_iterations):
+        for idx in range(max_iterations):
             simplified = self._simplify_function_once(ail_graph, remove_dead_memdefs=remove_dead_memdefs,
                                                       unify_variables=unify_variables,
-                                                      stack_arg_offsets=stack_arg_offsets)
+                                                      stack_arg_offsets=stack_arg_offsets,
+                                                      # only narrow once
+                                                      narrow_expressions=narrow_expressions and idx == 0,
+                                                      )
             if not simplified:
                 break
 
     @timethis
     def _simplify_function_once(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None,
-                                unify_variables=False):
+                                unify_variables=False, narrow_expressions=False):
         """
         Simplify the entire function once.
 
@@ -487,6 +490,7 @@ class Clinic(Analysis):
             stack_arg_offsets=stack_arg_offsets,
             ail_manager=self._ail_manager,
             gp=self.function.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
+            narrow_expressions=narrow_expressions,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
