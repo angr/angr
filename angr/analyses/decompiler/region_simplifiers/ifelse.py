@@ -40,7 +40,9 @@ class IfElseFlattener(SequenceWalker):
                 last_stmts = ConditionProcessor.get_last_statements(node.true_node)
             except EmptyBlockNotice:
                 last_stmts = None
-            if last_stmts is not None and all(self._is_statement_terminating(stmt) for stmt in last_stmts):
+            if last_stmts is not None \
+                    and None not in last_stmts \
+                    and all(self._is_statement_terminating(stmt) for stmt in last_stmts):
                 # all end points in the true node are returning
 
                 # remove the else node and make it a new node following node
