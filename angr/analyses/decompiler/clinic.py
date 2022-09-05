@@ -166,7 +166,7 @@ class Clinic(Analysis):
             ail_graph = self._make_returns(ail_graph)
 
         # cached block-level reaching definition analysis results and propagator results
-        block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = None
+        block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = { }
 
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
@@ -435,6 +435,7 @@ class Clinic(Analysis):
         """
 
         cached_rd, cached_prop = None, None
+        cache_item = None
         if cache:
             cache_item = cache.get(ail_block, None)
             if cache_item:
@@ -453,6 +454,8 @@ class Clinic(Analysis):
         )
         # update the cache
         if cache is not None:
+            if cache_item:
+                del cache[ail_block]
             cache[simp.result_block] = BlockCache(simp._reaching_definitions, simp._propagator)
         return simp.result_block
 

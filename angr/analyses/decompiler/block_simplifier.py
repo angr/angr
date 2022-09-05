@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
-from ailment.statement import Statement, Assignment, Call, Store
+from ailment.statement import Statement, Assignment, Call, Store, Jump
 from ailment.expression import Expression, Tmp, Load, Const
 
 from ...engines.light.data import SpOffset
@@ -74,10 +74,11 @@ class BlockSimplifier(Analysis):
         max_ctr = 30
 
         new_block = self._eliminate_self_assignments(block)
-        new_block = self._eliminate_dead_assignments(new_block)
+        if self._count_nonconstant_statements(new_block) >= 2 and self._has_propagatable_assignments(new_block):
+            new_block = self._eliminate_dead_assignments(new_block)
         if new_block != block:
             self._clear_cache()
-        block = new_block
+            block = new_block
 
         while True:
             ctr += 1
@@ -118,10 +119,16 @@ class BlockSimplifier(Analysis):
     def _has_propagatable_assignments(block) -> bool:
         return any(isinstance(stmt, (Assignment, Store)) for stmt in block.statements)
 
+    @staticmethod
+    def _count_nonconstant_statements(block) -> int:
+        return sum(1 for stmt in block.statements if not (isinstance(stmt, Jump) and isinstance(stmt.target, Const)))
+
     def _simplify_block_once(self, block):
+        nonconstant_stmts = self._count_nonconstant_statements(block)
+        has_propagatable_assignments = self._has_propagatable_assignments(block)
 
         # propagator
-        if len(block.statements) >= 2 and self._has_propagatable_assignments(block):
+        if nonconstant_stmts >= 2 and has_propagatable_assignments:
             propagator = self._compute_propagation(block)
             replacements = list(propagator._states.values())[0]._replacements
             if replacements:
@@ -133,7 +140,10 @@ class BlockSimplifier(Analysis):
         else:
             # Skipped calling Propagator
             new_block = block
-        new_block = self._eliminate_dead_assignments(new_block)
+
+        if nonconstant_stmts >= 2 and has_propagatable_assignments:
+            new_block = self._eliminate_dead_assignments(new_block)
+
         new_block = self._peephole_optimize(new_block)
         return new_block
 
@@ -207,7 +217,6 @@ class BlockSimplifier(Analysis):
             return block
 
         rd = self._compute_reaching_definitions(block)
-        used_tmp_indices = set(rd.one_result.tmp_uses.keys())
         live_defs: 'LiveDefinitions' = rd.one_result
 
         # Find dead assignments
@@ -260,11 +269,19 @@ class BlockSimplifier(Analysis):
                     if d not in defs_:
                         dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
+        used_tmps = set()
+        # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well
+        for tmp, used_locs in rd.one_result.tmp_uses.items():
+            used_at = set(loc.stmt_idx for loc in used_locs)
+            if used_at.issubset(dead_defs_stmt_idx):
+                continue
+            used_tmps.add(tmp)
+
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
                 if type(stmt.dst) is Tmp:
-                    if stmt.dst.tmp_idx not in used_tmp_indices:
+                    if stmt.dst.tmp_idx not in used_tmps:
                         continue
 
                 # is it a dead virgin?
