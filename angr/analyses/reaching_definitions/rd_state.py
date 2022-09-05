@@ -346,12 +346,7 @@ class ReachingDefinitionsState:
                                                            endness=endness, annotated=annotated)
 
         if mv is not None:
-            defs = set()
-            values = set()
-            for vs in mv.values.values():
-                for v in vs:
-                    values.add(v)
-                    defs |= set(self.extract_defs(v))
+            defs = set(LiveDefinitions.extract_defs_from_mv(mv))
             self.all_definitions |= defs
 
             if self.dep_graph is not None:
@@ -362,6 +357,11 @@ class ReachingDefinitionsState:
 
                 sp_offset = self.arch.sp_offset
                 bp_offset = self.arch.bp_offset
+
+                values = set()
+                for vs in mv.values():
+                    for v in vs:
+                        values.add(v)
 
                 for used in self.codeloc_uses:
                     # sp is always used as a stack pointer, and we do not track dependencies against stack pointers.
@@ -417,6 +417,61 @@ class ReachingDefinitionsState:
         self.codeloc_uses.add(definition)
 
         self.live_definitions.add_use_by_def(definition, code_loc, expr=expr)
+
+    def add_tmp_use(self, tmp: int, code_loc: CodeLocation, expr: Optional[Any]=None) -> None:
+        defs = self.live_definitions.get_tmp_definitions(tmp)
+        self.add_tmp_use_by_defs(defs, code_loc, expr=expr)
+
+    def add_tmp_use_by_defs(self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any]=None) -> None:  # pylint:disable=unused-argument
+        self._cycle(code_loc)
+        for definition in defs:
+            self.codeloc_uses.add(definition)
+            # if track_tmps is False, definitions may not be Tmp definitions
+            self.live_definitions.add_use_by_def(definition, code_loc)
+
+    def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any]=None) -> None:
+        defs = self.live_definitions.get_register_definitions(reg_offset, size)
+        self.add_register_use_by_defs(defs, code_loc, expr=expr)
+
+    def add_register_use_by_defs(self, defs: Iterable[Definition], code_loc: CodeLocation,
+                                 expr: Optional[Any]=None) -> None:
+        self._cycle(code_loc)
+        for definition in defs:
+            self.codeloc_uses.add(definition)
+            self.live_definitions.add_register_use_by_def(definition, code_loc, expr=expr)
+
+    def add_stack_use(self, stack_offset: int, size: int, endness, code_loc: CodeLocation,
+                      expr: Optional[Any]=None) -> None:
+        defs = self.live_definitions.get_stack_definitions(stack_offset, size, endness)
+        self.add_stack_use_by_defs(defs, code_loc, expr=expr)
+
+    def add_stack_use_by_defs(self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any]=None):
+        self._cycle(code_loc)
+        for definition in defs:
+            self.codeloc_uses.add(definition)
+            self.live_definitions.add_stack_use_by_def(definition, code_loc, expr=expr)
+
+    def add_heap_use(self, heap_offset: int, size: int, endness, code_loc: CodeLocation,
+                     expr: Optional[Any]=None) -> None:
+        defs = self.live_definitions.get_heap_definitions(heap_offset, size, endness)
+        self.add_heap_use_by_defs(defs, code_loc, expr=expr)
+
+    def add_heap_use_by_defs(self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any]=None):
+        self._cycle(code_loc)
+        for definition in defs:
+            self.codeloc_uses.add(definition)
+            self.live_definitions.add_heap_use_by_def(definition, code_loc, expr=expr)
+
+    def add_memory_use_by_def(self, definition: Definition, code_loc: CodeLocation, expr: Optional[Any]=None):
+        self._cycle(code_loc)
+        self.codeloc_uses.add(definition)
+        self.live_definitions.add_memory_use_by_def(definition, code_loc, expr=expr)
+
+    def add_memory_use_by_defs(self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any]=None):
+        self._cycle(code_loc)
+        for definition in defs:
+            self.codeloc_uses.add(definition)
+            self.live_definitions.add_memory_use_by_def(definition, code_loc, expr=expr)
 
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         yield from self.live_definitions.get_definitions(atom)

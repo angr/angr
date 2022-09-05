@@ -81,17 +81,14 @@ class NewFunctionHandler(FunctionHandler):
             else:
                 size_arg_reg_offset = self.project.arch.registers["rdi"][0]
                 size_arg_reg_size = word_size
-            size = (
-                state.register_definitions.load(size_arg_reg_offset, size_arg_reg_size)
-                .values[0]
-                .pop()
-                ._model_concrete.value
-            )
+            v0 = state.register_definitions.load(size_arg_reg_offset, size_arg_reg_size).one_value()
+            size = v0._model_concrete.value if v0 is not None else None
 
-            # None since we do not know it's class yet, it a possible this pointer
-            self.possible_objects_dict[self.max_addr] = PossibleObject(
-                size, self.max_addr
-            )
+            if size is not None:
+                # None since we do not know it's class yet, it is a possible this pointer
+                self.possible_objects_dict[self.max_addr] = PossibleObject(
+                    size, self.max_addr
+                )
 
             # assigning eax a concrete address to track the possible this pointer
             if cc is not None:
@@ -133,15 +130,9 @@ class NewFunctionHandler(FunctionHandler):
             # check if rdi has a possible this pointer/ object address, if so then we can assign this object this class
             # also if the func is a constructor(not stripped binaries)
             for addr, possible_object in self.possible_objects_dict.items():
-                obj_addr = (
-                    state.register_definitions.load(
-                        72, state.arch.bits // state.arch.byte_width
-                    )
-                    .values[0]
-                    .pop()
-                    ._model_concrete.value
-                )
-                if addr == obj_addr:
+                v1 = state.register_definitions.load(72, state.arch.bits // state.arch.byte_width).one_value()
+                obj_addr = v1._model_concrete.value if v1 is not None else None
+                if obj_addr is not None and addr == obj_addr:
                     col_ind = self.project.kb.functions[
                         function_address
                     ].demangled_name.rfind("::")
@@ -212,14 +203,8 @@ class StaticObjectFinder(Analysis):
                     else:
                         ret_val_reg_offset = self.project.arch.registers["rax"][0]
                         ret_val_reg_size = word_size
-                    addr_of_new_obj = (
-                        rd_before_node.register_definitions.load(
-                            ret_val_reg_offset, ret_val_reg_size
-                        )
-                        .values[0]
-                        .pop()
-                        ._model_concrete.value
-                    )
+                    v0 = rd_before_node.register_definitions.load(ret_val_reg_offset, ret_val_reg_size).one_value()
+                    addr_of_new_obj = v0._model_concrete.value if v0 is not None else None
 
                     rd_after_node = rd.get_reaching_definitions_by_node(
                         ret_node_addr, OP_AFTER
@@ -233,16 +218,10 @@ class StaticObjectFinder(Analysis):
                     else:
                         this_ptr_reg_offset = self.project.arch.registers["rdi"][0]
                         this_ptr_reg_size = word_size
-                    addr_in_rdi = (
-                        rd_after_node.register_definitions.load(
-                            this_ptr_reg_offset, this_ptr_reg_size
-                        )
-                        .values[0]
-                        .pop()
-                        ._model_concrete.value
-                    )
+                    v1 = rd_after_node.register_definitions.load(this_ptr_reg_offset, this_ptr_reg_size).one_value()
+                    addr_in_rdi = v1._model_concrete.value if v1 is not None else None
 
-                    if addr_of_new_obj == addr_in_rdi:
+                    if addr_of_new_obj is not None and addr_of_new_obj == addr_in_rdi:
                         self.possible_constructors[call_after_new_addr].append(
                             self.possible_objects[addr_of_new_obj]
                         )

@@ -13,7 +13,7 @@ from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC, SimStructArg, SimArrayArg
 from ...utils.constants import DEFAULT_STATEMENT
-from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
 from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -142,16 +142,16 @@ class SimEngineRDVEX(
         data = self._expr(stmt.data)
 
         # special handling for references to heap or stack variables
-        if len(data.values) == 1:
-            for d in next(iter(data.values.values())):
+        if data.count() == 1:
+            for d in next(iter(data.values())):
                 if self.state.is_heap_address(d):
                     heap_offset = self.state.get_heap_offset(d)
                     if heap_offset is not None:
-                        self.state.add_use(MemoryLocation(HeapAddress(heap_offset), 1), self._codeloc())
+                        self.state.add_heap_use(heap_offset, 1, 'Iend_BE', self._codeloc())
                 elif self.state.is_stack_address(d):
                     stack_offset = self.state.get_stack_offset(d)
                     if stack_offset is not None:
-                        self.state.add_use(MemoryLocation(SpOffset(self.arch.bits, stack_offset), 1), self._codeloc())
+                        self.state.add_stack_use(stack_offset, 1, 'Iend_BE', self._codeloc())
 
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
@@ -161,8 +161,8 @@ class SimEngineRDVEX(
         size = stmt.data.result_size(self.tyenv) // 8
         data = self._expr(stmt.data)
 
-        if len(addr.values) == 1:
-            addrs = next(iter(addr.values.values()))
+        if addr.count() == 1:
+            addrs = next(iter(addr.values()))
             self._store_core(addrs, size, data, endness=stmt.endness)
 
     def _handle_StoreG(self, stmt: pyvex.IRStmt.StoreG):
@@ -171,8 +171,8 @@ class SimEngineRDVEX(
 
         if claripy.is_true(guard_v):
             addr = self._expr(stmt.addr)
-            if len(addr.values) == 1:
-                addrs = next(iter(addr.values.values()))
+            if addr.count() == 1:
+                addrs = next(iter(addr.values()))
                 size = stmt.data.result_size(self.tyenv) // 8
                 data = self._expr(stmt.data)
                 self._store_core(addrs, size, data)
@@ -182,8 +182,8 @@ class SimEngineRDVEX(
             # guard.data == {True, False}
             # get current data
             addr = self._expr(stmt.addr)
-            if len(addr.values) == 1:
-                addrs = next(iter(addr.values.values()))
+            if addr.count() == 1:
+                addrs = next(iter(addr.values()))
                 size = stmt.data.result_size(self.tyenv) // 8
                 data_old = self._load_core(addrs, size, stmt.endness)
                 data = self._expr(stmt.data)
@@ -265,8 +265,8 @@ class SimEngineRDVEX(
         if stmt.storedata is None:
             # load-link
             addr = self._expr(stmt.addr)
-            if len(addr.values) == 1:
-                addrs = next(iter(addr.values.values()))
+            if addr.count() == 1:
+                addrs = next(iter(addr.values()))
                 size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
                 load_result = self._load_core(addrs, size, stmt.endness)
                 self.tmps[stmt.result] = load_result
@@ -278,12 +278,12 @@ class SimEngineRDVEX(
             # store-conditional
             storedata = self._expr(stmt.storedata)
             addr = self._expr(stmt.addr)
-            if len(addr.values) == 1:
-                addrs = next(iter(addr.values.values()))
+            if addr.count() == 1:
+                addrs = next(iter(addr.values()))
                 size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
 
                 self._store_core(addrs, size, storedata)
-                self.tmps[stmt.result] = MultiValues(offset_to_values={0: {claripy.BVV(1, 1)}})
+                self.tmps[stmt.result] = MultiValues(claripy.BVV(1, 1))
                 self.state.kill_and_add_definition(Tmp(stmt.result,
                                                        self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
                                                    self._codeloc(),
@@ -298,13 +298,13 @@ class SimEngineRDVEX(
         if data is None:
             bits = expr.result_size(self.tyenv)
             top = self.state.top(bits)
-            data = MultiValues(offset_to_values={0: {top}})
+            data = MultiValues(top)
         return data
 
     def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[MultiValues]:
         tmp: int = expr.tmp
 
-        self.state.add_use(Tmp(tmp, expr.result_size(self.tyenv) // self.arch.byte_width), self._codeloc())
+        self.state.add_tmp_use(tmp, self._codeloc())
 
         if tmp in self.tmps:
             return self.tmps[tmp]
@@ -324,12 +324,12 @@ class SimEngineRDVEX(
             top = self.state.top(size * self.arch.byte_width)
             # annotate it
             top = self.state.annotate_with_def(top, Definition(reg_atom, ExternalCodeLocation()))
-            values = MultiValues({0: {top}})
+            values = MultiValues(top)
             # write it to registers
             self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
 
         current_defs: Optional[Iterable[Definition]] = None
-        for vs in values.values.values():
+        for vs in values.values():
             for v in vs:
                 if current_defs is None:
                     current_defs = self.state.extract_defs(v)
@@ -338,9 +338,13 @@ class SimEngineRDVEX(
 
         if current_defs is None:
             # no defs can be found. add a fake definition
-            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
+            mv = self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
+            current_defs = set()
+            for vs in mv.values():
+                for v in vs:
+                    current_defs |= self.state.extract_defs(v)
 
-        self.state.add_use(reg_atom, self._codeloc())
+        self.state.add_register_use_by_defs(current_defs, self._codeloc())
 
         return values
 
@@ -352,44 +356,51 @@ class SimEngineRDVEX(
         size = bits // self.arch.byte_width
 
         # convert addr from MultiValues to a list of valid addresses
-        if len(addr.values) == 1:
-            addrs = next(iter(addr.values.values()))
+        if addr.count() == 1 and 0 in addr:
+            addrs = list(addr[0])
             return self._load_core(addrs, size, expr.endness)
 
         top = self.state.top(bits)
         # annotate it
         dummy_atom = MemoryLocation(0, size)
-        top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
+        def_ = Definition(dummy_atom, ExternalCodeLocation())
+        top = self.state.annotate_with_def(top, def_)
         # add use
-        self.state.add_use(dummy_atom, self._codeloc())
-        return MultiValues(offset_to_values={0: {top}})
+        self.state.add_memory_use_by_def(def_, self._codeloc())
+        return MultiValues(top)
 
     def _load_core(self, addrs: Iterable[claripy.ast.Base], size: int, endness: str) -> MultiValues:
 
         result: Optional[MultiValues] = None
+        # we may get more than one stack addrs with the same value but different annotations (because they are defined
+        # at different locations). only load them once.
+        loaded_stack_offsets = set()
+
         for addr in addrs:
             if self.state.is_top(addr):
                 l.debug('Memory address undefined, ins_addr = %#x.', self.ins_addr)
             elif self.state.is_stack_address(addr):
                 # Load data from a local variable
                 stack_offset = self.state.get_stack_offset(addr)
-                if stack_offset is not None:
+                if stack_offset is not None and stack_offset not in loaded_stack_offsets:
+                    loaded_stack_offsets.add(stack_offset)
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
                         vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=endness)
+                        # extract definitions
+                        defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                     except SimMemoryMissingError:
                         continue
 
-                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=endness)
-                    self.state.add_use(memory_location, self._codeloc())
+                    self.state.add_stack_use_by_defs(defs, self._codeloc())
                     result = result.merge(vs) if result is not None else vs
 
             elif self.state.is_heap_address(addr):
                 # Load data from the heap
                 heap_offset = self.state.get_heap_offset(addr)
                 vs: MultiValues = self.state.heap_definitions.load(heap_offset, size=size, endness=endness)
-                memory_location = MemoryLocation(HeapAddress(heap_offset), size, endness=endness)
-                self.state.add_use(memory_location, self._codeloc())
+                defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                self.state.add_heap_use_by_defs(defs, self._codeloc())
                 result = result.merge(vs) if result is not None else vs
 
             else:
@@ -399,6 +410,7 @@ class SimEngineRDVEX(
                 # Load data from a global region
                 try:
                     vs: MultiValues = self.state.memory_definitions.load(addr_v, size=size, endness=endness)
+                    defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
                     # try to load it from the static memory backer
                     # TODO: Is this still required?
@@ -412,21 +424,19 @@ class SimEngineRDVEX(
                             v = self.state.annotate_with_def(top, missing_def)
                         else:
                             v = self.state.annotate_with_def(claripy.BVV(val,size * self.arch.byte_width), missing_def)
-                        vs = MultiValues(offset_to_values={0: {v}})
+                        vs = MultiValues(v)
                         # write it back
                         self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
                         self.state.all_definitions.add(missing_def)
+                        defs = { missing_def }
                     except KeyError:
                         continue
 
+                self.state.add_memory_use_by_defs(defs, self._codeloc())
                 result = result.merge(vs) if result is not None else vs
 
-                # FIXME: _add_memory_use() iterates over the same loop
-                memory_location = MemoryLocation(addr_v, size, endness=endness)
-                self.state.add_use(memory_location, self._codeloc())
-
         if result is None:
-            result = MultiValues(offset_to_values={0: {self.state.top(size * self.arch.byte_width)}})
+            result = MultiValues(self.state.top(size * self.arch.byte_width))
 
         return result
 
@@ -450,7 +460,7 @@ class SimEngineRDVEX(
     #
 
     def _handle_Const(self, expr) -> MultiValues:
-        return MultiValues(offset_to_values={0: { claripy_value(expr.con.type, expr.con.value) }})
+        return MultiValues(claripy_value(expr.con.type, expr.con.value))
 
     def _handle_Conversion(self, expr):
         simop = vex_operations[expr.op]
@@ -460,10 +470,10 @@ class SimEngineRDVEX(
         # if there are multiple values with only one offset, we apply conversion to each one of them
         # otherwise, we return a TOP
 
-        if len(arg_0.values) == 1:
+        if arg_0.count() == 1:
             # extension, extract, or doing nothing
             data = set()
-            for v in next(iter(arg_0.values.values())):
+            for v in next(iter(arg_0.values())):
                 if bits > v.size():
                     data.add(v.zero_extend(bits - v.size()))
                 else:
@@ -471,10 +481,10 @@ class SimEngineRDVEX(
                         data.add(v.val_to_bv(bits))
                     else:
                         data.add(v[bits - 1:0])
-            r = MultiValues(offset_to_values={next(iter(arg_0.values.keys())): data})
+            r = MultiValues(offset_to_values={next(iter(arg_0.keys())): data})
 
         else:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -485,11 +495,9 @@ class SimEngineRDVEX(
         e0 = expr_0.one_value()
 
         if e0 is not None and not e0.symbolic:
-            return MultiValues(offset_to_values={0: {
-                    claripy.BVV(1, 1) if e0._model_concrete.value != 1 else claripy.BVV(0, 1)
-                }})
+            return MultiValues(claripy.BVV(1, 1) if e0._model_concrete.value != 1 else claripy.BVV(0, 1))
 
-        return MultiValues(offset_to_values={0: {self.state.top(1)}})
+        return MultiValues(self.state.top(1))
 
     def _handle_Not(self, expr):
         arg0 = expr.args[0]
@@ -499,23 +507,23 @@ class SimEngineRDVEX(
         e0 = expr_0.one_value()
 
         if e0 is not None and not e0.symbolic:
-            return MultiValues(offset_to_values={0: {~e0}})  # pylint:disable=invalid-unary-operand-type
+            return MultiValues(~e0)  # pylint:disable=invalid-unary-operand-type
 
-        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return MultiValues(self.state.top(bits))
 
     def _handle_Clz(self, expr):
         arg0 = expr.args[0]
         _ = self._expr(arg0)
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
-        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return MultiValues(self.state.top(bits))
 
     def _handle_Ctz(self, expr):
         arg0 = expr.args[0]
         _ = self._expr(arg0)
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
-        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return MultiValues(self.state.top(bits))
 
     #
     # Binary operation handlers
@@ -524,14 +532,14 @@ class SimEngineRDVEX(
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
-        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        r = MultiValues(self.state.top(bits))
         return r
 
     def _handle_16HLto32(self, expr):
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
-        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        r = MultiValues(self.state.top(bits))
         return r
 
     def _handle_Add(self, expr):
@@ -544,24 +552,23 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support addition between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # adding a single value to a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-
-                vs = {v.sign_extend(expr1_v.size() - v.size()) + expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {v.sign_extend(expr1_v.size() - v.size()) + expr1_v for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # adding a single value to a multivalue
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v.sign_extend(expr0_v.size() - v.size()) + expr0_v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {v.sign_extend(expr0_v.size() - v.size()) + expr0_v for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # adding two single values together
-            r = MultiValues(offset_to_values={0: {expr0_v + expr1_v}})
+            r = MultiValues(expr0_v + expr1_v)
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -575,23 +582,23 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support addition between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # subtracting a single value from a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v - expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {v - expr1_v for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # subtracting a single value from a multivalue
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {expr0_v - v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {expr0_v - v for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # subtracting a single value from another single value
-            r = MultiValues(offset_to_values={0: {expr0_v - expr1_v}})
+            r = MultiValues(expr0_v - expr1_v)
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -605,30 +612,30 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support multiplication between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # multiplying a single value to a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v * expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {v * expr1_v for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # multiplying a single value to a multivalue
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v * expr0_v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {v * expr0_v for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # multiplying two single values together
-            r = MultiValues(offset_to_values={0: {expr0_v * expr1_v}})
+            r = MultiValues(expr0_v * expr1_v)
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
     def _handle_Mull(self, expr):
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
-        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return MultiValues(self.state.top(bits))
 
     def _handle_Div(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
@@ -640,25 +647,25 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support division between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v / expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {v / expr1_v for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v / expr0_v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {v / expr0_v for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
                 if expr1_v._model_concrete.value == 0:
-                    r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+                    r = MultiValues(self.state.top(bits))
                 else:
-                    r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
+                    r = MultiValues(expr0_v / expr1_v)
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -666,7 +673,7 @@ class SimEngineRDVEX(
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
-        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -680,24 +687,24 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support addition between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # bitwise-and a single value with a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v & expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {v & expr1_v for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # bitwise-and a single value to a multivalue
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v & expr0_v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {v & expr0_v for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # bitwise-and two single values together
-                r = MultiValues(offset_to_values={0: {expr0_v & expr1_v}})
+                r = MultiValues(expr0_v & expr1_v)
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -711,24 +718,24 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support xor between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # bitwise-xor a single value with a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v.sign_extend(expr1_v.size() - v.size()) ^ expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {v.sign_extend(expr1_v.size() - v.size()) ^ expr1_v for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # bitwise-xor a single value to a multivalue
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v.sign_extend(expr0_v.size() - v.size()) ^ expr0_v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {v.sign_extend(expr0_v.size() - v.size()) ^ expr0_v for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # bitwise-xor two single values together
-                r = MultiValues(offset_to_values={0: {expr0_v ^ expr1_v}})
+                r = MultiValues(expr0_v ^ expr1_v)
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -743,23 +750,23 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support or between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # bitwise-or a single value with a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v | expr1_v for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {v | expr1_v for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # bitwise-or a single value to a multivalue
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v | expr0_v for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {v | expr0_v for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # bitwise-and two single values together
-            r = MultiValues(offset_to_values={0: {expr0_v | expr1_v}})
+            r = MultiValues(expr0_v | expr1_v)
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -785,23 +792,23 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support shifting between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # shifting a single value by a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = { _shift_sar(v, expr1_v) for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {_shift_sar(v, expr1_v) for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # shifting a multivalue by a single value
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {_shift_sar(expr0_v, v) for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {_shift_sar(expr0_v, v) for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # subtracting a single value from another single value
-            r = MultiValues(offset_to_values={0: {_shift_sar(expr0_v, expr1_v)}})
+            r = MultiValues(_shift_sar(expr0_v, expr1_v))
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -825,23 +832,23 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support shifting between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # shifting a single value by a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = { _shift_shr(v, expr1_v) for v in expr0.values[0]}
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {_shift_shr(v, expr1_v) for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # shifting a multivalue by a single value
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {_shift_shr(expr0_v, v) for v in expr1.values[0]}
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {_shift_shr(expr0_v, v) for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # shifting a single value from another single value
-            r = MultiValues(offset_to_values={0: {_shift_shr(expr0_v, expr1_v)}})
+            r = MultiValues(_shift_shr(expr0_v, expr1_v))
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -862,23 +869,23 @@ class SimEngineRDVEX(
 
         if expr0_v is None and expr1_v is None:
             # we do not support shifting between two real multivalues
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
             # shifting left a single value by a multivalue
-            if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = { _shift_shl(v, expr1_v) for v in expr0.values[0] }
+            if expr0.count() == 1 and 0 in expr0:
+                vs = {_shift_shl(v, expr1_v) for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # shifting left a multivalue by a single value
-            if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = { _shift_shl(expr0_v, v) for v in expr1.values[0] }
+            if expr1.count() == 1 and 0 in expr1:
+                vs = {_shift_shl(expr0_v, v) for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # subtracting a single value from another single value
-            r = MultiValues(offset_to_values={0: {_shift_shl(expr0_v, expr1_v)}})
+            r = MultiValues(_shift_shl(expr0_v, expr1_v))
 
         if r is None:
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            r = MultiValues(self.state.top(bits))
 
         return r
 
@@ -892,14 +899,14 @@ class SimEngineRDVEX(
 
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(offset_to_values={0: {
+                return MultiValues(
                     claripy.BVV(1, 1) if e0._model_concrete.value == e1._model_concrete.value else claripy.BVV(0, 1)
-                }})
+                )
             elif e0 is e1:
-                return MultiValues(offset_to_values={0: {claripy.BVV(1, 1)}})
-            return MultiValues(offset_to_values={0: { self.state.top(1) }})
+                return MultiValues(claripy.BVV(1, 1))
+            return MultiValues(self.state.top(1))
 
-        return MultiValues(offset_to_values={0: { self.state.top(1) }})
+        return MultiValues(self.state.top(1))
 
     def _handle_CmpNE(self, expr):
         arg0, arg1 = expr.args
@@ -910,12 +917,12 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(offset_to_values={0: {
+                return MultiValues(
                     claripy.BVV(1, 1) if e0._model_concrete.value != e1._model_concrete.value else claripy.BVV(0, 1)
-                }})
+                )
             elif e0 is e1:
-                return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
-        return MultiValues(offset_to_values={0: { self.state.top(1) }})
+                return MultiValues(claripy.BVV(0, 1))
+        return MultiValues(self.state.top(1))
 
     def _handle_CmpLT(self, expr):
         arg0, arg1 = expr.args
@@ -926,12 +933,12 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(offset_to_values={0: {
+                return MultiValues(
                     claripy.BVV(1, 1) if e0._model_concrete.value < e1._model_concrete.value else claripy.BVV(0, 1)
-                }})
+                )
             elif e0 is e1:
-                return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
-        return MultiValues(offset_to_values={0: { self.state.top(1) }})
+                return MultiValues(claripy.BVV(0, 1))
+        return MultiValues(self.state.top(1))
 
     def _handle_CmpLE(self, expr):
         arg0, arg1 = expr.args
@@ -942,12 +949,12 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(offset_to_values={0: {
+                return MultiValues(
                     claripy.BVV(1, 1) if e0._model_concrete.value <= e1._model_concrete.value else claripy.BVV(0, 1)
-                }})
+                )
             elif e0 is e1:
-                return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
-        return MultiValues(offset_to_values={0: {self.state.top(1)}})
+                return MultiValues(claripy.BVV(0, 1))
+        return MultiValues(self.state.top(1))
 
     # ppc only
     def _handle_CmpORD(self, expr):
@@ -962,21 +969,21 @@ class SimEngineRDVEX(
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 if e0 < e1:
-                    return MultiValues(offset_to_values={0: {claripy.BVV(0x8, bits)}})
+                    return MultiValues(claripy.BVV(0x8, bits))
                 elif e0 > e1:
-                    return MultiValues(offset_to_values={0: {claripy.BVV(0x4, bits)}})
+                    return MultiValues(claripy.BVV(0x4, bits))
                 else:
-                    return MultiValues(offset_to_values={0: {claripy.BVV(0x2, bits)}})
+                    return MultiValues(claripy.BVV(0x2, bits))
             elif e0 is e1:
-                return MultiValues(offset_to_values={0: {claripy.BVV(0x2, bits)}})
+                return MultiValues(claripy.BVV(0x2, bits))
 
-        return MultiValues(offset_to_values={0: { self.state.top(1) }})
+        return MultiValues(self.state.top(1))
 
     def _handle_CCall(self, expr):
         bits = expr.result_size(self.tyenv)
         for arg_expr in expr.args:
             self._expr(arg_expr)
-        return MultiValues(offset_to_values={0: { self.state.top(bits) }})
+        return MultiValues(self.state.top(bits))
 
     #
     # User defined high level statement handlers
@@ -1090,14 +1097,16 @@ class SimEngineRDVEX(
             for arg in cc.arg_locs(proto):
                 if isinstance(arg, SimRegArg):
                     reg_offset, reg_size = self.arch.registers[arg.reg_name]
+                    self.state.add_register_use(reg_offset, reg_size, code_loc)
+
                     atom = Register(reg_offset, reg_size)
-                    self.state.add_use(atom, code_loc)
                     self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimStackArg):
+                    self.state.add_stack_use(arg.stack_offset, arg.size, self.arch.memory_endness, code_loc)
+
                     atom = MemoryLocation(SpOffset(self.arch.bits,
                                           arg.stack_offset),
                                           arg.size * self.arch.byte_width)
-                    self.state.add_use(atom, code_loc)
                     self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimStructArg):
                     min_stack_offset = None
@@ -1108,23 +1117,26 @@ class SimEngineRDVEX(
                             elif min_stack_offset > subargloc.stack_offset:
                                 min_stack_offset = subargloc.stack_offset
                         elif isinstance(subargloc, SimRegArg):
+                            self.state.add_register_use(subargloc.reg_offset, subargloc.size, code_loc)
+
                             atom = Register(subargloc.reg_offset, subargloc.size)
-                            self.state.add_use(atom, code_loc)
                             self._tag_definitions_of_atom(atom, func_addr_int)
 
                     if min_stack_offset is not None:
+                        self.state.add_stack_use(min_stack_offset, arg.size, self.arch.memory_endness, code_loc)
+
                         atom = MemoryLocation(SpOffset(self.arch.bits,
                                               min_stack_offset),
                                               arg.size * self.arch.byte_width)
-                        self.state.add_use(atom, code_loc)
                         self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimArrayArg):
                     min_stack_offset = None
                     max_stack_loc = None
                     for subargloc in arg.locs:
                         if isinstance(subargloc, SimRegArg):
+                            self.state.add_register_use(subargloc.reg_offset, subargloc.size, code_loc)
+
                             atom = Register(subargloc.reg_offset, subargloc.size)
-                            self.state.add_use(atom, code_loc)
                             self._tag_definitions_of_atom(atom, func_addr_int)
                         elif isinstance(subargloc, SimStackArg):
                             if min_stack_offset is None:
@@ -1139,14 +1151,15 @@ class SimEngineRDVEX(
                             raise TypeError("Unsupported argument type %s" % type(subargloc))
 
                     if min_stack_offset is not None:
+                        self.state.add_stack_use(min_stack_offset, max_stack_loc - min_stack_offset,
+                                                 self.arch.memory_endness, code_loc)
+
                         atom = MemoryLocation(SpOffset(self.arch.bits,
                                               min_stack_offset),
                                               max_stack_loc - min_stack_offset)
-                        self.state.add_use(atom, code_loc)
                         self._tag_definitions_of_atom(atom, func_addr_int)
                 else:
                     raise TypeError("Unsupported argument type %s" % type(arg))
-
 
         if cc.RETURN_VAL is not None:
             if isinstance(cc.RETURN_VAL, SimRegArg):
@@ -1159,7 +1172,7 @@ class SimEngineRDVEX(
                 self.state.kill_and_add_definition(
                     atom,
                     self._codeloc(),
-                    MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
+                    MultiValues(self.state.top(reg_size * self.arch.byte_width)),
                     tags={tag},
                 )
 
@@ -1186,7 +1199,7 @@ class SimEngineRDVEX(
                     metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
                 )
                 self.state.kill_and_add_definition(atom, self._codeloc(),
-                                                   MultiValues(offset_to_values={0: {sp_addr}}),
+                                                   MultiValues(sp_addr),
                                                    tags={tag},
                                                    )
 

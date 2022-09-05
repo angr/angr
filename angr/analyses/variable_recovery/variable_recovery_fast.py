@@ -482,7 +482,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
             sp_v = sp.one_value()
             if sp_v is None:
                 l.warning("Unexpected stack pointer value at the end of the function. Pick the first one.")
-                sp_v = next(iter(next(iter(sp.values.values()))))
+                sp_v = next(iter(next(iter(sp.values()))))
 
             adjusted = False
 

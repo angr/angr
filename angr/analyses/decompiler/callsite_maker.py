@@ -212,7 +212,7 @@ class CallSiteMaker(Analysis):
             except SimMemoryMissingError:
                 return None, None
             values_and_defs_ = set()
-            for values in vs.values.values():
+            for values in vs.values():
                 for value in values:
                     if value.concrete:
                         concrete_value = value._model_concrete.value
