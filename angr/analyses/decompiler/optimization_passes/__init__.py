@@ -7,6 +7,7 @@ from .optimization_pass import OptimizationPassStage
 from .stack_canary_simplifier import StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .expr_op_swapper import ExprOpSwapper
+from .goto_simplifier import RedundantGotoSimplifier
 from .ite_expr_converter import ITEExprConverter
 from .multi_simplifier import MultiSimplifier
 from .div_simplifier import DivSimplifier
@@ -31,6 +32,7 @@ _all_optimization_passes = [
     (EagerReturnsSimplifier, True),
     (ITEExprConverter, True),
     (ExprOpSwapper, True),
+    (RedundantGotoSimplifier, True),
 ]
 
 def get_optimization_passes(arch, platform):
