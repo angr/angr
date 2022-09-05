@@ -658,6 +658,9 @@ class VariableManagerInternal(Serializable):
         :return:        None
         """
 
+        def _id_from_varident(ident: str) -> int:
+            return int(ident[ident.find("_") + 1:])
+
         if not self._unified_variables:
             return
 
@@ -667,7 +670,7 @@ class VariableManagerInternal(Serializable):
 
         for var in self._unified_variables:
             if isinstance(var, SimStackVariable):
-                if var.ident and var.ident.startswith('iarg_'):
+                if var.ident and var.ident.startswith('arg_'):
                     arg_vars.append(var)
                 else:
                     sorted_stack_variables.append(var)
@@ -695,7 +698,7 @@ class VariableManagerInternal(Serializable):
         var_ctr = count(0)
 
         sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: v.offset)
-        sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: v.reg)
+        sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: _id_from_varident(v.ident))
 
         for var in chain(sorted_stack_variables, sorted_reg_variables):
             idx = next(var_ctr)
@@ -710,7 +713,7 @@ class VariableManagerInternal(Serializable):
 
         # rename arguments but keeping the original order
         arg_ctr = count(0)
-        arg_vars = sorted(arg_vars, key=lambda v: int(v.ident[v.ident.index("_")+1:]) if v.ident else 0)
+        arg_vars = sorted(arg_vars, key=lambda v: _id_from_varident(v.ident))
         for var in arg_vars:
             idx = next(arg_ctr)
             if var.name is not None and not reset:
@@ -787,17 +790,17 @@ class VariableManagerInternal(Serializable):
                 self.set_unified_variable(v, unified)
 
         # unify register variables based on phi nodes
-        graph = networkx.Graph()
+        graph = networkx.DiGraph()  # an edge v1 -> v2 means v2 is the phi variable for v1
         for v, subvs in self._phi_variables.items():
             if not isinstance(v, SimRegisterVariable):
                 continue
             for subv in subvs:
-                graph.add_edge(v, subv)
+                graph.add_edge(subv, v)
 
         # prune the graph: remove nodes that have never been used
         while True:
             unused_nodes = set()
-            for node in [ nn for nn in graph.nodes() if graph.degree[nn] == 1]:
+            for node in [ nn for nn in graph.nodes() if graph.out_degree[nn] == 0]:
                 if not self.get_variable_accesses(node):
                     # this node has never been used - discard it
                     unused_nodes.add(node)
@@ -806,7 +809,12 @@ class VariableManagerInternal(Serializable):
             else:
                 break
 
-        for nodes in networkx.connected_components(graph):
+        # convert the directional graph into a non-directional graph
+        graph_ = networkx.Graph()
+        graph_.add_nodes_from(graph.nodes)
+        graph_.add_edges_from(graph.edges)
+
+        for nodes in networkx.connected_components(graph_):
             if len(nodes) <= 1:
                 continue
             nodes = list(nodes)
