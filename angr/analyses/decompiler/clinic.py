@@ -186,7 +186,7 @@ class Clinic(Analysis):
 
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
-        self._update_progress(38., text="Simplifying blocks 2")
+        self._update_progress(48., text="Simplifying blocks 2")
         ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False,
                                           cache=block_simplification_cache)
 
