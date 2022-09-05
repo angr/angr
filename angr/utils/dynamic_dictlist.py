@@ -1,7 +1,13 @@
+import platform
 from typing import Optional, Union, Dict, List, Generic, TypeVar
 
 
-LIST2DICT_THRESHOLD = 256
+# Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950
+if platform.python_implementation() == "PyPy":
+    LIST2DICT_THRESHOLD = 96
+else:
+    # cpython
+    LIST2DICT_THRESHOLD = 2048
 
 
 VT = TypeVar("VT")
