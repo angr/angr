@@ -401,12 +401,12 @@ class VariableManagerInternal(Serializable):
         if len(existing_phis) >= 1:
             # iterate through existing phi variables to see if any of it is already used as the phi variable for this
             # block. if so, we reuse it to avoid redundant variable allocations
-            for existing_phi in existing_phis:
-                if block_addr in self._phi_variables_by_block and existing_phi in self._phi_variables_by_block[block_addr]:
-                    if not non_phis.issubset(self.get_phi_subvariables(existing_phi)):
+            for phi in existing_phis:
+                if block_addr in self._phi_variables_by_block and phi in self._phi_variables_by_block[block_addr]:
+                    if not non_phis.issubset(self.get_phi_subvariables(phi)):
                         # Update the variables that this phi variable represents
-                        self._phi_variables[existing_phi] |= non_phis
-                    return existing_phi
+                        self._phi_variables[phi] |= non_phis
+                    return phi
 
         # allocate a new phi variable
         repre = next(iter(variables))
