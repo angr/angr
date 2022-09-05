@@ -356,8 +356,8 @@ class SimEngineRDVEX(
         size = bits // self.arch.byte_width
 
         # convert addr from MultiValues to a list of valid addresses
-        if addr.count() == 1:
-            addrs = [ addr.one_value() ]
+        if addr.count() == 1 and 0 in addr:
+            addrs = list(addr[0])
             return self._load_core(addrs, size, expr.endness)
 
         top = self.state.top(bits)
@@ -372,13 +372,18 @@ class SimEngineRDVEX(
     def _load_core(self, addrs: Iterable[claripy.ast.Base], size: int, endness: str) -> MultiValues:
 
         result: Optional[MultiValues] = None
+        # we may get more than one stack addrs with the same value but different annotations (because they are defined
+        # at different locations). only load them once.
+        loaded_stack_offsets = set()
+
         for addr in addrs:
             if self.state.is_top(addr):
                 l.debug('Memory address undefined, ins_addr = %#x.', self.ins_addr)
             elif self.state.is_stack_address(addr):
                 # Load data from a local variable
                 stack_offset = self.state.get_stack_offset(addr)
-                if stack_offset is not None:
+                if stack_offset is not None and stack_offset not in loaded_stack_offsets:
+                    loaded_stack_offsets.add(stack_offset)
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
                         vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=endness)
