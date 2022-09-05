@@ -2578,6 +2578,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # TODO: the logic needs more testing
 
                 sec = self.project.loader.find_section_containing(data_addr)
+                if sec is None:
+                    sec = self.project.loader.find_section_containing(data_addr - 1)
                 next_sec_addr = None
                 if sec is not None:
                     last_addr = sec.vaddr + sec.memsize
@@ -2589,6 +2591,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         next_sec_addr = next_sec.vaddr
 
                     seg = self.project.loader.find_segment_containing(data_addr)
+                    if seg is None:
+                        seg = self.project.loader.find_segment_containing(data_addr - 1)
                     if seg is not None:
                         last_addr = seg.vaddr + seg.memsize
                     else:
@@ -2611,8 +2615,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if boundary is not None:
                     data.max_size = boundary - data_addr
 
-                if data.max_size is None:
-                    print('wtf')
+                assert data.max_size is not None
 
         keys = sorted(self._memory_data.keys())
 
