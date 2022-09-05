@@ -1,10 +1,13 @@
-from typing import Optional, Union, Dict, List, Any
+from typing import Optional, Union, Dict, List, Generic, TypeVar
 
 
 LIST2DICT_THRESHOLD = 256
 
 
-class DynamicDictList:
+VT = TypeVar("VT")
+
+
+class DynamicDictList(Generic[VT]):
     """
     A list-like container class that internally uses dicts to store values when the number of values is less than the
     threshold. Keys must be ints.
@@ -14,9 +17,9 @@ class DynamicDictList:
 
     def __init__(self,
                  max_size: Optional[int]=None,
-                 content: Optional[Union['DynamicDictList',Dict[int,Any],List[Any]]]=None):
-        self.list_content = None
-        self.dict_content = None
+                 content: Optional[Union['DynamicDictList',Dict[int,VT],List[VT]]]=None):
+        self.list_content: Optional[List[VT]] = None
+        self.dict_content: Optional[Dict[int,VT]] = None
         self.max_size = max_size
 
         if content:
@@ -24,7 +27,7 @@ class DynamicDictList:
         else:
             self.dict_content = { }
 
-    def _initialize_content(self, content):
+    def _initialize_content(self, content) -> None:
 
         if isinstance(content, DynamicDictList):
             # make a copy
@@ -53,15 +56,15 @@ class DynamicDictList:
             return len(self.dict_content)
         return len(self.list_content)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.max_size
 
-    def __getitem__(self, key: int):
+    def __getitem__(self, key: int) -> VT:
         if self.dict_content is not None:
             return self.dict_content.get(key, None)
         return self.list_content[key]
 
-    def __setitem__(self, key: int, value: Any):
+    def __setitem__(self, key: int, value: VT) -> None:
         if self.dict_content is not None:
             self.dict_content[key] = value
             if len(self.dict_content) >= LIST2DICT_THRESHOLD:
