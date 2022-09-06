@@ -198,16 +198,16 @@ class RegionIdentifier(Analysis):
         # node.
         subgraph = networkx.DiGraph()
 
-        while new_exit_nodes:
+        while len(refined_exit_nodes) > 1 and new_exit_nodes:
             new_exit_nodes = set()
-            for n in list(refined_exit_nodes):
-                preds = list(graph.predecessors(n))
-                if all(pred in refined_loop_nodes for pred in preds) and dominates(idom, head, n):
+            for n in list(sorted(refined_exit_nodes,
+                                 key=lambda nn: (nn.addr, nn.idx if isinstance(nn, ailment.Block) else None))):
+                if all(pred in refined_loop_nodes for pred in graph.predecessors(n)) and dominates(idom, head, n):
                     refined_loop_nodes.add(n)
                     refined_exit_nodes.remove(n)
-                    to_append = set(graph.successors(n)) - refined_loop_nodes
-                    new_exit_nodes |= to_append
-                    for succ in to_append:
+                    to_add = set(graph.successors(n)) - refined_loop_nodes
+                    new_exit_nodes |= to_add
+                    for succ in to_add:
                         subgraph.add_edge(n, succ)
             refined_exit_nodes |= new_exit_nodes
 
