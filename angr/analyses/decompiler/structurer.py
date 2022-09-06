@@ -1348,7 +1348,7 @@ class Structurer(Analysis):
         :return:                    A processed SequenceNode.
         """
 
-        def _handle_Block(node: ailment.Block, **kwargs):
+        def _handle_Block(node: ailment.Block, **kwargs):  # pylint:disable=unused-argument
             if node.statements \
                     and isinstance(node.statements[-1], ailment.Stmt.Jump) \
                     and isinstance(node.statements[-1].target, ailment.Expr.Const):
@@ -1724,4 +1724,4 @@ register_analysis(RecursiveStructurer, 'RecursiveStructurer')
 register_analysis(Structurer, 'Structurer')
 
 # delayed import
-from .sequence_walker import SequenceWalker
+from .sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position
