@@ -182,7 +182,7 @@ class Clinic(Analysis):
 
         # Simplify the entire function for the first time
         self._update_progress(45., text="Simplifying function 1")
-        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False)
+        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False, narrow_expressions=True)
 
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
