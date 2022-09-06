@@ -345,18 +345,19 @@ class SimEnginePropagatorAIL(
                 self.state.add_replacement(self._codeloc(), expr.addr, addr_expr)
 
             sp_offset = self.extract_offset_to_sp(addr_expr)
-            if sp_offset is not None and getattr(expr, "func_arg", False) is True:
+            if sp_offset is not None:
                 # Stack variable.
-                # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
-                # replacing stack variables, unless this is the parameter of a call (indicated by expr.func_arg is
-                # True).
                 var = self.state.load_stack_variable(sp_offset, expr.size, endness=expr.endness)
                 if var is not None:
                     var_defat = var.one_defat
-                    if (self.state._gp is not None
-                            and not self.state.is_top(var.value)
-                            and var.value.concrete
-                            and var.value._model_concrete.value == self.state._gp):
+                    # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
+                    # replacing stack variables, unless this is the parameter of a call (indicated by expr.func_arg is
+                    # True).
+                    if getattr(expr, "func_arg", False) is True \
+                            or (self.state._gp is not None
+                                and not self.state.is_top(var.value)
+                                and var.value.concrete
+                                and var.value._model_concrete.value == self.state._gp):
                         if var.one_expr is not None:
                             if not self.is_using_outdated_def(var.one_expr, var.one_defat, avoid=expr.addr):
                                 l.debug("Add a replacement: %s with %s", expr, var.one_expr)
