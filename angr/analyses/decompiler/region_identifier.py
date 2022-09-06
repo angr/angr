@@ -194,24 +194,21 @@ class RegionIdentifier(Analysis):
         idom = networkx.immediate_dominators(graph, self._start_node)
 
         new_exit_nodes = refined_exit_nodes
-        newnode_to_initial_exits = defaultdict(set)
+        # a graph with only initial exit nodes and new loop nodes that are reachable from at least one initial exit
+        # node.
+        subgraph = networkx.DiGraph()
 
         while new_exit_nodes:
             new_exit_nodes = set()
             for n in list(refined_exit_nodes):
                 preds = list(graph.predecessors(n))
                 if all(pred in refined_loop_nodes for pred in preds) and dominates(idom, head, n):
-                    if n not in initial_exit_nodes:
-                        # this node is within the successor tree of at least one initial exit node
-                        for pred in preds:
-                            if pred in initial_exit_nodes:
-                                newnode_to_initial_exits[n].add(pred)
-                            else:
-                                newnode_to_initial_exits[n] |= newnode_to_initial_exits[pred]
-
                     refined_loop_nodes.add(n)
                     refined_exit_nodes.remove(n)
-                    new_exit_nodes |= set(graph.successors(n)) - refined_loop_nodes
+                    to_append = set(graph.successors(n)) - refined_loop_nodes
+                    new_exit_nodes |= to_append
+                    for succ in to_append:
+                        subgraph.add_edge(n, succ)
             refined_exit_nodes |= new_exit_nodes
 
         refined_loop_nodes = refined_loop_nodes - refined_exit_nodes
@@ -219,17 +216,27 @@ class RegionIdentifier(Analysis):
         if self._largest_successor_tree_outside_loop and not refined_exit_nodes:
             # figure out the new successor tree with the highest number of nodes
             initial_exit_to_newnodes = defaultdict(set)
+            newnode_to_initial_exits = defaultdict(set)
+            for initial_exit in initial_exit_nodes:
+                if initial_exit in subgraph:
+                    for _, succs in networkx.bfs_successors(subgraph, initial_exit):
+                        initial_exit_to_newnodes[initial_exit] |= set(succs)
+                        for succ in succs:
+                            newnode_to_initial_exits[succ].add(initial_exit)
+
             for newnode, exits in newnode_to_initial_exits.items():
                 for exit_ in exits:
                     initial_exit_to_newnodes[exit_].add(newnode)
-            tree_sizes = dict((exit_, len(initial_exit_to_newnodes[exit_])) for exit_ in initial_exit_to_newnodes)
-            max_tree_size = max(tree_sizes.values())
-            if list(tree_sizes.values()).count(max_tree_size) == 1:
-                tree_size_to_exit = dict((v, k) for k, v in tree_sizes.items())
-                max_size_exit = tree_size_to_exit[max_tree_size]
-                if all(len(newnode_to_initial_exits[nn]) == 1 for nn in initial_exit_to_newnodes[max_size_exit]):
-                    refined_loop_nodes = refined_loop_nodes - initial_exit_to_newnodes[max_size_exit] - {max_size_exit}
-                    refined_exit_nodes.add(max_size_exit)
+            if initial_exit_to_newnodes:
+                tree_sizes = dict((exit_, len(initial_exit_to_newnodes[exit_])) for exit_ in initial_exit_to_newnodes)
+                max_tree_size = max(tree_sizes.values())
+                if list(tree_sizes.values()).count(max_tree_size) == 1:
+                    tree_size_to_exit = dict((v, k) for k, v in tree_sizes.items())
+                    max_size_exit = tree_size_to_exit[max_tree_size]
+                    if all(len(newnode_to_initial_exits[nn]) == 1 for nn in initial_exit_to_newnodes[max_size_exit]):
+                        refined_loop_nodes = refined_loop_nodes - \
+                                             initial_exit_to_newnodes[max_size_exit] - {max_size_exit}
+                        refined_exit_nodes.add(max_size_exit)
 
         return refined_loop_nodes, refined_exit_nodes
 
