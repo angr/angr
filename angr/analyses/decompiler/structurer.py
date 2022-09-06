@@ -539,7 +539,7 @@ class Structurer(Analysis):
         self._merge_same_conditioned_nodes(seq)
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
-        self._remove_redundant_jumps(seq)
+        self._remove_all_jumps(seq)
 
         empty_node_remover = EmptyNodeRemover(seq)
         new_seq = empty_node_remover.result
@@ -1085,7 +1085,7 @@ class Structurer(Analysis):
     @staticmethod
     def _switch_handle_gotos(cases, default, switch_end_addr):
         """
-        For each case, convert the goto that goes to outside of the switch-case to a break statement.
+        For each case, convert the goto that goes outside of the switch-case to a break statement.
 
         :param dict cases:              A dict of switch-cases.
         :param default:                 The default node.
@@ -1338,6 +1338,33 @@ class Structurer(Analysis):
     #
     # Other methods
     #
+
+    @staticmethod
+    def _remove_all_jumps(seq):
+        """
+        Remove all constant jumps.
+
+        :param SequenceNode seq:    The SequenceNode instance to handle.
+        :return:                    A processed SequenceNode.
+        """
+
+        def _handle_Block(node: ailment.Block, **kwargs):  # pylint:disable=unused-argument
+            if node.statements \
+                    and isinstance(node.statements[-1], ailment.Stmt.Jump) \
+                    and isinstance(node.statements[-1].target, ailment.Expr.Const):
+                # remove the jump
+                node.statements = node.statements[:-1]
+
+            return node
+
+        handlers = {
+            ailment.Block: _handle_Block,
+        }
+
+        walker = SequenceWalker(handlers=handlers)
+        walker.walk(seq)
+
+        return seq
 
     @staticmethod
     def _remove_redundant_jumps(seq):
@@ -1697,4 +1724,4 @@ register_analysis(RecursiveStructurer, 'RecursiveStructurer')
 register_analysis(Structurer, 'Structurer')
 
 # delayed import
-from .sequence_walker import SequenceWalker
+from .sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position
