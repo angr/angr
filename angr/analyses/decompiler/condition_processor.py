@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Generator, Dict, Any, Optional, Set
+from typing import Generator, Dict, Any, Optional, Set, List
 import operator
 import logging
 
@@ -331,7 +331,7 @@ class ConditionProcessor:
         raise NotImplementedError()
 
     @classmethod
-    def get_last_statements(cls, block):
+    def get_last_statements(cls, block) -> List[Optional[ailment.Stmt.Statement]]:
         if type(block) is SequenceNode:
             for last_node in reversed(block.nodes):
                 try:
@@ -374,9 +374,13 @@ class ConditionProcessor:
                     s.extend(last_stmts)
                 except EmptyBlockNotice:
                     pass
+            else:
+                s.append(None)
             if block.false_node:
                 last_stmts = cls.get_last_statements(block.false_node)
                 s.extend(last_stmts)
+            else:
+                s.append(None)
             return s
         if type(block) is CascadingConditionNode:
             s = [ ]
@@ -386,6 +390,8 @@ class ConditionProcessor:
                     s.extend(last_stmts)
                 except EmptyBlockNotice:
                     pass
+            else:
+                s.append(None)
             for _, node in block.condition_and_nodes:
                 last_stmts = cls.get_last_statements(node)
                 s.extend(last_stmts)
@@ -400,6 +406,8 @@ class ConditionProcessor:
                 s.extend(cls.get_last_statements(case))
             if block.default_node is not None:
                 s.extend(cls.get_last_statements(block.default_node))
+            else:
+                s.append(None)
             return s
         if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.
