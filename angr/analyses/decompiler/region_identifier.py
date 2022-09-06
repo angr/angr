@@ -1,4 +1,5 @@
 from itertools import count
+from collections import defaultdict
 import logging
 from typing import List, Optional
 
@@ -26,7 +27,7 @@ class RegionIdentifier(Analysis):
     """
     Identifies regions within a function.
     """
-    def __init__(self, func, cond_proc=None, graph=None):
+    def __init__(self, func, cond_proc=None, graph=None, largest_successor_tree_outside_loop=True):
         self.function = func
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(
             self.project.arch if self.project is not None else None  # it's only None in test cases
@@ -37,6 +38,7 @@ class RegionIdentifier(Analysis):
         self._start_node = None
         self._loop_headers: Optional[List] = None
         self.regions_by_block_addrs = []
+        self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
 
         self._analyze()
 
@@ -183,23 +185,58 @@ class RegionIdentifier(Analysis):
         return nodes
 
     def _refine_loop(self, graph: networkx.DiGraph, head, initial_loop_nodes, initial_exit_nodes):
+        if len(initial_exit_nodes) <= 1:
+            return initial_loop_nodes, initial_exit_nodes
+
         refined_loop_nodes = initial_loop_nodes.copy()
         refined_exit_nodes = initial_exit_nodes.copy()
 
         idom = networkx.immediate_dominators(graph, self._start_node)
 
         new_exit_nodes = refined_exit_nodes
+        # a graph with only initial exit nodes and new loop nodes that are reachable from at least one initial exit
+        # node.
+        subgraph = networkx.DiGraph()
+
         while len(refined_exit_nodes) > 1 and new_exit_nodes:
             new_exit_nodes = set()
-            for n in list(refined_exit_nodes):
+            for n in list(sorted(refined_exit_nodes,
+                                 key=lambda nn: (nn.addr, nn.idx if isinstance(nn, ailment.Block) else None))):
                 if all(pred in refined_loop_nodes for pred in graph.predecessors(n)) and dominates(idom, head, n):
                     refined_loop_nodes.add(n)
                     refined_exit_nodes.remove(n)
-                    for u in (set(graph.successors(n)) - refined_loop_nodes):
-                        new_exit_nodes.add(u)
+                    to_add = set(graph.successors(n)) - refined_loop_nodes
+                    new_exit_nodes |= to_add
+                    for succ in to_add:
+                        subgraph.add_edge(n, succ)
             refined_exit_nodes |= new_exit_nodes
 
         refined_loop_nodes = refined_loop_nodes - refined_exit_nodes
+
+        if self._largest_successor_tree_outside_loop and not refined_exit_nodes:
+            # figure out the new successor tree with the highest number of nodes
+            initial_exit_to_newnodes = defaultdict(set)
+            newnode_to_initial_exits = defaultdict(set)
+            for initial_exit in initial_exit_nodes:
+                if initial_exit in subgraph:
+                    for _, succs in networkx.bfs_successors(subgraph, initial_exit):
+                        initial_exit_to_newnodes[initial_exit] |= set(succs)
+                        for succ in succs:
+                            newnode_to_initial_exits[succ].add(initial_exit)
+
+            for newnode, exits in newnode_to_initial_exits.items():
+                for exit_ in exits:
+                    initial_exit_to_newnodes[exit_].add(newnode)
+            if initial_exit_to_newnodes:
+                tree_sizes = dict((exit_, len(initial_exit_to_newnodes[exit_])) for exit_ in initial_exit_to_newnodes)
+                max_tree_size = max(tree_sizes.values())
+                if list(tree_sizes.values()).count(max_tree_size) == 1:
+                    tree_size_to_exit = dict((v, k) for k, v in tree_sizes.items())
+                    max_size_exit = tree_size_to_exit[max_tree_size]
+                    if all(len(newnode_to_initial_exits[nn]) == 1 for nn in initial_exit_to_newnodes[max_size_exit]):
+                        refined_loop_nodes = refined_loop_nodes - \
+                                             initial_exit_to_newnodes[max_size_exit] - {max_size_exit}
+                        refined_exit_nodes.add(max_size_exit)
 
         return refined_loop_nodes, refined_exit_nodes
 
