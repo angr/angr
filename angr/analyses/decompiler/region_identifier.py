@@ -405,7 +405,8 @@ class RegionIdentifier(Analysis):
                 last_stmts = self.cond_proc.get_last_statements(src)
                 for last_stmt in last_stmts:
                     if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-                        if last_stmt.true_target.value == succ.addr:
+                        if isinstance(last_stmt.true_target, ailment.Expr.Const) \
+                                and last_stmt.true_target.value == succ.addr:
                             new_last_stmt = ailment.Stmt.ConditionalJump(
                                 last_stmt.idx,
                                 last_stmt.condition,
@@ -413,7 +414,8 @@ class RegionIdentifier(Analysis):
                                 last_stmt.false_target,
                                 ins_addr=last_stmt.ins_addr,
                             )
-                        elif last_stmt.false_target.value == succ.addr:
+                        elif isinstance(last_stmt.false_target, ailment.Expr.Const) \
+                                and last_stmt.false_target.value == succ.addr:
                             new_last_stmt = ailment.Stmt.ConditionalJump(
                                 last_stmt.idx,
                                 last_stmt.condition,
