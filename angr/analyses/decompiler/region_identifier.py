@@ -220,15 +220,16 @@ class RegionIdentifier(Analysis):
             # figure out the new successor tree with the highest number of nodes
             initial_exit_to_newnodes = defaultdict(set)
             for newnode, exits in newnode_to_initial_exits.items():
-                for exit in exits:
-                    initial_exit_to_newnodes[exit].add(newnode)
-            tree_sizes = dict((exit, len(initial_exit_to_newnodes[exit])) for exit in initial_exit_to_newnodes)
+                for exit_ in exits:
+                    initial_exit_to_newnodes[exit_].add(newnode)
+            tree_sizes = dict((exit_, len(initial_exit_to_newnodes[exit_])) for exit_ in initial_exit_to_newnodes)
             max_tree_size = max(tree_sizes.values())
             if list(tree_sizes.values()).count(max_tree_size) == 1:
                 tree_size_to_exit = dict((v, k) for k, v in tree_sizes.items())
                 max_size_exit = tree_size_to_exit[max_tree_size]
-                refined_loop_nodes = refined_loop_nodes - initial_exit_to_newnodes[max_size_exit] - {max_size_exit}
-                refined_exit_nodes.add(max_size_exit)
+                if all(len(newnode_to_initial_exits[nn]) == 1 for nn in initial_exit_to_newnodes[max_size_exit]):
+                    refined_loop_nodes = refined_loop_nodes - initial_exit_to_newnodes[max_size_exit] - {max_size_exit}
+                    refined_exit_nodes.add(max_size_exit)
 
         return refined_loop_nodes, refined_exit_nodes
 
