@@ -273,7 +273,7 @@ class PropagatorAILState(PropagatorState):
     """
 
     __slots__ = ('_registers', '_stack_variables', '_tmps', 'temp_expressions', 'register_expressions',
-                 '_inside_call_stmt', 'last_stack_store', 'global_stores')
+                 'last_stack_store', 'global_stores')
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None, gp=None):
@@ -289,7 +289,6 @@ class PropagatorAILState(PropagatorState):
         self._tmps = {}
         self.temp_expressions = { }
         self.register_expressions = { }
-        self._inside_call_stmt = False  # temporary variable that is only used internally
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)

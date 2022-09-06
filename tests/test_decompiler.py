@@ -447,6 +447,10 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert False, "Call to convert() is not found in decompilation output."
 
+        # propagator should not replace stack variables
+        assert "free(v" in code
+        assert "free(NULL" not in code and "free(0" not in code
+
     def test_decompiling_libsoap(self):
 
         bin_path = os.path.join(test_location, "armel", "libsoap.so")
@@ -966,7 +970,7 @@ class TestDecompiler(unittest.TestCase):
         f = p.kb.functions['usage']
         d = p.analyses.Decompiler(f, cfg=cfg.model)
         assert d.codegen is not None, "Failed to decompile function %r." % f
-        l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
+        self._print_decompilation_result(d)
 
         assert '"Usage: %s [OPTION]... [FILE]...\\n"' in d.codegen.text
         assert '"Write each FILE to standard output, with line numbers added.\\nWith no FILE, or when FILE is -,' \

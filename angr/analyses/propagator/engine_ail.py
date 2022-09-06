@@ -138,8 +138,6 @@ class SimEnginePropagatorAIL(
         if isinstance(expr_stmt.target, Expr.Expression):
             _ = self._expr(expr_stmt.target)
 
-        self.state._inside_call_stmt = True
-
         if expr_stmt.args:
             for arg in expr_stmt.args:
                 _ = self._expr(arg)
@@ -171,8 +169,6 @@ class SimEnginePropagatorAIL(
                 self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
             else:
                 l.warning("Unsupported ret_expr type %s.", expr_stmt.ret_expr.__class__)
-
-        self.state._inside_call_stmt = False
 
     def _ail_handle_ConditionalJump(self, stmt):
         _ = self._expr(stmt.condition)
@@ -355,8 +351,9 @@ class SimEnginePropagatorAIL(
                 if var is not None:
                     var_defat = var.one_defat
                     # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
-                    # replacing stack variables, unless this is in the middle of a call statement.
-                    if self.state._inside_call_stmt \
+                    # replacing stack variables, unless this is the parameter of a call (indicated by expr.func_arg is
+                    # True).
+                    if getattr(expr, "func_arg", False) is True \
                             or (self.state._gp is not None
                                 and not self.state.is_top(var.value)
                                 and var.value.concrete
@@ -525,13 +522,9 @@ class SimEnginePropagatorAIL(
         if isinstance(expr_stmt.target, Expr.Expression):
             _ = self._expr(expr_stmt.target)
 
-        self.state._inside_call_stmt = True
-
         if expr_stmt.args:
             for arg in expr_stmt.args:
                 _ = self._expr(arg)
-
-        self.state._inside_call_stmt = False
 
         # ignore ret_expr
         return PropValue.from_value_and_details(

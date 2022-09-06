@@ -246,12 +246,14 @@ class CallSiteMaker(Analysis):
 
         # TODO: Support extracting values
 
-        return None, Expr.Load(self._atom_idx(),
-                         Expr.Register(self._atom_idx(), None, self.project.arch.sp_offset, self.project.arch.bits) +
-                            Expr.Const(self._atom_idx(), None, offset, self.project.arch.bits),
-                         size,
-                         self.project.arch.memory_endness,
-                         )
+        return None, Expr.Load(
+            self._atom_idx(),
+            Expr.Register(self._atom_idx(), None, self.project.arch.sp_offset, self.project.arch.bits) +
+            Expr.Const(self._atom_idx(), None, offset, self.project.arch.bits),
+            size,
+            self.project.arch.memory_endness,
+            func_arg=True,
+        )
 
     @staticmethod
     def _get_call_target(stmt):
