@@ -958,7 +958,7 @@ class TestDecompiler(unittest.TestCase):
         assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
         assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
         assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.expr.operand.variable == stmts[2].lhs.variable
+        assert dw.condition.lhs.operand.variable == stmts[2].lhs.variable
 
     def test_decompiling_nl_i386_pie(self):
         bin_path = os.path.join(test_location, "i386", "nl")
