@@ -13,6 +13,8 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
 
         if isinstance(expr.operand, Convert):
             inner = expr.operand
+            if inner.from_bits == expr.to_bits:
+                return inner.operand
             return Convert(expr.idx, inner.from_bits, expr.to_bits, expr.is_signed, inner.operand,
                            **expr.tags)
 

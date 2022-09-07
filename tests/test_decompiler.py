@@ -1148,10 +1148,10 @@ class TestDecompiler(unittest.TestCase):
 
         # find the statement "v2 = v0 / 3"
         div3 = [ line for line in lines if re.match(retexpr + r" = v\d+ / 3;", line.strip(" ")) is not None]
-        assert len(div3) == 1, "Cannot find statement v2 = v0 / 3."
+        assert len(div3) == 1, f"Cannot find statement {retexpr} = v0 / 3."
         # find the statement "v2 = v0 * 7"
         mul7 = [line for line in lines if re.match(retexpr + r" = v\d+ \* 7;", line.strip(" ")) is not None]
-        assert len(mul7) == 1, "Cannot find statement v2 = v0 * 7."
+        assert len(mul7) == 1, f"Cannot find statement {retexpr} = v0 * 7."
 
     def test_decompiling_simple_ctfbin_modulo(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "simple_ctfbin_modulo")

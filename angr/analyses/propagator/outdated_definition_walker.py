@@ -36,7 +36,8 @@ class OutdatedDefinitionWalker(AILBlockWalker):
     # pylint:disable=unused-argument
     def _handle_Register(self, expr_idx: int, reg_expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment,
                          block: Optional[Block]):
-        if self.avoid is not None and reg_expr.likes(self.avoid):
+        if self.avoid is not None and isinstance(self.avoid, Expr.Register) and (
+                reg_expr.likes(self.avoid) or self._reg_overlap(reg_expr, self.avoid)):
             self.out_dated = True
         else:
             v = self.state.load_register(reg_expr)
@@ -144,3 +145,11 @@ class OutdatedDefinitionWalker(AILBlockWalker):
 
         if not self.out_dated:
             super()._handle_VEXCCallExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+    @staticmethod
+    def _reg_overlap(reg0: Expr.Register, reg1: Expr.Register) -> bool:
+        if reg0.reg_offset <= reg1.reg_offset < reg0.reg_offset + reg0.size:
+            return True
+        if reg1.reg_offset <= reg0.reg_offset < reg1.reg_offset + reg1.size:
+            return True
+        return False

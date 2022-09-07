@@ -326,7 +326,8 @@ class SimEnginePropagatorAIL(
             if not replaced:
                 l.debug("Add a replacement: %s with TOP", expr)
                 self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits))
-            return new_expr
+            else:
+                return new_expr
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
