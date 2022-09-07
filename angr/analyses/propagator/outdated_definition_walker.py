@@ -148,8 +148,8 @@ class OutdatedDefinitionWalker(AILBlockWalker):
 
     @staticmethod
     def _reg_overlap(reg0: Expr.Register, reg1: Expr.Register) -> bool:
-        if reg0.reg_offset <= reg1.reg_offset <= reg0.reg_offset + reg0.size:
+        if reg0.reg_offset <= reg1.reg_offset < reg0.reg_offset + reg0.size:
             return True
-        if reg1.reg_offset <= reg0.reg_offset <= reg1.reg_offset + reg1.size:
+        if reg1.reg_offset <= reg0.reg_offset < reg1.reg_offset + reg1.size:
             return True
         return False
