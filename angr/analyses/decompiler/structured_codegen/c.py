@@ -2250,12 +2250,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
             # TODO: Handle other types of access
 
-        if data_type is None:
-            addr = CTypeCast(addr_type, )
-
         if displacement == 0 or isinstance(displacement, CConstant) and displacement.value == 0:
-            if not isinstance(data_type, SimTypePointer):
-                addr = CTypeCast
             var = CUnaryOp("Dereference", addr, codegen=self)
         else:
             if isinstance(displacement, int):
