@@ -6,7 +6,6 @@ from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any,
 import networkx
 
 import ailment
-from ailment import Block
 
 from ...knowledge_base import KnowledgeBase
 from ...knowledge_plugins.functions import Function

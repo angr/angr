@@ -1,3 +1,4 @@
+# pylint: disable=missing-class-docstring
 from ailment.expression import Convert
 
 from .base import PeepholeOptimizationExprBase

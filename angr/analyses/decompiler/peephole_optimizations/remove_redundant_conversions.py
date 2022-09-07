@@ -1,3 +1,4 @@
+# pylint: disable=missing-class-docstring
 from ailment.expression import BinaryOp, Convert, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -28,7 +29,8 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         return Convert(expr.operands[0].idx, from_bits, to_bits, expr.operands[0].is_signed, new_expr,
                                        **expr.operands[0].tags)
 
-                elif expr.op in {"CmpEQ", "CmpNE", "CmpGT", "CmpGE", "CmpGTs", "CmpGEs", "CmpLT", "CmpLE", "CmpLTs", "CmpLEs"}:
+                elif expr.op in {"CmpEQ", "CmpNE", "CmpGT", "CmpGE", "CmpGTs",
+                                 "CmpGEs", "CmpLT", "CmpLE", "CmpLTs", "CmpLEs"}:
                     if 0 <= expr.operands[1].value <= ((1 << from_bits) - 1) or \
                             (expr.operands[0].is_signed and
                              expr.operands[1].value >= (1 << to_bits) - (1 << (from_bits - 1))):
