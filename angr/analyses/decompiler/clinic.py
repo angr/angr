@@ -231,10 +231,6 @@ class Clinic(Analysis):
         self._update_progress(80., text="Recovering variables")
         variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
 
-        # Reflow types
-        self._update_progress(85., text="Reflowing types")
-        #self._reflow_types(variable_kb, ail_graph)
-
         # Make function prototype
         self._update_progress(90., text="Making function prototype")
         self._make_function_prototype(arg_list, variable_kb)
@@ -1018,15 +1014,5 @@ class Clinic(Analysis):
                     return op1, op0
                 return op0, op1  # best-effort guess
         return None, None
-
-    def _reflow_types(self, variable_kb: KnowledgeBase, ail_graph: networkx.DiGraph):
-        for node in ail_graph.nodes():
-            node: Block
-            for stmt in node.statements:
-                stmt.alker
-
-class ReflowWalker(AILBlockWalker):
-    def _handle_Convert(self, expr_idx, expr, stmt_idx, stmt, block):
-        pass
 
 register_analysis(Clinic, 'Clinic')
