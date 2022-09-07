@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any,
 import networkx
 
 import ailment
+from ailment import Block
 
 from ...knowledge_base import KnowledgeBase
 from ...knowledge_plugins.functions import Function
@@ -230,12 +231,16 @@ class Clinic(Analysis):
         self._update_progress(80., text="Recovering variables")
         variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
 
+        # Reflow types
+        self._update_progress(85., text="Reflowing types")
+        #self._reflow_types(variable_kb, ail_graph)
+
         # Make function prototype
-        self._update_progress(85., text="Making function prototype")
+        self._update_progress(90., text="Making function prototype")
         self._make_function_prototype(arg_list, variable_kb)
 
         # Run simplification passes
-        self._update_progress(90., text="Running simplifications 3")
+        self._update_progress(95., text="Running simplifications 3")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
                                                     variable_kb=variable_kb)
 
@@ -1014,5 +1019,14 @@ class Clinic(Analysis):
                 return op0, op1  # best-effort guess
         return None, None
 
+    def _reflow_types(self, variable_kb: KnowledgeBase, ail_graph: networkx.DiGraph):
+        for node in ail_graph.nodes():
+            node: Block
+            for stmt in node.statements:
+                stmt.alker
+
+class ReflowWalker(AILBlockWalker):
+    def _handle_Convert(self, expr_idx, expr, stmt_idx, stmt, block):
+        pass
 
 register_analysis(Clinic, 'Clinic')

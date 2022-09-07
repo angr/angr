@@ -1570,16 +1570,8 @@ class CTypeCast(CExpression):
         if self.collapsed:
             yield '...', self
             return
-        leading_paren = False
-        wrapping_paren = False
         paren = CClosingObject("(")
         if self.codegen.show_casts:
-            # look ahead to detect if a leading paren is required
-            if isinstance(self.expr, CFunctionCall):
-                leading_paren = False
-            else:
-                leading_paren = True
-                yield "(", paren
             yield "(", paren
             yield "{}".format(self.dst_type.c_repr(name=None)), self
             yield ")", paren
@@ -1591,8 +1583,6 @@ class CTypeCast(CExpression):
             wrapping_paren = False
         yield from CExpression._try_c_repr_chunks(self.expr)
         if wrapping_paren:
-            yield ")", paren
-        if self.codegen.show_casts and leading_paren:
             yield ")", paren
 
 
@@ -2115,8 +2105,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             type_size = variable_type.pts_to.elem_type.size // self.project.arch.byte_width
         elif isinstance(variable_type, SimTypePointer):
             inner_type = unpack_typeref(variable_type.pts_to)
+            type_size = inner_type.size // self.project.arch.byte_width
             if isinstance(inner_type, SimTypePointer):
-                type_size = inner_type.size // self.project.arch.byte_width
                 # double pointer - unpack the Reference unary operator if there is one
                 if isinstance(addr, CUnaryOp) and addr.op == "Reference":
                     addr = addr.operand
@@ -2126,7 +2116,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if type_size is not None:
             # the offset argument that is passed in is in terms of bytes. parse the offset argument and convert it into
             # an index
-            if isinstance(displacement, int):
+            if type_size == 1:
+                idx = displacement
+            elif isinstance(displacement, int):
                 if displacement % type_size != 0:
                     l.warning("offset (%d) is not a multiple of type_size (%d). Implement this case,",
                               displacement, type_size)
@@ -2244,25 +2236,30 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # v0->field
         # *(type*)(v0 + disp)
 
-        addr_type = unpack_typeref(addr_type)
-        if addr_type is not None and not isinstance(addr_type, SimTypeBottom):
+        data_type = unpack_typeref(addr_type)
+        if data_type is not None and not isinstance(data_type, SimTypeBottom):
             # struct field?
-            var = self._struct_field(addr, addr_type, displacement, tags=tags)
+            var = self._struct_field(addr, data_type, displacement, tags=tags)
             if var is not None:
                 return var
 
             # array element?
-            var = self._array_element(addr, addr_type, displacement, tags=tags)
+            var = self._array_element(addr, data_type, displacement, tags=tags)
             if var is not None:
                 return var
 
             # TODO: Handle other types of access
 
+        if data_type is None:
+            addr = CTypeCast(addr_type, )
+
         if displacement == 0 or isinstance(displacement, CConstant) and displacement.value == 0:
+            if not isinstance(data_type, SimTypePointer):
+                addr = CTypeCast
             var = CUnaryOp("Dereference", addr, codegen=self)
         else:
             if isinstance(displacement, int):
-                displacement = CConstant(displacement, addr_type, codegen=self)
+                displacement = CConstant(displacement, data_type, codegen=self)
             var_inner = CBinaryOp("Add", addr, displacement, None, codegen=self)
             var = CUnaryOp("Dereference", var_inner, codegen=self)
         return var
@@ -2693,6 +2690,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         elif 16 >= expr.to_bits > 8:
             dst_type = SimTypeShort()
         elif 8 >= expr.to_bits > 1:
+            if expr.from_bits == 1:
+                return self._handle(expr.operand)
             dst_type = SimTypeChar()
         elif expr.to_bits == 1:
             dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
