@@ -704,20 +704,13 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 
 	// From here, we are definitely only dealing with one page
 
-	uint64_t skip_next_map_request;
 	mem_write_t record;
 	record.address = address;
 	record.size = size;
 	record.value.resize(size);
 	uc_err err = uc_mem_read(uc, address, record.value.data(), size);
 	if (err == UC_ERR_READ_UNMAPPED) {
-		if (is_interrupt) {
-			skip_next_map_request = 0;
-		}
-		else {
-			skip_next_map_request = 1;
-		}
-		if (py_mem_callback(uc, UC_MEM_WRITE_UNMAPPED, address, size, 0, (void*)skip_next_map_request)) {
+		if (py_mem_callback(uc, UC_MEM_WRITE_UNMAPPED, address, size, 0, (void*)0)) {
 			err = UC_ERR_OK;
 		}
 	}
@@ -2580,7 +2573,6 @@ void State::perform_cgc_transmit() {
 	// basically an implementation of the cgc transmit syscall
 	//printf(".. TRANSMIT!\n");
 	uint32_t fd, buf, count, tx_bytes;
-	uint64_t skip_next_map_request;
 	uc_err err;
 
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
@@ -2597,8 +2589,7 @@ void State::perform_cgc_transmit() {
 
 		err = uc_mem_read(uc, buf, dup_buf, count);
 		if (err == UC_ERR_READ_UNMAPPED) {
-			skip_next_map_request = 0;
-			py_mem_callback(uc, UC_MEM_READ_UNMAPPED, buf, count, 0, (void*)skip_next_map_request);
+			py_mem_callback(uc, UC_MEM_READ_UNMAPPED, buf, count, 0, (void*)0);
 			if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK) {
 				//printf("... fault on buf\n");
 				free(dup_buf);
