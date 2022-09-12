@@ -899,9 +899,12 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 		if (source.entity_type == TAINT_ENTITY_TMP) {
 			stmts_to_process.emplace_back(source.stmt_idx);
 		}
-		else if ((source.entity_type == TAINT_ENTITY_REG) && (all_dep_regs_concrete || (stmt_concrete_regs_it->second.count(source.reg_offset)) > 0)) {
-			// Source is a concrete register.
-			if (source.stmt_idx == -1) {
+		else if (source.entity_type == TAINT_ENTITY_REG) {
+			if(source.stmt_idx != -1) {
+				// Source was modified by some previous statement. Compute its slice.
+				stmts_to_process.emplace_back(source.stmt_idx);
+			}
+			else if (all_dep_regs_concrete || (stmt_concrete_regs_it->second.count(source.reg_offset) > 0)) {
 				// Source is a register dependency that is not modified from start of block till this statement. Save
 				// its value.
 				register_value_t dep_reg_val;
@@ -931,10 +934,6 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 						assert(false && "[sim_unicorn] Dependency register not saved at block start. Please report a bug with repro instructions.");
 					}
 				}
-			}
-			else {
-				// Source was modified by some previous statement. Compute its slice.
-				stmts_to_process.emplace_back(source.stmt_idx);
 			}
 		}
 		else if (source.entity_type == TAINT_ENTITY_MEM) {
