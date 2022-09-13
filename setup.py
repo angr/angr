@@ -11,6 +11,7 @@ from distutils.util import get_platform
 import pkg_resources
 from setuptools import Command, setup
 from setuptools.command.develop import develop as st_develop
+from setuptools.command.editable_wheel import editable_wheel as st_editable_wheel
 from setuptools.errors import LibError
 
 if sys.platform == "darwin":
@@ -99,11 +100,16 @@ class develop(st_develop):
         self.run_command("build")
         super().run()
 
+class editable_wheel(st_editable_wheel):
+    def run(self):
+        self.run_command("build")
+        super().run()
 
 cmdclass = {
     "build": build,
     "clean_native": clean_native,
     "develop": develop,
+    "editable_wheel": editable_wheel,
 }
 
 if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
