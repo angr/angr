@@ -2543,7 +2543,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CConstant(expr.value, type_,
                          reference_values=reference_values,
-                         reference_variable=variable,
                          tags=expr.tags,
                          codegen=self)
 
