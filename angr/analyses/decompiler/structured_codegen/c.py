@@ -2176,8 +2176,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         while terms:
             kernel_type = unpack_pointer(kernel.type)
             assert kernel_type
-            # TODO if kernel_type is an array, unpack it further?
-            #kernel_type = unpack_array(kernel_type) or kernel_type
+
+            if isinstance(kernel_type, SimTypeBottom):
+                return bail_out
             kernel_stride = kernel_type.size // self.project.arch.byte_width
 
             # if the constant offset is larger than the current fucker, uh, do something about that first
