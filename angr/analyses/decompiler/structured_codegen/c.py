@@ -65,9 +65,9 @@ def qualifies_for_simple_cast(ty1, ty2):
 def qualifies_for_implicit_cast(ty1, ty2):
     # casting ty1 to ty2 - can this happen without a cast?
     # used to decide whether to omit typecasts from output during promotion
-    return ty1.size <= ty2.size and \
-           isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) and \
-           isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum))
+    return isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) and \
+           isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum)) and \
+           ty1.size <= ty2.size
 
 #
 #   C Representation Classes
@@ -951,9 +951,10 @@ class CFunctionCall(CStatement, CExpression):
 
     @property
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
-        if self.callee_func is not None:
+        if self.callee_func is not None and self.callee_func.prototype is not None:
             return self.callee_func.prototype
-        return None
+        returnty = SimTypeInt(signed=False)
+        return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
 
     @property
     def type(self):
@@ -1351,13 +1352,9 @@ class CBinaryOp(CExpression):
         return signed_ty
 
     def _optimize_typecasts(self):
-        if isinstance(self.lhs, CTypeCast) and \
-                isinstance(self.lhs.src_type, (SimTypeReg, SimTypeNum)) and \
-                self.lhs.src_type.size <= self._common_type.size:
+        while isinstance(self.lhs, CTypeCast) and qualifies_for_implicit_cast(self.lhs.src_type, self.lhs.dst_type):
             self.lhs = self.lhs.expr
-        if isinstance(self.rhs, CTypeCast) and \
-                isinstance(self.rhs.src_type, (SimTypeReg, SimTypeNum)) and \
-                self.rhs.src_type.size <= self._common_type.size:
+        while isinstance(self.rhs, CTypeCast) and qualifies_for_implicit_cast(self.rhs.src_type, self.rhs.dst_type):
             self.rhs = self.rhs.expr
 
 
