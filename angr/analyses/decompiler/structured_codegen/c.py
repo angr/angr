@@ -55,6 +55,20 @@ def squash_array_reference(ty):
             return SimTypePointer(array_of)
     return ty
 
+def qualifies_for_simple_cast(ty1, ty2):
+    # casting ty1 to ty2 - can this happen precisely?
+    # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
+    return ty1.size == ty2.size and \
+           isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer)) and \
+           isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
+
+def qualifies_for_implicit_cast(ty1, ty2):
+    # casting ty1 to ty2 - can this happen without a cast?
+    # used to decide whether to omit typecasts from output during promotion
+    return ty1.size <= ty2.size and \
+           isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) and \
+           isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum))
+
 #
 #   C Representation Classes
 #
@@ -866,10 +880,7 @@ class CAssignment(CStatement):
         self._optimize_typecasts()
 
     def _optimize_typecasts(self):
-        if isinstance(self.rhs, CTypeCast) and \
-                isinstance(self.rhs.src_type, (SimTypeReg, SimTypeNum)) and \
-                isinstance(self.rhs.dst_type, (SimTypeReg, SimTypeNum)) and \
-                self.rhs.src_type.size <= self.rhs.dst_type.size:
+        while isinstance(self.rhs, CTypeCast) and qualifies_for_implicit_cast(self.rhs.src_type, self.rhs.dst_type):
             self.rhs = self.rhs.expr
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -930,18 +941,29 @@ class CFunctionCall(CStatement, CExpression):
         self.tags = tags
         self.is_expr = is_expr
 
+        self._optimize_typecasts()
+
+    def _optimize_typecasts(self):
+        for i, arg in enumerate(self.args):
+            while isinstance(arg, CTypeCast) and qualifies_for_implicit_cast(arg.src_type, arg.dst_type):
+                self.args[i] = arg.expr
+                arg = arg.expr
+
+    @property
+    def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
+        if self.callee_func is not None:
+            return self.callee_func.prototype
+        return None
+
     @property
     def type(self):
         if self.is_expr:
-            # TODO: Return the proper type of the ret_expr's
-            return SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
+            return self.prototype.returnty or SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
         else:
             raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-
         indent_str = self.indent_str(indent=indent)
-
         yield indent_str, None
 
         if not self.is_expr and self.ret_expr is not None:
@@ -1083,6 +1105,9 @@ class CFakeVariable(CExpression):
     def type(self):
         return self._type
 
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        yield self.name, self
+
 class CVariable(CExpression):
     """
     CVariable represents access to a variable with the specified type (`variable_type`).
@@ -1126,16 +1151,16 @@ class CIndexedVariable(CExpression):
         self._type = variable_type
         self.tags = tags
 
-        if self._type is None and isinstance(self.variable, (CVariable, CIndexedVariable, CVariableField)) \
-                and self.variable.type is not None:
+        if self._type is None and self.variable.type is not None:
             u = unpack_typeref(self.variable.type)
             if isinstance(u, SimTypePointer):
                 u = u.pts_to
                 u = unpack_typeref(u)
-            else:
-                u = None
-            if isinstance(u, SimTypeArray):
+            elif isinstance(u, (SimTypeArray, SimTypeFixedSizeArray)):
                 u = u.elem_type
+                u = unpack_typeref(u)
+            else:
+                u = None  # this should REALLY be an assert false
             self._type = u
 
     @property
@@ -1188,24 +1213,23 @@ class CUnaryOp(CExpression):
 
     __slots__ = ('op', 'operand', 'tags', )
 
-    def __init__(self, op, operand: CExpression, tags=None, type_=None, **kwargs):
+    def __init__(self, op, operand: CExpression, tags=None, **kwargs):
 
         super().__init__(**kwargs)
 
         self.op = op
         self.operand = operand
         self.tags = tags
-        self._type = type_
 
-        if self._type is None and operand is not None and isinstance(operand, CExpression) and operand.type is not None:
+        if operand.type is not None:
             var_type = unpack_typeref(operand.type)
             if op == "Reference":
                 self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
             elif op == "Dereference":
                 if isinstance(var_type, SimTypePointer):
                     self._type = unpack_typeref(var_type.pts_to)
-                elif isinstance(var_type, SimTypeArray):
-                    self._type = var_type.elem_type
+                elif isinstance(var_type, (SimTypeArray, SimTypeFixedSizeArray)):
+                    self._type = unpack_typeref(var_type.elem_type)
 
     @property
     def type(self):
@@ -1941,7 +1965,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Util methods
     #
 
-    def default_simtype_from_size(self, n: int) -> SimType:
+    def default_simtype_from_size(self, n: int, signed: bool=True) -> SimType:
         _mapping = {
             8: SimTypeLongLong,
             4: SimTypeInt,
@@ -1949,8 +1973,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             1: SimTypeChar,
         }
         if n in _mapping:
-            return _mapping.get(n)().with_arch(self.project.arch)
-        return SimTypeNum(n * self.project.arch.byte_width).with_arch(self.project.arch)
+            return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
+        return SimTypeNum(n * self.project.arch.byte_width, signed=signed).with_arch(self.project.arch)
 
     def _variable(self, variable: SimVariable, fallback_type_size: Optional[int]):
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
@@ -1987,6 +2011,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     ) -> CExpression:
         # expr must express a POINTER to the base
         # returns a value which has a simtype of data_type as if it were dereferenced out of expr
+        data_type = unpack_typeref(data_type)
         base_type = unpack_pointer(expr.type)
         if base_type is None:
             # well, not much we can do
@@ -2011,7 +2036,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return base_expr
             return CUnaryOp("Dereference", expr, codegen=self)
 
-        stride = base_type.size // self.project.arch.byte_width or 1
+        if isinstance(base_type, SimTypeBottom):
+            stride = 1
+        else:
+            stride = base_type.size // self.project.arch.byte_width or 1
         index, remainder = divmod(offset, stride)
         if index != 0:
             index = CConstant(index, SimTypeInt(), codegen=self)
@@ -2051,7 +2079,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     CConstant(0, SimTypeInt(), codegen=self),
                     variable_type=base_type.elem_type,
                     codegen=self
-                )
+                ),
+                codegen=self
             )
             return self._access_constant_offset(result, remainder, data_type, lvalue)
 
@@ -2094,7 +2123,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _access(self, expr: CExpression, data_type: SimType, lvalue: bool) -> CExpression:
         # same rule as _access_constant_offset wrt pointer expressions
-
+        data_type = unpack_typeref(data_type)
         base_type = unpack_pointer(expr.type)
         if base_type is None:
             # use the fallback from above
@@ -2380,32 +2409,35 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Stmt_Store(self, stmt: Stmt.Store):
         cdata = self._handle(stmt.data)
 
+        if cdata.type.size != stmt.size * self.project.arch.byte_width:
+            l.error("Store data lifted to a C type with a different size. Decompilation output will be wrong.")
+
         if stmt.variable is not None:
             cvar = self._variable(stmt.variable, stmt.size)
             offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
-            if cvar.type.size // self.project.arch.byte_width == stmt.size:
+
+            # transfer casts from the dst to the src if possible
+            # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
+            ty = cdata.type
+            if cvar.type != cdata.type and qualifies_for_simple_cast(cdata.type, cvar.type):
                 ty = cvar.type
-            else:
-                ty = self.default_simtype_from_size(stmt.size)
+                cdata = CTypeCast(cdata.type, cvar.type, cdata, codegen=self)
+
             cdst = self._access_constant_offset(CUnaryOp("Reference", cvar, codegen=self), offset, ty, True)
         else:
             addr_expr = self._handle(stmt.addr)
-            data_type = unpack_pointer(addr_expr.type)
-            if not data_type or data_type.size // self.project.arch.byte_width != stmt.size:
-                data_type = self.default_simtype_from_size(stmt.size)
-            cdst = self._access(addr_expr, data_type, True)
+            cdst = self._access(addr_expr, cdata.type, True)
 
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Assignment(self, stmt):
-
         cdst = self._handle(stmt.dst)
         csrc = self._handle(stmt.src)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Call(self, stmt, is_expr: bool=False):
+    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool=False):
 
         try:
             # Try to handle it as a normal function call
@@ -2439,13 +2471,26 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if stmt.ret_expr is not None:
             ret_expr = self._handle(stmt.ret_expr)
 
-        return CFunctionCall(target, target_func, args,
-                             returning=target_func.returning if target_func is not None else True,
-                             ret_expr=ret_expr,
-                             tags=stmt.tags,
-                             is_expr=is_expr,
-                             codegen=self,
-                             )
+        result = CFunctionCall(
+            target,
+            target_func,
+            args,
+            returning=target_func.returning if target_func is not None else True,
+            ret_expr=ret_expr,
+            tags=stmt.tags,
+            is_expr=is_expr,
+            codegen=self,
+        )
+
+        if result.is_expr and result.type.size != stmt.size * self.project.arch.byte_width:
+            result = CTypeCast(
+                result.type,
+                self.default_simtype_from_size(stmt.size, signed=getattr(result.type, "signed", False)),
+                result,
+                codegen=self
+            )
+
+        return result
 
     def _handle_Stmt_Jump(self, stmt):
         return CGoto(self._handle(stmt.target), tags=stmt.tags, codegen=self)
@@ -2479,7 +2524,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             cvar = self._variable(expr.variable, expr.size)
             offset = expr.variable_offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
-            if cvar.type.size // self.project.arch.byte_width == expr.size:
+            if cvar.type.size == expr.size * self.project.arch.byte_width and isinstance(unpack_typeref(cvar.type), (SimTypeReg, SimTypeNum)):
                 ty = cvar.type
             else:
                 ty = self.default_simtype_from_size(expr.size)
@@ -2487,7 +2532,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         addr_expr = self._handle(expr.addr)
         data_type = unpack_pointer(addr_expr.type)
-        if not data_type or data_type.size // self.project.arch.byte_width != expr.size:
+        if not data_type or data_type.size != expr.size * self.project.arch.byte_width:
             data_type = self.default_simtype_from_size(expr.size)
         return self._access(addr_expr, data_type, False)
 
@@ -2529,14 +2574,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if type_ is None:
             # default to int
-            type_ = SimTypeInt().with_arch(self.project.arch)
+            type_ = self.default_simtype_from_size(expr.size)
 
         if variable is None and hasattr(expr, 'reference_variable') and expr.reference_variable is not None:
             variable = expr.reference_variable
             if inline_string:
                 self._inlined_strings.add(expr.reference_variable)
 
-        if variable is not None:
+        if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
             offset = getattr(expr, 'reference_variable_offset', 0)
             return self._access_constant_offset_reference(CUnaryOp("Reference", cvar, codegen=self), offset, None)
@@ -2637,7 +2682,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         # FIXME
         stack_base = CFakeVariable("stack_base", SimTypePointer(SimTypeBottom()), codegen=self)
-        ptr = CBinaryOp("Add", stack_base, CConstant(expr.offset, SimTypeInt()), codegen=self)
+        ptr = CBinaryOp("Add", stack_base, CConstant(expr.offset, SimTypeInt(), codegen=self), codegen=self)
         return ptr
 
 

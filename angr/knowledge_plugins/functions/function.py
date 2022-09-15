@@ -1486,7 +1486,7 @@ class Function(Serializable):
 
         name, ty = func_def.popitem() # type: str, SimTypeFunction
         self.name = name
-        self.prototype = ty
+        self.prototype = ty.with_arch(self.project.arch)
         # setup the calling convention
         # If a SimCC object is passed assume that this is sane and just use it
         if isinstance(calling_convention, SimCC):

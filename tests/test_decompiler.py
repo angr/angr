@@ -579,7 +579,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
 
         code = dec.codegen.text
-        m = re.search(r"v(\d+) = strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
+        m = re.search(r"v(\d+) = (\(.*\))?strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
         assert m is not None, "The result of strlen() should be directly assigned to a stack " \
                               "variable because of call-expression folding."
         assert m.group(1) != m.group(2)
@@ -956,9 +956,9 @@ class TestDecompiler(unittest.TestCase):
         assert len(stmts) == 5
         assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
         assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
-        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.operand.variable == stmts[2].lhs.variable
+        assert stmts[4].lhs.operand.expr.variable == stmts[2].lhs.variable
+        assert stmts[4].rhs.operand.expr.variable == stmts[0].lhs.variable
+        assert dw.condition.lhs.operand.expr.variable == stmts[2].lhs.variable
 
     def test_decompiling_nl_i386_pie(self):
         bin_path = os.path.join(test_location, "i386", "nl")
