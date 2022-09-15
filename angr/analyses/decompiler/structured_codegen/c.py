@@ -2522,7 +2522,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             cvar = self._variable(expr.variable, expr.size)
             offset = expr.variable_offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
-            if cvar.type.size == expr.size * self.project.arch.byte_width and isinstance(unpack_typeref(cvar.type), (SimTypeReg, SimTypeNum)):
+            if cvar.type.size == expr.size * self.project.arch.byte_width and \
+                    isinstance(unpack_typeref(cvar.type), (SimTypeReg, SimTypeNum)):
                 ty = cvar.type
             else:
                 ty = self.default_simtype_from_size(expr.size)

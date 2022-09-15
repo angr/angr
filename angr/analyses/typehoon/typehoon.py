@@ -4,7 +4,7 @@ from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Struct, Pointer, TypeConstant, Array, Int8
+from .typeconsts import Struct, Pointer, TypeConstant, Array
 from .typevars import Equivalence
 
 if TYPE_CHECKING:
