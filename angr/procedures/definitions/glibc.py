@@ -3069,6 +3069,8 @@ _libc_decls = \
         "__ppc_set_ppr_med_high": SimTypeFunction([], SimTypeBottom(label="void")),
         # void __stack_chk_fail (void);
         "__stack_chk_fail": SimTypeFunction([], SimTypeBottom(label="void")),
+        # int *__errno_location (void);
+        "__errno_location": SimTypeFunction([], SimTypePointer(SimTypeInt())),
     }
 
 
@@ -4627,4 +4629,5 @@ _libc_c_decls = \
         "void __ppc_set_ppr_very_low (void);",
         "void __ppc_set_ppr_med_high (void);",
         "void __stack_chk_fail (void);",
+        "int *__errno_location (void);"
     ]
