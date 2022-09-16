@@ -287,7 +287,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             proj.analyses.CompleteCallingConventions(recover_variables=True)
 
             for func in ['target', 'direct', 'plt']:
-                self.assertEqual(str(proj.kb.functions[func].prototype), '(long long) -> int')
+                self.assertEqual(str(proj.kb.functions[func].prototype), '(long long (64 bits)) -> int (32 bits)')
                 # technically should be (int) -> int, but the compiler loads all 64 bits and then truncates
 
 if __name__ == "__main__":

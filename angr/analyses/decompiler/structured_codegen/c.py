@@ -2005,11 +2005,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             offset: int,
             data_type: SimType,
             lvalue: bool,
+            renegotiate_type: Callable[[SimType, SimType], SimType]=lambda old, proposed: old,
     ) -> CExpression:
         # expr must express a POINTER to the base
         # returns a value which has a simtype of data_type as if it were dereferenced out of expr
         data_type = unpack_typeref(data_type)
-        base_type = unpack_pointer(expr.type)
+        base_type = unpack_typeref(unpack_pointer(expr.type))
         if base_type is None:
             # well, not much we can do
             if data_type is None:
@@ -2027,11 +2028,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             base_expr = None
 
-        if base_type == data_type and offset == 0:
-            # we're done!
-            if base_expr:
-                return base_expr
-            return CUnaryOp("Dereference", expr, codegen=self)
+        if offset == 0:
+            data_type = renegotiate_type(data_type, base_type)
+            if base_type == data_type:
+                # we're done!
+                if base_expr:
+                    return base_expr
+                return CUnaryOp("Dereference", expr, codegen=self)
 
         if isinstance(base_type, SimTypeBottom):
             stride = 1
@@ -2052,11 +2055,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 CIndexedVariable(kernel, index, variable_type=base_type, codegen=self),
                 codegen=self
             )
-            return self._access_constant_offset(result, remainder, data_type, lvalue)
+            return self._access_constant_offset(result, remainder, data_type, lvalue, renegotiate_type)
 
         if isinstance(base_type, SimStruct):
             # find the field that we're accessing
-            field_name, field_offset = min(
+            field_name, field_offset = max(
                 ((x, y) for x, y in base_type.offsets.items() if y <= remainder),
                 key=lambda x: x[1]
             )
@@ -2065,7 +2068,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 result = CUnaryOp("Reference", CVariableField(base_expr, field, False, codegen=self), codegen=self)
             else:
                 result = CUnaryOp("Reference", CVariableField(expr, field, True, codegen=self), codegen=self)
-            return self._access_constant_offset(result, remainder - field_offset, data_type, lvalue)
+            return self._access_constant_offset(result, remainder - field_offset, data_type, lvalue, renegotiate_type)
 
         if isinstance(base_type, (SimTypeFixedSizeArray, SimTypeArray)):
             result = base_expr or expr  # death to C
@@ -2079,7 +2082,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 ),
                 codegen=self
             )
-            return self._access_constant_offset(result, remainder, data_type, lvalue)
+            return self._access_constant_offset(result, remainder, data_type, lvalue, renegotiate_type)
 
         # TODO is it a big-endian downcast?
         # e.g. int x; *((char*)x + 3) is actually just (char)x
@@ -2118,13 +2121,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # otherwise, normal cast
         return CTypeCast(base_type, data_type, base_expr, codegen=self)
 
-    def _access(self, expr: CExpression, data_type: SimType, lvalue: bool) -> CExpression:
+    def _access(
+            self,
+            expr: CExpression,
+            data_type: SimType,
+            lvalue: bool,
+            renegotiate_type: Callable[[SimType, SimType], SimType]=lambda old, proposed: old,
+    ) -> CExpression:
         # same rule as _access_constant_offset wrt pointer expressions
         data_type = unpack_typeref(data_type)
         base_type = unpack_pointer(expr.type)
         if base_type is None:
             # use the fallback from above
-            return self._access_constant_offset(expr, 0, data_type, lvalue)
+            return self._access_constant_offset(expr, 0, data_type, lvalue, renegotiate_type)
 
         bail_out = CUnaryOp(
             "Dereference",
@@ -2186,7 +2195,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 index, remainder = divmod(constant, kernel_stride)
                 kernel = CUnaryOp(
                     "Reference",
-                    self._access_constant_offset(kernel, index * kernel_stride, kernel_type, True),
+                    self._access_constant_offset(kernel, index * kernel_stride, kernel_type, True, renegotiate_type),
                     codegen=self
                 )
                 constant = remainder
@@ -2222,14 +2231,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # nothing has the ability to escape the kernel
             # go in deeper
             if isinstance(kernel_type, SimStruct):
-                field_name, field_offset = min(
+                field_name, field_offset = max(
                     ((x, y) for x, y in kernel_type.offsets.items() if y <= constant),
                     key=lambda x: x[1]
                 )
                 field_type = kernel_type.fields[field_name]
                 kernel = CUnaryOp(
                     "Reference",
-                    self._access_constant_offset(kernel, field_offset, field_type, True),
+                    self._access_constant_offset(kernel, field_offset, field_type, True, renegotiate_type),
                     codegen=self
                 )
                 constant -= field_offset
@@ -2238,7 +2247,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if isinstance(kernel_type, (SimTypeArray, SimTypeFixedSizeArray)):
                 kernel = CUnaryOp(
                     "Reference",
-                    self._access_constant_offset(kernel, 0, kernel_type.elem_type, True),
+                    self._access_constant_offset(kernel, 0, kernel_type.elem_type, True, renegotiate_type),
                     codegen=self
                 )
                 continue
@@ -2246,7 +2255,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             l.warning("There's a variable offset with stride shorter than the primitive type. What does this mean?")
             return bail_out
 
-        return self._access_constant_offset(kernel, constant, data_type, lvalue)
+        return self._access_constant_offset(kernel, constant, data_type, lvalue, renegotiate_type)
 
     #
     # Handlers
@@ -2410,22 +2419,30 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if cdata.type.size != stmt.size * self.project.arch.byte_width:
             l.error("Store data lifted to a C type with a different size. Decompilation output will be wrong.")
 
+        def negotiate(old_ty, proposed_ty):
+            # transfer casts from the dst to the src if possible
+            # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
+            nonlocal cdata
+            if old_ty != proposed_ty and qualifies_for_simple_cast(old_ty, proposed_ty):
+                cdata = CTypeCast(cdata.type, proposed_ty, cdata, codegen=self)
+                return proposed_ty
+            return old_ty
+
         if stmt.variable is not None:
             cvar = self._variable(stmt.variable, stmt.size)
             offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
 
-            # transfer casts from the dst to the src if possible
-            # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
-            ty = cdata.type
-            if cvar.type != cdata.type and qualifies_for_simple_cast(cdata.type, cvar.type):
-                ty = cvar.type
-                cdata = CTypeCast(cdata.type, cvar.type, cdata, codegen=self)
-
-            cdst = self._access_constant_offset(CUnaryOp("Reference", cvar, codegen=self), offset, ty, True)
+            cdst = self._access_constant_offset(
+                CUnaryOp("Reference", cvar, codegen=self),
+                offset,
+                cdata.type,
+                True,
+                negotiate
+            )
         else:
             addr_expr = self._handle(stmt.addr)
-            cdst = self._access(addr_expr, cdata.type, True)
+            cdst = self._access(addr_expr, cdata.type, True, negotiate)
 
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
