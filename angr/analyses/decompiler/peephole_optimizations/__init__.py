@@ -29,6 +29,7 @@ from .remove_redundant_conversions import RemoveRedundantConversions
 from .remove_cascading_conversions import RemoveCascadingConversions
 from .conv_shl_shr import ConvShlShr
 from .rewrite_mips_gp_loads import RewriteMipsGpLoads
+from .remove_noop_conversions import RemoveNoopConversions
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 

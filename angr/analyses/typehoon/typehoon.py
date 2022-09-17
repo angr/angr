@@ -4,7 +4,7 @@ from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Struct, Pointer, TypeConstant, Array, Int8
+from .typeconsts import Struct, Pointer, TypeConstant, Array
 from .typevars import Equivalence
 
 if TYPE_CHECKING:
@@ -28,7 +28,6 @@ class Typehoon(Analysis):
     """
     def __init__(self, constraints, ground_truth=None,
                  var_mapping: Optional[Dict['SimVariable',Set['TypeVariable']]]=None,
-                 prioritize_char_array_over_struct: bool=True,
                  must_struct: Optional[Set['TypeVariable']]=None,
                  ):
         """
@@ -37,7 +36,6 @@ class Typehoon(Analysis):
         :param ground_truth:        A set of SimType-style solutions for some or all type variables. They will be
                                     respected during type solving.
         :param var_mapping:
-        :param prioritize_char_array_over_struct:
         :param must_struct:
         """
 
@@ -50,9 +48,6 @@ class Typehoon(Analysis):
         self.solution = None
         self.structs = None
         self.simtypes_solution = None
-
-        # a bunch of arguments to tweak with
-        self._prioritize_char_array_over_struct = prioritize_char_array_over_struct
 
         # import pprint
         # pprint.pprint(self._var_mapping)
@@ -173,12 +168,7 @@ class Typehoon(Analysis):
             offset0 = offsets[0]
             field0: TypeConstant = tc.fields[offset0]
 
-            # special case: struct {0:int8} will be translated to char if we want to prioritize char arrays over
-            # structs
-            if self._prioritize_char_array_over_struct \
-                    and len(tc.fields) == 1 \
-                    and 0 in tc.fields \
-                    and isinstance(tc.fields[0], Int8):
+            if len(tc.fields) == 1 and 0 in tc.fields:
                 return field0
 
             # are all fields the same?

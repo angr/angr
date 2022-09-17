@@ -5,7 +5,8 @@ import re
 import unittest
 
 import angr
-from angr.sim_type import SimTypeInt
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.sim_type import SimTypeInt, SimTypePointer
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -579,7 +580,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
 
         code = dec.codegen.text
-        m = re.search(r"v(\d+) = strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
+        m = re.search(r"v(\d+) = (\(.*\))?strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
         assert m is not None, "The result of strlen() should be directly assigned to a stack " \
                               "variable because of call-expression folding."
         assert m.group(1) != m.group(2)
@@ -956,9 +957,9 @@ class TestDecompiler(unittest.TestCase):
         assert len(stmts) == 5
         assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
         assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
-        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.expr.operand.variable == stmts[2].lhs.variable
+        assert stmts[4].lhs.operand.expr.variable == stmts[2].lhs.variable
+        assert stmts[4].rhs.operand.expr.variable == stmts[0].lhs.variable
+        assert dw.condition.lhs.operand.expr.variable == stmts[2].lhs.variable
 
     def test_decompiling_nl_i386_pie(self):
         bin_path = os.path.join(test_location, "i386", "nl")
@@ -1165,6 +1166,74 @@ class TestDecompiler(unittest.TestCase):
 
         assert "% 61" in d.codegen.text, "Modulo simplification failed."
 
+    def test_struct_access(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "struct_access")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+        typedefs = angr.sim_type.parse_file("""
+        struct A {
+            int a1;
+            int a2;
+            int a3;
+        };
+
+        struct B {
+            struct A b1;
+            struct A b2;
+        };
+
+        struct C {
+            int c1;
+            struct B c2[10];
+            int c3[10];
+            struct C *c4;
+        };
+        """)
+
+        d = proj.analyses.Decompiler(proj.kb.functions["main"])
+        vmi: VariableManagerInternal = d.cache.clinic.variable_kb.variables['main']
+        vmi.set_variable_type(
+            next(iter(vmi.find_variables_by_stack_offset(-0x148))),
+            SimTypePointer(typedefs[1]['struct C']),
+            all_unified=True,
+            mark_manual=True
+        )
+        unified = vmi.unified_variable(next(iter(vmi.find_variables_by_stack_offset(-0x148))))
+        unified.name = "c_ptr"
+        unified.renamed = True
+
+        vmi.set_variable_type(
+            next(iter(vmi.find_variables_by_stack_offset(-0x140))),
+            SimTypePointer(typedefs[1]['struct B']),
+            all_unified=True,
+            mark_manual=True
+        )
+        unified = vmi.unified_variable(next(iter(vmi.find_variables_by_stack_offset(-0x140))))
+        unified.name = "b_ptr"
+        unified.renamed = True
+
+        vmi.set_variable_type(
+            next(iter(vmi.find_variables_by_register('rdi'))),
+            SimTypeInt(),
+            all_unified=True,
+            mark_manual=True
+        )
+        unified = vmi.unified_variable(next(iter(vmi.find_variables_by_register('rdi'))))
+        unified.name = "argc"
+        unified.renamed = True
+
+        d = proj.analyses.Decompiler(proj.kb.functions["main"], variable_kb=d.cache.clinic.variable_kb)
+        self._print_decompilation_result(d)
+
+        # TODO c_val
+        assert 'b_ptr = &c_ptr->c2[argc];' in d.codegen.text
+        assert 'c_ptr->c3[argc] = argc;' in d.codegen.text
+        assert 'c_ptr->c2[argc].b2.a2 = argc;' in d.codegen.text
+        assert 'b_ptr = &b_ptr[1];' in d.codegen.text
+        assert 'return c_ptr->c4->c2[argc].b2.a2;' in d.codegen.text
 
 if __name__ == "__main__":
     unittest.main()

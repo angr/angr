@@ -99,6 +99,8 @@ class CallingConventionAnalysis(Analysis):
             self._cfg = self.kb.cfgs['CFGFast']
 
         self._analyze()
+        if self.prototype is not None:
+            self.prototype = self.prototype.with_arch(self.project.arch)
 
     def _analyze(self):
         """

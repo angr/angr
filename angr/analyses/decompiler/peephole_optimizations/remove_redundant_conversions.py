@@ -1,3 +1,4 @@
+# pylint: disable=missing-class-docstring
 from ailment.expression import BinaryOp, Convert, Const
 
 from .base import PeepholeOptimizationExprBase
@@ -11,34 +12,31 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
 
     def optimize(self, expr: BinaryOp):
 
+        # TODO make this lhs/rhs agnostic
         if isinstance(expr.operands[0], Convert):
-            if (expr.operands[0].to_bits == 32  # converting to an int
+            # check: is the lhs convert an up-cast and is rhs a const?
+            if (expr.operands[0].to_bits > expr.operands[0].from_bits
                 and isinstance(expr.operands[1], Const)
             ):
+                to_bits = expr.operands[0].to_bits
+                from_bits = expr.operands[0].from_bits
                 if expr.op == "And":
-                    if expr.operands[0].from_bits == 16 and expr.operands[1].value <= 0xffff:
-                        con = Const(None, None, expr.operands[1].value, 16, **expr.operands[1].tags)
+                    if 0 <= expr.operands[1].value <= ((1 << from_bits) - 1) or \
+                            expr.operands[1].value >= (1 << to_bits) - (1 << (from_bits - 1)):
+                        con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
                         new_expr = BinaryOp(expr.idx, "And", (expr.operands[0].operand, con), expr.signed,
-                                        bits=16, **expr.tags)
-                        return Convert(expr.operands[0].idx, 16, 32, expr.operands[0].is_signed, new_expr,
-                                       **expr.operands[0].tags)
-                    elif expr.operands[0].from_bits == 8 and expr.operands[1].value <= 0xff:
-                        con = Const(None, None, expr.operands[1].value, 8, **expr.operands[1].tags)
-                        new_expr = BinaryOp(expr.idx, "And", (expr.operands[0].operand, con), expr.signed,
-                                        bits=8, **expr.tags)
-                        return Convert(expr.operands[0].idx, 8, 32, expr.operands[0].is_signed, new_expr,
+                                        bits=from_bits, **expr.tags)
+                        return Convert(expr.operands[0].idx, from_bits, to_bits, expr.operands[0].is_signed, new_expr,
                                        **expr.operands[0].tags)
 
-                elif expr.op in {"CmpEQ", "CmpNE", "CmpGT", "CmpGE", "CmpGTs", "CmpGEs", "CmpLT", "CmpLE", "CmpLTs", "CmpLEs"}:
-                    if expr.operands[0].from_bits == 16 and expr.operands[1].value <= 0xffff:
-                        con = Const(None, None, expr.operands[1].value, 16, **expr.operands[1].tags)
+                elif expr.op in {"CmpEQ", "CmpNE", "CmpGT", "CmpGE", "CmpGTs",
+                                 "CmpGEs", "CmpLT", "CmpLE", "CmpLTs", "CmpLEs"}:
+                    if 0 <= expr.operands[1].value <= ((1 << from_bits) - 1) or \
+                            (expr.operands[0].is_signed and
+                             expr.operands[1].value >= (1 << to_bits) - (1 << (from_bits - 1))):
+                        con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
                         new_expr = BinaryOp(expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed,
-                                            bits=16, **expr.tags)
-                        return new_expr
-                    elif expr.operands[0].from_bits == 8 and expr.operands[1].value <= 0xff:
-                        con = Const(None, None, expr.operands[1].value, 8, **expr.operands[1].tags)
-                        new_expr = BinaryOp(expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed,
-                                            bits=8, **expr.tags)
+                                            bits=from_bits, **expr.tags)
                         return new_expr
 
             elif (isinstance(expr.operands[1], Convert)
