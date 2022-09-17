@@ -2164,7 +2164,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     CConstant(c, t.type, codegen=self),
                     t
                         if not isinstance(t.type, SimTypePointer)
-                        else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t),
+                        else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self),
                     codegen=self
                 ) if c != 1 else t for c, t in o_terms))
             if o_constant != 0:
