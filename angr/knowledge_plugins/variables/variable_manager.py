@@ -497,6 +497,11 @@ class VariableManagerInternal(Serializable):
     def find_variables_by_stack_offset(self, offset: int) -> Set[SimVariable]:
         return self._stack_region.get_variables_by_offset(offset)
 
+    def find_variables_by_register(self, reg: Union[str, int]) -> Set[SimVariable]:
+        if type(reg) is str:
+            reg = self.manager._kb._project.arch.registers.get(reg)[0]
+        return self._register_region.get_variables_by_offset(reg)
+
     def get_variable_accesses(self, variable: SimVariable, same_name: bool=False) -> List[VariableAccess]:
 
         if not same_name:
@@ -736,7 +741,7 @@ class VariableManagerInternal(Serializable):
         return ty
 
     def set_variable_type(self, var: SimVariable, ty: SimType, name: Optional[str]=None,
-                          override_bot: bool=True) -> None:
+                          override_bot: bool=True, all_unified: bool=False, mark_manual: bool=False) -> None:
         if isinstance(ty, SimTypeBottom) and override_bot:
             # we fall back to assigning a default unsigned integer type for the variable
             if var.size is not None:
@@ -761,6 +766,16 @@ class VariableManagerInternal(Serializable):
             ty = self._register_struct_type(ty, name=name)
 
         self.variable_to_types[var] = ty
+        if mark_manual:
+            self.variables_with_manual_types.add(var)
+        if all_unified:
+            unified = self._variables_to_unified_variables.get(var, None)
+            if unified is not None:
+                for other_var, other_unified in self._variables_to_unified_variables.items():
+                    if other_unified is unified and other_var is not var:
+                        self.variable_to_types[other_var] = ty
+                        if mark_manual:
+                            self.variables_with_manual_types.add(other_var)
 
     def get_variable_type(self, var) -> Optional[SimType]:
         return self.variable_to_types.get(var, None)
