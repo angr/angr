@@ -66,9 +66,19 @@ def qualifies_for_simple_cast(ty1, ty2):
 def qualifies_for_implicit_cast(ty1, ty2):
     # casting ty1 to ty2 - can this happen without a cast?
     # used to decide whether to omit typecasts from output during promotion
-    return isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) and \
-           isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum)) and \
-           ty1.size <= ty2.size
+    if not isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) or \
+           not isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum)):
+        return False
+
+    if ty1.signed == ty2.signed:
+        return ty1.size <= ty2.size
+
+    if ty1.signed:
+        # ty1 is signed and ty2 is unsigned and thus we lose some range
+        return False
+    else:
+        # ty1 is unsigned and ty2 is signed
+        return ty1.size < ty2.signed
 
 def extract_terms(expr: 'CExpression') -> Tuple[int, List[Tuple[int, 'CExpression']]]:
     if isinstance(expr, CConstant):
