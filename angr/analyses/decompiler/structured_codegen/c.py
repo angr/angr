@@ -75,10 +75,10 @@ def qualifies_for_implicit_cast(ty1, ty2):
 
     if ty1.signed:
         # ty1 is signed and ty2 is unsigned and thus we lose some range
-        return False
+        return ty1.size == ty2.size
     else:
         # ty1 is unsigned and ty2 is signed
-        return ty1.size < ty2.signed
+        return ty1.size < ty2.size
 
 def extract_terms(expr: 'CExpression') -> Tuple[int, List[Tuple[int, 'CExpression']]]:
     if isinstance(expr, CConstant):
