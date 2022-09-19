@@ -264,7 +264,7 @@ class Convert(UnaryOp):
         self.is_signed = is_signed
 
     def __str__(self):
-        return "Conv(%d->%d, %s)" % (self.from_bits, self.to_bits, self.operand)
+        return "Conv(%d->%s%d, %s)" % (self.from_bits, 's' if self.is_signed else '', self.to_bits, self.operand)
 
     def __repr__(self):
         return str(self)

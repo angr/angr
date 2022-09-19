@@ -1,3 +1,7 @@
+from typing import List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .statement import Statement
 
 class Block:
     """
@@ -9,7 +13,7 @@ class Block:
     def __init__(self, addr, original_size, statements=None, idx=None):
         self.addr = addr
         self.original_size = original_size
-        self.statements = [] if statements is None else statements
+        self.statements: List['Statement'] = [] if statements is None else statements
         self.idx = idx
 
     def copy(self, statements=None):
