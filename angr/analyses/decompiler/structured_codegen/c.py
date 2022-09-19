@@ -2159,14 +2159,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         def bail_out():
             result = reduce(
                 lambda a1, a2: CBinaryOp("Add", a1, a2, codegen=self),
-                (CBinaryOp(
-                    "Mul",
-                    CConstant(c, t.type, codegen=self),
-                    t
+                (
+                    CBinaryOp(
+                        "Mul",
+                        CConstant(c, t.type, codegen=self),
+                        t
+                            if not isinstance(t.type, SimTypePointer)
+                            else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self),
+                        codegen=self
+                    )
+                    if c != 1
+                    else t
                         if not isinstance(t.type, SimTypePointer)
-                        else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self),
-                    codegen=self
-                ) if c != 1 else t for c, t in o_terms))
+                        else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self)
+                    for c, t in o_terms
+                )
+            )
             if o_constant != 0:
                 result = CBinaryOp("Add", CConstant(o_constant, SimTypeInt(), codegen=self), result, codegen=self)
 
@@ -2184,9 +2192,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         kernel = None
         while i < len(terms):
             c, t = terms[i]
-            if c == 1 and isinstance(unpack_typeref(t.type), SimTypePointer):
+            if isinstance(unpack_typeref(t.type), SimTypePointer):
                 if kernel is not None:
                     l.warning("Summing two different pointers together. Uh oh!")
+                    return bail_out()
+                if c != 1:
+                    l.warning("Multiplying a pointer by a constant??")
                     return bail_out()
                 kernel = t
                 terms.pop(i)
