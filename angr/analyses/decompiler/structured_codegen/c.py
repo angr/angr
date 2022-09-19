@@ -2669,7 +2669,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                          collapsed=expr.depth > self.binop_depth_cutoff,
                          )
 
-    def _handle_Expr_Convert(self, expr):
+    def _handle_Expr_Convert(self, expr: Expr.Convert):
         if 64 >= expr.to_bits > 32:
             dst_type = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
@@ -2682,6 +2682,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
         else:
             raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
+
+        dst_type.signed = expr.is_signed
 
         return CTypeCast(
             None,
