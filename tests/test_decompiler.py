@@ -1215,6 +1215,9 @@ class TestDecompiler(unittest.TestCase):
         unified.name = "b_ptr"
         unified.renamed = True
 
+        # NOTE TO WHOEVER SEES THIS
+        # this is an INCOMPLETE way to set the type of an argument
+        # you also need to change the function prototype
         vmi.set_variable_type(
             next(iter(vmi.find_variables_by_register('rdi'))),
             SimTypeInt(),

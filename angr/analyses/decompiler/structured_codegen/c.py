@@ -57,28 +57,23 @@ def squash_array_reference(ty):
     return ty
 
 def qualifies_for_simple_cast(ty1, ty2):
-    # casting ty1 to ty2 - can this happen precisely?
+    # converting ty1 to ty2 - can this happen precisely?
     # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
     return ty1.size == ty2.size and \
            isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer)) and \
            isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
 
 def qualifies_for_implicit_cast(ty1, ty2):
-    # casting ty1 to ty2 - can this happen without a cast?
+    # converting ty1 to ty2 - can this happen without a cast?
     # used to decide whether to omit typecasts from output during promotion
+    # this function need to answer the question:
+    # when does having a cast vs having an implicit promotion affect the result?
+    # the answer: I DON'T KNOW
     if not isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) or \
            not isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum)):
         return False
 
-    if ty1.signed == ty2.signed:
-        return ty1.size <= ty2.size
-
-    if ty1.signed:
-        # ty1 is signed and ty2 is unsigned and thus we lose some range
-        return ty1.size == ty2.size
-    else:
-        # ty1 is unsigned and ty2 is signed
-        return ty1.size < ty2.size
+    return ty1.size <= ty2.size
 
 def extract_terms(expr: 'CExpression') -> Tuple[int, List[Tuple[int, 'CExpression']]]:
     if isinstance(expr, CConstant):
