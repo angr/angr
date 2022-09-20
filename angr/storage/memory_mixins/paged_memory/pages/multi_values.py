@@ -124,6 +124,10 @@ class MultiValues:
             return False
         if self._single_value is not None and other._single_value is not None:
             return self._single_value is other._single_value
+        if self._single_value is not None and other._single_value is None:
+            return False
+        if self._single_value is None and other._single_value is not None:
+            return False
         if set(self._values.keys()) != set(other._values.keys()):
             return False
         for k in self._values.keys():
