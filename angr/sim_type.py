@@ -227,6 +227,13 @@ class SimTypeBottom(SimType):
     def __repr__(self):
         return self.label or 'BOT'
 
+    def c_repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None:
+            return 'void'
+        else:
+            return f'{"void" if self.label is None else self.label} {name}'
+
+
     def _init_str(self):
         return "%s(%s)" % (
             self.__class__.__name__,

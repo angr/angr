@@ -57,18 +57,23 @@ def squash_array_reference(ty):
     return ty
 
 def qualifies_for_simple_cast(ty1, ty2):
-    # casting ty1 to ty2 - can this happen precisely?
+    # converting ty1 to ty2 - can this happen precisely?
     # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
     return ty1.size == ty2.size and \
            isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer)) and \
            isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
 
 def qualifies_for_implicit_cast(ty1, ty2):
-    # casting ty1 to ty2 - can this happen without a cast?
+    # converting ty1 to ty2 - can this happen without a cast?
     # used to decide whether to omit typecasts from output during promotion
-    return isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) and \
-           isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum)) and \
-           ty1.size <= ty2.size
+    # this function need to answer the question:
+    # when does having a cast vs having an implicit promotion affect the result?
+    # the answer: I DON'T KNOW
+    if not isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) or \
+           not isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum)):
+        return False
+
+    return ty1.size <= ty2.size
 
 def extract_terms(expr: 'CExpression') -> Tuple[int, List[Tuple[int, 'CExpression']]]:
     if isinstance(expr, CConstant):
@@ -2159,14 +2164,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         def bail_out():
             result = reduce(
                 lambda a1, a2: CBinaryOp("Add", a1, a2, codegen=self),
-                (CBinaryOp(
-                    "Mul",
-                    CConstant(c, t.type, codegen=self),
-                    t
+                (
+                    CBinaryOp(
+                        "Mul",
+                        CConstant(c, t.type, codegen=self),
+                        t
+                            if not isinstance(t.type, SimTypePointer)
+                            else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self),
+                        codegen=self
+                    )
+                    if c != 1
+                    else t
                         if not isinstance(t.type, SimTypePointer)
-                        else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self),
-                    codegen=self
-                ) if c != 1 else t for c, t in o_terms))
+                        else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self)
+                    for c, t in o_terms
+                )
+            )
             if o_constant != 0:
                 result = CBinaryOp("Add", CConstant(o_constant, SimTypeInt(), codegen=self), result, codegen=self)
 
@@ -2184,9 +2197,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         kernel = None
         while i < len(terms):
             c, t = terms[i]
-            if c == 1 and isinstance(unpack_typeref(t.type), SimTypePointer):
+            if isinstance(unpack_typeref(t.type), SimTypePointer):
                 if kernel is not None:
                     l.warning("Summing two different pointers together. Uh oh!")
+                    return bail_out()
+                if c != 1:
+                    l.warning("Multiplying a pointer by a constant??")
                     return bail_out()
                 kernel = t
                 terms.pop(i)
@@ -2648,7 +2664,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                          collapsed=expr.depth > self.binop_depth_cutoff,
                          )
 
-    def _handle_Expr_Convert(self, expr):
+    def _handle_Expr_Convert(self, expr: Expr.Convert):
         if 64 >= expr.to_bits > 32:
             dst_type = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
@@ -2661,6 +2677,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
         else:
             raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
+
+        dst_type.signed = expr.is_signed
 
         return CTypeCast(
             None,
