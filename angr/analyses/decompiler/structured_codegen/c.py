@@ -179,10 +179,11 @@ class CConstruct:
                         pos_to_node.add_mapping(pos, len(s), obj)
 
                 elif isinstance(obj, SimType):
-                    if isinstance(obj, TypeRef):
-                        pos_to_node.add_mapping(pos, len(s), obj.type)
-                    else:
-                        pos_to_node.add_mapping(pos, len(s), obj)
+                    if pos_to_node is not None:
+                        if isinstance(obj, TypeRef):
+                            pos_to_node.add_mapping(pos, len(s), obj.type)
+                        else:
+                            pos_to_node.add_mapping(pos, len(s), obj)
 
                 if s.endswith('\n'):
                     text = pending_stmt_comments.pop(last_insn_addr, None)
@@ -1302,7 +1303,7 @@ class CBinaryOp(CExpression):
     Binary operations.
     """
 
-    __slots__ = ('op', 'lhs', 'rhs', 'tags', '_common_type', )
+    __slots__ = ('op', 'lhs', 'rhs', 'tags', 'common_type', )
 
     def __init__(self, op, lhs, rhs, tags: Optional[dict]=None, **kwargs):
         super().__init__(**kwargs)
@@ -1312,20 +1313,19 @@ class CBinaryOp(CExpression):
         self.rhs = rhs
         self.tags = tags
 
-        self._common_type = self._compute_type()
+        self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
         if self.op.startswith('Cmp'):
             self._type = SimTypeChar().with_arch(self.codegen.project.arch)
         else:
-            self._type = self._common_type
+            self._type = self.common_type
 
-    def _compute_type(self) -> SimType:
+    @staticmethod
+    def compute_common_type(op: str, lhs_ty: SimType, rhs_ty: SimType) -> SimType:
         # C spec https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2596.pdf 6.3.1.8 Usual arithmetic conversions
-        lhs_ty = self.lhs.type
-        rhs_ty = self.rhs.type
         rhs_ptr = isinstance(rhs_ty, SimTypePointer)
         lhs_ptr = isinstance(lhs_ty, SimTypePointer)
 
-        if self.op in ('Add', 'Sub'):
+        if op in ('Add', 'Sub'):
             if lhs_ptr and rhs_ptr:
                 return SimTypeLength().with_arch(rhs_ty._arch)
             if lhs_ptr:
@@ -1837,7 +1837,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
         self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
-        self.cfunc = None
+        self.cfunc: Optional[CFunction] = None
         self.cexterns: Optional[Set[CVariable]] = None
 
         self._analyze()
@@ -1881,7 +1881,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                                demangled_name=self._func.demangled_name, codegen=self)
         self.cfunc = FieldReferenceCleanup.handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer.handle(self.cfunc)
-        self.cfunc = OptimizeTypecastsWalker.handle(self.cfunc)
+        self.cfunc = MakeTypecastsImplicit.handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {self._variable(v, 64) for v in self.externs if v not in self._inlined_strings}
@@ -2658,11 +2658,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1])
 
-        return CBinaryOp(expr.op, lhs, rhs,
-                         tags=expr.tags,
-                         codegen=self,
-                         collapsed=expr.depth > self.binop_depth_cutoff,
-                         )
+        return CBinaryOp(
+            expr.op,
+            lhs,
+            rhs,
+            tags=expr.tags,
+            codegen=self,
+            collapsed=expr.depth > self.binop_depth_cutoff,
+        )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert):
         if 64 >= expr.to_bits > 32:
@@ -2679,11 +2682,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
 
         dst_type.signed = expr.is_signed
+        child = self._handle(expr.operand)
+        if getattr(child.type, 'signed', False) != expr.is_signed:
+            # this is a problem. sign-extension only happens when the SOURCE of the cast is signed
+            child_ty = self.default_simtype_from_size(child.type.size // self.project.arch.byte_width, expr.is_signed)
+            child = CTypeCast(None, child_ty, child, codegen=self)
 
         return CTypeCast(
             None,
             dst_type.with_arch(self.project.arch),
-            self._handle(expr.operand),
+            child,
             tags=expr.tags,
             codegen=self
         )
@@ -2852,44 +2860,72 @@ class CStructuredCodeWalker:
         obj.iffalse = cls.handle(obj.iffalse)
         return obj
 
-class OptimizeTypecastsWalker(CStructuredCodeWalker):
+class MakeTypecastsImplicit(CStructuredCodeWalker):
+    @classmethod
+    def collapse(cls, dst_ty: SimType, child: CExpression):
+        result = child
+        if isinstance(child, CTypeCast):
+            intermediate_ty = child.dst_type
+            start_ty = child.src_type
+
+            # step 1: collapse pointer-integer casts of the same size
+            if qualifies_for_simple_cast(intermediate_ty, dst_ty) and qualifies_for_simple_cast(start_ty, dst_ty):
+                result = child.expr
+            # step 2: collapse integer conversions which are redundant
+            if isinstance(dst_ty, (SimTypeChar, SimTypeInt, SimTypeNum)) and \
+                    isinstance(intermediate_ty, (SimTypeChar, SimTypeInt, SimTypeNum)) and \
+                    isinstance(start_ty, (SimTypeChar, SimTypeInt, SimTypeNum)):
+                if dst_ty.size <= start_ty.size and dst_ty.size <= intermediate_ty.size:
+                    # this is a down- or neutral-cast with an intermediate step that doesn't matter
+                    result = child.expr
+                elif dst_ty.size >= intermediate_ty.size >= start_ty.size and \
+                        intermediate_ty.signed == start_ty.signed:
+                    # this is an up- or neutral-cast which is monotonically ascending
+                    # we can leave out the dst_ty.signed check
+                    result = child.expr
+                # more cases go here...
+
+        if result is not child:
+            # TODO this is not the best since it prohibits things like the BinaryOp optimizer from working incrementally
+            return cls.collapse(dst_ty, result)
+        return result
+
     @classmethod
     def handle_CAssignment(cls, obj):
-        while isinstance(obj.rhs, CTypeCast) and qualifies_for_implicit_cast(obj.rhs.src_type, obj.rhs.dst_type):
-            obj.rhs = obj.rhs.expr
-        return super(OptimizeTypecastsWalker, cls).handle_CAssignment(obj)
+        obj.rhs = cls.collapse(obj.lhs.type, obj.rhs)
+        return super(MakeTypecastsImplicit, cls).handle_CAssignment(obj)
 
     @classmethod
-    def handle_CFunctionCall(cls, obj):
-        for i, arg in enumerate(obj.args):
-            while isinstance(arg, CTypeCast) and qualifies_for_implicit_cast(arg.src_type, arg.dst_type):
-                obj.args[i] = arg.expr
-                arg = arg.expr
-        return super(OptimizeTypecastsWalker, cls).handle_CFunctionCall(obj)
+    def handle_CFunctionCall(cls, obj: CFunctionCall):
+        for i, (c_arg, arg_ty) in enumerate(zip(obj.args, obj.prototype.args)):
+            obj.args[i] = cls.collapse(arg_ty, c_arg)
+        return super(MakeTypecastsImplicit, cls).handle_CFunctionCall(obj)
 
     @classmethod
-    def handle_CReturn(cls, obj):
-        while isinstance(obj.retval, CTypeCast) and \
-                qualifies_for_implicit_cast(obj.retval.src_type, obj.retval.dst_type):
-            obj.retval = obj.retval.expr
-        return super(OptimizeTypecastsWalker, cls).handle_CReturn(obj)
+    def handle_CReturn(cls, obj: CReturn):
+        obj.retval = cls.collapse(obj.codegen._func.prototype.returnty, obj.retval)
+        return super(MakeTypecastsImplicit, cls).handle_CReturn(obj)
 
     @classmethod
-    def handle_CBinaryOp(cls, obj):
-        while isinstance(obj.lhs, CTypeCast) and qualifies_for_implicit_cast(obj.lhs.src_type, obj.lhs.dst_type):
-            obj.lhs = obj.lhs.expr
-        while isinstance(obj.rhs, CTypeCast) and qualifies_for_implicit_cast(obj.rhs.src_type, obj.rhs.dst_type):
-            obj.rhs = obj.rhs.expr
-        return super(OptimizeTypecastsWalker, cls).handle_CBinaryOp(obj)
+    def handle_CBinaryOp(cls, obj: CBinaryOp):
+        while True:
+            new_lhs = cls.collapse(obj.common_type, obj.lhs)
+            if new_lhs is not obj.lhs and \
+                    CBinaryOp.compute_common_type(obj.op, new_lhs.type, obj.rhs.type) == obj.common_type:
+                obj.lhs = new_lhs
+            else:
+                new_rhs = cls.collapse(obj.common_type, obj.rhs)
+                if new_rhs is not obj.rhs and \
+                        CBinaryOp.compute_common_type(obj.op, obj.lhs.type, new_rhs.type) == obj.common_type:
+                    obj.rhs = new_rhs
+                else:
+                    break
+        return super(MakeTypecastsImplicit, cls).handle_CBinaryOp(obj)
 
     @classmethod
     def handle_CTypeCast(cls, obj):
-        # this one is a little different from the others - we want to check if this cast supersedes a child cast
-        while isinstance(obj.expr, CTypeCast) and \
-                qualifies_for_simple_cast(obj.src_type, obj.dst_type) and \
-                qualifies_for_simple_cast(obj.expr.src_type, obj.dst_type):
-            obj.expr = obj.expr.expr
-        return super(OptimizeTypecastsWalker, cls).handle_CTypeCast(obj)
+        obj.expr = cls.collapse(obj.dst_type, obj.expr)
+        return super(MakeTypecastsImplicit, cls).handle_CTypeCast(obj)
 
 class FieldReferenceCleanup(CStructuredCodeWalker):
     @classmethod

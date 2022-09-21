@@ -478,12 +478,14 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(func)
         l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
+        decls = code.split('\n\n')[0]
 
         argc_name = " a0"  # update this variable once the decompiler picks up
                            # argument names from the common definition of main()
-        assert argc_name in code
-        assert code.count(argc_name) == 1  # it should only appear once
+        assert argc_name in decls
+        assert code.count(decls) == 1  # it should only appear once
 
     def test_decompiling_strings_c_representation(self):
 
