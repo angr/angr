@@ -235,7 +235,11 @@ void State::step(address_t current_address, int32_t size, bool check_stop_points
 
 void State::commit() {
 	// save registers
-	uc_context_save(uc, saved_regs);
+	uc_context *tmp_saved_regs;
+	uc_context_alloc(uc, &tmp_saved_regs);
+	uc_context_save(uc, tmp_saved_regs);
+	// Restore reg values at start of block
+	uc_context_restore(uc, saved_regs);
 
 	// mark memory sync status
 	// we might miss some dirty bits, this happens if hitting the memory
@@ -365,6 +369,10 @@ void State::commit() {
 	for (auto &reg_offset: block_concrete_registers) {
 		symbolic_registers.erase(reg_offset);
 	}
+	// save registers
+	uc_context_restore(uc, tmp_saved_regs);
+	uc_context_save(uc, saved_regs);
+	uc_free(tmp_saved_regs);
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
 	block_concrete_registers.clear();
@@ -911,30 +919,7 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 				register_value_t dep_reg_val;
 				dep_reg_val.offset = source.reg_offset;
 				dep_reg_val.size = source.value_size;
-				auto saved_reg_val = block_start_reg_values.lower_bound(dep_reg_val.offset);
-				if (dep_reg_val.offset == saved_reg_val->first) {
-					// Dependency register contains byte 0 of the register. Save entire value: correct-sized value will
-					// be computed when re-executing instruction
-					memcpy(dep_reg_val.value, saved_reg_val->second.value, MAX_REGISTER_BYTE_SIZE);
-					stmt.reg_deps.insert(dep_reg_val);
-				}
-				else {
-					// Check if dependency register is a sub-register
-					// lower_bound returns the first entry greater than or equal to given register offset but we have to check with
-					// the register whose byte 0 has VEX offset less than the dependency register.
-					saved_reg_val--;
-					if (dep_reg_val.offset + dep_reg_val.size <= saved_reg_val->first + saved_reg_val->second.size) {
-						// Dependency is a sub-register that starts in middle of larger register.
-						// Save value of dependency register starting at offset 0 so that value is computed correctly when
-						// re-executing
-						uint32_t val_offset = dep_reg_val.offset - saved_reg_val->first;
-						memcpy(dep_reg_val.value, saved_reg_val->second.value + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
-						stmt.reg_deps.insert(dep_reg_val);
-					}
-					else {
-						assert(false && "[sim_unicorn] Dependency register not saved at block start. Please report a bug with repro instructions.");
-					}
-				}
+				get_register_value(dep_reg_val.offset, dep_reg_val.value);
 			}
 		}
 		else if (source.entity_type == TAINT_ENTITY_MEM) {
@@ -1230,7 +1215,15 @@ void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) 
 		}
 	}
 	else {
-		uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset).first, out_reg_value);
+		uint8_t reg_val[MAX_REGISTER_BYTE_SIZE];
+		uint32_t val_offset = 0;
+		auto closest_reg_offset = vex_to_unicorn_map.lower_bound(vex_reg_offset);
+		uc_reg_read(uc, vex_to_unicorn_map.at(closest_reg_offset->first).first, reg_val);
+		if (closest_reg_offset->first != vex_reg_offset) {
+			// Dependency is a sub-register that starts in middle of larger register. Adjust offset to start copying from
+			val_offset = vex_reg_offset - closest_reg_offset->first;
+		}
+		memcpy(out_reg_value, reg_val + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
 	}
 	return;
 }
@@ -2180,21 +2173,6 @@ void State::start_propagating_taint() {
 		return;
 	}
 	block_symbolic_temps.clear();
-	block_start_reg_values.clear();
-	// Save value of all registers in case some instruction touches symbolic data and needs to be re-executed
-	for (auto &reg_offset: vex_to_unicorn_map) {
-		register_value_t reg_value;
-		reg_value.offset = reg_offset.first;
-		reg_value.size = reg_offset.second.second;
-		get_register_value(reg_value.offset, reg_value.value);
-		block_start_reg_values.emplace(reg_value.offset, reg_value);
-	}
-	for (auto &cpu_flag: cpu_flags) {
-		register_value_t flag_value;
-		flag_value.offset = cpu_flag.first;
-		get_register_value(cpu_flag.first, flag_value.value);
-		block_start_reg_values.emplace(flag_value.offset, flag_value);
-	}
 	if (symbolic_registers.size() != 0) {
 		if (block_taint_cache.find(block_address) == block_taint_cache.end()) {
 			// Compute and cache taint sink-source relations for this block since there are symbolic registers.
