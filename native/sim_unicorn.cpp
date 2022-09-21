@@ -370,6 +370,7 @@ void State::commit() {
 	block_concrete_registers.clear();
 	block_stmt_concrete_regs.clear();
 	block_symbolic_mem_deps.clear();
+	block_symbolic_mem_writes.clear();
 	block_concrete_writes_to_reexecute.clear();
 	curr_block_details.reset();
 	block_mem_reads_data.clear();
