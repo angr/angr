@@ -920,6 +920,7 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 				dep_reg_val.offset = source.reg_offset;
 				dep_reg_val.size = source.value_size;
 				get_register_value(dep_reg_val.offset, dep_reg_val.value);
+				stmt.reg_deps.insert(dep_reg_val);
 			}
 		}
 		else if (source.entity_type == TAINT_ENTITY_MEM) {
