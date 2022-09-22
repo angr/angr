@@ -1221,7 +1221,9 @@ void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) 
 		auto closest_reg_offset = vex_to_unicorn_map.lower_bound(vex_reg_offset);
 		uc_reg_read(uc, vex_to_unicorn_map.at(closest_reg_offset->first).first, reg_val);
 		if (closest_reg_offset->first != vex_reg_offset) {
-			// Dependency is a sub-register that starts in middle of larger register. Adjust offset to start copying from
+			// Dependency is a sub-register that starts in middle of larger register. Adjust offset to start copying
+			// from
+			closest_reg_offset--;
 			val_offset = vex_reg_offset - closest_reg_offset->first;
 		}
 		memcpy(out_reg_value, reg_val + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
