@@ -617,7 +617,7 @@ class State {
 
 	void compute_slice_of_stmt(vex_stmt_details_t &instr);
 	vex_stmt_details_t compute_vex_stmt_details(const vex_stmt_taint_entry_t &vex_stmt_taint_entry);
-	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
+	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value, bool from_saved_context=false) const;
 	// Return list of all dependent instructions including dependencies of those dependent instructions
 	std::set<vex_stmt_details_t> get_list_of_dep_stmts(const vex_stmt_details_t &instr) const;
 

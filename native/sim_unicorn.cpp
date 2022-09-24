@@ -939,30 +939,8 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 				register_value_t dep_reg_val;
 				dep_reg_val.offset = source.reg_offset;
 				dep_reg_val.size = source.value_size;
-				auto saved_reg_val = block_start_reg_values.lower_bound(dep_reg_val.offset);
-				if (dep_reg_val.offset == saved_reg_val->first) {
-					// Dependency register contains byte 0 of the register. Save entire value: correct-sized value will
-					// be computed when re-executing instruction
-					memcpy(dep_reg_val.value, saved_reg_val->second.value, MAX_REGISTER_BYTE_SIZE);
-					stmt.reg_deps.insert(dep_reg_val);
-				}
-				else {
-					// Check if dependency register is a sub-register
-					// lower_bound returns the first entry greater than or equal to given register offset but we have to check with
-					// the register whose byte 0 has VEX offset less than the dependency register.
-					saved_reg_val--;
-					if (dep_reg_val.offset + dep_reg_val.size <= saved_reg_val->first + saved_reg_val->second.size) {
-						// Dependency is a sub-register that starts in middle of larger register.
-						// Save value of dependency register starting at offset 0 so that value is computed correctly when
-						// re-executing
-						uint32_t val_offset = dep_reg_val.offset - saved_reg_val->first;
-						memcpy(dep_reg_val.value, saved_reg_val->second.value + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
-						stmt.reg_deps.insert(dep_reg_val);
-					}
-					else {
-						assert(false && "[sim_unicorn] Dependency register not saved at block start. Please report a bug with repro instructions.");
-					}
-				}
+				get_register_value(dep_reg_val.offset, dep_reg_val.value, true);
+				stmt.reg_deps.insert(dep_reg_val);
 			}
 		}
 		else if (source.entity_type == TAINT_ENTITY_MEM) {
@@ -1238,12 +1216,17 @@ std::set<vex_stmt_details_t> State::get_list_of_dep_stmts(const vex_stmt_details
 	return stmts;
 }
 
-void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const {
+void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value, bool from_saved_context) const {
 	// Check if VEX register is actually a CPU flag
 	auto cpu_flags_entry = cpu_flags.find(vex_reg_offset);
 	if (cpu_flags_entry != cpu_flags.end()) {
 		uint64_t reg_value;
-		uc_reg_read(uc, cpu_flags_entry->second.first, &reg_value);
+		if (from_saved_context) {
+			uc_context_reg_read(saved_regs, cpu_flags_entry->second.first, &reg_value);
+		}
+		else {
+			uc_reg_read(uc, cpu_flags_entry->second.first, &reg_value);
+		}
 		reg_value &= cpu_flags_entry->second.second;
 		if (reg_value == 0) {
 			memset(out_reg_value, 0, MAX_REGISTER_BYTE_SIZE);
@@ -1258,7 +1241,22 @@ void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) 
 		}
 	}
 	else {
-		uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset).first, out_reg_value);
+		uint8_t reg_val[MAX_REGISTER_BYTE_SIZE];
+		uint32_t val_offset = 0;
+		auto closest_reg_offset = vex_to_unicorn_map.lower_bound(vex_reg_offset);
+		if (from_saved_context) {
+			uc_context_reg_read(saved_regs, vex_to_unicorn_map.at(closest_reg_offset->first).first, reg_val);
+		}
+		else {
+			uc_reg_read(uc, vex_to_unicorn_map.at(closest_reg_offset->first).first, reg_val);
+		}
+		if (closest_reg_offset->first != vex_reg_offset) {
+			// Dependency is a sub-register that starts in middle of larger register. Adjust offset to start copying
+			// from
+			closest_reg_offset--;
+			val_offset = vex_reg_offset - closest_reg_offset->first;
+		}
+		memcpy(out_reg_value, reg_val + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
 	}
 	return;
 }
