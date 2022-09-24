@@ -236,44 +236,6 @@ void State::step(address_t current_address, int32_t size, bool check_stop_points
 }
 
 void State::commit(uint64_t addr) {
-	// save registers
-	uc_context_save(uc, saved_regs);
-
-	switch (arch) {
-        case UC_ARCH_X86: {
-            switch (unicorn_mode) {
-                case UC_MODE_32: {
-                    uint32_t val = addr;
-                    uc_context_reg_write(saved_regs, UC_X86_REG_EIP, &val);
-                    break;
-                }
-                case UC_MODE_64: {
-                    uc_context_reg_write(saved_regs, UC_X86_REG_RIP, &addr);
-                    break;
-                }
-                default: {
-                    puts("unsupported");
-                    abort();
-                }
-            }
-            break;
-        }
-        case UC_ARCH_ARM: {
-            uint32_t val = addr;
-            uc_context_reg_write(saved_regs, UC_ARM_REG_PC, &val);
-            break;
-        }
-        case UC_ARCH_MIPS: {
-            uint32_t val = addr;
-            uc_context_reg_write(saved_regs, UC_MIPS_REG_PC, &val);
-            break;
-        }
-        default: {
-            puts("unsupported");
-            abort();
-        }
-	}
-
 	// mark memory sync status
 	// we might miss some dirty bits, this happens if hitting the memory
 	// write before mapping
@@ -401,6 +363,42 @@ void State::commit(uint64_t addr) {
 	}
 	for (auto &reg_offset: block_concrete_registers) {
 		symbolic_registers.erase(reg_offset);
+	}
+	// save registers
+	uc_context_save(uc, saved_regs);
+	switch (arch) {
+		case UC_ARCH_X86: {
+			switch (unicorn_mode) {
+				case UC_MODE_32: {
+					uint32_t val = addr;
+					uc_context_reg_write(saved_regs, UC_X86_REG_EIP, &val);
+					break;
+				}
+				case UC_MODE_64: {
+					uc_context_reg_write(saved_regs, UC_X86_REG_RIP, &addr);
+					break;
+				}
+				default: {
+					puts("unsupported");
+					abort();
+				}
+			}
+			break;
+		}
+		case UC_ARCH_ARM: {
+			uint32_t val = addr;
+			uc_context_reg_write(saved_regs, UC_ARM_REG_PC, &val);
+			break;
+		}
+		case UC_ARCH_MIPS: {
+			uint32_t val = addr;
+			uc_context_reg_write(saved_regs, UC_MIPS_REG_PC, &val);
+			break;
+		}
+		default: {
+			puts("unsupported");
+			abort();
+		}
 	}
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
