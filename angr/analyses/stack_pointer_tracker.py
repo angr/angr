@@ -527,8 +527,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                             v = state.get(self.project.arch.sp_offset)
                             if v is BOTTOM:
                                 incremented = BOTTOM
-                            else:
-                                num_args = len(callee_cleanups[0].calling_convention.args)
+                            elif callee_cleanups[0].prototype is not None:
+                                num_args = len(callee_cleanups[0].prototype.args)
                                 incremented = v + Constant(self.project.arch.bytes * num_args)
                             state.put(self.project.arch.sp_offset, incremented)
                         except CouldNotResolveException:
