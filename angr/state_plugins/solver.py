@@ -517,41 +517,48 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def max(self, e, extra_constraints=(), exact=None):
+    def max(self, e, extra_constraints=(), exact=None, signed=False):
         """
         Return the maximum value of expression `e`.
 
         :param e                : expression (an AST) to evaluate
         :param extra_constraints: extra constraints (as ASTs) to add to the solver for this solve
         :param exact            : if False, return approximate solutions.
+        :param signed           : Whether the expression should be treated as a signed value.
         :return: the maximum possible value of e (backend object)
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
-            ar = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
-            er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
+            ar = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False,
+                                  signed=signed)
+            er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints),
+                                  signed=signed)
             assert er <= ar
             return ar
-        return self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
+        return self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact,
+                                signed=signed)
 
     @concrete_path_scalar
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def min(self, e, extra_constraints=(), exact=None):
+    def min(self, e, extra_constraints=(), exact=None, signed=False):
         """
         Return the minimum value of expression `e`.
 
         :param e                : expression (an AST) to evaluate
         :param extra_constraints: extra constraints (as ASTs) to add to the solver for this solve
         :param exact            : if False, return approximate solutions.
+        :param signed           : Whether the expression should be treated as a signed value.
         :return: the minimum possible value of e (backend object)
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
-            ar = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
-            er = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
+            ar = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False,
+                                  signed=signed)
+            er = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), signed=signed)
             assert ar <= er
             return ar
-        return self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
+        return self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact,
+                                signed=signed)
 
     @timed_function
     @ast_stripping_decorator
