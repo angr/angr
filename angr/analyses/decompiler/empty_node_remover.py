@@ -3,9 +3,8 @@ import claripy
 import ailment
 
 from .sequence_walker import SequenceWalker
-from .region_identifier import MultiNode
-from .structurer_nodes import SequenceNode, CodeNode, ConditionNode, SwitchCaseNode, ConditionalBreakNode, \
-    BreakNode, LoopNode, CascadingConditionNode
+from .structuring.structurer_nodes import MultiNode, SequenceNode, CodeNode, ConditionNode, SwitchCaseNode,\
+    ConditionalBreakNode, BreakNode, LoopNode, CascadingConditionNode
 from .condition_processor import ConditionProcessor
 
 

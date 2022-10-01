@@ -4,7 +4,7 @@ from typing import Optional, List
 
 import networkx
 
-from .structurer_nodes import MultiNode
+from .structuring.structurer_nodes import MultiNode
 
 
 l = logging.getLogger(name=__name__)

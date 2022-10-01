@@ -18,7 +18,7 @@ from ....errors import UnsupportedNodeTypeError
 from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
 from ..region_identifier import MultiNode
-from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
+from ..structuring.structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
                          SwitchCaseNode, ContinueNode, CascadingConditionNode)
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 

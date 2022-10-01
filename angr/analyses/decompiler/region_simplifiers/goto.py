@@ -4,7 +4,8 @@ from typing import Set
 import ailment
 
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, CascadingConditionNode
+from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, \
+    CascadingConditionNode
 from .node_address_finder import NodeAddressFinder
 
 

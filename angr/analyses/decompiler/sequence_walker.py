@@ -2,9 +2,8 @@
 import ailment
 
 from ...errors import UnsupportedNodeTypeError
-from .region_identifier import MultiNode
-from .structurer_nodes import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode, CascadingConditionNode, \
-    ConditionalBreakNode
+from .structuring.structurer_nodes import (MultiNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode,
+                                           CascadingConditionNode, ConditionalBreakNode)
 
 
 class SequenceWalker:

@@ -4,7 +4,7 @@ from typing import Optional
 import ailment
 import claripy
 
-from ..structurer_nodes import ConditionNode, CascadingConditionNode
+from ..structuring.structurer_nodes import ConditionNode, CascadingConditionNode
 from ..sequence_walker import SequenceWalker
 
 

@@ -11,10 +11,10 @@ from ailment import Block
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from .. import Analysis, register_analysis
 from ..cfg.cfg_utils import CFGUtils
-from .utils import replace_last_statement
-from .structurer_nodes import MultiNode, ConditionNode
+from .structuring.structurer_nodes import MultiNode, ConditionNode
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor
+from .utils import replace_last_statement
 
 l = logging.getLogger(name=__name__)
 

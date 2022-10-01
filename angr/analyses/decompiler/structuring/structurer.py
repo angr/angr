@@ -9,21 +9,22 @@ import networkx
 import claripy
 import ailment
 
-from ...knowledge_plugins.cfg import IndirectJump, IndirectJumpType
-from .. import Analysis, register_analysis
-from ..cfg.cfg_utils import CFGUtils
-from .region_identifier import GraphRegion
+from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from ... import Analysis, register_analysis
+from ...cfg.cfg_utils import CFGUtils
+from ..graph_region import GraphRegion
+from ..empty_node_remover import EmptyNodeRemover
+from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
+from ..condition_processor import ConditionProcessor
+from ..region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
 from .structurer_nodes import BaseNode, SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, \
     SwitchCaseNode, BreakNode, ContinueNode, EmptyBlockNotice, MultiNode, CascadingConditionNode
-from .empty_node_remover import EmptyNodeRemover
-from .jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
-from .condition_processor import ConditionProcessor
-from .utils import remove_last_statement, extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, \
+from ..utils import remove_last_statement, extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, \
     insert_node
-from .region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
+
 
 if TYPE_CHECKING:
-    from ...knowledge_plugins.functions import Function
+    from angr.knowledge_plugins.functions import Function
 
 l = logging.getLogger(name=__name__)
 
@@ -1722,4 +1723,4 @@ register_analysis(RecursiveStructurer, 'RecursiveStructurer')
 register_analysis(Structurer, 'Structurer')
 
 # delayed import
-from .sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position
+from ..sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position

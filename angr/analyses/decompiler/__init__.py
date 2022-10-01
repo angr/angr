@@ -1,5 +1,5 @@
 from .region_identifier import RegionIdentifier
-from .structurer import Structurer
+from .structuring import Structurer
 from .structured_codegen import CStructuredCodeGenerator, ImportSourceCode
 from .clinic import Clinic
 from .region_simplifiers import RegionSimplifier

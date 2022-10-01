@@ -5,7 +5,7 @@ from typing import Dict, List
 import ailment
 
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, ContinueNode, \
+from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, ContinueNode, \
     CascadingConditionNode
 
 

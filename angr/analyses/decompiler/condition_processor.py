@@ -13,8 +13,10 @@ from ...utils import is_pyinstaller
 from ...utils.graph import dominates, shallow_reverse
 from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
-from .structurer_nodes import (EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode, BreakNode,
-                               ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode, CascadingConditionNode)
+from .structuring.structurer_nodes import (MultiNode, EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode,
+                                           BreakNode, ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode,
+                                           CascadingConditionNode)
+from .graph_region import GraphRegion
 
 if is_pyinstaller():
     # PyInstaller is not happy with lazy import
@@ -1042,6 +1044,3 @@ class ConditionProcessor:
                            self.arch.bits,
                            explicit_name=True)
 
-
-# delayed import
-from .region_identifier import GraphRegion, MultiNode  # pylint:disable=wrong-import-position
