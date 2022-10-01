@@ -7,7 +7,8 @@ from ..condition_processor import ConditionProcessor
 from ..graph_region import GraphRegion
 from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from ..empty_node_remover import EmptyNodeRemover
-from .structurer import Structurer
+from .structurer_base import StructurerBase
+from .dream import DreamStructurer
 
 
 if TYPE_CHECKING:
@@ -58,7 +59,8 @@ class RecursiveStructurer(Analysis):
                 # Get the parent region
                 parent_region = parent_map.get(current_region, None)
                 # structure this region
-                st = self.project.analyses.Structurer(current_region, parent_map=parent_map,
+                structurer_cls = DreamStructurer
+                st = self.project.analyses[DreamStructurer].prep()(current_region, parent_map=parent_map,
                                                       condition_processor=self.cond_proc,
                                                       case_entry_to_switch_head=self._case_entry_to_switch_head,
                                                       func=self.function)
@@ -78,7 +80,7 @@ class RecursiveStructurer(Analysis):
         self.result = EmptyNodeRemover(self.result).result
 
         # remove conditional jumps
-        Structurer._remove_conditional_jumps(self.result)
+        StructurerBase._remove_conditional_jumps(self.result)
 
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 

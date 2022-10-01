@@ -23,7 +23,8 @@ class GraphRegion:
 
     __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', )
 
-    def __init__(self, head, graph, successors: Optional[list], graph_with_successors: networkx.DiGraph, cyclic):
+    def __init__(self, head, graph, successors: Optional[list], graph_with_successors: Optional[networkx.DiGraph],
+                 cyclic):
         self.head = head
         self.graph = graph
         self.successors = successors
@@ -31,7 +32,7 @@ class GraphRegion:
         # successors inside graph_with_successors are *not* deep copied. therefore, you should never modify any
         # successor node in graph_with_successors. to avoid potential programming errors, just treat
         # graph_with_successors as read-only.
-        self.graph_with_successors: networkx.DiGraph = graph_with_successors
+        self.graph_with_successors = graph_with_successors
         self.cyclic = cyclic
 
     def __repr__(self):
