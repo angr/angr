@@ -1,5 +1,6 @@
 from ailment.expression import BinaryOp, Const, Load
 
+from ....utils.loader import is_pc, is_in_readonly_section, is_in_readonly_segment
 from .base import PeepholeOptimizationExprBase
 
 
@@ -20,10 +21,10 @@ class SimplifyPcRelativeLoads(PeepholeOptimizationExprBase):
 
             if isinstance(op1, Const):
                 # check if op1 is PC
-                if self._is_pc(expr.ins_addr, op1.value):
+                if is_pc(self.project, expr.ins_addr, op1.value):
                     # check if op0.addr points to a read-only section
                     addr = op0.addr.value
-                    if self._is_in_readonly_section(addr) or self._is_in_readonly_segment(addr):
+                    if is_in_readonly_section(self.project, addr) or is_in_readonly_segment(self.project, addr):
                         # found it!
                         # do the load first
                         try:
