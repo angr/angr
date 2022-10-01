@@ -1240,5 +1240,19 @@ class TestDecompiler(unittest.TestCase):
         assert 'b_ptr = &b_ptr[1];' in d.codegen.text
         assert 'return c_ptr->c4->c2[argc].b2.a2;' in d.codegen.text
 
+    def test_call_return_variable_folding(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_gcc_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        dec = proj.analyses.Decompiler(proj.kb.functions["print_long_format"])
+        self._print_decompilation_result(dec)
+
+        assert "if (timespec_cmp(" in dec.codegen.text
+        assert "&& localtime_rz(localtz, " in dec.codegen.text
+
+
 if __name__ == "__main__":
     unittest.main()
