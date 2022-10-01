@@ -60,25 +60,3 @@ class PeepholeOptimizationExprBase:
             return True
         return False
 
-    def _is_pc(self, pc, addr) -> bool:
-        if archinfo.arch_arm.is_arm_arch(self.project.arch):
-            if pc & 1 == 1:
-                # thumb mode
-                pc = pc - 1
-                return addr == pc + 4
-            else:
-                # arm mode
-                return addr == pc + 8
-        return pc == addr
-
-    def _is_in_readonly_section(self, addr: int) -> bool:
-        sec = self.project.loader.find_section_containing(addr)
-        if sec is not None:
-            return not sec.is_writable
-        return False
-
-    def _is_in_readonly_segment(self, addr: int) -> bool:
-        seg = self.project.loader.find_segment_containing(addr)
-        if seg is not None:
-            return not seg.is_writable
-        return False

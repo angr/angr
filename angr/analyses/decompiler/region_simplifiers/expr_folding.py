@@ -442,6 +442,7 @@ class StoreStatementFinder(SequenceWalker):
         if cond_loc in self._end_to_starts:
             for start in self._end_to_starts[cond_loc]:
                 self._active_intervals.discard((start, cond_loc))
+        super()._handle_Condition(node, **kwargs)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
         cond_loc = ConditionLocation(node.addr, None)
@@ -450,12 +451,14 @@ class StoreStatementFinder(SequenceWalker):
             if cond_loc in self._end_to_starts[cond_loc]:
                 for start in self._end_to_starts[cond_loc]:
                     self._active_intervals.discard((start, cond_loc))
+        super()._handle_CascadingCondition(node, **kwargs)
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         cond_break_loc = ConditionalBreakLocation(node.addr)
         if cond_break_loc in self._end_to_starts:
             for start in self._end_to_starts[cond_break_loc]:
                 self._active_intervals.discard((start, cond_break_loc))
+        super()._handle_ConditionalBreak(node, **kwargs)
 
     def has_store(self, start: StatementLocation, end: StatementLocation) -> bool:
         return self.interval_to_hasstore.get((start, end), False)

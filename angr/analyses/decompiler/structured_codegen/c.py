@@ -13,6 +13,7 @@ from ....sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
+from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
 from ....errors import UnsupportedNodeTypeError
 from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
@@ -2617,7 +2618,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     self._cfg.memory_data[expr.value].sort == MemoryDataSort.String:
                 type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                 reference_values[type_] = self._cfg.memory_data[expr.value]
-                inline_string = True
+                # is it a constant string?
+                if is_in_readonly_segment(self.project, expr.value) \
+                        or is_in_readonly_section(self.project, expr.value):
+                    inline_string = True
 
         if type_ is None:
             # default to int
