@@ -41,6 +41,7 @@ class ConditionProcessor:
         self.arch = arch
         self._condition_mapping: Dict[str,Any] = {} if condition_mapping is None else condition_mapping
         self.jump_table_conds: Dict[int,Set] = defaultdict(set)
+        self.edge_conditions = {}
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
@@ -52,6 +53,29 @@ class ConditionProcessor:
         self.guarding_conditions = {}
         self._ast2annotations = {}
 
+    def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
+        edge = src, dst
+        edge_data = graph.get_edge_data(*edge)
+        edge_type = edge_data.get('type', 'transition')
+        try:
+            predicate = self._extract_predicate(src, dst, edge_type)
+        except EmptyBlockNotice:
+            # catch empty block notice - although this should not really happen
+            predicate = claripy.true
+        return predicate
+
+    def recover_edge_conditions(self, region) -> Dict:
+        edge_conditions = {}
+        # traverse the graph to recover the condition for each edge
+        for src in region.graph.nodes():
+            nodes = list(region.graph[src])
+            if len(nodes) >= 1:
+                for dst in nodes:
+                    predicate = self.recover_edge_condition(region.graph, src, dst)
+                    edge_conditions[(src, dst)] = predicate
+
+        self.edge_conditions = edge_conditions
+
     def recover_reaching_conditions(self, region, with_successors=False,
                                     case_entry_to_switch_head: Optional[Dict[int,int]]=None):
 
@@ -61,23 +85,8 @@ class ConditionProcessor:
             """
             return dominates(inv_idoms, node_a, node_b)
 
-        edge_conditions = {}
-        predicate_mapping = {}
-        # traverse the graph to recover the condition for each edge
-        for src in region.graph.nodes():
-            nodes = list(region.graph[src])
-            if len(nodes) >= 1:
-                for dst in nodes:
-                    edge = src, dst
-                    edge_data = region.graph.get_edge_data(*edge)
-                    edge_type = edge_data.get('type', 'transition')
-                    try:
-                        predicate = self._extract_predicate(src, dst, edge_type)
-                    except EmptyBlockNotice:
-                        # catch empty block notice - although this should not really happen
-                        predicate = claripy.true
-                    edge_conditions[edge] = predicate
-                    predicate_mapping[predicate] = dst
+        self.recover_edge_conditions(region)
+        edge_conditions = self.edge_conditions
 
         if with_successors and region.graph_with_successors is not None:
             _g = region.graph_with_successors
@@ -423,7 +432,7 @@ class ConditionProcessor:
 
     EXC_COUNTER = 1000
 
-    def _extract_predicate(self, src_block, dst_block, edge_type):
+    def _extract_predicate(self, src_block, dst_block, edge_type) -> claripy.ast.Bool:
 
         if edge_type == 'exception':
             # TODO: THIS IS ABSOLUTELY A HACK. AT THIS MOMENT YOU SHOULD NOT ATTEMPT TO MAKE SENSE OF EXCEPTION EDGES.
@@ -569,7 +578,7 @@ class ConditionProcessor:
         raise NotImplementedError(("Condition variable %s has an unsupported operator %s. "
                                    "Consider implementing.") % (cond, cond.op))
 
-    def claripy_ast_from_ail_condition(self, condition) -> claripy.ast.Base:
+    def claripy_ast_from_ail_condition(self, condition) -> claripy.ast.Bool:
 
         # Unpack a condition all the way to the leaves
         if isinstance(condition, claripy.ast.Base):  # pylint:disable=isinstance-second-argument-not-valid-type

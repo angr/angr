@@ -9,6 +9,7 @@ from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from ..empty_node_remover import EmptyNodeRemover
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
+from .phoenix import PhoenixStructurer
 
 
 if TYPE_CHECKING:
