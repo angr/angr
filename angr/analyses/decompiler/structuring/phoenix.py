@@ -1,10 +1,14 @@
 from typing import Dict, Optional, TYPE_CHECKING
+from collections import defaultdict
 import logging
 
+import networkx
+
 import claripy
+from ailment.expression import Const
 
 from ...cfg.cfg_utils import CFGUtils
-from .structurer_nodes import ConditionNode, SequenceNode, LoopNode
+from .structurer_nodes import ConditionNode, SequenceNode, LoopNode, ConditionalBreakNode, BreakNode, ContinueNode
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
@@ -26,28 +30,26 @@ class PhoenixStructurer(StructurerBase):
         self._analyze()
 
     def _analyze(self):
-        has_cycle = self._has_cycle()
-        # sanity checks
-        if self._region.cyclic:
-            if not has_cycle:
-                l.critical("Region %r is supposed to be a cyclic region but there is no cycle inside. This is usually "
-                           "due to the existence of loop headers with more than one in-edges, which angr decompiler "
-                           "does not support yet. The decompilation result will be wrong.", self._region)
-            matched = self._analyze_cyclic()
-            if not matched:
-                self._refine_cyclic()
-                matched = self._analyze_cyclic()
-        else:
-            if has_cycle:
-                l.critical("Region %r is supposed to be an acyclic region but there are cycles inside. This is usually "
-                           "due to the existence of loop headers with more than one in-edges, which angr decompiler "
-                           "does not support yet. The decompilation result will be wrong.", self._region)
-            self._analyze_acyclic()
+        # iterate until there is only one node in the region
 
-    def _analyze_cyclic(self):
-        self._match_cyclic_schemas(self._region.head, self._region.graph, self._region.graph_with_successors)
-        assert len(self._region.graph.nodes) == 1
+        has_cycle = self._has_cycle()
+        while len(self._region.graph.nodes) > 1:
+            self._analyze_acyclic()
+            if has_cycle:
+                matched = self._analyze_cyclic()
+                if not matched:
+                    refined = self._refine_cyclic()
+                    if refined:
+                        continue
+                    self._last_resort_refinement()
+                    # this is where we need to re-run region identifier!
+                    raise NotImplementedError("Invoke region identifier again")
+                has_cycle = self._has_cycle()
+
         self.result = next(iter(self._region.graph.nodes))
+
+    def _analyze_cyclic(self) -> bool:
+        return self._match_cyclic_schemas(self._region.head, self._region.graph, self._region.graph_with_successors)
 
     def _match_cyclic_schemas(self, head, graph, full_graph) -> bool:
         matched = self._match_cyclic_while(head, graph, full_graph)
@@ -176,9 +178,11 @@ class PhoenixStructurer(StructurerBase):
         head_succs = list(fullgraph.successors(loop_head))
         headgoing_edges = [ ]
         outgoing_edges = [ ]
-        if len(head_succs) > 1 and any(head_succ not in graph for head_succ in head_succs):
+        successor = None  # the loop successor
+        if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
             # there is an out-going edge from the loop head
             # virtualize all other edges
+            successor = next(iter(head_succ for head_succ in head_succs if head_succ not in graph))
             for node in graph.nodes:
                 if node is loop_head:
                     continue
@@ -191,20 +195,93 @@ class PhoenixStructurer(StructurerBase):
                     outgoing_edges.append((node, outside_succ))
 
         # check if there is an out-going edge from the loop tail
-        if len(head_succs) == 1:
-            raise NotImplementedError()
+        elif len(head_succs) == 1:
+            head_preds = list(fullgraph.predecessors(loop_head))
+            if len(head_preds) == 1:
+                head_pred = head_preds[0]
+                head_pred_succs = list(fullgraph.successors(head_pred))
+                if len(head_pred_succs) == 2 and any(nn not in graph for nn in head_pred_succs):
+                    # there is an out-going edge from the loop tail
+                    # virtualize all other edges
+                    successor = next(iter(nn for nn in head_pred_succs if nn not in graph))
+                    for node in graph.nodes:
+                        if node is head_pred:
+                            continue
+                        succs = list(fullgraph.successors(node))
+                        if loop_head in succs:
+                            headgoing_edges.append((node, loop_head))
+
+                        outside_succs = [succ for succ in succs if succ not in graph]
+                        for outside_succ in outside_succs:
+                            outgoing_edges.append((node, outside_succ))
+
+        if outgoing_edges:
+            # convert all out-going edges into breaks (if there is a single successor) or gotos (if there are multiple
+            # successors)
+            if successor is None:
+                successor_and_edgecounts = defaultdict(int)
+                for _, dst in outgoing_edges:
+                    successor_and_edgecounts[dst] += 1
+
+                if len(successor_and_edgecounts) > 1:
+                    # pick one successor with the highest edge count and (in case there are multiple successors with the
+                    # same edge count) the lowest address
+                    max_edgecount = max(successor_and_edgecounts.values())
+                    successor_candidates = [nn for nn, edgecount in successor_and_edgecounts.items()
+                                            if edgecount == max_edgecount]
+                    successor = next(iter(sorted(successor_candidates, key=lambda x: x.addr)))
+                else:
+                    successor = next(iter(successor_and_edgecounts.keys()))
+
+            for src, dst in outgoing_edges:
+                if dst is successor:
+                    break_cond = self.cond_proc.recover_edge_condition(fullgraph, src, dst)
+                    break_node = ConditionalBreakNode(
+                        src.addr,  # FIXME: Use the instruction address of the last instruction
+                        break_cond,
+                        successor.addr)
+                    new_node = SequenceNode(src.addr, nodes=[src, break_node])
+
+                    self.replace_nodes(graph, src, new_node)
+                    fullgraph.remove_edge(src, dst)
+                    self.replace_nodes(fullgraph, src, new_node)
+
+                else:
+                    fullgraph.remove_edge(src, dst)
+
+        if len(headgoing_edges) > 1:
+            # convert all but one (the one with the highest address) head-going edges into continues
+            max_src_addr = max(src.addr for src, _ in headgoing_edges)
+            src_to_ignore = next(iter(src for src, _ in headgoing_edges if src.addr == max_src_addr))
+
+            for src, _ in headgoing_edges:
+                if src is src_to_ignore:
+                    continue
+                cont_node = ContinueNode(src.addr, # FIXME
+                                         Const(None, None, loop_head.addr, self.project.arch.bits))
+                new_node = SequenceNode(src.addr, nodes=[src, cont_node])
+
+                graph.remove_edge(src, loop_head)
+                self.replace_nodes(graph, src, new_node)
+                fullgraph.remove_edge(src, loop_head)
+                self.replace_nodes(fullgraph, src, new_node)
+
+        return bool(outgoing_edges or headgoing_edges)
 
     def _analyze_acyclic(self):
         # match against known schemas
-        self._match_acyclic_schemas(self._region.graph, self._region.graph_with_successors)
-
-        assert len(self._region.graph.nodes) == 1
-        self.result = next(iter(self._region.graph.nodes))
+        return self._match_acyclic_schemas(
+            self._region.graph,
+            self._region.graph_with_successors
+            if self._region.graph_with_successors is not None
+            else networkx.DiGraph(self._region.graph))
 
     def _match_acyclic_schemas(self, graph, full_graph):
         # traverse the graph in reverse topological order
         any_matches = False
         for node in list(reversed(CFGUtils.quasi_topological_sort_nodes(graph))):
+            if node not in graph:
+                continue
             matched = self._match_acyclic_sequence(graph, full_graph, node)
             any_matches |= matched
             if not matched:
@@ -218,7 +295,7 @@ class PhoenixStructurer(StructurerBase):
         succs = list(full_graph.successors(start_node))
         if len(succs) == 1:
             end_node = succs[0]
-            if full_graph.in_degree[end_node] == 1:
+            if full_graph.in_degree[end_node] == 1 and not full_graph.has_edge(end_node, start_node):
                 # merge two blocks
                 new_seq = self._merge_nodes(start_node, end_node)
 

@@ -445,10 +445,9 @@ class StructurerBase(Analysis):
     @staticmethod
     def replace_nodes(graph, old_node_0, new_node, old_node_1=None):
         in_edges = list(graph.in_edges(old_node_0, data=True))
+        out_edges = list(graph.out_edges(old_node_0, data=True))
         if old_node_1 is not None:
-            out_edges = list(graph.out_edges(old_node_1, data=True))
-        else:
-            out_edges = list(graph.out_edges(old_node_0, data=True))
+            out_edges += list(graph.out_edges(old_node_1, data=True))
 
         graph.remove_node(old_node_0)
         if old_node_1 is not None:
