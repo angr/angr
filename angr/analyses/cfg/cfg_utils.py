@@ -141,8 +141,12 @@ class CFGUtils:
                 dst = SCCPlaceholder(scc_index)
 
             if isinstance(src, SCCPlaceholder) and isinstance(dst, SCCPlaceholder) and src == dst:
+                if src not in graph_copy:
+                    graph_copy.add_node(src)
                 continue
             if src == dst:
+                if src not in graph_copy:
+                    graph_copy.add_node(src)
                 continue
 
             graph_copy.add_edge(src, dst)
