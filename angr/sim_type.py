@@ -672,6 +672,8 @@ class SimTypeArray(SimType):
 
     @property
     def size(self):
+        if self.length is None:
+            return 0
         return self.elem_type.size * self.length
 
     @property
@@ -2902,11 +2904,6 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             )
         else:
             fields = OrderedDict()
-
-        # Don't forget that "type[]" has a different meaning in structures than in functions
-        for field, ty in fields.items():
-            if isinstance(ty, SimTypeArray):
-                fields[field] = SimTypeFixedSizeArray(ty.elem_type, 0)
 
         if decl.name is not None:
             key = 'struct ' + decl.name
