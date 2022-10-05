@@ -932,11 +932,6 @@ class SimCC:
             if isinstance(ty, (SimTypePointer, SimTypeReference)):
                 ref = True
                 subty = ty.pts_to
-            elif isinstance(ty, SimTypeFixedSizeArray):
-                ref = False
-                subty = ty.elem_type
-                if len(arg) != ty.length:
-                    raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
             elif isinstance(ty, SimTypeArray):
                 ref = True
                 subty = ty.elem_type
