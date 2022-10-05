@@ -89,7 +89,7 @@ class SimType:
         The alignment of the type in bytes.
         """
         if self._arch is None:
-            return NotImplemented
+            raise ValueError("Can't tell my alignment without an arch!")
         if self.size is NotImplemented:
             return NotImplemented
         return self.size // self._arch.byte_width
@@ -1180,6 +1180,8 @@ class SimStruct(NamedTypeMixin, SimType):
     def alignment(self):
         if self._align is not None:
             return self._align
+        if all(val.alignment is NotImplemented for val in self.fields.values()):
+            return NotImplemented
         return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.fields.values())
 
     def _refine_dir(self):
@@ -1296,7 +1298,9 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @property
     def alignment(self):
-        return max(val.alignment for val in self.members.values() if not isinstance(val, SimTypeBottom))
+        if all(val.alignment is NotImplemented for val in self.members.values()):
+            return NotImplemented
+        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.members.values())
 
     def _refine_dir(self):
         return list(self.members.keys())
