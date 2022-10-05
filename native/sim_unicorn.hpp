@@ -549,9 +549,6 @@ class State {
 	// List of symbolic statements in processed basic blocks that need not be re-executed. Will be removed on commit.
 	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> symbolic_stmts_to_erase;
 
-	// List of register values at start of block
-	std::map<vex_reg_offset_t, register_value_t> block_start_reg_values;
-
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
 	// a symbolic address

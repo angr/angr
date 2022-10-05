@@ -2219,21 +2219,6 @@ void State::start_propagating_taint() {
 		return;
 	}
 	block_symbolic_temps.clear();
-	block_start_reg_values.clear();
-	// Save value of all registers in case some instruction touches symbolic data and needs to be re-executed
-	for (auto &reg_offset: vex_to_unicorn_map) {
-		register_value_t reg_value;
-		reg_value.offset = reg_offset.first;
-		reg_value.size = reg_offset.second.second;
-		get_register_value(reg_value.offset, reg_value.value);
-		block_start_reg_values.emplace(reg_value.offset, reg_value);
-	}
-	for (auto &cpu_flag: cpu_flags) {
-		register_value_t flag_value;
-		flag_value.offset = cpu_flag.first;
-		get_register_value(cpu_flag.first, flag_value.value);
-		block_start_reg_values.emplace(flag_value.offset, flag_value);
-	}
 	if (symbolic_registers.size() != 0) {
 		if (block_taint_cache.find(block_address) == block_taint_cache.end()) {
 			// Compute and cache taint sink-source relations for this block since there are symbolic registers.
