@@ -688,6 +688,8 @@ class SimTypeArray(SimType):
     def copy(self):
         return SimTypeArray(self.elem_type, length=self.length, label=self.label)
 
+    _can_refine_int = True
+
     def _refine(self, view, k):
         return view._deeper(addr=view._addr + k * (self.elem_type.size//view.state.arch.byte_width), ty=self.elem_type)
 
