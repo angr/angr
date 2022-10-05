@@ -643,66 +643,9 @@ class SimTypeReference(SimTypeReg):
         return SimTypeReference(self.refs, label=self.label)
 
 
-class SimTypeFixedSizeArray(SimType):
-    """
-    SimTypeFixedSizeArray is a literal (i.e. not a pointer) fixed-size array.
-    """
-
-    def __init__(self, elem_type, length):
-        super().__init__()
-        self.elem_type = elem_type
-        self.length = length
-
-    def __repr__(self):
-        return f'{self.elem_type}[{self.length}]'
-
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
-        if name is None:
-            return repr(self)
-
-        name = f'{name}[{self.length}]'
-        return self.elem_type.c_repr(name, full, memo, indent)
-
-    _can_refine_int = True
-
-    def _refine(self, view, k):
-        return view._deeper(addr=view._addr + k * (self.elem_type.size//view.state.arch.byte_width), ty=self.elem_type)
-
-    def extract(self, state, addr, concrete=False):
-        return [self.elem_type.extract(state, addr + i*(self.elem_type.size//state.arch.byte_width), concrete)
-                for i in range(self.length)]
-
-    def store(self, state, addr, values):
-        for i, val in enumerate(values):
-            self.elem_type.store(state, addr + i * (self.elem_type.size // state.arch.byte_width), val)
-
-    @property
-    def size(self):
-        return self.elem_type.size * self.length
-
-    @property
-    def alignment(self):
-        return self.elem_type.alignment
-
-    def _with_arch(self, arch):
-        out = SimTypeFixedSizeArray(self.elem_type.with_arch(arch), self.length)
-        out._arch = arch
-        return out
-
-    def _init_str(self):
-        return "%s(%s, %d)" % (
-            self.__class__.__name__,
-            self.elem_type._init_str(),
-            self.length,
-        )
-
-    def copy(self):
-        return SimTypeFixedSizeArray(self.elem_type, self.length)
-
-
 class SimTypeArray(SimType):
     """
-    SimTypeArray is a type that specifies a pointer to an array; while it is a pointer, it has a semantic difference.
+    SimTypeArray is a type that specifies a series of data laid out in sequence.
     """
 
     _fields = ('elem_type', 'length')
@@ -729,9 +672,7 @@ class SimTypeArray(SimType):
 
     @property
     def size(self):
-        if self._arch is None:
-            raise ValueError("I can't tell my size without an arch!")
-        return self._arch.bits
+        return self.elem_type.size * self.length
 
     @property
     def alignment(self):
@@ -745,6 +686,25 @@ class SimTypeArray(SimType):
     def copy(self):
         return SimTypeArray(self.elem_type, length=self.length, label=self.label)
 
+    def _refine(self, view, k):
+        return view._deeper(addr=view._addr + k * (self.elem_type.size//view.state.arch.byte_width), ty=self.elem_type)
+
+    def extract(self, state, addr, concrete=False):
+        return [self.elem_type.extract(state, addr + i*(self.elem_type.size//state.arch.byte_width), concrete) for i in range(self.length)]
+
+    def store(self, state, addr, values):
+        for i, val in enumerate(values):
+            self.elem_type.store(state, addr + i * (self.elem_type.size // state.arch.byte_width), val)
+
+    def _init_str(self):
+        return "%s(%s, %s%s)" % (
+            self.__class__.__name__,
+            self.elem_type._init_str(),
+            self.length,
+            f', {self.label}' if self.label is not None else '',
+        )
+
+SimTypeFixedSizeArray = SimTypeArray
 
 class SimTypeString(NamedTypeMixin, SimTypeArray):
     """
