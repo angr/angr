@@ -973,68 +973,6 @@ class DreamStructurer(StructurerBase):
 
         return cases, node_default, to_remove
 
-    @staticmethod
-    def _switch_handle_gotos(cases, default, switch_end_addr):
-        """
-        For each case, convert the goto that goes outside of the switch-case to a break statement.
-
-        :param dict cases:              A dict of switch-cases.
-        :param default:                 The default node.
-        :param int|None node_b_addr:    Address of the end of the switch.
-        :return:                        None
-        """
-
-        goto_addrs = defaultdict(int)
-
-        def _find_gotos(block, **kwargs):  # pylint:disable=unused-argument
-            if block.statements:
-                stmt = block.statements[-1]
-                if isinstance(stmt, ailment.Stmt.Jump):
-                    targets = extract_jump_targets(stmt)
-                    for t in targets:
-                        goto_addrs[t] += 1
-
-        if switch_end_addr is None:
-            # we need to figure this out
-            handlers = {
-                ailment.Block: _find_gotos
-            }
-
-            walker = SequenceWalker(handlers=handlers)
-            for case_node in cases.values():
-                walker.walk(case_node)
-
-            if not goto_addrs:
-                # there is no Goto statement - perfect
-                return
-            switch_end_addr = sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
-
-        # rewrite all _goto switch_end_addr_ to _break_
-
-        def _rewrite_gotos(block, parent=None, index=0, label=None):  # pylint:disable=unused-argument
-            if block.statements and parent is not None:
-                stmt = block.statements[-1]
-                if isinstance(stmt, ailment.Stmt.Jump):
-                    targets = extract_jump_targets(stmt)
-                    if len(targets) == 1 and next(iter(targets)) == switch_end_addr:
-                        # add a new a break statement to its parent
-                        break_node = BreakNode(stmt.ins_addr, switch_end_addr)
-                        # insert node
-                        insert_node(parent, index + 1, break_node, index)
-                        # remove the last statement
-                        block.statements = block.statements[:-1]
-
-        handlers = {
-            ailment.Block: _rewrite_gotos,
-        }
-
-        walker = SequenceWalker(handlers=handlers)
-        for case_node in cases.values():
-            walker.walk(case_node)
-
-        if default is not None:
-            walker.walk(default)
-
     #
     # Dealing with If-Then-Else structures
     #

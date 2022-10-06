@@ -81,6 +81,10 @@ class BaseNode:
 
         return True
 
+    @property
+    def addr(self) -> int:
+        raise NotImplementedError()
+
 
 class SequenceNode(BaseNode):
 
