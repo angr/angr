@@ -106,6 +106,20 @@ cmdclass = {
     "develop": develop,
 }
 
+
+try:
+    from setuptools.command.editable_wheel import editable_wheel as st_editable_wheel
+
+    class editable_wheel(st_editable_wheel):
+        def run(self):
+            self.run_command("build")
+            super().run()
+
+    cmdclass["editable_wheel"] = editable_wheel
+except ModuleNotFoundError:
+    pass
+
+
 if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
     sys.argv.append('--plat-name')
     name = get_platform()
