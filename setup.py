@@ -116,7 +116,7 @@ try:
             super().run()
 
     cmdclass["editable_wheel"] = editable_wheel
-except ImportError:
+except ModuleNotFoundError:
     pass
 
 
