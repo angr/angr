@@ -56,7 +56,7 @@ class ConditionProcessor:
     def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
         edge = src, dst
         edge_data = graph.get_edge_data(*edge)
-        edge_type = edge_data.get('type', 'transition')
+        edge_type = edge_data.get('type', 'transition') if edge_data is not None else 'transition'
         try:
             predicate = self._extract_predicate(src, dst, edge_type)
         except EmptyBlockNotice:

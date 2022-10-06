@@ -574,6 +574,14 @@ class RegionIdentifier(Analysis):
                         frontier = [ postdom_node ]
                         region = self._compute_region(graph_copy, node, frontier, dummy_endnode=dummy_endnode)
                         if region is not None:
+                            # update region.graph_with_successors
+                            if secondary_graph is not None:
+                                for nn in list(region.graph_with_successors.nodes):
+                                    original_successors = secondary_graph.successors(nn)
+                                    for succ in original_successors:
+                                        if succ not in graph_copy:
+                                            region.graph_with_successors.add_edge(nn, succ)
+
                             # l.debug("Walked back %d levels in postdom tree.", levels)
                             l.debug("Node %r, frontier %r.", node, frontier)
                             # l.debug("Identified an acyclic region %s.", self._dbg_block_list(region.graph.nodes()))

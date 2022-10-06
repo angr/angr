@@ -1,5 +1,5 @@
 import itertools
-from typing import Optional, Dict, TYPE_CHECKING
+from typing import Optional, Type, Dict, TYPE_CHECKING
 
 import networkx
 from ... import Analysis, register_analysis
@@ -9,7 +9,6 @@ from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from ..empty_node_remover import EmptyNodeRemover
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
-from .phoenix import PhoenixStructurer
 
 
 if TYPE_CHECKING:
@@ -20,10 +19,14 @@ class RecursiveStructurer(Analysis):
     """
     Recursively structure a region and all of its subregions.
     """
-    def __init__(self, region, cond_proc=None, func: Optional['Function']=None):
+    def __init__(self, region, cond_proc=None, func: Optional['Function']=None, structurer_cls: Optional[Type]=None):
         self._region = region
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
+        self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
+
+        from .phoenix import PhoenixStructurer
+        self.structurer_cls = PhoenixStructurer
 
         self.result = None
 
@@ -60,11 +63,13 @@ class RecursiveStructurer(Analysis):
                 # Get the parent region
                 parent_region = parent_map.get(current_region, None)
                 # structure this region
-                structurer_cls = DreamStructurer
-                st = self.project.analyses[DreamStructurer].prep()(current_region, parent_map=parent_map,
-                                                      condition_processor=self.cond_proc,
-                                                      case_entry_to_switch_head=self._case_entry_to_switch_head,
-                                                      func=self.function)
+                st = self.project.analyses[self.structurer_cls].prep()(
+                    current_region,
+                    parent_map=parent_map,
+                    condition_processor=self.cond_proc,
+                    case_entry_to_switch_head=self._case_entry_to_switch_head,
+                    func=self.function
+                )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
                     # this is the top-level region. we are done!
