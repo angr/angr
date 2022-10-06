@@ -25,9 +25,6 @@ class RecursiveStructurer(Analysis):
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
 
-        from .phoenix import PhoenixStructurer
-        self.structurer_cls = PhoenixStructurer
-
         self.result = None
 
         self._analyze()
