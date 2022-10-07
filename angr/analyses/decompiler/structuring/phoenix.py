@@ -62,15 +62,22 @@ class PhoenixStructurer(StructurerBase):
                 has_cycle = self._has_cycle()
 
             if not progressed:
-                import ipdb; ipdb.set_trace()
-                self._last_resort_refinement(
-                    self._region.head,
-                    self._region.graph,
-                    self._region.graph_with_successors,
-                )
+                if has_cycle:
+                    # cyclic regions must be fully structured
+                    self._last_resort_refinement(
+                        self._region.head,
+                        self._region.graph,
+                        self._region.graph_with_successors,
+                    )
+                else:
+                    # acyclic regions can be not fully structured - we return the best result that we have
+                    break
 
-        assert len(self._region.graph.nodes) == 1
-        self.result = next(iter(self._region.graph.nodes))
+        if len(self._region.graph.nodes) == 1:
+            # successfully structured
+            self.result = next(iter(self._region.graph.nodes))
+        else:
+            self.result = None  # the actual result is in self._region.graph and self._region.greaph_with_successors
 
     def _analyze_cyclic(self) -> bool:
         return self._match_cyclic_schemas(
@@ -439,7 +446,7 @@ class PhoenixStructurer(StructurerBase):
         jump_tables = self.kb.cfgs['CFGFast'].jump_tables
         r = self._match_acyclic_switch_cases_address_loaded_from_memory(node, graph, full_graph, jump_tables)
         if not r:
-            r = self._match_acyclic_switch_cases_address_computed()
+            r = self._match_acyclic_switch_cases_address_computed(node, graph, full_graph, jump_tables)
         return r
 
     def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph, full_graph, jump_tables) -> bool:
@@ -492,8 +499,50 @@ class PhoenixStructurer(StructurerBase):
 
         return True
 
-    def _match_acyclic_switch_cases_address_computed(self) -> bool:
-        return False
+    def _match_acyclic_switch_cases_address_computed(self, node, graph, full_graph, jump_tables) -> bool:
+        if node.addr not in jump_tables:
+            return False
+        jump_table = jump_tables[node.addr]
+        if jump_table.type != IndirectJumpType.Jumptable_AddressComputed:
+            return False
+
+        try:
+            last_stmts = self.cond_proc.get_last_statements(node)
+        except EmptyBlockNotice:
+            return False
+        if len(last_stmts) != 1:
+            return False
+        last_stmt = last_stmts[0]
+
+        if not isinstance(last_stmt, ConditionalJump):
+            return False
+
+        # Typical look:
+        #   t2 = (r5<4> - 0x22<32>)
+        #   if ((t2 <= 0x1c<32>)) { Goto (0x41d10c<32> + (t2 << 0x2<8>)) } else { Goto 0x41d108<32> }
+        #
+        # extract the comparison expression, lower-, and upper-bounds from the last statement
+        cmp = switch_extract_cmp_bounds(last_stmt)
+        if not cmp:
+            return False
+        cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+
+        jumptable_entries = jump_table.jumptable_entries
+
+        if isinstance(last_stmt.false_target, Const):
+            default_addr = last_stmt.false_target.value
+        else:
+            return False
+
+        cases, node_default, to_remove = self._switch_build_cases(cmp_lb, jumptable_entries, default_addr, graph,
+                                                                  full_graph)
+        if node_default is None:
+            # there must be a default case
+            return False
+
+        self._make_switch_cases_core(node, cmp_expr, cases, node_default, node.addr, to_remove, graph, full_graph)
+
+        return True
 
     def _switch_build_cases(self, cmp_lb, jumptable_entries, node_b_addr, graph, full_graph) -> Tuple[Dict,Any,Set[Any]]:
         cases: Dict[Union[int,Tuple[int]],SequenceNode] = { }

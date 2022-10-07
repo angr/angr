@@ -73,7 +73,10 @@ class RecursiveStructurer(Analysis):
                     self.result = st.result
                     break
 
-                self._replace_region(parent_region, current_region, st.result)
+                if st.result is None:
+                    self._replace_region_with_region(parent_region, current_region, st._region)
+                else:
+                    self._replace_region_with_node(parent_region, current_region, st.result)
 
         # rewrite conditions in the result to remove all jump table entry conditions
         rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
@@ -88,9 +91,12 @@ class RecursiveStructurer(Analysis):
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
     @staticmethod
-    def _replace_region(parent_region, sub_region, node):
-
+    def _replace_region_with_node(parent_region, sub_region, node):
         parent_region.replace_region(sub_region, node)
+
+    @staticmethod
+    def _replace_region_with_region(parent_region, sub_region, new_region):
+        parent_region.replace_region_with_region(sub_region, new_region)
 
     def _get_switch_case_entries(self) -> Dict[int,int]:
 

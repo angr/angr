@@ -461,7 +461,7 @@ class TestDecompiler(unittest.TestCase):
         func = cfg.functions[0x41d000]
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(func)
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
     def test_decompiling_no_arguments_in_variable_list(self):
 
@@ -476,7 +476,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(func)
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         self._print_decompilation_result(dec)
         code = dec.codegen.text
         decls = code.split('\n\n')[0]
@@ -509,7 +509,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
         # Make sure argument a0 is correctly typed to char*
@@ -530,7 +530,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
         # Make sure argument a0 is correctly typed to char*
@@ -559,7 +559,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
         # Make sure argument a0 is correctly typed to char*
@@ -667,7 +667,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
 
@@ -684,7 +684,7 @@ class TestDecompiler(unittest.TestCase):
         func = cfg.functions["build_date"]
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         n = code.count("switch")
@@ -703,7 +703,7 @@ class TestDecompiler(unittest.TestCase):
         # no dead memdef removal
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         lines = code.split("\n")
@@ -725,7 +725,7 @@ class TestDecompiler(unittest.TestCase):
         p.kb.structured_code.cached.clear()
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=[(opt, True)])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         lines = code.split("\n")
@@ -801,7 +801,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         # The function calls must be correctly decompiled
@@ -824,7 +824,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         # We should not find "__stack_chk_fail" in the code
@@ -881,7 +881,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         # we should not propagate generate_random() calls into function arguments without removing the original call
@@ -902,7 +902,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
@@ -933,7 +933,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         code_without_spaces = code.replace(" ", "").replace("\n", "")
