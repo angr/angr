@@ -65,7 +65,8 @@ class RecursiveStructurer(Analysis):
                     parent_map=parent_map,
                     condition_processor=self.cond_proc,
                     case_entry_to_switch_head=self._case_entry_to_switch_head,
-                    func=self.function
+                    func=self.function,
+                    parent_region=parent_region,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:

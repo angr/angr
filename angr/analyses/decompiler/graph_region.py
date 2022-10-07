@@ -150,7 +150,7 @@ class GraphRegion:
             raise Exception()
 
         if sub_region is self.head:
-            self.head = replace_with
+            self.head = replace_with.head
 
         self._replace_node_in_graph_with_subgraph(self.graph, sub_region, replace_with.graph_with_successors,
                                                   replace_with.head)
@@ -189,9 +189,8 @@ class GraphRegion:
         out_edges = list(graph.out_edges(node))
 
         graph.remove_node(node)
-
-        for nn in sub_graph.nodes:
-            graph.add_node(nn)
+        graph.add_nodes_from(sub_graph.nodes)
+        graph.add_edges_from(sub_graph.edges)
 
         for src, _ in in_edges:
             if src is node:

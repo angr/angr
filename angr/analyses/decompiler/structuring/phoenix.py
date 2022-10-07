@@ -31,9 +31,9 @@ class PhoenixStructurer(StructurerBase):
     version and *should not* be used to evaluate the performance of the original algorithm described in that paper.
     """
     def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None,
-                 case_entry_to_switch_head: Optional[Dict[int,int]]=None):
+                 case_entry_to_switch_head: Optional[Dict[int,int]]=None, parent_region=None):
         super().__init__(region, parent_map=parent_map, condition_processor=condition_processor, func=func,
-                         case_entry_to_switch_head=case_entry_to_switch_head)
+                         case_entry_to_switch_head=case_entry_to_switch_head, parent_region=parent_region)
 
         self._analyze()
 
@@ -62,8 +62,8 @@ class PhoenixStructurer(StructurerBase):
                 has_cycle = self._has_cycle()
 
             if not progressed:
-                if has_cycle:
-                    # cyclic regions must be fully structured
+                if has_cycle or self._parent_region is None:
+                    # cyclic regions or the top-level region must be fully structured
                     self._last_resort_refinement(
                         self._region.head,
                         self._region.graph,
@@ -673,23 +673,24 @@ class PhoenixStructurer(StructurerBase):
                     (not left_succs or not right_succs) or (len(left_succs) == 1 and left_succs == right_succs)
             ):
                 # potentially ITE
-                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
-                edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                    # c = !c
-                    new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=right)
-                    # TODO: Remove the last statement of start_node
-                    new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 1:
+                    edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
+                    edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                        # c = !c
+                        new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=right)
+                        # TODO: Remove the last statement of start_node
+                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-                    # on the original graph
-                    if right in graph:
-                        graph.remove_node(right)
-                    self.replace_nodes(graph, start_node, new_node, old_node_1=left)
-                    # on the graph with successors
-                    full_graph.remove_node(right)
-                    self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+                        # on the original graph
+                        if right in graph:
+                            graph.remove_node(right)
+                        self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+                        # on the graph with successors
+                        full_graph.remove_node(right)
+                        self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
 
-                    return True
+                        return True
 
             if len(right_succs) == 1 and right_succs[0] == left:
                 # swap them
@@ -697,39 +698,41 @@ class PhoenixStructurer(StructurerBase):
                 left_succs, right_succs = right_succs, left_succs
             if left in graph and len(left_succs) == 1 and left_succs[0] == right:
                 # potentially If-Then
-                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
-                edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                    # c = !c
-                    new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                    # TODO: Remove the last statement of start_node
-                    new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 1:
+                    edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
+                    edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                        # c = !c
+                        new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
+                        # TODO: Remove the last statement of start_node
+                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-                    # on the original graph
-                    self.replace_nodes(graph, start_node, new_node, old_node_1=left)
-                    # on the graph with successors
-                    self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+                        # on the original graph
+                        self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+                        # on the graph with successors
+                        self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
 
-                    return True
+                        return True
 
             if right in graph and not left in graph:
                 left, right = right, left
             if left in graph and not right in graph:
                 # potentially If-then
-                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
-                edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                    # c = !c
-                    new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                    # TODO: Remove the last statement of start_node
-                    new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 1:
+                    edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
+                    edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                        # c = !c
+                        new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
+                        # TODO: Remove the last statement of start_node
+                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-                    # on the original graph
-                    self.replace_nodes(graph, start_node, new_node, old_node_1=left)
-                    # on the graph with successors
-                    self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+                        # on the original graph
+                        self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+                        # on the graph with successors
+                        self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
 
-                    return True
+                        return True
 
         return False
 
@@ -754,9 +757,39 @@ class PhoenixStructurer(StructurerBase):
         if all_edges_wo_dominance:
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
+
+            # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
+            last_stmt = self.cond_proc.get_last_statement(src)
+            new_src = None
+            if isinstance(last_stmt, ConditionalJump):
+                if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == dst.addr:
+                    goto0_condition = last_stmt.condition
+                    goto0_target = last_stmt.true_target
+                    goto1_target = last_stmt.false_target
+                elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst.addr:
+                    goto0_condition = claripy.Not(last_stmt.condition)
+                    goto0_target = last_stmt.false_target
+                    goto1_target = last_stmt.true_target
+                else:
+                    # this should not really happen...
+                    goto0_condition = None
+                    goto0_target = None
+                    goto1_target = None
+
+                if goto0_condition is not None:
+                    goto0 = Block(last_stmt.ins_addr, 0, statements=[Jump(None, goto0_target)])
+                    cond_node = ConditionNode(last_stmt.ins_addr, None, goto0_condition, goto0)
+                    goto1_node = Block(last_stmt.ins_addr, 0, statements=[Jump(None, goto1_target)])
+                    src.statements = src.statements[:-1]
+                    new_src = SequenceNode(src.addr, nodes=[src, cond_node, goto1_node])
+
             graph.remove_edge(src, dst)
+            if new_src is not None:
+                self.replace_nodes(graph, src, new_src)
             if full_graph is not None:
                 full_graph.remove_edge(src, dst)
+                if new_src is not None:
+                    self.replace_nodes(full_graph, src, new_src)
             return
 
         # we have to remove a normal edge... this should not happen though

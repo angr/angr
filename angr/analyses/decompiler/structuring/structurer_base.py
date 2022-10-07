@@ -26,11 +26,12 @@ class StructurerBase(Analysis):
     longer exist due to empty node removal during structuring or prior steps.
     """
     def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None,
-                 case_entry_to_switch_head: Optional[Dict[int,int]]=None):
+                 case_entry_to_switch_head: Optional[Dict[int,int]]=None, parent_region=None):
         self._region: 'GraphRegion' = region
         self._parent_map = parent_map
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
+        self._parent_region = parent_region
 
         self.cond_proc = condition_processor if condition_processor is not None \
             else ConditionProcessor(self.project.arch)
