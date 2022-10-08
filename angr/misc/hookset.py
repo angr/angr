@@ -16,7 +16,7 @@ class HookSet:
 
         :param target:  Any object. Its methods named as keys in `hooks` will be replaced by `HookedMethod` objects.
         :param hooks:   Any keywords will be interpreted as hooks to apply. Each method named will hooked with the
-                        coresponding function value.
+                        corresponding function value.
         """
         for name, hook in hooks.items():
             func = getattr(target, name)

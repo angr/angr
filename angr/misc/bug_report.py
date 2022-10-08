@@ -115,7 +115,7 @@ def bug_report():
     if get_venv():
         print("Running in virtual environment at " + get_venv())
     else:
-        print("!!! runninng in global environment.  Are you sure? !!!")
+        print("!!! running in global environment.  Are you sure? !!!")
     print_system_info()
     print_versions()
     print_native_info()

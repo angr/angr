@@ -176,7 +176,7 @@ class PluginHub:
 
     def has_plugin(self, name):
         """
-        Return whether or not a plugin with the name ``name`` is curently active.
+        Return whether or not a plugin with the name ``name`` is currently active.
         """
         return name in self._active_plugins
 

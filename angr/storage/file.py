@@ -775,7 +775,7 @@ class SimFileDescriptorBase(SimStatePlugin):
 
     def concretize(self, **kwargs):
         """
-        Return a concretizeation of the data in the underlying file. Has different return types to represent differnt
+        Return a concretizeation of the data in the underlying file. Has different return types to represent different
         data structures on a per-class basis.
 
         Any arguments passed to this will be passed onto state.solver.eval.
