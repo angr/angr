@@ -79,9 +79,10 @@ class RecursiveStructurer(Analysis):
                 else:
                     self._replace_region_with_node(parent_region, current_region, st.result)
 
-        # rewrite conditions in the result to remove all jump table entry conditions
-        rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
-        rewriter.walk(self.result)  # update SequenceNodes in-place
+        if self.structurer_cls is DreamStructurer:
+            # rewrite conditions in the result to remove all jump table entry conditions
+            rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
+            rewriter.walk(self.result)  # update SequenceNodes in-place
 
         # remove empty nodes (if any)
         self.result = EmptyNodeRemover(self.result).result

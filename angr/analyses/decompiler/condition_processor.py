@@ -10,7 +10,7 @@ import ailment
 
 from ...utils.lazy_import import lazy_import
 from ...utils import is_pyinstaller
-from ...utils.graph import dominates, shallow_reverse
+from ...utils.graph import dominates, inverted_idoms
 from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
 from .structuring.structurer_nodes import (MultiNode, EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode,
@@ -97,21 +97,7 @@ class ConditionProcessor:
         if case_entry_to_switch_head:
             _g = self._remove_crossing_edges_between_cases(_g, case_entry_to_switch_head)
 
-        end_nodes = {n for n in _g.nodes() if _g.out_degree(n) == 0}
-        inverted_graph: networkx.DiGraph = shallow_reverse(_g)
-        if end_nodes:
-            if len(end_nodes) > 1:
-                # make sure there is only one end node
-                dummy_node = "DUMMY_NODE"
-                for end_node in end_nodes:
-                    inverted_graph.add_edge(dummy_node, end_node)
-                endnode = dummy_node
-            else:
-                endnode = next(iter(end_nodes))  # pick the end node
-
-            idoms = networkx.immediate_dominators(inverted_graph, endnode)
-        else:
-            idoms = None
+        inverted_graph, idoms = inverted_idoms(_g)
 
         reaching_conditions = {}
         # recover the reaching condition for each node

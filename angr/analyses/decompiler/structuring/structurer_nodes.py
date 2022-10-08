@@ -49,6 +49,12 @@ class MultiNode:
     def addr(self):
         return self.nodes[0].addr
 
+    def __hash__(self):
+        return hash((MultiNode, ) + tuple(self.nodes))
+
+    def __eq__(self, other):
+        return isinstance(other, MultiNode) and self.nodes == other.nodes
+
 
 class BaseNode:
 

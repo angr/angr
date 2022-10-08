@@ -7,10 +7,10 @@ import networkx
 import claripy
 from ailment.block import Block
 from ailment.statement import ConditionalJump, Jump
-from ailment.expression import Const
+from ailment.expression import Const, UnaryOp
 
 from ....knowledge_plugins.cfg import IndirectJumpType
-from ....utils.graph import dominates
+from ....utils.graph import dominates, inverted_idoms
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
 from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds
@@ -62,11 +62,14 @@ class PhoenixStructurer(StructurerBase):
                 has_cycle = self._has_cycle()
 
             if not progressed:
-                self._last_resort_refinement(
+                removed_edge = self._last_resort_refinement(
                     self._region.head,
                     self._region.graph,
                     self._region.graph_with_successors,
                 )
+                if not removed_edge:
+                    # cannot make any progress in this region. return the subgraph directly
+                    break
 
         if len(self._region.graph.nodes) == 1:
             # successfully structured
@@ -742,7 +745,7 @@ class PhoenixStructurer(StructurerBase):
                 left_succs, right_succs = right_succs, left_succs
             if left in graph and len(left_succs) == 1 and left_succs[0] == right:
                 # potentially If-Then
-                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 1:
+                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 2:
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
@@ -762,7 +765,7 @@ class PhoenixStructurer(StructurerBase):
                 left, right = right, left
             if left in graph and not right in graph:
                 # potentially If-then
-                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 1:
+                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 2:
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
@@ -780,17 +783,18 @@ class PhoenixStructurer(StructurerBase):
 
         return False
 
-    def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: Optional[networkx.DiGraph]):
+    def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: Optional[networkx.DiGraph]) -> bool:
 
         # virtualize an edge to allow progressing in structuring
         all_edges_wo_dominance = [ ]  # to ensure determinism, edges in this list are ordered by a tuple of
-                                        # (src_addr, dst_addr)
+                                      # (src_addr, dst_addr)
         other_edges = [ ]
         idoms = networkx.immediate_dominators(graph, head)
+        inverted_graph, inv_idoms = inverted_idoms(graph)
         for src, dst in graph.edges:
             if src is dst:
                 continue
-            if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
+            if not dominates(idoms, src, dst) and not dominates(inv_idoms, dst, src):
                 all_edges_wo_dominance.append((src, dst))
             else:
                 other_edges.append((src, dst))
@@ -805,13 +809,14 @@ class PhoenixStructurer(StructurerBase):
             # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
             last_stmt = self.cond_proc.get_last_statement(src)
             new_src = None
+            remove_src_last_stmt = False
             if isinstance(last_stmt, ConditionalJump):
                 if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == dst.addr:
                     goto0_condition = last_stmt.condition
                     goto0_target = last_stmt.true_target
                     goto1_target = last_stmt.false_target
                 elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst.addr:
-                    goto0_condition = claripy.Not(last_stmt.condition)
+                    goto0_condition = UnaryOp(None, 'Not', last_stmt.condition)
                     goto0_target = last_stmt.false_target
                     goto1_target = last_stmt.true_target
                 else:
@@ -824,8 +829,17 @@ class PhoenixStructurer(StructurerBase):
                     goto0 = Block(last_stmt.ins_addr, 0, statements=[Jump(None, goto0_target)])
                     cond_node = ConditionNode(last_stmt.ins_addr, None, goto0_condition, goto0)
                     goto1_node = Block(last_stmt.ins_addr, 0, statements=[Jump(None, goto1_target)])
-                    src.statements = src.statements[:-1]
+                    remove_src_last_stmt = True
                     new_src = SequenceNode(src.addr, nodes=[src, cond_node, goto1_node])
+            elif isinstance(last_stmt, Jump):
+                # do nothing
+                pass
+            else:
+                # insert a Jump at the end
+                goto_node = Block(last_stmt.ins_addr, 0, statements=[
+                    Jump(None, Const(None, None, dst.addr, self.project.arch.bits))
+                ])
+                new_src = SequenceNode(src.addr, nodes=[src, goto_node])
 
             graph.remove_edge(src, dst)
             if new_src is not None:
@@ -834,16 +848,11 @@ class PhoenixStructurer(StructurerBase):
                 full_graph.remove_edge(src, dst)
                 if new_src is not None:
                     self.replace_nodes(full_graph, src, new_src)
-            return
+            if remove_src_last_stmt:
+                remove_last_statement(src)
+            return True
 
-        # we have to remove a normal edge... this should not happen though
-        other_edges = list(sorted(other_edges, key=lambda x: (x[0].addr, x[1].addr)))
-        if other_edges:
-            src, dst = other_edges[0]
-            graph.remove_edge(src, dst)
-            if full_graph is not None:
-                full_graph.remove_edge(src, dst)
-            return
+        return False
 
     @staticmethod
     def _find_node_going_to_dst(node: SequenceNode, dst_addr: int) -> Tuple[Optional[BaseNode],Optional[Block]]:

@@ -1,4 +1,4 @@
-
+from typing import Tuple, Optional, Dict
 from collections import defaultdict
 import logging
 
@@ -23,6 +23,33 @@ def shallow_reverse(g) -> networkx.DiGraph:
         new_g.add_edge(dst, src, **data)
 
     return new_g
+
+
+def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph,Optional[Dict]]:
+    """
+    Invert the given graph and generate the immediate dominator tree on the inverted graph. This is useful for
+    computing post-dominators.
+
+    :param graph:   The graph to invert and generate immediate dominator tree for.
+    :return:        A tuple of the inverted graph and the immediate dominator tree.
+    """
+
+    end_nodes = {n for n in graph.nodes() if graph.out_degree(n) == 0}
+    inverted_graph: networkx.DiGraph = shallow_reverse(graph)
+    if end_nodes:
+        if len(end_nodes) > 1:
+            # make sure there is only one end node
+            dummy_node = "DUMMY_NODE"
+            for end_node in end_nodes:
+                inverted_graph.add_edge(dummy_node, end_node)
+            endnode = dummy_node
+        else:
+            endnode = next(iter(end_nodes))  # pick the end node
+
+        idoms = networkx.immediate_dominators(inverted_graph, endnode)
+    else:
+        idoms = None
+    return inverted_graph, idoms
 
 
 def dfs_back_edges(graph, start_node):
