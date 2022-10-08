@@ -15,7 +15,7 @@ from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
 from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds
 from .structurer_nodes import ConditionNode, SequenceNode, LoopNode, ConditionalBreakNode, BreakNode, ContinueNode, \
-    BaseNode, MultiNode, SwitchCaseNode, EmptyBlockNotice
+    BaseNode, MultiNode, SwitchCaseNode, IncompleteSwitchCaseNode, EmptyBlockNotice
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
@@ -62,16 +62,11 @@ class PhoenixStructurer(StructurerBase):
                 has_cycle = self._has_cycle()
 
             if not progressed:
-                if has_cycle or self._parent_region is None:
-                    # cyclic regions or the top-level region must be fully structured
-                    self._last_resort_refinement(
-                        self._region.head,
-                        self._region.graph,
-                        self._region.graph_with_successors,
-                    )
-                else:
-                    # acyclic regions can be not fully structured - we return the best result that we have
-                    break
+                self._last_resort_refinement(
+                    self._region.head,
+                    self._region.graph,
+                    self._region.graph_with_successors,
+                )
 
         if len(self._region.graph.nodes) == 1:
             # successfully structured
@@ -447,6 +442,8 @@ class PhoenixStructurer(StructurerBase):
         r = self._match_acyclic_switch_cases_address_loaded_from_memory(node, graph, full_graph, jump_tables)
         if not r:
             r = self._match_acyclic_switch_cases_address_computed(node, graph, full_graph, jump_tables)
+        if not r:
+            r = self._match_acyclic_incomplete_switch_cases(node, graph, full_graph, jump_tables)
         return r
 
     def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph, full_graph, jump_tables) -> bool:
@@ -480,6 +477,18 @@ class PhoenixStructurer(StructurerBase):
         node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
         # the default case
         node_b_addr = next(iter(t for t in successor_addrs if t != target))
+
+        # un-structure IncompleteSwitchCaseNode
+        if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
+            self._unpack_sequencenode_head(graph, node_a)
+            self._unpack_sequencenode_head(full_graph, node_a)
+            # update node_a
+            node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
+        if isinstance(node_a, IncompleteSwitchCaseNode):
+            self._unpack_incompleteswitchcasenode(graph, node_a)
+            self._unpack_incompleteswitchcasenode(full_graph, node_a)
+            # update node_a
+            node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
 
         cases, node_default, to_remove = self._switch_build_cases(cmp_lb, jump_table.jumptable_entries, node_b_addr,
                                                                   graph, full_graph)
@@ -544,6 +553,33 @@ class PhoenixStructurer(StructurerBase):
 
         return True
 
+    def _match_acyclic_incomplete_switch_cases(self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph,
+                                               jump_tables: Dict) -> bool:
+        if node.addr not in jump_tables:
+            return False
+        if isinstance(node, IncompleteSwitchCaseNode):
+            return False
+
+        successors = list(graph.successors(node))
+
+        if successors and all(graph.in_degree[succ] == 1 for succ in successors):
+            out_nodes = set()
+            for succ in successors:
+                out_nodes |= set(full_graph.successors(succ))
+            out_nodes = list(out_nodes)
+            if len(out_nodes) <= 1:
+                new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
+                graph.remove_nodes_from(successors)
+                self.replace_nodes(graph, node, new_node)
+                if out_nodes and out_nodes[0] in graph:
+                    graph.add_edge(new_node, out_nodes[0])
+                full_graph.remove_nodes_from(successors)
+                self.replace_nodes(full_graph, node, new_node)
+                if out_nodes:
+                    full_graph.add_edge(new_node, out_nodes[0])
+                return True
+        return False
+
     def _switch_build_cases(self, cmp_lb, jumptable_entries, node_b_addr, graph, full_graph) -> Tuple[Dict,Any,Set[Any]]:
         cases: Dict[Union[int,Tuple[int]],SequenceNode] = { }
         to_remove = set()
@@ -597,10 +633,14 @@ class PhoenixStructurer(StructurerBase):
     def _make_switch_cases_core(self, head, cmp_expr, cases, node_default, addr, to_remove: Set,
                                 graph: networkx.DiGraph, full_graph: networkx.DiGraph, node_a=None):
 
+        if node_default is not None:
+            # the head no longer goes to the default case
+            graph.remove_edge(head, node_default)
+            full_graph.remove_edge(head, node_default)
+
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
 
         # insert the switch-case node to the graph
-
         other_nodes_inedges = [ ]
         out_edges = [ ]
 
@@ -627,9 +667,13 @@ class PhoenixStructurer(StructurerBase):
 
         if out_edges:
             # leave only one out edge and virtualize all other out edges
-            if out_edges[0][1] in graph:
-                graph.add_edge(scnode, out_edges[0][1])
-            full_graph.add_edge(scnode, out_edges[0][1])
+            out_edge = out_edges[0]
+            out_dst = out_edge[1]
+            if out_dst in graph:
+                graph.add_edge(scnode, out_dst)
+            full_graph.add_edge(scnode, out_dst)
+            if full_graph.has_edge(head, out_dst):
+                full_graph.remove_edge(head, out_dst)
 
         # remove the last statement (conditional jump) in the head node
         remove_last_statement(head)
@@ -847,3 +891,40 @@ class PhoenixStructurer(StructurerBase):
         walker.block = None
         walker.walk(node)
         return walker.parent, walker.block
+
+    @staticmethod
+    def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode):
+        if not seq.nodes:
+            return
+        node = seq.nodes[0]
+        new_seq = seq.copy()
+        new_seq.nodes = new_seq.nodes[1:]
+        if new_seq.nodes:
+            new_seq.addr = new_seq.nodes[0].addr
+
+        preds = list(graph.predecessors(seq))
+        succs = list(graph.successors(seq))
+        graph.remove_node(seq)
+        for pred in preds:
+            graph.add_edge(pred, node)
+        if new_seq.nodes:
+            graph.add_edge(node, new_seq)
+        for succ in succs:
+            if succ is seq:
+                graph.add_edge(new_seq, new_seq)
+            else:
+                graph.add_edge(new_seq, succ)
+        return True
+
+    @staticmethod
+    def _unpack_incompleteswitchcasenode(graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode):
+        preds = list(graph.predecessors(incscnode))
+        succs = list(graph.successors(incscnode))
+        if len(succs) <= 1:
+            graph.remove_node(incscnode)
+            for pred in preds:
+                graph.add_edge(pred, incscnode.head)
+            for case_node in incscnode.cases:
+                graph.add_edge(incscnode.head, case_node)
+                if succs:
+                    graph.add_edge(case_node, succs[0])

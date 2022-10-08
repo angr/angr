@@ -15,7 +15,7 @@ from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
 from .structuring.structurer_nodes import (MultiNode, EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode,
                                            BreakNode, ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode,
-                                           CascadingConditionNode)
+                                           CascadingConditionNode, IncompleteSwitchCaseNode)
 from .graph_region import GraphRegion
 
 if is_pyinstaller():
@@ -334,6 +334,8 @@ class ConditionProcessor:
         if type(block) is ContinueNode:
             return None
         if type(block) is SwitchCaseNode:
+            return None
+        if type(block) is IncompleteSwitchCaseNode:
             return None
         if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.

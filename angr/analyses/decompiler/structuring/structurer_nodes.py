@@ -49,12 +49,6 @@ class MultiNode:
     def addr(self):
         return self.nodes[0].addr
 
-    def __eq__(self, other):
-        return isinstance(other, MultiNode) and self.nodes == other.nodes
-
-    def __hash__(self):
-        return hash((MultiNode, ) + tuple(self.nodes))
-
 
 class BaseNode:
 
@@ -304,3 +298,17 @@ class SwitchCaseNode(BaseNode):
         self.cases: Dict[Union[int,Tuple[int]],SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr
+
+
+class IncompleteSwitchCaseNode(BaseNode):
+    """
+    Describes an incomplete set of switch-case nodes. Usually an intermediate result. Should always be restructured
+    into a SwitchCaseNode by the end of structuring. Only used in Phoenix structurer.
+    """
+
+    __slots__ = ('addr', 'head', 'cases')
+
+    def __init__(self, addr, head, cases):
+        self.addr = addr
+        self.head = head
+        self.cases = cases
