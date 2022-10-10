@@ -1202,10 +1202,10 @@ class CIndexedVariable(CExpression):
             return
 
         bracket = CClosingObject("[")
-        if not isinstance(self.variable, CVariable):
+        if not isinstance(self.variable, (CVariable, CVariableField)):
             yield "(", None
         yield from self.variable.c_repr_chunks()
-        if not isinstance(self.variable, CVariable):
+        if not isinstance(self.variable, (CVariable, CVariableField)):
             yield ")", None
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.index)
@@ -2272,9 +2272,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     kernel = kernel.operand.variable
                     if not isinstance(old_index, CConstant) or old_index.value != 0:
                         index = CBinaryOp("Add", old_index, index, codegen=self)
-                    kernel = CUnaryOp("Reference", CIndexedVariable(kernel, index, codegen=self), codegen=self)
-                else:
-                    kernel = CIndexedVariable(kernel, index, codegen=self)
+                kernel = CUnaryOp("Reference", CIndexedVariable(kernel, index, codegen=self), codegen=self)
                 terms.pop()
                 continue
 
