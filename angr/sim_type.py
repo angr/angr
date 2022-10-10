@@ -1,4 +1,4 @@
-# pylint:disable=abstract-method
+# pylint:disable=abstract-method,line-too-long
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
@@ -233,7 +233,6 @@ class SimTypeBottom(SimType):
             return 'int'
         else:
             return f'{"int" if self.label is None else self.label} {name}'
-
 
     def _init_str(self):
         return "{}({})".format(
