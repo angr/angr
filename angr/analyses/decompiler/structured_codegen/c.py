@@ -101,6 +101,7 @@ def extract_terms(expr: 'CExpression') -> Tuple[int, List[Tuple[int, 'CExpressio
         if isinstance(expr.rhs, CConstant):
             c, t = extract_terms(expr.lhs)
             return c << expr.rhs.value, [(c1 << expr.rhs.value, t1) for c1, t1 in t]
+        return 0, [(1, expr)]
     else:
         return 0, [(1, expr)]
 
