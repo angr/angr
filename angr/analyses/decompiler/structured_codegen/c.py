@@ -97,6 +97,11 @@ def extract_terms(expr: 'CExpression') -> Tuple[int, List[Tuple[int, 'CExpressio
             return c * expr.rhs.value, [(c1 * expr.rhs.value, t1) for c1, t1 in t]
         else:
             return 0, [(1, expr)]
+    elif isinstance(expr, CBinaryOp) and expr.op == "Shl":
+        if isinstance(expr.rhs, CConstant):
+            c, t = extract_terms(expr.lhs)
+            return c << expr.rhs.value, [(c1 << expr.rhs.value, t1) for c1, t1 in t]
+        return 0, [(1, expr)]
     else:
         return 0, [(1, expr)]
 
@@ -1175,7 +1180,11 @@ class CIndexedVariable(CExpression):
         if self._type is None and self.variable.type is not None:
             u = unpack_typeref(self.variable.type)
             if isinstance(u, SimTypePointer):
-                u = u.pts_to
+                if isinstance(u.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                    # special case: (&array)[x]
+                    u = u.pts_to.elem_type
+                else:
+                    u = u.pts_to
                 u = unpack_typeref(u)
             elif isinstance(u, (SimTypeArray, SimTypeFixedSizeArray)):
                 u = u.elem_type
@@ -1194,7 +1203,11 @@ class CIndexedVariable(CExpression):
             return
 
         bracket = CClosingObject("[")
+        if not isinstance(self.variable, (CVariable, CVariableField)):
+            yield "(", None
         yield from self.variable.c_repr_chunks()
+        if not isinstance(self.variable, (CVariable, CVariableField)):
+            yield ")", None
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.index)
         yield "]", bracket
@@ -1245,7 +1258,12 @@ class CUnaryOp(CExpression):
         if operand.type is not None:
             var_type = unpack_typeref(operand.type)
             if op == "Reference":
-                self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
+                if isinstance(var_type, SimTypePointer) \
+                        and isinstance(var_type.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                    # special case: &array
+                    self._type = var_type
+                else:
+                    self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
             elif op == "Dereference":
                 if isinstance(var_type, SimTypePointer):
                     self._type = unpack_typeref(var_type.pts_to)
@@ -2118,7 +2136,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if stride != 1:
                 expr = CTypeCast(
                     expr.type,
-                    SimTypePointer(SimTypeBottom()).with_arch(self.project.arch),
+                    SimTypePointer(SimTypeChar()).with_arch(self.project.arch),
                     expr,
                     codegen=self
                 )
@@ -2171,13 +2189,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         CConstant(c, t.type, codegen=self),
                         t
                             if not isinstance(t.type, SimTypePointer)
-                            else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self),
+                            else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self),
                         codegen=self
                     )
                     if c != 1
                     else t
                         if not isinstance(t.type, SimTypePointer)
-                        else CTypeCast(t.type, SimTypePointer(SimTypeBottom()), t, codegen=self)
+                        else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
                     for c, t in o_terms
                 )
             )
