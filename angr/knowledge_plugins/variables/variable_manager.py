@@ -835,7 +835,8 @@ class VariableManagerInternal(Serializable):
         for nodes in networkx.connected_components(graph_):
             if len(nodes) <= 1:
                 continue
-            nodes = list(nodes)
+            # side effect of sorting: arg_x variables are always in the front of the list
+            nodes = list(sorted(nodes, key=lambda x: x.ident))
             unified = nodes[0].copy()
             for v in nodes:
                 self.set_unified_variable(v, unified)
