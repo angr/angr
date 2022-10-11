@@ -5,6 +5,7 @@ from .a_mul_const_div_shr_const import AMulConstDivShrConst
 from .a_shl_const_sub_a import AShlConstSubA
 from .a_sub_a_div import ASubADiv
 from .a_sub_a_div_const_mul_const import ASubADivConstMulConst
+from .arm_cmpf import ARMCmpF
 from .bswap import Bswap
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .constant_derefs import ConstantDereferences
@@ -21,6 +22,7 @@ from .bool_expr_xor_1 import BoolExprXor1
 from .bitwise_or_to_logical_or import BitwiseOrToLogicalOr
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks
 from .remove_redundant_nots import RemoveRedundantNots
+from .remove_redundant_reinterprets import RemoveRedundantReinterprets
 from .remove_redundant_shifts import RemoveRedundantShifts
 from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
 from .basepointeroffset_add_n import BasePointerOffsetAddN
