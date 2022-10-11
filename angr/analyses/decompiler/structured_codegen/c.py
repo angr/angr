@@ -2123,16 +2123,30 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if isinstance(base_type, (SimTypeFixedSizeArray, SimTypeArray)):
             result = base_expr or expr  # death to C
-            result = CUnaryOp(
-                "Reference",
-                CIndexedVariable(
-                    result,
-                    CConstant(0, SimTypeInt(), codegen=self),
-                    variable_type=base_type.elem_type,
+            if isinstance(result, CIndexedVariable):
+                # unpack indexed variable
+                var = result.variable
+                result = CUnaryOp(
+                    "Reference",
+                    CIndexedVariable(
+                        var,
+                        result.index,
+                        variable_type=base_type.elem_type,
+                        codegen=self
+                    ),
                     codegen=self
-                ),
-                codegen=self
-            )
+                )
+            else:
+                result = CUnaryOp(
+                    "Reference",
+                    CIndexedVariable(
+                        result,
+                        CConstant(0, SimTypeInt(), codegen=self),
+                        variable_type=base_type.elem_type,
+                        codegen=self
+                    ),
+                    codegen=self
+                )
             return self._access_constant_offset(result, remainder, data_type, lvalue, renegotiate_type)
 
         # TODO is it a big-endian downcast?
