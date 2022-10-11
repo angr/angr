@@ -182,7 +182,7 @@ class SimEnginePropagatorAIL(
             false_target = None
 
         # parse the condition to set initial values for true/false branches
-        if isinstance(true_target.one_expr, Expr.Const):
+        if condition is not None and isinstance(true_target.one_expr, Expr.Const):
             cond_expr = condition.one_expr
             if isinstance(cond_expr, Expr.BinaryOp) and cond_expr.op == "CmpEQ":
                 if isinstance(cond_expr.operands[1], Expr.Const):
