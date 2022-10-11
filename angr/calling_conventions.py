@@ -1661,6 +1661,20 @@ class SimCCARM(SimCC):
             result[0].append(ty)
         return result
 
+
+class SimCCARMHF(SimCCARM):
+    ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
+    FP_ARG_REGS = [ f"s{i}" for i in range(16) ]    # regular arg regs are used as fp arg regs
+    FP_RETURN_VAL = SimRegArg('s0', 32)
+    CALLER_SAVED_REGS = [ ]
+    RETURN_ADDR = SimRegArg('lr', 4)
+    RETURN_VAL = SimRegArg('r0', 4) #TODO Return val can also include reg r1
+    ARCH = archinfo.ArchARMHF
+
+    def next_arg(self, session, arg_type):
+        return SimCC.next_arg(self, session, arg_type)
+
+
 class SimCCARMLinuxSyscall(SimCCSyscall):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
@@ -2053,7 +2067,7 @@ DEFAULT_CC: Dict[str,Type[SimCC]] = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
     'ARMEL': SimCCARM,
-    'ARMHF': SimCCARM,
+    'ARMHF': SimCCARMHF,
     'ARMCortexM': SimCCARM,
     'MIPS32': SimCCO32,
     'MIPS64': SimCCO64,

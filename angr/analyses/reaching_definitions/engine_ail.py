@@ -267,10 +267,15 @@ class SimEngineRDAIL(
                 else:
                     l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
 
-            elif cc.RETURN_VAL is not None:
-                # Return value is redefined here, so it is not a dummy value
-                return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
-                self.state.kill_definitions(Register(return_reg_offset, return_reg_size))
+            else:
+                if cc.RETURN_VAL is not None:
+                    # Return value is redefined here, so it is not a dummy value
+                    return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
+                    self.state.kill_definitions(Register(return_reg_offset, return_reg_size))
+                # FIXME: Hack
+                if cc.FP_RETURN_VAL is not None:
+                    return_reg_offset, return_reg_size = self.arch.registers[cc.FP_RETURN_VAL.reg_name]
+                    self.state.kill_definitions(Register(return_reg_offset, return_reg_size))
 
         # Kill those ones that should be killed
         for var in killed_vars:
