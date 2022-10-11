@@ -165,6 +165,11 @@ class Clinic(Analysis):
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
             ail_graph = self._make_returns(ail_graph)
 
+        # full-function constant-only propagation
+        self._update_progress(37., text="Constant propagation")
+        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False, narrow_expressions=False,
+                                only_consts=True, max_iterations=1)
+
         # cached block-level reaching definition analysis results and propagator results
         block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = { }
 
@@ -461,7 +466,7 @@ class Clinic(Analysis):
 
     @timethis
     def _simplify_function(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None, unify_variables=False,
-                           max_iterations: int = 8, narrow_expressions=False) -> None:
+                           max_iterations: int = 8, narrow_expressions=False, only_consts=False) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
         """
@@ -472,13 +477,14 @@ class Clinic(Analysis):
                                                       stack_arg_offsets=stack_arg_offsets,
                                                       # only narrow once
                                                       narrow_expressions=narrow_expressions and idx == 0,
+                                                      only_consts=only_consts,
                                                       )
             if not simplified:
                 break
 
     @timethis
     def _simplify_function_once(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None,
-                                unify_variables=False, narrow_expressions=False):
+                                unify_variables=False, narrow_expressions=False, only_consts=False):
         """
         Simplify the entire function once.
 
@@ -494,6 +500,7 @@ class Clinic(Analysis):
             ail_manager=self._ail_manager,
             gp=self.function.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
             narrow_expressions=narrow_expressions,
+            only_consts=only_consts,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions

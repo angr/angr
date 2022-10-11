@@ -63,7 +63,8 @@ class AILSimplifier(Analysis):
                  unify_variables=False,
                  ail_manager: Optional['Manager']=None,
                  gp: Optional[int]=None,
-                 narrow_expressions=False):
+                 narrow_expressions=False,
+                 only_consts=False):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions = None
@@ -75,6 +76,7 @@ class AILSimplifier(Analysis):
         self._ail_manager = ail_manager
         self._gp = gp
         self._narrow_expressions = narrow_expressions
+        self._only_consts = only_consts
 
         self._calls_to_remove: Set[CodeLocation] = set()
         self._assignments_to_remove: Set[CodeLocation] = set()
@@ -97,11 +99,15 @@ class AILSimplifier(Analysis):
         _l.debug("Folding expressions")
         folded_exprs = self._fold_exprs()
         self.simplified |= folded_exprs
+        # import ipdb; ipdb.set_trace()
         if folded_exprs:
             _l.debug("... expressions folded")
             self._rebuild_func_graph()
             # reaching definition analysis results are no longer reliable
             self._clear_cache()
+
+        if self._only_consts:
+            return
 
         _l.debug("Rewriting ccalls")
         ccalls_rewritten = self._rewrite_ccalls()
@@ -159,7 +165,8 @@ class AILSimplifier(Analysis):
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
-        prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph, gp=self._gp)
+        prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph, gp=self._gp,
+                                                only_consts=self._only_consts)
         self._propagator = prop
         return prop
 
