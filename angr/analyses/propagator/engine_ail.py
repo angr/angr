@@ -171,11 +171,32 @@ class SimEnginePropagatorAIL(
                 l.warning("Unsupported ret_expr type %s.", expr_stmt.ret_expr.__class__)
 
     def _ail_handle_ConditionalJump(self, stmt):
-        _ = self._expr(stmt.condition)
+        condition = self._expr(stmt.condition)
         if stmt.true_target is not None:
-            _ = self._expr(stmt.true_target)
+            true_target = self._expr(stmt.true_target)
+        else:
+            true_target = None
         if stmt.false_target is not None:
-            _ = self._expr(stmt.false_target)
+            false_target = self._expr(stmt.false_target)
+        else:
+            false_target = None
+
+        # parse the condition to set initial values for true/false branches
+        if condition is not None and isinstance(true_target.one_expr, Expr.Const):
+            cond_expr = condition.one_expr
+            if isinstance(cond_expr, Expr.BinaryOp) and cond_expr.op == "CmpEQ":
+                if isinstance(cond_expr.operands[1], Expr.Const):
+                    if isinstance(cond_expr.operands[0], Expr.Tmp):
+                        # is there a register that's equivalence to the tmp?
+                        for _, (reg_atom, reg_expr, def_at) in self.state.register_expressions.items():
+                            if isinstance(reg_expr, Expr.Tmp) and cond_expr.operands[0].tmp_idx == reg_expr.tmp_idx:
+                                # found it!
+                                key = self.block.addr, true_target.one_expr.value
+                                self.state.block_initial_reg_values[key].append((
+                                    reg_atom,
+                                    cond_expr.operands[1],
+                                ))
+
 
     def _ail_handle_Return(self, stmt: Stmt.Return):
         if stmt.ret_exprs:

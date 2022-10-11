@@ -162,6 +162,11 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
     def _initial_abstract_state(self, node: NodeType) -> AnalysisState:
         raise NotImplementedError('_initial_abstract_state() is not implemented.')
 
+    def _process_input_state_for_successor(self, node: NodeType, successor: NodeType, input_state: AnalysisState) \
+            -> AnalysisState:
+        # can be overwritten
+        return input_state
+
     def _node_key(self, node: NodeType) -> NodeType:  # pylint:disable=no-self-use
         """
         Override this method if hash(node) is slow for the type of node that are in use.
@@ -303,10 +308,11 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
             # if a node has only one predecessor, we overwrite existing input states
             # otherwise, we add the state as a new input state
             # this is an approximation for removing input states for all nodes that `node` dominates
+            new_input_state = self._process_input_state_for_successor(node, succ, input_state)
             if sum(1 for _ in self._graph_visitor.predecessors(succ)) == 1:
-                self._input_states[self._node_key(succ)] = [ input_state ]
+                self._input_states[self._node_key(succ)] = [ new_input_state ]
             else:
-                self._input_states[self._node_key(succ)].append(input_state)
+                self._input_states[self._node_key(succ)].append(new_input_state)
 
         return successors
 
