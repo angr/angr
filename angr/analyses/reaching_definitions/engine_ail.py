@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from itertools import chain
 from typing import Iterable, Optional
 import logging

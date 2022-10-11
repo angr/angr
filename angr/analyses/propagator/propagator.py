@@ -587,7 +587,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                                                offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))})
                                      )
             else:
-                state.store_register(self.project.arch.registers['fpscr'][0],
+                state.store_register(self.project.arch.registers['fpscr'][0],  # pylint:disable=too-many-function-args
                                      self.project.arch.registers['fpscr'][1],
                                      claripy.BVV(0, 32),
                                      )

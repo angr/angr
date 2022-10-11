@@ -1,4 +1,4 @@
-# pylint:disable=arguments-differ
+# pylint:disable=arguments-differ,invalid-unary-operand-type
 from typing import Optional, TYPE_CHECKING
 import logging
 

@@ -1,11 +1,13 @@
-from typing import Tuple, Optional
-
 from ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
 
 
 class ARMCmpF(PeepholeOptimizationExprBase):
+    """
+    Optimizes floating-point comparison expressions.
+    """
+
     __slots__ = ()
 
     NAME = "Simplifying CmpF on ARM"

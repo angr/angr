@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 """
 All type constants used in type inference. They can be mapped, translated, or rewritten to C-style types.
 """
