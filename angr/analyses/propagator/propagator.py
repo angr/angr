@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, Union, List
+from typing import Set, Optional, Any, Tuple, Union, List, DefaultDict
 from collections import defaultdict
 import logging
 
@@ -152,7 +152,7 @@ class PropagatorState:
             return
 
         if self._only_consts:
-            if isinstance(new, int) or self.is_top(new):
+            if isinstance(new, (int, ailment.Expr.Const)) or self.is_top(new):
                 self._replacements[codeloc][old] = new
         else:
             self._replacements[codeloc][old] = new
@@ -274,10 +274,10 @@ class PropagatorAILState(PropagatorState):
     """
 
     __slots__ = ('_registers', '_stack_variables', '_tmps', 'temp_expressions', 'register_expressions',
-                 'last_stack_store', 'global_stores')
+                 'last_stack_store', 'global_stores', 'block_initial_reg_values', )
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
-                 stack_variables=None, registers=None, gp=None):
+                 stack_variables=None, registers=None, gp=None, block_initial_reg_values=None):
         super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
                          prop_count=prop_count, equivalence=equivalence, gp=gp)
 
@@ -290,6 +290,8 @@ class PropagatorAILState(PropagatorState):
         self._tmps = {}
         self.temp_expressions = { }
         self.register_expressions = { }
+        self.block_initial_reg_values: DefaultDict[Tuple[int,int],List[Tuple[ailment.Expr.Register,ailment.Expr.Const]]] = \
+            defaultdict(list) if block_initial_reg_values is None else block_initial_reg_values
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
@@ -302,7 +304,7 @@ class PropagatorAILState(PropagatorState):
     def __repr__(self):
         return "<PropagatorAILState>"
 
-    def copy(self):
+    def copy(self) -> 'PropagatorAILState':
         rd = PropagatorAILState(
             self.arch,
             project=self.project,
@@ -312,11 +314,31 @@ class PropagatorAILState(PropagatorState):
             equivalence=self._equivalence.copy(),
             stack_variables=self._stack_variables.copy(),
             registers=self._registers.copy(),
+            block_initial_reg_values=self.block_initial_reg_values.copy(),
             # drop tmps
             gp=self._gp,
         )
 
         return rd
+
+    @staticmethod
+    def is_const_or_register(value: Optional[Union[ailment.Expr.Expression,claripy.ast.Bits]]) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, claripy.ast.BV):
+            return not value.symbolic
+        if isinstance(value, ailment.Expr.Register):
+            return True
+        if isinstance(value, ailment.Expr.Const) or (isinstance(value, int) and value == 0):
+            return True
+        # more hacks: also store the eq comparisons
+        if isinstance(value, ailment.Expr.BinaryOp) and value.op == "CmpEQ":
+            if all(isinstance(arg, (ailment.Expr.Const, ailment.Expr.Tmp)) for arg in value.operands):
+                return True
+        # more hacks: also store the conversions
+        if isinstance(value, ailment.Expr.Convert) and PropagatorAILState.is_const_or_register(value.operand):
+            return True
+        return False
 
     def merge(self, *others) -> Tuple['PropagatorAILState',bool]:
         state, merge_occurred = super().merge(*others)
@@ -328,6 +350,8 @@ class PropagatorAILState(PropagatorState):
         return state, merge_occurred
 
     def store_temp(self, tmp_idx: int, value: PropValue):
+        if self._only_consts and not self.is_const_or_register(value.one_expr):
+            return
         self._tmps[tmp_idx] = value
 
     def load_tmp(self, tmp_idx: int) -> Optional[PropValue]:
@@ -335,6 +359,9 @@ class PropagatorAILState(PropagatorState):
 
     def store_register(self, reg: ailment.Expr.Register, value: PropValue) -> None:
         if isinstance(value, ailment.Expr.Expression) and value.has_atom(reg, identity=False):
+            return
+
+        if self._only_consts and not self.is_const_or_register(value.one_expr):
             return
 
         for offset, chopped_value, size, label in value.value_and_labels():
@@ -389,6 +416,9 @@ class PropagatorAILState(PropagatorState):
         return prop_value
 
     def add_replacement(self, codeloc, old, new):
+
+        if self._only_consts and not self.is_const_or_register(new) and not self.is_top(new):
+            return
 
         # do not replace anything with a call expression
         if isinstance(new, ailment.statement.Call):
@@ -495,6 +525,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         self._node_iterations = defaultdict(int)
         self._states = {}
+        self._block_initial_reg_values = {}
         self.replacements: Optional[defaultdict] = None
         self.equivalence: Set[Equivalence] = set()
 
@@ -631,6 +662,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         self._node_iterations[block_key] += 1
         self._states[block_key] = state
+        if isinstance(state, PropagatorAILState):
+            self._block_initial_reg_values.update(state.block_initial_reg_values)
 
         if self.replacements is None:
             self.replacements = state._replacements
@@ -645,6 +678,21 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             return True, state
         else:
             return False, state
+
+    def _process_input_state_for_successor(self, node, successor,
+                                           input_state: Union[PropagatorAILState,PropagatorVEXState]):
+        if self._only_consts and isinstance(input_state, PropagatorAILState):
+            key = node.addr, successor.addr
+            if key in self._block_initial_reg_values:
+                input_state: PropagatorAILState = input_state.copy()
+                for reg_atom, reg_value in self._block_initial_reg_values[key]:
+                    input_state.store_register(
+                        reg_atom,
+                        PropValue(claripy.BVV(reg_value.value, reg_value.bits),
+                                  offset_and_details={0: Detail(reg_atom.size, reg_value, None)})
+                    )
+                return input_state
+        return input_state
 
     def _intra_analysis(self):
         pass

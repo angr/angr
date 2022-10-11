@@ -99,7 +99,6 @@ class AILSimplifier(Analysis):
         _l.debug("Folding expressions")
         folded_exprs = self._fold_exprs()
         self.simplified |= folded_exprs
-        # import ipdb; ipdb.set_trace()
         if folded_exprs:
             _l.debug("... expressions folded")
             self._rebuild_func_graph()
