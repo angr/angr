@@ -997,8 +997,10 @@ class SimEngineRDAIL(
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])
 
-        if op0 is None: op0 = expr.operands[0]
-        if op1 is None: op1 = expr.operands[1]
+        if op0 is None:
+            _ = expr.operands[0]
+        if op1 is None:
+            _ = expr.operands[1]
 
         top = self.state.top(expr.bits)
         return MultiValues(top)
@@ -1016,9 +1018,9 @@ class SimEngineRDAIL(
     _ail_handle_CmpGTs = _ail_handle_Cmp
 
     def _ail_handle_TernaryOp(self, expr) -> MultiValues:
-        op0 = self._expr(expr.operands[0])
-        op1 = self._expr(expr.operands[1])
-        op2 = self._expr(expr.operands[2])
+        _ = self._expr(expr.operands[0])
+        _ = self._expr(expr.operands[1])
+        _ = self._expr(expr.operands[2])
 
         top = self.state.top(expr.bits)
         return MultiValues(offset_to_values={0: {top}})
