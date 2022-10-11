@@ -7,6 +7,7 @@ import logging
 import claripy
 import ailment
 import pyvex
+from archinfo.arch_arm import is_arm_arch
 
 from ... import sim_options
 from ...storage.memory_mixins import LabeledMemory
@@ -576,6 +577,20 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                                          self.project.arch.registers['t9'][1],
                                          claripy.BVV(self._func_addr, 32),
                                          )
+        elif is_arm_arch(self.project.arch):
+            if ail:
+                # clear fpscr
+                reg_expr = ailment.Expr.Register(None, None, *self.project.arch.registers['fpscr'])
+                reg_value = ailment.Expr.Const(None, None, 0, 32)
+                state.store_register(reg_expr,
+                                     PropValue(claripy.BVV(0, 32),
+                                               offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))})
+                                     )
+            else:
+                state.store_register(self.project.arch.registers['fpscr'][0],  # pylint:disable=too-many-function-args
+                                     self.project.arch.registers['fpscr'][1],
+                                     claripy.BVV(0, 32),
+                                     )
 
         self._initial_state = state
         return state

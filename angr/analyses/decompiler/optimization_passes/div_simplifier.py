@@ -21,7 +21,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         return divisor_1 if divisor_1 == divisor_2 else None
 
     # pylint: disable=too-many-boolean-expressions
-    def _ail_handle_Convert(self, expr):
+    def _ail_handle_Convert(self, expr: Expr.Convert):
         if expr.from_bits == 128 and expr.to_bits == 64:
             operand_expr = self._expr(expr.operand)
             if isinstance(operand_expr, Expr.BinaryOp) \

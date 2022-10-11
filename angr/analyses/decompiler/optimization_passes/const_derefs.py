@@ -142,6 +142,8 @@ class BlockWalker(AILBlockWalker):
                             expr.signed,
                             variable=expr.variable,
                             variable_offset=expr.variable_offset,
+                            floating_point=expr.floating_point,
+                            rounding_mode=expr.rounding_mode,
                             **expr.tags
                             )
         return None

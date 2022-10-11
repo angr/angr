@@ -94,6 +94,12 @@ class PropValue:
     def chop_value(value: claripy.ast.Bits, begin_offset, end_offset) -> claripy.ast.Bits:
         chop_start = value.size() - begin_offset * 8 - 1
         chop_end = value.size() - end_offset * 8
+        if chop_end - chop_start + 1 == value.size():
+            # fast path: no chopping
+            return value
+        if isinstance(value, claripy.ast.FP):
+            # converting the FP value to an AST so that we can chop
+            value = claripy.fpToIEEEBV(value)
         return value[chop_start : chop_end]
 
     def value_and_labels(self) -> Generator[Tuple[int,claripy.ast.Bits,int,Optional[Dict]],None,None]:
