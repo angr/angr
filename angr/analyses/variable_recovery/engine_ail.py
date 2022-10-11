@@ -402,10 +402,13 @@ class SimEngineVRAIL(
         from_size = expr.bits
         to_size = r1.bits
 
-        if expr.signed:
-            remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+        if expr.floating_point:
+            remainder = self.state.top(to_size)
         else:
-            remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
+            if expr.signed:
+                remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+            else:
+                remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
 
         return RichR(remainder,
                      # typevar=r0.typevar,  # FIXME: Handle typevars for Div
