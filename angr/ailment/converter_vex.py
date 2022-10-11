@@ -7,7 +7,7 @@ from angr.engines.vex.claripy.irop import vexop_to_simop
 from .block import Block
 from .statement import Assignment, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
 from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE, Reinterpret, \
-    VEXCCallExpression
+    VEXCCallExpression, TernaryOp
 from .converter_common import SkipConversionNotice, Converter
 
 
@@ -164,7 +164,7 @@ class VEXExprConverter(Converter):
 
         signed = False
         if op_name in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT', 'Div', 'DivMod', 'Mul', 'Mull'}:
-            if vexop_to_simop(expr.op).is_signed:
+            if op.is_signed:
                 signed = True
         if op_name == "Cmp" and op._float:
             # Rename Cmp to CmpF
@@ -175,12 +175,59 @@ class VEXExprConverter(Converter):
             # TODO: Finish this
             if op._from_type == "I" and op._to_type == "F":
                 # integer to floating point
-                # TODO: Create an FPConvert operation
-                op_name = "FPConvert"
-                l.warning("Floating-point conversions are not supported in AIL or angr decompiler.")
+                rm = operands[0]
+                operand = operands[1]
+                return Convert(
+                    manager.next_atom(),
+                    op._from_size,
+                    op._to_size,
+                    op.is_signed,
+                    operand,
+                    from_type=Convert.TYPE_INT,
+                    to_type=Convert.TYPE_FP,
+                    rounding_mode=rm,
+                    ins_addr=manager.ins_addr,
+                    vex_block_addr=manager.block_addr,
+                    vex_stmt_idx=manager.vex_stmt_idx,
+                )
             elif op._from_side == "HL":
                 # Concatenating the two arguments and form a new value
                 op_name = "Concat"
+            elif op._from_type == "F" and op._to_type == "F":
+                # floating point to floating point
+                rm = operands[0]
+                operand = operands[1]
+                return Convert(
+                    manager.next_atom(),
+                    op._from_size,
+                    op._to_size,
+                    op.is_signed,
+                    operand,
+                    from_type=Convert.TYPE_FP,
+                    to_type=Convert.TYPE_FP,
+                    rounding_mode=rm,
+                    ins_addr=manager.ins_addr,
+                    vex_block_addr=manager.block_addr,
+                    vex_stmt_idx=manager.vex_stmt_idx,
+                )
+            elif op._from_type == "F" and op._to_type == "I":
+                # floating point to integer
+                # floating point to floating point
+                rm = operands[0]
+                operand = operands[1]
+                return Convert(
+                    manager.next_atom(),
+                    op._from_size,
+                    op._to_size,
+                    op.is_signed,
+                    operand,
+                    from_type=Convert.TYPE_FP,
+                    to_type=Convert.TYPE_INT,
+                    rounding_mode=rm,
+                    ins_addr=manager.ins_addr,
+                    vex_block_addr=manager.block_addr,
+                    vex_stmt_idx=manager.vex_stmt_idx,
+                )
 
         bits = op._output_size_bits
 
@@ -193,6 +240,41 @@ class VEXExprConverter(Converter):
                         vex_stmt_idx=manager.vex_stmt_idx,
                         bits=bits,
                         )
+
+    @staticmethod
+    def Triop(expr, manager):
+        op = VEXExprConverter.simop_from_vexop(expr.op)
+        op_name = op._generic_name
+        operands = VEXExprConverter.convert_list(expr.args, manager)
+
+        bits = op._output_size_bits
+
+        if op._float:
+            # this is a floating-point operation where the first argument is the rounding mode. in fact, we have a
+            # BinaryOp here.
+            rm = operands[0]
+            return BinaryOp(
+                manager.next_atom(),
+                op_name,
+                operands[1:],
+                True,  # all floating-point operations are signed
+                floating_point=True,
+                rounding_mode=rm,
+                ins_addr=manager.ins_addr,
+                vex_block_addr=manager.block_addr,
+                vex_stmt_idx=manager.vex_stmt_idx,
+                bits=bits,
+            )
+
+        return TernaryOp(
+            manager.next_atom(),
+            op_name,
+            operands,
+            ins_addr=manager.ins_addr,
+            vex_block_addr=manager.block_addr,
+            vex_stmt_idx=manager.vex_stmt_idx,
+            bits=bits,
+        )
 
     @staticmethod
     def Const(expr, manager):
@@ -230,6 +312,7 @@ EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.Get: VEXExprConverter.Get,
     pyvex.IRExpr.Unop: VEXExprConverter.Unop,
     pyvex.IRExpr.Binop: VEXExprConverter.Binop,
+    pyvex.IRExpr.Triop: VEXExprConverter.Triop,
     pyvex.IRExpr.Const: VEXExprConverter.Const,
     pyvex.const.U32: VEXExprConverter.const_n,
     pyvex.const.U64: VEXExprConverter.const_n,

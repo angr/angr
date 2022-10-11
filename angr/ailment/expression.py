@@ -1,4 +1,4 @@
-# pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type
+# pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type,missing-class-docstring
 try:
     import claripy
 except ImportError:
@@ -252,9 +252,13 @@ class UnaryOp(Op):
 
 class Convert(UnaryOp):
 
-    __slots__ = ('from_bits', 'to_bits', 'is_signed', )
+    TYPE_INT = 0
+    TYPE_FP = 1
 
-    def __init__(self, idx, from_bits, to_bits, is_signed, operand, **kwargs):
+    __slots__ = ('from_bits', 'to_bits', 'is_signed', 'from_type', 'to_type', 'rounding_mode', )
+
+    def __init__(self, idx, from_bits, to_bits, is_signed, operand, from_type=TYPE_INT, to_type=TYPE_INT,
+                 rounding_mode=None, **kwargs):
         super().__init__(idx, 'Convert', operand, **kwargs)
 
         self.from_bits = from_bits
@@ -262,6 +266,9 @@ class Convert(UnaryOp):
         # override the size
         self.bits = to_bits
         self.is_signed = is_signed
+        self.from_type = from_type
+        self.to_type = to_type
+        self.rounding_mode = rounding_mode
 
     def __str__(self):
         return "Conv(%d->%s%d, %s)" % (self.from_bits, 's' if self.is_signed else '', self.to_bits, self.operand)
@@ -275,27 +282,46 @@ class Convert(UnaryOp):
                self.to_bits == other.to_bits and \
                self.bits == other.bits and \
                self.is_signed == other.is_signed and \
-               self.operand == other.operand
+               self.operand == other.operand and \
+               self.from_type == other.from_type and \
+               self.to_type == other.to_type and \
+               self.rounding_mode == other.rounding_mode
 
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash((self.operand, self.from_bits, self.to_bits, self.bits, self.is_signed))
+        return stable_hash((self.operand, self.from_bits, self.to_bits, self.bits, self.is_signed, self.from_type,
+                            self.to_type, self.rounding_mode))
 
     def replace(self, old_expr, new_expr):
         if self.operand == old_expr:
-            r = True
+            r0 = True
             replaced_operand = new_expr
         else:
-            r, replaced_operand = self.operand.replace(old_expr, new_expr)
+            r0, replaced_operand = self.operand.replace(old_expr, new_expr)
 
-        if r:
-            return True, Convert(self.idx, self.from_bits, self.to_bits, self.is_signed, replaced_operand, **self.tags)
+        if self.rounding_mode is not None:
+            if self.rounding_mode.likes(old_expr):
+                r1 = True
+                replaced_rm = new_expr
+            else:
+                r1, replaced_rm = self.rounding_mode.replace(old_expr, new_expr)
+        else:
+            r1 = False
+            replaced_rm = None
+
+        if r0 or r1:
+            return True, Convert(self.idx, self.from_bits, self.to_bits, self.is_signed,
+                                 replaced_operand if replaced_operand is not None else self.operand,
+                                 from_type=self.from_type, to_type=self.to_type,
+                                 rounding_mode=replaced_rm if replaced_rm is not None else self.rounding_mode,
+                                 **self.tags)
         else:
             return False, self
 
     def copy(self) -> 'Convert':
-        return Convert(self.idx, self.from_bits, self.to_bits, self.is_signed, self.operand, **self.tags)
+        return Convert(self.idx, self.from_bits, self.to_bits, self.is_signed, self.operand, from_type=self.from_type,
+                       to_type=self.to_type, rounding_mode=self.rounding_mode, **self.tags)
 
 
 class Reinterpret(UnaryOp):
@@ -353,13 +379,17 @@ class Reinterpret(UnaryOp):
 
 class BinaryOp(Op):
 
-    __slots__ = ('operands', 'bits', 'signed', 'variable', 'variable_offset', )
+    __slots__ = ('operands', 'bits', 'signed', 'variable', 'variable_offset', 'floating_point', 'rounding_mode', )
 
     OPSTR_MAP = {
         'Add': '+',
+        'AddF': '+',
         'Sub': '-',
+        'SubF': '-',
         'Mul': '*',
+        'MulF': '*',
         'Div': '/',
+        'DivF': '/',
         'DivMod': '/m',
         'Xor': '^',
         'And': '&',
@@ -369,7 +399,7 @@ class BinaryOp(Op):
         'Shl': '<<',
         'Shr': '>>',
         'Sar': '>>a',
-        'CmpF': '==f',
+        'CmpF': 'CmpF',
         'CmpEQ': '==',
         'CmpNE': '!=',
         'CmpLT': '<',
@@ -396,7 +426,8 @@ class BinaryOp(Op):
         'CmpGTs': 'CmpLEs',
     }
 
-    def __init__(self, idx, op, operands, signed, variable=None, variable_offset=None, bits=None, **kwargs):
+    def __init__(self, idx, op, operands, signed, variable=None, variable_offset=None, bits=None,
+                 floating_point=False, rounding_mode=None, **kwargs):
         depth = max(
             operands[0].depth if isinstance(operands[0], Expression) else 0,
             operands[1].depth if isinstance(operands[1], Expression) else 0,
@@ -419,6 +450,8 @@ class BinaryOp(Op):
         self.signed = signed
         self.variable = variable
         self.variable_offset = variable_offset
+        self.floating_point = floating_point
+        self.rounding_mode = rounding_mode
 
         # TODO: sanity check of operands' sizes for some ops
         # assert self.bits == operands[1].bits
@@ -435,12 +468,15 @@ class BinaryOp(Op):
                self.op == other.op and \
                self.bits == other.bits and \
                self.signed == other.signed and \
-               is_none_or_likeable(self.operands, other.operands, is_list=True)
+               is_none_or_likeable(self.operands, other.operands, is_list=True) and \
+               self.floating_point == other.floating_point and \
+               self.rounding_mode == other.rounding_mode
 
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash((self.op, tuple(self.operands), self.bits, self.signed))
+        return stable_hash((self.op, tuple(self.operands), self.bits, self.signed, self.floating_point,
+                            self.rounding_mode))
 
     def has_atom(self, atom, identity=True):
         if super().has_atom(atom, identity=identity):
@@ -452,6 +488,119 @@ class BinaryOp(Op):
             if not identity and isinstance(op, Expression) and op.likes(atom):
                 return True
             if isinstance(op, Expression) and op.has_atom(atom, identity=identity):
+                return True
+
+        if self.rounding_mode is not None:
+            if identity and self.rounding_mode == atom:
+                return True
+            if not identity and isinstance(self.rounding_mode, Atom) and self.rounding_mode.likes(atom):
+                return True
+            if isinstance(self.rounding_mode, Atom) and self.rounding_mode.has_atom(atom, identity=identity):
+                return True
+
+        return False
+
+    def replace(self, old_expr, new_expr):
+        if self.operands[0] == old_expr:
+            r0 = True
+            replaced_operand_0 = new_expr
+        elif isinstance(self.operands[0], Expression):
+            r0, replaced_operand_0 = self.operands[0].replace(old_expr, new_expr)
+        else:
+            r0, replaced_operand_0 = False, None
+
+        if self.operands[1] == old_expr:
+            r1 = True
+            replaced_operand_1 = new_expr
+        elif isinstance(self.operands[1], Expression):
+            r1, replaced_operand_1 = self.operands[1].replace(old_expr, new_expr)
+        else:
+            r1, replaced_operand_1 = False, None
+
+        if self.rounding_mode is not None:
+            if self.rounding_mode == old_expr:
+                r2 = True
+                replaced_rm = new_expr
+            elif isinstance(self.rounding_mode, Expression):
+                r2, replaced_rm = self.rounding_mode.replace(old_expr, new_expr)
+            else:
+                r2, replaced_rm = False, None
+
+        if r0 or r1:
+            return True, BinaryOp(self.idx, self.op, [ replaced_operand_0, replaced_operand_1 ], self.signed,
+                                  bits=self.bits, floating_point=self.floating_point, rounding_mode=self.rounding_mode,
+                                  **self.tags)
+        else:
+            return False, self
+
+    @property
+    def verbose_op(self):
+        op = self.op
+        if self.floating_point:
+            op += "F"
+        else:
+            if self.signed:
+                op += "s"
+        return op
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    def copy(self) -> 'BinaryOp':
+        return BinaryOp(self.idx, self.op, self.operands[::], self.signed, variable=self.variable,
+                        variable_offset=self.variable_offset, bits=self.bits, floating_point=self.floating_point,
+                        rounding_mode=self.rounding_mode,
+                        **self.tags)
+
+
+class TernaryOp(Op):
+
+    OPSTR_MAP = {
+
+    }
+
+    __slots__ = ('operands', 'bits', )
+
+    def __init__(self, idx, op, operands, bits=None, **kwargs):
+        depth = max(
+            operands[0].depth if isinstance(operands[0], Expression) else 0,
+            operands[1].depth if isinstance(operands[1], Expression) else 0,
+            operands[2].depth if isinstance(operands[1], Expression) else 0,
+        ) + 1
+        super().__init__(idx, depth, op, **kwargs)
+
+        assert len(operands) == 3
+        self.operands = operands
+        self.bits = bits
+
+    def __str__(self):
+        return f"{self.verbose_op}({self.operands[0]}, {self.operands[1]}, {self.operands[2]})"
+
+    def __repr__(self):
+        return "%s(%s, %s, %s)" % (self.verbose_op, self.operands[0], self.operands[1], self.operands[2])
+
+    def likes(self, other):
+        return type(other) is TernaryOp and \
+               self.op == other.op and \
+               self.bits == other.bits and \
+               self.operands == other.operands
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((self.op, tuple(self.operands), self.bits))
+
+    def has_atom(self, atom, identity=True):
+        if super().has_atom(atom, identity=identity):
+            return True
+
+        for op in self.operands:
+            if identity and op == atom:
+                return True
+            if not identity and isinstance(op, Atom) and op.likes(atom):
+                return True
+            if isinstance(op, Atom) and op.has_atom(atom, identity=identity):
                 return True
         return False
 
@@ -472,27 +621,32 @@ class BinaryOp(Op):
         else:
             r1, replaced_operand_1 = False, None
 
-        if r0 or r1:
-            return True, BinaryOp(self.idx, self.op, [ replaced_operand_0, replaced_operand_1 ], self.signed,
-                                  bits=self.bits,
-                                  **self.tags)
+        if self.operands[2] == old_expr:
+            r2 = True
+            replaced_operand_2 = new_expr
+        elif isinstance(self.operands[2], Expression):
+            r2, replaced_operand_2 = self.operands[2].replace(old_expr, new_expr)
+        else:
+            r2, replaced_operand_2 = False, None
+
+        if r0 or r1 or r2:
+            return True, TernaryOp(self.idx, self.op,
+                                   [ replaced_operand_0, replaced_operand_1, replaced_operand_2 ],
+                                   bits=self.bits,
+                                   **self.tags)
         else:
             return False, self
 
     @property
     def verbose_op(self):
-        op = self.op
-        if self.signed:
-            op += "s"
-        return op
+        return self.op
 
     @property
     def size(self):
         return self.bits // 8
 
-    def copy(self) -> 'BinaryOp':
-        return BinaryOp(self.idx, self.op, self.operands[::], self.signed, variable=self.variable,
-                        variable_offset=self.variable_offset, bits=self.bits, **self.tags)
+    def copy(self) -> 'TernaryOp':
+        return TernaryOp(self.idx, self.op, self.operands[::], bits=self.bits, **self.tags)
 
 
 class Load(Expression):
