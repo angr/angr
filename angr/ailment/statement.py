@@ -288,10 +288,10 @@ class Call(Expression, Statement):
     if the callee function has one return expression.
     """
 
-    __slots__ = ('target', 'calling_convention', 'prototype', 'args', 'ret_expr', )
+    __slots__ = ('target', 'calling_convention', 'prototype', 'args', 'ret_expr', 'fp_ret_expr', )
 
     def __init__(self, idx, target, calling_convention: Optional['SimCC']=None, prototype=None, args=None,
-                 ret_expr=None, **kwargs):
+                 ret_expr=None, fp_ret_expr=None, **kwargs):
         super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1,**kwargs)
 
         self.target = target
@@ -299,6 +299,7 @@ class Call(Expression, Statement):
         self.prototype = prototype
         self.args = args
         self.ret_expr = ret_expr
+        self.fp_ret_expr = fp_ret_expr
 
     def likes(self, other):
         return type(other) is Call and \
@@ -306,7 +307,8 @@ class Call(Expression, Statement):
                self.calling_convention == other.calling_convention and \
                self.prototype == other.prototype and \
                is_none_or_likeable(self.args, other.args, is_list=True) and \
-               is_none_or_likeable(self.ret_expr, other.ret_expr)
+               is_none_or_likeable(self.ret_expr, other.ret_expr) and \
+               is_none_or_likeable(self.fp_ret_expr, other.fp_ret_expr)
 
     __hash__ = TaggedObject.__hash__
 
@@ -333,11 +335,16 @@ class Call(Expression, Statement):
             ret_s = "no-ret-value"
         else:
             ret_s = f"{self.ret_expr}"
+        if self.fp_ret_expr is None:
+            fp_ret_s = "no-fp-ret-value"
+        else:
+            fp_ret_s = f"{self.fp_ret_expr}"
 
-        return "Call(%s, %s, ret: %s)" % (
+        return "Call(%s, %s, ret: %s, fp_ret: %s)" % (
             self.target,
             s,
-            ret_s
+            ret_s,
+            fp_ret_s
         )
 
     @property
@@ -387,12 +394,23 @@ class Call(Expression, Statement):
             r |= r_ret
             new_ret_expr = replaced_ret
 
+        new_fp_ret_expr = None
+        if self.fp_ret_expr:
+            if self.fp_ret_expr == old_expr:
+                r_ret = True
+                replaced_fp_ret = new_expr
+            else:
+                r_ret, replaced_fp_ret = self.fp_ret_expr.replace(old_expr, new_expr)
+            r |= r_ret
+            new_fp_ret_expr = replaced_fp_ret
+
         if r:
             return True, Call(self.idx, replaced_target,
                               calling_convention=self.calling_convention,
                               prototype=self.prototype,
                               args=new_args,
                               ret_expr=new_ret_expr,
+                              fp_ret_expr=new_fp_ret_expr,
                               **self.tags
                               )
         else:
@@ -406,6 +424,7 @@ class Call(Expression, Statement):
             prototype=self.prototype,
             args=self.args[::] if self.args is not None else None,
             ret_expr=self.ret_expr,
+            fp_ret_expr=self.fp_ret_expr,
             **self.tags,
         )
 

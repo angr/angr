@@ -581,15 +581,24 @@ class VEXIRSBConverter(Converter):
         if irsb.jumpkind == 'Ijk_Call':
             # call
 
-            # TODO: is there a conditional call?
-
+            # FIXME: Move ret_expr and fp_ret_expr creation into angr because we cannot reliably determine which
+            #  expressions can be returned from the call without performing further analysis
             ret_reg_offset = manager.arch.ret_offset
             ret_expr = Register(manager.next_atom(), None, ret_reg_offset, manager.arch.bits,
                                 reg_name=manager.arch.translate_register_name(ret_reg_offset, size=manager.arch.bits))
+            fp_ret_reg_offset = manager.arch.fp_ret_offset
+            if fp_ret_reg_offset is not None and fp_ret_reg_offset != ret_expr:
+                fp_ret_expr = Register(
+                    manager.next_atom(), None, fp_ret_reg_offset, manager.arch.bits,
+                    reg_name=manager.arch.translate_register_name(fp_ret_reg_offset, size=manager.arch.bits)
+                )
+            else:
+                fp_ret_expr = None
 
             statements.append(Call(manager.next_atom(),
                                    VEXExprConverter.convert(irsb.next, manager),
                                    ret_expr=ret_expr,
+                                   fp_ret_expr=fp_ret_expr,
                                    ins_addr=manager.ins_addr,
                                    vex_block_addr=manager.block_addr,
                                    vex_stmt_idx=DEFAULT_STATEMENT,
