@@ -243,6 +243,13 @@ class SimEngineRDAIL(
                                                  self.arch.registers[reg_name][0],
                                                  self.arch.registers[reg_name][1] * self.arch.byte_width)
                            for reg_name in cc.ARG_REGS ]
+            if cc.FP_ARG_REGS:
+                used_exprs += [
+                    ailment.Expr.Register(None, None,
+                                          self.arch.registers[reg_name][0],
+                                          self.arch.registers[reg_name][1] * self.arch.byte_width)
+                    for reg_name in cc.FP_ARG_REGS[:8]
+                ]
         for expr in used_exprs:
             self._expr(expr)
 
