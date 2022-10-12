@@ -72,7 +72,10 @@ class SimEnginePropagatorAIL(
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
 
-            self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
+            if src.one_expr is not None:
+                self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, src.one_expr, self._codeloc()
+            else:
+                self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -186,16 +189,15 @@ class SimEnginePropagatorAIL(
             cond_expr = condition.one_expr
             if isinstance(cond_expr, Expr.BinaryOp) and cond_expr.op == "CmpEQ":
                 if isinstance(cond_expr.operands[1], Expr.Const):
-                    if isinstance(cond_expr.operands[0], Expr.Tmp):
-                        # is there a register that's equivalence to the tmp?
-                        for _, (reg_atom, reg_expr, def_at) in self.state.register_expressions.items():
-                            if isinstance(reg_expr, Expr.Tmp) and cond_expr.operands[0].tmp_idx == reg_expr.tmp_idx:
-                                # found it!
-                                key = self.block.addr, true_target.one_expr.value
-                                self.state.block_initial_reg_values[key].append((
-                                    reg_atom,
-                                    cond_expr.operands[1],
-                                ))
+                    # is there a register that's equivalent to the variable?
+                    for _, (reg_atom, reg_expr, def_at) in self.state.register_expressions.items():
+                        if cond_expr.operands[0] == reg_expr:
+                            # found it!
+                            key = self.block.addr, true_target.one_expr.value
+                            self.state.block_initial_reg_values[key].append((
+                                reg_atom,
+                                cond_expr.operands[1],
+                            ))
 
 
     def _ail_handle_Return(self, stmt: Stmt.Return):
