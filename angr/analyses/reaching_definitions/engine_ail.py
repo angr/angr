@@ -274,8 +274,9 @@ class SimEngineRDAIL(
                     self.state.kill_definitions(Register(return_reg_offset, return_reg_size))
                 # FIXME: Hack
                 if cc.FP_RETURN_VAL is not None:
-                    return_reg_offset, return_reg_size = self.arch.registers[cc.FP_RETURN_VAL.reg_name]
-                    self.state.kill_definitions(Register(return_reg_offset, return_reg_size))
+                    if cc.FP_RETURN_VAL.reg_name in self.arch.registers:
+                        return_reg_offset, return_reg_size = self.arch.registers[cc.FP_RETURN_VAL.reg_name]
+                        self.state.kill_definitions(Register(return_reg_offset, return_reg_size))
 
         # Kill those ones that should be killed
         for var in killed_vars:
