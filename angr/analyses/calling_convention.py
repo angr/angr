@@ -1,13 +1,17 @@
 # pylint:disable=no-self-use
 from collections import defaultdict
-from typing import Optional, Set, List, Tuple, Dict, TYPE_CHECKING
+from typing import Optional, Set, List, Tuple, Dict, Union, TYPE_CHECKING
 import logging
 
 import networkx
-from archinfo.arch_arm import is_arm_arch
+
+from pyvex.stmt import Put
+from pyvex.expr import RdTmp
+from archinfo.arch_arm import is_arm_arch, ArchARMHF
 
 from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, DefaultCC
-from ..sim_type import SimTypeInt, SimTypeFunction, SimType, SimTypeLongLong, SimTypeShort, SimTypeChar, SimTypeBottom
+from ..sim_type import SimTypeInt, SimTypeFunction, SimType, SimTypeLongLong, SimTypeShort, SimTypeChar, \
+    SimTypeBottom, SimTypeFloat, SimTypeDouble
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
 from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -224,7 +228,9 @@ class CallingConventionAnalysis(Analysis):
         else:
             # reorder args
             args = self._reorder_args(input_args, cc)
-            prototype = SimTypeFunction([self._guess_arg_type(arg) for arg in args], SimTypeInt())
+            # guess the type of the return value -- it's going to be a wild guess...
+            ret_type = self._guess_retval_type(cc)
+            prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type)
 
         return cc, prototype
 
@@ -521,7 +527,13 @@ class CallingConventionAnalysis(Analysis):
                     # 224 <= variable.reg < 480)  # xmm0-xmm7
 
         elif is_arm_arch(arch):
-            return 8 <= variable.reg < 24  # r0-r3
+            if isinstance(arch, ArchARMHF):
+                return (8 <= variable.reg < 24  # r0 - 32
+                        or
+                        128 <= variable.reg < 160  # s0 - s7, or d0 - d4
+                        )
+            else:
+                return 8 <= variable.reg < 24  # r0-r3
 
         elif arch.name == 'MIPS32':
             return 24 <= variable.reg < 40  # a0-a3
@@ -540,37 +552,69 @@ class CallingConventionAnalysis(Analysis):
             l.critical('Unsupported architecture %s.', arch.name)
             return True
 
-    def _reorder_args(self, args, cc):
+    def _reorder_args(self, args: List[Union[SimRegArg,SimStackArg]], cc: SimCC) -> List[Union[SimRegArg,SimStackArg]]:
         """
         Reorder arguments according to the calling convention identified.
 
-        :param set args:   A list of arguments that haven't been ordered.
-        :param SimCC cc:    The identified calling convention.
+        :param args:   A list of arguments that haven't been ordered.
+        :param cc:    The identified calling convention.
         :return:            A reordered list of args.
         """
 
         reg_args = [ ]
 
+        # split args into two lists
+        int_args = [ ]
+        fp_args = [ ]
+        for arg in args:
+            if isinstance(arg, SimRegArg):
+                if cc.FP_ARG_REGS and arg.reg_name in cc.FP_ARG_REGS:
+                    fp_args.append(arg)
+                else:
+                    int_args.append(arg)
+
+        # match int args first
         for reg_name in cc.ARG_REGS:
             try:
-                arg = next(iter(a for a in args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
+                arg = next(iter(a for a in int_args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
             except StopIteration:
                 # have we reached the end of the args list?
-                if [ a for a in args if isinstance(a, SimRegArg) ]:
+                if [ a for a in int_args if isinstance(a, SimRegArg) ]:
                     # nope
                     arg = SimRegArg(reg_name, self.project.arch.bytes)
                 else:
                     break
             reg_args.append(arg)
-            if arg in args:
-                args.remove(arg)
+            if arg in int_args:
+                int_args.remove(arg)
+
+        # match fp args later
+        if fp_args:
+            for reg_name in cc.FP_ARG_REGS:
+                try:
+                    arg = next(iter(a for a in fp_args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
+                except StopIteration:
+                    # have we reached the end of the args list?
+                    if [a for a in fp_args if isinstance(a, SimRegArg)]:
+                        # nope
+                        arg = SimRegArg(reg_name, self.project.arch.bytes)
+                    else:
+                        break
+                reg_args.append(arg)
+                if arg in fp_args:
+                    fp_args.remove(arg)
 
         stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
-        args = [ a for a in args if not isinstance(a, SimStackArg) ]
+        return reg_args + int_args + fp_args + stack_args
 
-        return reg_args + args + stack_args
+    def _guess_arg_type(self, arg: SimFunctionArgument, cc: Optional[SimCC]=None) -> SimType:
+        if cc is not None:
+            if cc.FP_ARG_REGS and isinstance(arg, SimRegArg) and arg.reg_name in cc.FP_ARG_REGS:
+                if arg.size == 4:
+                    return SimTypeFloat()
+                elif arg.size == 8:
+                    return SimTypeDouble()
 
-    def _guess_arg_type(self, arg: SimFunctionArgument) -> SimType:
         if arg.size == 4:
             return SimTypeInt()
         elif arg.size == 8:
@@ -582,6 +626,26 @@ class CallingConventionAnalysis(Analysis):
         else:
             # Unsupported for now
             return SimTypeBottom()
+
+    def _guess_retval_type(self, cc: SimCC) -> SimType:
+        if cc.FP_RETURN_VAL:
+            # examine the last block of the function and see which registers are assigned to
+            if self._function.ret_sites:
+                for ret_block in self._function.ret_sites:
+                    irsb = self.project.factory.block(ret_block.addr, size=ret_block.size).vex
+                    for stmt in irsb.statements:
+                        if isinstance(stmt, Put):
+                            if isinstance(stmt.data, RdTmp):
+                                reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width
+                                reg_name = self.project.arch.translate_register_name(stmt.offset, size=reg_size)
+                                if reg_name == cc.FP_RETURN_VAL.reg_name:
+                                    # possibly float
+                                    return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
+
+        if self.project.arch.bits == 64:
+            return SimTypeLongLong()
+        else:
+            return SimTypeInt()
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
