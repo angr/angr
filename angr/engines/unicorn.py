@@ -296,11 +296,12 @@ class SimEngineUnicorn(SuccessorsMixin):
         state.inspect.mem_read_address = state.solver.BVV(mem_read_address, state.inspect.mem_read_address.size())
         if mem_read_taint_map.count(-1) != mem_read_size:
             # Since read is might need bitmap adjustment, insert breakpoint to return the correct concrete value
-            self.state.inspect.b('mem_read', mem_read_address=mem_read_address, when=BP_AFTER,
+            self.state.inspect.b('mem_read', when=BP_AFTER,
                                  action=functools.partial(self._set_correct_mem_read_val, value=mem_read_val,
                                  taint_map=mem_read_taint_map))
 
     def _set_correct_mem_read_val(self, state, value, taint_map):  # pylint: disable=no-self-use
+        state.inspect._breakpoints["mem_read"].pop()
         if taint_map.count(0) == state.inspect.mem_read_length:
             # The value is completely concrete
             if state.arch.memory_endness == archinfo.Endness.LE:
