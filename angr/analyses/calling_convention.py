@@ -642,10 +642,7 @@ class CallingConventionAnalysis(Analysis):
                                     # possibly float
                                     return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
 
-        if self.project.arch.bits == 64:
-            return SimTypeLongLong()
-        else:
-            return SimTypeInt()
+        return SimTypeInt()
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")

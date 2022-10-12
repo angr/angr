@@ -350,8 +350,6 @@ class PropagatorAILState(PropagatorState):
         return state, merge_occurred
 
     def store_temp(self, tmp_idx: int, value: PropValue):
-        if self._only_consts and not self.is_const_or_register(value.one_expr):
-            return
         self._tmps[tmp_idx] = value
 
     def load_tmp(self, tmp_idx: int) -> Optional[PropValue]:
@@ -359,9 +357,6 @@ class PropagatorAILState(PropagatorState):
 
     def store_register(self, reg: ailment.Expr.Register, value: PropValue) -> None:
         if isinstance(value, ailment.Expr.Expression) and value.has_atom(reg, identity=False):
-            return
-
-        if self._only_consts and not self.is_const_or_register(value.one_expr):
             return
 
         for offset, chopped_value, size, label in value.value_and_labels():
@@ -417,8 +412,11 @@ class PropagatorAILState(PropagatorState):
 
     def add_replacement(self, codeloc, old, new):
 
-        if self._only_consts and not self.is_const_or_register(new) and not self.is_top(new):
-            return
+        if self._only_consts:
+            if self.is_const_or_register(new) or self.is_top(new):
+                pass
+            else:
+                new = self.top(1)
 
         # do not replace anything with a call expression
         if isinstance(new, ailment.statement.Call):
