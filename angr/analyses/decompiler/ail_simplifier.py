@@ -865,9 +865,16 @@ class AILSimplifier(Analysis):
 
                         if stmt.ret_expr is not None:
                             # the return expr is not used. it should not have return expr
-                            stmt = stmt.copy()
-                            stmt.ret_expr = None
-                            simplified = True
+                            if stmt.fp_ret_expr is not None:
+                                # maybe its fp_ret_expr is used?
+                                stmt = stmt.copy()
+                                stmt.ret_expr = stmt.fp_ret_expr
+                                stmt.fp_ret_expr = None
+                            else:
+                                # clear ret_expr
+                                stmt = stmt.copy()
+                                stmt.ret_expr = None
+                                simplified = True
                     else:
                         # Should not happen!
                         raise NotImplementedError()

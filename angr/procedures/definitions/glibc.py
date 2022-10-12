@@ -3091,6 +3091,8 @@ libc.add_alias('abort', '__assert_fail', '__stack_chk_fail')
 libc.add_alias('memcpy', 'memmove', 'bcopy')
 libc.add_alias('getc', '_IO_getc')
 libc.add_alias('putc', '_IO_putc')
+libc.add_alias('gets', '_IO_gets')
+libc.add_alias('puts', '_IO_puts')
 
 
 #

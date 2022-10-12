@@ -620,6 +620,7 @@ class ConditionProcessor:
             'CmpF': lambda expr, _: _dummy_bvs(expr),
             'Mull': lambda expr, _: _dummy_bvs(expr),
             'Mulls': lambda expr, _: _dummy_bvs(expr),
+            'Reinterpret': lambda expr, _: _dummy_bvs(expr),
         }
 
         if isinstance(condition, (ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,

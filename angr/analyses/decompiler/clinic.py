@@ -12,7 +12,8 @@ from ...knowledge_plugins.functions import Function
 from ...codenode import BlockNode
 from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
-from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
+from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom, \
+    SimTypeFloat
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
@@ -655,10 +656,16 @@ class Clinic(Analysis):
 
     @timethis
     def _make_function_prototype(self, arg_list: List[SimVariable], variable_kb):
-        if self.function.prototype is not None and not self.function.is_prototype_guessed:
-            # do not overwrite an existing function prototype
-            # if you want to re-generate the prototype, clear the existing one first
-            return
+        if self.function.prototype is not None:
+            if not self.function.is_prototype_guessed:
+                # do not overwrite an existing function prototype
+                # if you want to re-generate the prototype, clear the existing one first
+                return
+            if isinstance(self.function.prototype.returnty, SimTypeFloat) \
+                    or any(isinstance(arg, SimTypeFloat) for arg in self.function.prototype.args):
+                # type inference does not yet support floating point variables, but calling convention analysis does
+                # FIXME: remove this branch once type inference supports floating point variables
+                return
 
         variables = variable_kb.variables[self.function.addr]
         func_args = []

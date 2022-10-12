@@ -2037,9 +2037,11 @@ CC = {
         SimCCARM,
     ],
     'ARMHF': [
+        SimCCARMHF,
         SimCCARM,
     ],
     'ARMCortexM': [
+        SimCCARMHF,
         SimCCARM,
     ],
     'MIPS32': [

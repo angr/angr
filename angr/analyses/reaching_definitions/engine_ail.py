@@ -267,6 +267,20 @@ class SimEngineRDAIL(
                 else:
                     l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
 
+            elif stmt.fp_ret_expr is not None:
+                if isinstance(stmt.fp_ret_expr, ailment.Expr.Register):
+                    return_reg_offset = stmt.fp_ret_expr.reg_offset
+                    return_reg_size = stmt.fp_ret_expr.size if not return_value_use_full_width_reg else self.arch.bytes
+                    reg_atom = Register(return_reg_offset, return_reg_size)
+                    top = self.state.top(return_reg_size * self.arch.byte_width)
+                    self.state.kill_and_add_definition(reg_atom, codeloc, MultiValues(top))
+                elif isinstance(stmt.fp_ret_expr, ailment.Expr.Tmp):
+                    tmp_atom = Tmp(stmt.fp_ret_expr.tmp_idx, stmt.fp_ret_expr.size)
+                    top = self.state.top(stmt.fp_ret_expr.bits)
+                    self.state.kill_and_add_definition(tmp_atom, codeloc, MultiValues(top))
+                else:
+                    l.warning("Unsupported fp_ret_expr type %s. Please report to GitHub.", stmt.fp_ret_expr.__class__)
+
             else:
                 if cc.RETURN_VAL is not None:
                     # Return value is redefined here, so it is not a dummy value
