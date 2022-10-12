@@ -2054,6 +2054,21 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             lvalue: bool,
             renegotiate_type: Callable[[SimType, SimType], SimType]=lambda old, proposed: old,
     ) -> CExpression:
+
+        def _force_type_cast(src_type_: SimType, dst_type_: SimType, expr_: CExpression) -> CUnaryOp:
+            src_type_ptr = SimTypePointer(src_type_).with_arch(self.project.arch)
+            dst_type_ptr = SimTypePointer(dst_type_).with_arch(self.project.arch)
+            return CUnaryOp(
+                "Dereference",
+                CTypeCast(
+                    src_type_ptr,
+                    dst_type_ptr,
+                    CUnaryOp("Reference", expr_, codegen=self),
+                    codegen=self,
+                ),
+                codegen=self,
+            )
+
         # expr must express a POINTER to the base
         # returns a value which has a simtype of data_type as if it were dereferenced out of expr
         data_type = unpack_typeref(data_type)
@@ -2084,7 +2099,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 # case 1: we're done because we found it
                 # case 2: we're done because we can never find it and we might as well stop early
                 if base_expr:
+                    if base_type != data_type:
+                        return _force_type_cast(base_type, data_type, base_expr)
                     return base_expr
+
+                if base_type != data_type:
+                    return _force_type_cast(base_type, data_type, expr)
                 return CUnaryOp("Dereference", expr, codegen=self)
 
         if isinstance(base_type, SimTypeBottom):
