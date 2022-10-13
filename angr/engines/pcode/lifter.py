@@ -7,7 +7,7 @@
 
 from collections import defaultdict
 import logging
-from typing import Union, Optional, Iterable, Sequence, Tuple
+from typing import Union, Optional, Iterable, Sequence, Tuple, List
 
 import archinfo
 from archinfo import ArchARM
@@ -187,7 +187,7 @@ class IRSB:
         self._direct_next = None
         self._exit_statements = []
         self._instruction_addresses = ()
-        self._instructions = []
+        self._instructions: List['pypcode.Translation'] = []
         self._size = None
         self._statements = []
         self.addr = mem_addr
