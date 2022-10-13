@@ -564,7 +564,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         return curr_stmt_start_addr
 
-    def _process_pcode_irsb(self, node, pcode_irsb: pcode.lifter.IRSB, state: StackPointerTrackerState) -> int:
+    def _process_pcode_irsb(self, node, pcode_irsb: 'pcode.lifter.IRSB', state: StackPointerTrackerState) -> int:
 
         unique = { }
         curr_stmt_start_addr = None
