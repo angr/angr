@@ -16,7 +16,6 @@ from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 try:
     import pypcode
     from angr.engines import pcode
-    import angr.engines.pcode.lifter
 except ImportError:
     pypcode = None
 
