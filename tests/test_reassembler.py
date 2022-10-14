@@ -6,7 +6,7 @@ import tempfile
 import subprocess
 import shutil
 
-from common import compile_c, has_32_bit_compiler_support
+from common import has_32_bit_compiler_support
 
 import angr
 

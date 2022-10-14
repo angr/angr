@@ -1,8 +1,6 @@
 from typing import Set, Sequence, Optional, Mapping, Any, TYPE_CHECKING
-from tempfile import NamedTemporaryFile
 import logging
 import unittest
-import subprocess
 import os
 
 from common import compile_c, has_32_bit_compiler_support

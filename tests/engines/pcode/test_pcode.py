@@ -1,12 +1,12 @@
 from unittest import TestCase, skipUnless, main
 import os
 
-import angr
 import archinfo
+import angr
 
 try:
     import pypcode
-except:
+except ModuleNotFoundError:
     pypcode = None
 
 
@@ -51,7 +51,7 @@ class TestPcodeEngine(TestCase):
         s = p.factory.call_state(base_address, prototype=prototype)
         simgr = p.factory.simulation_manager(s)
         simgr.run()
-        assert sum(map(len, simgr.stashes.values())) == 2
+        assert sum(len(i) for i in simgr.stashes.values()) == 2
         assert {s.solver.eval(s.regs.rax) for s in simgr.deadended} == {0x1234, 0x5678}
 
         # Execute concretely
@@ -68,7 +68,7 @@ class TestPcodeEngine(TestCase):
         simgr = p.factory.simgr()
         simgr.run()
 
-        assert sum(map(len, simgr.stashes.values())) == len(simgr.deadended) == 3
+        assert sum(len(i) for i in simgr.stashes.values()) == len(simgr.deadended) == 3
 
         grant_paths = [s for s in simgr.deadended if b'trusted' in s.posix.dumps(1)]
         assert len(grant_paths) == 2
