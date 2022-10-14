@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Optional, Sequence
 from tempfile import NamedTemporaryFile
 
-from unittest import skipIf, skipUnless, skip
+from unittest import skipIf, skipUnless, skip, SkipTest
 
 l = logging.getLogger("angr.tests.common")
 
@@ -64,7 +64,6 @@ def skip_if_not_linux(func):
 TRACE_VERSION = 1
 
 
-@skipUnless(tracer, "Tracer is not installed and cached data is not present")
 def do_trace(proj, test_name, input_data, **kwargs):
     """
     trace, magic, crash_mode, crash_addr = load_cached_trace(proj, "test_blurble")
@@ -84,6 +83,9 @@ def do_trace(proj, test_name, input_data, **kwargs):
                     return r[0]
         except (pickle.UnpicklingError, UnicodeDecodeError):
             print("Can't unpickle trace - rerunning")
+
+    if tracer is None:
+        raise SkipTest("Tracer is not installed and cached data is not present")
 
     runner = tracer.QEMURunner(project=proj, input=input_data, **kwargs)
     r = (runner.trace, runner.magic, runner.crash_mode, runner.crash_addr)
