@@ -38,7 +38,7 @@ class Suggestions(ExplorationTechnique):
         self.lock = PicklableLock()
 
     def step(self, simgr, stash='active', **kwargs):
-        simgr = simgr.step(stash=stash, **kwargs)
+        simgr.step(stash=stash, **kwargs)
 
         for state in simgr.stashes.get('interrupted', []):
             if id(state) in self.suggested:
