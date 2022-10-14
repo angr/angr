@@ -92,7 +92,7 @@ def do_trace(proj, test_name, input_data, **kwargs):
     return r
 
 
-@skipUnless(tracer, "tracker is not installed")
+@skipUnless(tracer, "tracer is not installed")
 def load_cgc_pov(pov_file: str) -> "tracer.TracerPoV":
     return tracer.TracerPoV(pov_file)
 
