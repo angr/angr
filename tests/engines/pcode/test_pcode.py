@@ -1,8 +1,13 @@
-from unittest import TestCase, main
+from unittest import TestCase, skipUnless, main
 import os
 
 import angr
 import archinfo
+
+try:
+    import pypcode
+except:
+    pypcode = None
 
 
 test_location = os.path.join(
@@ -12,6 +17,7 @@ test_location = os.path.join(
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
+@skipUnless(pypcode, "pypcode not available")
 class TestPcodeEngine(TestCase):
 
     def test_shellcode(self):

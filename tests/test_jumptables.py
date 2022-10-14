@@ -5,6 +5,8 @@ import unittest
 import subprocess
 import os
 
+from common import compile_c, has_32_bit_compiler_support
+
 import pyvex
 
 import angr
@@ -26,28 +28,13 @@ def compile_c_to_angr_project(c_code: str, cflags: Optional[Sequence[str]] = Non
     """
     Compile `c_code` and return an angr project with the resulting binary.
     """
-    src, dst = None, None
+    if cflags and "-m32" in cflags and not has_32_bit_compiler_support():
+        raise unittest.SkipTest("No 32-bit compiler support detected")
+    dst = compile_c(c_code, cflags)
     try:
-        src = NamedTemporaryFile(mode='w', delete=False, suffix='.c')
-        src.write(c_code)
-        src.close()
-
-        dst = NamedTemporaryFile(delete=False)
-        dst.close()
-
-        call_args = ['cc'] + (cflags or []) + ['-o', dst.name, src.name]
-        l.debug('Compiling with: %s', ' '.join(call_args))
-        l.debug('Source:\n%s', c_code)
-        subprocess.check_call(call_args)
-        proj = angr.Project(dst.name, **(project_kwargs or {}))
-
+        return angr.Project(dst.name, **(project_kwargs or {}))
     finally:
-        if dst and os.path.exists(dst.name):
-            os.remove(dst.name)
-        if src and os.path.exists(src.name):
-            os.remove(src.name)
-
-    return proj
+        os.remove(dst.name)
 
 
 class J:
@@ -459,6 +446,7 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
         '''
 
     # Force compiler emitting calls for all optimization levels via return value mutation
+
 
     def test_calltable_resolver_without_check(self):
         self._run_common_test_matrix(self.calltable_common_code + '''

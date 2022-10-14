@@ -1,5 +1,6 @@
 
 import os
+import unittest
 
 import angr
 from angr.storage.memory_mixins import JavaVmMemory, DefaultMemory, KeyValueMemory
@@ -10,10 +11,16 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootMethodDescr
                                 SootArgument, SootAddressTerminator)
 from claripy.backends.backend_smtlib_solvers import z3str_popen  # pylint:disable=unused-import
 
+try:
+    import pysoot
+except ModuleNotFoundError:
+    pysoot = None
+
 file_dir = os.path.dirname(os.path.realpath(__file__))
 test_location = os.path.join(file_dir, "..", "..", "binaries", "tests", "java")
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_fauxware():
     # create project
     binary_path = os.path.join(test_location, "fauxware_java_jni", "fauxware.jar")
@@ -66,6 +73,7 @@ def test_apk_loading():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_cmd_line_args():
     project = create_project("cmd_line_args", load_native_libs=False)
     entry = project.factory.entry_state()
@@ -91,6 +99,7 @@ def test_cmd_line_args():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_jni_version_information():
     project = create_project("jni_version_information")
 
@@ -104,6 +113,7 @@ def test_jni_version_information():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_jni_global_and_local_refs():
     project = create_project("jni_global_and_local_refs")
 
@@ -194,6 +204,7 @@ def test_jni_field_access():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_jni_method_calls():
     project = create_project("jni_method_calls")
 
@@ -231,6 +242,7 @@ def test_jni_method_calls():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_jni_primitive_datatypes():
     project = create_project("jni_primitive_datatypes")
 
@@ -259,6 +271,7 @@ def test_jni_primitive_datatypes():
                assert_locals={'l1': 0xffffffffffffffff, 'l3': 1})
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_jni_object_arrays():
     project = create_project("jni_object_array_operations")
 
@@ -276,6 +289,7 @@ def test_jni_object_arrays():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_jni_array_operations():
     project = create_project("jni_array_operations")
 
@@ -355,6 +369,7 @@ def test_jni_array_operations():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_method_calls():
     project = create_project("method_calls", load_native_libs=False)
 
@@ -384,6 +399,7 @@ def test_method_calls():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_array_operations():
     project = create_project("array_operations", load_native_libs=False)
 
@@ -473,6 +489,7 @@ def test_array_operations():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_multiarray_operations():
     project = create_project("multiarray_operations", load_native_libs=False)
 
@@ -486,6 +503,7 @@ def test_multiarray_operations():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_loading():
     # Test1: test loading with load path
     native_libs_ld_path = os.path.join(
@@ -518,6 +536,7 @@ def test_loading():
 #
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_toggling_of_simstate():
     binary_dir = os.path.join(test_location, "misc", "simstates")
     project = create_project(binary_dir)
@@ -554,6 +573,7 @@ def test_toggling_of_simstate():
     assert isinstance(state_copy.registers, DefaultMemory)
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def test_object_tracking():
     binary_dir = os.path.join(test_location, "object_tracking")
     project = create_project(binary_dir, load_native_libs=False)
@@ -634,6 +654,7 @@ def run_method(project, method, assert_locals=None, assertions=None):
 #     print
 
 
+@unittest.skipUnless(pysoot, "pysoot not available")
 def create_project(binary_dir, load_native_libs=True):
     jar_path = os.path.join(test_location, binary_dir, "mixedjava.jar")
     if load_native_libs:

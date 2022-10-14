@@ -1,8 +1,15 @@
 import os
 import pickle
 import sys
+import logging
+import subprocess
+from functools import lru_cache
+from typing import Optional, Sequence
+from tempfile import NamedTemporaryFile
 
 from unittest import skipIf, skipUnless, skip
+
+l = logging.getLogger("angr.tests.common")
 
 try:
     import tracer
@@ -57,6 +64,7 @@ def skip_if_not_linux(func):
 TRACE_VERSION = 1
 
 
+@skipUnless(tracer, "Tracer is not installed and cached data is not present")
 def do_trace(proj, test_name, input_data, **kwargs):
     """
     trace, magic, crash_mode, crash_addr = load_cached_trace(proj, "test_blurble")
@@ -77,11 +85,6 @@ def do_trace(proj, test_name, input_data, **kwargs):
         except (pickle.UnpicklingError, UnicodeDecodeError):
             print("Can't unpickle trace - rerunning")
 
-    if tracer is None:
-        raise Exception(
-            "Tracer is not installed and cached data is not present - cannot run test"
-        )
-
     runner = tracer.QEMURunner(project=proj, input=input_data, **kwargs)
     r = (runner.trace, runner.magic, runner.crash_mode, runner.crash_addr)
     with open(fname, "wb") as f:
@@ -89,8 +92,49 @@ def do_trace(proj, test_name, input_data, **kwargs):
     return r
 
 
+@skipUnless(tracer, "tracker is not installed")
 def load_cgc_pov(pov_file: str) -> "tracer.TracerPoV":
-    if tracer is None:
-        raise Exception("Cannot load PoV because tracer is not installed")
-
     return tracer.TracerPoV(pov_file)
+
+
+def compile_c(c_code: str, cflags: Optional[Sequence[str]], silent: bool = False) -> NamedTemporaryFile:
+    # pylint:disable=consider-using-with
+    """
+    Compile `c_code` and return the file containing the compiled output
+    """
+    dst = None
+    try:
+        dst = NamedTemporaryFile(delete=False)
+        dst.close()
+        src = NamedTemporaryFile(mode='x', delete=False, suffix='.c')
+        src.write(c_code)
+        src.close()
+
+        call_args = ['cc'] + (cflags or []) + ['-o', dst.name, src.name]
+        l.debug('Compiling with: %s', ' '.join(call_args))
+        l.debug('Source:\n%s', c_code)
+        out = subprocess.DEVNULL if silent else None
+        subprocess.check_call(call_args, stderr=out, stdout=out)
+        return dst
+    except:
+        if dst and os.path.exists(dst.name):
+            os.remove(dst.name)
+        raise
+    finally:
+        if src and os.path.exists(src.name):
+            os.remove(src.name)
+
+
+@lru_cache
+def has_32_bit_compiler_support() -> bool:
+    """
+    Check if we are able to compile a 32-bit binary
+    """
+    try:
+        binary = compile_c("#include <stdlib.h>\nint main() { return 0; }", ['-m32'], True)
+        os.remove(binary.name)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+

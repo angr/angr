@@ -6,6 +6,8 @@ import tempfile
 import subprocess
 import shutil
 
+from common import compile_c, has_32_bit_compiler_support
+
 import angr
 
 
@@ -257,7 +259,7 @@ def test_partial_pie_ls_x86():
     r.remove_unnecessary_stuff()
     assembly = r.assembly(comments=True, symbolized=True)
 
-    if is_linux():
+    if is_linux() and has_32_bit_compiler_support():
         # we should be able to compile it and run it ... if we are running on x64 Linux
         tempdir = tempfile.mkdtemp(prefix="angr_test_reassembler_")
         asm_filename = "ls.s"
