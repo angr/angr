@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Join our Slack community
+    url: https://angr.io/invite/
+    about: For questions and help with angr, you are invited to join the angr Slack community
