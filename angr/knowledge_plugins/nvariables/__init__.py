@@ -1,12 +1,15 @@
-from typing import TYPE_CHECKING
+from typing import List, TYPE_CHECKING
+import logging
 
+from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
-
 
 from ..plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
     from ...knowledge_base import KnowledgeBase
+
+l = logging.getLogger(name=__name__)
 
 
 class NVariableContainer:
@@ -20,7 +23,8 @@ class NVariableContainer:
                 var.less_visible_vars.append(v)
                 return
             if var.overlaps(v):
-                raise Exception('Overlapping variable visibilities are not yet implemented')
+                l.warning("Not supported! Trying to add variable %s with scopes %d-%d and %d-%d. Ignoring the former.",
+                          v.cle_variable.name, v.low_ip_addr, v.high_ip_addr, var.low_ip_addr, var.high_ip_addr)
                 return
             if v.contains(var):
                 v._insertvar(var)
@@ -29,7 +33,7 @@ class NVariableContainer:
 
     def from_ip_addr(self, ip_addr):
         for var in self.less_visible_vars:
-            if var.low_ip_addr <= ip_addr and ip_addr <= var.high_ip_addr:
+            if var.low_ip_addr <= ip_addr and ip_addr < var.high_ip_addr:
                 return var.from_ip_addr(ip_addr)
         return None
 
@@ -50,7 +54,7 @@ class NVariable(NVariableContainer):
             # not within range
             return None
         for var in self.less_visible_vars:
-            if var.low_ip_addr <= ip_addr and ip_addr <= var.high_ip_addr:
+            if var.low_ip_addr <= ip_addr and ip_addr < var.high_ip_addr:
                 return var.from_ip_addr(ip_addr)
         return self.cle_variable
 
@@ -61,11 +65,15 @@ class NVariable(NVariableContainer):
             return False
 
     def overlaps(self, var):
-        if self.low_ip_addr == var.low_ip_addr and self.high_ip_addr == var.high_ip_addr:
+        l1 = self.low_ip_addr
+        l2 = var.low_ip_addr
+        h1 = self.high_ip_addr
+        h2 = var.high_ip_addr
+        if l1 == l2 and h1 == h2:
             return True
-        if var.low_ip_addr < self.low_ip_addr and var.high_ip_addr < self.high_ip_addr:
+        if l2 < l1 and l1 < h2 and h2 < h1:
             return True
-        if self.low_ip_addr < var.low_ip_addr and self.high_ip_addr < var.high_ip_addr:
+        if l1 < l2 and l2 < h1 and h1 < h2:
             return True
         return False
 
@@ -99,6 +107,22 @@ class NVariableManager(KnowledgeBasePlugin):
             self._most_visible_variables[name] = NVariableContainer()
         container = self._most_visible_variables[name]
         container._insertvar(nvar)
+
+    # Methods similar to the once in VariableManager
+    def add_variable_list(self, vlist: List[Variable], low_ip_addr, high_ip_addr):
+        for v in vlist:
+            self.addvar(v, low_ip_addr, high_ip_addr)
+
+    def load_from_dwarf(self, cu_list: List[CompilationUnit] = None):
+        cu_list = cu_list or self._kb._project.loader.main_object.compilation_units
+        if cu_list is None:
+            l.warning("no CompilationUnit found")
+            return
+        for cu in cu_list:
+            self.add_variable_list(cu.global_variables, 0x0, float('inf'))
+            for low_pc, subp in cu.functions.items():
+                high_pc = subp.high_pc
+                self.add_variable_list(subp.local_variables, low_pc, high_pc)
 
 
 KnowledgeBasePlugin.register_default('nvariables', NVariableManager)
