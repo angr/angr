@@ -1941,6 +1941,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		// Also, remember that a symbolic value has been partially read from memory so that even if the rest of the
 		// bytes to be read are concrete, taint will be propagated.
 		symbolic_read_in_progress = true;
+		taint_engine_stop_mem_read_instruction = curr_instr_addr;
+		taint_engine_next_stmt_idx = curr_stmt_idx;
 		return;
 	}
 	else if (mem_read_result.read_size > taint_engine_stop_mem_read_size) {
