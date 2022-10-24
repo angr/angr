@@ -2801,13 +2801,21 @@ def parse_file(defn, preprocess=True, predefined_types: Optional[Dict[Any,SimTyp
 
     return out, extra_types
 
-if pycparser is not None:
-    _type_parser_singleton = pycparser.CParser()
-    _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(module=_type_parser_singleton,
-                                                             start='parameter_declaration',
-                                                             debug=False,
-                                                             optimize=False,
-                                                             errorlog=errorlog)
+
+_type_parser_singleton = None
+
+
+def type_parser_singleton() -> Optional[pycparser.CParser]:
+    global _type_parser_singleton
+    if pycparser is not None:
+        _type_parser_singleton = pycparser.CParser()
+        _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(module=_type_parser_singleton,
+                                                                 start='parameter_declaration',
+                                                                 debug=False,
+                                                                 optimize=False,
+                                                                 errorlog=errorlog)
+    return _type_parser_singleton
+
 
 def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
@@ -2830,7 +2838,7 @@ def parse_type_with_name(defn, preprocess=True, predefined_types:Optional[Dict[A
     if preprocess:
         defn = re.sub(r"/\*.*?\*/", r"", defn)
 
-    node = _type_parser_singleton.parse(text=defn, scope_stack=_make_scope(predefined_types))
+    node = type_parser_singleton().parse(text=defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, pycparser.c_ast.Typename) and \
             not isinstance(node, pycparser.c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
