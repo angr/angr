@@ -27,7 +27,7 @@ class CFGModel(Serializable):
     """
 
     __slots__ = ('ident', 'graph', 'jump_tables', 'memory_data', 'insn_addr_to_memory_data', '_nodes_by_addr',
-                 '_nodes', '_cfg_manager', '_iropt_level', '_node_addrs', 'is_arm')
+                 '_nodes', '_cfg_manager', '_iropt_level', '_node_addrs', 'is_arm', 'normalized')
 
     def __init__(self, ident, cfg_manager=None, is_arm=False):
 
@@ -56,6 +56,8 @@ class CFGModel(Serializable):
         self._nodes: Dict[int, CFGNode] = {}
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
         self._node_addrs: List[int] = []
+
+        self.normalized = False
 
     #
     # Properties
@@ -128,6 +130,8 @@ class CFGModel(Serializable):
             memory_data.append(data.serialize_to_cmessage())
         cmsg.memory_data.extend(memory_data)
 
+        cmsg.normalized = self.normalized
+
         return cmsg
 
     @classmethod
@@ -171,6 +175,8 @@ class CFGModel(Serializable):
                 # fill in the content
                 md.fill_content(loader)
             model.memory_data[md.addr] = md
+
+        model.normalized = cmsg.normalized
 
         return model
 

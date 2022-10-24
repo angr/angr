@@ -99,8 +99,6 @@ class CFGBase(Analysis):
         self._updated_nonreturning_functions = None
 
         self._normalize = normalize
-        # Flag, whether the CFG has been normalized or not
-        self._normalized = False
 
         # Flag, whether to track memory writes in stack pointer tracking
         self._sp_tracking_track_memory = sp_tracking_track_memory
@@ -191,17 +189,20 @@ class CFGBase(Analysis):
         return self._model._nodes_by_addr
 
     @property
-    def model(self):
+    def model(self) -> CFGModel:
         """
         Get the CFGModel instance.
         :return:    The CFGModel instance that this analysis currently uses.
-        :rtype:     CFGModel
         """
         return self._model
 
     @property
     def normalized(self):
-        return self._normalized
+        return self._model.normalized
+
+    @normalized.setter
+    def normalized(self, v):
+        self._model.normalized = v
 
     @property
     def context_sensitivity_level(self):
@@ -235,7 +236,7 @@ class CFGBase(Analysis):
 
         if self._normalize:
 
-            if not self._normalized:
+            if not self.normalized:
                 self.normalize()
 
             # Call normalize() on each function
@@ -1101,7 +1102,7 @@ class CFGBase(Analysis):
                             smallest_nodes.pop(nodekey_a, None)
                             smallest_nodes.pop(nodekey_b, None)
 
-        self._normalized = True
+        self.normalized = True
 
     def _normalize_core(self, graph: networkx.DiGraph,
                         callstack_key,
