@@ -1,20 +1,9 @@
 # pylint:disable=abstract-method
 from collections import OrderedDict, defaultdict, ChainMap
-
-from archinfo import Endness
-from .misc.ux import deprecated
 import copy
 import re
-import logging
 from typing import Optional, Dict, Any, Tuple, List, Union
-
-import claripy
-
-l = logging.getLogger(name=__name__)
-
-# pycparser hack to parse type expressions
-errorlog = logging.getLogger(name=__name__ + ".yacc")
-errorlog.setLevel(logging.ERROR)
+import logging
 
 try:
     import pycparser
@@ -25,6 +14,18 @@ try:
     import CppHeaderParser
 except ImportError:
     CppHeaderParser = None
+
+from archinfo import Endness
+import claripy
+
+from .misc.ux import deprecated
+
+
+l = logging.getLogger(name=__name__)
+
+# pycparser hack to parse type expressions
+errorlog = logging.getLogger(name=__name__ + ".yacc")
+errorlog.setLevel(logging.ERROR)
 
 
 class SimType:
@@ -668,7 +669,8 @@ class SimTypeFixedSizeArray(SimType):
         return view._deeper(addr=view._addr + k * (self.elem_type.size//view.state.arch.byte_width), ty=self.elem_type)
 
     def extract(self, state, addr, concrete=False):
-        return [self.elem_type.extract(state, addr + i*(self.elem_type.size//state.arch.byte_width), concrete) for i in range(self.length)]
+        return [self.elem_type.extract(state, addr + i*(self.elem_type.size//state.arch.byte_width), concrete)
+                for i in range(self.length)]
 
     def store(self, state, addr, values):
         for i, val in enumerate(values):
@@ -834,7 +836,8 @@ class SimTypeWString(NamedTypeMixin, SimTypeArray):
         if not concrete:
             return out
         else:
-            return u''.join(chr(state.solver.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x)) for x in out.chop(16))
+            return u''.join(chr(state.solver.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x))
+                            for x in out.chop(16))
 
     _can_refine_int = True
 
@@ -888,7 +891,14 @@ class SimTypeFunction(SimType):
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         name2 = name or ''
-        name3 = '(%s)(%s)' % (name2, ', '.join(a.c_repr(n, full-1, memo, indent) for a, n in zip(self.args, self.arg_names if self.arg_names is not None and full else (None,)*len(self.args))))
+        name3 = '(%s)(%s)' % (
+            name2,
+            ', '.join(
+                a.c_repr(n, full-1, memo, indent) for a, n in zip(
+                    self.args, self.arg_names if self.arg_names is not None and full else (None,)*len(self.args)
+                )
+            )
+        )
         name4 = self.returnty.c_repr(name3, full, memo, indent) if self.returnty is not None else 'void %s' % name3
         return name4
 
@@ -1158,8 +1168,10 @@ class SimStruct(NamedTypeMixin, SimType):
         new_indented = ' ' * new_indent if indent is not None else ''
         newline = '\n' if indent is not None else ' '
         new_memo = (self,) + (memo if memo is not None else ())
-        members = newline.join(new_indented + v.c_repr(k, full-1, new_memo, new_indent) + ';' for k, v in self.fields.items())
-        return 'struct %s {%s%s%s%s}%s' % (self.name, newline, members, newline, indented, '' if name is None else ' ' + name)
+        members = newline.join(new_indented + v.c_repr(k, full-1, new_memo, new_indent) + ';'
+                               for k, v in self.fields.items())
+        return 'struct %s {%s%s%s%s}%s' % (self.name, newline, members, newline, indented,
+                                           '' if name is None else ' ' + name)
 
     def __hash__(self):
         return hash((SimStruct, self._name, self._align, self._pack, tuple(self.fields.keys())))
@@ -1323,7 +1335,8 @@ class SimUnion(NamedTypeMixin, SimType):
     def __repr__(self):
         # use the str instead of repr of each member to avoid exceed recursion
         # depth when representing self-referential unions
-        return 'union %s {\n\t%s\n}' % (self.name, '\n\t'.join('%s %s;' % (name, str(ty)) for name, ty in self.members.items()))
+        return 'union %s {\n\t%s\n}' % (self.name, '\n\t'.join('%s %s;' % (name, str(ty))
+                                                               for name, ty in self.members.items()))
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         if not full or (memo is not None and self in memo):
@@ -1334,8 +1347,10 @@ class SimUnion(NamedTypeMixin, SimType):
         new_indented = ' ' * new_indent if indent is not None else ''
         newline = '\n' if indent is not None else ' '
         new_memo = (self,) + (memo if memo is not None else ())
-        members = newline.join(new_indented + v.c_repr(k, full-1, new_memo, new_indent) + ';' for k, v in self.members.items())
-        return 'union %s {%s%s%s%s}%s' % (self.name, newline, members, newline, indented, '' if name is None else ' ' + name)
+        members = newline.join(new_indented + v.c_repr(k, full-1, new_memo, new_indent) + ';'
+                               for k, v in self.members.items())
+        return 'union %s {%s%s%s%s}%s' % (self.name, newline, members, newline, indented,
+                                          '' if name is None else ' ' + name)
 
     def _init_str(self):
         return "%s({%s}, name=\"%s\", label=\"%s\")" % (
@@ -2801,13 +2816,21 @@ def parse_file(defn, preprocess=True, predefined_types: Optional[Dict[Any,SimTyp
 
     return out, extra_types
 
-if pycparser is not None:
-    _type_parser_singleton = pycparser.CParser()
-    _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(module=_type_parser_singleton,
-                                                             start='parameter_declaration',
-                                                             debug=False,
-                                                             optimize=False,
-                                                             errorlog=errorlog)
+
+_type_parser_singleton = None
+
+
+def type_parser_singleton() -> Optional[pycparser.CParser]:
+    global _type_parser_singleton
+    if pycparser is not None:
+        _type_parser_singleton = pycparser.CParser()
+        _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(module=_type_parser_singleton,
+                                                                 start='parameter_declaration',
+                                                                 debug=False,
+                                                                 optimize=False,
+                                                                 errorlog=errorlog)
+    return _type_parser_singleton
+
 
 def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
@@ -2817,9 +2840,10 @@ def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pyli
     """
     return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
 
+
 def parse_type_with_name(defn, preprocess=True, predefined_types:Optional[Dict[Any,SimType]]=None, arch=None):  # pylint:disable=unused-argument
     """
-    Parse a simple type expression into a SimType, returning the a tuple of the type object and any associated name
+    Parse a simple type expression into a SimType, returning a tuple of the type object and any associated name
     that might be found in the place a name would go in a type declaration.
 
     >>> parse_type_with_name('int *foo')
@@ -2830,7 +2854,7 @@ def parse_type_with_name(defn, preprocess=True, predefined_types:Optional[Dict[A
     if preprocess:
         defn = re.sub(r"/\*.*?\*/", r"", defn)
 
-    node = _type_parser_singleton.parse(text=defn, scope_stack=_make_scope(predefined_types))
+    node = type_parser_singleton().parse(text=defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, pycparser.c_ast.Typename) and \
             not isinstance(node, pycparser.c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
@@ -2859,10 +2883,11 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
-        argtyps = () if decl.args is None else [... if type(x) is pycparser.c_ast.EllipsisParam else \
-                                                SimTypeBottom().with_arch(arch) if type(x) is pycparser.c_ast.ID else \
+        argtyps = () if decl.args is None else [... if type(x) is pycparser.c_ast.EllipsisParam else
+                                                SimTypeBottom().with_arch(arch) if type(x) is pycparser.c_ast.ID else
                                                 _decl_to_type(x.type, extra_types, arch=arch) for x in decl.args.params]
-        arg_names = [ arg.name for arg in decl.args.params if type(arg) is not pycparser.c_ast.EllipsisParam] if decl.args else None
+        arg_names = [ arg.name for arg in decl.args.params if type(arg) is not pycparser.c_ast.EllipsisParam] \
+            if decl.args else None
         # special handling: func(void) is func()
         if len(argtyps) == 1 and isinstance(argtyps[0], SimTypeBottom) and arg_names[0] is None:
             argtyps = ()
@@ -2872,7 +2897,10 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             variadic = True
         else:
             variadic = False
-        r = SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types, arch=arch), arg_names=arg_names, variadic=variadic)
+        r = SimTypeFunction(argtyps,
+                            _decl_to_type(decl.type, extra_types, arch=arch),
+                            arg_names=arg_names,
+                            variadic=variadic)
         r._arch = arch
         return r
 
@@ -2907,7 +2935,10 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
 
     elif isinstance(decl, pycparser.c_ast.Struct):
         if decl.decls is not None:
-            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch)) for field in decl.decls)
+            fields = OrderedDict(
+                (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
+                for field in decl.decls
+            )
         else:
             fields = OrderedDict()
 
@@ -2996,17 +3027,23 @@ def _parse_const(c, arch=None, extra_types=None):
         return int(c.value, base=0)
     elif type(c) is pycparser.c_ast.BinaryOp:
         if c.op == '+':
-            return _parse_const(c.children()[0][1], arch, extra_types) + _parse_const(c.children()[1][1], arch, extra_types)
+            return _parse_const(c.children()[0][1], arch, extra_types) + _parse_const(c.children()[1][1], arch,
+                                                                                      extra_types)
         if c.op == '-':
-            return _parse_const(c.children()[0][1], arch, extra_types) - _parse_const(c.children()[1][1], arch, extra_types)
+            return _parse_const(c.children()[0][1], arch, extra_types) - _parse_const(c.children()[1][1], arch,
+                                                                                      extra_types)
         if c.op == '*':
-            return _parse_const(c.children()[0][1], arch, extra_types) * _parse_const(c.children()[1][1], arch, extra_types)
+            return _parse_const(c.children()[0][1], arch, extra_types) * _parse_const(c.children()[1][1], arch,
+                                                                                      extra_types)
         if c.op == '/':
-            return _parse_const(c.children()[0][1], arch, extra_types) // _parse_const(c.children()[1][1], arch, extra_types)
+            return _parse_const(c.children()[0][1], arch, extra_types) // _parse_const(c.children()[1][1], arch,
+                                                                                       extra_types)
         if c.op == '<<':
-            return _parse_const(c.children()[0][1], arch, extra_types) << _parse_const(c.children()[1][1], arch, extra_types)
+            return _parse_const(c.children()[0][1], arch, extra_types) << _parse_const(c.children()[1][1], arch,
+                                                                                       extra_types)
         if c.op == '>>':
-            return _parse_const(c.children()[0][1], arch, extra_types) >> _parse_const(c.children()[1][1], arch, extra_types)
+            return _parse_const(c.children()[0][1], arch, extra_types) >> _parse_const(c.children()[1][1], arch,
+                                                                                       extra_types)
         raise ValueError('Binary op %s' % c.op)
     elif type(c) is pycparser.c_ast.UnaryOp:
         if c.op == 'sizeof':
