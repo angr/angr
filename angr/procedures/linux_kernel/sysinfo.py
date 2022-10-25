@@ -1,23 +1,22 @@
+# pylint:disable=missing-class-docstring
 import angr
 
 from ...sim_type import SimStruct, SimTypeLong, SimTypeFixedSizeArray, SimTypeShort, SimTypeInt
 
-"""
-struct sysinfo {
-   long uptime;             /* Seconds since boot */
-   unsigned long loads[3];  /* 1, 5, and 15 minute load averages */
-   unsigned long totalram;  /* Total usable main memory size */
-   unsigned long freeram;   /* Available memory size */
-   unsigned long sharedram; /* Amount of shared memory */
-   unsigned long bufferram; /* Memory used by buffers */
-   unsigned long totalswap; /* Total swap space size */
-   unsigned long freeswap;  /* Swap space still available */
-   unsigned short procs;    /* Number of current processes */
-   unsigned long totalhigh; /* Total high memory size */
-   unsigned long freehigh;  /* Available high memory size */
-   unsigned int mem_unit;   /* Memory unit size in bytes */
-}
-"""
+# struct sysinfo {
+#    long uptime;             /* Seconds since boot */
+#    unsigned long loads[3];  /* 1, 5, and 15 minute load averages */
+#    unsigned long totalram;  /* Total usable main memory size */
+#    unsigned long freeram;   /* Available memory size */
+#    unsigned long sharedram; /* Amount of shared memory */
+#    unsigned long bufferram; /* Memory used by buffers */
+#    unsigned long totalswap; /* Total swap space size */
+#    unsigned long freeswap;  /* Swap space still available */
+#    unsigned short procs;    /* Number of current processes */
+#    unsigned long totalhigh; /* Total high memory size */
+#    unsigned long freehigh;  /* Available high memory size */
+#    unsigned int mem_unit;   /* Memory unit size in bytes */
+# }
 sysinfo_ty = SimStruct(
     {"uptime": SimTypeLong(signed=True),
      "loads": SimTypeFixedSizeArray(SimTypeLong(signed=False), 3),
