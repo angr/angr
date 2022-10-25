@@ -4,8 +4,11 @@ from typing import Set, List, Dict, Optional
 import os
 import json
 from collections import defaultdict
+import logging
 
 import nampa
+
+_l = logging.getLogger(__name__)
 
 
 class FlirtSignature:
@@ -60,8 +63,12 @@ def load_signatures(path: str) -> None:
             if filename.endswith(".sig"):
                 # parse it
                 sig_path = os.path.join(root, filename)
-                with open(sig_path, "rb") as f:
-                    flirt = nampa.parse_flirt_file(f)
+                try:
+                    with open(sig_path, "rb") as f:
+                        flirt_header = nampa.flirt.parse_header(f)
+                except nampa.flirt.FlirtException:
+                    _l.warning("Failed to load FLIRT signature file %s.", sig_path)
+                    continue
 
                 # is there a meta data file?
                 meta_path = os.path.join(root, filename[:-4] + ".meta")
@@ -81,8 +88,8 @@ def load_signatures(path: str) -> None:
                 else:
                     # nope... we need to extract information from the signature file
                     # TODO: Convert them to angr-specific strings
-                    arch = flirt.header.arch
-                    platform = flirt.header.os_types
+                    arch = flirt_header.arch
+                    platform = flirt_header.os_types
                     os_name = None
                     os_version = None
                     unique_strings = None
@@ -92,7 +99,7 @@ def load_signatures(path: str) -> None:
                 signature = FlirtSignature(
                     arch,
                     platform,
-                    flirt.header.library_name.decode("utf-8"),
+                    flirt_header.library_name.decode("utf-8"),
                     sig_path,
                     unique_strings=unique_strings,
                     compiler=compiler,
