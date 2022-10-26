@@ -2823,12 +2823,13 @@ _type_parser_singleton = None
 def type_parser_singleton() -> Optional[pycparser.CParser]:
     global _type_parser_singleton
     if pycparser is not None:
-        _type_parser_singleton = pycparser.CParser()
-        _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(module=_type_parser_singleton,
-                                                                 start='parameter_declaration',
-                                                                 debug=False,
-                                                                 optimize=False,
-                                                                 errorlog=errorlog)
+        if _type_parser_singleton is None:
+            _type_parser_singleton = pycparser.CParser()
+            _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(module=_type_parser_singleton,
+                                                                     start='parameter_declaration',
+                                                                     debug=False,
+                                                                     optimize=False,
+                                                                     errorlog=errorlog)
     return _type_parser_singleton
 
 
