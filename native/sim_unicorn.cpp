@@ -1013,13 +1013,16 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					break;
 				}
 				stmt_taint_entry.sink.value_size = result.value_size;
-				// Flatten list of taint sources and also save them as dependencies of instruction
-				// TODO: Should we not save dependencies if sink is an artificial register?
-				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
-				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
-				if (result.mem_read_size != 0) {
-					stmt_taint_entry.mem_read_size += result.mem_read_size;
-					stmt_taint_entry.has_memory_read = true;
+				stmt_taint_entry.floating_point_op_skip = result.has_floating_point_op_to_skip;
+				if (!stmt_taint_entry.floating_point_op_skip) {
+					// Flatten list of taint sources and also save them as dependencies of instruction
+					// TODO: Should we not save dependencies if sink is an artificial register?
+					stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+					stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+					if (result.mem_read_size != 0) {
+						stmt_taint_entry.mem_read_size += result.mem_read_size;
+						stmt_taint_entry.has_memory_read = true;
+					}
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				if (vex_cc_regs.find(stmt_taint_entry.sink.reg_offset) != vex_cc_regs.end()) {
@@ -1054,11 +1057,14 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
-				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
-				if (result.mem_read_size != 0) {
-					stmt_taint_entry.mem_read_size += result.mem_read_size;
-					stmt_taint_entry.has_memory_read = true;
+				stmt_taint_entry.floating_point_op_skip = result.has_floating_point_op_to_skip;
+				if (!stmt_taint_entry.floating_point_op_skip) {
+					stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+					stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+					if (result.mem_read_size != 0) {
+						stmt_taint_entry.mem_read_size += result.mem_read_size;
+						stmt_taint_entry.has_memory_read = true;
+					}
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				stmt_taint_entry.reset();
@@ -1096,11 +1102,14 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 				}
 				stmt_taint_entry.sink.value_size = result.value_size;
 				stmt_taint_entry.mem_write_size += result.value_size;
-				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
-				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
-				if (result.mem_read_size != 0) {
-					stmt_taint_entry.mem_read_size += result.mem_read_size;
-					stmt_taint_entry.has_memory_read = true;
+				stmt_taint_entry.floating_point_op_skip = result.has_floating_point_op_to_skip;
+				if (!stmt_taint_entry.floating_point_op_skip) {
+					stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+					stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+					if (result.mem_read_size != 0) {
+						stmt_taint_entry.mem_read_size += result.mem_read_size;
+						stmt_taint_entry.has_memory_read = true;
+					}
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				stmt_taint_entry.reset();
@@ -1118,11 +1127,14 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
-				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
-				if (result.mem_read_size != 0) {
-					stmt_taint_entry.mem_read_size += result.mem_read_size;
-					stmt_taint_entry.has_memory_read = true;
+				stmt_taint_entry.floating_point_op_skip = result.has_floating_point_op_to_skip;
+				if (!stmt_taint_entry.floating_point_op_skip) {
+					stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+					stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+					if (result.mem_read_size != 0) {
+						stmt_taint_entry.mem_read_size += result.mem_read_size;
+						stmt_taint_entry.has_memory_read = true;
+					}
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				block_taint_entry.has_exit_stmt = true;
@@ -1298,6 +1310,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Unop:
 		{
+			if (floating_point_ops_to_avoid.count(expr->Iex.Unop.op) > 0) {
+				// Do not propagate taint from this expression since floating points support is not enabled
+				result.has_floating_point_op_to_skip = true;
+				break;
+			}
 			auto temp = process_vex_expr(expr->Iex.Unop.arg, vex_block_tyenv, instr_addr, curr_stmt_idx, entity_setter, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
@@ -1312,6 +1329,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Binop:
 		{
+			if (floating_point_ops_to_avoid.count(expr->Iex.Binop.op) > 0) {
+				// Do not propagate taint from this expression since floating points support is not enabled
+				result.has_floating_point_op_to_skip = true;
+				break;
+			}
 			auto temp = process_vex_expr(expr->Iex.Binop.arg1, vex_block_tyenv, instr_addr, curr_stmt_idx, entity_setter, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
@@ -1336,6 +1358,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Triop:
 		{
+			if (floating_point_ops_to_avoid.count(expr->Iex.Triop.details->op) > 0) {
+				// Do not propagate taint from this expression since floating points support is not enabled
+				result.has_floating_point_op_to_skip = true;
+				break;
+			}
 			auto temp = process_vex_expr(expr->Iex.Triop.details->arg1, vex_block_tyenv, instr_addr, curr_stmt_idx, entity_setter, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
@@ -1370,6 +1397,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Qop:
 		{
+			if (floating_point_ops_to_avoid.count(expr->Iex.Qop.details->op) > 0) {
+				// Do not propagate taint from this expression since floating points support is not enabled
+				result.has_floating_point_op_to_skip = true;
+				break;
+			}
 			auto temp = process_vex_expr(expr->Iex.Qop.details->arg1, vex_block_tyenv, instr_addr, curr_stmt_idx, entity_setter, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
@@ -2021,6 +2053,14 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 	bool sets_vex_cc_reg;
 
 	auto &taint_sink = vex_stmt_taint_entry.sink;
+	if (vex_stmt_taint_entry.floating_point_op_skip) {
+		// Since statement contains floating point operation that should be skipped, mark sink as concrete and stop.
+		if (taint_sink.entity_type == TAINT_ENTITY_REG) {
+			mark_register_concrete(taint_sink.reg_offset, taint_sink.value_size);
+		}
+		return;
+	}
+
 	auto &taint_srcs = vex_stmt_taint_entry.sources;
 	if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (vex_cc_regs.find(taint_sink.reg_offset) != vex_cc_regs.end())) {
 		sets_vex_cc_reg = true;
@@ -3054,3 +3094,10 @@ void simunicorn_get_concrete_writes_to_reexecute(State *state, uint64_t *addrs, 
 	}
 	return;
  }
+
+extern "C"
+void simunicorn_set_fp_ops_vex_codes(State *state, uint64_t *ops, uint32_t op_count) {
+	for (auto i = 0; i < op_count; i++) {
+		state->floating_point_ops_to_avoid.emplace(ops[i]);
+	}
+}

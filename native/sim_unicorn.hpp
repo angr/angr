@@ -367,6 +367,9 @@ struct vex_stmt_taint_entry_t {
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
 
+	// Indicates if statement has a floating point operation for which taint should not be propagated
+	bool floating_point_op_skip;
+
 	// Count number of bytes read from memory by the instruction
 	uint32_t mem_read_size;
 
@@ -382,7 +385,7 @@ struct vex_stmt_taint_entry_t {
 		return (sink == other_stmt.sink) && (sources == other_stmt.sources) &&
 			   (ite_cond_entity_list == other_stmt.ite_cond_entity_list) &&
 			   (has_memory_read == other_stmt.has_memory_read) &&
-			   (is_exit == other_stmt.is_exit) &&
+			   (is_exit == other_stmt.is_exit) && (floating_point_op_skip == other_stmt.floating_point_op_skip) &&
 			   (mem_read_size == other_stmt.mem_read_size) &&
 			   (mem_write_size == other_stmt.mem_write_size);
 	}
@@ -395,6 +398,7 @@ struct vex_stmt_taint_entry_t {
 		sink.reset();
 		sources.clear();
 		ite_cond_entity_list.clear();
+		floating_point_op_skip = false;
 		has_memory_read = false;
 		is_exit = false;
 		mem_read_size = 0;
@@ -439,6 +443,7 @@ struct stop_details_t {
 struct processed_vex_expr_t {
 	std::unordered_set<taint_entity_t> taint_sources;
 	std::unordered_set<taint_entity_t> ite_cond_entities;
+	bool has_floating_point_op_to_skip;
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
 	uint32_t mem_read_size;
@@ -451,6 +456,7 @@ struct processed_vex_expr_t {
 	void reset() {
 		taint_sources.clear();
 		ite_cond_entities.clear();
+		has_floating_point_op_to_skip = false;
 		has_unsupported_expr = false;
 		mem_read_size = 0;
 		value_size = -1;
@@ -784,6 +790,9 @@ class State {
 		bool track_stack;
 
 		uc_cb_eventmem_t py_mem_callback;
+
+		// List of floating point operations
+		std::unordered_set<uint64_t> floating_point_ops_to_avoid;
 
 		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond, bool symb_syscalls);
 

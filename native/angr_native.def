@@ -44,3 +44,4 @@ EXPORTS
   simunicorn_set_vex_cc_reg_data
   simunicorn_get_count_of_writes_to_reexecute
   simunicorn_get_concrete_writes_to_reexecute
+  simunicorn_set_fp_ops_vex_codes

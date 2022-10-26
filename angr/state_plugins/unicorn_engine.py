@@ -17,6 +17,7 @@ from angr.engines.vex.claripy import ccall
 from angr.sim_state import SimState
 
 from .. import sim_options as options
+from ..engines.vex.claripy.irop import operations as irop_ops
 from ..errors import (SimMemoryError, SimSegfaultError, SimUnicornError,
                       SimUnicornUnsupport, SimValueError)
 from ..misc.testing import is_testing
@@ -452,6 +453,7 @@ def _load_native():
         _setup_prototype(h, 'get_count_of_writes_to_reexecute', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_concrete_writes_to_reexecute', None, state_t, ctypes.POINTER(ctypes.c_uint64),
                          ctypes.POINTER(ctypes.c_uint8))
+        _setup_prototype(h, 'set_fp_ops_vex_codes', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint32)
 
         l.info('native plugin is enabled')
 
@@ -1221,6 +1223,12 @@ class Unicorn(SimStatePlugin):
             cc_regs_sizes_array = (ctypes.c_uint64 * len(cc_regs_offsets))(*map(ctypes.c_uint64, cc_regs_sizes))
             _UC_NATIVE.set_vex_cc_reg_data(self._uc_state, cc_regs_offsets_array, cc_regs_sizes_array,
                                            len(cc_regs_offsets))
+
+        # Set floating point operations VEX codes
+        if options.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
+            fp_op_vex_codes = [pyvex.irop_enums_to_ints[op.name] for op in irop_ops.values() if op._float]
+            fp_op_vex_codes_array = (ctypes.c_uint64 * len(fp_op_vex_codes))(*map(ctypes.c_uint64, fp_op_vex_codes))
+            _UC_NATIVE.set_fp_ops_vex_codes(self._uc_state, fp_op_vex_codes_array, len(fp_op_vex_codes))
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
