@@ -18,7 +18,7 @@ from ...engines.syscall import SimEngineSyscall
 from ...engines.hook import HooksMixin
 from ...engines.soot import SootMixin
 from ...engines.successors import SimSuccessors
-from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
+from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures, state_plugins
 from ... import options as o
 from ...engines.procedure import ProcedureEngine
 from ...exploration_techniques.loop_seer import LoopSeer
@@ -332,7 +332,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
     def __init__(self,
                  context_sensitivity_level=1,
                  data_sensitive=False,
-                 vm_vpc_addr=None,
                  start=None,
                  avoid_runs=None,
                  enable_function_hints=False,
@@ -416,6 +415,18 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         graph_visitor = None
         self._graph = None
         self._model = None
+
+        # this is used only with symbolify analysis
+        self.to_use_symbolic_exprs = set()
+
+        # create a new solver which holds partial constriants, this is essentially used as simplification solver
+        initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+        for cons in initial_state.preconstrainer.preconstraints:
+            for var in cons.variables:
+                if var.startswith('precon_sp'):
+                    initial_state.partial_symbolic_constraint_solver.add(cons.remove_annotation(cons.annotations[0]))
+                    break
+
         self._graph_engine = DataSensitiveEngine(project=self.project)
         ### This is for storing the addresses of the found vm_instructions
         self.vm_instruction_addresses = []
@@ -464,7 +475,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
         self._state_add_options.update([o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS])
         self._node_iterations = defaultdict(int)
-        self.vm_vpc_addr = vm_vpc_addr
 
         # add the track_memory_option if the enable function hint flag is set
         if self._enable_function_hints and o.TRACK_MEMORY_ACTIONS not in self._state_add_options:
@@ -1463,13 +1473,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("Pending Jobs: " + str(self._pending_jobs))
         l.debug("Job List: "+str(self._job_info_queue))
         l.debug("Data offset: "+str(job.vm_vpc))
-        #print("R10 Value: "+str(hex(job.state.solver.eval(job.state.regs.r10))))
-
-        # if block_id.addr in [0x140179251, 0x1401791DA]:
-        #     import ipdb;ipdb.set_trace()
-        # if block_id.addr == 0x1401463f4:
-        #     import ipdb;ipdb.set_trace()
-
         # Get a SimSuccessors out of current job
 
         # remove btc, btr
@@ -1481,16 +1484,26 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 job.state.memory.store(ins.address, ins.size * b"\x90")
         self.project.factory.default_engine.clear_cache()
 
+        if 'to_use_symbolic_exprs' in job.state.globals:
+            self.to_use_symbolic_exprs.update(job.state.globals['to_use_symbolic_exprs'])
+
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
         ## dealing with indirect jumps that are dependent on user input and user input based loads
         if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) == 1:
             new_states = []
             uncon_succ = sim_successors.unconstrained_successors[0]
-            poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
+            #poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
+            poss_target = uncon_succ.scratch.target
+
+            # if it's till symbolic try to eval with the partial constraint solver
+            if uncon_succ.solver.symbolic(poss_target):
+                try:
+                    poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(poss_target)
+                except:
+                    print("more than one target?, possible going to split states now")
 
             if not uncon_succ.solver.symbolic(poss_target):
-                #import ipdb;ipdb.set_trace()
                 new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                 new_sim_successors.artifacts = sim_successors.artifacts
                 new_sim_successors.engine = sim_successors.engine
@@ -1498,12 +1511,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 new_sim_successors.description = sim_successors.description
                 new_sim_successors.sort = sim_successors.sort
 
-                targ_addr = uncon_succ.solver.simplify(uncon_succ.scratch.target)
-
-                if targ_addr.symbolic:
-                    targ_addr = uncon_succ.solver.eval(uncon_succ.scratch.target)
-
-                new_sim_successors.add_successor(uncon_succ, targ_addr,
+                new_sim_successors.add_successor(uncon_succ, poss_target,
                                                  uncon_succ.scratch.guard,
                                                  uncon_succ.history.jumpkind, True,
                                                  uncon_succ.scratch.exit_stmt_idx,
@@ -1532,15 +1540,31 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                             new_state.add_constraints(sym_addr == conc_addr)
                             new_state.solver._solver.add_replacement(sym_addr, conc_addr, invalidate_cache=False)
+                            new_state.partial_symbolic_constraint_solver.add(sym_addr == conc_addr)
+                            #new_state.partial_symbolic_constraint_solver._solver.add_replacement(sym_addr, conc_addr, invalidate_cache=False)
 
                             new_state.add_constraints(ast == value)
                             new_state.solver._solver.add_replacement(ast, value, invalidate_cache=False)
+                            new_state.partial_symbolic_constraint_solver.add(ast == value)
+                            #new_state.partial_symbolic_constraint_solver._solver.add_replacement(ast, value, invalidate_cache=False)
 
                             new_state.add_constraints(input_constraint)
                             new_state.solver._solver.add_replacement(input_constraint.args[0], input_constraint.args[1], invalidate_cache=False)
+                            new_state.partial_symbolic_constraint_solver.add(input_constraint)
+                            #new_state.partial_symbolic_constraint_solver._solver.add_replacement(input_constraint.args[0], input_constraint.args[1], invalidate_cache=False)
 
-                            new_state.regs.ip = new_state.solver.simplify(new_state.regs.ip).replace_dict(new_state.solver._solver._replacement_cache)
-                            new_state.scratch.target = new_state.solver.simplify(new_state.scratch.target).replace_dict(new_state.solver._solver._replacement_cache)
+                            # new_state.regs.ip = new_state.solver.simplify(new_state.regs.ip).replace_dict(new_state.solver._solver._replacement_cache)
+                            # new_state.scratch.target = new_state.solver.simplify(new_state.scratch.target).replace_dict(new_state.solver._solver._replacement_cache)
+                            if new_state.solver.symbolic(new_state.regs.ip):
+                                try:
+                                    new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
+                                except:
+                                    import ipdb;ipdb.set_trace()
+                            if new_state.solver.symbolic(new_state.scratch.target):
+                                try:
+                                    new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
+                                except:
+                                    import ipdb;ipdb.set_trace()
                             new_states.append(new_state)
 
                 if len(new_states) != 0:
@@ -1558,6 +1582,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                                                   new_state.scratch.source)
                     sim_successors=new_sim_successors
                     sim_successors.artifacts['irsb_direct_next'] = True
+                    # import ipdb;
+                    # ipdb.set_trace()
+
 
         elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
             print("More than one unconstrained successor?!")
@@ -1665,7 +1692,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations and addr not in self.project._sim_procedures:
             l.debug("Block SKIPPED! due to max_iterations")
-            import ipdb;ipdb.set_trace()
             should_skip = True
         elif self._is_call_jumpkind(job.jumpkind) and \
              self._call_depth is not None and \
@@ -3387,54 +3413,54 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         try:
             sim_successors = None
 
-            if not self._keep_state:
-                if self.project.is_hooked(addr):
-                    old_proc = self.project._sim_procedures[addr]
-                    is_continuation = old_proc.is_continuation
-                elif self.project.simos.is_syscall_addr(addr):
-                    old_proc = self.project.simos.syscall_from_addr(addr)
-                    is_continuation = False  # syscalls don't support continuation
-                else:
-                    old_proc = None
-                    is_continuation = None
-
-                if old_proc is not None and \
-                        not is_continuation and \
-                        not old_proc.ADDS_EXITS and \
-                        not old_proc.NO_RET:
-                    # DON'T CREATE USELESS SIMPROCEDURES if we don't care about the accuracy of states
-                    # When generating CFG, a SimProcedure will not be created as it is but be created as a
-                    # ReturnUnconstrained stub if it satisfies the following conditions:
-                    # - It doesn't add any new exits.
-                    # - It returns as normal.
-                    # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
-                    # those functions like read() and puts(), which has no impact on the overall control flow at all.
-                    #
-                    # Special notes about SimProcedure continuation: Any SimProcedure instance that is a continuation
-                    # will add new exits, otherwise the original SimProcedure wouldn't have been executed anyway. Hence
-                    # it's reasonable for us to always simulate a SimProcedure with continuation.
-
-                    old_name = None
-
-                    if old_proc.is_syscall:
-                        new_stub = SIM_PROCEDURES["stubs"]["syscall"]
-                        ret_to = state.regs.ip_at_syscall
-                    else:
-                        # normal SimProcedures
-                        new_stub = SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]
-                        ret_to = None
-
-                    old_name = old_proc.display_name
-
-                    # instantiate the stub
-                    new_stub_inst = new_stub(display_name=old_name)
-
-                    sim_successors = self.project.factory.procedure_engine.process(
-                        state,
-                        procedure=new_stub_inst,
-                        force_addr=addr,
-                        ret_to=ret_to,
-                    )
+            # if not self._keep_state:
+            #     if self.project.is_hooked(addr):
+            #         old_proc = self.project._sim_procedures[addr]
+            #         is_continuation = old_proc.is_continuation
+            #     elif self.project.simos.is_syscall_addr(addr):
+            #         old_proc = self.project.simos.syscall_from_addr(addr)
+            #         is_continuation = False  # syscalls don't support continuation
+            #     else:
+            #         old_proc = None
+            #         is_continuation = None
+            #
+            #     if old_proc is not None and \
+            #             not is_continuation and \
+            #             not old_proc.ADDS_EXITS and \
+            #             not old_proc.NO_RET:
+            #         # DON'T CREATE USELESS SIMPROCEDURES if we don't care about the accuracy of states
+            #         # When generating CFG, a SimProcedure will not be created as it is but be created as a
+            #         # ReturnUnconstrained stub if it satisfies the following conditions:
+            #         # - It doesn't add any new exits.
+            #         # - It returns as normal.
+            #         # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
+            #         # those functions like read() and puts(), which has no impact on the overall control flow at all.
+            #         #
+            #         # Special notes about SimProcedure continuation: Any SimProcedure instance that is a continuation
+            #         # will add new exits, otherwise the original SimProcedure wouldn't have been executed anyway. Hence
+            #         # it's reasonable for us to always simulate a SimProcedure with continuation.
+            #
+            #         old_name = None
+            #
+            #         if old_proc.is_syscall:
+            #             new_stub = SIM_PROCEDURES["stubs"]["syscall"]
+            #             ret_to = state.regs.ip_at_syscall
+            #         else:
+            #             # normal SimProcedures
+            #             new_stub = SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]
+            #             ret_to = None
+            #
+            #         old_name = old_proc.display_name
+            #
+            #         # instantiate the stub
+            #         new_stub_inst = new_stub(display_name=old_name)
+            #
+            #         sim_successors = self.project.factory.procedure_engine.process(
+            #             state,
+            #             procedure=new_stub_inst,
+            #             force_addr=addr,
+            #             ret_to=ret_to,
+            #         )
 
             if sim_successors is None:
                 jumpkind = state.history.jumpkind
