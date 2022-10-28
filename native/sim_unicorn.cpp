@@ -1798,6 +1798,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	}
 
 	// Save info about the memory read
+	unsigned char buf[32];
+	unsigned int has_read_from_uc = 0;
 	for (auto i = 0; i < read_size; i++) {
 		memory_value_t memory_value;
 		memory_value.address = read_address + i;
@@ -1806,7 +1808,16 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		}
 		else {
 			memory_value.is_value_symbolic = false;
-			uc_mem_read(uc, memory_value.address, &memory_value.value, 1);
+			if (read_size < sizeof(buf)) {
+				if (!has_read_from_uc) {
+					uc_mem_read(uc, read_address, buf, read_size);
+					has_read_from_uc = 1;
+				}
+				memory_value.value = buf[i];
+			}
+			else {
+				uc_mem_read(uc, memory_value.address, &memory_value.value, 1);
+			}
 		}
 		memory_read_values.emplace_back(memory_value);
 	}
