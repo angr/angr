@@ -3,6 +3,7 @@ import logging
 
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
+from cle.backends.elf.elf import ELF
 
 from ..plugin import KnowledgeBasePlugin
 
@@ -14,61 +15,80 @@ l = logging.getLogger(name=__name__)
 
 class NVariableContainer:
     def __init__(self):
+        """
+        It is recommended to use NVariableManager.add_variable() instead
+        """
         self.less_visible_vars = []
 
-    def _insertvar(self, var):
+    def _insertvar(self, var: 'NVariable'):
         for i, v in enumerate(self.less_visible_vars):
             if var.contains(v):
                 self.less_visible_vars[i] = var
                 var.less_visible_vars.append(v)
                 return
-            if var.overlaps(v):
-                l.warning("Not supported! Trying to add variable %s with scopes %d-%d and %d-%d. Ignoring the former.",
-                          v.cle_variable.name, v.low_ip_addr, v.high_ip_addr, var.low_ip_addr, var.high_ip_addr)
+            if var.test_unsupported_overlap(v):
+                l.warning("Unsupported variable with overlapping scopes. We have \"%s\" with %d-%d and ignore %d-%d.",
+                          v.cle_variable.name, v.low_pc, v.high_pc, var.low_pc, var.high_pc)
                 return
             if v.contains(var):
                 v._insertvar(var)
                 return
         self.less_visible_vars.append(var)
 
-    def from_ip_addr(self, ip_addr):
+    def __setitem__(self, index, value):
+        assert type(index) == slice and type(value) == Variable
+        low_pc = index.start
+        high_pc = index.stop
+        nvar = NVariable(low_pc, high_pc, value)
+        return self._insertvar(nvar)
+
+    def from_pc(self, pc: int) -> Variable:
         for var in self.less_visible_vars:
-            if var.low_ip_addr <= ip_addr and ip_addr < var.high_ip_addr:
-                return var.from_ip_addr(ip_addr)
+            if var.low_pc <= pc and pc < var.high_pc:
+                return var.from_pc(pc)
         return None
+
+    def __getitem__(self, index):
+        return self.from_pc(index)
 
 
 class NVariable(NVariableContainer):
-    def __init__(self, low_ip_addr, high_ip_addr, cle_variable: Variable):
+    def __init__(self, low_pc: int, high_pc: int, cle_variable: Variable):
         """
-        To create a new variable, please use NVariableManager.addvar() instead
+        It is recommended to use NVariableManager.add_variable() instead
         """
         super().__init__()
-        self.low_ip_addr = low_ip_addr
-        self.high_ip_addr = high_ip_addr
+        self.low_pc = low_pc
+        self.high_pc = high_pc
         self.cle_variable = cle_variable
 
     # overwrites the method of NVariableContainer
-    def from_ip_addr(self, ip_addr):
-        if ip_addr < self.low_ip_addr or self.high_ip_addr < ip_addr:
+    def from_pc(self, pc: int) -> Variable:
+        if pc < self.low_pc or self.high_pc < pc:
             # not within range
             return None
         for var in self.less_visible_vars:
-            if var.low_ip_addr <= ip_addr and ip_addr < var.high_ip_addr:
-                return var.from_ip_addr(ip_addr)
+            if var.low_pc <= pc and pc < var.high_pc:
+                return var.from_pc(pc)
         return self.cle_variable
 
-    def contains(self, var):
-        if self.low_ip_addr <= var.low_ip_addr and var.high_ip_addr <= self.high_ip_addr:
+    def contains(self, nvar: 'NVariable') -> bool:
+        if self.low_pc <= nvar.low_pc and nvar.high_pc <= self.high_pc:
             return True
         else:
             return False
 
-    def overlaps(self, var):
-        l1 = self.low_ip_addr
-        l2 = var.low_ip_addr
-        h1 = self.high_ip_addr
-        h2 = var.high_ip_addr
+    def test_unsupported_overlap(self, nvar: 'NVariable') -> bool:
+        """
+        Test for an unsupported overlapping
+
+        :param nvar:    Second NVariable to compare with
+        :return:        True if there is an unsupported overlapping
+        """
+        l1 = self.low_pc
+        l2 = nvar.low_pc
+        h1 = self.high_pc
+        h2 = nvar.high_pc
         if l1 == l2 and h1 == h2:
             return True
         if l2 < l1 and l1 < h2 and h2 < h1:
@@ -79,50 +99,91 @@ class NVariable(NVariableContainer):
 
 
 class NVariableManager(KnowledgeBasePlugin):
+    """
+    Structure to manage and access variables with different visibility scopes.
+    """
 
-    def __init__(self, kb):
+    def __init__(self, kb: 'KnowledgeBase'):
         super().__init__()
         self._kb: 'KnowledgeBase' = kb
-        self._most_visible_variables = {}
+        self._nvar_containers = {}
 
-    def from_name_and_ip_addr(self, var_name, ip_addr):
+    def from_name_and_pc(self, var_name: str, pc_addr: int) -> Variable:
         """
-        Get a variable from its string in the scope of ip_addr.
+        Get a variable from its string in the scope of pc.
         """
-        var = self._most_visible_variables[var_name]
-        return var.from_ip_addr(ip_addr)
+        nvar = self._nvar_containers[var_name]
+        return nvar.from_pc(pc_addr)
 
-    def most_visible(self, var_name):
+    def from_name(self, var_name: str) -> NVariableContainer:
         """
-        Get a most visible variable (a global variable if exists)
-        """
-        return self._most_visible_variables[var_name]
+        Get the variable container for all variables named var_name
 
-    def addvar(self, cle_var: Variable, low_ip_addr, high_ip_addr):
+        :param var_name:    name for a variable
+        """
+        if var_name not in self._nvar_containers:
+            self._nvar_containers[var_name] = NVariableContainer()
+        return self._nvar_containers[var_name]
+
+    def __getitem__(self, var_name):
+        assert type(var_name) == str
+        return self.from_name(var_name)
+
+    def add_variable(self, cle_var: Variable, low_pc: int, high_pc: int):
+        """
+        Add/load a variable
+
+        :param cle_variable:    The variable to add
+        :param low_pc:          Start of the visibility scope of the variable as program counter address (rebased)
+        :param high_pc:         End of the visibility scope of the variable as program counter address (rebased)
+        """
         name = cle_var.name
-        # low_ip_addr = cle_var.low_addr
-        # high_ip_addr = cle_var.high_addr
-        nvar = NVariable(low_ip_addr, high_ip_addr, cle_var)
-        if name not in self._most_visible_variables:
-            self._most_visible_variables[name] = NVariableContainer()
-        container = self._most_visible_variables[name]
-        container._insertvar(nvar)
+        if name not in self._nvar_containers:
+            self._nvar_containers[name] = NVariableContainer()
+        container = self._nvar_containers[name]
+        container[low_pc:high_pc] = cle_var
+
+    def __setitem__(self, index, cle_var):
+        assert type(index) == slice and type(cle_var) == Variable
+        return self.add_variable(cle_var, index.start, index.stop)
 
     # Methods similar to the once in VariableManager
-    def add_variable_list(self, vlist: List[Variable], low_ip_addr, high_ip_addr):
-        for v in vlist:
-            self.addvar(v, low_ip_addr, high_ip_addr)
+    def add_variable_list(self, vlist: List[Variable], low_pc: int, high_pc: int):
+        """
+        Add all variables in a list with the same visibility range
 
-    def load_from_dwarf(self, cu_list: List[CompilationUnit] = None):
-        cu_list = cu_list or self._kb._project.loader.main_object.compilation_units
-        if cu_list is None:
-            l.warning("no CompilationUnit found")
-            return
-        for cu in cu_list:
-            self.add_variable_list(cu.global_variables, 0x0, float('inf'))
-            for low_pc, subp in cu.functions.items():
-                high_pc = subp.high_pc
-                self.add_variable_list(subp.local_variables, low_pc, high_pc)
+        :param vlist:       A list of cle varibles to add
+        :param low_pc:      Start of the visibility scope as program counter address (rebased)
+        :param high_pc:     End of the visibility scope as program counter address (rebased)
+        """
+        for v in vlist:
+            self.add_variable(v, low_pc, high_pc)
+
+    def load_from_dwarf(self, elf_object: ELF = None, cu: CompilationUnit = None):
+        """
+        Automatically load all variables (global/local) from the DWARF debugging info
+
+        :param elf_object:  Optional, when only one elf object should be considered (e.g. p.loader.main_object)
+        :param cu:          Optional, when only one compilation unit should be considered
+        """
+        if elf_object:
+            objs = [elf_object]
+        else:
+            objs = self._kb._project.loader.all_elf_objects
+        for obj in objs:
+            if cu:
+                if obj not in obj.compilation_units:
+                    break
+                cu_list = [cu]
+            else:
+                cu_list = obj.compilation_units
+
+            for cu in cu_list:
+                self.add_variable_list(cu.global_variables, obj.min_addr, obj.max_addr)
+                for _, subp in cu.functions.items():
+                    low_pc = subp.low_pc + obj.mapped_base
+                    high_pc = subp.high_pc + obj.mapped_base
+                    self.add_variable_list(subp.local_variables, low_pc, high_pc)
 
 
 KnowledgeBasePlugin.register_default('nvariables', NVariableManager)
