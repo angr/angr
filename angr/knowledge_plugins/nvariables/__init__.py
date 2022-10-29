@@ -22,13 +22,13 @@ class NVariableContainer:
 
     def _insertvar(self, var: 'NVariable'):
         for i, v in enumerate(self.less_visible_vars):
-            if var.contains(v):
-                self.less_visible_vars[i] = var
-                var.less_visible_vars.append(v)
-                return
             if var.test_unsupported_overlap(v):
                 l.warning("Unsupported variable with overlapping scopes. We have \"%s\" with %d-%d and ignore %d-%d.",
                           v.cle_variable.name, v.low_pc, v.high_pc, var.low_pc, var.high_pc)
+                return
+            if var.contains(v):
+                self.less_visible_vars[i] = var
+                var.less_visible_vars.append(v)
                 return
             if v.contains(var):
                 v._insertvar(var)
