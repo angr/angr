@@ -35,7 +35,8 @@ def concretize_add_float64(state, args):
     return state.solver.FPV(arg0 + arg1, claripy.FSORT_DOUBLE)
 
 def concretize_add64f02(state, args):
-    fp_arg0, fp_arg1 = [state.solver.eval(arg[63:0].raw_to_fp()) for arg in args]
+    fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
+    fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
     result = state.solver.FPV(fp_arg0 + fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
@@ -45,7 +46,8 @@ def concretize_divf64(state, args):
     return state.solver.FPV(arg1 / arg2, args[1].sort)
 
 def concretize_div64f02(state, args):
-    fp_arg0, fp_arg1 = [state.solver.eval(arg[63:0].raw_to_fp()) for arg in args]
+    fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
+    fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
     result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
@@ -68,7 +70,8 @@ def concretize_mulf64(state, args):
     return state.solver.FPV(arg1 / arg2, args[1].sort)
 
 def concretize_mul64f02(state, args):
-    fp_arg0, fp_arg1 = [state.solver.eval(arg[63:0].raw_to_fp()) for arg in args]
+    fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
+    fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
     result = state.solver.FPV(fp_arg0 * fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
@@ -163,7 +166,8 @@ def concretize_prem_flags(state, args):
     return claripy.BVV(flags, 16)
 
 def concretize_sub64f02(state, args):
-    fp_arg0, fp_arg1 = [state.solver.eval(arg[63:0].raw_to_fp()) for arg in args]
+    fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
+    fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
     result = state.solver.FPV(fp_arg0 - fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
