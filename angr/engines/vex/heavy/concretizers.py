@@ -61,18 +61,29 @@ def concretize_cmpf64(state, args):
 def concretize_divf64(state, args):
     arg1 = state.solver.eval(args[1])
     arg2 = state.solver.eval(args[2])
+    if arg2 == 0:
+        return state.solver.FPV(math.inf, args[1].sort)
+
     return state.solver.FPV(arg1 / arg2, args[1].sort)
 
 def concretize_div32f04(state, args):
     fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
-    result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+    if fp_arg1 == 0:
+        result = state.solver.FPV(math.inf, claripy.FSORT_FLOAT).raw_to_bv()
+    else:
+        result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
 def concretize_div64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
-    result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+    if fp_arg1 == 0:
+        result = state.solver.FPV(math.inf, claripy.FSORT_DOUBLE).raw_to_bv()
+    else:
+        result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
 def concretize_float32_to_float64(state, args):
