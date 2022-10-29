@@ -42,7 +42,7 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         self.state.history.add_event('resilience', resilience_type='irop', op=op, message='unsupported IROp')
         if o.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
             try:
-                concretizer = force_concretizers[op]
+                concretizer = concretizers[op]
                 return concretizer(self.state, args)
             except KeyError:
                 pass

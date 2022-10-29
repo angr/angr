@@ -25,6 +25,53 @@ def concretize_2xm1(state, args):
     # If x is outside range [-1.0, 1.0], result is undefined. We return argument itself as observed on an Intel CPU.
     return args[1]
 
+def concretize_abs_float64(state, args):
+    arg_val = state.solver.eval(args[0])
+    return state.solver.FPV(abs(arg_val), args[0].sort)
+
+def concretize_add_float64(state, args):
+    arg0 = state.solver.eval(args[1])
+    arg1 = state.solver.eval(args[2])
+    return state.solver.FPV(arg0 + arg1, claripy.FSORT_DOUBLE)
+
+def concretize_add64f02(state, args):
+    fp_arg0, fp_arg1 = [state.solver.eval(arg[63:0].raw_to_fp()) for arg in args]
+    result = state.solver.FPV(fp_arg0 + fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+    return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
+
+def concretize_divf64(state, args):
+    arg1 = state.solver.eval(args[1])
+    arg2 = state.solver.eval(args[2])
+    return state.solver.FPV(arg1 / arg2, args[1].sort)
+
+def concretize_div64f02(state, args):
+    fp_arg0, fp_arg1 = [state.solver.eval(arg[63:0].raw_to_fp()) for arg in args]
+    result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+    return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
+
+def concretize_float64_to_int64s(state, args):
+    rm = fp_rm_map[args[0]._model_concrete.value]
+    return state.solver.fpToSBV(rm, args[1], 64)
+
+def concretize_int32s_to_float64(state, args):
+    arg = state.solver.BVV(state.solver.eval(args[0]), args[0].size())
+    return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=fp_rm_map[0])
+
+def concretize_int64s_to_float64(state, args):
+    rm = fp_rm_map[args[0]._model_concrete.value]
+    arg = state.solver.BVV(state.solver.eval(args[1]), args[1].size())
+    return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=rm)
+
+def concretize_mulf64(state, args):
+    arg1 = state.solver.eval(args[1])
+    arg2 = state.solver.eval(args[2])
+    return state.solver.FPV(arg1 / arg2, args[1].sort)
+
+def concretize_mul64f02(state, args):
+    fp_arg0, fp_arg1 = [state.solver.eval(arg[63:0].raw_to_fp()) for arg in args]
+    result = state.solver.FPV(fp_arg0 * fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+    return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
+
 def concretize_fscale(state, args):
     # fscale(x, y) = x * (2 ** y). Concretize 2**y part alone since only that cannot be modelled in Z3.
     rm = translate_rm(args[0])
@@ -114,6 +161,11 @@ def concretize_prem_flags(state, args):
 
     flags = (flag_c3 << 14) | (flag_c2 << 10) | (flag_c1 << 9) | (flag_c0 << 8)
     return claripy.BVV(flags, 16)
+
+def concretize_sub64f02(state, args):
+    fp_arg0, fp_arg1 = [state.solver.eval(arg[63:0].raw_to_fp()) for arg in args]
+    result = state.solver.FPV(fp_arg0 - fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
+    return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
 def concretize_trig_cos(state, args):
     # cos(x). Z3 does support *some* cases of cos(see https://github.com/Z3Prover/z3/issues/680) but we don't use
@@ -224,7 +276,12 @@ concretizers = {"Iop_Yl2xF64": concretize_yl2x, "Iop_ScaleF64": concretize_fscal
                 "Iop_2xm1F64": concretize_2xm1, "Iop_SqrtF64": concretize_fsqrt,
                 "Iop_CosF64": concretize_trig_cos, "Iop_SinF64": concretize_trig_sin,
                 "Iop_TanF64": concretize_trig_tan, "Iop_PRemF64": concretize_prem,
-                "Iop_PRemC3210F64": concretize_prem_flags
+                "Iop_PRemC3210F64": concretize_prem_flags, "Iop_I32StoF64": concretize_int32s_to_float64,
+                "Iop_Mul64F0x2": concretize_mul64f02,  "Iop_Add64F0x2": concretize_add64f02,
+                "Iop_Div64F0x2": concretize_div64f02, "Iop_I64StoF64": concretize_int64s_to_float64,
+                "Iop_DivF64": concretize_divf64, "Iop_MulF64": concretize_mulf64,
+                "Iop_F64toI64S": concretize_float64_to_int64s, "Iop_AbsF64": concretize_abs_float64,
+                "Iop_Sub64F0x2": concretize_sub64f02, "Iop_AddF64": concretize_add_float64,
                }
 
 __all__ = ["concretizers"] + [concretizer.__name__ for concretizer in concretizers.values()]
