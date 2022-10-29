@@ -95,7 +95,7 @@ def concretize_float64_to_float32(state, args):
     return state.solver.FPV(arg, claripy.FSORT_FLOAT)
 
 def concretize_float64_to_int64s(state, args):
-    rm = fp_rm_map[args[0]._model_concrete.value]
+    rm = translate_rm(args[0])
     return state.solver.fpToSBV(rm, args[1], 64)
 
 def concretize_int32s_to_float64(state, args):
@@ -103,7 +103,7 @@ def concretize_int32s_to_float64(state, args):
     return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=fp_rm_map[0])
 
 def concretize_int64s_to_float64(state, args):
-    rm = fp_rm_map[args[0]._model_concrete.value]
+    rm = translate_rm(args[0])
     arg = state.solver.BVV(state.solver.eval(args[1]), args[1].size())
     return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=rm)
 
