@@ -34,22 +34,54 @@ def concretize_add_float64(state, args):
     arg1 = state.solver.eval(args[2])
     return state.solver.FPV(arg0 + arg1, claripy.FSORT_DOUBLE)
 
+def concretize_add32f04(state, args):
+    fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
+    fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
+    result = state.solver.FPV(fp_arg0 + fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+    return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
+
 def concretize_add64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
     result = state.solver.FPV(fp_arg0 + fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
+def concretize_cmpf64(state, args):
+    fp_arg0 = state.solver.eval(args[0])
+    fp_arg1 = state.solver.eval(args[1])
+    if fp_arg0 < fp_arg1:
+        return state.solver.BVV(1, 32)
+    if fp_arg0 > fp_arg1:
+        return state.solver.BVV(0, 32)
+    if fp_arg0 == fp_arg1:
+        return state.solver.BVV(0x40, 32)
+
+    return state.solver.BVV(0x45, 32)
+
 def concretize_divf64(state, args):
     arg1 = state.solver.eval(args[1])
     arg2 = state.solver.eval(args[2])
     return state.solver.FPV(arg1 / arg2, args[1].sort)
+
+def concretize_div32f04(state, args):
+    fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
+    fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
+    result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+    return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
 def concretize_div64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][63:0].raw_to_fp())
     result = state.solver.FPV(fp_arg0 / fp_arg1, claripy.FSORT_DOUBLE).raw_to_bv()
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
+
+def concretize_float32_to_float64(state, args):
+    arg0 = state.solver.eval(args[0])
+    return state.solver.FPV(arg0, claripy.FSORT_DOUBLE)
+
+def concretize_float64_to_float32(state, args):
+    arg = state.solver.eval(args[1])
+    return state.solver.FPV(arg, claripy.FSORT_FLOAT)
 
 def concretize_float64_to_int64s(state, args):
     rm = fp_rm_map[args[0]._model_concrete.value]
@@ -68,6 +100,12 @@ def concretize_mulf64(state, args):
     arg1 = state.solver.eval(args[1])
     arg2 = state.solver.eval(args[2])
     return state.solver.FPV(arg1 / arg2, args[1].sort)
+
+def concretize_mul32f04(state, args):
+    fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
+    fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
+    result = state.solver.FPV(fp_arg0 * fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+    return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
 def concretize_mul64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
@@ -164,6 +202,12 @@ def concretize_prem_flags(state, args):
 
     flags = (flag_c3 << 14) | (flag_c2 << 10) | (flag_c1 << 9) | (flag_c0 << 8)
     return claripy.BVV(flags, 16)
+
+def concretize_sub32f04(state, args):
+    fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
+    fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
+    result = state.solver.FPV(fp_arg0 - fp_arg1, claripy.FSORT_FLOAT).raw_to_bv()
+    return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
 def concretize_sub64f02(state, args):
     fp_arg0 = state.solver.eval(args[0][63:0].raw_to_fp())
@@ -286,6 +330,10 @@ concretizers = {"Iop_Yl2xF64": concretize_yl2x, "Iop_ScaleF64": concretize_fscal
                 "Iop_DivF64": concretize_divf64, "Iop_MulF64": concretize_mulf64,
                 "Iop_F64toI64S": concretize_float64_to_int64s, "Iop_AbsF64": concretize_abs_float64,
                 "Iop_Sub64F0x2": concretize_sub64f02, "Iop_AddF64": concretize_add_float64,
+                "Iop_F64toF32": concretize_float64_to_float32, "Iop_Div32F0x4": concretize_div32f04,
+                "Iop_Sub32F0x4": concretize_sub32f04, "Iop_Add32F0x4": concretize_add32f04,
+                "Iop_Mul32F0x4": concretize_mul32f04, "Iop_CmpF64": concretize_cmpf64,
+                "Iop_F32toF64": concretize_float32_to_float64,
                }
 
 __all__ = ["concretizers"] + [concretizer.__name__ for concretizer in concretizers.values()]
