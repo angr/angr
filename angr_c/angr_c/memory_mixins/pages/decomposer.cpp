@@ -24,8 +24,8 @@ namespace angr_c
 
 	}
 
-	std::pair<SimMemoryObject*, uint64_t>
-		MemoryObjectDecomposer::yield(uint64_t size)
+	std::pair<SimMemoryObject*, uint32_t>
+		MemoryObjectDecomposer::yield(uint32_t size)
 	{
 		m_curr_addr += size;
 		return std::make_pair(m_memobj, m_memobj->get_length());

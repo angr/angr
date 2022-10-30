@@ -14,8 +14,7 @@ pybind11_add_module (angr_native
 	angr_c/block.cpp
 	angr_c/memories.cpp
 	angr_c/memory_mixins/sim_memory_object.cpp
-	angr_c/memory_mixins/decomposer.cpp
-	angr_c/memory_mixins/cooperation.cpp
+	angr_c/memory_mixins/pages/decomposer.cpp
 	angr_c/memory_mixins/memory_mixin_base.cpp
 	angr_c/vex_lifter.cpp
 )

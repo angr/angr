@@ -6,10 +6,10 @@
 #include <iostream>
 #include <algorithm>
 #include <stdint.h>
-#include "page.hpp"
+#include "pages/page.hpp"
 #include "endness.hpp"
 #include "memory_mixin_base.hpp"
-#include "decomposer.hpp"
+#include "pages/decomposer.hpp"
 
 namespace py = pybind11;
 using namespace py::literals;
@@ -23,7 +23,7 @@ namespace angr_c
 		PagedMemoryMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs);
 		PagedMemoryMixin(const py::kwargs kwargs);
 
-		void store(uint64_t addr, py::object data, uint64_t size, py::kwargs kwargs);
+		void store(uint64_t addr, py::object data, uint32_t size, py::kwargs kwargs);
 		py::object load(uint64_t addr, uint32_t size, py::kwargs kwargs);
 		~PagedMemoryMixin();
 
@@ -56,7 +56,7 @@ namespace angr_c
 
 	template <class T, class PAGE_TYPE>
 	void
-	PagedMemoryMixin<T, PAGE_TYPE>::store(uint64_t addr, py::object data, uint64_t size, py::kwargs kwargs)
+	PagedMemoryMixin<T, PAGE_TYPE>::store(uint64_t addr, py::object data, uint32_t size, py::kwargs kwargs)
 	{
 		Endness endness = this->endness;
 		if (kwargs.contains("endness")) {
@@ -74,26 +74,23 @@ namespace angr_c
 
 		auto tpl = this->_divide_addr(addr);
 		uint64_t pageno = tpl.first, pageoff = tpl.second;
-		Decomposer* decomposer = PAGE_TYPE::_decompose_objects(addr, data, endness, 8, 0);
+		std::unique_ptr<Decomposer> decomposer = PAGE_TYPE::decompose_objects(addr, data, endness, 8, 0);
 
 		// fast-track basic case
 		if (pageoff + size <= this->m_page_size) {
-			uint64_t written_size = 0;
+			uint32_t written_size = 0;
 			while (written_size < size) {
 				auto pair = decomposer->yield(size - written_size);
 				SimMemoryObject* sub_data = pair.first;
-				uint64_t sub_data_size = pair.second;
+				uint32_t sub_data_size = pair.second;
 				auto page = this->_get_page(pageno, true);
 				sub_data_size = std::min(sub_data_size, size - written_size);
 				page->store(pageoff + written_size, sub_data, sub_data_size, endness,
 					pageno * this->m_page_size, /* cooperate */ true);
 				written_size += sub_data_size;
 			}
-			delete decomposer;
 			return;
 		}
-
-		delete decomposer;
 	}
 
 	template <class T, class PAGE_TYPE>
@@ -116,18 +113,19 @@ namespace angr_c
 
 		auto tpl = this->_divide_addr(addr);
 		uint64_t pageno = tpl.first, pageoff = tpl.second;
-		std::vector<SimMemoryObject*> vals;
+		std::vector<std::tuple<uint64_t,SimMemoryObject*>> vals;
 
 		// fast-track basic case
 		if (pageoff + size <= this->m_page_size) {
 			auto page = this->_get_page(pageno, false);
-			vals.push_back(page->load(pageoff, size, endness, pageno * this->m_page_size, true));
+			auto tmp_vals = page->load_raw(pageoff, size, endness, pageno * this->m_page_size);
+			vals.insert(vals.end(), tmp_vals.begin(), tmp_vals.end());
 		}
 		else {
-			throw std::runtime_error("Not implemented");
+			throw std::runtime_error("The complex case of lead() is not implemented");
 		}
 
-		auto out = PAGE_TYPE::_compose_objects(vals, size, endness);
+		auto out = PAGE_TYPE::compose_objects(vals, size, endness);
 		return out;
 	}
 
@@ -159,7 +157,7 @@ namespace angr_c
 	PAGE_TYPE*
 	PagedMemoryMixin<T, PAGE_TYPE>::_initialize_page(uint64_t pageno, bool force_default)
 	{
-		return new PAGE_TYPE();
+		return new PAGE_TYPE(this->m_page_size);
 	}
 
 	template <class T, class PAGE_TYPE>

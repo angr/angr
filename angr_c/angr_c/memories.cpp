@@ -1,12 +1,12 @@
 #include "memories.hpp"
+#include "memory_mixins/pages/list_page.hpp"
 #include "memory_mixins/memory_mixin_base.hpp"
 #include "memory_mixins/paged_memory_mixin.hpp"
 #include "memory_mixins/data_normalization_mixin.hpp"
 #include "memory_mixins/size_concretization_mixin.hpp"
 #include "memory_mixins/size_normalization_mixin.hpp"
 #include "memory_mixins/address_concretization_mixin.hpp"
-#include "memory_mixins/page.hpp"
-#include "memory_mixins/cooperation.hpp"
+#include "memory_mixins/pages/cooperation.hpp"
 #include "memory_mixins/endness.hpp"
 
 
@@ -16,7 +16,7 @@ namespace angr_c
 		SizeConcretizationMixin<
 		SizeNormalizationMixin<
 		AddressConcretizationMixin<
-		PagedMemoryMixin<MemoryMixinBase, Page<MemoryObjectMixin>>
+		PagedMemoryMixin<MemoryMixinBase, ListPage<MemoryObjectMixin<SimMemoryObject>,SimMemoryObject>>
 		>
 		>
 		>

@@ -12,11 +12,11 @@ namespace angr_c
 {
 	class SimMemoryObject {
 	public:
-		SimMemoryObject(py::object ast, uint64_t base, Endness endness, uint64_t byte_width, uint64_t length = 0);
-		SimMemoryObject(uint8_t* bytes, uint64_t base, Endness endness, uint64_t byte_width, uint64_t length);
+		SimMemoryObject(py::object ast, uint64_t base, Endness endness, uint8_t byte_width, uint32_t length = 0);
+		SimMemoryObject(uint8_t* bytes, uint64_t base, Endness endness, uint8_t byte_width, uint32_t length);
 		virtual ~SimMemoryObject();
 
-		uint64_t get_length() const { return m_length; };
+		uint32_t get_length() const { return m_length; };
 		py::object get_ast() { return m_ast; }
 
 	private:
@@ -24,8 +24,8 @@ namespace angr_c
 		uint8_t* m_bytes = NULL;
 		uint64_t m_base;
 		Endness m_endness;
-		uint64_t m_length;
-		uint64_t m_byte_width;
+		uint32_t m_length;
+		uint8_t m_byte_width;
 	};
 }
 
