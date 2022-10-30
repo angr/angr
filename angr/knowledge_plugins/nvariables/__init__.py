@@ -1,6 +1,8 @@
 from typing import List, TYPE_CHECKING
 import logging
 
+import claripy
+
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 from cle.backends.elf.elf import ELF
@@ -42,9 +44,9 @@ class NVariableContainer:
         nvar = NVariable(low_pc, high_pc, value)
         return self._insertvar(nvar)
 
-    def from_pc(self, pc: int) -> Variable:
+    def from_pc(self, pc) -> Variable:
         for var in self.less_visible_vars:
-            if var.low_pc <= pc and pc < var.high_pc:
+            if claripy.is_true(var.low_pc <= pc) and claripy.is_true(pc < var.high_pc):
                 return var.from_pc(pc)
         return None
 
@@ -63,12 +65,12 @@ class NVariable(NVariableContainer):
         self.cle_variable = cle_variable
 
     # overwrites the method of NVariableContainer
-    def from_pc(self, pc: int) -> Variable:
-        if pc < self.low_pc or self.high_pc < pc:
+    def from_pc(self, pc) -> Variable:
+        if claripy.is_true(pc < self.low_pc) or claripy.is_true(self.high_pc < pc):
             # not within range
             return None
         for var in self.less_visible_vars:
-            if var.low_pc <= pc and pc < var.high_pc:
+            if claripy.is_true(var.low_pc <= pc) and claripy.is_true(pc < var.high_pc):
                 return var.from_pc(pc)
         return self.cle_variable
 

@@ -26,3 +26,4 @@ from .concrete import *
 from .jni_references import *
 from .javavm_classloader import *
 from .symbolizer import *
+from .variables import *
