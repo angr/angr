@@ -23,7 +23,7 @@ namespace angr_c
 		SizeConcretizationMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs);
 
 		void store(py::object addr, py::object data, py::object size, py::kwargs kwargs);
-		// TODO: load
+		py::object load(py::object addr, py::object size, py::kwargs kwargs);
 	};
 
 	template <class T>
@@ -49,6 +49,17 @@ namespace angr_c
 		}
 
 		// TODO: Concretization
+	}
+
+	template <class T>
+	py::object SizeConcretizationMixin<T>::load(py::object addr, py::object size, py::kwargs kwargs)
+	{
+		if (py::hasattr(size, "op") && size.attr("op").cast<std::string>() == "BVV") {
+			return T::load(addr, size, kwargs);
+		}
+
+		// TODO: Concretization
+		return py::none();
 	}
 }
 

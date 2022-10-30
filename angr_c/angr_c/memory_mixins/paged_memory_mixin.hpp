@@ -24,7 +24,7 @@ namespace angr_c
 		PagedMemoryMixin(const py::kwargs kwargs);
 
 		void store(uint64_t addr, py::object data, uint64_t size, py::kwargs kwargs);
-		py::object load(uint64_t addr, uint64_t size, py::kwargs kwargs);
+		py::object load(uint64_t addr, uint32_t size, py::kwargs kwargs);
 		~PagedMemoryMixin();
 
 	private:
@@ -98,9 +98,37 @@ namespace angr_c
 
 	template <class T, class PAGE_TYPE>
 	py::object
-	PagedMemoryMixin<T, PAGE_TYPE>::load(uint64_t addr, uint64_t size, py::kwargs kwargs)
+	PagedMemoryMixin<T, PAGE_TYPE>::load(uint64_t addr, uint32_t size, py::kwargs kwargs)
 	{
-		return py::none();
+		Endness endness = this->endness;
+		if (kwargs.contains("endness")) {
+			py::object arg = kwargs["endness"];
+			if (!arg.is_none()) {
+				std::string arg_str = arg.cast<std::string>();
+				if (arg_str == "Iend_LE") {
+					endness = LE;
+				}
+				else if (arg_str == "Iend_BE") {
+					endness = BE;
+				}
+			}
+		}
+
+		auto tpl = this->_divide_addr(addr);
+		uint64_t pageno = tpl.first, pageoff = tpl.second;
+		std::vector<SimMemoryObject*> vals;
+
+		// fast-track basic case
+		if (pageoff + size <= this->m_page_size) {
+			auto page = this->_get_page(pageno, false);
+			vals.push_back(page->load(pageoff, size, endness, pageno * this->m_page_size, true));
+		}
+		else {
+			throw std::runtime_error("Not implemented");
+		}
+
+		auto out = PAGE_TYPE::_compose_objects(vals, size, endness);
+		return out;
 	}
 
 	template <class T, class PAGE_TYPE>

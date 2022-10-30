@@ -1,12 +1,20 @@
 #include "sim_memory_object.hpp"
 
+
 namespace angr_c
 {
 	SimMemoryObject::SimMemoryObject(py::object ast, uint64_t base, Endness endness, uint64_t byte_width, uint64_t length)
 		: m_ast(ast), m_bytes(NULL), m_base(base), m_endness(endness), m_byte_width(byte_width)
 	{
 		if (length == 0) {
-			// TODO: Call into Python land to get the length of the AST
+			uint64_t bit_size;
+			if (py::isinstance<py::bytes>(ast)) {
+				bit_size = ast.attr("__len__")().cast<uint64_t>();
+			}
+			else {
+				bit_size = ast.attr("size")().cast<uint64_t>();
+			}
+			length = bit_size / m_byte_width;
 		}
 		m_length = length;
 	}

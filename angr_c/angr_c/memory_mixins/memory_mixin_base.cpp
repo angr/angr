@@ -8,7 +8,6 @@ namespace angr_c
 
 	}
 
-
 	MemoryMixinBase::MemoryMixinBase(const py::kwargs kwargs)
 	{
 		// TODO: Extract endness

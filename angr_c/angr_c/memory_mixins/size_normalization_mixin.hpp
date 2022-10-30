@@ -52,7 +52,7 @@ namespace angr_c
 			out_size = size.cast<uint32_t>();
 		}
 		else if (py::hasattr(size, "op") && size.attr("op").cast<std::string>() == "BVV") {
-			out_size = size.attr("args")[0].cast<uint32_t>();
+			out_size = size.attr("args").cast<py::tuple>()[0].cast<uint32_t>();
 		}
 		else {
 			throw py::value_error("Size must be concretely resolved by this point in the memory stack");

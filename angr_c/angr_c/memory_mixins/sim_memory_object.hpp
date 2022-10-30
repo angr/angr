@@ -2,6 +2,7 @@
 #define _SIM_MEMORY_OBJECT_H_
 
 #include <pybind11/pybind11.h>
+#include <stdint.h>
 #include "endness.hpp"
 
 namespace py = pybind11;
@@ -16,6 +17,7 @@ namespace angr_c
 		virtual ~SimMemoryObject();
 
 		uint64_t get_length() const { return m_length; };
+		py::object get_ast() { return m_ast; }
 
 	private:
 		py::object m_ast;

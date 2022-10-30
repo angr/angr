@@ -2,6 +2,7 @@
 #define _MEMORY_MIXIN_BASE_H_
 
 #include <pybind11/pybind11.h>
+#include <stdint.h>
 #include "endness.hpp"
 
 namespace py = pybind11;

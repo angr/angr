@@ -22,7 +22,7 @@ namespace angr_c
 		DataNormalizationMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs);
 
 		void store(py::object addr, py::object data, py::object size, py::kwargs kwargs);
-		void load(py::object addr, py::object size, py::kwargs kwargs);
+		py::object load(py::object addr, py::object size, py::kwargs kwargs);
 	private:
 		py::object _convert_to_ast(py::object thing, py::object size, uint32_t byte_with);
 	};
@@ -55,9 +55,9 @@ namespace angr_c
 	}
 
 	template <class T>
-	void DataNormalizationMixin<T>::load(py::object addr, py::object data, py::kwargs kwargs)
+	py::object DataNormalizationMixin<T>::load(py::object addr, py::object size, py::kwargs kwargs)
 	{
-		// TODO: convert addr from BVV to int
+		return T::load(addr, size, kwargs);
 	}
 
 	template <class T>
