@@ -15,8 +15,8 @@ namespace angr_c
 	class Decomposer {
 	public:
 		Decomposer(uint64_t addr, py::object data, uint8_t byte_width, Endness endness, uint64_t page_addr); // TODO: label
-		virtual ~Decomposer();
-		virtual std::pair<SimMemoryObject*, uint32_t> yield(uint32_t size) = 0;
+		~Decomposer();
+		std::pair<std::shared_ptr<SimMemoryObject>, uint32_t> yield(uint32_t size);
 
 	protected:
 		uint64_t m_addr;
@@ -30,10 +30,10 @@ namespace angr_c
 	public:
 		MemoryObjectDecomposer(uint64_t addr, py::object data, uint8_t byte_width, Endness endness, uint64_t page_addr); // TODO: label
 		~MemoryObjectDecomposer();
-		std::pair<SimMemoryObject*, uint32_t> yield(uint32_t size);
+		std::pair<std::shared_ptr<SimMemoryObject>, uint32_t> yield(uint32_t size);
 
 	private:
-		SimMemoryObject* m_memobj;
+		std::shared_ptr<SimMemoryObject> m_memobj;
 	};
 }
 

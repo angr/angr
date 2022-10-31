@@ -21,7 +21,7 @@ namespace angr_c
 	protected:
 		uint32_t bits;
 		uint32_t byte_width;
-		Endness endness = Unspecified;
+		Endness endness;
 	};
 }
 

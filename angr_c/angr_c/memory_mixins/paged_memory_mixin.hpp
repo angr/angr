@@ -17,7 +17,7 @@ using namespace py::literals;
 
 namespace angr_c
 {
-	template <class T, class PAGE_TYPE>
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
 	class PagedMemoryMixin : public T {
 	public:
 		PagedMemoryMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs);
@@ -36,8 +36,8 @@ namespace angr_c
 		PAGE_TYPE* _initialize_page(uint64_t pageno, bool force_default);
 	};
 
-	template <class T, class PAGE_TYPE>
-	PagedMemoryMixin<T, PAGE_TYPE>::PagedMemoryMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs)
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::PagedMemoryMixin(uint32_t bits, uint32_t byte_width, Endness endness, py::kwargs kwargs)
 		: T(bits, byte_width, endness)
 	{
 		uint32_t page_size = 4096;
@@ -47,16 +47,16 @@ namespace angr_c
 		m_page_size = page_size;
 	}
 
-	template <class T, class PAGE_TYPE>
-	PagedMemoryMixin<T, PAGE_TYPE>::PagedMemoryMixin(const py::kwargs kwargs)
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::PagedMemoryMixin(const py::kwargs kwargs)
 		: T(kwargs)
 	{
 
 	}
 
-	template <class T, class PAGE_TYPE>
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
 	void
-	PagedMemoryMixin<T, PAGE_TYPE>::store(uint64_t addr, py::object data, uint32_t size, py::kwargs kwargs)
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::store(uint64_t addr, py::object data, uint32_t size, py::kwargs kwargs)
 	{
 		Endness endness = this->endness;
 		if (kwargs.contains("endness")) {
@@ -64,24 +64,24 @@ namespace angr_c
 			if (!arg.is_none()) {
 				std::string arg_str = arg.cast<std::string>();
 				if (arg_str == "Iend_LE") {
-					endness = LE;
+					endness = Endness::LE;
 				}
 				else if (arg_str == "Iend_BE") {
-					endness = BE;
+					endness = Endness::BE;
 				}
 			}
 		}
 
 		auto tpl = this->_divide_addr(addr);
 		uint64_t pageno = tpl.first, pageoff = tpl.second;
-		std::unique_ptr<Decomposer> decomposer = PAGE_TYPE::decompose_objects(addr, data, endness, 8, 0);
+		DECOMPOSER_T decomposer = PAGE_TYPE::decompose_objects(addr, data, endness, 8, 0);
 
 		// fast-track basic case
 		if (pageoff + size <= this->m_page_size) {
 			uint32_t written_size = 0;
 			while (written_size < size) {
-				auto pair = decomposer->yield(size - written_size);
-				SimMemoryObject* sub_data = pair.first;
+				auto pair = decomposer.yield(size - written_size);
+				auto sub_data = pair.first;
 				uint32_t sub_data_size = pair.second;
 				auto page = this->_get_page(pageno, true);
 				sub_data_size = std::min(sub_data_size, size - written_size);
@@ -93,9 +93,9 @@ namespace angr_c
 		}
 	}
 
-	template <class T, class PAGE_TYPE>
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
 	py::object
-	PagedMemoryMixin<T, PAGE_TYPE>::load(uint64_t addr, uint32_t size, py::kwargs kwargs)
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::load(uint64_t addr, uint32_t size, py::kwargs kwargs)
 	{
 		Endness endness = this->endness;
 		if (kwargs.contains("endness")) {
@@ -103,17 +103,17 @@ namespace angr_c
 			if (!arg.is_none()) {
 				std::string arg_str = arg.cast<std::string>();
 				if (arg_str == "Iend_LE") {
-					endness = LE;
+					endness = Endness::LE;
 				}
 				else if (arg_str == "Iend_BE") {
-					endness = BE;
+					endness = Endness::BE;
 				}
 			}
 		}
 
 		auto tpl = this->_divide_addr(addr);
 		uint64_t pageno = tpl.first, pageoff = tpl.second;
-		std::vector<std::tuple<uint64_t,SimMemoryObject*>> vals;
+		std::vector<std::tuple<uint64_t,std::shared_ptr<SimMemoryObject>>> vals;
 
 		// fast-track basic case
 		if (pageoff + size <= this->m_page_size) {
@@ -129,9 +129,9 @@ namespace angr_c
 		return out;
 	}
 
-	template <class T, class PAGE_TYPE>
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
 	PAGE_TYPE*
-	PagedMemoryMixin<T, PAGE_TYPE>::_get_page(uint64_t pageno, bool writing)
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::_get_page(uint64_t pageno, bool writing)
 	{
 		bool force_default = true;
 		// force_default means don't consult any "backers"
@@ -153,24 +153,24 @@ namespace angr_c
 		return page;
 	}
 	
-	template <class T, class PAGE_TYPE>
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
 	PAGE_TYPE*
-	PagedMemoryMixin<T, PAGE_TYPE>::_initialize_page(uint64_t pageno, bool force_default)
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::_initialize_page(uint64_t pageno, bool force_default)
 	{
 		return new PAGE_TYPE(this->m_page_size);
 	}
 
-	template <class T, class PAGE_TYPE>
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
 	std::pair<uint64_t, uint64_t>
-	PagedMemoryMixin<T, PAGE_TYPE>::_divide_addr(uint64_t addr)
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::_divide_addr(uint64_t addr)
 	{
 		uint64_t pageno = addr / this->m_page_size;
 		uint64_t pageoff = addr % this->m_page_size;
 		return std::make_pair(pageno, pageoff);
 	}
 
-	template <class T, class PAGE_TYPE>
-	PagedMemoryMixin<T, PAGE_TYPE>::~PagedMemoryMixin()
+	template <class T, class PAGE_TYPE, class DECOMPOSER_T>
+	PagedMemoryMixin<T, PAGE_TYPE, DECOMPOSER_T>::~PagedMemoryMixin()
 	{
 
 	}

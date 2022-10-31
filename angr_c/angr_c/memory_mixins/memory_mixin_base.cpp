@@ -9,6 +9,7 @@ namespace angr_c
 	}
 
 	MemoryMixinBase::MemoryMixinBase(const py::kwargs kwargs)
+		: endness(Endness::Unspecified)
 	{
 		// TODO: Extract endness
 	}

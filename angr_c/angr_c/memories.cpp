@@ -16,14 +16,25 @@ namespace angr_c
 		SizeConcretizationMixin<
 		SizeNormalizationMixin<
 		AddressConcretizationMixin<
-		PagedMemoryMixin<MemoryMixinBase, ListPage<MemoryObjectMixin<SimMemoryObject>,SimMemoryObject>>
+		PagedMemoryMixin<
+			MemoryMixinBase,
+			ListPage<MemoryObjectMixin<SimMemoryObject>,SimMemoryObject, MemoryObjectDecomposer>,
+			MemoryObjectDecomposer
+		>
 		>
 		>
 		>
 	> DefaultMemory;
 
+	void profile_static_function()
+	{
+		// A static function that we can use to measure function call overhead
+		;
+	}
+
 	void register_memory_class(py::module_& m)
 	{
+		m.def("profile_static_function", &profile_static_function);
 		py::class_<DefaultMemory>(m, "DefaultMemory")
 			.def(py::init<
 				const py::kwargs&>())
@@ -36,9 +47,9 @@ namespace angr_c
 			.def("store", &DefaultMemory::store, "TODO")
 			.def("load", &DefaultMemory::load, "TODO");
 		py::enum_<Endness>(m, "Endness")
-			.value("Unspecified", Unspecified)
-			.value("BE", BE)
-			.value("LE", LE)
+			.value("Unspecified", Endness::Unspecified)
+			.value("BE", Endness::BE)
+			.value("LE", Endness::LE)
 			.export_values();
 	}
 }

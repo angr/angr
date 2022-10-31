@@ -16,7 +16,7 @@ namespace angr_c
 	MemoryObjectDecomposer::MemoryObjectDecomposer(uint64_t addr, py::object data, uint8_t byte_width, Endness endness, uint64_t page_addr)
 		: Decomposer(addr, data, byte_width, endness, page_addr)
 	{
-		this->m_memobj = new SimMemoryObject(data, m_curr_addr, m_endness, m_byte_width); // TODO: smart pointer
+		this->m_memobj = std::shared_ptr<SimMemoryObject>(new SimMemoryObject(data, m_curr_addr, m_endness, m_byte_width));
 	}
 
 	MemoryObjectDecomposer::~MemoryObjectDecomposer()
@@ -24,7 +24,7 @@ namespace angr_c
 
 	}
 
-	std::pair<SimMemoryObject*, uint32_t>
+	std::pair<std::shared_ptr<SimMemoryObject>, uint32_t>
 		MemoryObjectDecomposer::yield(uint32_t size)
 	{
 		m_curr_addr += size;

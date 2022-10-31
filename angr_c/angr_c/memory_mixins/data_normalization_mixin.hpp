@@ -80,6 +80,7 @@ namespace angr_c
 			thing = thing.attr("encode")("utf-8");
 		}
 		if (py::isinstance<py::bytes>(thing) || py::isinstance<py::bytearray>(thing) || py::isinstance<py::memoryview>(thing)) {
+			// TODO: Optimize it - why do we want to convert bytes into BVVs?
 			return claripyBVV(thing);
 		}
 		if (py::isinstance<py::int_>(thing)) {
