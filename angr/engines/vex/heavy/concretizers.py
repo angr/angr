@@ -20,7 +20,7 @@ def concretize_2xm1(state, args):
     # 2xm1(x) = 2 ** x - 1. Concretize 2**x part alone since only that cannot be modelled in Z3.
     arg_x = state.solver.eval(args[1])
     if -1 <= arg_x <= 1:
-        return claripy.FPV(math.pow(2, arg_x) - 1, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.pow(2, arg_x) - 1, claripy.FSORT_DOUBLE)
 
     # If x is outside range [-1.0, 1.0], result is undefined. We return argument itself as observed on an Intel CPU.
     return args[1]
@@ -129,23 +129,23 @@ def concretize_fscale(state, args):
     arg_x = state.solver.eval(args[1])
     arg_y = math.floor(state.solver.eval(args[2]))
     if math.isnan(arg_x) or math.isnan(arg_y):
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs(arg_x) == math.inf and arg_y == -1 * math.inf:
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if arg_x == 0.0 and arg_y == math.inf:
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
-    return claripy.FPV(arg_x * math.pow(2, arg_y), claripy.FSORT_DOUBLE)
+    return state.solver.FPV(arg_x * math.pow(2, arg_y), claripy.FSORT_DOUBLE)
 
 def concretize_fsqrt(state, args):
     # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
     arg_1 = state.solver.eval(args[1])
     if arg_1 < 0 or math.isnan(arg_1):
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
-    return claripy.FPV(math.sqrt(arg_1), claripy.FSORT_DOUBLE)
+    return state.solver.FPV(math.sqrt(arg_1), claripy.FSORT_DOUBLE)
 
 def concretize_prem(state, args):
     # Compute partial remainder. Z3 does not support modulo for reals: https://github.com/Z3Prover/z3/issues/557
@@ -153,7 +153,7 @@ def concretize_prem(state, args):
     dividend = state.solver.eval(args[1])
     divisor = state.solver.eval(args[2])
     if math.isnan(dividend) or math.isnan(divisor) or abs(dividend) == math.inf or divisor == 0.0:
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs(divisor) == math.inf or dividend == 0.0:
         return args[1]
@@ -173,9 +173,9 @@ def concretize_prem(state, args):
     if result == 0.0:
         if math.copysign(1.0, dividend) < 0:
             # According to Intel manual, if result is 0, its sign should be same as that of dividend.
-            return claripy.FPV(-0.0, claripy.FSORT_DOUBLE)
+            return state.solver.FPV(-0.0, claripy.FSORT_DOUBLE)
 
-    return claripy.FPV(result, claripy.FSORT_DOUBLE)
+    return state.solver.FPV(result, claripy.FSORT_DOUBLE)
 
 def concretize_prem_flags(state, args):
     # Compute FPU flags for partial remainder.
@@ -229,18 +229,18 @@ def concretize_trig_cos(state, args):
     abs_arg_x = abs(arg_x)
 
     if math.isnan(abs_arg_x):
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x == math.inf:
         # Floating-point invalid-operation exception
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x > pow(2, 63):
         # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
         # exception: leave value changed
         return args[1]
 
-    return claripy.FPV(math.cos(arg_x), claripy.FSORT_DOUBLE)
+    return state.solver.FPV(math.cos(arg_x), claripy.FSORT_DOUBLE)
 
 def concretize_trig_sin(state, args):
     # sin(x). Z3 does support *some* cases of sin(see https://github.com/Z3Prover/z3/issues/680) but we don't use
@@ -249,18 +249,18 @@ def concretize_trig_sin(state, args):
     abs_arg_x = abs(arg_x)
 
     if math.isnan(abs_arg_x):
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x == math.inf:
         # Floating-point invalid-operation exception
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x > pow(2, 63):
         # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
         # exception: leave value changed
         return args[1]
 
-    return claripy.FPV(math.sin(arg_x), claripy.FSORT_DOUBLE)
+    return state.solver.FPV(math.sin(arg_x), claripy.FSORT_DOUBLE)
 
 def concretize_trig_tan(state, args):
     # tan(x). Concretize fully since it cannot be modelled in Z3.
@@ -269,18 +269,18 @@ def concretize_trig_tan(state, args):
     abs_arg_x = abs(arg_x)
 
     if math.isnan(abs_arg_x):
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x == math.inf:
         # Floating-point invalid-operation exception
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     if abs_arg_x > pow(2, 63):
         # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
         # exception: leave value changed
         return args[1]
 
-    return claripy.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
+    return state.solver.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
 
 def concretize_yl2x(state, args):
     # yl2x(y, x) = y * log2(x)
@@ -295,7 +295,7 @@ def concretize_yl2x(state, args):
 
     if arg_x == 0:
         if abs(arg_y) == math.inf:
-            return claripy.FPV(-1 * arg_y, claripy.FSORT_DOUBLE)
+            return state.solver.FPV(-1 * arg_y, claripy.FSORT_DOUBLE)
         elif arg_y == 0:
             # TODO: Indicate floating-point invalid-operation exception
             return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
