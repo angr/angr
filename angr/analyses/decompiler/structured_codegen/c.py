@@ -320,46 +320,41 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             else:
                 name = str(variable)
 
-            vartypes = set(x[1] for x in cvar_and_vartypes)
+            # sort by number of occurrences
+            vartypes = [x[1] for x in cvar_and_vartypes]
+            vartypes = list(dict.fromkeys(sorted(vartypes, key=vartypes.count, reverse=True)))
 
-            if len(vartypes) == 1:
-                # a single type. let's be as C as possible
-                var_type = next(iter(vartypes), None)
-                if isinstance(var_type, SimType):
-                    raw_type_str = var_type.c_repr(name=name)
+            for i, var_type in enumerate(vartypes):
+                if i == 0:
+                    if isinstance(var_type, SimType):
+                        raw_type_str = var_type.c_repr(name=name)
+                    else:
+                        raw_type_str = '%s %s' % (var_type, name)
+
+                    assert name in raw_type_str
+                    type_pre, type_post = raw_type_str.split(name, 1)
+                    if type_pre.endswith(" "):
+                        type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
+                        type_pre = type_pre.rstrip(" ")
+                    else:
+                        type_pre_spaces = ""
+                    yield type_pre, var_type
+                    if type_pre_spaces:
+                        yield type_pre_spaces, None
+                    yield name, cvariable
+                    yield type_post, var_type
+                    yield ";  // ", None
+                    yield variable.loc_repr(self.codegen.project.arch), None
+                # multiple types
                 else:
-                    raw_type_str = '%s %s' % (var_type, name)
-
-                assert name in raw_type_str
-                type_pre, type_post = raw_type_str.split(name, 1)
-                if type_pre.endswith(" "):
-                    type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
-                    type_pre = type_pre.rstrip(" ")
-                else:
-                    type_pre_spaces = ""
-                yield type_pre, var_type
-                if type_pre_spaces:
-                    yield type_pre_spaces, None
-                yield name, cvariable
-                yield type_post, var_type
-            else:
-                # multiple types...
-                for i, var_type in enumerate(vartypes):
-                    if i:
-                        yield "|", None
-
+                    if i == 1:
+                        yield ", Other Possible Types: ", None
+                    else:
+                        yield ", ", None
                     if isinstance(var_type, SimType):
                         yield var_type.c_repr(), var_type
                     else:
                         yield str(var_type), var_type
-
-                yield " ", None
-                yield name, cvariable
-            yield ";", None
-
-            loc_repr = variable.loc_repr(self.codegen.project.arch)
-            yield "  // ", None
-            yield loc_repr, None
             yield "\n", None
 
         if unified_to_var_and_types:
