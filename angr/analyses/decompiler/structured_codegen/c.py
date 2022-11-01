@@ -370,7 +370,17 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         indent_str = self.indent_str(indent)
 
         if self.codegen.show_local_types:
-            for ty in self.variable_manager.types.iter_own():
+            local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
+            for ty in local_types:
+                if isinstance(ty, SimStruct):
+                    for field in ty.fields.values():
+                        if isinstance(field, SimTypePointer):
+                            if isinstance(field.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                                field = field.pts_to.elem_type
+                            else:
+                                field = field.pts_to
+                        if isinstance(field, SimStruct):
+                            local_types.append(field)
                 c_repr = ty.c_repr(full=True)
                 c_repr = f'typedef {c_repr} {ty._name}'
                 first = True
