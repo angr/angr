@@ -125,23 +125,19 @@ def concretize_mul64f02(state, args):
     return claripy.Concat(args[0][(args[0].length - 1):result.size()], result)
 
 def concretize_fscale(state, args):
-    # fscale(x, y) = x * (2 ** y). Concretize 2**y part alone since only that cannot be modelled in Z3.
-    rm = translate_rm(args[0])
-    arg_x = args[1]
-    arg_y = args[2]
-    e_arg_x = state.solver.eval(arg_x)
-    e_arg_y = math.floor(state.solver.eval(arg_y))
-    if math.isnan(e_arg_x) or math.isnan(e_arg_y):
+    # fscale(x, y) = x * (2 ** y)
+    arg_x = state.solver.eval(args[1])
+    arg_y = math.floor(state.solver.eval(args[2]))
+    if math.isnan(arg_x) or math.isnan(arg_y):
         return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
-    if abs(e_arg_x) == math.inf and e_arg_y == -1 * math.inf:
+    if abs(arg_x) == math.inf and arg_y == -1 * math.inf:
         return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
-    if e_arg_x == 0.0 and e_arg_y == math.inf:
+    if arg_x == 0.0 and arg_y == math.inf:
         return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
-    arg_2_y = claripy.FPV(math.pow(2, e_arg_y), claripy.FSORT_DOUBLE)
-    return claripy.fpMul(rm, arg_x, arg_2_y)
+    return claripy.FPV(arg_x * math.pow(2, arg_y), claripy.FSORT_DOUBLE)
 
 def concretize_fsqrt(state, args):
     # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
@@ -287,48 +283,44 @@ def concretize_trig_tan(state, args):
     return claripy.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
 
 def concretize_yl2x(state, args):
-    # yl2x(y, x) = y * log2(x). Concretize log2(x) part alone since only that cannot be modelled in Z3.
+    # yl2x(y, x) = y * log2(x)
     # 3 arguments are passed: first is FP rounding mode. y is from st(1) and x from st(0).
     # TODO: Return NaN if either arg is non-numeric.
     # TODO: Set FPU flags.
-    rm = translate_rm(args[0])
-    arg_y = args[1]
-    arg_x = args[2]
-    e_arg_x = state.solver.eval(arg_x)
-    e_arg_y = state.solver.eval(arg_y)
-    if e_arg_x < 0:
+    arg_x = state.solver.eval(args[2])
+    arg_y = state.solver.eval(args[1])
+    if arg_x < 0:
         # TODO: Indicate floating-point invalid-operation exception
-        return arg_x
+        return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
 
-    if e_arg_x == 0:
-        if abs(e_arg_y) == math.inf:
-            return claripy.FPV(-1 * e_arg_y, claripy.FSORT_DOUBLE)
-        elif e_arg_y == 0:
+    if arg_x == 0:
+        if abs(arg_y) == math.inf:
+            return claripy.FPV(-1 * arg_y, claripy.FSORT_DOUBLE)
+        elif arg_y == 0:
             # TODO: Indicate floating-point invalid-operation exception
-            return arg_x
+            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
         else:
             # TODO: Indicate floating-point zero-division exception
-            return arg_x
+            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
 
-    if e_arg_x == 1:
-        if abs(e_arg_y) == math.inf:
+    if arg_x == 1:
+        if abs(arg_y) == math.inf:
             # TODO: Indicate floating-point invalid-operation exception
-            return arg_x
+            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
 
         # TODO: How to distiguish between +0 and -0?
-        return claripy.FPV(0, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(0, claripy.FSORT_DOUBLE)
 
-    if e_arg_x == math.inf:
-        if e_arg_y == 0:
+    if arg_x == math.inf:
+        if arg_y == 0:
             # TODO: Indicate floating-point invalid-operation exception
-            return arg_x
-        if e_arg_y < 0:
-            return claripy.FPV(-1 * math.inf, claripy.FSORT_DOUBLE)
+            return state.solver.FPV(arg_x, claripy.FSORT_DOUBLE)
+        if arg_y < 0:
+            return state.solver.FPV(-1 * math.inf, claripy.FSORT_DOUBLE)
 
-        return claripy.FPV(math.inf, claripy.FSORT_DOUBLE)
+        return state.solver.FPV(math.inf, claripy.FSORT_DOUBLE)
 
-    log2_arg_x = claripy.FPV(math.log2(e_arg_x), claripy.FSORT_DOUBLE)
-    return claripy.fpMul(rm, arg_y, log2_arg_x)
+    return state.solver.FPV(arg_y * math.log2(arg_x), claripy.FSORT_DOUBLE)
 
 
 concretizers = {"Iop_Yl2xF64": concretize_yl2x, "Iop_ScaleF64": concretize_fscale,
