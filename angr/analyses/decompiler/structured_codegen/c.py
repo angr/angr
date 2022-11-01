@@ -374,7 +374,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                                 field = field.pts_to.elem_type
                             else:
                                 field = field.pts_to
-                        if isinstance(field, SimStruct):
+                        if isinstance(field, SimStruct) and field not in local_types:
                             local_types.append(field)
                 c_repr = ty.c_repr(full=True)
                 c_repr = f'typedef {c_repr} {ty._name}'
