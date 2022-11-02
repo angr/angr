@@ -1,10 +1,34 @@
 from typing import Type, TypeVar, overload, Any, Optional
 import logging
 
+from cle.backends.elf.variable import Variable
+
+from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
 
 l = logging.getLogger(name=__name__)
+
+
+class SimVariable:
+    """
+    A SimVariable will get dynamically created when queriyng for variable in a state with the SimVariables state
+    plugin. It features a link to the state, an address and a type.
+    """
+    def __init__(self, state: SimState, cle_variable: Variable):
+        self.state = state
+        self._cle_variable = cle_variable
+
+    @property
+    def addr(self):
+        # FIXME the address should depend on the state ip/pc
+        return self._cle_variable.addr
+
+    @property
+    def type(self):
+        return self._cle_variable.type
+
 
 class SimVariables(SimStatePlugin):
     """
@@ -20,13 +44,15 @@ class SimVariables(SimStatePlugin):
 
     def get_variable(self, var_name):
         kb = self.state.project.kb
-        return kb.nvariables[var_name][self.state.ip]
+        cle_var = kb.nvariables[var_name][self.state.ip]
+        if cle_var:
+            return SimVariable(self.state, cle_var)
+        return None
 
     def __getitem__(self, var_name):
         return self.get_variable(var_name)
 
 
-from angr.sim_state import SimState
 SimState.register_default('nvariables', SimVariables)
 
 from .. import sim_options as o
