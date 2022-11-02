@@ -90,6 +90,9 @@ class CuteFormatter(logging.Formatter):
         asctime: str = self.formatTime(record, self.datefmt)
         return f"{record.levelname : <7} | {asctime : <23} | {name} | {message}"
 
+def qqq():
+    for i in range(100):
+        logging.getLogger(str(i)).warning("abc")
 
 def is_enabled_for(logger, level):
     if level == 1:
