@@ -1,5 +1,8 @@
 import logging
 import zlib
+
+from .ansi import color
+
 from .testing import is_testing
 from ..utils.formatting import ansi_color_enabled
 
@@ -77,18 +80,29 @@ class CuteFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord):
         name: str = record.name
+		level: str = record.levelname
         message: str = record.getMessage()
-        base_len: int = len(name)
+        name_len: int = len(name)
+        lvl_len: int = len(name)
         if self._should_color:
+			# Color level
+			if record.levelno >= logging.CRITICAL:
+				level = ansi.color(ansi.Color.red, True) + level + ansi.clear
+				level = ansi.color(ansi.BackgroundColor.yellow, False) + level + ansi.clear
+			elif record.levelno >= logging.ERROR:
+				level = ansi.color(ansi.Color.red, False) + level + ansi.clear
+			elif record.levelno >= logging.WARNING:
+				level = ansi.color(ansi.Color.yellow, False) + level + ansi.clear
+			elif record.levelno >= logging.INFO:
+				level = ansi.color(ansi.Color.blue, False) + level + ansi.clear
+			# Color text
             c: int = zlib.adler32(record.name.encode()) % 7
-            if c != 0:
-                reset: str = "\x1b[0m"
-                color: str = "\x1b[%dm" % (c + 31)
-                name = color + name + reset
-                message = color + message + reset
-        name = name.ljust(14 + len(name) - base_len)
-        asctime: str = self.formatTime(record, self.datefmt)
-        return f"{record.levelname : <7} | {asctime : <23} | {name} | {message}"
+            if c != 0:  # Do not color black or white, allow 'uncolored'
+                message = color + ansi.color(ansi.Color(c), False) + message + ansi.clear
+                name = color + ansi.color(ansi.Color(c), False) + name + ansi.clear
+        name = name.ljust(14 + len(name) - name_len)
+		level = level.ljust(7 + len(level) - lvl_len)
+        return f"{level} | {self.formatTime(record, self.datefmt) : <23} | {name} | {message}"
 
 
 def is_enabled_for(logger, level):
