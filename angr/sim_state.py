@@ -376,6 +376,15 @@ class SimState(PluginHub):
     def arch(self, v):
         self._arch = v
 
+    @property
+    def dwarf_cfa(self):
+        # FIXME This is only an approximation!
+        if   self.arch.name == 'AMD64':
+            return self.regs.rbp + 16
+        elif self.arch.name == 'X86':
+            return self.regs.ebp + 8
+        return None
+
     #
     # Plugin accessors
     #
