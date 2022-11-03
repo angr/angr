@@ -1,6 +1,8 @@
 from typing import Optional, Union
 from enum import Enum, unique
 
+__all__ = ("clear", "Color", "BackgroundColor", "color")
+
 
 _ansi_prefix = "\x1b["
 
@@ -28,7 +30,7 @@ class Color(Enum):
     white = 37
 
 
-BackgroundColor = unique(Enum("BackgroundColor", { i.name:(i.value+10) for i in TextColor }))
+BackgroundColor = unique(Enum("BackgroundColor", { i.name:(i.value+10) for i in Color }))
 
 
 #
@@ -41,6 +43,6 @@ def color(color: Union[Color, BackgroundColor], bright: bool):
 	Return the ansi prefix using the given code
 	Bright may not be used with a BackgroundColor
 	"""
-	if isinstance(color, BackgroundColor):
+	if bright and isinstance(color, BackgroundColor):
 		raise ValueError("Backgrounds should not be bright")
-	return f"{_ansi_prefix}{colore.value};1m" if bright else f"{_ansi_prefix}{color.value}m"
+	return f"{_ansi_prefix}{color.value};1m" if bright else f"{_ansi_prefix}{color.value}m"

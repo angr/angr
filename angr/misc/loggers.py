@@ -1,7 +1,7 @@
 import logging
 import zlib
 
-from .ansi import color
+from .ansi import *
 
 from .testing import is_testing
 from ..utils.formatting import ansi_color_enabled
@@ -74,34 +74,35 @@ class CuteFormatter(logging.Formatter):
 
     __slots__ = ("_should_color",)
 
-    def __init__(self, color: bool):
+    def __init__(self, should_color: bool):
         super().__init__()
-        self._should_color: bool = color
+        self._should_color: bool = should_color
 
     def format(self, record: logging.LogRecord):
         name: str = record.name
-		level: str = record.levelname
+        level: str = record.levelname
         message: str = record.getMessage()
         name_len: int = len(name)
-        lvl_len: int = len(name)
+        lvl_len: int = len(level)
         if self._should_color:
-			# Color level
-			if record.levelno >= logging.CRITICAL:
-				level = ansi.color(ansi.Color.red, True) + level + ansi.clear
-				level = ansi.color(ansi.BackgroundColor.yellow, False) + level + ansi.clear
-			elif record.levelno >= logging.ERROR:
-				level = ansi.color(ansi.Color.red, False) + level + ansi.clear
-			elif record.levelno >= logging.WARNING:
-				level = ansi.color(ansi.Color.yellow, False) + level + ansi.clear
-			elif record.levelno >= logging.INFO:
-				level = ansi.color(ansi.Color.blue, False) + level + ansi.clear
-			# Color text
+            # Color level
+            if record.levelno >= logging.CRITICAL:
+                level = color(Color.red, True) + level + clear
+                level = color(BackgroundColor.yellow, False) + level + clear
+            elif record.levelno >= logging.ERROR:
+                level = color(Color.red, False) + level + clear
+            elif record.levelno >= logging.WARNING:
+                level = color(Color.yellow, False) + level + clear
+            elif record.levelno >= logging.INFO:
+                level = color(Color.blue, False) + level + clear
+            # Color text
             c: int = zlib.adler32(record.name.encode()) % 7
             if c != 0:  # Do not color black or white, allow 'uncolored'
-                message = color + ansi.color(ansi.Color(c), False) + message + ansi.clear
-                name = color + ansi.color(ansi.Color(c), False) + name + ansi.clear
+                col = Color(c + Color.black.value)
+                message = color(col, False) + message + clear
+                name = color(col, False) + name + clear
         name = name.ljust(14 + len(name) - name_len)
-		level = level.ljust(7 + len(level) - lvl_len)
+        level = level.ljust(8 + len(level) - lvl_len)
         return f"{level} | {self.formatTime(record, self.datefmt) : <23} | {name} | {message}"
 
 
