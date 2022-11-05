@@ -253,7 +253,7 @@ class MemoryLocation(Atom):
         # pylint:disable=isinstance-second-argument-not-valid-type
         return type(other) is MemoryLocation and \
                (
-                    self.addr is other.addr if isinstance(self.addr, (claripy.ast.BV)) else self.addr == other.addr
+                    self.addr is other.addr if (isinstance(self.addr, (claripy.ast.BV)) or isinstance(other.addr, claripy.ast.BV)) else self.addr == other.addr
                ) and \
                self.size == other.size and \
                self.endness == other.endness
