@@ -296,7 +296,11 @@ class SimLinux(SimUserland):
 
         # Put argc on stack and fix the stack pointer
         newsp = argv - state.arch.bytes
-        state.memory.store(newsp, argc, endness=state.arch.memory_endness)
+        if len(argc) < state.arch.bits:
+            argc_bvv = claripy.ZeroExt(state.arch.bits - len(argc), argc)
+        else:
+            argc_bvv = argc
+        state.memory.store(newsp, argc_bvv, endness=state.arch.memory_endness)
         state.regs.sp = newsp
 
         if state.arch.name in ('PPC32',):
