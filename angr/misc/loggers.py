@@ -80,10 +80,12 @@ class CuteFormatter(logging.Formatter):
         message: str = record.getMessage()
         base_len: int = len(name)
         if self._should_color:
-            reset: str = "\x1b[0m"
-            color: str = "\x1b[%dm" % (zlib.adler32(record.name.encode()) % 7 + 31)
-            name = color + name + reset
-            message = color + message + reset
+            c: int = zlib.adler32(record.name.encode()) % 7
+            if c != 0:
+                reset: str = "\x1b[0m"
+                color: str = "\x1b[%dm" % (c + 31)
+                name = color + name + reset
+                message = color + message + reset
         name = name.ljust(14 + len(name) - base_len)
         asctime: str = self.formatTime(record, self.datefmt)
         return f"{record.levelname : <7} | {asctime : <23} | {name} | {message}"
