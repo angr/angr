@@ -17,8 +17,8 @@ class Loggers:
         self.load_all_loggers()
         self.profiling_enabled = False
 
-        self.handler = CuteHandler() if ansi_color_enabled else logging.StreamHandler()
-        self.handler.setFormatter(logging.Formatter('%(levelname)-7s | %(asctime)-23s | %(name)-8s | %(message)s'))
+        self.handler = logging.StreamHandler()
+        self.handler.setFormatter(CuteFormatter(ansi_color_enabled))
 
         if not is_testing and len(logging.root.handlers) == 0:
             self.enable_root_logger()
@@ -64,23 +64,29 @@ class Loggers:
             logging.getLogger(name).setLevel(level)
 
 
-class CuteHandler(logging.StreamHandler):
+class CuteFormatter(logging.Formatter):
     """
-    A log handler that prints log messages with colors.
+    A log formatter that can print log messages with colors.
     """
-    def emit(self, record):
-        color = zlib.adler32(record.name.encode()) % 7 + 31
-        try:
-            record.name = ("\x1b[%dm" % color) + record.name + "\x1b[0m"
-        except Exception:
-            pass
 
-        try:
-            record.msg = ("\x1b[%dm" % color) + record.msg + "\x1b[0m"
-        except Exception:
-            pass
+    __slots__ = ("_should_color",)
 
-        super(CuteHandler, self).emit(record)
+    def __init__(self, color: bool):
+        super().__init__()
+        self._should_color: bool = color
+
+    def format(self, record: logging.LogRecord):
+        name: str = record.name
+        message: str = record.getMessage()
+        base_len: int = len(name)
+        if self._should_color:
+            reset: str = "\x1b[0m"
+            color: str = "\x1b[%dm" % (zlib.adler32(record.name.encode()) % 7 + 31)
+            name = color + name + reset
+            message = color + message + reset
+        name = name.ljust(14 + len(name) - base_len)
+        asctime: str = self.formatTime(record, self.datefmt)
+        return f"{record.levelname : <7} | {asctime : <23} | {name} | {message}"
 
 
 def is_enabled_for(logger, level):
