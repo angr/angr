@@ -583,7 +583,6 @@ class Unicorn(SimStatePlugin):
 
         self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped),
                                         unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
-        self._skip_next_callback = False
 
     @SimStatePlugin.memo
     def copy(self, _memo):
@@ -934,12 +933,6 @@ class Unicorn(SimStatePlugin):
         """
         This callback is called when unicorn needs to access data that's not yet present in memory.
         """
-        if user_data == 1:
-            self._skip_next_callback = True
-        elif self._skip_next_callback:
-            self._skip_next_callback = False
-            return True
-
         start = address & ~0xfff
         needed_pages = 2 if address - start + size > 0x1000 else 1
 

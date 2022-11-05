@@ -549,9 +549,6 @@ class State {
 	// List of symbolic statements in processed basic blocks that need not be re-executed. Will be removed on commit.
 	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> symbolic_stmts_to_erase;
 
-	// List of register values at start of block
-	std::map<vex_reg_offset_t, register_value_t> block_start_reg_values;
-
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
 	// a symbolic address
@@ -617,7 +614,7 @@ class State {
 
 	void compute_slice_of_stmt(vex_stmt_details_t &instr);
 	vex_stmt_details_t compute_vex_stmt_details(const vex_stmt_taint_entry_t &vex_stmt_taint_entry);
-	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
+	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value, bool from_saved_context=false) const;
 	// Return list of all dependent instructions including dependencies of those dependent instructions
 	std::set<vex_stmt_details_t> get_list_of_dep_stmts(const vex_stmt_details_t &instr) const;
 
@@ -753,7 +750,7 @@ class State {
 		RegisterSet symbolic_registers; // tracking of symbolic registers
 		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 		// Mapping of VEX offsets to unicorn register IDs and register sizes
-		std::unordered_map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
+		std::map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
 		// VEX CC registers
 		std::unordered_map<vex_reg_offset_t, uint64_t> vex_cc_regs;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
@@ -814,14 +811,14 @@ class State {
 
 		uc_err start(address_t pc, uint64_t step = 1);
 
-		void stop(stop_t reason, bool do_commit=false);
+		void stop(stop_t reason, bool do_commit=false, uint64_t commit_addr=0);
 
 		void step(address_t current_address, int32_t size, bool check_stop_points=true);
 
 		/*
 		* commit all memory actions.
 		*/
-		void commit();
+		void commit(uint64_t address);
 
 		/*
 		 * undo recent memory actions.
