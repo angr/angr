@@ -600,6 +600,17 @@ class MemoryOperand(Operand):
         self.segment_selector = None
         self.prefix = [ ]
         self.values = [ ]
+        self.offset = [ ]
+        # offset_location
+        # - prefix: -0xff00($gp)
+        # - before_value: 0xff00+rax
+        # - after_value: rax+0xff00
+        self.offset_location = "after_value"
+        # values_style
+        # - square: [rax+0x10]
+        # - curly: {rax+0x10}
+        # - paren: (rax+0x10)
+        self.values_style = "square"
 
         try:
             if '[' in self.children:
@@ -644,6 +655,9 @@ class MemoryOperand(Operand):
         self.values = self.children[square_bracket_pos + 1: len(self.children) - 1]
 
     def _parse_memop_paren(self):
+        offset = [ ]
+        self.values_style = "paren"
+
         if self.children[0] != '(':
             try:
                 paren_pos = self.children.index('(')
@@ -651,7 +665,14 @@ class MemoryOperand(Operand):
                 raise
 
             if all(isinstance(item, str) for item in self.children[:paren_pos]):
+                # parse prefix
                 self.prefix = self.children[ : paren_pos]
+            elif all(isinstance(item, Value) for item in self.children[:paren_pos]):
+                # parse offset
+                # force each piece to be rendered with its sign (+/-)
+                offset += self.children[:paren_pos]
+                # offset appears before the left parenthesis
+                self.offset_location = "prefix"
 
         else:
             paren_pos = 0
@@ -659,13 +680,14 @@ class MemoryOperand(Operand):
             self.segment_selector = None
 
         self.values = self.children[paren_pos + 1 : len(self.children) - 1]
+        self.offset = offset
 
     def _render(self, formatting):
         if self.prefix is None:
             # we failed in parsing. use the default rendering
             return super(MemoryOperand, self)._render(formatting)
         else:
-            values_style = "square"
+            values_style = self.values_style
             show_prefix = True
             custom_values_str = None
 
@@ -691,15 +713,34 @@ class MemoryOperand(Operand):
                     x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.values
                 )
 
+            if values_style == "curly":
+                left_paren, right_paren = "{", "}"
+            elif values_style == "paren":
+                left_paren, right_paren = "(", ")"
+            else:  # square
+                left_paren, right_paren = "[", "]"
+
+            if self.offset:
+                offset_str = "".join(
+                    x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.offset
+                )
+
+                # combine values and offsets according to self.offset_location
+                if self.offset_location == "prefix":
+                    value_str = ''.join([offset_str, left_paren, value_str, right_paren])
+                elif self.offset_location == "before_value":
+                    value_str = ''.join([left_paren, offset_str, value_str, right_paren])
+                else:  # after_value
+                    value_str = ''.join([left_paren, value_str, offset_str, right_paren])
+            else:
+                value_str = left_paren + value_str + right_paren
+
             segment_selector_str = "" if self.segment_selector is None else self.segment_selector
 
             if segment_selector_str and prefix_str:
                 prefix_str += ' '
 
-            if values_style == 'curly':
-                return [ '%s%s{%s}' % (prefix_str, segment_selector_str, value_str) ]
-            else:
-                return [ '%s%s[%s]' % (prefix_str, segment_selector_str, value_str) ]
+            return [ '%s%s%s' % (prefix_str, segment_selector_str, value_str) ]
 
 
 class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
@@ -967,7 +1008,7 @@ class Disassembly(Analysis):
             self._add_block_ir_to_results(block, b.vex)
 
     def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True,
-               show_bytes: bool = False, ascii_only: Optional[bool] = None) -> str:
+               show_bytes: bool = False, ascii_only: Optional[bool] = None, color: bool = True) -> str:
         """
         Render the disassembly to a string, with optional edges and addresses.
 
@@ -989,7 +1030,7 @@ class Disassembly(Analysis):
                     MemoryOperand:   'yellow',
                     Comment:         'gray',
                     Hook:            'green',
-                } if ansi_color_enabled else {},
+                } if ansi_color_enabled and color else {},
                 'format_callback': lambda item, s: ansi_color(s, formatting['colors'].get(type(item), None))
             }
 
