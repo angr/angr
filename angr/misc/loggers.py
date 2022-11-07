@@ -5,7 +5,6 @@ from .ansi import Color, BackgroundColor, color, clear
 
 from .testing import is_testing
 from ..utils.formatting import ansi_color_enabled
-from .. import loggers
 
 
 class Loggers:
@@ -109,6 +108,7 @@ class CuteFormatter(logging.Formatter):
 
 def is_enabled_for(logger, level):
     if level == 1:
+        from .. import loggers
         return loggers.profiling_enabled
     return originalIsEnabledFor(logger, level)
 
