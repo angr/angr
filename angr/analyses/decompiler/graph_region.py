@@ -50,9 +50,19 @@ class GraphRegion:
 
         return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
 
-    def recursive_copy(self):
+    def copy(self) -> 'GraphRegion':
+        return GraphRegion(
+            self.head,
+            networkx.DiGraph(self.graph) if self.graph is not None else None,
+            list(self.successors) if self.successors is not None else None,
+            networkx.DiGraph(self.graph_with_successors) if self.graph_with_successors is not None else None,
+            self.cyclic
+        )
 
-        nodes_map = { }
+    def recursive_copy(self, nodes_map=None):
+
+        if nodes_map is None:
+            nodes_map = { }
         new_graph = self._recursive_copy(self.graph, nodes_map)
 
         if self.graph_with_successors is not None:
@@ -82,7 +92,7 @@ class GraphRegion:
             else:
                 # make recursive copies
                 if type(node) is GraphRegion:
-                    new_node = node.recursive_copy()
+                    new_node = node.recursive_copy(nodes_map=nodes_map)
                     nodes_map[node] = new_node
                 elif type(node) is MultiNode:
                     new_node = node.copy()

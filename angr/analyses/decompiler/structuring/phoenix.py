@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
 
 l = logging.getLogger(__name__)
+_DEBUG = True
 
 
 class PhoenixStructurer(StructurerBase):
@@ -39,6 +40,10 @@ class PhoenixStructurer(StructurerBase):
 
     def _analyze(self):
         # iterate until there is only one node in the region
+
+        if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
+            l.error("Incorrect region graph (with more than one connected component). Investigate.")
+            import ipdb; ipdb.set_trace()
 
         has_cycle = self._has_cycle()
         while len(self._region.graph.nodes) > 1:
@@ -428,14 +433,20 @@ class PhoenixStructurer(StructurerBase):
             if graph.has_edge(node, head):
                 # it's a back edge. skip
                 continue
+            l.debug("... matching acyclic switch-case constructs")
             matched = self._match_acyclic_switch_cases(graph, full_graph, node)
             any_matches |= matched
             if not matched:
+                l.debug("... matching acyclic sequence")
                 matched = self._match_acyclic_sequence(graph, full_graph, node)
                 any_matches |= matched
             if not matched:
+                l.debug("... matching acyclic ITE")
                 matched = self._match_acyclic_ite(graph, full_graph, node)
                 any_matches |= matched
+            if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
+                l.error("Removed incorrect edges. Investigate.")
+                import ipdb; ipdb.set_trace()
         return any_matches
 
     # switch cases
@@ -717,7 +728,10 @@ class PhoenixStructurer(StructurerBase):
             right_succs = list(full_graph.successors(right))
 
             if left in graph and right in graph and (
-                    (not left_succs or not right_succs) or (len(left_succs) == 1 and left_succs == right_succs)
+                    (not left_succs and not right_succs)
+                    or (not left_succs and len(right_succs) == 1)
+                    or (not right_succs and len(left_succs) == 1)
+                    or (len(left_succs) == 1 and left_succs == right_succs)
             ):
                 # potentially ITE
                 if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 1:
@@ -788,6 +802,7 @@ class PhoenixStructurer(StructurerBase):
         # virtualize an edge to allow progressing in structuring
         all_edges_wo_dominance = [ ]  # to ensure determinism, edges in this list are ordered by a tuple of
                                       # (src_addr, dst_addr)
+        secondary_edges = [ ]  # likewise, edges in this list are ordered by a tuple of (src_addr, dst_addr)
         other_edges = [ ]
         idoms = networkx.immediate_dominators(graph, head)
         inverted_graph, inv_idoms = inverted_idoms(graph)
@@ -796,63 +811,76 @@ class PhoenixStructurer(StructurerBase):
                 continue
             if not dominates(idoms, src, dst) and not dominates(inv_idoms, dst, src):
                 all_edges_wo_dominance.append((src, dst))
+            elif not dominates(idoms, src, dst) and dominates(inv_idoms, dst, src):
+                secondary_edges.append((src, dst))
             else:
                 other_edges.append((src, dst))
 
         if all_edges_wo_dominance:
             all_edges_wo_dominance = list(sorted(all_edges_wo_dominance, key=lambda x: (x[0].addr, x[1].addr)))
-
-        if all_edges_wo_dominance:
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
+            self._virtualize_edge(graph, full_graph, src, dst)
+            return True
 
-            # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
-            last_stmt = self.cond_proc.get_last_statement(src)
-            new_src = None
-            remove_src_last_stmt = False
-            if isinstance(last_stmt, ConditionalJump):
-                if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == dst.addr:
-                    goto0_condition = last_stmt.condition
-                    goto0_target = last_stmt.true_target
-                    goto1_target = last_stmt.false_target
-                elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst.addr:
-                    goto0_condition = UnaryOp(None, 'Not', last_stmt.condition)
-                    goto0_target = last_stmt.false_target
-                    goto1_target = last_stmt.true_target
-                else:
-                    # this should not really happen...
-                    goto0_condition = None
-                    goto0_target = None
-                    goto1_target = None
-
-                if goto0_condition is not None:
-                    goto0 = Block(last_stmt.ins_addr, 0, statements=[Jump(None, goto0_target)])
-                    cond_node = ConditionNode(last_stmt.ins_addr, None, goto0_condition, goto0)
-                    goto1_node = Block(last_stmt.ins_addr, 0, statements=[Jump(None, goto1_target)])
-                    remove_src_last_stmt = True
-                    new_src = SequenceNode(src.addr, nodes=[src, cond_node, goto1_node])
-            elif isinstance(last_stmt, Jump):
-                # do nothing
-                pass
-            else:
-                # insert a Jump at the end
-                goto_node = Block(last_stmt.ins_addr, 0, statements=[
-                    Jump(None, Const(None, None, dst.addr, self.project.arch.bits))
-                ])
-                new_src = SequenceNode(src.addr, nodes=[src, goto_node])
-
-            graph.remove_edge(src, dst)
-            if new_src is not None:
-                self.replace_nodes(graph, src, new_src)
-            if full_graph is not None:
-                full_graph.remove_edge(src, dst)
-                if new_src is not None:
-                    self.replace_nodes(full_graph, src, new_src)
-            if remove_src_last_stmt:
-                remove_last_statement(src)
+        if secondary_edges:
+            secondary_edges = list(sorted(secondary_edges, key=lambda x: (x[0].addr, x[1].addr)))
+            # virtualize the first edge
+            src, dst = secondary_edges[0]
+            self._virtualize_edge(graph, full_graph, src, dst)
             return True
 
         return False
+
+    def _virtualize_edge(self, graph, full_graph, src, dst):
+
+        # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
+        try:
+            last_stmt = self.cond_proc.get_last_statement(src)
+        except EmptyBlockNotice:
+            last_stmt = None
+        new_src = None
+        remove_src_last_stmt = False
+        if isinstance(last_stmt, ConditionalJump):
+            if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == dst.addr:
+                goto0_condition = last_stmt.condition
+                goto0_target = last_stmt.true_target
+                goto1_target = last_stmt.false_target
+            elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst.addr:
+                goto0_condition = UnaryOp(None, 'Not', last_stmt.condition)
+                goto0_target = last_stmt.false_target
+                goto1_target = last_stmt.true_target
+            else:
+                # this should not really happen...
+                goto0_condition = None
+                goto0_target = None
+                goto1_target = None
+
+            if goto0_condition is not None:
+                goto0 = Block(last_stmt.ins_addr, 0, statements=[Jump(None, goto0_target)])
+                cond_node = ConditionNode(last_stmt.ins_addr, None, goto0_condition, goto0)
+                goto1_node = Block(last_stmt.ins_addr, 0, statements=[Jump(None, goto1_target)])
+                remove_src_last_stmt = True
+                new_src = SequenceNode(src.addr, nodes=[src, cond_node, goto1_node])
+        elif isinstance(last_stmt, Jump):
+            # do nothing
+            pass
+        else:
+            # insert a Jump at the end
+            goto_node = Block(last_stmt.ins_addr if last_stmt is not None else src.addr, 0, statements=[
+                Jump(None, Const(None, None, dst.addr, self.project.arch.bits))
+            ])
+            new_src = SequenceNode(src.addr, nodes=[src, goto_node])
+
+        graph.remove_edge(src, dst)
+        if new_src is not None:
+            self.replace_nodes(graph, src, new_src)
+        if full_graph is not None:
+            full_graph.remove_edge(src, dst)
+            if new_src is not None:
+                self.replace_nodes(full_graph, src, new_src)
+        if remove_src_last_stmt:
+            remove_last_statement(src)
 
     @staticmethod
     def _find_node_going_to_dst(node: SequenceNode, dst_addr: int) -> Tuple[Optional[BaseNode],Optional[Block]]:

@@ -735,7 +735,8 @@ class RegionIdentifier(Analysis):
         subgraph = networkx.DiGraph()
         region_outedges = [ ]
 
-        graph.add_node(region)
+        delayed_edges = [ ]
+
         for node in loop_nodes:
             subgraph.add_node(node)
             in_edges = list(graph.in_edges(node, data=True))
@@ -743,10 +744,12 @@ class RegionIdentifier(Analysis):
 
             for src, dst, data in in_edges:
                 if src in normal_entries:
-                    graph.add_edge(src, region, **data)
+                    # graph.add_edge(src, region, **data)
+                    delayed_edges.append((src, region, data))
                 elif src in abnormal_entries:
                     data['region_dst_node'] = dst
-                    graph.add_edge(src, region, **data)
+                    # graph.add_edge(src, region, **data)
+                    delayed_edges.append((src, region, data))
                 elif src in loop_nodes:
                     subgraph.add_edge(src, dst, **data)
                 elif src is region:
@@ -761,11 +764,13 @@ class RegionIdentifier(Analysis):
                     subgraph.add_edge(src, head, **data)
                 elif dst is normal_exit_node:
                     region_outedges.append((node, dst))
-                    graph.add_edge(region, dst, **data)
+                    # graph.add_edge(region, dst, **data)
+                    delayed_edges.append((region, dst, data))
                 elif dst in abnormal_exit_nodes:
                     region_outedges.append((node, dst))
                     # data['region_src_node'] = src
-                    graph.add_edge(region, dst, **data)
+                    # graph.add_edge(region, dst, **data)
+                    delayed_edges.append((region, dst, data))
                 else:
                     assert 0
 
@@ -782,6 +787,11 @@ class RegionIdentifier(Analysis):
 
         for node in loop_nodes:
             graph.remove_node(node)
+
+        # add delayed edges
+        graph.add_node(region)
+        for src, dst, data in delayed_edges:
+            graph.add_edge(src, dst, **data)
 
         return region
 
