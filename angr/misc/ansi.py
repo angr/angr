@@ -1,8 +1,6 @@
 from typing import Union
 from enum import Enum, unique
 
-__all__ = ("clear", "Color", "BackgroundColor", "color")
-
 
 _ansi_prefix = "\x1b["
 

@@ -1,10 +1,11 @@
 import logging
 import zlib
 
-from .ansi import *
+from .ansi import Color, BackgroundColor, color, clear
 
 from .testing import is_testing
 from ..utils.formatting import ansi_color_enabled
+from .. import loggers
 
 
 class Loggers:
@@ -47,7 +48,7 @@ class Loggers:
             raise AttributeError(k)
 
     def __dir__(self):
-        return list(super(Loggers, self).__dir__()) + list(self._loggers.keys())
+        return list(super().__dir__()) + list(self._loggers.keys())
 
     def enable_root_logger(self):
         """
@@ -63,7 +64,7 @@ class Loggers:
 
     @staticmethod
     def setall(level):
-        for name in logging.Logger.manager.loggerDict.keys():
+        for name in logging.Logger.manager.loggerDict:
             logging.getLogger(name).setLevel(level)
 
 
@@ -108,7 +109,6 @@ class CuteFormatter(logging.Formatter):
 
 def is_enabled_for(logger, level):
     if level == 1:
-        from .. import loggers
         return loggers.profiling_enabled
     return originalIsEnabledFor(logger, level)
 
