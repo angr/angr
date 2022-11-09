@@ -36,6 +36,12 @@ class PhoenixStructurer(StructurerBase):
         super().__init__(region, parent_map=parent_map, condition_processor=condition_processor, func=func,
                          case_entry_to_switch_head=case_entry_to_switch_head, parent_region=parent_region)
 
+        # whitelist certain edges. removing these edges will destroy critical schemas, which will impact future
+        # structuring cycles.
+        # the set is populated during the analysis. _last_resort_refinement() will ensure not to remove any edges
+        # who fall into these sets.
+        self.whitelist_edges: Set[Tuple[int,int]] = set()
+
         self._analyze()
 
     def _analyze(self):
@@ -67,6 +73,7 @@ class PhoenixStructurer(StructurerBase):
                 has_cycle = self._has_cycle()
 
             if not progressed:
+                l.debug("No progress is made. Enter last resort refinement.")
                 removed_edge = self._last_resort_refinement(
                     self._region.head,
                     self._region.graph,
@@ -492,10 +499,26 @@ class PhoenixStructurer(StructurerBase):
         # the default case
         node_b_addr = next(iter(t for t in successor_addrs if t != target))
 
+        # populate whitelist_edges
+        for case_node_addr in jump_table.jumptable_entries:
+            self.whitelist_edges.add((node_a.addr, case_node_addr))
+        self.whitelist_edges.add((node.addr, node_b_addr))
+        self.whitelist_edges.add((node_a.addr, node_b_addr))
+
+        # sanity check: case nodes are successors to node_a. all case nodes must have at most common one successor
+        case_nodes = list(graph.successors(node_a))
+        case_node_successors = set()
+        for case_node in case_nodes:
+            if case_node.addr in jump_table.jumptable_entries:
+                succs = set(graph.successors(case_node))
+                case_node_successors |= succs
+        if len(case_node_successors) > 1:
+            return False
+
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
-            self._unpack_sequencenode_head(graph, node_a)
-            self._unpack_sequencenode_head(full_graph, node_a)
+            _, new_seq_node = self._unpack_sequencenode_head(graph, node_a)
+            self._unpack_sequencenode_head(full_graph, node_a, new_seq=new_seq_node)
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
         if isinstance(node_a, IncompleteSwitchCaseNode):
@@ -504,8 +527,8 @@ class PhoenixStructurer(StructurerBase):
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
 
-        cases, node_default, to_remove = self._switch_build_cases(cmp_lb, jump_table.jumptable_entries, node_b_addr,
-                                                                  graph, full_graph)
+        cases, node_default, to_remove = self._switch_build_cases(cmp_lb, jump_table.jumptable_entries, node, node_a,
+                                                                  node_b_addr, graph, full_graph)
 
         if node_default is None:
             switch_end_addr = node_b_addr
@@ -594,10 +617,23 @@ class PhoenixStructurer(StructurerBase):
                 return True
         return False
 
-    def _switch_build_cases(self, cmp_lb, jumptable_entries, node_b_addr, graph, full_graph) -> Tuple[Dict,Any,Set[Any]]:
+    def _switch_build_cases(self, cmp_lb, jumptable_entries, head_node, node_a, node_b_addr, graph,
+                            full_graph) -> Tuple[Dict,Any,Set[Any]]:
         cases: Dict[Union[int,Tuple[int]],SequenceNode] = { }
         to_remove = set()
-        node_default: Optional[BaseNode] = next(iter(nn for nn in graph.nodes if nn.addr == node_b_addr), None)
+
+        # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
+        # and a case node (addr.b). The addr.a node is a successor to the head node while the addr.b node is a
+        # successor to node_a
+        default_node_candidates = [ nn for nn in graph.nodes if nn.addr == node_b_addr ]
+        if len(default_node_candidates) == 0:
+            node_default: Optional[BaseNode] = None
+        elif len(default_node_candidates) == 1:
+            node_default: Optional[BaseNode] = default_node_candidates[0]
+        else:
+            node_default: Optional[BaseNode] = next(iter(nn for nn in default_node_candidates
+                                                         if graph.has_edge(head_node, nn)), None)
+
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
@@ -609,8 +645,11 @@ class PhoenixStructurer(StructurerBase):
         converted_nodes: Dict[int,Any] = { }
         entry_addr_to_ids: DefaultDict[int,Set[int]] = defaultdict(set)
 
+        node_a_successors = list(graph.successors(node_a))
+        node_b_in_node_a_successors = any(nn for nn in node_a_successors if nn.addr == node_b_addr)
+
         for j, entry_addr in enumerate(jumptable_entries):
-            if entry_addr == node_b_addr:
+            if not node_b_in_node_a_successors and entry_addr == node_b_addr:
                 # jump to default or end of the switch-case structure - ignore this case
                 continue
             case_idx = cmp_lb + j
@@ -619,7 +658,7 @@ class PhoenixStructurer(StructurerBase):
             if entry_addr in converted_nodes:
                 continue
 
-            entry_node = next(iter(nn for nn in graph.nodes if nn.addr == entry_addr))
+            entry_node = next(iter(nn for nn in node_a_successors if nn.addr == entry_addr))
             if entry_node is None:
                 # Missing entries. They are probably *after* the entire switch-case construct. Replace it with an empty
                 # Goto node.
@@ -753,6 +792,28 @@ class PhoenixStructurer(StructurerBase):
 
                         return True
 
+            if right in graph and not right_succs and left in graph:
+                # swap them
+                left, right = right, left
+                left_succs, right_succs = right_succs, left_succs
+            if left in graph and not left_succs and right in graph:
+                # potentially If-Then
+                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 1:
+                    edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
+                    edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                        # c = !c
+                        new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
+                        # TODO: Remove the last statement of start_node
+                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+
+                        # on the original graph
+                        self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+                        # on the graph with successors
+                        self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+
+                        return True
+
             if len(right_succs) == 1 and right_succs[0] == left:
                 # swap them
                 left, right = right, left
@@ -810,11 +871,14 @@ class PhoenixStructurer(StructurerBase):
             if src is dst:
                 continue
             if not dominates(idoms, src, dst) and not dominates(inv_idoms, dst, src):
-                all_edges_wo_dominance.append((src, dst))
+                if (src.addr, dst.addr) not in self.whitelist_edges:
+                    all_edges_wo_dominance.append((src, dst))
             elif not dominates(idoms, src, dst) and dominates(inv_idoms, dst, src):
-                secondary_edges.append((src, dst))
+                if (src.addr, dst.addr) not in self.whitelist_edges:
+                    secondary_edges.append((src, dst))
             else:
-                other_edges.append((src, dst))
+                if (src.addr, dst.addr) not in self.whitelist_edges:
+                    other_edges.append((src, dst))
 
         if all_edges_wo_dominance:
             all_edges_wo_dominance = list(sorted(all_edges_wo_dominance, key=lambda x: (x[0].addr, x[1].addr)))
@@ -930,14 +994,16 @@ class PhoenixStructurer(StructurerBase):
         return walker.parent, walker.block
 
     @staticmethod
-    def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode):
+    def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode, new_seq=None):
         if not seq.nodes:
-            return
+            return False, None
         node = seq.nodes[0]
-        new_seq = seq.copy()
-        new_seq.nodes = new_seq.nodes[1:]
-        if new_seq.nodes:
-            new_seq.addr = new_seq.nodes[0].addr
+        if new_seq is None:
+            # create the new sequence node if no prior-created sequence node is passed in
+            new_seq = seq.copy()
+            new_seq.nodes = new_seq.nodes[1:]
+            if new_seq.nodes:
+                new_seq.addr = new_seq.nodes[0].addr
 
         preds = list(graph.predecessors(seq))
         succs = list(graph.successors(seq))
@@ -951,7 +1017,7 @@ class PhoenixStructurer(StructurerBase):
                 graph.add_edge(new_seq, new_seq)
             else:
                 graph.add_edge(new_seq, succ)
-        return True
+        return True, new_seq
 
     @staticmethod
     def _unpack_incompleteswitchcasenode(graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode):
