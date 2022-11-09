@@ -514,11 +514,11 @@ class PhoenixStructurer(StructurerBase):
             switch_end_addr = None
             to_remove.add(node_default)
 
-        self._switch_handle_gotos(cases, node_default, switch_end_addr)
-
         to_remove.add(node_a)  # add node_a
         self._make_switch_cases_core(node, cmp_expr, cases, node_default, last_stmt.ins_addr, to_remove, graph,
                                      full_graph, node_a=node_a)
+
+        self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
         return True
 
