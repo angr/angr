@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
 
 l = logging.getLogger(__name__)
-_DEBUG = True
+_DEBUG = False
 
 
 class PhoenixStructurer(StructurerBase):
