@@ -741,7 +741,7 @@ class PhoenixStructurer(StructurerBase):
         """
         Check if there is a sequence of regions, where each region has a single predecessor and a single successor.
         """
-        succs = list(full_graph.successors(start_node))
+        succs = list(graph.successors(start_node))
         if len(succs) == 1:
             end_node = succs[0]
             if full_graph.in_degree[end_node] == 1 and not full_graph.has_edge(end_node, start_node):
