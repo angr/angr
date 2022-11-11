@@ -22,8 +22,7 @@ class SimVariable:
 
     @property
     def addr(self):
-        # FIXME the address should depend on the state ip/pc
-        return self._cle_variable.addr
+        return self._cle_variable.addr_from_state(self.state)
 
     @property
     def type(self):
