@@ -446,7 +446,13 @@ class ConditionProcessor:
         if type(src_block) is GraphRegion:
             return claripy.true
 
-        last_stmt = self.get_last_statement(src_block)
+        # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
+        if isinstance(src_block, ailment.Block) \
+                and src_block.statements \
+                and isinstance(src_block.statements[0], ailment.Stmt.ConditionalJump):
+            last_stmt = src_block.statements[0]
+        else:
+            last_stmt = self.get_last_statement(src_block)
 
         if last_stmt is None:
             return claripy.true
