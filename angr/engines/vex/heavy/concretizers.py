@@ -210,6 +210,9 @@ def concretize_prem_flags(state, args):
     flags = (flag_c3 << 14) | (flag_c2 << 10) | (flag_c1 << 9) | (flag_c0 << 8)
     return claripy.BVV(flags, 16)
 
+def concretize_reinterp_float64_as_int64(state, args):
+    return state.solver.FPV(state.solver.eval(args[0]), args[0].sort).raw_to_bv()
+
 def concretize_sub32f04(state, args):
     fp_arg0 = state.solver.eval(args[0][31:0].raw_to_fp())
     fp_arg1 = state.solver.eval(args[1][31:0].raw_to_fp())
@@ -337,6 +340,7 @@ concretizers = {"Iop_Yl2xF64": concretize_yl2x, "Iop_ScaleF64": concretize_fscal
                 "Iop_Sub32F0x4": concretize_sub32f04, "Iop_Add32F0x4": concretize_add32f04,
                 "Iop_Mul32F0x4": concretize_mul32f04, "Iop_CmpF64": concretize_cmpf64,
                 "Iop_F32toF64": concretize_float32_to_float64,
+                "Iop_ReinterpF64asI64": concretize_reinterp_float64_as_int64,
                }
 
 __all__ = ["concretizers"] + [concretizer.__name__ for concretizer in concretizers.values()]
