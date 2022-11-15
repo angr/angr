@@ -117,24 +117,24 @@ class PhoenixStructurer(StructurerBase):
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
-        matched = self._match_cyclic_while(node, graph, full_graph)
+        matched = self._match_cyclic_while(node, head, graph, full_graph)
         if not matched:
             matched = self._match_cyclic_dowhile(node, head, graph, full_graph)
         if not matched:
             matched = self._match_cyclic_natural_loop(node, head, graph, full_graph)
         return matched
 
-    def _match_cyclic_while(self, head, graph, full_graph) -> bool:
-        succs = list(full_graph.successors(head))
+    def _match_cyclic_while(self, node, head, graph, full_graph) -> bool:
+        succs = list(full_graph.successors(node))
         if len(succs) == 2:
             left, right = succs
 
-            if full_graph.has_edge(right, head) and not full_graph.has_edge(left, head):
+            if full_graph.has_edge(right, node) and not full_graph.has_edge(left, node):
                 left, right = right, left
-            if left is head:
+            if left is node:
                 # self loop
                 # possible candidate
-                head_parent, head_block = self._find_node_going_to_dst(head, left.addr)
+                head_parent, head_block = self._find_node_going_to_dst(node, left.addr)
                 if head_block is None:
                     # it happens. for example:
                     # ## Block 4058c8
@@ -146,35 +146,35 @@ class PhoenixStructurer(StructurerBase):
                     # 05 | 0x4058c8 | rsi<8> = (rsi<8> + d<8>)
                     # 06 | 0x4058c8 | if ((Conv(64->8, cc_dep1<8>) == Conv(64->8, cc_dep2<8>))) { Goto 0x4058c8<64> } else { Goto None }
                     # 07 | 0x4058c8 | Goto(0x4058ca<64>)
-                    head_parent, head_block = self._find_node_going_to_dst(head, right.addr)
+                    head_parent, head_block = self._find_node_going_to_dst(node, right.addr)
 
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                     # c = !c
-                    loop_node = LoopNode('while', edge_cond_left, head, addr=head.addr)
-                    self.replace_nodes(graph, head, loop_node)
-                    self.replace_nodes(full_graph, head, loop_node)
+                    loop_node = LoopNode('while', edge_cond_left, node, addr=node.addr)
+                    self.replace_nodes(graph, node, loop_node)
+                    self.replace_nodes(full_graph, node, loop_node)
 
                     return True
-            elif full_graph.has_edge(left, head) \
-                    and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
-                    and not full_graph.has_edge(right, head):
+            elif full_graph.has_edge(left, node) \
+                    and left is not head and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
+                    and not full_graph.has_edge(right, node):
                 # possible candidate
-                head_parent, head_block = self._find_node_going_to_dst(head, left.addr)
+                head_parent, head_block = self._find_node_going_to_dst(node, left.addr)
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                     # c = !c
-                    new_node = SequenceNode(head.addr, nodes=[head, left])
+                    new_node = SequenceNode(node.addr, nodes=[node, left])
                     loop_node = LoopNode('while', edge_cond_left, new_node,
-                                         addr=head.addr,  # FIXME: Use the instruction address of the last instruction in head
+                                         addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
                                          )
 
                     # on the original graph
-                    self.replace_nodes(graph, head, loop_node, old_node_1=left)
+                    self.replace_nodes(graph, node, loop_node, old_node_1=left)
                     # on the graph with successors
-                    self.replace_nodes(full_graph, head, loop_node, old_node_1=left)
+                    self.replace_nodes(full_graph, node, loop_node, old_node_1=left)
 
                     return True
 
@@ -183,7 +183,7 @@ class PhoenixStructurer(StructurerBase):
     def _match_cyclic_dowhile(self, node, head, graph, full_graph) -> bool:
         preds = list(full_graph.predecessors(node))
         succs = list(full_graph.successors(node))
-        if len(preds) >= 2 and len(succs) == 1:
+        if ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 1:
             succ = succs[0]
             succ_preds = list(full_graph.predecessors(succ))
             succ_succs = list(full_graph.successors(succ))
