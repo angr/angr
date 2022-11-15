@@ -193,7 +193,7 @@ class RegionIdentifier(Analysis):
         refined_loop_nodes = initial_loop_nodes.copy()
         refined_exit_nodes = initial_exit_nodes.copy()
 
-        idom = networkx.immediate_dominators(graph, self._start_node)
+        idom = networkx.immediate_dominators(graph, head)
 
         new_exit_nodes = refined_exit_nodes
         # a graph with only initial exit nodes and new loop nodes that are reachable from at least one initial exit
@@ -204,7 +204,8 @@ class RegionIdentifier(Analysis):
             new_exit_nodes = set()
             for n in list(sorted(refined_exit_nodes,
                                  key=lambda nn: (nn.addr, nn.idx if isinstance(nn, ailment.Block) else None))):
-                if all(pred in refined_loop_nodes for pred in graph.predecessors(n)) and dominates(idom, head, n):
+                if all((pred is n or pred in refined_loop_nodes) for pred in graph.predecessors(n)) \
+                        and dominates(idom, head, n):
                     refined_loop_nodes.add(n)
                     refined_exit_nodes.remove(n)
                     to_add = set(graph.successors(n)) - refined_loop_nodes
@@ -291,6 +292,8 @@ class RegionIdentifier(Analysis):
             # Start from loops
             for node in list(reversed(self._loop_headers)):
                 if node in structured_loop_headers:
+                    continue
+                if node not in graph:
                     continue
                 region = self._make_cyclic_region(node, graph)
                 if region is None:
@@ -745,17 +748,17 @@ class RegionIdentifier(Analysis):
             out_edges = list(graph.out_edges(node, data=True))
 
             for src, dst, data in in_edges:
-                if src in normal_entries:
+                if src in loop_nodes:
+                    subgraph.add_edge(src, dst, **data)
+                elif src is region:
+                    subgraph.add_edge(head, dst, **data)
+                elif src in normal_entries:
                     # graph.add_edge(src, region, **data)
                     delayed_edges.append((src, region, data))
                 elif src in abnormal_entries:
                     data['region_dst_node'] = dst
                     # graph.add_edge(src, region, **data)
                     delayed_edges.append((src, region, data))
-                elif src in loop_nodes:
-                    subgraph.add_edge(src, dst, **data)
-                elif src is region:
-                    subgraph.add_edge(head, dst, **data)
                 else:
                     assert 0
 
