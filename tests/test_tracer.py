@@ -537,7 +537,7 @@ def test_concretize_unsupported_vex_irops():
     pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "CROMU_00020_POV_00000.xml")
     output = (b"\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x15\x00\x00\x00\x00\x00\x00\x00\x15" +
               b"\x00\x00\x00\x00\x00\x00\x00\x15\x00\x00\x00\x00\x00\x00\x00")
-    add_options = set([angr.options.SUPPORT_FLOATING_POINT, angr.options.UNSUPPORTED_FORCE_CONCRETIZE])
+    add_options = set([angr.options.UNSUPPORTED_FORCE_CONCRETIZE])
     trace_cgc_with_pov_file(binary, "tracer_concretize_unsupported_vex_irops", pov_file, output, add_options=add_options)
 
 def test_skip_some_symbolic_memory_writes():
