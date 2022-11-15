@@ -10,7 +10,7 @@ from ailment.statement import ConditionalJump, Jump
 from ailment.expression import Const, UnaryOp
 
 from ....knowledge_plugins.cfg import IndirectJumpType
-from ....utils.graph import dominates, inverted_idoms
+from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
 from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds
@@ -74,6 +74,7 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     refined = self._refine_cyclic()
                     if refined:
+                        has_cycle = self._has_cycle()
                         continue
                 has_cycle = self._has_cycle()
 
@@ -92,23 +93,35 @@ class PhoenixStructurer(StructurerBase):
             # successfully structured
             self.result = next(iter(self._region.graph.nodes))
         else:
-            self.result = None  # the actual result is in self._region.graph and self._region.greaph_with_successors
+            self.result = None  # the actual result is in self._region.graph and self._region.graph_with_successors
 
     def _analyze_cyclic(self) -> bool:
-        return self._match_cyclic_schemas(
-            self._region.head,
-            self._region.graph,
-            self._region.graph_with_successors
-            if self._region.graph_with_successors is not None
-            else networkx.DiGraph(self._region.graph)
-        )
+        any_matches = False
+        acyclic_graph = to_acyclic_graph(self._region.graph, ordered_nodes=[self._region.head])
+        for node in list(CFGUtils.quasi_topological_sort_nodes(acyclic_graph)):
+            if node not in self._region.graph:
+                continue
+            matched = self._match_cyclic_schemas(
+                node,
+                self._region.head,
+                self._region.graph,
+                self._region.graph_with_successors
+                if self._region.graph_with_successors is not None
+                else networkx.DiGraph(self._region.graph)
+            )
+            l.debug("... matching cyclic schemas: %s at %r", matched, node)
+            any_matches |= matched
+            if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
+                l.error("Removed incorrect edges. Investigate.")
+                import ipdb; ipdb.set_trace()
+        return any_matches
 
-    def _match_cyclic_schemas(self, head, graph, full_graph) -> bool:
-        matched = self._match_cyclic_while(head, graph, full_graph)
+    def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
+        matched = self._match_cyclic_while(node, graph, full_graph)
         if not matched:
-            matched = self._match_cyclic_dowhile(head, graph, full_graph)
+            matched = self._match_cyclic_dowhile(node, head, graph, full_graph)
         if not matched:
-            matched = self._match_cyclic_natural_loop(head, graph, full_graph)
+            matched = self._match_cyclic_natural_loop(node, head, graph, full_graph)
         return matched
 
     def _match_cyclic_while(self, head, graph, full_graph) -> bool:
@@ -122,6 +135,19 @@ class PhoenixStructurer(StructurerBase):
                 # self loop
                 # possible candidate
                 head_parent, head_block = self._find_node_going_to_dst(head, left.addr)
+                if head_block is None:
+                    # it happens. for example:
+                    # ## Block 4058c8
+                    # 00 | 0x4058c8 | if ((rcx<8> == 0x0<64>)) { Goto 0x4058ca<64> } else { Goto None }
+                    # 01 | 0x4058c8 | rcx<8> = (rcx<8> - 0x1<64>)
+                    # 02 | 0x4058c8 | cc_dep1<8> = Conv(8->64, Load(addr=rsi<8>, size=1, endness=Iend_LE))
+                    # 03 | 0x4058c8 | cc_dep2<8> = Conv(8->64, Load(addr=rdi<8>, size=1, endness=Iend_LE))
+                    # 04 | 0x4058c8 | rdi<8> = (rdi<8> + d<8>)
+                    # 05 | 0x4058c8 | rsi<8> = (rsi<8> + d<8>)
+                    # 06 | 0x4058c8 | if ((Conv(64->8, cc_dep1<8>) == Conv(64->8, cc_dep2<8>))) { Goto 0x4058c8<64> } else { Goto None }
+                    # 07 | 0x4058c8 | Goto(0x4058ca<64>)
+                    head_parent, head_block = self._find_node_going_to_dst(head, right.addr)
+
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
@@ -131,7 +157,8 @@ class PhoenixStructurer(StructurerBase):
                     self.replace_nodes(full_graph, head, loop_node)
 
                     return True
-            elif full_graph.has_edge(left, head) and full_graph.out_degree[left] == 1 \
+            elif full_graph.has_edge(left, head) \
+                    and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
                     and not full_graph.has_edge(right, head):
                 # possible candidate
                 head_parent, head_block = self._find_node_going_to_dst(head, left.addr)
@@ -153,59 +180,65 @@ class PhoenixStructurer(StructurerBase):
 
         return False
 
-    def _match_cyclic_dowhile(self, head, graph, full_graph) -> bool:
-        succs = list(full_graph.successors(head))
-        if len(succs) == 1:
+    def _match_cyclic_dowhile(self, node, head, graph, full_graph) -> bool:
+        preds = list(full_graph.predecessors(node))
+        succs = list(full_graph.successors(node))
+        if len(preds) >= 2 and len(succs) == 1:
             succ = succs[0]
+            succ_preds = list(full_graph.predecessors(succ))
             succ_succs = list(full_graph.successors(succ))
-            if len(succ_succs) == 2 and head in succ_succs:
-                succ_succs.remove(head)
+            if head is not succ and len(succ_succs) == 2 and node in succ_succs and len(succ_preds) == 1:
+                succ_succs.remove(node)
                 out_node = succ_succs[0]
 
-                if full_graph.has_edge(succ, head) and not full_graph.has_edge(out_node, head):
+                if full_graph.has_edge(succ, node):
+
                     # possible candidate
                     succ_parent, succ_block = self._find_node_going_to_dst(succ, out_node.addr)
-                    edge_cond_succhead = self.cond_proc.recover_edge_condition(full_graph, succ_block, head)
+                    edge_cond_succhead = self.cond_proc.recover_edge_condition(full_graph, succ_block, node)
                     edge_cond_succout = self.cond_proc.recover_edge_condition(full_graph, succ_block, out_node)
                     if claripy.is_true(claripy.Not(edge_cond_succhead) == edge_cond_succout):
                         # c = !c
-                        new_node = SequenceNode(head.addr, nodes=[head, succ])
+                        new_node = SequenceNode(node.addr, nodes=[node, succ])
                         loop_node = LoopNode('do-while', edge_cond_succhead, new_node,
-                                             addr=head.addr,  # FIXME: Use the instruction address of the last instruction in head
+                                             addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
                                              )
 
                         # on the original graph
-                        self.replace_nodes(graph, head, loop_node, old_node_1=succ)
+                        self.replace_nodes(graph, node, loop_node, old_node_1=succ)
                         # on the graph with successors
-                        self.replace_nodes(full_graph, head, loop_node, old_node_1=succ)
+                        self.replace_nodes(full_graph, node, loop_node, old_node_1=succ)
 
                         return True
-        elif len(succs) == 2 and head in succs:
+        elif len(preds) >= 2 and len(succs) == 2 and node in succs:
             # head forms a self-loop
-            succs.remove(head)
+            succs.remove(node)
             succ = succs[0]
-            if not full_graph.has_edge(succ, head):
+            if not full_graph.has_edge(succ, node):
                 # possible candidate
-                edge_cond_head = self.cond_proc.recover_edge_condition(full_graph, head, head)
-                edge_cond_head_succ = self.cond_proc.recover_edge_condition(full_graph, head, succ)
+                edge_cond_head = self.cond_proc.recover_edge_condition(full_graph, node, node)
+                edge_cond_head_succ = self.cond_proc.recover_edge_condition(full_graph, node, succ)
                 if claripy.is_true(claripy.Not(edge_cond_head) == edge_cond_head_succ):
                     # c = !c
-                    loop_node = LoopNode('do-while', edge_cond_head, head,
-                                         addr=head.addr)
+                    loop_node = LoopNode('do-while', edge_cond_head, node,
+                                         addr=node.addr)
 
                     # on the original graph
-                    self.replace_nodes(graph, head, loop_node)
+                    self.replace_nodes(graph, node, loop_node)
                     # on the graph with successors
-                    self.replace_nodes(full_graph, head, loop_node)
+                    self.replace_nodes(full_graph, node, loop_node)
 
                     return True
         return False
 
-    def _match_cyclic_natural_loop(self, head, graph, full_graph) -> bool:
+    def _match_cyclic_natural_loop(self, node, head, graph, full_graph) -> bool:
+
+        if not (node is head or graph.in_degree[node] == 2):
+            return False
 
         # check if there is a cycle that starts with head and ends with head
-        next_node = head
-        seq_node = SequenceNode(head.addr, nodes=[head])
+        next_node = node
+        seq_node = SequenceNode(node.addr, nodes=[node])
         seen_nodes = set()
         while True:
             succs = list(full_graph.successors(next_node))
@@ -213,27 +246,27 @@ class PhoenixStructurer(StructurerBase):
                 return False
             next_node = succs[0]
 
-            if next_node is head:
+            if next_node is node:
                 break
-            if next_node is not head and next_node in seen_nodes:
+            if next_node is not node and next_node in seen_nodes:
                 return False
 
             seen_nodes.add(next_node)
             seq_node.nodes.append(next_node)
 
-        loop_node = LoopNode('while', claripy.true, seq_node, addr=head.addr)
+        loop_node = LoopNode('while', claripy.true, seq_node, addr=node.addr)
 
         # on the original graph
-        for node in seq_node.nodes:
-            if node is not head:
-                graph.remove_node(node)
-        self.replace_nodes(graph, head, loop_node)
+        for node_ in seq_node.nodes:
+            if node_ is not node:
+                graph.remove_node(node_)
+        self.replace_nodes(graph, node, loop_node)
 
         # on the graph with successors
-        for node in seq_node.nodes:
-            if node is not head:
-                full_graph.remove_node(node)
-        self.replace_nodes(full_graph, head, loop_node)
+        for node_ in seq_node.nodes:
+            if node_ is not node:
+                full_graph.remove_node(node_)
+        self.replace_nodes(full_graph, node, loop_node)
 
         return True
 
@@ -439,7 +472,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _analyze_acyclic(self) -> bool:
         # match against known schemas
-        l.debug("Matching acyclic schemas for region %r.", self._region.head)
+        l.debug("Matching acyclic schemas for region %r.", self._region)
         return self._match_acyclic_schemas(
             self._region.graph,
             self._region.graph_with_successors
@@ -464,15 +497,15 @@ class PhoenixStructurer(StructurerBase):
             if graph.has_edge(node, head):
                 # it's a back edge. skip
                 continue
-            l.debug("... matching acyclic switch-case constructs")
+            l.debug("... matching acyclic switch-case constructs at %r", node)
             matched = self._match_acyclic_switch_cases(graph, full_graph, node)
             any_matches |= matched
             if not matched:
-                l.debug("... matching acyclic sequence")
+                l.debug("... matching acyclic sequence at %r", node)
                 matched = self._match_acyclic_sequence(graph, full_graph, node)
                 any_matches |= matched
             if not matched:
-                l.debug("... matching acyclic ITE")
+                l.debug("... matching acyclic ITE at %r", node)
                 matched = self._match_acyclic_ite(graph, full_graph, node)
                 any_matches |= matched
             if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
@@ -682,7 +715,7 @@ class PhoenixStructurer(StructurerBase):
             if entry_addr in converted_nodes:
                 continue
 
-            entry_node = next(iter(nn for nn in node_a_successors if nn.addr == entry_addr))
+            entry_node = next(iter(nn for nn in node_a_successors if nn.addr == entry_addr), None)
             if entry_node is None:
                 # Missing entries. They are probably *after* the entire switch-case construct. Replace it with an empty
                 # Goto node.
@@ -806,13 +839,22 @@ class PhoenixStructurer(StructurerBase):
                         # TODO: Remove the last statement of start_node
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-                        # on the original graph
-                        if right in graph:
-                            graph.remove_node(right)
-                        self.replace_nodes(graph, start_node, new_node, old_node_1=left)
-                        # on the graph with successors
-                        full_graph.remove_node(right)
-                        self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+                        if not left_succs:
+                            # on the original graph
+                            if left in graph:
+                                graph.remove_node(left)
+                            self.replace_nodes(graph, start_node, new_node, old_node_1=right)
+                            # on the graph with successors
+                            full_graph.remove_node(left)
+                            self.replace_nodes(full_graph, start_node, new_node, old_node_1=right)
+                        else:
+                            # on the original graph
+                            if right in graph:
+                                graph.remove_node(right)
+                            self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+                            # on the graph with successors
+                            full_graph.remove_node(right)
+                            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
 
                         return True
 
@@ -890,8 +932,13 @@ class PhoenixStructurer(StructurerBase):
         secondary_edges = [ ]  # likewise, edges in this list are ordered by a tuple of (src_addr, dst_addr)
         other_edges = [ ]
         idoms = networkx.immediate_dominators(graph, head)
-        inverted_graph, inv_idoms = inverted_idoms(graph)
-        for src, dst in graph.edges:
+        if networkx.is_directed_acyclic_graph(graph):
+            inverted_graph, inv_idoms = inverted_idoms(graph)
+            acyclic_graph = graph
+        else:
+            acyclic_graph = to_acyclic_graph(graph)
+            inverted_graph, inv_idoms = inverted_idoms(acyclic_graph)
+        for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
             if not dominates(idoms, src, dst) and not dominates(inv_idoms, dst, src):
@@ -909,6 +956,7 @@ class PhoenixStructurer(StructurerBase):
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
             self._virtualize_edge(graph, full_graph, src, dst)
+            l.debug("last_resort: Removed edge %r -> %r (type 1)", src, dst)
             return True
 
         if secondary_edges:
@@ -916,8 +964,10 @@ class PhoenixStructurer(StructurerBase):
             # virtualize the first edge
             src, dst = secondary_edges[0]
             self._virtualize_edge(graph, full_graph, src, dst)
+            l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
             return True
 
+        l.debug("last_resort: No edge to remove")
         return False
 
     def _virtualize_edge(self, graph, full_graph, src, dst):
