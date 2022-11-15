@@ -27,7 +27,8 @@ class RegionIdentifier(Analysis):
     """
     Identifies regions within a function.
     """
-    def __init__(self, func, cond_proc=None, graph=None, largest_successor_tree_outside_loop=True):
+    def __init__(self, func, cond_proc=None, graph=None, largest_successor_tree_outside_loop=True,
+                 force_loop_single_exit=True):
         self.function = func
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(
             self.project.arch if self.project is not None else None  # it's only None in test cases
@@ -39,6 +40,7 @@ class RegionIdentifier(Analysis):
         self._loop_headers: Optional[List] = None
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
+        self._force_loop_single_exit = force_loop_single_exit
 
         self._analyze()
 
@@ -383,7 +385,7 @@ class RegionIdentifier(Analysis):
 
         region = self._abstract_cyclic_region(graph, refined_loop_nodes, head, normal_entries, abnormal_entries,
                                               normal_exit_node, abnormal_exit_nodes)
-        if len(region.successors) > 1:
+        if len(region.successors) > 1 and self._force_loop_single_exit:
             # multi-successor region. refinement is required
             self._refine_loop_successors(region, graph)
 
