@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, List
 from collections import defaultdict
 import logging
 
@@ -50,6 +50,34 @@ def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph,Optional[D
     else:
         idoms = None
     return inverted_graph, idoms
+
+
+def to_acyclic_graph(graph: networkx.DiGraph, ordered_nodes: Optional[List]=None):
+    """
+    Convert a given DiGraph into an acyclic graph.
+
+    :param graph:           The graph to convert.
+    :param ordered_nodes:   A list of nodes sorted in a topological order.
+    :return:                The converted acyclic graph.
+    """
+
+    if ordered_nodes is None:
+        # take the quasi-topological order of the graph
+        from angr.analyses.cfg.cfg_utils import CFGUtils  # pylint:disable=import-outside-toplevel
+        ordered_nodes = CFGUtils.quasi_topological_sort_nodes(graph)
+
+    acyclic_graph = networkx.DiGraph()
+
+    # add each node and its edge into the graph
+    visited = set()
+    for node in ordered_nodes:
+        visited.add(node)
+        acyclic_graph.add_node(node)
+        for successor in graph.successors(node):
+            if successor not in visited:
+                acyclic_graph.add_edge(node, successor)
+
+    return acyclic_graph
 
 
 def dfs_back_edges(graph, start_node):
