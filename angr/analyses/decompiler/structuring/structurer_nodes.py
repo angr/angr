@@ -264,6 +264,9 @@ class LoopNode(BaseNode):
     def continue_addr(self, value):
         self._continue_addr = value
 
+    def __repr__(self):
+        return f"<LoopNode {self.sort}@{self.addr:#x}>"
+
 
 class BreakNode(BaseNode):
 
