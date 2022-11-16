@@ -98,7 +98,7 @@ class PhoenixStructurer(StructurerBase):
     def _analyze_cyclic(self) -> bool:
         any_matches = False
         acyclic_graph = to_acyclic_graph(self._region.graph, ordered_nodes=[self._region.head])
-        for node in list(CFGUtils.quasi_topological_sort_nodes(acyclic_graph)):
+        for node in list(reversed(CFGUtils.quasi_topological_sort_nodes(acyclic_graph))):
             if node not in self._region.graph:
                 continue
             matched = self._match_cyclic_schemas(
@@ -378,8 +378,11 @@ class PhoenixStructurer(StructurerBase):
                                   "This is likely a bug elsewhere and needs to be addressed.", dst.addr)
                         # remove the edge anyway
                         fullgraph.remove_edge(src, dst)
+                    elif not isinstance(src_block, (Block, MultiNode)):
+                        # it has probably been structured into BreakNode or ConditionalBreakNode
+                        # just remove the edge
+                        fullgraph.remove_edge(src, dst)
                     else:
-                        break_cond = self.cond_proc.recover_edge_condition(fullgraph, src_block, dst)
                         has_continue = False
                         # at the same time, examine if there is an edge that goes from src to head. if so, we deal with
                         # it here as well.
@@ -391,10 +394,15 @@ class PhoenixStructurer(StructurerBase):
                         # create the ConditionBreak node
                         last_src_stmt = self.cond_proc.get_last_statement(src_block)
                         break_cond = self.cond_proc.recover_edge_condition(fullgraph, src_block, dst)
-                        break_node = ConditionalBreakNode(
-                            src.addr,  # FIXME: Use the instruction address of the last instruction
-                            break_cond,
-                            Const(None, None, successor.addr, self.project.arch.bits))
+                        if claripy.is_true(break_cond):
+                            break_node = BreakNode(
+                                src_block.addr,  # FIXME: Use the instruction address of the last instruction
+                                Const(None, None, successor.addr, self.project.arch.bits))
+                        else:
+                            break_node = ConditionalBreakNode(
+                                src_block.addr,  # FIXME: Use the instruction address of the last instruction
+                                break_cond,
+                                Const(None, None, successor.addr, self.project.arch.bits))
                         new_node = SequenceNode(src_block.addr, nodes=[src_block, break_node])
                         if has_continue:
                             if self.is_a_jump_target(last_src_stmt, loop_head.addr):
@@ -637,8 +645,8 @@ class PhoenixStructurer(StructurerBase):
         else:
             return False
 
-        cases, node_default, to_remove = self._switch_build_cases(cmp_lb, jumptable_entries, default_addr, graph,
-                                                                  full_graph)
+        cases, node_default, to_remove = self._switch_build_cases(cmp_lb, jumptable_entries, node, node, default_addr,
+                                                                  graph, full_graph)
         if node_default is None:
             # there must be a default case
             return False
@@ -674,7 +682,7 @@ class PhoenixStructurer(StructurerBase):
                 return True
         return False
 
-    def _switch_build_cases(self, cmp_lb, jumptable_entries, head_node, node_a, node_b_addr, graph,
+    def _switch_build_cases(self, cmp_lb, jumptable_entries, head_node, node_a: BaseNode, node_b_addr, graph,
                             full_graph) -> Tuple[Dict,Any,Set[Any]]:
         cases: Dict[Union[int,Tuple[int]],SequenceNode] = { }
         to_remove = set()
@@ -1065,10 +1073,17 @@ class PhoenixStructurer(StructurerBase):
                     walker.block = block
                     return
 
+        def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):
+            if isinstance(break_node.target, Const) and break_node.target.value == dst_addr:
+                walker.parent = parent
+                walker.block = break_node
+                return
+
         walker = SequenceWalker(
             handlers={
                 Block: _handle_Block,
                 MultiNode: _handle_MultiNode,
+                BreakNode: _handle_BreakNode,
             },
             update_seqnode_in_place=False
         )

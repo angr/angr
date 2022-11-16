@@ -295,7 +295,7 @@ class ConditionalBreakNode(BreakNode):
         self.condition = condition
 
     def __repr__(self):
-        return "<ConditionalBreakNode %#x target:%#x>" % (self.addr, self.target)
+        return "<ConditionalBreakNode %#x target:%s>" % (self.addr, self.target)
 
 
 class SwitchCaseNode(BaseNode):
