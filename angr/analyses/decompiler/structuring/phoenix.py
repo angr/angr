@@ -148,15 +148,17 @@ class PhoenixStructurer(StructurerBase):
                     # 07 | 0x4058c8 | Goto(0x4058ca<64>)
                     head_parent, head_block = self._find_node_going_to_dst(node, right.addr)
 
-                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
-                edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                    # c = !c
-                    loop_node = LoopNode('while', edge_cond_left, node, addr=node.addr)
-                    self.replace_nodes(graph, node, loop_node)
-                    self.replace_nodes(full_graph, node, loop_node)
+                if isinstance(head_block.statements[0], ConditionalJump):
+                    # otherwise it's a do-while loop
+                    edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
+                    edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                        # c = !c
+                        loop_node = LoopNode('while', edge_cond_left, node, addr=node.addr)
+                        self.replace_nodes(graph, node, loop_node)
+                        self.replace_nodes(full_graph, node, loop_node)
 
-                    return True
+                        return True
             elif full_graph.has_edge(left, node) \
                     and left is not head and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
                     and not full_graph.has_edge(right, node):
@@ -210,7 +212,7 @@ class PhoenixStructurer(StructurerBase):
                         self.replace_nodes(full_graph, node, loop_node, old_node_1=succ)
 
                         return True
-        elif len(preds) >= 2 and len(succs) == 2 and node in succs:
+        elif ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 2 and node in succs:
             # head forms a self-loop
             succs.remove(node)
             succ = succs[0]
