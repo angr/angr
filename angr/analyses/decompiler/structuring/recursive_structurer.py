@@ -51,6 +51,10 @@ class RecursiveStructurer(Analysis):
                         subnodes.insert(0, node)
                     parent_map[node] = current_region
                     has_region = True
+                # remove existing regions
+                for subnode in subnodes:
+                    if subnode in stack:
+                        stack.remove(subnode)
                 stack.extend(subnodes)
 
             if not has_region:

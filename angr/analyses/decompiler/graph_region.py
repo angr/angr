@@ -162,10 +162,10 @@ class GraphRegion:
         if sub_region is self.head:
             self.head = replace_with.head
 
-        self._replace_node_in_graph_with_subgraph(self.graph, sub_region, replace_with.graph_with_successors,
-                                                  replace_with.head)
+        self._replace_node_in_graph_with_subgraph(self.graph, self.successors, sub_region,
+                                                  replace_with.graph_with_successors, replace_with.head)
         if self.graph_with_successors is not None:
-            self._replace_node_in_graph_with_subgraph(self.graph_with_successors, sub_region,
+            self._replace_node_in_graph_with_subgraph(self.graph_with_successors, None, sub_region,
                                                       replace_with.graph_with_successors, replace_with.head)
 
     @staticmethod
@@ -192,8 +192,8 @@ class GraphRegion:
         assert node not in graph
 
     @staticmethod
-    def _replace_node_in_graph_with_subgraph(graph: networkx.DiGraph, node, sub_graph: networkx.DiGraph,
-                                             sub_graph_head):
+    def _replace_node_in_graph_with_subgraph(graph: networkx.DiGraph, known_successors: Optional[List], node,
+                                             sub_graph: networkx.DiGraph, sub_graph_head):
 
         in_edges = list(graph.in_edges(node))
         out_edges = list(graph.out_edges(node))
@@ -201,6 +201,11 @@ class GraphRegion:
         graph.remove_node(node)
         graph.add_nodes_from(sub_graph.nodes)
         graph.add_edges_from(sub_graph.edges)
+        # remove all nodes from the graph in known_successors. they are only supposed to be in graph_with_successors.
+        if known_successors is not None:
+            for nn in known_successors:
+                if nn in graph:
+                    graph.remove_node(nn)
 
         for src, _ in in_edges:
             if src is node:
@@ -211,6 +216,8 @@ class GraphRegion:
         for _, dst in out_edges:
             if dst is node:
                 # ignore all self-loops
+                continue
+            if known_successors is not None and dst in known_successors:
                 continue
             # find the correct source
             for src in sub_graph.predecessors(dst):
