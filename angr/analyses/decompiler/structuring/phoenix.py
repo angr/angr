@@ -809,7 +809,9 @@ class PhoenixStructurer(StructurerBase):
         succs = list(graph.successors(start_node))
         if len(succs) == 1:
             end_node = succs[0]
-            if full_graph.in_degree[end_node] == 1 and not full_graph.has_edge(end_node, start_node):
+            if full_graph.out_degree[start_node] == 1 \
+                    and full_graph.in_degree[end_node] == 1 \
+                    and not full_graph.has_edge(end_node, start_node):
                 # merge two blocks
                 new_seq = self._merge_nodes(start_node, end_node)
 
