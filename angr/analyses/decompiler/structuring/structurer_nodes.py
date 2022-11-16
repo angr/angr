@@ -14,9 +14,9 @@ class EmptyBlockNotice(Exception):
 
 class MultiNode:
 
-    __slots__ = ('nodes', )
+    __slots__ = ('nodes', 'addr', 'idx', )
 
-    def __init__(self, nodes):
+    def __init__(self, nodes, addr=None, idx=None):
 
         # delayed import
         from ..graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
@@ -31,8 +31,11 @@ class MultiNode:
             else:
                 self.nodes.append(node)
 
+        self.addr = addr if addr is not None else self.nodes[0].addr
+        self.idx = idx if idx is not None else self.nodes[0].idx
+
     def copy(self):
-        return MultiNode(self.nodes[::])
+        return MultiNode(self.nodes[::], addr=self.addr, idx=self.idx)
 
     def __repr__(self):
 
@@ -43,14 +46,11 @@ class MultiNode:
                 addrs.append(node.addr)
             s = ": %#x-%#x" % (min(addrs), max(addrs))
 
-        return "<MultiNode of %d nodes%s>" % (len(self.nodes), s)
-
-    @property
-    def addr(self):
-        return self.nodes[0].addr
+        return "<MultiNode %#x of %d nodes%s>" % (self.addr, len(self.nodes), s)
 
     def __hash__(self):
-        return hash((MultiNode, ) + tuple(self.nodes))
+        # changing self.nodes does not change the hash, which enables in-place editing
+        return hash((MultiNode, self.addr, self.idx))
 
     def __eq__(self, other):
         return isinstance(other, MultiNode) and self.nodes == other.nodes
