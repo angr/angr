@@ -520,12 +520,18 @@ class StructurerBase(Analysis):
         if old_node_1 is not None:
             graph.remove_node(old_node_1)
         graph.add_node(new_node)
-        for src, _, data in in_edges:
+        for src, dst, data in in_edges:
             if src is not old_node_0 and src is not old_node_1:
                 graph.add_edge(src, new_node, **data)
-        for _, dst, data in out_edges:
+            elif src is old_node_1 and dst is old_node_0:
+                # self loop
+                graph.add_edge(new_node, new_node, **data)
+        for src, dst, data in out_edges:
             if dst is not old_node_0 and dst is not old_node_1:
                 graph.add_edge(new_node, dst, **data)
+            elif src is old_node_1 and dst is old_node_0:
+                # self loop
+                graph.add_edge(new_node, new_node, **data)
 
     @staticmethod
     def replace_node_in_node(parent_node: BaseNode, old_node: BaseNode, new_node: BaseNode):

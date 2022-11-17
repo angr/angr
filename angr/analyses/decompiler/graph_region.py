@@ -199,13 +199,8 @@ class GraphRegion:
         out_edges = list(graph.out_edges(node))
 
         graph.remove_node(node)
-        graph.add_nodes_from(sub_graph.nodes)
-        graph.add_edges_from(sub_graph.edges)
-        # remove all nodes from the graph in known_successors. they are only supposed to be in graph_with_successors.
-        if known_successors is not None:
-            for nn in known_successors:
-                if nn in graph:
-                    graph.remove_node(nn)
+        sub_graph_nodes = list(sub_graph.nodes)
+        sub_graph_edges = list(sub_graph.edges)
 
         for src, _ in in_edges:
             if src is node:
@@ -220,7 +215,39 @@ class GraphRegion:
             if known_successors is not None and dst in known_successors:
                 continue
             # find the correct source
-            for src in sub_graph.predecessors(dst):
-                graph.add_edge(src, dst)
+            if isinstance(dst, GraphRegion) and dst not in sub_graph:
+                # GraphRegion.successors may not store GraphRegion objects. Instead, the heads of GraphRegion objects
+                # are stored.
+                for src in sub_graph.predecessors(dst.head):
+                    graph.add_edge(src, dst)
+                # replace the corresponding nodes in sub_graph_nodes and sub_graph_edges
+                for i in range(len(sub_graph_nodes)):
+                    if sub_graph_nodes[i] is dst.head:
+                        sub_graph_nodes[i] = dst
+                for i in range(len(sub_graph_edges)):
+                    if sub_graph_edges[i][0] is dst.head:
+                        sub_graph_edges[i] = (dst, sub_graph_edges[i][1])
+                    if sub_graph_edges[i][1] is dst.head:
+                        sub_graph_edges[i] = (sub_graph_edges[i][0], dst)
+            else:
+                if dst in sub_graph:
+                    for src in sub_graph.predecessors(dst):
+                        graph.add_edge(src, dst)
+                else:
+                    # it may happen that the dst node does not exist in sub_graph
+                    # fallback
+                    l.info("Node dst is not found in sub_graph. Enter the fall back logic.")
+                    for src in sub_graph.nodes:
+                        if sub_graph.out_degree[src] == 0:
+                            graph.add_edge(src, dst)
+
+        graph.add_nodes_from(sub_graph_nodes)
+        graph.add_edges_from(sub_graph_edges)
+        # finally, remove all nodes from the graph in known_successors. they are only supposed to be in
+        # graph_with_successors.
+        if known_successors is not None:
+            for nn in known_successors:
+                if nn in graph:
+                    graph.remove_node(nn)
 
         assert node not in graph

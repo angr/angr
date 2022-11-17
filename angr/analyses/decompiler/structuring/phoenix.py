@@ -74,6 +74,10 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     refined = self._refine_cyclic()
                     if refined:
+                        if self._region.head not in self._region.graph:
+                            # update the loop head
+                            self._region.head = next(iter(node for node in self._region.graph.nodes
+                                                          if node.addr == self._region.head.addr))
                         has_cycle = self._has_cycle()
                         continue
                 has_cycle = self._has_cycle()
@@ -125,6 +129,9 @@ class PhoenixStructurer(StructurerBase):
         return matched
 
     def _match_cyclic_while(self, node, head, graph, full_graph) -> bool:
+        if not PhoenixStructurer._is_single_statement_block(node):
+            return False
+
         succs = list(full_graph.successors(node))
         if len(succs) == 2:
             left, right = succs
@@ -148,7 +155,8 @@ class PhoenixStructurer(StructurerBase):
                     # 07 | 0x4058c8 | Goto(0x4058ca<64>)
                     head_parent, head_block = self._find_node_going_to_dst(node, right.addr)
 
-                if isinstance(head_block.statements[0], ConditionalJump):
+                if (isinstance(head_block, MultiNode) and isinstance(head_block.nodes[0].statements[0], ConditionalJump)
+                        or isinstance(head_block, Block) and isinstance(head_block.statements[0], ConditionalJump)):
                     # otherwise it's a do-while loop
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
@@ -157,6 +165,10 @@ class PhoenixStructurer(StructurerBase):
                         loop_node = LoopNode('while', edge_cond_left, node, addr=node.addr)
                         self.replace_nodes(graph, node, loop_node)
                         self.replace_nodes(full_graph, node, loop_node)
+
+                        # ensure the loop has only one successor: the right node
+                        self._remove_edges_except(graph, loop_node, right)
+                        self._remove_edges_except(full_graph, loop_node, right)
 
                         return True
             elif full_graph.has_edge(left, node) \
@@ -177,6 +189,10 @@ class PhoenixStructurer(StructurerBase):
                     self.replace_nodes(graph, node, loop_node, old_node_1=left)
                     # on the graph with successors
                     self.replace_nodes(full_graph, node, loop_node, old_node_1=left)
+
+                    # ensure the loop has only one successor: the right node
+                    self._remove_edges_except(graph, loop_node, right)
+                    self._remove_edges_except(full_graph, loop_node, right)
 
                     return True
 
@@ -296,8 +312,6 @@ class PhoenixStructurer(StructurerBase):
                 loop_type = "while"
                 successor = next(iter(head_succ for head_succ in head_succs if head_succ not in graph))
                 for node in graph.nodes:
-                    if node is loop_head:
-                        continue
                     succs = list(fullgraph.successors(node))
                     if loop_head in succs:
                         headgoing_edges.append((node, loop_head))
@@ -712,8 +726,11 @@ class PhoenixStructurer(StructurerBase):
         converted_nodes: Dict[int,Any] = { }
         entry_addr_to_ids: DefaultDict[int,Set[int]] = defaultdict(set)
 
+        # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default node
+        # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
+        # of default node exists in node a's successors.
         node_a_successors = list(graph.successors(node_a))
-        node_b_in_node_a_successors = any(nn for nn in node_a_successors if nn.addr == node_b_addr)
+        node_b_in_node_a_successors = any(nn for nn in node_a_successors if nn in default_node_candidates)
 
         for j, entry_addr in enumerate(jumptable_entries):
             if not node_b_in_node_a_successors and entry_addr == node_b_addr:
@@ -736,7 +753,10 @@ class PhoenixStructurer(StructurerBase):
                 converted_nodes[entry_addr] = case_node
                 continue
 
-            case_node = SequenceNode(entry_node.addr, nodes=[entry_node])
+            if isinstance(entry_node, SequenceNode):
+                case_node = entry_node
+            else:
+                case_node = SequenceNode(entry_node.addr, nodes=[entry_node])
             to_remove.add(entry_node)
 
             converted_nodes[entry_addr] = case_node
@@ -1144,3 +1164,25 @@ class PhoenixStructurer(StructurerBase):
                 graph.add_edge(incscnode.head, case_node)
                 if succs:
                     graph.add_edge(case_node, succs[0])
+
+    @staticmethod
+    def _count_statements(node: Union[BaseNode,Block]) -> int:
+        if isinstance(node, Block):
+            return len(node.statements)
+        elif isinstance(node, MultiNode):
+            return sum(len(nn.statements) for nn in node.nodes)
+        elif isinstance(node, SequenceNode):
+            return sum(PhoenixStructurer._count_statements(nn) for nn in node.nodes)
+        return 1
+
+    @staticmethod
+    def _is_single_statement_block(node: Union[BaseNode,Block]) -> bool:
+        if isinstance(node, (Block, MultiNode, SequenceNode)):
+            return PhoenixStructurer._count_statements(node) == 1
+        return False
+
+    @staticmethod
+    def _remove_edges_except(graph: networkx.DiGraph, src, dst):
+        for succ in list(graph.successors(src)):
+            if succ is not src and succ is not dst:
+                graph.remove_edge(src, succ)
