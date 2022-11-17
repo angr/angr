@@ -1695,6 +1695,10 @@ class CConstant(CExpression):
             # Print pointers in hex
             yield hex(self.value), self
 
+        elif isinstance(self.value, bool):
+            # C doesn't have true or false, but whatever...
+            yield "true" if self.value else "false", self
+
         elif isinstance(self.value, int):
             value = self.value
             if self.fmt_neg:
