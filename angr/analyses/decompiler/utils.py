@@ -147,7 +147,7 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=None):
+def insert_node(parent, insert_idx, node, node_idx, label=None):
 
     if isinstance(parent, SequenceNode):
         parent.nodes.insert(insert_idx, node)
@@ -183,16 +183,25 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
     elif isinstance(parent, SwitchCaseNode):
         # note that this case will be hit only when the parent node is not a container, such as SequenceNode or
         # MultiNode. we always need to create a new SequenceNode and replace the original node in place.
+
+        # we calculate insert_location based on insert_idx and node_idx
+        if insert_idx == node_idx:
+            insert_location = "before"
+        elif insert_idx == node_idx + 1:
+            insert_location = "after"
+        else:
+            raise TypeError(f"Unsupported insert_idx value {insert_idx}. It must be node_idx or node_idx + 1.")
+
         if label == 'switch_expr':
             raise TypeError("You cannot insert a node after an expression.")
         if label == 'case':
-            # node_idx is the case number
+            # node_idx is the case number.
             if insert_location == 'after':
                 new_nodes = [ parent.cases[node_idx], node ]
             elif insert_location == 'before':
                 new_nodes = [ node, parent.cases[node_idx] ]
             else:
-                raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
+                raise TypeError(f"Unsupported insert_location value \"{insert_location}\".")
             seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
             parent.cases[node_idx] = seq
         elif label == 'default':
@@ -204,6 +213,9 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
                 raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
             seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
             parent.default_node = seq
+        else:
+            raise TypeError(f"Unsupported label value \"{label}\". Must be one of the following: switch_expr, case, "
+                            f"default.")
     else:
         raise NotImplementedError()
 
