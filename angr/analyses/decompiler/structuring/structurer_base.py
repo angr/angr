@@ -510,7 +510,7 @@ class StructurerBase(Analysis):
         self._new_sequences = new_sequences
 
     @staticmethod
-    def replace_nodes(graph, old_node_0, new_node, old_node_1=None):
+    def replace_nodes(graph, old_node_0, new_node, old_node_1=None, self_loop=True):
         in_edges = list(graph.in_edges(old_node_0, data=True))
         out_edges = list(graph.out_edges(old_node_0, data=True))
         if old_node_1 is not None:
@@ -523,13 +523,13 @@ class StructurerBase(Analysis):
         for src, dst, data in in_edges:
             if src is not old_node_0 and src is not old_node_1:
                 graph.add_edge(src, new_node, **data)
-            elif src is old_node_1 and dst is old_node_0:
+            elif src is old_node_1 and dst is old_node_0 and self_loop:
                 # self loop
                 graph.add_edge(new_node, new_node, **data)
         for src, dst, data in out_edges:
             if dst is not old_node_0 and dst is not old_node_1:
                 graph.add_edge(new_node, dst, **data)
-            elif src is old_node_1 and dst is old_node_0:
+            elif src is old_node_1 and dst is old_node_0 and self_loop:
                 # self loop
                 graph.add_edge(new_node, new_node, **data)
 

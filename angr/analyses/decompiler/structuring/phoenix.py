@@ -163,8 +163,8 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         loop_node = LoopNode('while', edge_cond_left, node, addr=node.addr)
-                        self.replace_nodes(graph, node, loop_node)
-                        self.replace_nodes(full_graph, node, loop_node)
+                        self.replace_nodes(graph, node, loop_node, self_loop=False)
+                        self.replace_nodes(full_graph, node, loop_node, self_loop=False)
 
                         # ensure the loop has only one successor: the right node
                         self._remove_edges_except(graph, loop_node, right)
@@ -186,9 +186,9 @@ class PhoenixStructurer(StructurerBase):
                                          )
 
                     # on the original graph
-                    self.replace_nodes(graph, node, loop_node, old_node_1=left)
+                    self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
                     # on the graph with successors
-                    self.replace_nodes(full_graph, node, loop_node, old_node_1=left)
+                    self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
 
                     # ensure the loop has only one successor: the right node
                     self._remove_edges_except(graph, loop_node, right)
@@ -223,9 +223,9 @@ class PhoenixStructurer(StructurerBase):
                                              )
 
                         # on the original graph
-                        self.replace_nodes(graph, node, loop_node, old_node_1=succ)
+                        self.replace_nodes(graph, node, loop_node, old_node_1=succ, self_loop=False)
                         # on the graph with successors
-                        self.replace_nodes(full_graph, node, loop_node, old_node_1=succ)
+                        self.replace_nodes(full_graph, node, loop_node, old_node_1=succ, self_loop=False)
 
                         return True
         elif ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 2 and node in succs:
@@ -242,9 +242,9 @@ class PhoenixStructurer(StructurerBase):
                                          addr=node.addr)
 
                     # on the original graph
-                    self.replace_nodes(graph, node, loop_node)
+                    self.replace_nodes(graph, node, loop_node, self_loop=False)
                     # on the graph with successors
-                    self.replace_nodes(full_graph, node, loop_node)
+                    self.replace_nodes(full_graph, node, loop_node, self_loop=False)
 
                     return True
         return False
@@ -278,13 +278,13 @@ class PhoenixStructurer(StructurerBase):
         for node_ in seq_node.nodes:
             if node_ is not node:
                 graph.remove_node(node_)
-        self.replace_nodes(graph, node, loop_node)
+        self.replace_nodes(graph, node, loop_node, self_loop=False)
 
         # on the graph with successors
         for node_ in seq_node.nodes:
             if node_ is not node:
                 full_graph.remove_node(node_)
-        self.replace_nodes(full_graph, node, loop_node)
+        self.replace_nodes(full_graph, node, loop_node, self_loop=False)
 
         return True
 
