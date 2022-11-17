@@ -129,9 +129,6 @@ class PhoenixStructurer(StructurerBase):
         return matched
 
     def _match_cyclic_while(self, node, head, graph, full_graph) -> bool:
-        if not PhoenixStructurer._is_single_statement_block(node):
-            return False
-
         succs = list(full_graph.successors(node))
         if len(succs) == 2:
             left, right = succs
@@ -173,7 +170,11 @@ class PhoenixStructurer(StructurerBase):
                         return True
             elif full_graph.has_edge(left, node) \
                     and left is not head and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
-                    and not full_graph.has_edge(right, node):
+                    and not full_graph.has_edge(right, node) \
+                    and PhoenixStructurer._is_single_statement_block(node):
+                # the single-statement-block check is to ensure we don't execute any code before the conditional jump.
+                # otherwise it's a do-while loop
+
                 # possible candidate
                 head_parent, head_block = self._find_node_going_to_dst(node, left.addr)
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
