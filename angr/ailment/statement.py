@@ -177,12 +177,13 @@ class Store(Statement):
 
 class Jump(Statement):
 
-    __slots__ = ('target', )
+    __slots__ = ('target', 'target_idx', )
 
-    def __init__(self, idx, target, **kwargs):
+    def __init__(self, idx, target, target_idx: Optional[int]=None, **kwargs):
         super().__init__(idx, **kwargs)
 
         self.target = target
+        self.target_idx = target_idx
 
     def __eq__(self, other):
         return type(other) is Jump and \
@@ -199,9 +200,13 @@ class Jump(Statement):
         return stable_hash((Jump, self.idx, self.target))
 
     def __repr__(self):
+        if self.target_idx is not None:
+            return f"Jump ({self.target}.{self.target_idx})"
         return "Jump (%s)" % self.target
 
     def __str__(self):
+        if self.target_idx is not None:
+            return f"Goto({self.target}.{self.target_idx})"
         return "Goto(%s)" % self.target
 
     def replace(self, old_expr, new_expr):
