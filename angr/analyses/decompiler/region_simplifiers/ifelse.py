@@ -42,7 +42,7 @@ class IfElseFlattener(SequenceWalker):
                 # remove the else node and make it a new node following node
                 else_node = node.false_node
                 node.false_node = None
-                insert_node(parent, index + 1, else_node, index)
+                insert_node(parent, index + 1, else_node, index, **kwargs)
 
                 self._handle(else_node, parent=parent, index=index + 1)
 
@@ -67,7 +67,7 @@ class IfElseFlattener(SequenceWalker):
                 # remove the else node and make it a new node following node
                 else_node = node.else_node
                 node.else_node = None
-                insert_node(parent, index + 1, else_node, index)
+                insert_node(parent, index + 1, else_node, index, **kwargs)
 
                 self._handle(else_node, parent=parent, index=index + 1)
 

@@ -103,7 +103,7 @@ class SequenceWalker:
 
         new_default_node = None
         if node.default_node is not None:
-            new_default_node = self._handle(node.default_node, parent=node, label='default')
+            new_default_node = self._handle(node.default_node, parent=node, index=0, label='default')
             if new_default_node is not None:
                 changed = True
             else:
