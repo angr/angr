@@ -154,7 +154,14 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
             # spawn workers to perform the analysis
             with self._func_queue_lock:
-                procs = [_mp_context.Process(target=self._worker_routine, args=(Initializer.get(),), daemon=True) for _ in range(self._workers)]
+                procs = [
+                    _mp_context.Process(
+                        target=self._worker_routine,
+                        args=(Initializer.get(),),
+                        daemon=True
+                    )
+                    for _ in range(self._workers)
+                ]
                 for proc_idx, proc in enumerate(procs):
                     self._update_progress(0, text=f"Spawning worker {proc_idx}...")
                     proc.start()
