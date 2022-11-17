@@ -1,5 +1,5 @@
 # decompilation options
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Tuple
 from collections import defaultdict
 
 from .structuring import structurer_class_from_name
@@ -138,3 +138,18 @@ options_by_category = defaultdict(list)
 
 for o in options:
     options_by_category[o.category].append(o)
+
+
+#
+# Option Helpers
+#
+
+def get_structurer_option(structurer: str) -> Tuple:
+    for opt in options:
+        if o.param == "structurer_cls":
+            break
+    else:
+        return tuple()
+
+    return opt, structurer
+

@@ -15,11 +15,38 @@ from angr.analyses import (
     Decompiler,
 )
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+from angr.analyses.decompiler.decompilation_options import get_structurer_option
+from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
+
+from functools import wraps
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.Logger(__name__)
 
 WORKER = bool(os.environ.get('WORKER', False))  # this variable controls whether we print the decompilation code or not
+
+
+def for_all_structuring_algos(func):
+    """
+    A helper wrapper that wraps a unittest function that has an option for 'decompiler_options'.
+    This option MUST be used when calling the Decompiler interface for the effects of using all
+    structuring algorithms.
+
+    In the funciton its best to call your deocmpiler like so:
+    angr.analyses.Decompiler(f, cfg=..., options=decompiler_options or [])
+    """
+    @wraps(func)
+    def _for_all_structuring_algos(*args, **kwargs):
+        orig_opts = kwargs.pop("decompiler_options", None) or []
+        ret_vals = []
+        for structurer in STRUCTURER_CLASSES:
+            new_opts = orig_opts + [get_structurer_option(structurer)]
+            ret_vals.append(
+                func(*args, decompiler_options=new_opts, **kwargs)
+            )
+
+        return ret_vals
+    return _for_all_structuring_algos
 
 
 class TestDecompiler(unittest.TestCase):
@@ -29,7 +56,8 @@ class TestDecompiler(unittest.TestCase):
             print("Decompilation result:")
             print(dec.codegen.text)
 
-    def test_decompiling_all_x86_64(self):
+    @for_all_structuring_algos
+    def test_decompiling_all_x86_64(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "all")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -38,12 +66,13 @@ class TestDecompiler(unittest.TestCase):
             if f.is_simprocedure:
                 l.debug("Skipping SimProcedure %s.", repr(f))
                 continue
-            dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)  # pylint: disable=unused-variable
+            dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])  # pylint: disable=unused-variable
             # FIXME: This test does not pass
             # assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
             # self._print_decompilation_result(dec)
 
-    def test_decompiling_babypwn_i386(self):
+    @for_all_structuring_algos
+    def test_decompiling_babypwn_i386(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "i386", "decompiler", "codegate2017_babypwn")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -55,34 +84,37 @@ class TestDecompiler(unittest.TestCase):
                 continue
             if f.addr not in (0x8048a71, 0x8048c6b):
                 continue
-            dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+            dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
             assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
             self._print_decompilation_result(dec)
 
-    def test_decompiling_loop_x86_64(self):
+    @for_all_structuring_algos
+    def test_decompiling_loop_x86_64(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "loop")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
         f = cfg.functions['loop']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
         # it should be properly structured to a while loop without conditional breaks
         assert "break" not in dec.codegen.text
 
-    def test_decompiling_all_i386(self):
+    @for_all_structuring_algos
+    def test_decompiling_all_i386(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "i386", "all")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         f = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_aes_armel(self):
+    @for_all_structuring_algos
+    def test_decompiling_aes_armel(self, decompiler_options=None):
         # EDG Says: This binary is invalid.
         # Consider replacing with some real firmware
         bin_path = os.path.join(test_location, "armel", "aes")
@@ -93,44 +125,48 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         f = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_mips_allcmps(self):
+    @for_all_structuring_algos
+    def test_decompiling_mips_allcmps(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "mips", "allcmps")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
         cfg = p.analyses[CFGFast].prep()(collect_data_references=True, normalize=True)
 
         f = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_linked_list(self):
+    @for_all_structuring_algos
+    def test_decompiling_linked_list(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "linked_list")
         p = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
         f = cfg.functions['sum']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_dir_gcc_O0_free_ent(self):
+    @for_all_structuring_algos
+    def test_decompiling_dir_gcc_O0_free_ent(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
         cfg = p.analyses[CFGFast].prep()(normalize=True)
 
         f = cfg.functions['free_ent']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_dir_gcc_O0_main(self):
+    @for_all_structuring_algos
+    def test_decompiling_dir_gcc_O0_main(self, decompiler_options=None):
 
         # tests loop structuring
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
@@ -139,22 +175,24 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(normalize=True)
 
         f = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_dir_gcc_O0_emit_ancillary_info(self):
+    @for_all_structuring_algos
+    def test_decompiling_dir_gcc_O0_emit_ancillary_info(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
         cfg = p.analyses[CFGFast].prep()(normalize=True)
 
         f = cfg.functions['emit_ancillary_info']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_switch0_x86_64(self):
+    @for_all_structuring_algos
+    def test_decompiling_switch0_x86_64(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "x86_64", "switch_0")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -162,7 +200,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
         f = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
 
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
@@ -177,7 +215,8 @@ class TestDecompiler(unittest.TestCase):
         assert "case 7:" in code
         assert "default:" in code
 
-    def test_decompiling_switch1_x86_64(self):
+    @for_all_structuring_algos
+    def test_decompiling_switch1_x86_64(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "x86_64", "switch_1")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -191,7 +230,8 @@ class TestDecompiler(unittest.TestCase):
                                     if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
 
         f = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [], 
+                                            optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -206,7 +246,8 @@ class TestDecompiler(unittest.TestCase):
         assert "case 8:" in code
         assert "default:" not in code
 
-    def test_decompiling_switch2_x86_64(self):
+    @for_all_structuring_algos
+    def test_decompiling_switch2_x86_64(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "x86_64", "switch_2")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -220,7 +261,8 @@ class TestDecompiler(unittest.TestCase):
                                     if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
 
         f = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [], 
+                                            optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -237,7 +279,8 @@ class TestDecompiler(unittest.TestCase):
 
         assert code.count("break;") == 4
 
-    def test_decompiling_true_x86_64_0(self):
+    @for_all_structuring_algos
+    def test_decompiling_true_x86_64_0(self, decompiler_options=None):
 
         # in fact this test case tests if CFGBase._process_jump_table_targeted_functions successfully removes "function"
         # 0x402543, which is an artificial function that the compiler (GCC) created for identified "cold" functions.
@@ -254,14 +297,16 @@ class TestDecompiler(unittest.TestCase):
                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
 
         f = cfg.functions[0x4048c0]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [], 
+                                            optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert "switch" in code
         assert "case" in code
 
-    def test_decompiling_true_x86_64_1(self):
+    @for_all_structuring_algos
+    def test_decompiling_true_x86_64_1(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_ubuntu_2004")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -274,7 +319,8 @@ class TestDecompiler(unittest.TestCase):
                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
 
         f = cfg.functions[0x404dc0]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [], 
+                                            optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
         code: str = dec.codegen.text
@@ -287,7 +333,8 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
-    def test_decompiling_true_a_x86_64_0(self):
+    @for_all_structuring_algos
+    def test_decompiling_true_a_x86_64_0(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -300,13 +347,14 @@ class TestDecompiler(unittest.TestCase):
                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
 
         f = cfg.functions[0x401e60]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [], 
+                                            optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
         assert dec.codegen.text.count("switch (") == 3  # there are three switch-cases in total
 
-    def test_decompiling_true_a_x86_64_1(self):
+    def test_decompiling_true_a_x86_64_1(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -320,11 +368,13 @@ class TestDecompiler(unittest.TestCase):
                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
 
         f = cfg.functions[0x404410]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [], 
+                                            optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_true_1804_x86_64(self):
+    @for_all_structuring_algos
+    def test_decompiling_true_1804_x86_64(self, decompiler_options=None):
         # true in Ubuntu 18.04, with -O2, has special optimizations that
         # may mess up the way we structure loops and conditionals
 
@@ -334,11 +384,12 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses.CFG(normalize=True, data_references=True)
 
         f = cfg.functions["usage"]
-        dec = p.analyses.Decompiler(f, cfg=cfg.model)
+        dec = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_true_mips64(self):
+    @for_all_structuring_algos
+    def test_decompiling_true_mips64(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "mips64", "true")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=False)
@@ -348,7 +399,8 @@ class TestDecompiler(unittest.TestCase):
                                                                                                                "linux")
 
         f = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [], 
+                                            optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
         # make sure strings exist
@@ -361,7 +413,8 @@ class TestDecompiler(unittest.TestCase):
         assert "setlocale(" in dec.codegen.text
         assert "usage();" in dec.codegen.text
 
-    def test_decompiling_1after909_verify_password(self):
+    @for_all_structuring_algos
+    def test_decompiling_1after909_verify_password(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "x86_64", "1after909")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -375,7 +428,7 @@ class TestDecompiler(unittest.TestCase):
         cca = p.analyses[CallingConventionAnalysis].prep()(f)
         f.calling_convention = cca.cc
         f.prototype = cca.prototype
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
@@ -398,7 +451,8 @@ class TestDecompiler(unittest.TestCase):
 
         assert "= sprintf" not in code, "Failed to remove the unused return value of sprintf()"
 
-    def test_decompiling_1after909_doit(self):
+    @for_all_structuring_algos
+    def test_decompiling_1after909_doit(self, decompiler_options=None):
 
         # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
 
@@ -417,7 +471,8 @@ class TestDecompiler(unittest.TestCase):
             optimization_passes += [
                 angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier,
         ]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=optimization_passes)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options or [],
+                                            optimization_passes=optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
@@ -451,7 +506,8 @@ class TestDecompiler(unittest.TestCase):
         assert "free(v" in code
         assert "free(NULL" not in code and "free(0" not in code
 
-    def test_decompiling_libsoap(self):
+    @for_all_structuring_algos
+    def test_decompiling_libsoap(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "armel", "libsoap.so")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -459,11 +515,12 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         func = cfg.functions[0x41d000]
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(func)
         self._print_decompilation_result(dec)
 
-    def test_decompiling_no_arguments_in_variable_list(self):
+    @for_all_structuring_algos
+    def test_decompiling_no_arguments_in_variable_list(self, decompiler_options=None):
 
         # function arguments should never appear in the variable list
         bin_path = os.path.join(test_location, "x86_64", "test_arrays")
@@ -474,7 +531,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(func)
         self._print_decompilation_result(dec)
         self._print_decompilation_result(dec)
@@ -486,7 +543,8 @@ class TestDecompiler(unittest.TestCase):
         assert argc_name in decls
         assert code.count(decls) == 1  # it should only appear once
 
-    def test_decompiling_strings_c_representation(self):
+    @for_all_structuring_algos
+    def test_decompiling_strings_c_representation(self, decompiler_options=None):
 
         input_expected = [("""Foo"bar""", "\"Foo\\\"bar\""),
                           ("""Foo'bar""", "\"Foo'bar\"")]
@@ -495,7 +553,8 @@ class TestDecompiler(unittest.TestCase):
             result = angr.analyses.decompiler.structured_codegen.c.CConstant.str_to_c_str(_input)
             assert result == expected
 
-    def test_decompiling_strings_local_strlen(self):
+    @for_all_structuring_algos
+    def test_decompiling_strings_local_strlen(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "types", "strings")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -507,7 +566,7 @@ class TestDecompiler(unittest.TestCase):
         func.calling_convention = cca.cc
         func.prototype = cca.prototype
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
 
@@ -516,7 +575,8 @@ class TestDecompiler(unittest.TestCase):
         lines = code.split("\n")
         assert "local_strlen(char *a0)" in lines[0], "Argument a0 seems to be incorrectly typed: %s" % lines[0]
 
-    def test_decompiling_strings_local_strcat(self):
+    @for_all_structuring_algos
+    def test_decompiling_strings_local_strcat(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "types", "strings")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -528,7 +588,7 @@ class TestDecompiler(unittest.TestCase):
         func.calling_convention = cca.cc
         func.prototype = cca.prototype
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
 
@@ -538,7 +598,8 @@ class TestDecompiler(unittest.TestCase):
         assert "local_strcat(char *a0, char *a1)" in lines[0], \
             "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
-    def test_decompiling_strings_local_strcat_with_local_strlen(self):
+    @for_all_structuring_algos
+    def test_decompiling_strings_local_strcat_with_local_strlen(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "types", "strings")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -548,7 +609,7 @@ class TestDecompiler(unittest.TestCase):
         cca = p.analyses[CallingConventionAnalysis].prep()(func_strlen, cfg=cfg.model)
         func_strlen.calling_convention = cca.cc
         func_strlen.prototype = cca.prototype
-        p.analyses[Decompiler].prep()(func_strlen, cfg=cfg.model)
+        p.analyses[Decompiler].prep()(func_strlen, cfg=cfg.model, options=decompiler_options or [])
 
         func = cfg.functions['local_strcat']
 
@@ -557,7 +618,7 @@ class TestDecompiler(unittest.TestCase):
         func.calling_convention = cca.cc
         func.prototype = cca.prototype
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
 
@@ -567,7 +628,8 @@ class TestDecompiler(unittest.TestCase):
         assert "local_strcat(char *a0, char *a1)" in lines[0], \
             "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
-    def test_decompilation_call_expr_folding(self):
+    @for_all_structuring_algos
+    def test_decompilation_call_expr_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -576,7 +638,9 @@ class TestDecompiler(unittest.TestCase):
         func_0 = cfg.functions['strlen_should_fold']
         opt = [ o for o in angr.analyses.decompiler.decompilation_options.options
                 if o.param == "remove_dead_memdefs" ][0]
-        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=[(opt, True)])
+        opt_selection = [(opt, True)]
+        options = opt_selection if not decompiler_options else opt_selection + decompiler_options
+        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=options)
         assert dec.codegen is not None, "Failed to decompile function %r." % func_0
         self._print_decompilation_result(dec)
 
@@ -587,18 +651,19 @@ class TestDecompiler(unittest.TestCase):
         assert m.group(1) != m.group(2)
 
         func_1 = cfg.functions['strlen_should_not_fold']
-        dec = p.analyses[Decompiler].prep()(func_1, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func_1, cfg=cfg.model, options=decompiler_options or [])
         self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
         func_2 = cfg.functions['strlen_should_not_fold_into_loop']
-        dec = p.analyses[Decompiler].prep()(func_2, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func_2, cfg=cfg.model, options=decompiler_options or [])
         self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
-    def test_decompilation_call_expr_folding_mips64_true(self):
+    @for_all_structuring_algos
+    def test_decompilation_call_expr_folding_mips64_true(self, decompiler_options=None):
 
         # This test is to ensure call expression folding correctly replaces call expressions in return statements
         bin_path = os.path.join(test_location, "mips64", "true")
@@ -607,14 +672,15 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         func_0 = cfg.functions['version_etc']
-        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func_0
         l.debug("Decompiled function %s\n%s", repr(func_0), dec.codegen.text)
 
         code = dec.codegen.text
         assert "version_etc_va(" in code
 
-    def test_decompilation_call_expr_folding_x8664_calc(self):
+    @for_all_structuring_algos
+    def test_decompilation_call_expr_folding_x8664_calc(self, decompiler_options=None):
 
         # This test is to ensure call expression folding do not re-use out-dated definitions when folding expressions
         bin_path = os.path.join(test_location, "x86_64", "calc")
@@ -624,7 +690,7 @@ class TestDecompiler(unittest.TestCase):
         _ = p.analyses.CompleteCallingConventions(recover_variables=True)
 
         func_0 = cfg.functions['main']
-        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func_0
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -640,7 +706,8 @@ class TestDecompiler(unittest.TestCase):
             if "root(" in line:
                 assert "strlen(" in line
 
-    def test_decompilation_excessive_condition_removal(self):
+    @for_all_structuring_algos
+    def test_decompilation_excessive_condition_removal(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -648,7 +715,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions[0x100003890]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -657,7 +724,8 @@ class TestDecompiler(unittest.TestCase):
         # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
         assert "}v4+=1;}" in code or "}v4+=0x1;}" in code
 
-    def test_decompilation_excessive_goto_removal(self):
+    @for_all_structuring_algos
+    def test_decompilation_excessive_goto_removal(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -665,7 +733,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions[0x100003890]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
 
@@ -673,7 +741,8 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in code
 
-    def test_decompilation_switch_case_structuring_with_removed_nodes(self):
+    @for_all_structuring_algos
+    def test_decompilation_switch_case_structuring_with_removed_nodes(self, decompiler_options=None):
 
         # Some jump table entries are fully folded into their successors. Structurer should be able to handle this case.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "union")
@@ -682,7 +751,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
 
         func = cfg.functions["build_date"]
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -690,7 +759,8 @@ class TestDecompiler(unittest.TestCase):
         n = code.count("switch")
         assert n == 2, f"Expect two switch-case constructs, only found {n} instead."
 
-    def test_decompilation_x86_64_stack_arguments(self):
+    @for_all_structuring_algos
+    def test_decompilation_x86_64_stack_arguments(self, decompiler_options=None):
 
         # Arguments passed on the stack should not go missing
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "union")
@@ -701,7 +771,7 @@ class TestDecompiler(unittest.TestCase):
         func = cfg.functions["build_date"]
 
         # no dead memdef removal
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -723,7 +793,8 @@ class TestDecompiler(unittest.TestCase):
         # kill the cache since variables to statements won't match any more - variables are re-discovered with the new
         # option.
         p.kb.structured_code.cached.clear()
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=[(opt, True)])
+        options = [(opt, True)] if not decompiler_options else [(opt, True)] + decompiler_options
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=options)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -740,7 +811,8 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert False, "The line with snprintf() is not found."
 
-    def test_decompiling_amp_challenge03_arm(self):
+    @for_all_structuring_algos
+    def test_decompiling_amp_challenge03_arm(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armhf", "decompiler", "challenge_03")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -748,7 +820,7 @@ class TestDecompiler(unittest.TestCase):
         p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -759,7 +831,8 @@ class TestDecompiler(unittest.TestCase):
                                  "assignments are incorrectly removed."
         assert '"o"' in code and '"x"' in code, "CFG failed to recognize single-byte strings."
 
-    def test_decompiling_amp_challenge03_arm_expr_swapping(self):
+    @for_all_structuring_algos
+    def test_decompiling_amp_challenge03_arm_expr_swapping(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armhf", "decompiler", "challenge_03")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -770,7 +843,7 @@ class TestDecompiler(unittest.TestCase):
         binop_operators = {
             OpDescriptor(0x400a1d, 0, 0x400a27, "CmpGT"): "CmpLE"
         }
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, binop_operators=binop_operators)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [], binop_operators=binop_operators)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -792,14 +865,15 @@ class TestDecompiler(unittest.TestCase):
         next_line = lines[select_line + 1]
         assert next_line.startswith(f"if (0 <= {select_var})")
 
-    def test_decompiling_fauxware_mipsel(self):
+    @for_all_structuring_algos
+    def test_decompiling_fauxware_mipsel(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "mipsel", "fauxware")
         p = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -812,7 +886,8 @@ class TestDecompiler(unittest.TestCase):
         assert '"Username: "' in code
         assert '"Password: "' in code
 
-    def test_stack_canary_removal_x8664_extra_exits(self):
+    @for_all_structuring_algos
+    def test_stack_canary_removal_x8664_extra_exits(self, decompiler_options=None):
 
         # Test stack canary removal on functions with extra exit
         # nodes (e.g., assert(false);) without stack canary checks
@@ -822,7 +897,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -830,7 +905,8 @@ class TestDecompiler(unittest.TestCase):
         # We should not find "__stack_chk_fail" in the code
         assert "__stack_chk_fail" not in code
 
-    def test_ifelseif_x8664(self):
+    @for_all_structuring_algos
+    def test_ifelseif_x8664(self, decompiler_options=None):
 
         # nested if-else should be transformed to cascading if-elseif constructs
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
@@ -839,21 +915,22 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         assert code.count("else if") == 3
 
-    def test_decompiling_missing_function_call(self):
+    @for_all_structuring_algos
+    def test_decompiling_missing_function_call(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "adams")
         p = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -870,7 +947,8 @@ class TestDecompiler(unittest.TestCase):
         # ensure if-else removal does not incorrectly remove else nodes
         assert "emaillist=strdup(" in code_without_spaces
 
-    def test_decompiling_morton_my_message_callback(self):
+    @for_all_structuring_algos
+    def test_decompiling_morton_my_message_callback(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -879,7 +957,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions['my_message_callback']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -891,7 +969,8 @@ class TestDecompiler(unittest.TestCase):
         assert code.count("mosquitto_publish()") == 0
         assert code.count("mosquitto_publish(") == 6
 
-    def test_decompiling_morton_lib_handle__suback(self):
+    @for_all_structuring_algos
+    def test_decompiling_morton_lib_handle__suback(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton.libmosquitto.so.1")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -900,14 +979,15 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions.function(name='handle__suback', plt=False)
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
 
-    def test_decompiling_newburry_main(self):
+    @for_all_structuring_algos
+    def test_decompiling_newburry_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -915,7 +995,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -923,7 +1003,8 @@ class TestDecompiler(unittest.TestCase):
         # return statements should not be wrapped into a for statement
         assert re.search(r"for[^\n]*return[^\n]*;", code) is None
 
-    def test_single_instruction_loop(self):
+    @for_all_structuring_algos
+    def test_single_instruction_loop(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "level_12_teaching")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -931,7 +1012,7 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options or [])
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -940,7 +1021,8 @@ class TestDecompiler(unittest.TestCase):
         assert "while(true" not in code_without_spaces
         assert "for(" in code_without_spaces
 
-    def test_simple_strcpy(self):
+    @for_all_structuring_algos
+    def test_simple_strcpy(self, decompiler_options=None):
         """
         Original C: while (( *dst++ = *src++ ));
         Ensures incremented src and dst are not accidentally used in copy statement.
@@ -952,7 +1034,7 @@ class TestDecompiler(unittest.TestCase):
         p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
         f = p.kb.functions['simple_strcpy']
-        d = p.analyses.Decompiler(f, cfg=cfg.model)
+        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [])
         assert d.codegen is not None, "Failed to decompile function %r." % f
         self._print_decompilation_result(d)
         dw = d.codegen.cfunc.statements.statements[1]
@@ -965,7 +1047,8 @@ class TestDecompiler(unittest.TestCase):
         assert stmts[4].rhs.operand.expr.variable == stmts[0].lhs.variable
         assert dw.condition.lhs.operand.expr.variable == stmts[2].lhs.variable
 
-    def test_decompiling_nl_i386_pie(self):
+    @for_all_structuring_algos
+    def test_decompiling_nl_i386_pie(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "i386", "nl")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -973,7 +1056,7 @@ class TestDecompiler(unittest.TestCase):
         p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
         f = p.kb.functions['usage']
-        d = p.analyses.Decompiler(f, cfg=cfg.model)
+        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [])
         assert d.codegen is not None, "Failed to decompile function %r." % f
         self._print_decompilation_result(d)
 
@@ -982,7 +1065,8 @@ class TestDecompiler(unittest.TestCase):
                ' read standard input.\\n\\n"' in d.codegen.text
         assert '"For complete documentation, run: info coreutils \'%s invocation\'\\n"' in d.codegen.text
 
-    def test_decompiling_x8664_cvs(self):
+    @for_all_structuring_algos
+    def test_decompiling_x8664_cvs(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "cvs")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -990,7 +1074,7 @@ class TestDecompiler(unittest.TestCase):
         # p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
         f = p.kb.functions['main']
-        d = p.analyses.Decompiler(f, cfg=cfg.model)
+        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [])
         assert d.codegen is not None, "Failed to decompile function %r." % f
         self._print_decompilation_result(d)
 
@@ -998,7 +1082,8 @@ class TestDecompiler(unittest.TestCase):
         # the switch-case must be recovered
         assert "switch (" in d.codegen.text
 
-    def test_decompiling_x8664_mv_O2(self):
+    @for_all_structuring_algos
+    def test_decompiling_x8664_mv_O2(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1006,27 +1091,29 @@ class TestDecompiler(unittest.TestCase):
         p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
         f = p.kb.functions['main']
-        d = p.analyses.Decompiler(f, cfg=cfg.model, show_progressbar=not WORKER)
+        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [], show_progressbar=not WORKER)
         self._print_decompilation_result(d)
 
         assert "(False)" not in d.codegen.text
         assert "None" not in d.codegen.text
 
-    def test_extern_decl(self):
+    @for_all_structuring_algos
+    def test_extern_decl(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "test_gdb_plugin")
         p = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = p.analyses.CFGFast(normalize=True)
 
         f = p.kb.functions['set_globals']
-        d = p.analyses.Decompiler(f, cfg=cfg.model)
+        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [])
         l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
 
         assert "extern unsigned int a;" in d.codegen.text
         assert "extern unsigned int b;" in d.codegen.text
         assert "extern unsigned int c;" in d.codegen.text
 
-    def test_decompiling_amp_challenge_07(self):
+    @for_all_structuring_algos
+    def test_decompiling_amp_challenge_07(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armhf", "amp_challenge_07.gcc.dyn.unstripped")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1038,7 +1125,7 @@ class TestDecompiler(unittest.TestCase):
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
 
-        d = proj.analyses.Decompiler(f, cfg=cfg.model)
+        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [])
         self._print_decompilation_result(d)
 
         # make sure the types of extern variables are correct
@@ -1062,7 +1149,8 @@ class TestDecompiler(unittest.TestCase):
         line_mod_7 = [line for line in lines if re.search(r"v\d+ % 7", line)]
         assert len(line_mod_7) == 2
 
-    def test_decompiling_fmt_get_space(self):
+    @for_all_structuring_algos
+    def test_decompiling_fmt_get_space(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -1075,12 +1163,13 @@ class TestDecompiler(unittest.TestCase):
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
 
-        d = proj.analyses.Decompiler(f, cfg=cfg.model)
+        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [])
         self._print_decompilation_result(d)
 
         assert "break" in d.codegen.text
 
-    def test_decompiling_fmt_main(self):
+    @for_all_structuring_algos
+    def test_decompiling_fmt_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1099,7 +1188,7 @@ class TestDecompiler(unittest.TestCase):
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
 
-        d = proj.analyses.Decompiler(f, cfg=cfg.model)
+        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options or [])
         self._print_decompilation_result(d)
 
         # function arguments must be a0 and a1. they cannot be renamed
@@ -1116,12 +1205,13 @@ class TestDecompiler(unittest.TestCase):
         last_three_lines = "\n".join(line.strip(" ") for line in d.codegen.text.split("\n")[-4:])
         assert "error(0x1, *(__errno_location()), \"%s\");" in last_three_lines
 
-    def test_expr_collapsing(self):
+    @for_all_structuring_algos
+    def test_expr_collapsing(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "deep_expr")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         proj.analyses.CFGFast(normalize=True)
-        d = proj.analyses.Decompiler(proj.kb.functions['main'])
+        d = proj.analyses.Decompiler(proj.kb.functions['main'], options=decompiler_options or [])
         assert '...' in d.codegen.text, "codegen should have a too-deep expression replaced with '...'"
         collapsed = d.codegen.map_pos_to_node.get_node(d.codegen.text.find('...'))
         assert collapsed is not None, "collapsed node should appear in map"
@@ -1132,7 +1222,8 @@ class TestDecompiler(unittest.TestCase):
         new_len = len(d.codegen.text)
         assert new_len > old_len, "un-collapsing node should expand decompilation output"
 
-    def test_decompiling_division3(self):
+    @for_all_structuring_algos
+    def test_decompiling_division3(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "i386", "decompiler", "division3")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1143,7 +1234,8 @@ class TestDecompiler(unittest.TestCase):
                                                                                                                "linux")
         all_optimization_passes = [ p for p in all_optimization_passes
                                     if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
-        d = proj.analyses.Decompiler(proj.kb.functions["division3"], optimization_passes=all_optimization_passes)
+        d = proj.analyses.Decompiler(proj.kb.functions["division3"], optimization_passes=all_optimization_passes,
+                                     options=decompiler_options or [])
         self._print_decompilation_result(d)
 
         # get the returned expression from the return statement
@@ -1158,19 +1250,21 @@ class TestDecompiler(unittest.TestCase):
         mul7 = [line for line in lines if re.match(retexpr + r" = v\d+ \* 7;", line.strip(" ")) is not None]
         assert len(mul7) == 1, f"Cannot find statement {retexpr} = v0 * 7."
 
-    def test_decompiling_simple_ctfbin_modulo(self):
+    @for_all_structuring_algos
+    def test_decompiling_simple_ctfbin_modulo(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "simple_ctfbin_modulo")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions(recover_variables=True)
 
-        d = proj.analyses.Decompiler(proj.kb.functions["encrypt"])
+        d = proj.analyses.Decompiler(proj.kb.functions["encrypt"], options=decompiler_options or [])
         self._print_decompilation_result(d)
 
         assert "% 61" in d.codegen.text, "Modulo simplification failed."
 
-    def test_struct_access(self):
+    @for_all_structuring_algos
+    def test_struct_access(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "struct_access")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1197,7 +1291,7 @@ class TestDecompiler(unittest.TestCase):
         };
         """)
 
-        d = proj.analyses.Decompiler(proj.kb.functions["main"])
+        d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options or [])
         vmi: VariableManagerInternal = d.cache.clinic.variable_kb.variables['main']
         vmi.set_variable_type(
             next(iter(vmi.find_variables_by_stack_offset(-0x148))),
@@ -1232,7 +1326,8 @@ class TestDecompiler(unittest.TestCase):
         unified.name = "argc"
         unified.renamed = True
 
-        d = proj.analyses.Decompiler(proj.kb.functions["main"], variable_kb=d.cache.clinic.variable_kb)
+        d = proj.analyses.Decompiler(proj.kb.functions["main"], variable_kb=d.cache.clinic.variable_kb,
+                                     options=decompiler_options or [])
         self._print_decompilation_result(d)
 
         # TODO c_val
@@ -1242,14 +1337,15 @@ class TestDecompiler(unittest.TestCase):
         assert 'b_ptr = &b_ptr[1];' in d.codegen.text
         assert 'return c_ptr->c4->c2[argc].b2.a2;' in d.codegen.text
 
-    def test_call_return_variable_folding(self):
+    @for_all_structuring_algos
+    def test_call_return_variable_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_gcc_O0")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
-        dec = proj.analyses.Decompiler(proj.kb.functions["print_long_format"])
+        dec = proj.analyses.Decompiler(proj.kb.functions["print_long_format"], options=decompiler_options or [])
         self._print_decompilation_result(dec)
 
         assert "if (timespec_cmp(" in dec.codegen.text
