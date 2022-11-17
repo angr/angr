@@ -29,6 +29,11 @@ class IfElseFlattener(SequenceWalker):
 
     def _handle_Condition(self, node: ConditionNode, parent=None, index=None, **kwargs):
 
+        if node.true_node is not None:
+            self._handle(node.true_node, parent=node, index=0)
+        if node.false_node is not None:
+            self._handle(node.false_node, parent=node, index=1)
+
         if node.true_node is not None and node.false_node is not None:
             try:
                 last_stmts = ConditionProcessor.get_last_statements(node.true_node)
@@ -44,14 +49,10 @@ class IfElseFlattener(SequenceWalker):
                 node.false_node = None
                 insert_node(parent, index + 1, else_node, index, **kwargs)
 
-                self._handle(else_node, parent=parent, index=index + 1)
-
-        if node.true_node is not None:
-            self._handle(node.true_node, parent=node, index=0)
-        if node.false_node is not None:
-            self._handle(node.false_node, parent=node, index=1)
-
     def _handle_CascadingCondition(self, node: CascadingConditionNode, parent=None, index=None, **kwargs):
+
+        super()._handle_CascadingCondition(node, parent=parent, index=index, **kwargs)
+
         if node.else_node is not None:
             last_stmts = [ ]
             for _, subnode in node.condition_and_nodes:
@@ -68,10 +69,6 @@ class IfElseFlattener(SequenceWalker):
                 else_node = node.else_node
                 node.else_node = None
                 insert_node(parent, index + 1, else_node, index, **kwargs)
-
-                self._handle(else_node, parent=parent, index=index + 1)
-
-        super()._handle_CascadingCondition(node, parent=parent, index=index, **kwargs)
 
     def _is_statement_terminating(self, stmt):
 
