@@ -2,6 +2,7 @@ from typing import Type, TypeVar, overload, Any, Optional
 import logging
 
 from cle.backends.elf.variable import Variable
+from cle.backends.elf.variable_type import VariableType, BaseType, PointerType, ArrayType, StructType
 
 from angr.sim_state import SimState
 
@@ -16,17 +17,49 @@ class SimVariable:
     A SimVariable will get dynamically created when queriyng for variable in a state with the SimVariables state
     plugin. It features a link to the state, an address and a type.
     """
-    def __init__(self, state: SimState, cle_variable: Variable):
+    def __init__(self, state, addr, var_type):
         self.state = state
-        self._cle_variable = cle_variable
+        self.addr = addr
+        self.type = var_type
+
+    @staticmethod
+    def from_cle_variable(state, cle_variable):
+        addr = cle_variable.addr_from_state(state)
+        var_type = cle_variable.type
+        return SimVariable(state, addr, var_type)
 
     @property
-    def addr(self):
-        return self._cle_variable.addr_from_state(self.state)
+    def deref(self):
+        # dereferincing is equivalent to getting the first array element
+        return self.array(0)
 
-    @property
-    def type(self):
-        return self._cle_variable.type
+    def __getitem__(self, i):
+        if type(i) == int:
+            return self.array(i)
+        if type(i) == str:
+            return self.member(i)
+
+    def array(self, i):
+        if type(self.type) == ArrayType:
+            # an array already addresses its first element
+            addr = self.addr
+            el_type = self.type.element_type
+        elif type(self.type) == PointerType:
+            addr = self.state.mem[self.addr].deref
+            el_type = self.type.referenced_type
+        else:
+            raise Exception("{} object cannot be dereferenced".format(self.type))
+
+        new_addr = addr + i * el_type.byte_size
+        return SimVariable(self.state, new_addr, el_type)
+
+    def member(self, member_name):
+        if type(self.type) == StructType:
+            member = self.type[member_name]
+            addr = self.addr + member.addr_offset
+            return SimVariable(self.state, addr, member.type)
+
+        raise Exception("{} object has no members".format(self.type))
 
 
 class SimVariables(SimStatePlugin):
@@ -45,7 +78,7 @@ class SimVariables(SimStatePlugin):
         kb = self.state.project.kb
         cle_var = kb.nvariables[var_name][self.state.ip]
         if cle_var:
-            return SimVariable(self.state, cle_var)
+            return SimVariable.from_cle_variable(self.state, cle_var)
         return None
 
     def __getitem__(self, var_name):
