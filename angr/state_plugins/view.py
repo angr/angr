@@ -218,6 +218,16 @@ class SimMemView(SimStatePlugin):
     def __cmp__(self, other):
         raise ValueError("Trying to compare SimMemView is not what you want to do")
 
+    def with_type(self, name: str):
+        """
+        Returns a copy of the SimMemView with a type.
+
+        :param name:    The name of the type.
+        :returns:       The typed SimMemView copy.
+        """
+        ty = SimMemView.types[name].with_arch(self.state.arch)
+        return self._deeper(ty=ty)
+
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
         return SimMemView()
