@@ -1,9 +1,13 @@
+from typing import TYPE_CHECKING
 import logging
 
 import claripy
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch
 from .plugin import SimStatePlugin
+
+if TYPE_CHECKING:
+    from angr.sim_type import SimType
 
 
 l = logging.getLogger(name=__name__)
@@ -218,14 +222,14 @@ class SimMemView(SimStatePlugin):
     def __cmp__(self, other):
         raise ValueError("Trying to compare SimMemView is not what you want to do")
 
-    def with_type(self, name: str):
+    def with_type(self, sim_type: "SimType") -> "SimMemView":
         """
         Returns a copy of the SimMemView with a type.
 
-        :param name:    The name of the type.
-        :returns:       The typed SimMemView copy.
+        :param sim_type:    The new type.
+        :returns:           The typed SimMemView copy.
         """
-        ty = SimMemView.types[name].with_arch(self.state.arch)
+        ty = sim_type.with_arch(self.state.arch)
         return self._deeper(ty=ty)
 
     @SimStatePlugin.memo
