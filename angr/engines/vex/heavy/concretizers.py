@@ -182,6 +182,7 @@ def concretize_prem_flags(state, args):
     # Implementation based on description in the Intel software manual
     dividend = state.solver.eval(args[1])
     divisor = state.solver.eval(args[2])
+    # pylint: disable=too-many-boolean-expressions
     if math.isnan(dividend) or math.isnan(divisor) or abs(dividend) == math.inf or divisor == 0.0 or \
         abs(divisor) == math.inf or dividend == 0.0:
         # Since these are exception cases, the manual does not specify anything for these flags. These are set to
@@ -342,5 +343,3 @@ concretizers = {"Iop_Yl2xF64": concretize_yl2x, "Iop_ScaleF64": concretize_fscal
                 "Iop_F32toF64": concretize_float32_to_float64,
                 "Iop_ReinterpF64asI64": concretize_reinterp_float64_as_int64,
                }
-
-__all__ = ["concretizers"] + [concretizer.__name__ for concretizer in concretizers.values()]
