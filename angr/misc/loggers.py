@@ -107,8 +107,7 @@ class CuteFormatter(logging.Formatter):
         level = level.ljust(8 + len(level) - lvl_len)
         body: str = f"{level} | {self.formatTime(record, self.datefmt) : <23} | {name} | {message}"
         if record.exc_info:
-            # pylint: disable=no-value-for-parameter
-            body += "\n" + "".join(traceback.format_exception(record.exc_info[1]))[:-1]
+            body += "\n" + "".join(traceback.format_exception(*record.exc_info))[:-1]
         return body
 
 
