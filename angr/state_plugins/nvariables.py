@@ -1,15 +1,19 @@
-from typing import Type, TypeVar, overload, Any, Optional
+from typing import TYPE_CHECKING
 import logging
 
 from cle.backends.elf.variable import Variable
 from cle.backends.elf.variable_type import VariableType, BaseType, PointerType, ArrayType, StructType
 
 from angr.sim_state import SimState
+from angr.sim_type import ALL_TYPES, SimTypeReg
 
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
 
 l = logging.getLogger(name=__name__)
+
+if TYPE_CHECKING:
+    from angr.state_plugins.view import SimMemView
 
 
 class SimVariable:
@@ -17,21 +21,35 @@ class SimVariable:
     A SimVariable will get dynamically created when queriyng for variable in a state with the SimVariables state
     plugin. It features a link to the state, an address and a type.
     """
-    def __init__(self, state, addr, var_type):
+    def __init__(self, state: SimState, addr, var_type: VariableType):
         self.state = state
         self.addr = addr
         self.type = var_type
 
     @staticmethod
-    def from_cle_variable(state, cle_variable):
+    def from_cle_variable(state: SimState, cle_variable: Variable) -> "SimVariable":
         addr = cle_variable.addr_from_state(state)
         var_type = cle_variable.type
         return SimVariable(state, addr, var_type)
 
     @property
-    def deref(self):
+    def deref(self) -> "SimVariable":
         # dereferincing is equivalent to getting the first array element
         return self.array(0)
+
+    @property
+    def mem(self) -> "SimMemView":
+        arch = self.state.arch
+        size = self.type.byte_size * arch.byte_width
+        name = self.type.name
+        if name in ALL_TYPES:
+            sim_type = ALL_TYPES[name].with_arch(arch)
+            assert size == sim_type.size
+        else:
+            # FIXME A lot more types are supported by angr that are not in ALL_TYPES (structs, arrays, pointers)
+            # Use a fallback type
+            sim_type = SimTypeReg(size, label=name)
+        return self.state.mem[self.addr].with_type(sim_type)
 
     def __getitem__(self, i):
         if type(i) == int:
@@ -39,7 +57,7 @@ class SimVariable:
         if type(i) == str:
             return self.member(i)
 
-    def array(self, i):
+    def array(self, i) -> "SimVariable":
         if type(self.type) == ArrayType:
             # an array already addresses its first element
             addr = self.addr
@@ -53,7 +71,7 @@ class SimVariable:
         new_addr = addr + i * el_type.byte_size
         return SimVariable(self.state, new_addr, el_type)
 
-    def member(self, member_name):
+    def member(self, member_name: str) -> "SimVariable":
         if type(self.type) == StructType:
             member = self.type[member_name]
             addr = self.addr + member.addr_offset
@@ -74,14 +92,14 @@ class SimVariables(SimStatePlugin):
     def __init__(self):
         super().__init__()
 
-    def get_variable(self, var_name):
+    def get_variable(self, var_name: str) -> SimVariable:
         kb = self.state.project.kb
         cle_var = kb.nvariables[var_name][self.state.ip]
         if cle_var:
             return SimVariable.from_cle_variable(self.state, cle_var)
         return None
 
-    def __getitem__(self, var_name):
+    def __getitem__(self, var_name: str) -> SimVariable:
         return self.get_variable(var_name)
 
 
