@@ -1310,7 +1310,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Unop:
 		{
-			if (floating_point_ops_to_avoid.count(expr->Iex.Unop.op) > 0) {
+			if (fp_ops_to_avoid.count(expr->Iex.Unop.op) > 0) {
 				// Do not propagate taint from this expression since floating points support is not enabled
 				result.has_floating_point_op_to_skip = true;
 				break;
@@ -1329,7 +1329,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Binop:
 		{
-			if (floating_point_ops_to_avoid.count(expr->Iex.Binop.op) > 0) {
+			if (fp_ops_to_avoid.count(expr->Iex.Binop.op) > 0) {
 				// Do not propagate taint from this expression since floating points support is not enabled
 				result.has_floating_point_op_to_skip = true;
 				break;
@@ -1358,7 +1358,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Triop:
 		{
-			if (floating_point_ops_to_avoid.count(expr->Iex.Triop.details->op) > 0) {
+			if (fp_ops_to_avoid.count(expr->Iex.Triop.details->op) > 0) {
 				// Do not propagate taint from this expression since floating points support is not enabled
 				result.has_floating_point_op_to_skip = true;
 				break;
@@ -1397,7 +1397,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Qop:
 		{
-			if (floating_point_ops_to_avoid.count(expr->Iex.Qop.details->op) > 0) {
+			if (fp_ops_to_avoid.count(expr->Iex.Qop.details->op) > 0) {
 				// Do not propagate taint from this expression since floating points support is not enabled
 				result.has_floating_point_op_to_skip = true;
 				break;
@@ -3098,6 +3098,6 @@ void simunicorn_get_concrete_writes_to_reexecute(State *state, uint64_t *addrs, 
 extern "C"
 void simunicorn_set_fp_ops_vex_codes(State *state, uint64_t *ops, uint32_t op_count) {
 	for (auto i = 0; i < op_count; i++) {
-		state->floating_point_ops_to_avoid.emplace(ops[i]);
+		state->fp_ops_to_avoid.emplace(ops[i]);
 	}
 }

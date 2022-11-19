@@ -792,7 +792,7 @@ class State {
 		uc_cb_eventmem_t py_mem_callback;
 
 		// List of floating point operations
-		std::unordered_set<uint64_t> floating_point_ops_to_avoid;
+		std::unordered_set<uint64_t> fp_ops_to_avoid;
 
 		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond, bool symb_syscalls);
 
