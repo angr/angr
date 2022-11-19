@@ -1490,7 +1490,7 @@ class Structurer(Analysis):
                     # insert this node to the parent
                     if isinstance(parent, SwitchCaseNode) and index is None:
                         # the parent of the current node is not a container. insert_node() handles it for us.
-                        insert_node(parent, None, break_node, index, label=label, insert_location="before")
+                        insert_node(parent, index, break_node, index, label=label)
                         # now remove the node from the newly created container
                         if label == "case":
                             # parent.cases[index] is a SequenceNode now
@@ -1552,9 +1552,7 @@ class Structurer(Analysis):
                     # create a continue node
                     continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
                     # insert this node to the parent
-                    insert_idx = None if index is None else index + 1
-                    insert_loc = 'after'
-                    insert_node(parent, insert_idx, continue_node, index, label=label, insert_location=insert_loc)
+                    insert_node(parent, index + 1, continue_node, index, label=label)  # insert after
                     # remove this statement
                     node.statements = node.statements[:-1]
 

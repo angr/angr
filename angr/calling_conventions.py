@@ -711,7 +711,7 @@ class SimCC:
 
         return result
 
-    def arg_locs(self, prototype):
+    def arg_locs(self, prototype) -> List[SimFunctionArgument]:
         if prototype._arch is None:
             prototype = prototype.with_arch(self.arch)
         session = self.arg_session(prototype.returnty)

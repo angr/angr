@@ -856,7 +856,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         # the call to fileno() should not go missing
@@ -867,6 +867,9 @@ class TestDecompiler(unittest.TestCase):
         replaced = code_without_spaces.replace("break;case", "")
         replaced = replaced.replace("break;}", "")
         assert "break" not in replaced
+
+        # ensure if-else removal does not incorrectly remove else nodes
+        assert "emaillist=strdup(" in code_without_spaces
 
     def test_decompiling_morton_my_message_callback(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton")

@@ -121,12 +121,14 @@ uc_err State::start(address_t pc, uint64_t step) {
 	}
 
 	uc_err out = uc_emu_start(uc, unicorn_next_instr_addr, 0, 0, 0);
+	if (stop_details.stop_reason != STOP_NOSTART) {
+        rollback();
+	}
+
 	if (out == UC_ERR_OK && stop_details.stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
 		// handle edge case where we stop because we reached our bogus stop address (0)
-		commit();
 		stop_details.stop_reason = STOP_ZEROPAGE;
 	}
-	rollback();
 
 	if (out == UC_ERR_INSN_INVALID) {
 		stop_details.stop_reason = STOP_NODECODE;
@@ -138,7 +140,7 @@ uc_err State::start(address_t pc, uint64_t step) {
 	return out;
 }
 
-void State::stop(stop_t reason, bool do_commit) {
+void State::stop(stop_t reason, bool do_commit, uint64_t commit_addr) {
 	if (stopped) {
 		// Do not stop if already stopped. Sometimes, python lands initiates a stop even though native interface has
 		// already stopped leading to multiple issues.
@@ -149,7 +151,7 @@ void State::stop(stop_t reason, bool do_commit) {
 	stop_details.block_addr = curr_block_details.block_addr;
 	stop_details.block_size = curr_block_details.block_size;
 	if ((reason == STOP_SYSCALL) || do_commit) {
-		commit();
+		commit(commit_addr);
 	}
 	else if ((reason != STOP_NORMAL) && (reason != STOP_STOPPOINT)) {
 		// Stop reason is not NORMAL, STOPPOINT or SYSCALL. Rollback.
@@ -233,10 +235,7 @@ void State::step(address_t current_address, int32_t size, bool check_stop_points
 	}
 }
 
-void State::commit() {
-	// save registers
-	uc_context_save(uc, saved_regs);
-
+void State::commit(uint64_t addr) {
 	// mark memory sync status
 	// we might miss some dirty bits, this happens if hitting the memory
 	// write before mapping
@@ -364,6 +363,42 @@ void State::commit() {
 	}
 	for (auto &reg_offset: block_concrete_registers) {
 		symbolic_registers.erase(reg_offset);
+	}
+	// save registers
+	uc_context_save(uc, saved_regs);
+	switch (arch) {
+		case UC_ARCH_X86: {
+			switch (unicorn_mode) {
+				case UC_MODE_32: {
+					uint32_t val = addr;
+					uc_context_reg_write(saved_regs, UC_X86_REG_EIP, &val);
+					break;
+				}
+				case UC_MODE_64: {
+					uc_context_reg_write(saved_regs, UC_X86_REG_RIP, &addr);
+					break;
+				}
+				default: {
+					puts("unsupported");
+					abort();
+				}
+			}
+			break;
+		}
+		case UC_ARCH_ARM: {
+			uint32_t val = addr;
+			uc_context_reg_write(saved_regs, UC_ARM_REG_PC, &val);
+			break;
+		}
+		case UC_ARCH_MIPS: {
+			uint32_t val = addr;
+			uc_context_reg_write(saved_regs, UC_MIPS_REG_PC, &val);
+			break;
+		}
+		default: {
+			puts("unsupported");
+			abort();
+		}
 	}
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
@@ -667,20 +702,13 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 
 	// From here, we are definitely only dealing with one page
 
-	uint64_t skip_next_map_request;
 	mem_write_t record;
 	record.address = address;
 	record.size = size;
 	record.value.resize(size);
 	uc_err err = uc_mem_read(uc, address, record.value.data(), size);
 	if (err == UC_ERR_READ_UNMAPPED) {
-		if (is_interrupt) {
-			skip_next_map_request = 0;
-		}
-		else {
-			skip_next_map_request = 1;
-		}
-		if (py_mem_callback(uc, UC_MEM_WRITE_UNMAPPED, address, size, 0, (void*)skip_next_map_request)) {
+		if (py_mem_callback(uc, UC_MEM_WRITE_UNMAPPED, address, size, 0, (void*)0)) {
 			err = UC_ERR_OK;
 		}
 	}
@@ -911,30 +939,8 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 				register_value_t dep_reg_val;
 				dep_reg_val.offset = source.reg_offset;
 				dep_reg_val.size = source.value_size;
-				auto saved_reg_val = block_start_reg_values.lower_bound(dep_reg_val.offset);
-				if (dep_reg_val.offset == saved_reg_val->first) {
-					// Dependency register contains byte 0 of the register. Save entire value: correct-sized value will
-					// be computed when re-executing instruction
-					memcpy(dep_reg_val.value, saved_reg_val->second.value, MAX_REGISTER_BYTE_SIZE);
-					stmt.reg_deps.insert(dep_reg_val);
-				}
-				else {
-					// Check if dependency register is a sub-register
-					// lower_bound returns the first entry greater than or equal to given register offset but we have to check with
-					// the register whose byte 0 has VEX offset less than the dependency register.
-					saved_reg_val--;
-					if (dep_reg_val.offset + dep_reg_val.size <= saved_reg_val->first + saved_reg_val->second.size) {
-						// Dependency is a sub-register that starts in middle of larger register.
-						// Save value of dependency register starting at offset 0 so that value is computed correctly when
-						// re-executing
-						uint32_t val_offset = dep_reg_val.offset - saved_reg_val->first;
-						memcpy(dep_reg_val.value, saved_reg_val->second.value + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
-						stmt.reg_deps.insert(dep_reg_val);
-					}
-					else {
-						assert(false && "[sim_unicorn] Dependency register not saved at block start. Please report a bug with repro instructions.");
-					}
-				}
+				get_register_value(dep_reg_val.offset, dep_reg_val.value, true);
+				stmt.reg_deps.insert(dep_reg_val);
 			}
 		}
 		else if (source.entity_type == TAINT_ENTITY_MEM) {
@@ -1210,12 +1216,17 @@ std::set<vex_stmt_details_t> State::get_list_of_dep_stmts(const vex_stmt_details
 	return stmts;
 }
 
-void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const {
+void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value, bool from_saved_context) const {
 	// Check if VEX register is actually a CPU flag
 	auto cpu_flags_entry = cpu_flags.find(vex_reg_offset);
 	if (cpu_flags_entry != cpu_flags.end()) {
 		uint64_t reg_value;
-		uc_reg_read(uc, cpu_flags_entry->second.first, &reg_value);
+		if (from_saved_context) {
+			uc_context_reg_read(saved_regs, cpu_flags_entry->second.first, &reg_value);
+		}
+		else {
+			uc_reg_read(uc, cpu_flags_entry->second.first, &reg_value);
+		}
 		reg_value &= cpu_flags_entry->second.second;
 		if (reg_value == 0) {
 			memset(out_reg_value, 0, MAX_REGISTER_BYTE_SIZE);
@@ -1230,7 +1241,22 @@ void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) 
 		}
 	}
 	else {
-		uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset).first, out_reg_value);
+		uint8_t reg_val[MAX_REGISTER_BYTE_SIZE];
+		uint32_t val_offset = 0;
+		auto closest_reg_offset = vex_to_unicorn_map.lower_bound(vex_reg_offset);
+		if (from_saved_context) {
+			uc_context_reg_read(saved_regs, vex_to_unicorn_map.at(closest_reg_offset->first).first, reg_val);
+		}
+		else {
+			uc_reg_read(uc, vex_to_unicorn_map.at(closest_reg_offset->first).first, reg_val);
+		}
+		if (closest_reg_offset->first != vex_reg_offset) {
+			// Dependency is a sub-register that starts in middle of larger register. Adjust offset to start copying
+			// from
+			closest_reg_offset--;
+			val_offset = vex_reg_offset - closest_reg_offset->first;
+		}
+		memcpy(out_reg_value, reg_val + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
 	}
 	return;
 }
@@ -1798,6 +1824,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	}
 
 	// Save info about the memory read
+	unsigned char buf[32];
+	unsigned int has_read_from_uc = 0;
 	for (auto i = 0; i < read_size; i++) {
 		memory_value_t memory_value;
 		memory_value.address = read_address + i;
@@ -1806,7 +1834,16 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		}
 		else {
 			memory_value.is_value_symbolic = false;
-			uc_mem_read(uc, memory_value.address, &memory_value.value, 1);
+			if (read_size < sizeof(buf)) {
+				if (!has_read_from_uc) {
+					uc_mem_read(uc, read_address, buf, read_size);
+					has_read_from_uc = 1;
+				}
+				memory_value.value = buf[i];
+			}
+			else {
+				uc_mem_read(uc, memory_value.address, &memory_value.value, 1);
+			}
 		}
 		memory_read_values.emplace_back(memory_value);
 	}
@@ -1941,6 +1978,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		// Also, remember that a symbolic value has been partially read from memory so that even if the rest of the
 		// bytes to be read are concrete, taint will be propagated.
 		symbolic_read_in_progress = true;
+		taint_engine_stop_mem_read_instruction = curr_instr_addr;
+		taint_engine_next_stmt_idx = curr_stmt_idx;
 		return;
 	}
 	else if (mem_read_result.read_size > taint_engine_stop_mem_read_size) {
@@ -2180,21 +2219,6 @@ void State::start_propagating_taint() {
 		return;
 	}
 	block_symbolic_temps.clear();
-	block_start_reg_values.clear();
-	// Save value of all registers in case some instruction touches symbolic data and needs to be re-executed
-	for (auto &reg_offset: vex_to_unicorn_map) {
-		register_value_t reg_value;
-		reg_value.offset = reg_offset.first;
-		reg_value.size = reg_offset.second.second;
-		get_register_value(reg_value.offset, reg_value.value);
-		block_start_reg_values.emplace(reg_value.offset, reg_value);
-	}
-	for (auto &cpu_flag: cpu_flags) {
-		register_value_t flag_value;
-		flag_value.offset = cpu_flag.first;
-		get_register_value(cpu_flag.first, flag_value.value);
-		block_start_reg_values.emplace(flag_value.offset, flag_value);
-	}
 	if (symbolic_registers.size() != 0) {
 		if (block_taint_cache.find(block_address) == block_taint_cache.end()) {
 			// Compute and cache taint sink-source relations for this block since there are symbolic registers.
@@ -2385,7 +2409,7 @@ void State::perform_cgc_random() {
 	next_write_offset = 0;
 	uc_reg_write(uc, UC_X86_REG_EAX, &next_write_offset);
 	step(cgc_random_bbl, 0, false);
-	commit();
+	commit(cgc_random_bbl);
 	if (actual_count > 0) {
 		// Save a block with an instruction to track that the random syscall needs to be re-executed. The instruction
 		// data is used only to work with existing mechanism to return data to python.
@@ -2485,7 +2509,7 @@ void State::perform_cgc_receive() {
 	count = 0;
 	uc_reg_write(uc, UC_X86_REG_EAX, &count);
 	step(cgc_receive_bbl, 0, false);
-	commit();
+	commit(cgc_receive_bbl);
 	if (actual_count > 0) {
 		// Save a block with an instruction to track that the receive syscall needs to be re-executed. The instruction
 		// data is used only to work with existing mechanism to return data to python.
@@ -2530,7 +2554,6 @@ void State::perform_cgc_transmit() {
 	// basically an implementation of the cgc transmit syscall
 	//printf(".. TRANSMIT!\n");
 	uint32_t fd, buf, count, tx_bytes;
-	uint64_t skip_next_map_request;
 	uc_err err;
 
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
@@ -2547,8 +2570,7 @@ void State::perform_cgc_transmit() {
 
 		err = uc_mem_read(uc, buf, dup_buf, count);
 		if (err == UC_ERR_READ_UNMAPPED) {
-			skip_next_map_request = 0;
-			py_mem_callback(uc, UC_MEM_READ_UNMAPPED, buf, count, 0, (void*)skip_next_map_request);
+			py_mem_callback(uc, UC_MEM_READ_UNMAPPED, buf, count, 0, (void*)0);
 			if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK) {
 				//printf("... fault on buf\n");
 				free(dup_buf);
@@ -2568,7 +2590,7 @@ void State::perform_cgc_transmit() {
 		}
 
 		step(cgc_transmit_bbl, 0, false);
-		commit();
+		commit(cgc_transmit_bbl);
 		if (stopped) {
 			//printf("... stopped after step()\n");
 			free(dup_buf);
@@ -2644,7 +2666,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	state->commit();
+	state->commit(address);
 	state->set_curr_block_details(address, size);
 	state->step(address, size);
 
@@ -2705,7 +2727,7 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	State *state = (State *)user_data;
 	//printf("Segfault data: %d %#llx %d %#llx\n", type, address, size, value);
 	state->stop(STOP_SEGFAULT);
-	return true;
+	return false;
 }
 
 /*

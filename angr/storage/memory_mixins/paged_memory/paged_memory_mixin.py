@@ -513,7 +513,10 @@ class PagedMemoryMixin(MemoryMixin):
             elif my_page is other_page:
                 pass
             else:
-                changes.update(my_page.changed_bytes(other_page, page_addr=pageno * self.page_size))
+                changes.update(
+                    pageno * self.page_size + addr
+                    for addr in my_page.changed_bytes(other_page, page_addr=pageno * self.page_size)
+                )
 
         return changes
 

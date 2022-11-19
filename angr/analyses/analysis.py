@@ -124,7 +124,7 @@ class AnalysisFactory(Generic[A]):
 
         return wrapper # type: ignore
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> A:
         fail_fast = kwargs.pop('fail_fast', False)
         kb = kwargs.pop('kb', self._project.kb)
         progress_callback = kwargs.pop('progress_callback', None)

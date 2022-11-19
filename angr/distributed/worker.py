@@ -4,6 +4,7 @@ import multiprocessing
 import logging
 import sys
 
+from angr.utils.mp import Initializer
 from ..exploration_techniques import ExplorationTechnique, Bucketizer
 from ..vaults import VaultDirShelf
 
@@ -71,12 +72,11 @@ class Worker:
         self.remove_options = remove_options
 
     def start(self):
-        self._proc = multiprocessing.Process(
-            target=self.run,
-        )
+        self._proc = multiprocessing.Process(target=self.run, args=(Initializer.get(),))
         self._proc.start()
 
-    def run(self):
+    def run(self, initializer: Initializer):
+        initializer.initialize()
 
         from ..exploration_techniques.spiller import Spiller, PickledStatesDb  # pylint:disable=import-outside-toplevel
 

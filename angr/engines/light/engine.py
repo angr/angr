@@ -704,7 +704,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if self._is_top(expr_0) or self._is_top(expr_1):
             return self._top(1)
 
-        return expr_0 <= expr_1
+        return expr_0 < expr_1
 
     def _handle_CmpGT(self, expr):
         args, r = self._binop_get_args(expr)

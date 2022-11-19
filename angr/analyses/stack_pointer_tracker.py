@@ -13,6 +13,12 @@ from ..errors import SimTranslationError
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 
+try:
+    import pypcode
+    from angr.engines import pcode
+except ImportError:
+    pypcode = None
+
 _l = logging.getLogger(name=__name__)
 
 
@@ -416,6 +422,35 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         _l.debug('START:       Running on block at %x', node.addr)
         _l.debug('Regs: %s', state.regs)
         _l.debug('Mem: %s', state.memory)
+        curr_stmt_start_addr = None
+
+        vex_block = None
+        try:
+            vex_block = block.vex
+        except SimTranslationError:
+            pass
+
+        if vex_block is not None:
+            if isinstance(vex_block, pyvex.IRSB):
+                curr_stmt_start_addr = self._process_vex_irsb(node, vex_block, state)
+            elif pypcode is not None and isinstance(vex_block, pcode.lifter.IRSB):
+                curr_stmt_start_addr = self._process_pcode_irsb(node, vex_block, state)
+            else:
+                raise NotImplementedError(f"Unsupported block type {type(vex_block)}")
+
+
+        if curr_stmt_start_addr is not None:
+            self._set_post_state(curr_stmt_start_addr, state.freeze())
+
+        _l.debug('FINISH:      After running on block at %x', node.addr)
+        _l.debug('Regs: %s', state.regs)
+        _l.debug('Mem: %s', state.memory)
+
+        output_state = state.freeze()
+        return None, output_state
+
+    def _process_vex_irsb(self, node, vex_block: pyvex.IRSB, state: StackPointerTrackerState) -> int:
+
         tmps = { }
         curr_stmt_start_addr = None
 
@@ -483,66 +518,156 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             else:
                 raise CouldNotResolveException()
 
-        vex_block = None
-        try:
-            vex_block = block.vex
-        except SimTranslationError:
-            pass
+        for stmt in vex_block.statements:
+            if type(stmt) is pyvex.IRStmt.IMark:
+                if curr_stmt_start_addr is not None:
+                    # we've reached a new instruction. Time to store the post state
+                    self._set_post_state(curr_stmt_start_addr, state.freeze())
+                curr_stmt_start_addr = stmt.addr + stmt.delta
+                self._set_pre_state(curr_stmt_start_addr, state.freeze())
+            else:
+                try:
+                    resolve_stmt(stmt)
+                except CouldNotResolveException:
+                    pass
 
-        if vex_block is not None:
-            for stmt in vex_block.statements:
-                if type(stmt) is pyvex.IRStmt.IMark:
-                    if curr_stmt_start_addr is not None:
-                        # we've reached a new instruction. Time to store the post state
-                        self._set_post_state(curr_stmt_start_addr, state.freeze())
-                    curr_stmt_start_addr = stmt.addr + stmt.delta
-                    self._set_pre_state(curr_stmt_start_addr, state.freeze())
-                else:
-                    try:
-                        resolve_stmt(stmt)
-                    except CouldNotResolveException:
-                        pass
-
-            # stack pointer adjustment
-            if self.project.arch.sp_offset in self.reg_offsets and vex_block.jumpkind == 'Ijk_Call':
-                if self.project.arch.call_pushes_ret:
-                    # pop the return address on the stack
+        # stack pointer adjustment
+        if self.project.arch.sp_offset in self.reg_offsets and vex_block.jumpkind == 'Ijk_Call':
+            if self.project.arch.call_pushes_ret:
+                # pop the return address on the stack
+                try:
+                    v = state.get(self.project.arch.sp_offset)
+                    if v is BOTTOM:
+                        incremented = BOTTOM
+                    else:
+                        incremented = v + Constant(self.project.arch.bytes)
+                    state.put(self.project.arch.sp_offset, incremented)
+                except CouldNotResolveException:
+                    pass
+            # who are we calling?
+            callees = self._find_callees(node)
+            if callees:
+                callee_cleanups = [callee for callee in callees if callee.calling_convention is not None and
+                                   callee.calling_convention.CALLEE_CLEANUP]
+                if callee_cleanups:
+                    # found callee clean-up cases...
                     try:
                         v = state.get(self.project.arch.sp_offset)
                         if v is BOTTOM:
                             incremented = BOTTOM
-                        else:
-                            incremented = v + Constant(self.project.arch.bytes)
+                        elif callee_cleanups[0].prototype is not None:
+                            num_args = len(callee_cleanups[0].prototype.args)
+                            incremented = v + Constant(self.project.arch.bytes * num_args)
                         state.put(self.project.arch.sp_offset, incremented)
                     except CouldNotResolveException:
                         pass
-                # who are we calling?
-                callees = self._find_callees(node)
-                if callees:
-                    callee_cleanups = [callee for callee in callees if callee.calling_convention is not None and
-                                       callee.calling_convention.CALLEE_CLEANUP]
-                    if callee_cleanups:
-                        # found callee clean-up cases...
-                        try:
-                            v = state.get(self.project.arch.sp_offset)
-                            if v is BOTTOM:
-                                incremented = BOTTOM
-                            elif callee_cleanups[0].prototype is not None:
-                                num_args = len(callee_cleanups[0].prototype.args)
-                                incremented = v + Constant(self.project.arch.bytes * num_args)
-                            state.put(self.project.arch.sp_offset, incremented)
-                        except CouldNotResolveException:
-                            pass
 
-        if curr_stmt_start_addr is not None:
-            self._set_post_state(curr_stmt_start_addr, state.freeze())
+        return curr_stmt_start_addr
 
-        _l.debug('FINISH:      After running on block at %x', node.addr)
-        _l.debug('Regs: %s', state.regs)
-        _l.debug('Mem: %s', state.memory)
+    def _process_pcode_irsb(self, node, pcode_irsb: 'pcode.lifter.IRSB', state: StackPointerTrackerState) -> int:
 
-        output_state = state.freeze()
-        return None, output_state
+        unique = { }
+        curr_stmt_start_addr = None
+
+        def _resolve_expr(varnode: 'pypcode.Varnode'):
+            if varnode.space.name == "register":
+                return state.get(varnode.offset)
+            elif varnode.space.name == "unique":
+                key = (varnode.offset, varnode.size)
+                if key not in unique:
+                    raise CouldNotResolveException()
+                return unique[key]
+            elif varnode.space.name == "const":
+                return Constant(varnode.offset)
+            else:
+                raise CouldNotResolveException()
+
+        def resolve_expr(varnode: 'pypcode.Varnode'):
+            try:
+                return _resolve_expr(varnode)
+            except CouldNotResolveException:
+                return TOP
+
+        def resolve_op(op: 'pypcode.PcodeOp'):
+            if op.opcode == pypcode.OpCode.INT_ADD and len(op.inputs) == 2:
+                input0, input1 = op.inputs
+                input0_v = resolve_expr(input0)
+                input1_v = resolve_expr(input1)
+                if isinstance(input0_v, (Register, OffsetVal)) \
+                        and isinstance(input1_v, Constant):
+                    v = input0_v + input1_v
+                else:
+                    raise CouldNotResolveException()
+            elif op.opcode == pypcode.OpCode.COPY:
+                v = resolve_expr(op.inputs[0])
+            else:
+                # unsupported opcode
+                raise CouldNotResolveException()
+
+            # write the output
+            if op.output.space.name == "unique":
+                offset, size = op.output.offset, op.output.size
+                unique[(offset, size)] = v
+            elif op.output.space.name == "register":
+                state.put(op.output.offset, v)
+            else:
+                raise CouldNotResolveException()
+
+        for instr in pcode_irsb._instructions:
+            if curr_stmt_start_addr is not None:
+                # we've reached a new instruction. Time to store the post state
+                self._set_post_state(curr_stmt_start_addr, state.freeze())
+            curr_stmt_start_addr = instr.address.offset
+            self._set_pre_state(curr_stmt_start_addr, state.freeze())
+
+            for op in instr.ops:
+                op: 'pypcode.PcodeOp'
+                try:
+                    resolve_op(op)
+                except CouldNotResolveException:
+                    pass
+
+        # examine the last instruction and determine if this is a call instruction
+        is_call = False
+        if pcode_irsb._instructions:
+            last_instr = pcode_irsb._instructions[-1]
+            if last_instr.ops:
+                last_op = last_instr.ops[-1]
+                if last_op.opcode == pypcode.OpCode.CALL:
+                    is_call = True
+
+        # stack pointer adjustment
+        if self.project.arch.sp_offset in self.reg_offsets and is_call:
+            if self.project.arch.call_pushes_ret:
+                # pop the return address on the stack
+                try:
+                    v = state.get(self.project.arch.sp_offset)
+                    if v is BOTTOM:
+                        incremented = BOTTOM
+                    else:
+                        incremented = v + Constant(self.project.arch.bytes)
+                    state.put(self.project.arch.sp_offset, incremented)
+                except CouldNotResolveException:
+                    pass
+            # who are we calling?
+            callees = self._find_callees(node)
+            if callees:
+                callee_cleanups = [callee for callee in callees if callee.calling_convention is not None and
+                                   callee.calling_convention.CALLEE_CLEANUP]
+                if callee_cleanups:
+                    # found callee clean-up cases...
+                    try:
+                        v = state.get(self.project.arch.sp_offset)
+                        if v is BOTTOM:
+                            incremented = BOTTOM
+                        elif callee_cleanups[0].prototype is not None:
+                            num_args = len(callee_cleanups[0].prototype.args)
+                            incremented = v + Constant(self.project.arch.bytes * num_args)
+                        state.put(self.project.arch.sp_offset, incremented)
+                    except CouldNotResolveException:
+                        pass
+
+        return curr_stmt_start_addr
 
     def _widen_states(self, *states):
         assert len(states) == 2
