@@ -1053,6 +1053,11 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 				}
 				auto result = process_vex_expr(stmt->Ist.WrTmp.data, vex_block->tyenv, curr_instr_addr, stmt_idx, last_entity_setter, false);
 				if (result.has_unsupported_expr) {
+					// Only WrTmp statements will have GetI expressions on RHS. If we're concretizing all FP ops, mark temp as concrete
+					if ((result.unsupported_expr_stop_reason == STOP_UNSUPPORTED_EXPR_GETI) && (fp_ops_to_avoid.size() > 0)) {
+						stmt_taint_entry.floating_point_op_skip = true;
+						break;
+					}
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
@@ -1148,7 +1153,16 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 			}
 			case Ist_PutI:
 			{
-				// TODO
+				if (fp_ops_to_avoid.size() > 0) {
+					// All FP ops are being concretized. Mark destination as concrete instead of stopping.
+					stmt_taint_entry.sink.entity_type = TAINT_ENTITY_REG;
+					stmt_taint_entry.sink.instr_addr = curr_instr_addr;
+					stmt_taint_entry.sink.stmt_idx = stmt_idx;
+					stmt_taint_entry.sink.reg_offset = fp_reg_vex_data.first;
+					stmt_taint_entry.sink.value_size = fp_reg_vex_data.second;
+					break;
+				}
+				// PutI statements cannot be handled in VEX since exact register's offset is computed at runtime.
 				block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 				block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_PUTI;
 				break;
@@ -1530,7 +1544,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_GetI:
 		{
-			// TODO
+			// GetI statement cannot be handled in VEX since exact register's offset is computed at runtime.
 			result.has_unsupported_expr = true;
 			result.unsupported_expr_stop_reason = STOP_UNSUPPORTED_EXPR_GETI;
 			break;
@@ -3096,7 +3110,9 @@ void simunicorn_get_concrete_writes_to_reexecute(State *state, uint64_t *addrs, 
  }
 
 extern "C"
-void simunicorn_set_fp_ops_vex_codes(State *state, uint64_t *ops, uint32_t op_count) {
+void simunicorn_set_fp_regs_fp_ops_vex_codes(State *state, uint64_t start_offset, uint64_t size, uint64_t *ops, uint32_t op_count) {
+	state->fp_reg_vex_data.first = start_offset;
+	state->fp_reg_vex_data.second = size;
 	for (auto i = 0; i < op_count; i++) {
 		state->fp_ops_to_avoid.emplace(ops[i]);
 	}

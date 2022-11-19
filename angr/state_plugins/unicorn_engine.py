@@ -453,7 +453,7 @@ def _load_native():
         _setup_prototype(h, 'get_count_of_writes_to_reexecute', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_concrete_writes_to_reexecute', None, state_t, ctypes.POINTER(ctypes.c_uint64),
                          ctypes.POINTER(ctypes.c_uint8))
-        _setup_prototype(h, 'set_fp_ops_vex_codes', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint32)
+        _setup_prototype(h, 'set_fp_regs_fp_ops_vex_codes', None, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint32)
 
         l.info('native plugin is enabled')
 
@@ -1228,7 +1228,9 @@ class Unicorn(SimStatePlugin):
         if options.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
             fp_op_vex_codes = [pyvex.irop_enums_to_ints[op.name] for op in irop_ops.values() if op._float]
             fp_op_vex_codes_array = (ctypes.c_uint64 * len(fp_op_vex_codes))(*map(ctypes.c_uint64, fp_op_vex_codes))
-            _UC_NATIVE.set_fp_ops_vex_codes(self._uc_state, fp_op_vex_codes_array, len(fp_op_vex_codes))
+            fp_reg_start_offset, fp_regs_size = self.state.arch.registers['fpu_regs']
+            _UC_NATIVE.set_fp_regs_fp_ops_vex_codes(self._uc_state, fp_reg_start_offset, fp_regs_size,
+                                                    fp_op_vex_codes_array, len(fp_op_vex_codes))
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'

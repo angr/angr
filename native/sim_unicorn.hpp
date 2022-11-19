@@ -794,6 +794,9 @@ class State {
 		// List of floating point operations
 		std::unordered_set<uint64_t> fp_ops_to_avoid;
 
+		// Floating point registers
+		std::pair<uint64_t, uint64_t> fp_reg_vex_data;
+
 		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond, bool symb_syscalls);
 
 		~State() {
