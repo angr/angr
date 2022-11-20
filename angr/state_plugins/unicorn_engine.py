@@ -453,7 +453,8 @@ def _load_native():
         _setup_prototype(h, 'get_count_of_writes_to_reexecute', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_concrete_writes_to_reexecute', None, state_t, ctypes.POINTER(ctypes.c_uint64),
                          ctypes.POINTER(ctypes.c_uint8))
-        _setup_prototype(h, 'set_fp_regs_fp_ops_vex_codes', None, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint32)
+        _setup_prototype(h, 'set_fp_regs_fp_ops_vex_codes', None, state_t, ctypes.c_uint64, ctypes.c_uint64,
+                         ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint32)
 
         l.info('native plugin is enabled')
 
