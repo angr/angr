@@ -1056,6 +1056,9 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					// Only WrTmp statements will have GetI expressions on RHS. If we're concretizing all FP ops, mark temp as concrete
 					if ((result.unsupported_expr_stop_reason == STOP_UNSUPPORTED_EXPR_GETI) && (fp_ops_to_avoid.size() > 0)) {
 						stmt_taint_entry.floating_point_op_skip = true;
+						stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+						block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
+						stmt_taint_entry.reset();
 						break;
 					}
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
@@ -1547,6 +1550,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			// GetI statement cannot be handled in VEX since exact register's offset is computed at runtime.
 			result.has_unsupported_expr = true;
 			result.unsupported_expr_stop_reason = STOP_UNSUPPORTED_EXPR_GETI;
+			if (fp_ops_to_avoid.size() > 0) {
+				auto temp = process_vex_expr(expr->Iex.GetI.ix, vex_block_tyenv, instr_addr, curr_stmt_idx,
+											 entity_setter, is_exit_stmt);
+				// ix will be an RdTmp expression.
+				result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
+			}
 			break;
 		}
 		case Iex_Const:
