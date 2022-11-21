@@ -182,10 +182,11 @@ class NVariableManager(KnowledgeBasePlugin):
 
             for cu in cu_list:
                 self.add_variable_list(cu.global_variables, obj.min_addr, obj.max_addr)
-                for _, subp in cu.functions.items():
-                    low_pc = subp.low_pc + obj.mapped_base
-                    high_pc = subp.high_pc + obj.mapped_base
-                    self.add_variable_list(subp.local_variables, low_pc, high_pc)
+                for subp in cu.functions.values():
+                    for lexblock in subp:
+                        low_pc = lexblock.low_pc + obj.mapped_base
+                        high_pc = lexblock.high_pc + obj.mapped_base
+                        self.add_variable_list(lexblock.local_vars.values(), low_pc, high_pc)
 
 
 KnowledgeBasePlugin.register_default('nvariables', NVariableManager)

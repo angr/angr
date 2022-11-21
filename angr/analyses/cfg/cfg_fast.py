@@ -4375,7 +4375,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     gp_value = caller_gp  # fallback
                 if gp_value is None:
                     gp_value = self._gp_value  # fallback to a previously found value
-                func.info['gp'] = gp_value
+                if gp_value is not None:
+                    func.info['gp'] = gp_value
 
         elif self.project.arch.name == "X86":
             # detect __x86.get_pc_thunk.bx

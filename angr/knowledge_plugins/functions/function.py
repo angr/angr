@@ -195,9 +195,9 @@ class Function(Serializable):
                 if self.project.arch.name in DEFAULT_CC:
                     cc = DEFAULT_CC[arch.name](arch)
 
-            self.calling_convention = cc
+            self.calling_convention: Optional[SimCC] = cc
         else:
-            self.calling_convention = None
+            self.calling_convention: Optional[SimCC] = None
 
     @property
     def name(self):
