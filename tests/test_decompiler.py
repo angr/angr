@@ -39,8 +39,9 @@ def for_all_structuring_algos(func):
     def _for_all_structuring_algos(*args, **kwargs):
         orig_opts = kwargs.pop("decompiler_options", None) or []
         ret_vals = []
+        structurer_option = get_structurer_option()
         for structurer in STRUCTURER_CLASSES:
-            new_opts = orig_opts + [get_structurer_option(structurer)]
+            new_opts = orig_opts + [(structurer_option, structurer)]
             ret_vals.append(
                 func(*args, decompiler_options=new_opts, **kwargs)
             )

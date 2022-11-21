@@ -144,12 +144,9 @@ for o in options:
 # Option Helpers
 #
 
-def get_structurer_option(structurer: str) -> Tuple:
+def get_structurer_option() -> Optional[DecompilationOption]:
     for opt in options:
-        if o.param == "structurer_cls":
-            break
+        if opt.cls == "recursive_structurer" and opt.param == "structurer_cls":
+            return opt
     else:
-        return tuple()
-
-    return opt, structurer
-
+        return None
