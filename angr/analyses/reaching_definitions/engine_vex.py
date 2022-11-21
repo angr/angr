@@ -218,6 +218,11 @@ class SimEngineRDVEX(
                     atom = MemoryLocation(HeapAddress(self.state.get_heap_offset(a)), size)
                     tags = None
 
+                elif isinstance(a, claripy.ast.BV):
+                    addr_v = a._model_concrete.value
+                    atom = MemoryLocation(addr_v, size)
+                    tags = None
+
                 else:
                     continue
 
