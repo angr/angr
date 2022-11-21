@@ -5,6 +5,7 @@ import networkx
 
 import angr
 import angr.analyses.decompiler
+from angr.analyses.decompiler.structuring import DreamStructurer
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
@@ -103,7 +104,7 @@ def test_smoketest():
     ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
 
     # structure it
-    st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
+    st = p.analyses[DreamStructurer].prep()(ri.region)  # pylint:disable=unused-variable
 
     # simplify it
     _ = p.analyses.RegionSimplifier(main_func, st.result)
@@ -124,7 +125,7 @@ def test_smoketest_cm3_firmware():
     ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
 
     # structure it
-    st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
+    st = p.analyses[DreamStructurer].prep()(ri.region)  # pylint:disable=unused-variable
 
 
 def test_simple():
