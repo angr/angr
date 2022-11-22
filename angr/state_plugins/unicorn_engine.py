@@ -761,7 +761,7 @@ class Unicorn(SimStatePlugin):
     def set_stops(self, stop_points):
         _UC_NATIVE.set_stops(self._uc_state,
             ctypes.c_uint64(len(stop_points)),
-            (ctypes.c_uint64 * len(stop_points))((ctypes.c_uint64(sp) for sp in stop_points))
+            (ctypes.c_uint64 * len(stop_points))(*(ctypes.c_uint64(sp) for sp in stop_points))
         )
 
     def set_tracking(self, track_bbls, track_stack):
@@ -1170,8 +1170,9 @@ class Unicorn(SimStatePlugin):
 
         # Initialize list of artificial VEX registers
         artificial_regs_list = (ctypes.c_uint64(offset) for offset in self.state.arch.artificial_registers_offsets)
-        artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*artificial_regs_list)
-        _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, len(artificial_regs_list))
+        artifical_regs_count = len(self.state.arch.artificial_registers_offsets)
+        artificial_regs_array = (ctypes.c_uint64 * artifical_regs_count)(*artificial_regs_list)
+        _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, artifical_regs_count)
 
         # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
         vex_reg_offsets = []
@@ -1208,9 +1209,10 @@ class Unicorn(SimStatePlugin):
 
         # Initialize list of blacklisted registers
         blacklist_regs_offsets = (ctypes.c_uint64(offset) for offset in self.state.arch.reg_blacklist_offsets)
-        if len(blacklist_regs_offsets) > 0:
-            blacklist_regs_array = (ctypes.c_uint64 * len(blacklist_regs_offsets))(*blacklist_regs_offsets)
-            _UC_NATIVE.set_register_blacklist(self._uc_state, blacklist_regs_array, len(blacklist_regs_offsets))
+        blacklist_regs_count = len(self.state.arch.reg_blacklist_offsets)
+        if blacklist_regs_count > 0:
+            blacklist_regs_array = (ctypes.c_uint64 * blacklist_regs_count)(*blacklist_regs_offsets)
+            _UC_NATIVE.set_register_blacklist(self._uc_state, blacklist_regs_array, blacklist_regs_count)
 
         # Initialize VEX CC registers data
         if len(self.state.arch.vex_cc_regs) > 0:
