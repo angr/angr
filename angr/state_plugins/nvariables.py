@@ -28,7 +28,7 @@ class SimVariable:
 
     @staticmethod
     def from_cle_variable(state: SimState, cle_variable: Variable) -> "SimVariable":
-        addr = cle_variable.addr_from_state(state)
+        addr = cle_variable.rebased_addr_from_cfa(state.dwarf_cfa)
         var_type = cle_variable.type
         return SimVariable(state, addr, var_type)
 
