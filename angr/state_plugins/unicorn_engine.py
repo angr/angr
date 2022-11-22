@@ -3,14 +3,14 @@ import copy
 import ctypes
 import itertools
 import logging
-import operator
 import os
 import sys
 import threading
 import time
 
-import archinfo
 import cffi  # lmao
+
+import archinfo
 import claripy
 import pyvex
 from angr.engines.vex.claripy import ccall
@@ -286,7 +286,7 @@ class Uniwrapper(unicorn.Uc if unicorn is not None else object):
 
     def hook_del(self, h):
         #l.debug("Clearing hook %s", h)
-        h = unicorn.Uc.hook_del(self, h)
+        unicorn.Uc.hook_del(self, h)
         self.wrapped_hooks.discard(h)
         return h
 
@@ -761,7 +761,7 @@ class Unicorn(SimStatePlugin):
     def set_stops(self, stop_points):
         _UC_NATIVE.set_stops(self._uc_state,
             ctypes.c_uint64(len(stop_points)),
-            (ctypes.c_uint64 * len(stop_points))(*map(ctypes.c_uint64, stop_points))
+            (ctypes.c_uint64 * len(stop_points))((ctypes.c_uint64(sp) for sp in stop_points))
         )
 
     def set_tracking(self, track_bbls, track_stack):
@@ -973,10 +973,10 @@ class Unicorn(SimStatePlugin):
                 if pageno >= needed_pages:
                     l.info("...never mind")
                     break
-                else:
-                    self.error = str(e)
-                    _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
-                    return False
+
+                self.error = str(e)
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
+                return False
 
         return True
 
@@ -1046,12 +1046,11 @@ class Unicorn(SimStatePlugin):
 
         block_details_list = (BlockDetails * block_count)()
         _UC_NATIVE.get_details_of_blocks_with_symbolic_vex_stmts(self._uc_state, block_details_list)
-        for block_details in block_details_list:
-            entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size,
-                     "block_hist_ind": block_details.block_trace_ind,
-                     "has_symbolic_exit": block_details.has_symbolic_exit}
-            entry["registers"] = _get_reg_values(block_details.register_values[:block_details.register_values_count])
-            entry["stmts"] = _get_vex_stmt_details(block_details.symbolic_vex_stmts[:block_details.symbolic_vex_stmts_count])
+        for block_det in block_details_list:
+            entry = {"block_addr": block_det.block_addr, "block_size": block_det.block_size,
+                     "block_hist_ind": block_det.block_trace_ind, "has_symbolic_exit": block_det.has_symbolic_exit}
+            entry["registers"] = _get_reg_values(block_det.register_values[:block_det.register_values_count])
+            entry["stmts"] = _get_vex_stmt_details(block_det.symbolic_vex_stmts[:block_det.symbolic_vex_stmts_count])
             yield entry
 
     def uncache_region(self, addr, length):
@@ -1113,8 +1112,9 @@ class Unicorn(SimStatePlugin):
             )
 
             if self._symbolic_offsets:
-                l.debug("Sybmolic offsets: %s", self._symbolic_offsets)
-                sym_regs_array = (ctypes.c_uint64 * len(self._symbolic_offsets))(*map(ctypes.c_uint64, self._symbolic_offsets))
+                l.debug("Symbolic offsets: %s", self._symbolic_offsets)
+                tmp_sym_regs_off = (ctypes.c_uint64(offset) for offset in self._symbolic_offsets)
+                sym_regs_array = (ctypes.c_uint64 * len(self._symbolic_offsets))(*tmp_sym_regs_off)
                 _UC_NATIVE.symbolic_register_data(self._uc_state, len(self._symbolic_offsets), sym_regs_array)
             else:
                 _UC_NATIVE.symbolic_register_data(self._uc_state, 0, None)
@@ -1143,10 +1143,10 @@ class Unicorn(SimStatePlugin):
                     l.error("No syscall data specified for replaying random syscall!!!!!!!!!!!!!!")
                 else:
                     cgc_random_addr = self.cgc_random_addr
-                    values = list(map(operator.itemgetter(0), syscall_data["random"]))
-                    sizes = list(map(operator.itemgetter(1), syscall_data["random"]))
-                    values_array = (ctypes.c_uint64 * len(values))(*map(ctypes.c_uint64, values))
-                    sizes_array = (ctypes.c_uint64 * len(sizes))(*map(ctypes.c_uint64, sizes))
+                    values = (ctypes.c_uint64(item[0]) for item in syscall_data["random"])
+                    sizes = (ctypes.c_uint64(item[1]) for item in syscall_data["random"])
+                    values_array = (ctypes.c_uint64 * len(values))(*values)
+                    sizes_array = (ctypes.c_uint64 * len(sizes))(*sizes)
                     _UC_NATIVE.set_random_syscall_data(self._uc_state, values_array, sizes_array, len(values))
 
             _UC_NATIVE.set_cgc_syscall_details(self._uc_state, 2, cgc_transmit_addr, 3, cgc_receive_addr,
@@ -1169,8 +1169,8 @@ class Unicorn(SimStatePlugin):
             l.info("Input fds concrete data not specified. Handling some syscalls in native interface could fail.")
 
         # Initialize list of artificial VEX registers
-        artificial_regs_list = self.state.arch.artificial_registers_offsets
-        artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*map(ctypes.c_uint64, artificial_regs_list))
+        artificial_regs_list = (ctypes.c_uint64(offset) for offset in self.state.arch.artificial_registers_offsets)
+        artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*artificial_regs_list)
         _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, len(artificial_regs_list))
 
         # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
@@ -1178,13 +1178,13 @@ class Unicorn(SimStatePlugin):
         unicorn_reg_ids = []
         reg_sizes = []
         for vex_reg_offset, (unicorn_reg_id, reg_size) in self.state.arch.vex_to_unicorn_map.items():
-            vex_reg_offsets.append(vex_reg_offset)
-            unicorn_reg_ids.append(unicorn_reg_id)
-            reg_sizes.append(reg_size)
+            vex_reg_offsets.append(ctypes.c_uint64(vex_reg_offset))
+            unicorn_reg_ids.append(ctypes.c_uint64(unicorn_reg_id))
+            reg_sizes.append(ctypes.c_uint64(reg_size))
 
-        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
-        unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*map(ctypes.c_uint64, unicorn_reg_ids))
-        reg_sizes_array = (ctypes.c_uint64 * len(reg_sizes))(*map(ctypes.c_uint64, reg_sizes))
+        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*vex_reg_offsets)
+        unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*unicorn_reg_ids)
+        reg_sizes_array = (ctypes.c_uint64 * len(reg_sizes))(*reg_sizes)
         _UC_NATIVE.set_vex_to_unicorn_reg_mappings(self._uc_state, vex_reg_offsets_array, unicorn_reg_ids_array,
                                                    reg_sizes_array, len(vex_reg_offsets))
 
@@ -1194,22 +1194,22 @@ class Unicorn(SimStatePlugin):
             flag_bitmasks = []
             flag_uc_regs = []
             for flag_offset, (uc_reg, bitmask) in self.state.arch.cpu_flag_register_offsets_and_bitmasks_map.items():
-                flag_vex_offsets.append(flag_offset)
-                flag_bitmasks.append(bitmask)
-                flag_uc_regs.append(uc_reg)
+                flag_vex_offsets.append(ctypes.c_uint64(flag_offset))
+                flag_bitmasks.append(ctypes.c_uint64(bitmask))
+                flag_uc_regs.append(ctypes.c_uint64(uc_reg))
 
-            flag_vex_offsets_array = (ctypes.c_uint64 * len(flag_vex_offsets))(*map(ctypes.c_uint64, flag_vex_offsets))
-            flag_bitmasks_array = (ctypes.c_uint64 * len(flag_bitmasks))(*map(ctypes.c_uint64, flag_bitmasks))
-            flag_uc_regs_array = (ctypes.c_uint64 * len(flag_uc_regs))(*map(ctypes.c_uint64, flag_uc_regs))
+            flag_vex_offsets_array = (ctypes.c_uint64 * len(flag_vex_offsets))(*flag_vex_offsets)
+            flag_bitmasks_array = (ctypes.c_uint64 * len(flag_bitmasks))(*flag_bitmasks)
+            flag_uc_regs_array = (ctypes.c_uint64 * len(flag_uc_regs))(*flag_uc_regs)
             _UC_NATIVE.set_cpu_flags_details(self._uc_state, flag_vex_offsets_array, flag_uc_regs_array,
                                              flag_bitmasks_array, len(flag_vex_offsets))
         elif self.state.arch.name.startswith("ARM"):
             l.warning("Flag registers for %s not set in native unicorn interface.", self.state.arch.name)
 
         # Initialize list of blacklisted registers
-        blacklist_regs_offsets = self.state.arch.reg_blacklist_offsets
+        blacklist_regs_offsets = (ctypes.c_uint64(offset) for offset in self.state.arch.reg_blacklist_offsets)
         if len(blacklist_regs_offsets) > 0:
-            blacklist_regs_array = (ctypes.c_uint64 * len(blacklist_regs_offsets))(*map(ctypes.c_uint64, blacklist_regs_offsets))
+            blacklist_regs_array = (ctypes.c_uint64 * len(blacklist_regs_offsets))(*blacklist_regs_offsets)
             _UC_NATIVE.set_register_blacklist(self._uc_state, blacklist_regs_array, len(blacklist_regs_offsets))
 
         # Initialize VEX CC registers data
@@ -1217,21 +1217,21 @@ class Unicorn(SimStatePlugin):
             cc_regs_offsets = []
             cc_regs_sizes = []
             for cc_reg in self.state.arch.vex_cc_regs:
-                cc_regs_offsets.append(cc_reg.vex_offset)
-                cc_regs_sizes.append(cc_reg.size)
+                cc_regs_offsets.append(ctypes.c_uint64(cc_reg.vex_offset))
+                cc_regs_sizes.append(ctypes.c_uint64(cc_reg.size))
 
-            cc_regs_offsets_array = (ctypes.c_uint64 * len(cc_regs_offsets))(*map(ctypes.c_uint64, cc_regs_offsets))
-            cc_regs_sizes_array = (ctypes.c_uint64 * len(cc_regs_offsets))(*map(ctypes.c_uint64, cc_regs_sizes))
+            cc_regs_offsets_array = (ctypes.c_uint64 * len(cc_regs_offsets))(*cc_regs_offsets)
+            cc_regs_sizes_array = (ctypes.c_uint64 * len(cc_regs_offsets))(*cc_regs_sizes)
             _UC_NATIVE.set_vex_cc_reg_data(self._uc_state, cc_regs_offsets_array, cc_regs_sizes_array,
                                            len(cc_regs_offsets))
 
         # Set floating point operations VEX codes
         if options.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
-            fp_op_vex_codes = [pyvex.irop_enums_to_ints[op.name] for op in irop_ops.values() if op._float]
-            fp_op_vex_codes_array = (ctypes.c_uint64 * len(fp_op_vex_codes))(*map(ctypes.c_uint64, fp_op_vex_codes))
+            fp_op_codes = [ctypes.c_uint64(pyvex.irop_enums_to_ints[op.name]) for op in irop_ops.values() if op._float]
+            fp_op_codes_array = (ctypes.c_uint64 * len(fp_op_codes))(*fp_op_codes)
             fp_reg_start_offset, fp_regs_size = self.state.arch.registers['fpu_regs']
             _UC_NATIVE.set_fp_regs_fp_ops_vex_codes(self._uc_state, fp_reg_start_offset, fp_regs_size,
-                                                    fp_op_vex_codes_array, len(fp_op_vex_codes))
+                                                    fp_op_codes_array, len(fp_op_codes))
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
@@ -1287,7 +1287,7 @@ class Unicorn(SimStatePlugin):
             if (state.memory.load(state.ip, 1) == 0xf4).is_true():
                 unicorn_obj.stop_reason = STOP.STOP_HLT
             else:
-                raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
+                raise SimUnicornError("Got STOP_NOSTART but steps > 0. This indicates a serious unicorn bug.")
 
         addr = state.solver.eval(state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, unicorn_obj.steps,
@@ -1492,7 +1492,8 @@ class Unicorn(SimStatePlugin):
                     if val is None:
                         raise SimValueError('setting a symbolic fp register')
                     if val.symbolic:
-                        self._symbolic_offsets.difference_update(b for b,vb in enumerate(val.chop(8), start) if vb.symbolic)
+                        self._symbolic_offsets.difference_update(b for b, vb in enumerate(val.chop(8), start)
+                                                                 if vb.symbolic)
                     val = self.state.solver.eval(val)
 
                     sign = bool(val & 0x8000000000000000)
