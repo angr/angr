@@ -42,6 +42,9 @@ class PhoenixStructurer(StructurerBase):
         # who fall into these sets.
         self.whitelist_edges: Set[Tuple[int,int]] = set()
 
+        self._phoenix_improved = True
+        self._edge_virtualization_hints = [ ]
+
         self._analyze()
 
     def _analyze(self):
@@ -533,6 +536,13 @@ class PhoenixStructurer(StructurerBase):
                 l.debug("... matching acyclic ITE at %r", node)
                 matched = self._match_acyclic_ite(graph, full_graph, node)
                 any_matches |= matched
+            if self._phoenix_improved:
+                if not matched:
+                    l.debug("... matching acyclic ITE with cascading and at %r", node)
+                    matched = self._match_acyclic_ite_cascading_and(graph, full_graph, node)
+                    any_matches |= matched
+            if not matched:
+                l.debug("... matching acyclic")
             if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
                 l.error("Removed incorrect edges. Investigate.")
                 import ipdb; ipdb.set_trace()
@@ -967,19 +977,108 @@ class PhoenixStructurer(StructurerBase):
 
         return False
 
+    def _match_acyclic_ite_cascading_and(self, graph, full_graph, start_node) -> bool:
+        """
+        Check if start_node is the beginning of an If-Then-Else region with a cascading And expression as the condition.
+        Create a Condition node if it is the case.
+        """
+
+        r = self._match_acyclic_ite_cascading_and_core(graph, full_graph, start_node)
+        if r is None:
+            return False
+
+        left, left_cond, else_node, else_cond_0 = r
+        conditions = [left_cond]
+        lefts = [left]
+        else_node_indegree = full_graph.in_degree[else_node]
+        if else_node_indegree <= 1:
+            # normal ite-matching should handle this case just fine
+            return False
+        if else_node is start_node:
+            # it loops
+            return False
+
+        while len(conditions) < else_node_indegree:
+            r = self._match_acyclic_ite_cascading_and_core(graph, full_graph, left)
+            if r is None:
+                return False
+            left, left_cond, new_else_node, else_cond = r
+            if new_else_node is not else_node:
+                return False
+            if left is start_node or left in lefts:
+                # it loops!
+                return False
+            conditions.append(left_cond)
+            lefts.append(left)
+
+        # all but the last left node must contain only one conditional jump statement
+        for nn in lefts[:-1]:
+            if not self._is_single_statement_block(nn):
+                return False
+
+        # final check
+        left_successors = list(full_graph.successors(left))
+        else_successors = list(full_graph.successors(else_node))
+        if len(left_successors) == 0 and len(else_successors) <= 1 \
+                or len(left_successors) <= 1 and len(else_successors) == 0:
+            pass
+        elif len(set(left_successors + else_successors)) == 1:
+            pass
+        else:
+            # generate edge virtualization hints
+            if len(left_successors) == 1 and len(else_successors) > 1 and left_successors[0] in else_successors:
+                self._edge_virtualization_hints.append((left, left_successors[0]))
+
+            return False
+
+        # create the condition node
+        new_cond_node = ConditionNode(start_node.addr, None, claripy.And(*conditions), left, else_node)
+        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+
+        graph.remove_nodes_from(lefts)
+        self.replace_nodes(graph, start_node, new_node, old_node_1=else_node)
+        full_graph.remove_nodes_from(lefts)
+        self.replace_nodes(full_graph, start_node, new_node, old_node_1=else_node)
+
+        return True
+
+    def _match_acyclic_ite_cascading_and_core(self, graph, full_graph, start_node) -> Optional[Tuple]:
+        # match one level
+        succs = list(full_graph.successors(start_node))
+        if len(succs) == 2:
+            left, right = succs
+
+            if full_graph.in_degree[left] > 1 and full_graph.in_degree[right] == 1:
+                left, right = right, left
+            if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] >= 1:
+                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
+                edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                    # c = !c
+                    return left, edge_cond_left, right, edge_cond_right
+        return None
+
     def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: Optional[networkx.DiGraph]) -> bool:
+
+        if self._phoenix_improved:
+            while self._edge_virtualization_hints:
+                src, dst = self._edge_virtualization_hints.pop(0)
+                if graph.has_edge(src, dst):
+                    self._virtualize_edge(graph, full_graph, src, dst)
+                    l.debug("last_resort: Removed edge %r -> %r (type 3)", src, dst)
+                    return True
 
         # virtualize an edge to allow progressing in structuring
         all_edges_wo_dominance = [ ]  # to ensure determinism, edges in this list are ordered by a tuple of
                                       # (src_addr, dst_addr)
         secondary_edges = [ ]  # likewise, edges in this list are ordered by a tuple of (src_addr, dst_addr)
         other_edges = [ ]
-        idoms = networkx.immediate_dominators(graph, head)
-        if networkx.is_directed_acyclic_graph(graph):
-            inverted_graph, inv_idoms = inverted_idoms(graph)
-            acyclic_graph = graph
+        idoms = networkx.immediate_dominators(full_graph, head)
+        if networkx.is_directed_acyclic_graph(full_graph):
+            inverted_graph, inv_idoms = inverted_idoms(full_graph)
+            acyclic_graph = full_graph
         else:
-            acyclic_graph = to_acyclic_graph(graph)
+            acyclic_graph = to_acyclic_graph(full_graph)
             inverted_graph, inv_idoms = inverted_idoms(acyclic_graph)
         for src, dst in acyclic_graph.edges:
             if src is dst:

@@ -32,8 +32,8 @@ def for_all_structuring_algos(func):
     This option MUST be used when calling the Decompiler interface for the effects of using all
     structuring algorithms.
 
-    In the funciton its best to call your deocmpiler like so:
-    angr.analyses.Decompiler(f, cfg=..., options=decompiler_options )
+    In the function its best to call your decompiler like so:
+    angr.analyses.Decompiler(f, cfg=..., options=decompiler_options)
     """
     @wraps(func)
     def _for_all_structuring_algos(*args, **kwargs):
@@ -48,6 +48,22 @@ def for_all_structuring_algos(func):
 
         return ret_vals
     return _for_all_structuring_algos
+
+
+def structuring_algo(algo: str):
+    def _structuring_algo(func):
+        @wraps(func)
+        def inner(*args, **kwargs):
+            orig_opts = kwargs.pop("decompiler_options", None) or []
+            ret_vals = []
+            structurer_option = get_structurer_option()
+            new_opts = orig_opts + [(structurer_option, algo)]
+            ret_vals.append(
+                func(*args, decompiler_options=new_opts, **kwargs)
+            )
+            return ret_vals
+        return inner
+    return _structuring_algo
 
 
 class TestDecompiler(unittest.TestCase):
@@ -1351,6 +1367,26 @@ class TestDecompiler(unittest.TestCase):
 
         assert "if (timespec_cmp(" in dec.codegen.text
         assert "&& localtime_rz(localtz, " in dec.codegen.text
+
+    @structuring_algo("phoenix")
+    def test_cascading_boolean_and(self, decompiler_options=None):
+        # test binary contributed by zion
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "test_cascading_boolean_and")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                               "linux")
+        all_optimization_passes = [ p for p in all_optimization_passes
+                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
+
+        dec = proj.analyses.Decompiler(proj.kb.functions["foo"], cfg=cfg, options=decompiler_options,
+                                       optimization_passes=all_optimization_passes)
+        self._print_decompilation_result(dec)
+        assert dec.codegen.text.count("goto") == 1  # should have only one goto
 
 
 if __name__ == "__main__":
