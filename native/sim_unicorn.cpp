@@ -410,6 +410,7 @@ void State::commit(uint64_t addr) {
 	curr_block_details.reset();
 	block_mem_reads_data.clear();
 	block_mem_reads_map.clear();
+	block_mem_read_addr_details.clear();
 	block_mem_writes_taint_data.clear();
 	symbolic_stmts_to_erase.clear();
 	taint_engine_next_stmt_idx = -1;
@@ -908,6 +909,21 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		}
 	}
 	mem_writes.push_back(record);
+	for (int i = 0; i < size; i++) {
+		auto entry = block_mem_read_addr_details.find(address + i);
+		if (entry != block_mem_read_addr_details.end()) {
+			// Some previous VEX statements read values from this address that is being written to. Save current value.
+			for (auto &vex_stmt_id: entry->second) {
+				auto &mem_read_result = block_mem_reads_map.at(vex_stmt_id);
+				for (auto &mem_value: mem_read_result.memory_values) {
+					if (!mem_value.is_value_set && (mem_value.address == address + i)) {
+						mem_value.value = record.value.at(i);
+						mem_value.is_value_set = true;
+					}
+				}
+			}
+		}
+	}
 }
 
 void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
@@ -1879,27 +1895,10 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	}
 
 	// Save info about the memory read
-	unsigned char buf[32];
-	unsigned int has_read_from_uc = 0;
 	for (auto i = 0; i < read_size; i++) {
 		memory_value_t memory_value;
 		memory_value.address = read_address + i;
-		if (find_tainted(read_address + i, 1) != -1) {
-			memory_value.is_value_symbolic = true;
-		}
-		else {
-			memory_value.is_value_symbolic = false;
-			if (read_size < sizeof(buf)) {
-				if (!has_read_from_uc) {
-					uc_mem_read(uc, read_address, buf, read_size);
-					has_read_from_uc = 1;
-				}
-				memory_value.value = buf[i];
-			}
-			else {
-				uc_mem_read(uc, memory_value.address, &memory_value.value, 1);
-			}
-		}
+		memory_value.is_value_symbolic = (find_tainted(read_address + i, 1) != -1);
 		memory_read_values.emplace_back(memory_value);
 	}
 
@@ -1949,19 +1948,46 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 			while (vex_stmt_taint_entry_it != block_taint_entry.block_stmts_taint_data.end()) {
 				if (vex_stmt_taint_entry_it->second.has_memory_read) {
 					mem_read_result_t mem_read_result;
+					bool is_addr_set = false;
 					while (block_mem_reads_data.size() != 0) {
 						auto &next_mem_read = block_mem_reads_data.front();
+						if (!is_addr_set) {
+							mem_read_result.first_byte_addr = next_mem_read.address;
+							is_addr_set = true;
+						}
 						mem_read_result.memory_values.emplace_back(next_mem_read);
 						mem_read_result.is_mem_read_symbolic |= next_mem_read.is_value_symbolic;
 						mem_read_result.read_size += 1;
 						block_mem_reads_data.erase(block_mem_reads_data.begin());
 						if (mem_read_result.read_size == vex_stmt_taint_entry_it->second.mem_read_size) {
 							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx, mem_read_result);
+							for (auto &value: mem_read_result.memory_values) {
+								if (!value.is_value_symbolic) {
+									auto entry = block_mem_read_addr_details.find(value.address);
+									if (entry == block_mem_read_addr_details.end()) {
+										block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>(vex_stmt_taint_entry_it->second.sink.stmt_idx));
+									}
+									else {
+										entry->second.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx);
+									}
+								}
+							}
 							break;
 						}
 						else if (block_mem_reads_data.size() == 0) {
 							// This entry is of a partial memory read for the instruction being processed.
 							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx, mem_read_result);
+							for (auto &value: mem_read_result.memory_values) {
+								if (!value.is_value_symbolic) {
+									auto entry = block_mem_read_addr_details.find(value.address);
+									if (entry == block_mem_read_addr_details.end()) {
+										block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>(vex_stmt_taint_entry_it->second.sink.stmt_idx));
+									}
+									else {
+										entry->second.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx);
+									}
+								}
+							}
 							break;
 						}
 					}
@@ -1998,6 +2024,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	auto mem_reads_map_entry = block_mem_reads_map.find(curr_stmt_idx);
 	if (mem_reads_map_entry == block_mem_reads_map.end()) {
 		mem_read_result_t mem_read_result;
+		mem_read_result.first_byte_addr = memory_read_values[0].address;
 		mem_read_result.memory_values = memory_read_values;
 		mem_read_result.is_mem_read_symbolic = is_mem_read_symbolic;
 		mem_read_result.read_size = read_size;
@@ -2008,6 +2035,17 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		mem_read_entry.memory_values.insert(mem_read_entry.memory_values.end(), memory_read_values.begin(), memory_read_values.end());
 		mem_read_entry.is_mem_read_symbolic |= is_mem_read_symbolic;
 		mem_read_entry.read_size += read_size;
+	}
+	for (auto &value: memory_read_values) {
+		if (!value.is_value_symbolic) {
+			auto entry = block_mem_read_addr_details.find(value.address);
+			if (entry == block_mem_read_addr_details.end()) {
+				block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>({curr_stmt_idx}));
+			}
+			else {
+				entry->second.emplace(curr_stmt_idx);
+			}
+		}
 	}
 
 	// At this point the block's memory reads map has been rebuilt and we can propagate taint as before
@@ -2327,7 +2365,9 @@ void State::continue_propagating_taint() {
 
 void State::save_concrete_memory_deps(vex_stmt_details_t &vex_stmt_det) {
 	if (vex_stmt_det.has_concrete_memory_dep || (vex_stmt_det.has_symbolic_memory_dep && !vex_stmt_det.has_read_from_symbolic_addr)) {
-		archived_memory_values.emplace_back(block_mem_reads_map.at(vex_stmt_det.stmt_idx).memory_values);
+		auto &mem_read_result = block_mem_reads_map.at(vex_stmt_det.stmt_idx);
+		save_mem_values(mem_read_result);
+		archived_memory_values.emplace_back(mem_read_result.memory_values);
 		vex_stmt_det.memory_values = &(archived_memory_values.back()[0]);
 		vex_stmt_det.memory_values_count = archived_memory_values.back().size();
 	}
@@ -2338,13 +2378,27 @@ void State::save_concrete_memory_deps(vex_stmt_details_t &vex_stmt_det) {
 	while (!vex_stmts_to_process.empty()) {
 		auto &curr_stmt = vex_stmts_to_process.front();
 		if ((curr_stmt->has_concrete_memory_dep) || (curr_stmt->has_symbolic_memory_dep && !curr_stmt->has_read_from_symbolic_addr)) {
-			archived_memory_values.emplace_back(block_mem_reads_map.at(curr_stmt->stmt_idx).memory_values);
+			auto &mem_read_result = block_mem_reads_map.at(curr_stmt->stmt_idx);
+			save_mem_values(mem_read_result);
+			archived_memory_values.emplace_back(mem_read_result.memory_values);
 			curr_stmt->memory_values = &(archived_memory_values.back()[0]);
 			curr_stmt->memory_values_count = archived_memory_values.back().size();
 		}
 		vex_stmts_to_process.pop();
 		for (auto it = curr_stmt->stmt_deps.begin(); it != curr_stmt->stmt_deps.end(); *it++) {
 			vex_stmts_to_process.push(it);
+		}
+	}
+	return;
+}
+
+void State::save_mem_values(mem_read_result_t &mem_read_result) {
+	std::vector<uint8_t> mem_bytes;
+	mem_bytes.reserve(mem_read_result.read_size);
+	uc_mem_read(uc, mem_read_result.first_byte_addr, mem_bytes.data(), mem_read_result.read_size);
+	for (auto &mem_value: mem_read_result.memory_values) {
+		if (!mem_value.is_value_symbolic && !mem_value.is_value_set) {
+			mem_value.value = mem_bytes[mem_value.address - mem_read_result.first_byte_addr];
 		}
 	}
 	return;

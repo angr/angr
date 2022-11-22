@@ -132,6 +132,7 @@ namespace std {
 struct memory_value_t {
 	uint64_t address;
 	uint8_t value;
+	bool is_value_set;
 	bool is_value_symbolic;
 
 	bool operator==(const memory_value_t &other_mem_value) const {
@@ -145,16 +146,19 @@ struct memory_value_t {
 	memory_value_t() {
 		address = 0;
 		value = 0;
+		is_value_set = false;
 		is_value_symbolic = false;
 	}
 };
 
 struct mem_read_result_t {
+	address_t first_byte_addr;
 	std::vector<memory_value_t> memory_values;
 	bool is_mem_read_symbolic;
 	uint32_t read_size;
 
 	mem_read_result_t() {
+		first_byte_addr = 0;
 		memory_values.clear();
 		is_mem_read_symbolic = false;
 		read_size = 0;
@@ -614,6 +618,15 @@ class State {
 	// Symbolic memory dependencies of all symbolic VEX statements in current block.
 	std::unordered_set<address_t> block_symbolic_mem_deps;
 
+	// List of all values read from memory in current block
+	std::vector<memory_value_t> block_mem_reads_data;
+
+	// Result of all memory reads executed. VEX statement ID -> memory read result
+	std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
+
+	// List of memory read addresses and VEX statements that read values from them
+	std::unordered_map<address_t, std::unordered_set<int64_t>> block_mem_read_addr_details;
+
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
@@ -660,6 +673,9 @@ class State {
 
 	// Save values of concrete memory reads performed by an instruction and it's dependencies
 	void save_concrete_memory_deps(vex_stmt_details_t &instr);
+
+	// Save memory values of concrete deps
+	void save_mem_values(mem_read_result_t &mem_read_result);
 
 	// Inline functions
 
@@ -763,12 +779,6 @@ class State {
 		// VEX flag register offset, corresponding unicorn register ID and bitmask for CPU flags
 		std::unordered_map<vex_reg_offset_t, std::pair<uint64_t, uint64_t>> cpu_flags;
 		stop_details_t stop_details;
-
-		// List of all values read from memory in current block
-		std::vector<memory_value_t> block_mem_reads_data;
-
-		// Result of all memory reads executed. VEX statement ID -> memory read result
-		std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
 
 		// Address of all bytes to which symbolic value is written in this run and number of writes to them
 		std::unordered_map<address_t, uint64_t> symbolic_mem_writes;

@@ -74,6 +74,7 @@ class MemoryValue(ctypes.Structure):
     _fields_ = [
         ('address', ctypes.c_uint64),
         ('value', ctypes.c_uint8),
+        ('is_value_set', ctypes.c_bool),
         ('is_value_symbolic', ctypes.c_bool)
     ]
 
