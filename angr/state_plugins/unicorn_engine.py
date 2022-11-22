@@ -1145,9 +1145,9 @@ class Unicorn(SimStatePlugin):
                     cgc_random_addr = self.cgc_random_addr
                     values = (ctypes.c_uint64(item[0]) for item in syscall_data["random"])
                     sizes = (ctypes.c_uint64(item[1]) for item in syscall_data["random"])
-                    values_array = (ctypes.c_uint64 * len(values))(*values)
-                    sizes_array = (ctypes.c_uint64 * len(sizes))(*sizes)
-                    _UC_NATIVE.set_random_syscall_data(self._uc_state, values_array, sizes_array, len(values))
+                    values_array = (ctypes.c_uint64 * len(syscall_data["random"]))(*values)
+                    sizes_array = (ctypes.c_uint64 * len(syscall_data["random"]))(*sizes)
+                    _UC_NATIVE.set_random_syscall_data(self._uc_state, values_array, sizes_array, len(syscall_data["random"]))
 
             _UC_NATIVE.set_cgc_syscall_details(self._uc_state, 2, cgc_transmit_addr, 3, cgc_receive_addr,
                                                7, cgc_random_addr)
