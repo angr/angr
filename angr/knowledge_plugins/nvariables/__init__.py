@@ -192,7 +192,7 @@ class NVariableManager(KnowledgeBasePlugin):
                 cu_list = obj.compilation_units
 
             for cu in cu_list:
-                self.add_variable_list(cu.global_variables, obj.min_addr, obj.max_addr)
+                self.add_variable_list(cu.global_variables, cu.min_addr, cu.max_addr)
                 for subp in cu.functions.values():
                     for cle_var in subp.local_variables:
                         low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
