@@ -16,6 +16,9 @@ l = logging.getLogger(name=__name__)
 
 
 class NVariableContainer:
+    """
+    Variable tree for variables with same name to lock up which variable is visible at a given program counter address.
+    """
     def __init__(self):
         """
         It is recommended to use NVariableManager.add_variable() instead
@@ -38,13 +41,16 @@ class NVariableContainer:
         self.less_visible_vars.append(var)
 
     def __setitem__(self, index, value):
-        assert type(index) == slice and type(value) == Variable
+        assert isinstance(index, slice) and isinstance(value, Variable)
         low_pc = index.start
         high_pc = index.stop
         nvar = NVariable(low_pc, high_pc, value)
         return self._insertvar(nvar)
 
     def from_pc(self, pc) -> Variable:
+        """
+        Returns the visible variable (if any) for a given pc address.
+        """
         for var in self.less_visible_vars:
             if claripy.is_true(var.low_pc <= pc) and claripy.is_true(pc < var.high_pc):
                 return var.from_pc(pc)
@@ -55,6 +61,11 @@ class NVariableContainer:
 
 
 class NVariable(NVariableContainer):
+    """
+    :ivar low_pc:           Start of the visibility scope of the variable as program counter address (rebased)
+    :ivar high_pc:          End of the visibility scope of the variable as program counter address (rebased)
+    :ivar cle_variable:     Original variable from cle
+    """
     def __init__(self, low_pc: int, high_pc: int, cle_variable: Variable):
         """
         It is recommended to use NVariableManager.add_variable() instead
@@ -146,7 +157,7 @@ class NVariableManager(KnowledgeBasePlugin):
         container[low_pc:high_pc] = cle_var
 
     def __setitem__(self, index, cle_var):
-        assert type(index) == slice and type(cle_var) == Variable
+        assert isinstance(index, slice) and isinstance(cle_var, Variable)
         return self.add_variable(cle_var, index.start, index.stop)
 
     # Methods similar to the once in VariableManager
@@ -181,12 +192,12 @@ class NVariableManager(KnowledgeBasePlugin):
                 cu_list = obj.compilation_units
 
             for cu in cu_list:
-                self.add_variable_list(cu.global_variables, obj.min_addr, obj.max_addr)
+                self.add_variable_list(cu.global_variables, cu.min_addr, cu.max_addr)
                 for subp in cu.functions.values():
-                    for lexblock in subp:
-                        low_pc = lexblock.low_pc + obj.mapped_base
-                        high_pc = lexblock.high_pc + obj.mapped_base
-                        self.add_variable_list(lexblock.local_vars.values(), low_pc, high_pc)
+                    for cle_var in subp.local_variables:
+                        low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
+                        high_pc = cle_var.lexical_block.high_pc + obj.mapped_base
+                        self.add_variable(cle_var, low_pc, high_pc)
 
 
 KnowledgeBasePlugin.register_default('nvariables', NVariableManager)
