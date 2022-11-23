@@ -1898,7 +1898,12 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	for (auto i = 0; i < read_size; i++) {
 		memory_value_t memory_value;
 		memory_value.address = read_address + i;
-		memory_value.is_value_symbolic = (find_tainted(read_address + i, 1) != -1);
+		if (!is_mem_read_symbolic) {
+			memory_value.is_value_symbolic = false;
+		}
+		else {
+			memory_value.is_value_symbolic = (find_tainted(read_address + i, 1) != -1);
+		}
 		memory_read_values.emplace_back(memory_value);
 	}
 
