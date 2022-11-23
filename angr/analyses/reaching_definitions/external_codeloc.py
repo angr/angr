@@ -13,7 +13,7 @@ class ExternalCodeLocation(CodeLocation):
     __slots__ = ("call_string", )
 
     def __init__(self, call_string: Tuple[int, ...]=None):
-        super().__init__(0, 0)
+        super().__init__(0, None)
         self.call_string = call_string if call_string is not None else tuple()
 
     def __repr__(self):
