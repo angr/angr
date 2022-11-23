@@ -90,7 +90,8 @@ class PhoenixStructurer(StructurerBase):
                 removed_edge = self._last_resort_refinement(
                     self._region.head,
                     self._region.graph,
-                    self._region.graph_with_successors,
+                    self._region.graph_with_successors if self._region.graph_with_successors is not None
+                    else networkx.DiGraph(self._region.graph),
                 )
                 if not removed_edge:
                     # cannot make any progress in this region. return the subgraph directly

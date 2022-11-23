@@ -64,19 +64,20 @@ class ConditionProcessor:
             predicate = claripy.true
         return predicate
 
-    def recover_edge_conditions(self, region) -> Dict:
+    def recover_edge_conditions(self, region, graph=None) -> Dict:
         edge_conditions = {}
         # traverse the graph to recover the condition for each edge
-        for src in region.graph.nodes():
-            nodes = list(region.graph[src])
+        graph = graph or region.graph
+        for src in graph.nodes():
+            nodes = list(graph[src])
             if len(nodes) >= 1:
                 for dst in nodes:
-                    predicate = self.recover_edge_condition(region.graph, src, dst)
+                    predicate = self.recover_edge_condition(graph, src, dst)
                     edge_conditions[(src, dst)] = predicate
 
         self.edge_conditions = edge_conditions
 
-    def recover_reaching_conditions(self, region, with_successors=False,
+    def recover_reaching_conditions(self, region, graph=None, with_successors=False,
                                     case_entry_to_switch_head: Optional[Dict[int,int]]=None):
 
         def _strictly_postdominates(inv_idoms, node_a, node_b):
@@ -85,13 +86,18 @@ class ConditionProcessor:
             """
             return dominates(inv_idoms, node_a, node_b)
 
-        self.recover_edge_conditions(region)
+        self.recover_edge_conditions(region, graph=graph)
         edge_conditions = self.edge_conditions
 
-        if with_successors and region.graph_with_successors is not None:
-            _g = region.graph_with_successors
+        if graph:
+            _g = graph
+            head = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
         else:
-            _g = region.graph
+            if with_successors and region.graph_with_successors is not None:
+                _g = region.graph_with_successors
+            else:
+                _g = region.graph
+            head = region.head
 
         # special handling for jump table entries - do not allow crossing between cases
         if case_entry_to_switch_head:
@@ -120,10 +126,10 @@ class ConditionProcessor:
             if out_degree == 0:
                 terminating_nodes.append(node)
 
-            if node is region.head:
+            if node is head:
                 # the head is always reachable
                 reaching_condition = claripy.true
-            elif idoms is not None and _strictly_postdominates(idoms, node, region.head):
+            elif idoms is not None and _strictly_postdominates(idoms, node, head):
                 # the node that post dominates the head is always reachable
                 reaching_conditions[node] = claripy.true
             else:
