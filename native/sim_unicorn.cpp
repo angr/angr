@@ -1965,7 +1965,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 								if (!value.is_value_symbolic) {
 									auto entry = block_mem_read_addr_details.find(value.address);
 									if (entry == block_mem_read_addr_details.end()) {
-										block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>(vex_stmt_taint_entry_it->second.sink.stmt_idx));
+										block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>({vex_stmt_taint_entry_it->second.sink.stmt_idx}));
 									}
 									else {
 										entry->second.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx);
@@ -1981,7 +1981,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 								if (!value.is_value_symbolic) {
 									auto entry = block_mem_read_addr_details.find(value.address);
 									if (entry == block_mem_read_addr_details.end()) {
-										block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>(vex_stmt_taint_entry_it->second.sink.stmt_idx));
+										block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>({vex_stmt_taint_entry_it->second.sink.stmt_idx}));
 									}
 									else {
 										entry->second.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx);
