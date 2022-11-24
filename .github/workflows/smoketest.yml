@@ -18,6 +18,7 @@ jobs:
           python-version: "3.8"
       - run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          pip install setuptools wheel cffi unicorn==2.0.1
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
           pip install git+https://github.com/angr/cle.git
@@ -42,6 +43,7 @@ jobs:
         with:
           python-version: "3.8"
       - run: |
+          pip install setuptools wheel cffi unicorn==2.0.1
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
           pip install git+https://github.com/angr/cle.git
