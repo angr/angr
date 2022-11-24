@@ -1,18 +1,14 @@
-name: Windows Smoketest
+name: Install Smoketest
 
 on:
   push:
     paths:
-      - "native"
-      - ".github/workflows/windows-smoketest.yml"
+      - "**"
   pull_request:
-    paths:
-      - "native"
-      - ".github/workflows/windows-smoketest.yml"
   workflow_dispatch:
 
 jobs:
-  test:
+  windows:
     name: Test Windows installation
     runs-on: windows-latest
     steps:
@@ -34,5 +30,25 @@ jobs:
           pip install --no-build-isolation .
         name: Install angr
         shell: cmd
+      - runs: python -c "import angr; print('It works!')"
+        name: Import angr
+
+  macos:
+    name: Test macOS installation
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+      - run: |
+          pip install git+https://github.com/angr/archinfo.git
+          pip install git+https://github.com/angr/pyvex.git
+          pip install git+https://github.com/angr/cle.git
+          pip install git+https://github.com/angr/claripy.git
+          pip install git+https://github.com/angr/ailment.git
+        name: Install dependencies
+      - run: pip install --no-build-isolation .
+        name: Install angr
       - runs: python -c "import angr; print('It works!')"
         name: Import angr
