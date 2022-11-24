@@ -31,7 +31,7 @@ jobs:
           pip install --no-build-isolation .
         name: Install angr
         shell: cmd
-      - runs: python -c "import angr; print('It works!')"
+      - run: python -c "import angr; print('It works!')"
         name: Import angr
 
   macos:
@@ -52,5 +52,5 @@ jobs:
         name: Install dependencies
       - run: pip install --no-build-isolation .
         name: Install angr
-      - runs: python -c "import angr; print('It works!')"
+      - run: python -c "import angr; print('It works!')"
         name: Import angr
