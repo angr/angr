@@ -10,7 +10,7 @@ on:
 jobs:
   windows:
     name: Test Windows installation
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -36,7 +36,7 @@ jobs:
 
   macos:
     name: Test macOS installation
-    runs-on: macos-latest
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
