@@ -115,7 +115,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                     extra_stop_points=extra_stop_points,
                     opt_level=opt_level)
 
-            if irsb.jumpkind == 'Ijk_NoDecode' and irsb.next.con.value == irsb.addr \
+            if irsb.jumpkind == 'Ijk_NoDecode' and irsb.next.tag == 'Iex_Const' and irsb.next.con.value == irsb.addr \
                     and not self.state.project.is_hooked(irsb.addr):
                 raise errors.SimIRSBNoDecodeError(f"IR decoding error at 0x{addr:02x}. You can hook this "
                                                   "instruction with a python replacement using project.hook"
