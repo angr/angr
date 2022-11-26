@@ -125,14 +125,28 @@ class PhoenixStructurer(StructurerBase):
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
-        matched = self._match_cyclic_while(node, head, graph, full_graph)
-        if not matched:
-            matched = self._match_cyclic_dowhile(node, head, graph, full_graph)
-        if not matched:
-            matched = self._match_cyclic_natural_loop(node, head, graph, full_graph)
+        matched, loop_node = self._match_cyclic_while(node, head, graph, full_graph)
+        if matched and len(self._region.successors) == 1:
+            # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
+            self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node,
+                                                      [ succ.addr for succ in self._region.successors ])
+            # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
+            self._rewrite_jumps_to_continues(loop_node.sequence_node)
+            return True
+
+        matched, loop_node = self._match_cyclic_dowhile(node, head, graph, full_graph)
+        if matched and len(self._region.successors) == 1:
+            # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
+            self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node,
+                                                      [ succ.addr for succ in self._region.successors ])
+            # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
+            self._rewrite_jumps_to_continues(loop_node.sequence_node)
+            return True
+
+        matched = self._match_cyclic_natural_loop(node, head, graph, full_graph)
         return matched
 
-    def _match_cyclic_while(self, node, head, graph, full_graph) -> bool:
+    def _match_cyclic_while(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode]]:
         succs = list(full_graph.successors(node))
         if len(succs) == 2:
             left, right = succs
@@ -171,7 +185,7 @@ class PhoenixStructurer(StructurerBase):
                         self._remove_edges_except(graph, loop_node, right)
                         self._remove_edges_except(full_graph, loop_node, right)
 
-                        return True
+                        return True, loop_node
             elif full_graph.has_edge(left, node) \
                     and left is not head and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
                     and not full_graph.has_edge(right, node) \
@@ -199,11 +213,11 @@ class PhoenixStructurer(StructurerBase):
                     self._remove_edges_except(graph, loop_node, right)
                     self._remove_edges_except(full_graph, loop_node, right)
 
-                    return True
+                    return True, loop_node
 
-        return False
+        return False, None
 
-    def _match_cyclic_dowhile(self, node, head, graph, full_graph) -> bool:
+    def _match_cyclic_dowhile(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode]]:
         preds = list(full_graph.predecessors(node))
         succs = list(full_graph.successors(node))
         if ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 1:
@@ -232,7 +246,7 @@ class PhoenixStructurer(StructurerBase):
                         # on the graph with successors
                         self.replace_nodes(full_graph, node, loop_node, old_node_1=succ, self_loop=False)
 
-                        return True
+                        return True, loop_node
         elif ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 2 and node in succs:
             # head forms a self-loop
             succs.remove(node)
@@ -251,8 +265,8 @@ class PhoenixStructurer(StructurerBase):
                     # on the graph with successors
                     self.replace_nodes(full_graph, node, loop_node, self_loop=False)
 
-                    return True
-        return False
+                    return True, loop_node
+        return False, None
 
     def _match_cyclic_natural_loop(self, node, head, graph, full_graph) -> bool:
 

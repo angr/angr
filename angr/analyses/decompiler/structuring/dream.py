@@ -300,55 +300,6 @@ class DreamStructurer(StructurerBase):
 
         return seq
 
-    def _loop_create_break_node(self, last_stmt, loop_successor_addrs):
-
-        # This node has an exit to the outside of the loop
-        # add a break or a conditional break node
-        new_node = None
-
-        if type(last_stmt) is ailment.Stmt.Jump:
-            # shrink the block to remove the last statement
-            # self._remove_last_statement(node)
-            # add a break
-            new_node = BreakNode(last_stmt.ins_addr, last_stmt.target.value)
-        elif type(last_stmt) is ailment.Stmt.ConditionalJump:
-            # add a conditional break
-            true_target_value = None
-            false_target_value = None
-            if last_stmt.true_target is not None:
-                true_target_value = last_stmt.true_target.value
-            if last_stmt.false_target is not None:
-                false_target_value = last_stmt.false_target.value
-
-            if (true_target_value is not None and true_target_value in loop_successor_addrs) and \
-                    (false_target_value is None or false_target_value not in loop_successor_addrs):
-                cond = last_stmt.condition
-                target = last_stmt.true_target.value
-                new_node = ConditionalBreakNode(
-                    last_stmt.ins_addr,
-                    self.cond_proc.claripy_ast_from_ail_condition(cond),
-                    target
-                )
-            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
-                    (true_target_value is None or true_target_value not in loop_successor_addrs):
-                cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
-                target = last_stmt.false_target.value
-                new_node = ConditionalBreakNode(
-                    last_stmt.ins_addr,
-                    self.cond_proc.claripy_ast_from_ail_condition(cond),
-                    target
-                )
-            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
-                    (true_target_value is not None and true_target_value in loop_successor_addrs):
-                # both targets are pointing outside the loop
-                # we should use just add a break node
-                new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
-            else:
-                l.warning("None of the branches is jumping to outside of the loop")
-                raise Exception()
-
-        return new_node
-
     def _make_sequence(self):
 
         seq = SequenceNode(None)
