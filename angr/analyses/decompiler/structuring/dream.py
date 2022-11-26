@@ -275,7 +275,7 @@ class DreamStructurer(StructurerBase):
             loop_region_graph_with_successors.add_edge(src, dst, **edge_data)
             loop_successors.add(dst)
         region = GraphRegion(loop_head, loop_region_graph, successors=None,
-                             graph_with_successors=None, cyclic=False)
+                             graph_with_successors=None, cyclic=False, full_graph=None)
         structurer = self.project.analyses[DreamStructurer].prep()(region, condition_processor=self.cond_proc,
                                                                    func=self.function)
         seq = structurer.result
