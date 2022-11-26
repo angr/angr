@@ -386,9 +386,13 @@ def test_fauxware():
     simgr, _ = tracer_linux(
         b, "tracer_fauxware", b"A" * 18, remove_options={angr.options.CPUID_SYMBOLIC}
     )
+    state0 = simgr.active[0]
+    ip0 = state0.ip
     simgr.run()
 
     assert "traced" in simgr.stashes
+    # issue #3635
+    assert (state0.ip == ip0).is_true()
 
 
 def test_rollback_on_symbolic_conditional_exit():
