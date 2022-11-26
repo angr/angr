@@ -183,7 +183,7 @@ class ConditionProcessor:
 
             if diverging_conditions:
                 # the negation of the union of diverging conditions is the guarding condition for this node
-                cond = claripy.Or(*map(claripy.Not, diverging_conditions))
+                cond = claripy.Or(*map(claripy.Not, diverging_conditions))  # pylint:disable=bad-builtin
                 guarding_conditions[the_node] = cond
 
         self.reaching_conditions = reaching_conditions
@@ -1052,4 +1052,3 @@ class ConditionProcessor:
         return claripy.BVS("jump_table_%x" % jumptable_head_addr,
                            self.arch.bits,
                            explicit_name=True)
-

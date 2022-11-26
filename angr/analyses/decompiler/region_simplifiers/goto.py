@@ -17,13 +17,13 @@ l = logging.getLogger(name=__name__)
 class GotoSimplifier(SequenceWalker):
     """
     Remove unnecessary Jump statements.
-    This simplifier also has the side effect of detecting Gotos that can't be reduced in the 
-    structuring and eventual decompilation output. Because of this, when this analysis is run, 
-    gotos in decompilation will be detected and stored in the kb.gotos. See the 
+    This simplifier also has the side effect of detecting Gotos that can't be reduced in the
+    structuring and eventual decompilation output. Because of this, when this analysis is run,
+    gotos in decompilation will be detected and stored in the kb.gotos. See the
     _handle_irreducible_goto function below.
 
     TODO:
-    Move the recording of Gotos outside of this function
+    Move the recording of Gotos outside this function
     """
     def __init__(self, node, function=None, kb=None):
         handlers = {
@@ -131,11 +131,11 @@ class GotoSimplifier(SequenceWalker):
 
     def _handle_irreducible_goto(self, block, goto_stmt: ailment.Stmt.Jump):
         if not self._kb or not self._function:
-            l.debug(f"Unable ot store a goto at {block.addr} because simplifier is kb or functionless")
+            l.debug("Unable to store a goto at %#x because simplifier is kb or functionless", block.addr)
             return
 
         goto = Goto(addr=block.addr, target_addr=goto_stmt.target.value)
-        l.debug(f"Storing {goto} in kb.gotos")
+        l.debug("Storing %r in kb.gotos", goto)
         self._kb.gotos.locations[self._function.addr].add(
             goto
         )

@@ -15,8 +15,7 @@ from ..empty_node_remover import EmptyNodeRemover
 from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from ..condition_processor import ConditionProcessor
 from ..region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
-from ..utils import (extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, remove_last_statement,
-                     insert_node)
+from ..utils import extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, remove_last_statement
 from .structurer_nodes import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, SwitchCaseNode,
     BreakNode, ContinueNode, MultiNode, CascadingConditionNode, BaseNode, EmptyBlockNotice)
 from .structurer_base import StructurerBase

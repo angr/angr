@@ -231,10 +231,10 @@ class GraphRegion:
                 for src in sub_graph.predecessors(dst.head):
                     graph.add_edge(src, dst)
                 # replace the corresponding nodes in sub_graph_nodes and sub_graph_edges
-                for i in range(len(sub_graph_nodes)):
+                for i in range(len(sub_graph_nodes)):  # pylint:disable=consider-using-enumerate
                     if sub_graph_nodes[i] is dst.head:
                         sub_graph_nodes[i] = dst
-                for i in range(len(sub_graph_edges)):
+                for i in range(len(sub_graph_edges)):  # pylint:disable=consider-using-enumerate
                     if sub_graph_edges[i][0] is dst.head:
                         sub_graph_edges[i] = (dst, sub_graph_edges[i][1])
                     if sub_graph_edges[i][1] is dst.head:

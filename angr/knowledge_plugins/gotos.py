@@ -1,10 +1,13 @@
-from typing import List, Dict, Set
+from typing import Dict, Set
 from collections import defaultdict
 
 from .plugin import KnowledgeBasePlugin
 
 
 class Goto:
+    """
+    Describe the existence of a goto (jump) statement.
+    """
     def __init__(self, addr=None, target_addr=None):
         """
         addr: block_addr of the goto
@@ -27,8 +30,11 @@ class Goto:
 
 
 class Gotos(KnowledgeBasePlugin, dict):
+    """
+    Stores all goto (jump) statements of a project.
+    """
     def __init__(self, kb):
-        super(Gotos, self).__init__()
+        super().__init__()
         self._kb = kb
         # dict format: {func_addr: {goto}}
         self.locations: Dict[int, Set[Goto]] = defaultdict(set)

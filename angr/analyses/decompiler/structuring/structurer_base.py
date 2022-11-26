@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Set, List, Any, Union, TYPE_CHECKING
 from collections import defaultdict
+import logging
 
 import networkx
 
@@ -16,6 +17,8 @@ from .structurer_nodes import MultiNode, SequenceNode, SwitchCaseNode, CodeNode,
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
     from angr.analyses.decompiler.graph_region import GraphRegion
+
+_l = logging.getLogger(__name__)
 
 
 class StructurerBase(Analysis):
@@ -395,7 +398,7 @@ class StructurerBase(Analysis):
                 # we should use just add a break node
                 new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
             else:
-                l.warning("None of the branches is jumping to outside of the loop")
+                _l.warning("None of the branches is jumping to outside of the loop")
                 raise Exception()
 
         return new_node
@@ -585,7 +588,7 @@ class StructurerBase(Analysis):
     @staticmethod
     def replace_node_in_node(parent_node: BaseNode, old_node: BaseNode, new_node: BaseNode):
         if isinstance(parent_node, SequenceNode):
-            for i in range(len(parent_node.nodes)):
+            for i in range(len(parent_node.nodes)):  # pylint:disable=consider-using-enumerate
                 if parent_node.nodes[i] is old_node:
                     parent_node.nodes[i] = new_node
                     return
@@ -597,7 +600,7 @@ class StructurerBase(Analysis):
                 parent_node.false_node = new_node
                 return
         elif isinstance(parent_node, CascadingConditionNode):
-            for i in range(len(parent_node.condition_and_nodes)):
+            for i in range(len(parent_node.condition_and_nodes)):  # pylint:disable=consider-using-enumerate
                 if parent_node.condition_and_nodes[i][1] is old_node:
                     parent_node.condition_and_nodes[i] = (parent_node.condition_and_nodes[i][0], new_node)
                     return

@@ -1,3 +1,4 @@
+# pylint:disable=wrong-import-position
 from typing import Optional, Tuple, Any
 
 import networkx

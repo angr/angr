@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import unittest
+from functools import wraps
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
@@ -17,8 +18,6 @@ from angr.analyses import (
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
-
-from functools import wraps
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.Logger(__name__)
@@ -560,8 +559,7 @@ class TestDecompiler(unittest.TestCase):
         assert argc_name in decls
         assert code.count(decls) == 1  # it should only appear once
 
-    @for_all_structuring_algos
-    def test_decompiling_strings_c_representation(self, decompiler_options=None):
+    def test_decompiling_strings_c_representation(self):
 
         input_expected = [("""Foo"bar""", "\"Foo\\\"bar\""),
                           ("""Foo'bar""", "\"Foo'bar\"")]
@@ -860,7 +858,8 @@ class TestDecompiler(unittest.TestCase):
         binop_operators = {
             OpDescriptor(0x400a1d, 0, 0x400a27, "CmpGT"): "CmpLE"
         }
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options, binop_operators=binop_operators)
+        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options,
+                                            binop_operators=binop_operators)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text

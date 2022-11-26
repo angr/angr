@@ -1,3 +1,4 @@
+# pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
 from typing import List, Dict, Tuple, Union, Set, Any, DefaultDict, Optional, TYPE_CHECKING
 from collections import defaultdict
 import logging
@@ -159,7 +160,7 @@ class PhoenixStructurer(StructurerBase):
             if left is node:
                 # self loop
                 # possible candidate
-                head_parent, head_block = self._find_node_going_to_dst(node, left)
+                _, head_block = self._find_node_going_to_dst(node, left)
                 if head_block is None:
                     # it happens. for example:
                     # ## Block 4058c8
@@ -171,7 +172,7 @@ class PhoenixStructurer(StructurerBase):
                     # 05 | 0x4058c8 | rsi<8> = (rsi<8> + d<8>)
                     # 06 | 0x4058c8 | if ((Conv(64->8, cc_dep1<8>) == Conv(64->8, cc_dep2<8>))) { Goto 0x4058c8<64> } else { Goto None }
                     # 07 | 0x4058c8 | Goto(0x4058ca<64>)
-                    head_parent, head_block = self._find_node_going_to_dst(node, right)
+                    _, head_block = self._find_node_going_to_dst(node, right)
 
                 if (isinstance(head_block, MultiNode) and isinstance(head_block.nodes[0].statements[0], ConditionalJump)
                         or isinstance(head_block, Block) and isinstance(head_block.statements[0], ConditionalJump)):
@@ -199,7 +200,7 @@ class PhoenixStructurer(StructurerBase):
                 # otherwise it's a do-while loop
 
                 # possible candidate
-                head_parent, head_block = self._find_node_going_to_dst(node, left)
+                _, head_block = self._find_node_going_to_dst(node, left)
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
@@ -237,7 +238,7 @@ class PhoenixStructurer(StructurerBase):
                 if full_graph.has_edge(succ, node):
 
                     # possible candidate
-                    succ_parent, succ_block = self._find_node_going_to_dst(succ, out_node)
+                    _, succ_block = self._find_node_going_to_dst(succ, out_node)
                     edge_cond_succhead = self.cond_proc.recover_edge_condition(full_graph, succ_block, node)
                     edge_cond_succout = self.cond_proc.recover_edge_condition(full_graph, succ_block, out_node)
                     if claripy.is_true(claripy.Not(edge_cond_succhead) == edge_cond_succout):
@@ -331,8 +332,8 @@ class PhoenixStructurer(StructurerBase):
         loop_type = None
         if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
             # make sure the head_pred is not already structured
-            head_parent_0, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
-            head_parent_1, head_block_1 = self._find_node_going_to_dst(loop_head, head_succs[1])
+            _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
+            _, head_block_1 = self._find_node_going_to_dst(loop_head, head_succs[1])
             if head_block_0 is head_block_1 and head_block_0 is not None:
                 # there is an out-going edge from the loop head
                 # virtualize all other edges
@@ -355,8 +356,8 @@ class PhoenixStructurer(StructurerBase):
                 head_pred_succs = list(fullgraph.successors(head_pred))
                 if len(head_pred_succs) == 2 and any(nn not in graph for nn in head_pred_succs):
                     # make sure the head_pred is not already structured
-                    src_parent_0, src_block_0 = self._find_node_going_to_dst(head_pred, head_pred_succs[0])
-                    src_parent_1, src_block_1 = self._find_node_going_to_dst(head_pred, head_pred_succs[1])
+                    _, src_block_0 = self._find_node_going_to_dst(head_pred, head_pred_succs[0])
+                    _, src_block_1 = self._find_node_going_to_dst(head_pred, head_pred_succs[1])
                     if src_block_0 is src_block_1 and src_block_0 is not None:
                         loop_type = "do-while"
                         # there is an out-going edge from the loop tail
@@ -814,8 +815,9 @@ class PhoenixStructurer(StructurerBase):
 
         return cases, node_default, to_remove
 
-    def _make_switch_cases_core(self, head, cmp_expr, cases, node_default, addr, to_remove: Set,
-                                graph: networkx.DiGraph, full_graph: networkx.DiGraph, node_a=None):
+    @staticmethod
+    def _make_switch_cases_core(head, cmp_expr, cases, node_default, addr, to_remove: Set, graph: networkx.DiGraph,
+                                full_graph: networkx.DiGraph, node_a=None):
 
         if node_default is not None:
             # the head no longer goes to the default case
@@ -1020,7 +1022,7 @@ class PhoenixStructurer(StructurerBase):
         if r is None:
             return False
 
-        left, left_cond, else_node, else_cond_0 = r
+        left, left_cond, else_node, _ = r
         conditions = [left_cond]
         lefts = [left]
         else_node_indegree = full_graph.in_degree[else_node]
@@ -1035,7 +1037,7 @@ class PhoenixStructurer(StructurerBase):
             r = self._match_acyclic_ite_cascading_and_core(graph, full_graph, left)
             if r is None:
                 return False
-            left, left_cond, new_else_node, else_cond = r
+            left, left_cond, new_else_node, _ = r
             if new_else_node is not else_node:
                 return False
             if left is start_node or left in lefts:
@@ -1075,7 +1077,7 @@ class PhoenixStructurer(StructurerBase):
 
         return True
 
-    def _match_acyclic_ite_cascading_and_core(self, graph, full_graph, start_node) -> Optional[Tuple]:
+    def _match_acyclic_ite_cascading_and_core(self, graph, full_graph, start_node) -> Optional[Tuple]:  # pylint:disable=unused-argument
         # match one level
         succs = list(full_graph.successors(start_node))
         if len(succs) == 2:
@@ -1108,11 +1110,11 @@ class PhoenixStructurer(StructurerBase):
         other_edges = [ ]
         idoms = networkx.immediate_dominators(full_graph, head)
         if networkx.is_directed_acyclic_graph(full_graph):
-            inverted_graph, inv_idoms = inverted_idoms(full_graph)
+            _, inv_idoms = inverted_idoms(full_graph)
             acyclic_graph = full_graph
         else:
             acyclic_graph = to_acyclic_graph(full_graph)
-            inverted_graph, inv_idoms = inverted_idoms(acyclic_graph)
+            _, inv_idoms = inverted_idoms(acyclic_graph)
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
@@ -1204,7 +1206,8 @@ class PhoenixStructurer(StructurerBase):
             remove_last_statement(src)
 
     @staticmethod
-    def _find_node_going_to_dst(node: SequenceNode, dst: Union[Block,BaseNode]) -> Tuple[Optional[BaseNode],Optional[Block]]:
+    def _find_node_going_to_dst(node: SequenceNode,
+                                dst: Union[Block,BaseNode]) -> Tuple[Optional[BaseNode],Optional[Block]]:
         """
 
         :param node:
@@ -1229,7 +1232,7 @@ class PhoenixStructurer(StructurerBase):
                     return True
             return False
 
-        def _handle_Block(block: Block, parent=None, **kwargs):
+        def _handle_Block(block: Block, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.statements:
                 first_stmt = block.statements[0]
                 if _check(first_stmt):
@@ -1241,14 +1244,14 @@ class PhoenixStructurer(StructurerBase):
                         walker.parent = parent
                         walker.block = block
 
-        def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):
+        def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.nodes and isinstance(block.nodes[-1], Block) and block.nodes[-1].statements:
                 if _check(block.nodes[-1].statements[-1]):
                     walker.parent = parent
                     walker.block = block
                     return
 
-        def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):
+        def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if isinstance(break_node.target, Const) and break_node.target.value == dst_addr:
                 # FIXME: idx is ignored
                 walker.parent = parent
