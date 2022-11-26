@@ -13,6 +13,7 @@ from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
+from ..condition_processor import ConditionProcessor
 from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds
 from .structurer_nodes import ConditionNode, SequenceNode, LoopNode, ConditionalBreakNode, BreakNode, ContinueNode, \
     BaseNode, MultiNode, SwitchCaseNode, IncompleteSwitchCaseNode, EmptyBlockNotice
@@ -179,6 +180,7 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
+                        self._remove_last_statement_if_jump(node)
                         seq_node = SequenceNode(node.addr, nodes=[node]) if not isinstance(node, SequenceNode) else node
                         loop_node = LoopNode('while', edge_cond_left, seq_node, addr=seq_node.addr)
                         self.replace_nodes(graph, node, loop_node, self_loop=False)
@@ -202,6 +204,7 @@ class PhoenixStructurer(StructurerBase):
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                     # c = !c
+                    self._remove_last_statement_if_jump(node)
                     new_node = SequenceNode(node.addr, nodes=[node, left])
                     loop_node = LoopNode('while', edge_cond_left, new_node,
                                          addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
@@ -239,6 +242,7 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_succout = self.cond_proc.recover_edge_condition(full_graph, succ_block, out_node)
                     if claripy.is_true(claripy.Not(edge_cond_succhead) == edge_cond_succout):
                         # c = !c
+                        self._remove_last_statement_if_jump(succ)
                         new_node = SequenceNode(node.addr, nodes=[node, succ])
                         loop_node = LoopNode('do-while', edge_cond_succhead, new_node,
                                              addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
@@ -260,6 +264,7 @@ class PhoenixStructurer(StructurerBase):
                 edge_cond_head_succ = self.cond_proc.recover_edge_condition(full_graph, node, succ)
                 if claripy.is_true(claripy.Not(edge_cond_head) == edge_cond_head_succ):
                     # c = !c
+                    self._remove_last_statement_if_jump(node)
                     seq_node = SequenceNode(node.addr, nodes=[node]) if not isinstance(node, SequenceNode) else node
                     loop_node = LoopNode('do-while', edge_cond_head, seq_node, addr=seq_node.addr)
 
@@ -1323,3 +1328,13 @@ class PhoenixStructurer(StructurerBase):
         for succ in list(graph.successors(src)):
             if succ is not src and succ is not dst:
                 graph.remove_edge(src, succ)
+
+    @staticmethod
+    def _remove_last_statement_if_jump(node: BaseNode):
+        try:
+            last_stmt = ConditionProcessor.get_last_statement(node)
+        except EmptyBlockNotice:
+            return
+
+        if isinstance(last_stmt, (Jump, ConditionalJump)):
+            remove_last_statement(node)
