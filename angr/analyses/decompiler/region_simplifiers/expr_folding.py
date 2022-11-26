@@ -8,7 +8,7 @@ from ailment.statement import Statement, Assignment, Call
 
 from ..ailblock_walker import AILBlockWalker
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode, CascadingConditionNode
+from ..structuring.structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode, CascadingConditionNode
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable

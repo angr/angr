@@ -3,9 +3,8 @@ import claripy
 import ailment
 
 from .sequence_walker import SequenceWalker
-from .region_identifier import MultiNode
-from .structurer_nodes import SequenceNode, CodeNode, ConditionNode, SwitchCaseNode, ConditionalBreakNode, \
-    BreakNode, LoopNode, CascadingConditionNode
+from .structuring.structurer_nodes import MultiNode, SequenceNode, CodeNode, ConditionNode, SwitchCaseNode,\
+    ConditionalBreakNode, BreakNode, LoopNode, CascadingConditionNode
 from .condition_processor import ConditionProcessor
 
 
@@ -132,13 +131,17 @@ class EmptyNodeRemover:
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
 
+        new_else_node = None if node.else_node is None else self._walker._handle(node.else_node)
+
         new_cond_and_nodes = [ ]
         for cond, child_node in node.condition_and_nodes:
             new_node = self._walker._handle(child_node)
             if new_node is not None:
                 new_cond_and_nodes.append((cond, new_node))
-
-        new_else_node = None if node.else_node is None else self._walker._handle(node.else_node)
+            else:
+                if new_else_node is not None:
+                    # do not allow any empty condition nodes, otherwise the condition for the else node will be wrong
+                    new_cond_and_nodes.append((cond, child_node))
 
         if not new_cond_and_nodes and new_else_node is None:
             # empty node

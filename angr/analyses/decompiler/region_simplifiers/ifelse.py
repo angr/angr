@@ -2,8 +2,8 @@
 import ailment
 
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice, \
-    CascadingConditionNode
+from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, \
+    EmptyBlockNotice, CascadingConditionNode
 from ..condition_processor import ConditionProcessor
 from ..utils import insert_node
 

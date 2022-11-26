@@ -75,7 +75,7 @@ class PropagatorState:
         return None
 
     @staticmethod
-    def top(bits: int) -> claripy.ast.Base:
+    def top(bits: int) -> claripy.ast.Bits:
         """
         Get a TOP value.
 

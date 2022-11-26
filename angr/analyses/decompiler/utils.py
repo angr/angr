@@ -1,11 +1,9 @@
+# pylint:disable=wrong-import-position
 from typing import Optional, Tuple, Any
 
 import networkx
 
 import ailment
-
-from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, \
-    CascadingConditionNode
 
 
 def remove_last_statement(node):
@@ -26,6 +24,13 @@ def remove_last_statement(node):
             stmt = remove_last_statement(node.nodes[-1])
             if BaseNode.test_empty_node(node.nodes[-1]):
                 node.nodes = node.nodes[:-1]
+    elif type(node) is ConditionNode:
+        if node.true_node is None and node.false_node is not None:
+            stmt = remove_last_statement(node.false_node)
+        elif node.true_node is not None and node.false_node is None:
+            stmt = remove_last_statement(node.true_node)
+        else:
+            raise NotImplementedError("More than one last statement exist")
     else:
         raise NotImplementedError()
 
@@ -278,3 +283,8 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
             break
 
     return transition_graph
+
+
+# delayed import
+from .structuring.structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, \
+    CascadingConditionNode

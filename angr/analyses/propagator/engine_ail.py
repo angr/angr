@@ -897,6 +897,27 @@ class SimEnginePropagatorAIL(
                                      **expr.tags)
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
+    def _ail_handle_LogicalAnd(self, expr: Expr.BinaryOp):
+
+        o0_value = self._expr(expr.operands[0])
+        o1_value = self._expr(expr.operands[1])
+
+        value = self.state.top(expr.bits)
+        if o0_value is None or o1_value is None:
+            new_expr = expr
+        else:
+            o0_expr = o0_value.one_expr
+            o1_expr = o1_value.one_expr
+
+            value = self.state.top(expr.bits)
+            new_expr = Expr.BinaryOp(expr.idx,
+                                     'LogicalAnd',
+                                     [o0_expr if o0_expr is not None else expr.operands[0],
+                                      o1_expr if o1_expr is not None else expr.operands[1],],
+                                     expr.signed,
+                                     **expr.tags)
+        return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
+
     def _ail_handle_TernaryOp(self, expr: Expr.TernaryOp):
         o0_value = self._expr(expr.operands[0])
         o1_value = self._expr(expr.operands[1])

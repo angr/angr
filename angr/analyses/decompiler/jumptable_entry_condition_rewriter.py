@@ -1,6 +1,6 @@
 import claripy
 
-from .structurer_nodes import ConditionNode, CodeNode
+from .structuring.structurer_nodes import ConditionNode, CodeNode
 from .sequence_walker import SequenceWalker
 
 

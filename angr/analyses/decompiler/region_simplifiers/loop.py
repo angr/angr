@@ -5,7 +5,7 @@ from typing import Dict, List
 import ailment
 
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, ContinueNode, \
+from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, ContinueNode, \
     CascadingConditionNode
 
 
@@ -65,7 +65,9 @@ class LoopSimplifier(SequenceWalker):
 
         # find for-loop iterators
         if node.sort == 'while' and self.continue_preludes[node] and \
-                (node.condition is not None or len(self.continue_preludes[node]) > 1):
+                ((node.condition is not None and not isinstance(node.condition, ailment.Expr.Const))
+                 or len(self.continue_preludes[node]) > 1
+                ):
             if all(block.statements for block in self.continue_preludes[node]) and \
                     all(not self._control_transferring_statement(block.statements[-1])
                         for block in self.continue_preludes[node]) and \

@@ -138,9 +138,8 @@ class RegionSimplifier(Analysis):
         CascadingConditionTransformer(region)
         return region
 
-    @staticmethod
-    def _simplify_gotos(region):
-        GotoSimplifier(region)
+    def _simplify_gotos(self, region):
+        GotoSimplifier(region, function=self.func, kb=self.kb)
         return region
 
     @staticmethod

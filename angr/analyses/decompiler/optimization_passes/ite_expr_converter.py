@@ -10,7 +10,7 @@ from ....code_location import CodeLocation
 from ..region_walker import RegionWalker
 from ..ail_simplifier import AILBlockWalker
 from ..condition_processor import ConditionProcessor
-from ..structurer_nodes import EmptyBlockNotice
+from ..structuring.structurer_nodes import EmptyBlockNotice
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
