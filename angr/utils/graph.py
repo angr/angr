@@ -52,19 +52,21 @@ def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph,Optional[D
     return inverted_graph, idoms
 
 
-def to_acyclic_graph(graph: networkx.DiGraph, ordered_nodes: Optional[List]=None):
+def to_acyclic_graph(graph: networkx.DiGraph, ordered_nodes: Optional[List]=None,
+                     loop_heads: Optional[List]=None) -> networkx.DiGraph:
     """
     Convert a given DiGraph into an acyclic graph.
 
     :param graph:           The graph to convert.
     :param ordered_nodes:   A list of nodes sorted in a topological order.
+    :param loop_heads:      A list of known loop head nodes.
     :return:                The converted acyclic graph.
     """
 
     if ordered_nodes is None:
         # take the quasi-topological order of the graph
         from angr.analyses.cfg.cfg_utils import CFGUtils  # pylint:disable=import-outside-toplevel
-        ordered_nodes = CFGUtils.quasi_topological_sort_nodes(graph)
+        ordered_nodes = CFGUtils.quasi_topological_sort_nodes(graph, loop_heads=loop_heads)
 
     acyclic_graph = networkx.DiGraph()
 

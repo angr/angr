@@ -370,6 +370,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert dec.codegen.text.count("switch (") == 3  # there are three switch-cases in total
 
+    @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_1(self, decompiler_options=None):
 
         bin_path = os.path.join(test_location, "x86_64", "true_a")
@@ -388,6 +389,11 @@ class TestDecompiler(unittest.TestCase):
                                             optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
+
+        # make sure all "break;" is followed by a curly brace
+        dec_no_spaces = dec.codegen.text.replace("\n", "").replace(" ", "")
+        replaced = dec_no_spaces.replace("break;}", "")
+        assert "break" not in replaced
 
     @for_all_structuring_algos
     def test_decompiling_true_1804_x86_64(self, decompiler_options=None):
