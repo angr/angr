@@ -21,10 +21,10 @@ class GraphRegion:
     :ivar graph_with_successors:    The region graph that includes successor nodes.
     """
 
-    __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', )
+    __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', 'full_graph', )
 
-    def __init__(self, head, graph, successors: Optional[list], graph_with_successors: Optional[networkx.DiGraph],
-                 cyclic):
+    def __init__(self, head, graph, successors: Optional[List], graph_with_successors: Optional[networkx.DiGraph],
+                 cyclic, full_graph: Optional[networkx.DiGraph]):
         self.head = head
         self.graph = graph
         self.successors = successors
@@ -33,6 +33,8 @@ class GraphRegion:
         # successor node in graph_with_successors. to avoid potential programming errors, just treat
         # graph_with_successors as read-only.
         self.graph_with_successors = graph_with_successors
+
+        self.full_graph = full_graph
         self.cyclic = cyclic
 
     def __repr__(self):
@@ -56,7 +58,8 @@ class GraphRegion:
             networkx.DiGraph(self.graph) if self.graph is not None else None,
             list(self.successors) if self.successors is not None else None,
             networkx.DiGraph(self.graph_with_successors) if self.graph_with_successors is not None else None,
-            self.cyclic
+            self.cyclic,
+            networkx.DiGraph(self.full_graph) if self.full_graph is not None else None,
         )
 
     def recursive_copy(self, nodes_map=None):
@@ -74,7 +77,13 @@ class GraphRegion:
             new_graph_with_successors = None
             successors = None
 
-        return GraphRegion(nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic)
+        if self.full_graph is not None:
+            new_full_graph = self._recursive_copy(self.full_graph, nodes_map, ignored_nodes=successors)
+        else:
+            new_full_graph = None
+
+        return GraphRegion(nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic,
+                           new_full_graph)
 
     @staticmethod
     def _recursive_copy(old_graph, nodes_map, ignored_nodes=None) -> networkx.DiGraph:
@@ -162,10 +171,10 @@ class GraphRegion:
         if sub_region is self.head:
             self.head = replace_with.head
 
-        self._replace_node_in_graph_with_subgraph(self.graph, self.successors, sub_region,
+        self._replace_node_in_graph_with_subgraph(self.graph, self.successors, self.full_graph, sub_region,
                                                   replace_with.graph_with_successors, replace_with.head)
         if self.graph_with_successors is not None:
-            self._replace_node_in_graph_with_subgraph(self.graph_with_successors, None, sub_region,
+            self._replace_node_in_graph_with_subgraph(self.graph_with_successors, None, self.full_graph, sub_region,
                                                       replace_with.graph_with_successors, replace_with.head)
 
     @staticmethod
@@ -192,8 +201,9 @@ class GraphRegion:
         assert node not in graph
 
     @staticmethod
-    def _replace_node_in_graph_with_subgraph(graph: networkx.DiGraph, known_successors: Optional[List], node,
-                                             sub_graph: networkx.DiGraph, sub_graph_head):
+    def _replace_node_in_graph_with_subgraph(graph: networkx.DiGraph, known_successors: Optional[List],
+                                             reference_full_graph: Optional[networkx.DiGraph],
+                                             node, sub_graph: networkx.DiGraph, sub_graph_head):
 
         in_edges = list(graph.in_edges(node))
         out_edges = list(graph.out_edges(node))
@@ -233,6 +243,10 @@ class GraphRegion:
                 if dst in sub_graph:
                     for src in sub_graph.predecessors(dst):
                         graph.add_edge(src, dst)
+                elif reference_full_graph is not None and dst in reference_full_graph:
+                    for src in reference_full_graph.predecessors(dst):
+                        if src in graph:
+                            graph.add_edge(src, dst)
                 else:
                     # it may happen that the dst node does not exist in sub_graph
                     # fallback

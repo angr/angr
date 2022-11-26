@@ -313,7 +313,7 @@ class RegionIdentifier(Analysis):
 
             break
 
-        new_regions.append(GraphRegion(self._get_start_node(graph), graph, None, None, False))
+        new_regions.append(GraphRegion(self._get_start_node(graph), graph, None, None, False, None))
 
         l.debug("Identified %d loop regions.", len(structured_loop_headers))
         l.debug("No more loops left. Start structuring acyclic regions.")
@@ -337,7 +337,7 @@ class RegionIdentifier(Analysis):
             return list(graph.nodes())[0]
         # create a large graph region
         new_head = self._get_start_node(graph)
-        region = GraphRegion(new_head, graph, None, None, False)
+        region = GraphRegion(new_head, graph, None, None, False, None)
         return region
 
     #
@@ -566,7 +566,9 @@ class RegionIdentifier(Analysis):
                 if graph_copy.in_degree(node) == 0 and not isinstance(node, GraphRegion):
                     subgraph = networkx.DiGraph()
                     subgraph.add_node(node)
-                    self._abstract_acyclic_region(graph, GraphRegion(node, subgraph, None, None, False), [],
+                    self._abstract_acyclic_region(graph,
+                                                  GraphRegion(node, subgraph, None, None, False, None),
+                                                  [],
                                                   secondary_graph=secondary_graph)
                 continue
 
@@ -693,7 +695,7 @@ class RegionIdentifier(Analysis):
                     subgraph_with_frontier.add_edge(src, dst, **edge_data)
             # assert dummy_endnode not in frontier
             # assert dummy_endnode not in subgraph_with_frontier
-            return GraphRegion(node, subgraph, frontier, subgraph_with_frontier, False)
+            return GraphRegion(node, subgraph, frontier, subgraph_with_frontier, False, None)
         else:
             return None
 
@@ -735,12 +737,14 @@ class RegionIdentifier(Analysis):
     def _abstract_cyclic_region(graph: networkx.DiGraph, loop_nodes, head, normal_entries, abnormal_entries,
                                 normal_exit_node,
                                 abnormal_exit_nodes):
-        region = GraphRegion(head, None, None, None, True)
+        region = GraphRegion(head, None, None, None, True, None)
 
         subgraph = networkx.DiGraph()
         region_outedges = [ ]
 
         delayed_edges = [ ]
+
+        full_graph = networkx.DiGraph()
 
         for node in loop_nodes:
             subgraph.add_node(node)
@@ -748,6 +752,7 @@ class RegionIdentifier(Analysis):
             out_edges = list(graph.out_edges(node, data=True))
 
             for src, dst, data in in_edges:
+                full_graph.add_edge(src, dst, **data)
                 if src in loop_nodes:
                     subgraph.add_edge(src, dst, **data)
                 elif src is region:
@@ -763,6 +768,7 @@ class RegionIdentifier(Analysis):
                     assert 0
 
             for src, dst, data in out_edges:
+                full_graph.add_edge(src, dst, **data)
                 if dst in loop_nodes:
                     subgraph.add_edge(src, dst, **data)
                 elif dst is region:
@@ -797,6 +803,8 @@ class RegionIdentifier(Analysis):
         graph.add_node(region)
         for src, dst, data in delayed_edges:
             graph.add_edge(src, dst, **data)
+
+        region.full_graph = full_graph
 
         return region
 

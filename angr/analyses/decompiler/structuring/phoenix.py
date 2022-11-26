@@ -514,11 +514,19 @@ class PhoenixStructurer(StructurerBase):
         # traverse the graph in reverse topological order
         any_matches = False
 
+        if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
+            l.error("Got a wrong graph to work on. Investigate.")
+            import ipdb; ipdb.set_trace()
+
         if graph.in_degree[head] == 0:
             acyclic_graph = graph
         else:
             acyclic_graph = networkx.DiGraph(graph)
             acyclic_graph.remove_edges_from(graph.in_edges(head))
+
+            if _DEBUG and len(list(networkx.connected_components(networkx.Graph(acyclic_graph)))) > 1:
+                l.error("Removed wrong edges. Investigate.")
+                import ipdb; ipdb.set_trace()
 
         for node in list(reversed(CFGUtils.quasi_topological_sort_nodes(acyclic_graph))):
             if node not in graph:
@@ -528,22 +536,24 @@ class PhoenixStructurer(StructurerBase):
                 continue
             l.debug("... matching acyclic switch-case constructs at %r", node)
             matched = self._match_acyclic_switch_cases(graph, full_graph, node)
+            l.debug("... matched: %s", matched)
             any_matches |= matched
             if not matched:
                 l.debug("... matching acyclic sequence at %r", node)
                 matched = self._match_acyclic_sequence(graph, full_graph, node)
+                l.debug("... matched: %s", matched)
                 any_matches |= matched
             if not matched:
                 l.debug("... matching acyclic ITE at %r", node)
                 matched = self._match_acyclic_ite(graph, full_graph, node)
+                l.debug("... matched: %s", matched)
                 any_matches |= matched
             if self._phoenix_improved:
                 if not matched:
                     l.debug("... matching acyclic ITE with cascading and at %r", node)
                     matched = self._match_acyclic_ite_cascading_and(graph, full_graph, node)
+                    l.debug("... matched: %s", matched)
                     any_matches |= matched
-            if not matched:
-                l.debug("... matching acyclic")
             if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
                 l.error("Removed incorrect edges. Investigate.")
                 import ipdb; ipdb.set_trace()
