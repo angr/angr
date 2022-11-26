@@ -1,3 +1,4 @@
+from typing import List, Set, Optional
 
 import networkx
 
@@ -103,7 +104,8 @@ class CFGUtils:
         return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
 
     @staticmethod
-    def quasi_topological_sort_nodes(graph, nodes=None):
+    def quasi_topological_sort_nodes(graph: networkx.DiGraph, nodes: Optional[List]=None,
+                                     loop_heads: Optional[List]=None) -> List:
         """
         Sort a given set of nodes from a graph based on the following rules:
 
@@ -113,10 +115,10 @@ class CFGUtils:
         Following the above rules gives us a quasi-topological sorting of nodes in the graph. It also works for cyclic
         graphs.
 
-        :param networkx.DiGraph graph: A local transition graph of the function.
-        :param iterable nodes: A list of nodes to sort. None if you want to sort all nodes inside the graph.
-        :return: A list of ordered nodes.
-        :rtype: list
+        :param graph:       A local transition graph of the function.
+        :param nodes:       A list of nodes to sort. None if you want to sort all nodes inside the graph.
+        :param loop_heads:  A list of nodes that should be treated loop heads.
+        :return:            A list of ordered nodes.
         """
 
         # fast path for single node graphs
@@ -163,7 +165,7 @@ class CFGUtils:
         ordered_nodes = [ ]
         for n in tmp_nodes:
             if isinstance(n, SCCPlaceholder):
-                CFGUtils._append_scc(graph, ordered_nodes, sccs[n.scc_id])
+                CFGUtils._append_scc(graph, ordered_nodes, sccs[n.scc_id], loop_heads=loop_heads)
             else:
                 ordered_nodes.append(n)
 
@@ -183,27 +185,36 @@ class CFGUtils:
         return None
 
     @staticmethod
-    def _append_scc(graph, ordered_nodes, scc):
+    def _append_scc(graph: networkx.DiGraph, ordered_nodes: List, scc: Set, loop_heads: Optional[List]=None) -> None:
         """
         Append all nodes from a strongly connected component to a list of ordered nodes and ensure the topological
         order.
 
-        :param networkx.DiGraph graph: The graph where all nodes belong to.
-        :param list ordered_nodes:     Ordered nodes.
-        :param iterable scc:           A set of nodes that forms a strongly connected component in the graph.
-        :return:                       None
+        :param graph: The graph where all nodes belong to.
+        :param ordered_nodes:     Ordered nodes.
+        :param scc:           A set of nodes that forms a strongly connected component in the graph.
         """
 
-        # find the first node in the strongly connected component that is the successor to any node in ordered_nodes
         loop_head = None
-        for parent_node in reversed(ordered_nodes):
+
+        if loop_heads is not None:
+            # find the first node that appears in loop_heads
             for n in scc:
-                if n in graph[parent_node]:
+                if n in loop_heads:
                     loop_head = n
                     break
 
-            if loop_head is not None:
-                break
+        if loop_head is None:
+            # find the first node in the strongly connected component that is the successor to any node in
+            # ordered_nodes
+            for parent_node in reversed(ordered_nodes):
+                for n in scc:
+                    if n in graph[parent_node]:
+                        loop_head = n
+                        break
+
+                if loop_head is not None:
+                    break
 
         if loop_head is None:
             # randomly pick one
