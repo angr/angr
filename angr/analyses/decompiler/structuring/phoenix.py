@@ -1362,9 +1362,9 @@ class PhoenixStructurer(StructurerBase):
     @staticmethod
     def _remove_last_statement_if_jump(node: BaseNode):
         try:
-            last_stmt = ConditionProcessor.get_last_statement(node)
+            last_stmts = ConditionProcessor.get_last_statements(node)
         except EmptyBlockNotice:
             return
 
-        if isinstance(last_stmt, (Jump, ConditionalJump)):
+        if len(last_stmts) == 1 and isinstance(last_stmts[0], (Jump, ConditionalJump)):
             remove_last_statement(node)
