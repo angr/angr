@@ -740,7 +740,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # constant propagation
         func = cfg.kb.functions[func_addr]
-        prop = self.project.analyses[PropagatorAnalysis].prep()(func=func, only_consts=True, vex_cross_insn_opt=True)
+        prop = self.project.analyses[PropagatorAnalysis].prep()(func=func, only_consts=True, vex_cross_insn_opt=True,
+                                                                load_callback=self._propagator_load_callback)
         replacements = prop.replacements
 
         self._max_targets = cfg._indirect_jump_target_limit
@@ -1902,6 +1903,18 @@ class JumpTableResolver(IndirectJumpResolver):
         if vex_block.size == 0:
             return False
         return True
+
+    def _propagator_load_callback(self, addr, size) -> bool:
+        # only allow loading if the address falls into a read-only region
+        if isinstance(addr, claripy.ast.BV) and addr.op == "BVV":
+            addr_v = addr.args[0]
+            section = self.project.loader.find_section_containing(addr_v)
+            if section is not None:
+                return section.is_readable and not section.is_writable
+            segment = self.project.loader.find_segment_containing(addr_v)
+            if segment is not None:
+                return segment.is_readable and not segment.is_writable
+        return False
 
 
 from angr.analyses.propagator import PropagatorAnalysis
