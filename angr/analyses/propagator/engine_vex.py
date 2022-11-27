@@ -124,7 +124,10 @@ class SimEnginePropagatorVEX(
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
 
-        if data is not None and (self.state._store_tops or not self.state.is_top(data)):
+        if not (data is None or self.state.is_top(data)) or self.state._store_tops:
+            if data is None:
+                # make sure it's a top
+                data = self.state.top(size * self.arch.byte_width)
             self.state.store_register(stmt.offset, size, data)
             self.state.add_replacement(self._codeloc(block_only=False), VEXReg(stmt.offset, size), data)
 
@@ -148,7 +151,10 @@ class SimEnginePropagatorVEX(
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
 
-        if data is not None and (self.state._store_tops or not self.state.is_top(data)):
+        if not (data is None or self.state.is_top(data)) or self.state._store_tops:
+            if data is None:
+                # make sure it's a top
+                data = self.state.top(size * self.arch.byte_width)
             self._store_data(addr, data, size, self.arch.memory_endness)
 
     def _handle_LoadG(self, stmt):
@@ -214,12 +220,7 @@ class SimEnginePropagatorVEX(
 
     def _handle_Get(self, expr):
         size = expr.result_size(self.tyenv) // self.arch.byte_width
-        data = self.state.load_register(expr.offset, size)
-        if data is not None and (self.state._store_tops or not self.state.is_top(data)):
-            self.state.add_replacement(self._codeloc(block_only=False),
-                                       VEXReg(expr.offset, size),
-                                       data)
-        return data
+        return self.state.load_register(expr.offset, size)
 
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
