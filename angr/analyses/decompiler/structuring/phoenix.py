@@ -802,7 +802,11 @@ class PhoenixStructurer(StructurerBase):
         # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
         # of default node exists in node a's successors.
         node_a_successors = list(graph.successors(node_a))
-        node_b_in_node_a_successors = any(nn for nn in node_a_successors if nn in default_node_candidates)
+        if len(default_node_candidates) > 1:
+            node_b_in_node_a_successors = any(nn for nn in node_a_successors if nn in default_node_candidates)
+        else:
+            # the default node is not duplicated
+            node_b_in_node_a_successors = False
 
         for j, entry_addr in enumerate(jumptable_entries):
             if not node_b_in_node_a_successors and entry_addr == node_b_addr:

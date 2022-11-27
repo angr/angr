@@ -1228,6 +1228,26 @@ class TestDecompiler(unittest.TestCase):
         assert "error(0x1, *(__errno_location()), \"%s\");" in last_three_lines
 
     @for_all_structuring_algos
+    def test_decompiling_fmt0_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "fmt_0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+        proj.analyses.VariableRecoveryFast(f)
+        cca = proj.analyses.CallingConvention(f)
+        f.prototype = cca.prototype
+        f.calling_convention = cca.cc
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # ensure the default case node is not duplicated
+        cases = set(re.findall(r"case \d+:", d.codegen.text))
+        assert cases == {'case 0:', 'case 4:', 'case 13:', 'case 16:', 'case 17:', 'case 18:', 'case 20:'}
+
+    @for_all_structuring_algos
     def test_expr_collapsing(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "deep_expr")
         proj = angr.Project(bin_path, auto_load_libs=False)
