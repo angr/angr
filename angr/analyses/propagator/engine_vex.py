@@ -206,7 +206,7 @@ class SimEnginePropagatorVEX(
             storedata = self._expr(stmt.storedata)
             if storedata is not None:
                 addr = self._expr(stmt.addr)
-                size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
+                size = storedata.size() // self.arch.byte_width
                 self._store_data(addr, storedata, size, stmt.endness)
 
             self.tmps[stmt.result] = 1
