@@ -57,7 +57,7 @@ class SimEnginePropagatorVEX(
             # Record the replacement
             if type(expr) is pyvex.IRExpr.Get:
                 if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
-                    self.state.add_replacement(self._codeloc(block_only=True),
+                    self.state.add_replacement(self._codeloc(block_only=False),
                                                VEXReg(expr.offset, expr.result_size(self.tyenv) // 8),
                                                v)
         return v
@@ -126,6 +126,7 @@ class SimEnginePropagatorVEX(
 
         if data is not None and (self.state._store_tops or not self.state.is_top(data)):
             self.state.store_register(stmt.offset, size, data)
+            self.state.add_replacement(self._codeloc(block_only=False), VEXReg(stmt.offset, size), data)
 
     def _store_data(self, addr, data, size, endness):
         # pylint: disable=unused-argument,no-self-use
@@ -138,7 +139,7 @@ class SimEnginePropagatorVEX(
                 # a memory address
                 addr = addr.args[0]
                 variable = VEXMemVar(addr, size)
-                self.state.add_replacement(self._codeloc(block_only=True), variable, data)
+                self.state.add_replacement(self._codeloc(block_only=False), variable, data)
 
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
@@ -213,7 +214,12 @@ class SimEnginePropagatorVEX(
 
     def _handle_Get(self, expr):
         size = expr.result_size(self.tyenv) // self.arch.byte_width
-        return self.state.load_register(expr.offset, size)
+        data = self.state.load_register(expr.offset, size)
+        if data is not None and (self.state._store_tops or not self.state.is_top(data)):
+            self.state.add_replacement(self._codeloc(block_only=False),
+                                       VEXReg(expr.offset, size),
+                                       data)
+        return data
 
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)

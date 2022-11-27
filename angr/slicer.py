@@ -211,6 +211,10 @@ class SimSlicer(object):
 
         return in_slice
 
+    def _backward_handler_stmt_IMark(self, stmt, state) -> bool:  # pylint:disable=unused-argument
+        # include all IMark statements
+        return True
+
     def _backward_handler_stmt_WrTmp(self, stmt, state):
         tmp = stmt.tmp
 

@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Dict, Sequence
+from typing import Tuple, Optional, Dict, Sequence, TYPE_CHECKING
 import logging
 import functools
 from collections import defaultdict, OrderedDict
@@ -7,6 +7,10 @@ import pyvex
 import claripy
 from archinfo.arch_arm import is_arm_arch
 
+from .... import sim_options as o
+from .... import BP, BP_BEFORE, BP_AFTER
+from ....misc.ux import once
+from ....code_location import CodeLocation
 from ....concretization_strategies import SimConcretizationStrategyAny
 from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from ....engines.vex.claripy import ccall
@@ -14,19 +18,20 @@ from ....engines.light import SimEngineLightVEXMixin, SimEngineLight, SpOffset, 
 from ....errors import AngrError, SimError
 from ....blade import Blade
 from ....annocfg import AnnotatedCFG
-from .... import sim_options as o
-from .... import BP, BP_BEFORE, BP_AFTER
 from ....exploration_techniques.slicecutor import Slicecutor
 from ....exploration_techniques.local_loop_seer import LocalLoopSeer
 from ....exploration_techniques.explorer import Explorer
 from ....utils.constants import DEFAULT_STATEMENT
+from ...propagator.vex_vars import VEXReg
 from .resolver import IndirectJumpResolver
-from ....misc.ux import once
 
 try:
     from ....engines import pcode
 except ImportError:
     pcode = None
+
+if TYPE_CHECKING:
+    from angr import SimState
 
 l = logging.getLogger(name=__name__)
 
@@ -73,6 +78,33 @@ class JumpTargetBaseAddr:
     @property
     def base_addr_available(self):
         return self.base_addr is not None
+
+
+#
+# Constant register resolving support
+#
+
+class ConstantValueManager:
+    """
+    Manages the loading of registers who hold constant values.
+    """
+    def __init__(self, mapping):
+        self.mapping = mapping
+
+    def reg_read_callback(self, state: 'SimState'):
+        if not self.mapping:
+            return
+        codeloc = CodeLocation(state.scratch.bbl_addr,
+                               state.scratch.stmt_idx,
+                               ins_addr=state.scratch.ins_addr
+                               )
+        if codeloc in self.mapping:
+            reg_read_offset = state.inspect.reg_read_offset
+            if isinstance(reg_read_offset, claripy.ast.BV) and reg_read_offset.op == "BVV":
+                reg_read_offset = reg_read_offset.args[0]
+            variable = VEXReg(reg_read_offset, state.inspect.reg_read_length)
+            if variable in self.mapping[codeloc]:
+                state.inspect.reg_read_expr = self.mapping[codeloc][variable]
 
 
 #
@@ -705,6 +737,11 @@ class JumpTableResolver(IndirectJumpResolver):
         :rtype: tuple
         """
 
+        # constant propagation
+        func = cfg.kb.functions[func_addr]
+        prop = self.project.analyses[PropagatorAnalysis].prep()(func=func, only_consts=True, vex_cross_insn_opt=True)
+        replacements = prop.replacements
+
         self._max_targets = cfg._indirect_jump_target_limit
 
         for slice_steps in range(1, 5):
@@ -716,20 +753,20 @@ class JumpTableResolver(IndirectJumpResolver):
                 max_level=slice_steps, base_state=self.base_state, stop_at_calls=True, cross_insn_opt=True)
 
             l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
-            r, targets = self._resolve(cfg, addr, func_addr, b)
+            r, targets = self._resolve(cfg, addr, func_addr, b, replacements)
             if r:
                 return r, targets
 
         # Unable to resolve with accuracy, attempt a guess
         b = Blade(cfg.graph, addr, -1, cfg=cfg, project=self.project, ignore_sp=False, ignore_bp=False,
                   max_level=1, base_state=self.base_state, stop_at_calls=True, cross_insn_opt=True)
-        return self._resolve(cfg, addr, func_addr, b, attempt_approximate=True)
+        return self._resolve(cfg, addr, func_addr, b, replacements, attempt_approximate=True)
 
     #
     # Private methods
     #
 
-    def _resolve(self, cfg, addr: int, func_addr: int, b: Blade, attempt_approximate: bool = False) \
+    def _resolve(self, cfg, addr: int, func_addr: int, b: Blade, const_mapping, attempt_approximate: bool = False) \
         -> Tuple[bool, Optional[Sequence[int]]]:
         """
         Internal method for resolving jump tables.
@@ -819,6 +856,11 @@ class JumpTableResolver(IndirectJumpResolver):
             self._cached_memread_addrs.clear()
             init_registers_on_demand_bp = BP(when=BP_BEFORE, enabled=True, action=self._init_registers_on_demand)
             start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
+
+            # constant value manager
+            cv_manager = ConstantValueManager(const_mapping)
+            constant_value_reg_read_bp = BP(when=BP_AFTER, enabled=True, action=cv_manager.reg_read_callback)
+            start_state.inspect.add_breakpoint('reg_read', constant_value_reg_read_bp)
 
             # use Any as the concretization strategy
             start_state.memory.read_strategies = [SimConcretizationStrategyAny()]
@@ -1139,6 +1181,8 @@ class JumpTableResolver(IndirectJumpResolver):
                 load_stmt, load_stmt_loc, load_size = stmt, stmt_loc, \
                                                       block.tyenv.sizeof(stmt.dst) // self.project.arch.byte_width
                 stmts_to_remove.append(stmt_loc)
+            elif isinstance(stmt, pyvex.IRStmt.IMark):
+                continue
 
             break
 
@@ -1857,3 +1901,6 @@ class JumpTableResolver(IndirectJumpResolver):
         if vex_block.size == 0:
             return False
         return True
+
+
+from angr.analyses.propagator import PropagatorAnalysis
