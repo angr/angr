@@ -145,7 +145,7 @@ class StructurerBase(Analysis):
                         # add a new a break statement to its parent
                         break_node = BreakNode(stmt.ins_addr, switch_end_addr)
                         # insert node
-                        insert_node(parent, index + 1, break_node, index)
+                        insert_node(parent, "after", break_node, index)
                         # remove the last statement
                         block.statements = block.statements[:-1]
 
@@ -279,9 +279,9 @@ class StructurerBase(Analysis):
                     # create a break or a conditional break node
                     break_node = self._loop_create_break_node(stmt, successor_addrs)
                     # insert this node to the parent
-                    if isinstance(parent, SwitchCaseNode) and index is None:
+                    if isinstance(parent, SwitchCaseNode):
                         # the parent of the current node is not a container. insert_node() handles it for us.
-                        insert_node(parent, index, break_node, index, label=label)
+                        insert_node(parent, "before", break_node, index, label=label)
                         # now remove the node from the newly created container
                         if label == "case":
                             # parent.cases[index] is a SequenceNode now
@@ -318,7 +318,7 @@ class StructurerBase(Analysis):
 
                 # replace the original node with nodes in the new_nodes list
                 for new_node in reversed(new_nodes):
-                    insert_node(parent, index + 1, new_node, index)
+                    insert_node(parent, "after", new_node, index)
                 # remove the current node
                 node.statements = [ ]
 
@@ -348,7 +348,7 @@ class StructurerBase(Analysis):
                     # create a continue node
                     continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
                     # insert this node to the parent
-                    insert_node(parent, index + 1, continue_node, index, label=label)  # insert after
+                    insert_node(parent, "after", continue_node, index, label=label)  # insert after
                     # remove this statement
                     node.statements = node.statements[:-1]
 
