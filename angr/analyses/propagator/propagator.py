@@ -59,6 +59,18 @@ class PropagatorState:
         return weakref.proxy(self)
 
     @staticmethod
+    def _is_const(v) -> bool:
+        if isinstance(v, (int, ailment.Expr.Const)):
+            return True
+        if isinstance(v, claripy.ast.BV) and v.op == "BVV":
+            return True
+        if isinstance(v, claripy.ast.FP) and v.op == "FPV":
+            return True
+        if isinstance(v, claripy.ast.Bool) and v.op == "BoolV":
+            return True
+        return False
+
+    @staticmethod
     def _mo_cmp(mo_self: Union['SimMemoryObject','SimLabeledMemoryObject'],
                 mo_other: Union['SimMemoryObject','SimLabeledMemoryObject'],
                 addr: int, size: int):  # pylint:disable=unused-argument
@@ -152,7 +164,7 @@ class PropagatorState:
             return
 
         if self._only_consts:
-            if isinstance(new, (int, ailment.Expr.Const)) or self.is_top(new):
+            if self._is_const(new) or self.is_top(new):
                 self._replacements[codeloc][old] = new
         else:
             self._replacements[codeloc][old] = new

@@ -1,10 +1,16 @@
-
+# pylint:disable=no-self-use
 import pyvex
 
 from .errors import SimSlicerError
 
 
-class SimLightState(object):
+class SimLightState:
+    """
+    Represents a program state. Only used in SimSlicer.
+    """
+
+    __slots__ = ('temps', 'regs', 'stack_offsets', 'options', )
+
     def __init__(self, temps=None, regs=None, stack_offsets=None, options=None):
         self.temps = temps if temps is not None else set()
         self.regs = regs if regs is not None else set()
@@ -12,7 +18,7 @@ class SimLightState(object):
         self.options = {} if options is None else options
 
 
-class SimSlicer(object):
+class SimSlicer:
     """
     A super lightweight intra-IRSB slicing class.
     """
@@ -69,7 +75,8 @@ class SimSlicer(object):
         state = SimLightState(
             regs={
                 self._arch.sp_offset: self._arch.initial_sp,
-                self._arch.bp_offset: self._arch.initial_sp + 0x2000, # TODO: take care of the relation between sp and bp
+                # TODO: take care of the relation between sp and bp
+                self._arch.bp_offset: self._arch.initial_sp + 0x2000,
             },
             temps={},
             options={
@@ -78,7 +85,7 @@ class SimSlicer(object):
             }
         )
 
-        for stmt_idx, stmt in list(enumerate(self._statements)):
+        for stmt in self._statements:
             self._forward_handler_stmt(stmt, state)
 
     #
@@ -145,7 +152,7 @@ class SimSlicer(object):
 
         return None
 
-    def _forward_handler_expr_Const(self, expr, state):
+    def _forward_handler_expr_Const(self, expr, state):  # pylint:disable=unused-argument
 
         return expr.con.value
 
@@ -161,11 +168,11 @@ class SimSlicer(object):
 
         return None
 
-    def _forward_handler_expr_binop_Add64(self, op0, op1, state):
+    def _forward_handler_expr_binop_Add64(self, op0, op1, state):  # pylint:disable=unused-argument
 
         return (op0 + op1) & (2 ** 64 - 1)
 
-    def _forward_handler_expr_binop_Add32(self, op0, op1, state):
+    def _forward_handler_expr_binop_Add32(self, op0, op1, state):  # pylint:disable=unused-argument
 
         return (op0 + op1) & (2 ** 32 - 1)
 
@@ -210,6 +217,10 @@ class SimSlicer(object):
             in_slice = getattr(self, funcname)(stmt, state)
 
         return in_slice
+
+    def _backward_handler_stmt_IMark(self, stmt, state) -> bool:  # pylint:disable=unused-argument
+        # include all IMark statements
+        return True
 
     def _backward_handler_stmt_WrTmp(self, stmt, state):
         tmp = stmt.tmp

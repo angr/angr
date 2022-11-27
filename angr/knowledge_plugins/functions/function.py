@@ -995,7 +995,7 @@ class Function(Serializable):
             if 'type' in data:
                 if data['type'] in ('transition', 'exception') and ('outside' not in data or data['outside'] is False):
                     g.add_edge(src, dst, **data)
-                elif data['type'] == 'fake_return' and 'confirmed' in data and \
+                elif data['type'] == 'fake_return' and \
                         ('outside' not in data or data['outside'] is False):
                     g.add_edge(src, dst, **data)
 
