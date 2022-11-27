@@ -362,6 +362,38 @@ class TestJumpTableResolver(unittest.TestCase):
             0x40d1f8
         ]
 
+    def test_amd64_fmt0_with_constant_propagation_r12(self):
+
+        p = angr.Project(os.path.join(test_location, "x86_64", "fmt_0"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()()
+
+        assert 0x401acc in cfg.model.jump_tables
+        jumptable = cfg.model.jump_tables[0x401acc]
+        assert len(jumptable.jumptable_entries) == 21
+        assert jumptable.jumptable_entries == [
+            0x401b48,
+            0x401d6a,
+            0x401d6a,
+            0x401d6a,
+            0x401b30,
+            0x401d6a,
+            0x401d6a,
+            0x401d6a,
+            0x401d6a,
+            0x401d6a,
+            0x401d6a,
+            0x401d6a,
+            0x401d6a,
+            0x401b18,
+            0x401d6a,
+            0x401d6a,
+            0x401b08,
+            0x401af8,
+            0x401ae8,
+            0x401d6a,
+            0x401ad8,
+        ]
+
 
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """
