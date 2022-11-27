@@ -1,5 +1,5 @@
 # pylint:disable=wrong-import-position
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, Union
 
 import networkx
 
@@ -152,50 +152,54 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, insert_idx, node, node_idx, label=None):
+def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int,Tuple[int]]], label=None):
+
+    if insert_location not in {"before", "after"}:
+        raise ValueError('"insert_location" must be either "before" or "after"')
 
     if isinstance(parent, SequenceNode):
-        parent.nodes.insert(insert_idx, node)
+        if insert_location == "before":
+            parent.nodes.insert(node_idx, node)
+        else: # if insert_location == "after":
+            parent.nodes.insert(node_idx + 1, node)
     elif isinstance(parent, CodeNode):
         # Make a new sequence node
-        seq = SequenceNode(parent.addr, nodes=[parent.node, node])
+        if insert_location == "before":
+            seq = SequenceNode(parent.addr, nodes=[node, parent.node])
+        else: # if insert_location == "after":
+            seq = SequenceNode(parent.addr, nodes=[parent.node, node])
         parent.node = seq
     elif isinstance(parent, MultiNode):
-        parent.nodes.insert(insert_idx, node)
+        if insert_location == "before":
+            parent.nodes.insert(node_idx, node)
+        else:
+            parent.nodes.insert(node_idx + 1, node)
     elif isinstance(parent, ConditionNode):
         if node_idx == 0:
             # true node
-            if not isinstance(parent.true_node, (SequenceNode, MultiNode)):
+            if not isinstance(parent.true_node, SequenceNode):
                 if parent.true_node is None:
                     parent.true_node = SequenceNode(parent.addr, nodes=[])
                 else:
                     parent.true_node = SequenceNode(parent.true_node.addr, nodes=[parent.true_node])
-            insert_node(parent.true_node, insert_idx - node_idx, node, 0)
+            insert_node(parent.true_node, insert_location, node, 0)
         else:
             # false node
-            if not isinstance(parent.false_node, (SequenceNode, MultiNode)):
+            if not isinstance(parent.false_node, SequenceNode):
                 if parent.false_node is None:
                     parent.false_node = SequenceNode(parent.addr, nodes=[])
                 else:
                     parent.false_node = SequenceNode(parent.false_node.addr, nodes=[parent.false_node])
-            insert_node(parent.false_node, insert_idx - node_idx, node, 0)
+            insert_node(parent.false_node, insert_location, node, 0)
     elif isinstance(parent, CascadingConditionNode):
         cond, child_node = parent.condition_and_nodes[node_idx]
         if not isinstance(child_node, SequenceNode):
             child_node = SequenceNode(child_node.addr, nodes=[child_node])
             parent.condition_and_nodes[node_idx] = (cond, child_node)
-        insert_node(child_node, insert_idx - node_idx, node, 0)
+        insert_node(child_node, insert_location, node, 0)
     elif isinstance(parent, SwitchCaseNode):
         # note that this case will be hit only when the parent node is not a container, such as SequenceNode or
         # MultiNode. we always need to create a new SequenceNode and replace the original node in place.
-
-        # we calculate insert_location based on insert_idx and node_idx
-        if insert_idx == node_idx:
-            insert_location = "before"
-        elif insert_idx == node_idx + 1:
-            insert_location = "after"
-        else:
-            raise TypeError(f"Unsupported insert_idx value {insert_idx}. It must be node_idx or node_idx + 1.")
 
         if label == 'switch_expr':
             raise TypeError("You cannot insert a node after an expression.")
