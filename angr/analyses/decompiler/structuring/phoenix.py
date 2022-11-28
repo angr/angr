@@ -15,7 +15,7 @@ from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
 from ..condition_processor import ConditionProcessor
-from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds
+from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds, is_empty_node
 from .structurer_nodes import ConditionNode, SequenceNode, LoopNode, ConditionalBreakNode, BreakNode, ContinueNode, \
     BaseNode, MultiNode, SwitchCaseNode, IncompleteSwitchCaseNode, EmptyBlockNotice
 from .structurer_base import StructurerBase
@@ -612,6 +612,9 @@ class PhoenixStructurer(StructurerBase):
     # switch cases
 
     def _match_acyclic_switch_cases(self, graph: networkx.DiGraph, full_graph: networkx.DiGraph, node) -> bool:
+        if isinstance(node, (SwitchCaseNode, IncompleteSwitchCaseNode)):
+            return False
+
         jump_tables = self.kb.cfgs['CFGFast'].jump_tables
         r = self._match_acyclic_switch_cases_address_loaded_from_memory(node, graph, full_graph, jump_tables)
         if not r:
@@ -745,9 +748,12 @@ class PhoenixStructurer(StructurerBase):
 
     def _match_acyclic_incomplete_switch_cases(self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph,
                                                jump_tables: Dict) -> bool:
+        # sanity checks
         if node.addr not in jump_tables:
             return False
         if isinstance(node, IncompleteSwitchCaseNode):
+            return False
+        if is_empty_node(node):
             return False
 
         successors = list(graph.successors(node))

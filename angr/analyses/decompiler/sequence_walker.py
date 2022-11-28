@@ -3,7 +3,7 @@ import ailment
 
 from ...errors import UnsupportedNodeTypeError
 from .structuring.structurer_nodes import (MultiNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode,
-                                           CascadingConditionNode, ConditionalBreakNode)
+                                           CascadingConditionNode, ConditionalBreakNode, IncompleteSwitchCaseNode)
 
 
 class SequenceWalker:
@@ -21,6 +21,7 @@ class SequenceWalker:
             ConditionNode: self._handle_Condition,
             CascadingConditionNode: self._handle_CascadingCondition,
             SwitchCaseNode: self._handle_SwitchCase,
+            IncompleteSwitchCaseNode: self._handle_IncompleteSwitchCase,
             LoopNode: self._handle_Loop,
             MultiNode: self._handle_MultiNode,
             ConditionalBreakNode: self._handle_ConditionalBreak,
@@ -110,6 +111,32 @@ class SequenceWalker:
 
         if changed:
             return SwitchCaseNode(node.switch_expr, new_cases, new_default_node, addr=node.addr)
+
+        return None
+
+    def _handle_IncompleteSwitchCase(self, node: IncompleteSwitchCaseNode, **kwargs):
+
+        changed = False
+        new_cases = { }
+        for idx in range(len(node.cases)):
+            case = node.cases[idx]
+            new_case = self._handle(case, parent=node, index=idx, label='case')
+            if new_case is not None:
+                changed = True
+                new_cases[idx] = new_case
+            else:
+                new_cases[idx] = case
+
+        new_head = None
+        if node.head is not None:
+            new_head = self._handle(node.head, parent=node, index=0, label='default')
+            if new_head is not None:
+                changed = True
+            else:
+                new_head = node.head
+
+        if changed:
+            return IncompleteSwitchCaseNode(node.addr, new_head, new_cases)
 
         return None
 

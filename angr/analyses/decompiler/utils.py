@@ -289,6 +289,16 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
     return transition_graph
 
 
+def is_empty_node(node):
+    if isinstance(node, ailment.Block):
+        return not node.statements
+    if isinstance(node, MultiNode):
+        return all(is_empty_node(n) for n in node.nodes)
+    if isinstance(node, SequenceNode):
+        return all(is_empty_node(n) for n in node.nodes)
+    return False
+
+
 # delayed import
 from .structuring.structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, \
     CascadingConditionNode
