@@ -528,7 +528,15 @@ class PhoenixStructurer(StructurerBase):
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
                 # src at this point. we need to find the Jump statement and replace it.
                 cont_parent, cont_block = self._find_node_going_to_dst(src, loop_head)
-                if cont_block is not None:
+                if cont_block is None:
+                    # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
+                    # case being the loop head. in such cases, we can just remove the edge.
+                    if not src.addr in self.kb.cfgs['CFGFast'].jump_tables:
+                        l.warning("_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r."
+                                  "Remove the edge anyway.",
+                                  src, loop_head)
+                    graph.remove_edge(src, loop_head)
+                else:
                     # replace cont_block with a ContinueNode
                     graph.remove_edge(src, loop_head)
                     fullgraph.remove_edge(src, loop_head)

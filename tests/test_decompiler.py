@@ -1413,6 +1413,26 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
         assert dec.codegen.text.count("goto") == 1  # should have only one goto
 
+    @for_all_structuring_algos
+    def test_decompiling_mv0_main(self, decompiler_options=None):
+        # one of the jump tables has an entry that goes back to the loop head
+        bin_path = os.path.join(test_location, "x86_64", "mv_0")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                               "linux")
+        all_optimization_passes = [p for p in all_optimization_passes
+                                   if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options,
+                                             optimization_passes=all_optimization_passes)
+        self._print_decompilation_result(d)
+
 
 if __name__ == "__main__":
     unittest.main()
