@@ -16,12 +16,10 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.8"
-      - run: |
-          python -m venv $HOME\venv
-          echo "VIRTUAL_ENV=$HOME\venv" >> $GITHUB_ENV
-          echo "PATH=$HOME\venv:$env:PATH" >> $GITHUB_ENV
+      - run: python -m venv $HOME\venv
         name: Create venv
       - run: |
+          $HOME\venv\Scripts\activate
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           echo "skip this"
           pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
@@ -33,11 +31,14 @@ jobs:
         name: Install dependencies
         shell: cmd
       - run: |
+          $HOME\venv\Scripts\activate
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           pip install --no-build-isolation .
         name: Install angr
         shell: cmd
-      - run: python -c "import angr; print('It works!')"
+      - run: |
+          $HOME\venv\Scripts\activate
+          python -c "import angr; print('It works!')"
         name: Import angr
 
   macos:
@@ -48,14 +49,11 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.8"
-      - run: |
-          python -m venv $HOME/venv
-          echo "VIRTUAL_ENV=$HOME/venv" >> $GITHUB_ENV
-          echo "PATH=~/venv:$PATH" >> $GITHUB_ENV
+      - run: python -m venv $HOME/venv
         name: Create venv
         shell: bash
       - run: |
-          echo "skip this"
+          source $HOME/venv/bin/activate
           pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
@@ -63,7 +61,11 @@ jobs:
           pip install git+https://github.com/angr/claripy.git
           pip install git+https://github.com/angr/ailment.git
         name: Install dependencies
-      - run: pip install --no-build-isolation .
+      - run: |
+          source $HOME/venv/bin/activate
+          pip install --no-build-isolation .
         name: Install angr
-      - run: python -c "import angr; print('It works!')"
+      - run: |
+          source $HOME/venv/bin/activate
+          python -c "import angr; print('It works!')"
         name: Import angr
