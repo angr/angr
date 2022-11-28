@@ -358,7 +358,6 @@ class StructurerBase(Analysis):
         handlers = {
             ailment.Block: _rewrite_jump_to_continue,
             LoopNode: _dummy,
-            SwitchCaseNode: _dummy,
         }
 
         walker = SequenceWalker(handlers=handlers)
