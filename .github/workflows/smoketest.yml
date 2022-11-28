@@ -16,7 +16,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.8"
-      - uses: syphar/restore-virtualenv@v1
+      - run: |
+          python -m venv ~/venv
+          echo "VIRTUAL_ENV=~/venv" >> $GITHUB_ENV
+          echo "PATH=~/venv:$PATH" >> $GITHUB_ENV
+        name: Create venv
+        shell: bash
       - run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           pip install setuptools>=59 wheel cffi unicorn==2.0.1
@@ -43,7 +48,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.8"
-      - uses: syphar/restore-virtualenv@v1
+      - run: |
+          python -m venv ~/venv
+          echo "VIRTUAL_ENV=~/venv" >> $GITHUB_ENV
+          echo "PATH=~/venv:$PATH" >> $GITHUB_ENV
+        name: Create venv
+        shell: bash
       - run: |
           pip install setuptools>=59 wheel cffi unicorn==2.0.1
           pip install git+https://github.com/angr/archinfo.git
