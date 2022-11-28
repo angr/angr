@@ -1048,81 +1048,81 @@ class PhoenixStructurer(StructurerBase):
         """
         Check if start_node is the beginning of an If-Then-Else region with cascading short-circuit expressions as the
         condition. Create a Condition node if it is the case.
-
-        There are four possible graph schemas.
-
-        Type A: Cascading Or::
-
-            cond_node
-            |        \
-            |         \
-        next_cond      \
-           ...    \     \
-                   \    |
-                    \   |
-                     \  |
-           ...       body
-              ...      /
-                \ \ \ /
-               successor
-
-        We reduce it into if (cond || next_cond) { body }
-
-        Type B: Cascading Or with else::
-
-            cond_node
-            |        \
-            |         \
-        next_cond      \
-           ...    \     \
-                   \    |
-                    \   |
-                     \  |
-           ...       body
-             else      /
-                \ \ \ /
-               successor
-
-        We reduce it into if (cond || next_cond) { body } else { else }
-
-        Type C: Cascading And::
-
-            cond_node
-            |        \
-            |         \
-        next_cond      \
-           ...    \     \
-                   \    |
-                    \   |
-             \       \ /
-              \       |
-              body    |
-           ...  |     |
-                |     |
-                \ \ \ /
-               successor
-
-        We reduce it into if (cond && next_cond) { body }
-
-        Type D: Cascading And with else::
-
-            cond_node
-            |        \
-            |         \
-        next_cond      \
-           ...    \     \
-                   \    |
-                    \   |
-             \       \ /
-              \       |
-              body    |
-           ...  |    else
-                |     |
-                \ \ \ /
-               successor
-
-        We reduce it into if (cond && next_cond) { body } else { else }
         """
+
+        # There are four possible graph schemas.
+        #
+        # Type A: Cascading Or::
+        #
+        #     cond_node
+        #     |        \
+        #     |         \
+        # next_cond      \
+        #    ...    \     \
+        #            \    |
+        #             \   |
+        #              \  |
+        #    ...       body
+        #       ...      /
+        #         \ \ \ /
+        #        successor
+        #
+        # We reduce it into if (cond || next_cond) { body }
+        #
+        # Type B: Cascading Or with else::
+        #
+        #     cond_node
+        #     |        \
+        #     |         \
+        # next_cond      \
+        #    ...    \     \
+        #            \    |
+        #             \   |
+        #              \  |
+        #    ...       body
+        #      else      /
+        #         \ \ \ /
+        #        successor
+        #
+        # We reduce it into if (cond || next_cond) { body } else { else }
+        #
+        # Type C: Cascading And::
+        #
+        #     cond_node
+        #     |        \
+        #     |         \
+        # next_cond      \
+        #    ...    \     \
+        #            \    |
+        #             \   |
+        #      \       \ /
+        #       \       |
+        #       body    |
+        #    ...  |     |
+        #         |     |
+        #         \ \ \ /
+        #        successor
+        #
+        # We reduce it into if (cond && next_cond) { body }
+        #
+        # Type D: Cascading And with else::
+        #
+        #     cond_node
+        #     |        \
+        #     |         \
+        # next_cond      \
+        #    ...    \     \
+        #            \    |
+        #             \   |
+        #      \       \ /
+        #       \       |
+        #       body    |
+        #    ...  |    else
+        #         |     |
+        #         \ \ \ /
+        #        successor
+        #
+        # We reduce it into if (cond && next_cond) { body } else { else }
 
         r = self._match_acyclic_short_circuit_conditions_type_a(graph, full_graph, start_node)
 
