@@ -23,6 +23,7 @@ jobs:
         name: Create venv
       - run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          echo "skip this"
           pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
