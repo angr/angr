@@ -17,8 +17,8 @@ jobs:
         with:
           python-version: "3.8"
       - run: |
-          python -m venv ~/venv
-          echo "VIRTUAL_ENV=~/venv" >> $GITHUB_ENV
+          python -m venv $HOME/venv
+          echo "VIRTUAL_ENV=$HOME/venv" >> $GITHUB_ENV
           echo "PATH=~/venv:$PATH" >> $GITHUB_ENV
         name: Create venv
         shell: bash
@@ -49,8 +49,8 @@ jobs:
         with:
           python-version: "3.8"
       - run: |
-          python -m venv ~/venv
-          echo "VIRTUAL_ENV=~/venv" >> $GITHUB_ENV
+          python -m venv $HOME/venv
+          echo "VIRTUAL_ENV=$HOME/venv" >> $GITHUB_ENV
           echo "PATH=~/venv:$PATH" >> $GITHUB_ENV
         name: Create venv
         shell: bash
