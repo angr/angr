@@ -15,7 +15,7 @@ from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
 from ..condition_processor import ConditionProcessor
-from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds
+from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds, is_empty_node
 from .structurer_nodes import ConditionNode, SequenceNode, LoopNode, ConditionalBreakNode, BreakNode, ContinueNode, \
     BaseNode, MultiNode, SwitchCaseNode, IncompleteSwitchCaseNode, EmptyBlockNotice
 from .structurer_base import StructurerBase
@@ -600,8 +600,8 @@ class PhoenixStructurer(StructurerBase):
                 any_matches |= matched
             if self._phoenix_improved:
                 if not matched:
-                    l.debug("... matching acyclic ITE with cascading and at %r", node)
-                    matched = self._match_acyclic_ite_cascading_and(graph, full_graph, node)
+                    l.debug("... matching acyclic ITE with short-circuit conditions at %r", node)
+                    matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node)
                     l.debug("... matched: %s", matched)
                     any_matches |= matched
             if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
@@ -612,6 +612,9 @@ class PhoenixStructurer(StructurerBase):
     # switch cases
 
     def _match_acyclic_switch_cases(self, graph: networkx.DiGraph, full_graph: networkx.DiGraph, node) -> bool:
+        if isinstance(node, (SwitchCaseNode, IncompleteSwitchCaseNode)):
+            return False
+
         jump_tables = self.kb.cfgs['CFGFast'].jump_tables
         r = self._match_acyclic_switch_cases_address_loaded_from_memory(node, graph, full_graph, jump_tables)
         if not r:
@@ -745,9 +748,12 @@ class PhoenixStructurer(StructurerBase):
 
     def _match_acyclic_incomplete_switch_cases(self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph,
                                                jump_tables: Dict) -> bool:
+        # sanity checks
         if node.addr not in jump_tables:
             return False
         if isinstance(node, IncompleteSwitchCaseNode):
+            return False
+        if is_empty_node(node):
             return False
 
         successors = list(graph.successors(node))
@@ -1043,73 +1049,185 @@ class PhoenixStructurer(StructurerBase):
 
         return False
 
-    def _match_acyclic_ite_cascading_and(self, graph, full_graph, start_node) -> bool:
+    def _match_acyclic_short_circuit_conditions(self, graph: networkx.DiGraph, full_graph: networkx.DiGraph,
+                                                start_node) -> bool:
         """
-        Check if start_node is the beginning of an If-Then-Else region with a cascading And expression as the condition.
-        Create a Condition node if it is the case.
+        Check if start_node is the beginning of an If-Then-Else region with cascading short-circuit expressions as the
+        condition. Create a Condition node if it is the case.
         """
 
-        r = self._match_acyclic_ite_cascading_and_core(graph, full_graph, start_node)
-        if r is None:
-            return False
+        # There are four possible graph schemas.
+        #
+        # Type A: Cascading Or::
+        #
+        #     cond_node
+        #     |        \
+        #     |         \
+        # next_cond      \
+        #    ...    \     \
+        #            \    |
+        #             \   |
+        #              \  |
+        #    ...       body
+        #       ...      /
+        #         \ \ \ /
+        #        successor
+        #
+        # We reduce it into if (cond || next_cond) { body }
+        #
+        # Type B: Cascading Or with else::
+        #
+        #     cond_node
+        #     |        \
+        #     |         \
+        # next_cond      \
+        #    ...    \     \
+        #            \    |
+        #             \   |
+        #              \  |
+        #    ...       body
+        #      else      /
+        #         \ \ \ /
+        #        successor
+        #
+        # We reduce it into if (cond || next_cond) { body } else { else }
+        #
+        # Type C: Cascading And::
+        #
+        #     cond_node
+        #     |        \
+        #     |         \
+        # next_cond      \
+        #    ...    \     \
+        #            \    |
+        #             \   |
+        #      \       \ /
+        #       \       |
+        #       body    |
+        #    ...  |     |
+        #         |     |
+        #         \ \ \ /
+        #        successor
+        #
+        # We reduce it into if (cond && next_cond) { body }
+        #
+        # Type D: Cascading And with else::
+        #
+        #     cond_node
+        #     |        \
+        #     |         \
+        # next_cond      \
+        #    ...    \     \
+        #            \    |
+        #             \   |
+        #      \       \ /
+        #       \       |
+        #       body    |
+        #    ...  |    else
+        #         |     |
+        #         \ \ \ /
+        #        successor
+        #
+        # We reduce it into if (cond && next_cond) { body } else { else }
 
-        left, left_cond, else_node, _ = r
-        conditions = [left_cond]
-        lefts = [left]
-        else_node_indegree = full_graph.in_degree[else_node]
-        if else_node_indegree <= 1:
-            # normal ite-matching should handle this case just fine
-            return False
-        if else_node is start_node:
-            # it loops
-            return False
+        r = self._match_acyclic_short_circuit_conditions_type_a(graph, full_graph, start_node)
 
-        while len(conditions) < else_node_indegree:
-            r = self._match_acyclic_ite_cascading_and_core(graph, full_graph, left)
-            if r is None:
-                return False
-            left, left_cond, new_else_node, _ = r
-            if new_else_node is not else_node:
-                return False
-            if left is start_node or left in lefts:
-                # it loops!
-                return False
-            conditions.append(left_cond)
-            lefts.append(left)
+        if r is not None:
+            left, left_cond, right, left_right_cond, succ = r
+            # create the condition node
+            cond_jump = ConditionalJump(
+                None,
+                self.cond_proc.convert_claripy_bool_ast(claripy.Or(claripy.Not(left_cond), left_right_cond)),
+                Const(None, None, right.addr, self.project.arch.bits),
+                Const(None, None, succ.addr, self.project.arch.bits),
+                ins_addr=start_node.addr,
+                stmt_idx=0,
+            )
+            new_cond_node = Block(start_node.addr, None, statements=[cond_jump])
+            self._remove_last_statement_if_jump(start_node)
+            new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-        # all but the last left node must contain only one conditional jump statement
-        for nn in lefts[:-1]:
-            if not self._is_single_statement_block(nn):
-                return False
+            self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
 
-        # final check
-        left_successors = list(full_graph.successors(left))
-        else_successors = list(full_graph.successors(else_node))
-        if len(left_successors) == 0 and len(else_successors) <= 1 \
-                or len(left_successors) <= 1 and len(else_successors) == 0:
-            pass
-        elif len(set(left_successors + else_successors)) == 1:
-            pass
-        else:
-            # generate edge virtualization hints
-            if len(left_successors) == 1 and len(else_successors) > 1 and left_successors[0] in else_successors:
-                self._edge_virtualization_hints.append((left, left_successors[0]))
+            return True
 
-            return False
+        r = self._match_acyclic_short_circuit_conditions_type_b(graph, full_graph, start_node)
 
-        # create the condition node
-        new_cond_node = ConditionNode(start_node.addr, None, claripy.And(*conditions), left, else_node)
-        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+        if r is not None:
+            left, left_cond, right, right_left_cond, else_node = r
+            # create the condition node
+            cond_jump = ConditionalJump(
+                None,
+                self.cond_proc.convert_claripy_bool_ast(claripy.Or(left_cond, right_left_cond)),
+                Const(None, None, left.addr, self.project.arch.bits),
+                Const(None, None, else_node.addr, self.project.arch.bits),
+                ins_addr=start_node.addr,
+                stmt_idx=0,
+            )
+            new_cond_node = Block(start_node.addr, None, statements=[cond_jump])
+            self._remove_last_statement_if_jump(start_node)
+            new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-        graph.remove_nodes_from(lefts)
-        self.replace_nodes(graph, start_node, new_node, old_node_1=else_node)
-        full_graph.remove_nodes_from(lefts)
-        self.replace_nodes(full_graph, start_node, new_node, old_node_1=else_node)
+            self.replace_nodes(graph, start_node, new_node, old_node_1=right)
+            self.replace_nodes(full_graph, start_node, new_node, old_node_1=right)
 
-        return True
+            return True
 
-    def _match_acyclic_ite_cascading_and_core(self, graph, full_graph, start_node) -> Optional[Tuple]:  # pylint:disable=unused-argument
-        # match one level
+        r = self._match_acyclic_short_circuit_conditions_type_c(graph, full_graph, start_node)
+
+        if r is not None:
+            left, left_cond, succ, left_succ_cond, right = r
+            # create the condition node
+            cond_jump = ConditionalJump(
+                None,
+                self.cond_proc.convert_claripy_bool_ast(claripy.And(left_cond, claripy.Not(left_succ_cond))),
+                Const(None, None, right.addr, self.project.arch.bits),
+                Const(None, None, succ.addr, self.project.arch.bits),
+                ins_addr=start_node.addr,
+                stmt_idx=0,
+            )
+            new_cond_node = Block(start_node.addr, None, statements=[cond_jump])
+            self._remove_last_statement_if_jump(start_node)
+            new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+
+            self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+            return True
+
+        r = self._match_acyclic_short_circuit_conditions_type_d(graph, full_graph, start_node)
+
+        if r is not None:
+            left, left_cond, right, right_left_cond, else_node = r
+            # create the condition node
+            cond_jump = ConditionalJump(
+                None,
+                self.cond_proc.convert_claripy_bool_ast(claripy.And(left_cond, right_left_cond)),
+                Const(None, None, right.addr, self.project.arch.bits),
+                Const(None, None, else_node.addr, self.project.arch.bits),
+                ins_addr=start_node.addr,
+                stmt_idx=0,
+            )
+            new_cond_node = Block(start_node.addr, None, statements=[cond_jump])
+            self._remove_last_statement_if_jump(start_node)
+            new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+
+            self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+            return True
+
+        return False
+
+    def _match_acyclic_short_circuit_conditions_type_a(self, graph, full_graph, start_node) -> Optional[Tuple]:  # pylint:disable=unused-argument
+
+        #   if (a) goto right
+        #   else if (b) goto right
+        #   else goto other_succ
+        # right:
+        #   ...
+        #   goto other_succ
+        # other_succ:
+
         succs = list(full_graph.successors(start_node))
         if len(succs) == 2:
             left, right = succs
@@ -1120,8 +1238,120 @@ class PhoenixStructurer(StructurerBase):
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                    # c = !c
-                    return left, edge_cond_left, right, edge_cond_right
+                    # c0 = !c0
+                    left_succs = list(full_graph.successors(left))
+                    if len(left_succs) == 2 and right in left_succs:
+                        other_succ = next(iter(succ for succ in left_succs if succ is not right))
+                        if full_graph.out_degree[right] == 1 and full_graph.has_edge(right, other_succ):
+                            # there must be an edge between right and other_succ
+                            edge_cond_left_right = self.cond_proc.recover_edge_condition(full_graph, left, right)
+                            edge_cond_left_other = self.cond_proc.recover_edge_condition(full_graph, left, other_succ)
+                            if claripy.is_true(claripy.Not(edge_cond_left_right) == edge_cond_left_other):
+                                # c1 = !c1
+                                return left, edge_cond_left, right, edge_cond_left_right, other_succ
+        return None
+
+    def _match_acyclic_short_circuit_conditions_type_b(self, graph, full_graph, start_node) -> Optional[Tuple]:  # pylint:disable=unused-argument
+
+        #   if (a) goto left
+        # right:
+        #   else if (b) goto left
+        #   else goto else_node
+        # left:
+        #   ...
+        #   goto succ
+        # else_node:
+        #   ...
+        #   goto succ
+        # succ:
+
+        succs = list(full_graph.successors(start_node))
+        if len(succs) == 2:
+            left, right = succs
+
+            if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 2:
+                left, right = right, left
+            if full_graph.in_degree[left] == 2 and full_graph.in_degree[right] == 1:
+                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
+                edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                    # c0 = !c0
+                    right_succs = list(full_graph.successors(right))
+                    left_succs = list(full_graph.successors(left))
+                    if len(right_succs) == 2 and left in right_succs:
+                        else_node = next(iter(succ for succ in right_succs if succ is not left))
+                        if len([ succ for succ in left_succs if succ is not else_node ]) == 1:
+                            edge_cond_right_left = self.cond_proc.recover_edge_condition(full_graph, right, left)
+                            edge_cond_right_else = self.cond_proc.recover_edge_condition(full_graph, right, else_node)
+                            if claripy.is_true(claripy.Not(edge_cond_right_left) == edge_cond_right_else):
+                                # c1 = !c1
+                                return left, edge_cond_left, right, edge_cond_right_left, else_node
+        return None
+
+    def _match_acyclic_short_circuit_conditions_type_c(self, graph, full_graph, start_node) -> Optional[Tuple]:  # pylint:disable=unused-argument
+
+        #   if (a) goto successor
+        #   else if (b) goto successor
+        # right:
+        #   ...
+        # successor:
+
+        succs = list(full_graph.successors(start_node))
+        if len(succs) == 2:
+            left, successor = succs
+
+            if full_graph.in_degree[left] > 1 and full_graph.in_degree[successor] == 1:
+                left, successor = successor, left
+            if full_graph.in_degree[left] == 1 and full_graph.in_degree[successor] >= 1:
+                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
+                edge_cond_successor = self.cond_proc.recover_edge_condition(full_graph, start_node, successor)
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_successor):
+                    # c0 = !c0
+                    left_succs = list(full_graph.successors(left))
+                    if len(left_succs) == 2 and successor in left_succs:
+                        right = next(iter(succ for succ in left_succs if succ is not successor))
+                        if full_graph.out_degree[right] == 1 and full_graph.has_edge(right, successor):
+                            # there must be an edge from right to successor
+                            edge_cond_left_right = self.cond_proc.recover_edge_condition(full_graph, left, right)
+                            edge_cond_left_successor = \
+                                self.cond_proc.recover_edge_condition(full_graph, left, successor)
+                            if claripy.is_true(claripy.Not(edge_cond_left_right) == edge_cond_left_successor):
+                                # c1 = !c1
+                                return left, edge_cond_left, successor, edge_cond_left_successor, right
+        return None
+
+    def _match_acyclic_short_circuit_conditions_type_d(self, graph, full_graph, start_node) -> Optional[Tuple]:  # pylint:disable=unused-argument
+
+        #   if (a) goto else_node
+        # left:
+        #   else if (b) goto else_node
+        # right:
+        #   ...
+        #   goto successor
+        # else_node:
+        #   ...
+        #   goto successor
+        # successor:
+
+        succs = list(full_graph.successors(start_node))
+        if len(succs) == 2:
+            left, else_node = succs
+
+            if full_graph.in_degree[left] > 1 and full_graph.in_degree[else_node] == 1:
+                left, else_node = else_node, left
+            if full_graph.in_degree[left] == 1 and full_graph.in_degree[else_node] >= 1:
+                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
+                edge_cond_else = self.cond_proc.recover_edge_condition(full_graph, start_node, else_node)
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_else):
+                    # c0 = !c0
+                    left_succs = list(full_graph.successors(left))
+                    if len(left_succs) == 2 and else_node in left_succs:
+                        right = next(iter(succ for succ in left_succs if succ is not else_node))
+                        edge_cond_left_right = self.cond_proc.recover_edge_condition(full_graph, left, right)
+                        edge_cond_left_else = self.cond_proc.recover_edge_condition(full_graph, left, else_node)
+                        if claripy.is_true(claripy.Not(edge_cond_left_right) == edge_cond_left_else):
+                            # c1 = !c1
+                            return left, edge_cond_left, right, edge_cond_left_right, else_node
         return None
 
     def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: Optional[networkx.DiGraph]) -> bool:

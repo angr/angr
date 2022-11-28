@@ -4,6 +4,7 @@ import ailment
 from ..sequence_walker import SequenceWalker
 from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, \
     CascadingConditionNode
+from ..utils import is_empty_node
 
 
 class CascadingIfsRemover(SequenceWalker):
@@ -52,7 +53,7 @@ class CascadingIfsRemover(SequenceWalker):
             if isinstance(node.true_node, SequenceNode):
                 last_node = None
                 if len(node.true_node.nodes) > 1 and \
-                        all(self.is_empty_node(node_) for node_ in node.true_node.nodes[:-1]):
+                        all(is_empty_node(node_) for node_ in node.true_node.nodes[:-1]):
                     last_node = node.true_node.nodes[-1]
                 elif len(node.true_node.nodes) == 1:
                     last_node = node.true_node.nodes[0]
@@ -69,11 +70,3 @@ class CascadingIfsRemover(SequenceWalker):
                 node.condition = ailment.BinaryOp(None, "LogicalAnd", (node.condition, true_node.condition), False,
                                                   **node.condition.tags)
                 node.true_node = true_node.true_node
-
-    @staticmethod
-    def is_empty_node(node):
-        if isinstance(node, ailment.Block):
-            return not node.statements
-        if isinstance(node, SequenceNode):
-            return all(CascadingIfsRemover.is_empty_node(n) for n in node.nodes)
-        return False
