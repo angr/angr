@@ -1105,6 +1105,48 @@ class TestDecompiler(unittest.TestCase):
         assert "switch (" in d.codegen.text
 
     @for_all_structuring_algos
+    def test_decompiling_short_circuit_O0_func_1(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "short_circuit_O0")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses.CFGFast(normalize=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                               "linux")
+        all_optimization_passes = [ p for p in all_optimization_passes
+                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
+
+        f = p.kb.functions['func_1']
+        d = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options,
+                                          optimization_passes=all_optimization_passes)
+        assert d.codegen is not None, "Failed to decompile function %r." % f
+        self._print_decompilation_result(d)
+
+        assert "goto" not in d.codegen.text
+
+    @for_all_structuring_algos
+    def test_decompiling_short_circuit_O0_func_2(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "short_circuit_O0")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses.CFGFast(normalize=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                               "linux")
+        all_optimization_passes = [ p for p in all_optimization_passes
+                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
+
+        f = p.kb.functions['func_2']
+        d = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options,
+                                          optimization_passes=all_optimization_passes)
+        assert d.codegen is not None, "Failed to decompile function %r." % f
+        self._print_decompilation_result(d)
+
+        assert "goto" not in d.codegen.text
+
+    @for_all_structuring_algos
     def test_decompiling_x8664_mv_O2(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
         p = angr.Project(bin_path, auto_load_libs=False)
