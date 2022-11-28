@@ -80,7 +80,7 @@ class GotoSimplifier(SequenceWalker):
         for _, child_node in node.condition_and_nodes:
             self._handle(child_node, successor=successor)
         if node.else_node is not None:
-            self._handle(node.else_node)
+            self._handle(node.else_node, successor=successor)
 
     def _handle_loopnode(self, node, successor=None, **kwargs):
         """
