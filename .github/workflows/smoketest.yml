@@ -56,7 +56,7 @@ jobs:
         shell: bash
       - run: |
           echo "skip this"
-          pip install setuptools>=59 wheel cffi unicorn==2.0.1
+          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
           pip install git+https://github.com/angr/cle.git
