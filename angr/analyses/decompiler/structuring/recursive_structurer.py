@@ -19,11 +19,13 @@ class RecursiveStructurer(Analysis):
     """
     Recursively structure a region and all of its subregions.
     """
-    def __init__(self, region, cond_proc=None, func: Optional['Function']=None, structurer_cls: Optional[Type]=None):
+    def __init__(self, region, cond_proc=None, func: Optional['Function']=None,
+                 structurer_cls: Optional[Type]=None, improve_structurer=True):
         self._region = region
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
+        self.improve_structurer = improve_structurer
 
         self.result = None
 
@@ -71,6 +73,7 @@ class RecursiveStructurer(Analysis):
                     case_entry_to_switch_head=self._case_entry_to_switch_head,
                     func=self.function,
                     parent_region=parent_region,
+                    improve_structurer=self.improve_structurer
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:

@@ -132,7 +132,17 @@ options = [
         candidate_values=["Dream", "Phoenix"],
         clears_cache=True,
         convert=structurer_class_from_name,
-    )
+    ),
+    O(
+        "Improve structuring algorithm",
+        "If applicable in deeper structurer, like Phoenix, improves decompilation output",
+        bool,
+        "recursive_structurer",
+        "improve_structurer",
+        category="Structuring",
+        default_value=True,
+        clears_cache=True,
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options

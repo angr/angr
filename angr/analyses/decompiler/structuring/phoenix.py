@@ -34,9 +34,10 @@ class PhoenixStructurer(StructurerBase):
     version and *should not* be used to evaluate the performance of the original algorithm described in that paper.
     """
     def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None,
-                 case_entry_to_switch_head: Optional[Dict[int,int]]=None, parent_region=None):
+                 case_entry_to_switch_head: Optional[Dict[int,int]]=None, parent_region=None, improve_structurer=True):
         super().__init__(region, parent_map=parent_map, condition_processor=condition_processor, func=func,
-                         case_entry_to_switch_head=case_entry_to_switch_head, parent_region=parent_region)
+                         case_entry_to_switch_head=case_entry_to_switch_head, parent_region=parent_region,
+                         improve_structurer=improve_structurer)
 
         # whitelist certain edges. removing these edges will destroy critical schemas, which will impact future
         # structuring cycles.
@@ -44,7 +45,7 @@ class PhoenixStructurer(StructurerBase):
         # who fall into these sets.
         self.whitelist_edges: Set[Tuple[int,int]] = set()
 
-        self._phoenix_improved = True
+        self._phoenix_improved = self._improve_structurer
         self._edge_virtualization_hints = [ ]
 
         self._analyze()
