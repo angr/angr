@@ -2344,12 +2344,21 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 continue
 
             if isinstance(kernel_type, (SimTypeArray, SimTypeFixedSizeArray)):
-                kernel = CUnaryOp(
-                    "Reference",
-                    self._access_constant_offset(kernel, 0, kernel_type.elem_type, True, renegotiate_type),
-                    codegen=self
-                )
-                continue
+                inner = self._access_constant_offset(kernel, 0, kernel_type.elem_type, True, renegotiate_type)
+                if isinstance(inner, CUnaryOp) and inner.op == "Dereference":
+                    # unpack
+                    kernel = inner.operand
+                else:
+                    kernel = CUnaryOp(
+                        "Reference",
+                        inner,
+                        codegen=self
+                    )
+                if unpack_typeref(unpack_pointer(kernel.type)) == kernel_type:
+                    # we are not making progress
+                    pass
+                else:
+                    continue
 
             l.warning("There's a variable offset with stride shorter than the primitive type. What does this mean?")
             return bail_out()
