@@ -6,6 +6,7 @@ import ailment
 import claripy
 import pyvex
 from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveRdTmp, DataSensitiveU64, DataSensitiveU32
+from ...errors import SimUnsatError
 from ...code_location import CodeLocation
 from ...engines import HeavyVEXMixin
 
@@ -111,6 +112,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         save = False
         var_ast_list = []
         if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_'):
+            if not self.state.solver.symbolic(simplified_addr):
+                return result
             for ast in simplified_addr.leaf_asts():
                 if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
                     save = True
@@ -621,62 +624,70 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                 import ipdb;ipdb.set_trace()
 
 
-            symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
-            symbolic_sim_successors.artifacts = sim_successors.artifacts
-            symbolic_sim_successors.engine = sim_successors.engine
-            symbolic_sim_successors.processed = sim_successors.processed
-            symbolic_sim_successors.description = sim_successors.description
-            symbolic_sim_successors.sort = sim_successors.sort
-
             for succ in sim_successors.all_successors:
                 for graph_succ in self._graph.successors(node):
                     if succ.addr == graph_succ.addr:
                         succ.globals['cur_block_id'] = graph_succ.block_id
 
-            for successor in sim_successors.all_successors:
-                ## Only add those successors which have symbolic guard or which evaluates to True
-                # if successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard):
-                #symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
-                                                          # successor.history.jumpkind, True,
-                                                          # successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
-                                                          # successor.scratch.source)
-                is_stack_tainted = False
-                is_data_region_tainted = False
-                for annotation in successor.scratch.guard.annotations:
-                    if isinstance(annotation, DataRegionAnnotation):
-                        is_data_region_tainted = True
-                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                              successor.scratch.guard,
-                                                              successor.history.jumpkind, True,
-                                                              successor.scratch.exit_stmt_idx,
-                                                              successor.scratch.exit_ins_addr,
-                                                              successor.scratch.source)
-                        break
-                    # elif isinstance(annotation, StackTouchedAnnotation):
-                    #     is_stack_tainted = True
-                    #     symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
-                    #                                           successor.history.jumpkind, True,
-                    #                                           successor.scratch.exit_stmt_idx,
-                    #                                           successor.scratch.exit_ins_addr,
-                    #                                           successor.scratch.source)
-                    #     break
-                    elif isinstance(annotation, VMStackVariableAnnotation):
-                        is_stack_tainted = True
-                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                              successor.scratch.guard,
-                                                              successor.history.jumpkind, True,
-                                                              successor.scratch.exit_stmt_idx,
-                                                              successor.scratch.exit_ins_addr,
-                                                              successor.scratch.source)
-                        break
+            symbolic_sim_successors = sim_successors
 
-                if is_stack_tainted is False and is_data_region_tainted is False and (successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(
-                        successor.scratch.guard)):
-                    symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
-                                                          successor.history.jumpkind, True,
-                                                          successor.scratch.exit_stmt_idx,
-                                                          successor.scratch.exit_ins_addr,
-                                                          successor.scratch.source)
+            if node.input_state.globals['cur_block_id'].vm_vpc is not None:
+                symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+                symbolic_sim_successors.artifacts = sim_successors.artifacts
+                symbolic_sim_successors.engine = sim_successors.engine
+                symbolic_sim_successors.processed = sim_successors.processed
+                symbolic_sim_successors.description = sim_successors.description
+                symbolic_sim_successors.sort = sim_successors.sort
+
+
+                for successor in sim_successors.all_successors:
+                    ## Only add those successors which have symbolic guard or which evaluates to True
+                    # if successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard):
+                    #symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                                                              # successor.history.jumpkind, True,
+                                                              # successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
+                                                              # successor.scratch.source)
+                    is_stack_tainted = False
+                    is_data_region_tainted = False
+                    for annotation in successor.scratch.guard.annotations:
+                        if isinstance(annotation, DataRegionAnnotation):
+                            is_data_region_tainted = True
+                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                  successor.scratch.guard,
+                                                                  successor.history.jumpkind, True,
+                                                                  successor.scratch.exit_stmt_idx,
+                                                                  successor.scratch.exit_ins_addr,
+                                                                  successor.scratch.source)
+                            break
+                        # elif isinstance(annotation, StackTouchedAnnotation):
+                        #     is_stack_tainted = True
+                        #     symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                        #                                           successor.history.jumpkind, True,
+                        #                                           successor.scratch.exit_stmt_idx,
+                        #                                           successor.scratch.exit_ins_addr,
+                        #                                           successor.scratch.source)
+                        #     break
+                        elif isinstance(annotation, VMStackVariableAnnotation):
+                            is_stack_tainted = True
+                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                  successor.scratch.guard,
+                                                                  successor.history.jumpkind, True,
+                                                                  successor.scratch.exit_stmt_idx,
+                                                                  successor.scratch.exit_ins_addr,
+                                                                  successor.scratch.source)
+                            break
+
+                    if is_stack_tainted is False and is_data_region_tainted is False:
+                        try:
+                            if successor.solver.eval(successor.scratch.guard):
+                                symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                                                                      successor.history.jumpkind, True,
+                                                                      successor.scratch.exit_stmt_idx,
+                                                                      successor.scratch.exit_ins_addr,
+                                                                      successor.scratch.source)
+                        except SimUnsatError:
+                            print("Unsat state so we not adding this!")
+                            import ipdb;ipdb.set_trace()
 
         # succ_addrs = []
         # for succ in symbolic_sim_successors.all_successors:

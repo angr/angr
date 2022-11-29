@@ -712,12 +712,17 @@ class InputConcretizeEngine(UberEngine):
             except:
                 pass
 
-
         result = super()._perform_vex_expr_Load((simplified_addr, addr[1]), ty, endness, **kwargs)
 
         save = False
         var_ast_list = []
+        # if isinstance(result[0].args[0], str) and result[0].args[0].startswith('mem_7ffef368'):
+        #     print("Time to DEBUG")
+        #     import ipdb;ipdb.set_trace()
         if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_'):
+            if not self.state.solver.symbolic(simplified_addr):
+                return result
+
             for ast in simplified_addr.leaf_asts():
                 if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
                     save = True
@@ -727,13 +732,30 @@ class InputConcretizeEngine(UberEngine):
                     save = True
                     var_ast_list.append(ast)
 
+            if not save:
+                poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0], 5)
+                if len(poss_addrs) < 5:
+                    #import ipdb;ipdb.set_trace()
+                    save = True
+
+                    for ast in simplified_addr.leaf_asts():
+                        if self.state.solver.symbolic(ast):
+                            if ast.args[0] not in self.state.globals['replaced_asts_str']:
+                                var_ast_list.append(ast)
+
+        if len(var_ast_list) > 1:
+            print("More than one variables? which one to save.... maybe both")
+            import ipdb;ipdb.set_trace()
+
+
         if save:
             #create a solver without any constraints and use that to solve. This is equivalent to simplifying it and should not have the same issues that regular symbolic execution/solving with contraints should have
             no_constraints_solver = claripy.solvers.SolverComposite()
             no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
             conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
 
-            ## USE THIS THE PARTIAL CONSTRAINTS INSTEAD OF UNONCONSTRINAED SOLVER, there's a bug which returns two values hence unot usign this now
+            ## USE THIS THE PARTIAL CONSTRAINTS INSTEAD OF UNONCONSTRINAED SOLVER, there's a bug which returns two values hence unot using this now
+            # the bug has been fixed(by passed.... something to do with replacement solver usage) we can now use this
             # conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 4)
 
             if len(var_ast_list) > 1:
@@ -741,6 +763,8 @@ class InputConcretizeEngine(UberEngine):
                 import ipdb;ipdb.set_trace()
 
             conc_addr_and_new_constraints = []
+            # for conc_addr in conc_addrs:
+            #     conc_addr_and_new_constraints.append(conc_addr)
             for conc_addr in conc_addrs:
                 no_constraints_solver = claripy.solvers.SolverComposite()
                 no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
@@ -749,8 +773,7 @@ class InputConcretizeEngine(UberEngine):
                     conc_input_value = no_constraints_solver.eval(var_ast, 5)
                     conc_addr_and_new_constraints.append((conc_addr, var_ast == conc_input_value[0]))
 
-
-            if len(conc_addrs) == 1:
+            if len(conc_addrs) == 1 or len(conc_addrs) > 2:
                 print("Hmmmm")
                 import ipdb;ipdb.set_trace()
             else:
@@ -763,7 +786,7 @@ def save_vm_vpc(state):
     expr_val = state.partial_symbolic_constraint_solver.eval_upto(state.inspect.reg_write_expr, 2)
     if len(expr_val) > 1:
         print("More than one VIP, gonna add both values and create a new one")
-        import ipdb;ipdb.set_trace()
+        #import ipdb;ipdb.set_trace()
         expr_val = expr_val[0]
     else:
         expr_val = expr_val[0]
@@ -772,10 +795,15 @@ def save_vm_vpc(state):
         state.globals['cur_vm_vpc'] = expr_val + state.globals['add_offset']
         print("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(state.inspect.reg_write_offset))
     else:
-        import ipdb;ipdb.set_trace()
+        print("The value of the PROBLEMATIC PROGRAM COUNTER is and the PROBLEMATIC REGISTER IS: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(
+            state.inspect.reg_write_offset))
+        #import ipdb;ipdb.set_trace()
     return
 
 def activate_save_vm_vpc(state):
+    # if state.scratch.ins_addr in [0x474FB7, 0x4743F4, 0x407C38, 0x477F66, 0x44E43B, 0x42ECB6, 0x4511b4, 0x409687]:
+    #     print(hex(state.scratch.ins_addr))
+    #     import ipdb;ipdb.set_trace()
     # changing the offset to the vpc to differentiate between the two different byte code programs
     if 'visited' not in state.globals.keys():
         # state.inspect.add_breakpoint('reg_write',  BP(BP_AFTER, reg_write_offset=state.project.arch.registers["rbp"][0], reg_write_length=state.project.arch.registers["rbp"][1], action=save_vm_vpc))
@@ -784,6 +812,9 @@ def activate_save_vm_vpc(state):
         state.globals['reg_write_bp'] = state.inspect.b('reg_write', when=BP_AFTER, reg_write_offset=state.project.arch.registers[cur_vip_reg][0],
                                                                         reg_write_length=state.project.arch.registers[cur_vip_reg][1],
                                                                         action=save_vm_vpc)
+
+        state.globals['call_stack_context_sensitivity_on'] = False
+
 
         # also activate the bp removing breakpoints
         state.globals['cur_rm_bps'] = []
@@ -795,13 +826,17 @@ def activate_save_vm_vpc(state):
         state.globals['add_offset'] = 0
 
 def remove_breakpoints(state):
+    # if state.scratch.ins_addr in [0x474Fa5, 0x474Fa7, 0x439825, 0x407C28, 0x41C69A, 0x477F60, 0x4051E9, 0x4511ae]:
+    #     print(hex(state.scratch.ins_addr))
+    #     import ipdb;ipdb.set_trace()
     # remove the vm vpc tracking breakpoint
     state.inspect.remove_breakpoint('reg_write', state.globals['reg_write_bp'])
     # remove all breakpoints related to this save vm breakpoint
     for bp in state.globals['cur_rm_bps']:
         state.inspect.remove_breakpoint('instruction', bp)
     state.globals['reg_write_bp'] = None
-    state.globals['cur_vm_vpc'] = None
+    state.globals['call_stack_context_sensitivity_on'] = True
+    #state.globals['cur_vm_vpc'] = None
 
 
 class VMDeobfuscation(Analysis):
@@ -819,6 +854,7 @@ class VMDeobfuscation(Analysis):
         start_state.globals['vm_vip_regs'] = {}
         start_state.globals['vm_end_addrs'] = {}
         start_state.globals['cur_rm_bps'] = []
+        start_state.globals['call_stack_context_sensitivity_on'] = True
 
         # add breakpoints to activate and remove bps for each vm region
         for vm_tuple in prev_unroll_vm_addrs:
@@ -829,6 +865,9 @@ class VMDeobfuscation(Analysis):
             start_state.globals['vm_end_addrs'][vm_start_addr] = vm_end_addrs
             start_state.inspect.add_breakpoint('instruction',
                                                BP(BP_BEFORE, instruction=vm_start_addr, action=activate_save_vm_vpc))
+
+        if self.project.arch.bits == 32:
+            start_state.registers.store(start_state.arch.registers['ss'][0], 0)
 
         start_state_copy = start_state.copy()
         cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
