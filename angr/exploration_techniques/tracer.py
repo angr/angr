@@ -687,7 +687,7 @@ class Tracer(ExplorationTechnique):
             return (False, -1)
 
         control_flow_insn_types = [CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET]
-        big_block_start = self._trace[trace_match_idx]
+        big_block_start = int(self._trace[trace_match_idx])
         big_block_end = None
         curr_block_addr = big_block_start
         while True:
@@ -722,7 +722,7 @@ class Tracer(ExplorationTechnique):
 
         control_flow_insn_types = [CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET]
 
-        prev_trace_block = state.project.factory.block(self._translate_trace_addr(self._trace[trace_curr_idx - 1]))
+        prev_trace_block = state.project.factory.block(self._translate_trace_addr(int(self._trace[trace_curr_idx - 1])))
         for insn_type in control_flow_insn_types:
             if prev_trace_block.capstone.insns[-1].group(insn_type):
                 # Previous block ends in a control flow instruction. It is not large block different split.
@@ -732,11 +732,11 @@ class Tracer(ExplorationTechnique):
         # trace: it'll be the first block executed after a control flow instruction.
         big_block_start_addr = None
         for trace_block_idx in range(trace_curr_idx - 2, -1, -1):
-            trace_block = state.project.factory.block(self._translate_trace_addr(self._trace[trace_block_idx]))
+            trace_block = state.project.factory.block(self._translate_trace_addr(int(self._trace[trace_block_idx])))
             trace_block_last_insn = trace_block.capstone.insns[-1]
             for insn_type in control_flow_insn_types:
                 if trace_block_last_insn.group(insn_type):
-                    big_block_start_addr = self._translate_trace_addr(self._trace[trace_block_idx + 1])
+                    big_block_start_addr = self._translate_trace_addr(int(self._trace[trace_block_idx + 1]))
                     break
 
             if big_block_start_addr is not None:
@@ -778,7 +778,7 @@ class Tracer(ExplorationTechnique):
         # Let's find the address of the last bytes of the big basic block from the trace
         big_block_end_addr = None
         for trace_block_idx in range(trace_curr_idx, len(self._trace)):
-            trace_block = state.project.factory.block(self._translate_trace_addr(self._trace[trace_block_idx]))
+            trace_block = state.project.factory.block(self._translate_trace_addr(int(self._trace[trace_block_idx])))
             trace_block_last_insn = trace_block.capstone.insns[-1]
             for insn_type in control_flow_insn_types:
                 if trace_block_last_insn.group(insn_type):
