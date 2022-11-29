@@ -1,3 +1,4 @@
+import operator
 from typing import List, Dict
 import logging
 import cle
@@ -185,7 +186,7 @@ class Tracer(ExplorationTechnique):
         self._no_follow = self._trace is None
 
         # Keep track of count of termination point
-        self._last_block_total_count = self._trace.count(self._trace[-1])
+        self._last_block_total_count = operator.countOf(self._trace, self._trace[-1])
         self._last_block_seen_count = 0
 
         # sanity check: copy_states must be enabled in Permissive mode since we may need to backtrack from a previous
@@ -292,7 +293,7 @@ class Tracer(ExplorationTechnique):
         self._identify_aslr_slides()
 
         if self._fast_forward_to_entry:
-            idx = self._trace.index(self._translate_state_addr(self.project.entry))
+            idx = operator.indexOf(self._trace, self._translate_state_addr(self.project.entry))
             # step to entry point
             while simgr.one_active.addr != self.project.entry:
                 simgr.step(extra_stop_points={self.project.entry})
