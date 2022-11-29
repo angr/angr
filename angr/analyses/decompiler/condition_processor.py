@@ -660,7 +660,10 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Const):
-            var = claripy.BVV(condition.value, condition.bits)
+            if condition.value in {True, False}:
+                var = claripy.BoolV(condition.value)
+            else:
+                var = claripy.BVV(condition.value, condition.bits)
             return var
         elif isinstance(condition, ailment.Expr.Tmp):
             l.warning("Left-over ailment.Tmp variable %s.", condition)
