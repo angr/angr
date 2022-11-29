@@ -37,9 +37,10 @@ jobs:
         name: Install angr
         shell: cmd
       - run: |
-          $HOME\venv\Scripts\activate
+          %USERPROFILE%\venv\Scripts\activate
           python -c "import angr; print('It works!')"
         name: Import angr
+        shell: cmd
 
   macos:
     name: Test macOS installation
