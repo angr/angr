@@ -914,7 +914,8 @@ class Tracer(ExplorationTechnique):
         self._current_slide = self._aslr_slides[target_obj]
         target_addr += self._current_slide
         try:
-            target_idx = state.globals['trace_idx'] + operator.indexOf(self._trace[state.globals['trace_idx']:], target_addr)
+            curr_idx = state.globals['trace_idx']
+            target_idx = curr_idx + operator.indexOf(self._trace[curr_idx:], target_addr)
         except ValueError as e:
             # if the user wants to catch desync caused by sim_procedure,
             # mark this state as a desync state and then end the tracing prematurely
