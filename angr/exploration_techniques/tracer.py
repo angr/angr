@@ -812,7 +812,7 @@ class Tracer(ExplorationTechnique):
             raise Exception("BUG: misfollow analysis initiated when jumping into a new object")
 
         slide = self._aslr_slides[obj]
-        trace_addr = self._trace[idx + 1] - slide
+        trace_addr = int(self._trace[idx + 1]) - slide
         l.info("Misfollow: angr says %#x, trace says %#x", angr_addr, trace_addr)
         if not obj.contains_addr(trace_addr):
             l.error("Translated trace address lives in a different object from the angr trace")
@@ -893,7 +893,7 @@ class Tracer(ExplorationTechnique):
     def _sync(self, state, idx, addr):
         addr_translated = self._translate_state_addr(addr)
         try:
-            sync_idx = self._trace.index(addr_translated, idx)
+            sync_idx = state.globals['trace_idx'] + operator.indexOf(self._trace[idx:], addr_translated)
         except ValueError:
             l.error("Trying to synchronize at %#x (%#x) but it does not appear in the trace?", addr_translated, addr)
             return False
@@ -914,7 +914,7 @@ class Tracer(ExplorationTechnique):
         self._current_slide = self._aslr_slides[target_obj]
         target_addr += self._current_slide
         try:
-            target_idx = self._trace.index(target_addr, state.globals['trace_idx'])
+            target_idx = state.globals['trace_idx'] + operator.indexOf(self._trace[state.globals['trace_idx']:], target_addr)
         except ValueError as e:
             # if the user wants to catch desync caused by sim_procedure,
             # mark this state as a desync state and then end the tracing prematurely
