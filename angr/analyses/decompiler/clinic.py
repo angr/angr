@@ -161,6 +161,10 @@ class Clinic(Analysis):
         self._update_progress(25., text="Analyzing simple indirect jumps")
         ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
 
+        # Fix tail calls
+        self._update_progress(28., text="Analyzing tail calls")
+        ail_graph = self._replace_tail_jumps_with_calls(ail_graph)
+
         # Make returns
         self._update_progress(30., text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
@@ -390,6 +394,36 @@ class Clinic(Analysis):
                     new_last_stmt = last_stmt.copy()
                     new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
                     block.statements[-1] = new_last_stmt
+
+        return ail_graph
+
+    @timethis
+    def _replace_tail_jumps_with_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        """
+        Replace tail jumps them with a return statement and a call expression.
+        """
+        for block in ail_graph.nodes():
+            out_degree = ail_graph.out_degree[block]
+
+            if out_degree != 0:
+                continue
+
+            last_stmt = block.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.Jump):
+                # jumping to somewhere outside the current function
+                # rewrite it as a call *if and only if* the target is identified as a function
+                target = last_stmt.target
+                if isinstance(target, ailment.Const):
+                    target_addr = target.value
+                    if self.kb.functions.contains_addr(target_addr):
+                        # replace the statement
+                        target_func = self.kb.functions.get_by_addr(target_addr)
+                        if target_func.returning:
+                            call_expr = ailment.Stmt.Call(None, target, **last_stmt.tags)
+                            stmt = ailment.Stmt.Return(None, None, call_expr, **last_stmt.tags)
+                        else:
+                            stmt = ailment.Stmt.Call(None, target, **last_stmt.tags)
+                        block.statements[-1] = stmt
 
         return ail_graph
 
