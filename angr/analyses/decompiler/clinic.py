@@ -402,7 +402,7 @@ class Clinic(Analysis):
         """
         Replace tail jumps them with a return statement and a call expression.
         """
-        for block in ail_graph.nodes():
+        for block in list(ail_graph.nodes()):
             out_degree = ail_graph.out_degree[block]
 
             if out_degree != 0:
@@ -419,11 +419,25 @@ class Clinic(Analysis):
                         # replace the statement
                         target_func = self.kb.functions.get_by_addr(target_addr)
                         if target_func.returning:
-                            call_expr = ailment.Stmt.Call(None, target, **last_stmt.tags)
-                            stmt = ailment.Stmt.Return(None, None, call_expr, **last_stmt.tags)
+                            ret_reg_offset = self.project.arch.ret_offset
+                            ret_expr = ailment.Expr.Register(None, None, ret_reg_offset, self.project.arch.bits,
+                                                             reg_name=self.project.arch.translate_register_name(
+                                                                 ret_reg_offset,
+                                                                 size=self.project.arch.bits))
+                            call_stmt = ailment.Stmt.Call(None,
+                                                          target,
+                                                          calling_convention=None,  #target_func.calling_convention,
+                                                          prototype=None,  #target_func.prototype,
+                                                          ret_expr=ret_expr,
+                                                          **last_stmt.tags)
+                            block.statements[-1] = call_stmt
+
+                            ret_stmt = ailment.Stmt.Return(None, None, [], **last_stmt.tags)
+                            ret_block = ailment.Block(last_stmt.ins_addr, 1, statements=[ret_stmt])
+                            ail_graph.add_edge(block, ret_block)
                         else:
                             stmt = ailment.Stmt.Call(None, target, **last_stmt.tags)
-                        block.statements[-1] = stmt
+                            block.statements[-1] = stmt
 
         return ail_graph
 

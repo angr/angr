@@ -1506,19 +1506,25 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
     @for_all_structuring_algos
-    def test_decompiling_tee_O2_argmatch_die(self, decompiler_options=None):
+    def test_decompiling_tee_O2_tail_jumps(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tee_O2")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
-
-        f = proj.kb.functions["__argmatch_die"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
+        # argmatch_die
+        f = proj.kb.functions["__argmatch_die"]
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
-
         assert "usage(" in d.codegen.text
+
+        # setlocale_null_androidfix
+        f = proj.kb.functions["setlocale_null_androidfix"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert "setlocale(" in d.codegen.text
+        assert "NULL);" in d.codegen.text, "The arguments for setlocale() are missing"
 
 
 if __name__ == "__main__":
