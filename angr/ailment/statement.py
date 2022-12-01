@@ -475,11 +475,14 @@ class Return(Statement):
         new_ret_exprs = [ ]
         replaced = False
 
-        r, new_target = self.target.replace(old_expr, new_expr)
-        if r:
-            replaced = True
+        if self.target is not None:
+            r, new_target = self.target.replace(old_expr, new_expr)
+            if r:
+                replaced = True
+            else:
+                new_target = self.target
         else:
-            new_target = self.target
+            new_target = None
 
         for expr in self.ret_exprs:
             if expr == old_expr:
