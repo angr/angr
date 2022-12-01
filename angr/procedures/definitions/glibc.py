@@ -23,6 +23,7 @@ libc.add_all_from_dict(P['glibc'])
 libc.add_all_from_dict(P['uclibc']) # gotta do this since there's no distinguishing different libcs without analysis. there should be no naming conflicts in the functions.
 libc.set_non_returning('exit_group', 'exit', 'abort', 'pthread_exit', '__assert_fail',
                        'longjmp', 'siglongjmp', '__longjmp_chk', '__siglongjmp_chk')
+libc.add_alias('exit', '_exit', '_Exit')
 
 
 #
