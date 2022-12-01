@@ -987,17 +987,15 @@ class PhoenixStructurer(StructurerBase):
 
                         return True
 
-            if right in graph and not right_succs and left in graph:
+            if right in graph and not right_succs and full_graph.in_degree[right] == 1 and left in graph:
                 # swap them
                 left, right = right, left
                 left_succs, right_succs = right_succs, left_succs
-            if left in graph and not left_succs and right in graph:
+            if left in graph and not left_succs and full_graph.in_degree[left] == 1 and right in graph:
                 # potentially If-Then
                 jump_tables = self.kb.cfgs['CFGFast'].jump_tables
 
-                if full_graph.in_degree[left] == 1 \
-                        and full_graph.in_degree[right] == 1 \
-                        and left.addr not in jump_tables \
+                if left.addr not in jump_tables \
                         and right.addr not in jump_tables:
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)

@@ -1456,6 +1456,36 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen.text.count("goto") == 1  # should have only one goto
 
     @for_all_structuring_algos
+    def test_decompiling_tee_O2_x2nrealloc(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tee_O2")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["x2nrealloc"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                               "linux")
+        all_optimization_passes = [p for p in all_optimization_passes
+                                   if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options,
+                                             optimization_passes=all_optimization_passes)
+        self._print_decompilation_result(d)
+
+        # ensure xalloc_die() is within its own block
+        lines = [ line.strip("\n ") for line in d.codegen.text.split("\n") ]
+        for i, line in enumerate(lines):
+            if line.startswith("xalloc_die();"):
+                assert lines[i - 1] == "{"
+                assert lines[i + 1] == "}"
+                break
+        else:
+            assert False, "xalloc_die() is not found"
+
+    @for_all_structuring_algos
     def test_decompiling_mv0_main(self, decompiler_options=None):
         # one of the jump tables has an entry that goes back to the loop head
         bin_path = os.path.join(test_location, "x86_64", "mv_0")
