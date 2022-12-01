@@ -536,7 +536,9 @@ class PhoenixStructurer(StructurerBase):
                         l.warning("_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r."
                                   "Remove the edge anyway.",
                                   src, loop_head)
-                    graph.remove_edge(src, loop_head)
+                    if graph.has_edge(src, loop_head):
+                        graph.remove_edge(src, loop_head)
+                    fullgraph.remove_edge(src, loop_head)
                 else:
                     # replace cont_block with a ContinueNode
                     graph.remove_edge(src, loop_head)
