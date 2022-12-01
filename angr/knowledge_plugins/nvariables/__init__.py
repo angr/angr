@@ -28,9 +28,18 @@ class NVariableContainer:
     def _insertvar(self, var: 'NVariable'):
         for i, v in enumerate(self.less_visible_vars):
             if var.test_unsupported_overlap(v):
-                l.warning("Unsupported variable with overlapping scopes. We have \"%s\" with %d-%d and ignore %d-%d.",
-                          v.cle_variable.name, v.low_pc, v.high_pc, var.low_pc, var.high_pc)
-                return
+                if var.cle_variable.declaration_only:
+                    # ignore var
+                    return
+                elif v.cle_variable.declaration_only:
+                    # ignore v
+                    self.less_visible_vars[i] = var
+                    var.less_visible_vars = v.less_visible_vars
+                    return
+                else:
+                    l.warning("Unsupported variable with overlapping scopes. Have \"%s\" with %d-%d and ignore %d-%d.",
+                              v.cle_variable.name, v.low_pc, v.high_pc, var.low_pc, var.high_pc)
+                    return
             if var.contains(v):
                 self.less_visible_vars[i] = var
                 var.less_visible_vars.append(v)
@@ -192,7 +201,12 @@ class NVariableManager(KnowledgeBasePlugin):
                 cu_list = obj.compilation_units
 
             for cu in cu_list:
-                self.add_variable_list(cu.global_variables, cu.min_addr, cu.max_addr)
+                for cle_var in cu.global_variables:
+                    if cle_var.external:
+                        self.add_variable(cle_var, obj.min_addr, obj.max_addr)
+                    else:
+                        # static variable
+                        self.add_variable(cle_var, cu.min_addr, cu.max_addr)
                 for subp in cu.functions.values():
                     for cle_var in subp.local_variables:
                         low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
