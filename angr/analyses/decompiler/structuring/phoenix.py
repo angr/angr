@@ -175,8 +175,12 @@ class PhoenixStructurer(StructurerBase):
                     # 07 | 0x4058c8 | Goto(0x4058ca<64>)
                     _, head_block = self._find_node_going_to_dst(node, right)
 
-                if (isinstance(head_block, MultiNode) and isinstance(head_block.nodes[0].statements[0], ConditionalJump)
-                        or isinstance(head_block, Block) and isinstance(head_block.statements[0], ConditionalJump)):
+                if (isinstance(head_block, MultiNode) and head_block.nodes
+                        and isinstance(head_block.nodes[0], Block) and head_block.nodes[0].statements
+                        and isinstance(head_block.nodes[0].statements[0], ConditionalJump)
+                        or isinstance(head_block, Block)
+                        and head_block.statements
+                        and isinstance(head_block.statements[0], ConditionalJump)):
                     # otherwise it's a do-while loop
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
