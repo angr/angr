@@ -161,6 +161,10 @@ class Clinic(Analysis):
         self._update_progress(25., text="Analyzing simple indirect jumps")
         ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
 
+        # Fix tail calls
+        self._update_progress(28., text="Analyzing tail calls")
+        ail_graph = self._replace_tail_jumps_with_calls(ail_graph)
+
         # Make returns
         self._update_progress(30., text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
@@ -390,6 +394,50 @@ class Clinic(Analysis):
                     new_last_stmt = last_stmt.copy()
                     new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
                     block.statements[-1] = new_last_stmt
+
+        return ail_graph
+
+    @timethis
+    def _replace_tail_jumps_with_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        """
+        Replace tail jumps them with a return statement and a call expression.
+        """
+        for block in list(ail_graph.nodes()):
+            out_degree = ail_graph.out_degree[block]
+
+            if out_degree != 0:
+                continue
+
+            last_stmt = block.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.Jump):
+                # jumping to somewhere outside the current function
+                # rewrite it as a call *if and only if* the target is identified as a function
+                target = last_stmt.target
+                if isinstance(target, ailment.Const):
+                    target_addr = target.value
+                    if self.kb.functions.contains_addr(target_addr):
+                        # replace the statement
+                        target_func = self.kb.functions.get_by_addr(target_addr)
+                        if target_func.returning:
+                            ret_reg_offset = self.project.arch.ret_offset
+                            ret_expr = ailment.Expr.Register(None, None, ret_reg_offset, self.project.arch.bits,
+                                                             reg_name=self.project.arch.translate_register_name(
+                                                                 ret_reg_offset,
+                                                                 size=self.project.arch.bits))
+                            call_stmt = ailment.Stmt.Call(None,
+                                                          target,
+                                                          calling_convention=None,  #target_func.calling_convention,
+                                                          prototype=None,  #target_func.prototype,
+                                                          ret_expr=ret_expr,
+                                                          **last_stmt.tags)
+                            block.statements[-1] = call_stmt
+
+                            ret_stmt = ailment.Stmt.Return(None, None, [], **last_stmt.tags)
+                            ret_block = ailment.Block(last_stmt.ins_addr, 1, statements=[ret_stmt])
+                            ail_graph.add_edge(block, ret_block)
+                        else:
+                            stmt = ailment.Stmt.Call(None, target, **last_stmt.tags)
+                            block.statements[-1] = stmt
 
         return ail_graph
 

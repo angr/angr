@@ -216,7 +216,10 @@ class SimEngineRDAIL(
             used_exprs = [ ]
             for arg_loc in stmt.calling_convention.arg_locs(stmt.prototype):
                 if isinstance(arg_loc, SimRegArg):
-                    used_exprs.append(Register(self.arch.registers[arg_loc.reg_name][0], arg_loc.size))
+                    used_exprs.append(ailment.Expr.Register(None, None,
+                                                            self.arch.registers[arg_loc.reg_name][0],
+                                                            self.arch.registers[arg_loc.reg_name][1])
+                                      )
                 elif isinstance(arg_loc, SimStackArg):
                     used_exprs.append(SpOffset(arg_loc.size * 8, arg_loc.stack_offset, is_base=False))
                 else:
