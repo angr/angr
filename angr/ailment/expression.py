@@ -282,7 +282,7 @@ class Convert(UnaryOp):
                self.to_bits == other.to_bits and \
                self.bits == other.bits and \
                self.is_signed == other.is_signed and \
-               self.operand == other.operand and \
+               self.operand.likes(other.operand) and \
                self.from_type == other.from_type and \
                self.to_type == other.to_type and \
                self.rounding_mode == other.rounding_mode
