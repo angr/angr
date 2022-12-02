@@ -63,7 +63,7 @@ class SimVariable:
             addr = self.addr
             el_type = self.type.element_type
         elif type(self.type) == PointerType:
-            addr = self.state.mem[self.addr].deref
+            addr = self.state.memory.load(self.addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
             el_type = self.type.referenced_type
         else:
             raise Exception("{} object cannot be dereferenced".format(self.type))
