@@ -230,9 +230,9 @@ class SimTypeBottom(SimType):
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         if name is None:
-            return 'void'
+            return 'int'
         else:
-            return f'{"void" if self.label is None else self.label} {name}'
+            return f'{"int" if self.label is None else self.label} {name}'
 
 
     def _init_str(self):
