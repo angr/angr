@@ -1526,6 +1526,24 @@ class TestDecompiler(unittest.TestCase):
         assert "setlocale(" in d.codegen.text
         assert "NULL);" in d.codegen.text, "The arguments for setlocale() are missing"
 
+    @for_all_structuring_algos
+    def test_decompiling_du_di_set_alloc(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "du")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["di_set_alloc"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # addresses in function pointers should be correctly resolved into function pointers
+        assert "&di_ent_hash" in d.codegen.text
+        assert "&di_ent_compare" in d.codegen.text
+        assert "&di_ent_free" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,7 +9,7 @@ from ailment.expression import StackBaseOffset, BinaryOp
 
 from ....sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
                           SimTypeBottom, SimTypeArray, SimTypeFunction, SimTypeFloat, SimTypeDouble, TypeRef,
-                          SimTypeNum, SimTypeFixedSizeArray, SimTypeLength)
+                          SimTypeNum, SimTypeFixedSizeArray, SimTypeLength, SimTypeReg)
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
@@ -23,6 +23,8 @@ from ..structuring.structurer_nodes import (SequenceNode, CodeNode, ConditionNod
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
+    import archinfo
+    import angr
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.knowledge_plugins.functions import Function
 
@@ -104,6 +106,25 @@ def extract_terms(expr: 'CExpression') -> Tuple[int, List[Tuple[int, 'CExpressio
         return 0, [(1, expr)]
     else:
         return 0, [(1, expr)]
+
+
+def is_machine_word_size_type(type_: SimType, arch: 'archinfo.Arch') -> bool:
+    return isinstance(type_, SimTypeReg) and type_.size == arch.bits
+
+
+def guess_value_type(value: int, project: 'angr.Project') -> Optional[SimType]:
+    if project.kb.functions.contains_addr(value):
+        # might be a function pointer
+        return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+    if value > 4096:
+        sec = project.loader.find_section_containing(value)
+        if sec is not None and sec.is_readable:
+            return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+        seg = project.loader.find_segment_containing(value)
+        if seg is not None and seg.is_readable:
+            return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+    return None
+
 
 #
 #   C Representation Classes
@@ -2590,6 +2611,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
+                    if type_ is None or is_machine_word_size_type(type_, self.project.arch):
+                        type_ = guess_value_type(arg.value, self.project) or type_
+
                     new_arg = self._handle_Expr_Const(arg, type_=type_)
                 else:
                     new_arg = self._handle(arg)
