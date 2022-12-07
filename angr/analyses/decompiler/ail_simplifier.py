@@ -908,7 +908,7 @@ class AILSimplifier(Analysis):
                          stmt: Statement, block) -> Optional[Expression]:
 
             if isinstance(expr, DirtyExpression) and isinstance(expr.dirty_expr, VEXCCallExpression):
-                rewriter = rewriter_cls(expr.dirty_expr)
+                rewriter = rewriter_cls(expr.dirty_expr, self.project.arch)
                 if rewriter.result is not None:
                     _any_update.v = True
                     return rewriter.result

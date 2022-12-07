@@ -1307,6 +1307,20 @@ class TestDecompiler(unittest.TestCase):
         assert new_len > old_len, "un-collapsing node should expand decompilation output"
 
     @for_all_structuring_algos
+    def test_decompiling_dirname_x2nrealloc(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dirname")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["x2nrealloc"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "__CFADD__" in d.codegen.text
+
+    @for_all_structuring_algos
     def test_decompiling_division3(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "i386", "decompiler", "division3")
         proj = angr.Project(bin_path, auto_load_libs=False)
