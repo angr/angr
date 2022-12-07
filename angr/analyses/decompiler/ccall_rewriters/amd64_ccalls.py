@@ -1,7 +1,8 @@
 from typing import Optional
 
-from ailment import Expr
+from ailment import Expr, Stmt
 
+from angr.calling_conventions import SimCCUsercall
 from angr.engines.vex.claripy.ccall import data
 from .rewriter_base import CCallRewriterBase
 
@@ -37,7 +38,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                                           True,
                                           **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
-                if cond_v == AMD64_CondTypes['CondZ']:
+                elif cond_v == AMD64_CondTypes['CondZ']:
                     if op_v in {AMD64_OpTypes['G_CC_OP_SUBB'], AMD64_OpTypes['G_CC_OP_SUBW'],
                                 AMD64_OpTypes['G_CC_OP_SUBL'], AMD64_OpTypes['G_CC_OP_SUBQ']}:
                         # dep_1 - dep_2 == 0
@@ -64,6 +65,14 @@ class AMD64CCallRewriter(CCallRewriterBase):
                                           False,
                                           **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                elif cond_v == AMD64_CondTypes['CondB']:
+                    if op_v in {AMD64_OpTypes['G_CC_OP_ADDB'], AMD64_OpTypes['G_CC_OP_ADDW'],
+                                AMD64_OpTypes['G_CC_OP_ADDL'], AMD64_OpTypes['G_CC_OP_ADDQ']}:
+                        # __CFADD__(dep_1, dep_2)
+                        r = Stmt.Call(ccall.idx, "__CFADD__",
+                                      calling_convention=SimCCUsercall(self.arch, [], None),
+                                      args=[dep_1, dep_2], bits=ccall.bits, **ccall.tags)
+                        return r
 
         elif ccall.cee_name == "amd64g_calculate_rflags_c":
             # calculate the carry flag
