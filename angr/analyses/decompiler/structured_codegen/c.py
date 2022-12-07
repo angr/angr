@@ -2435,13 +2435,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if loop_node.sort == 'while':
             return CWhileLoop(None if loop_node.condition is None else self._handle(loop_node.condition),
-                              self._handle(loop_node.sequence_node, is_expr=False),
+                              None if loop_node.sequence_node is None else
+                                self._handle(loop_node.sequence_node, is_expr=False),
                               tags=tags,
                               codegen=self,
                               )
         elif loop_node.sort == 'do-while':
             return CDoWhileLoop(self._handle(loop_node.condition),
-                                self._handle(loop_node.sequence_node, is_expr=False),
+                                None if loop_node.sequence_node is None else
+                                    self._handle(loop_node.sequence_node, is_expr=False),
                                 tags=tags,
                                 codegen=self,
                                 )
