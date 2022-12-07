@@ -39,6 +39,8 @@ class SimVariable:
 
     @property
     def mem(self) -> "SimMemView":
+        if self.addr is None:
+            raise Exception("Cannot view a variable without an address")
         arch = self.state.arch
         size = self.type.byte_size * arch.byte_width
         name = self.type.name
@@ -63,18 +65,27 @@ class SimVariable:
             addr = self.addr
             el_type = self.type.element_type
         elif type(self.type) == PointerType:
-            addr = self.state.memory.load(self.addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
+            if self.addr is None:
+                addr = None
+            else:
+                addr = self.state.memory.load(self.addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
             el_type = self.type.referenced_type
         else:
             raise Exception("{} object cannot be dereferenced".format(self.type))
 
-        new_addr = addr + i * el_type.byte_size
+        if addr is None or el_type.byte_size is None:
+            new_addr = None
+        else:
+            new_addr = addr + i * el_type.byte_size
         return SimVariable(self.state, new_addr, el_type)
 
     def member(self, member_name: str) -> "SimVariable":
         if type(self.type) == StructType:
             member = self.type[member_name]
-            addr = self.addr + member.addr_offset
+            if self.addr is None:
+                addr = None
+            else:
+                addr = self.addr + member.addr_offset
             return SimVariable(self.state, addr, member.type)
 
         raise Exception("{} object has no members".format(self.type))
