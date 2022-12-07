@@ -154,7 +154,7 @@ class EmptyNodeRemover:
         if new_seq is None \
                 and node.sort == "while" \
                 and isinstance(node.condition, ailment.Const) \
-                and node.condition.value in {0, False}:
+                and node.condition.value == 0:
             return None
 
         result = node.copy()
