@@ -91,6 +91,10 @@ class RecursiveStructurer(Analysis):
             rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
             rewriter.walk(self.result)  # update SequenceNodes in-place
 
+            # remove all goto statements
+            # TODO: Properly implement support for multi-entry regions
+            StructurerBase._remove_all_jumps(self.result)
+
         # remove empty nodes (if any)
         self.result = EmptyNodeRemover(self.result).result
 
