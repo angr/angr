@@ -609,12 +609,15 @@ class CWhileLoop(CLoop):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
-        yield "\n", None
+        if self.body is None:
+            yield ";", None
+        else:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+            yield "\n", None
 
 
 class CDoWhileLoop(CLoop):
@@ -645,11 +648,16 @@ class CDoWhileLoop(CLoop):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
+        if self.body is not None:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+        else:
+            yield "{", brace
+            yield " ", None
+            yield "}", brace
         if self.codegen.braces_on_own_lines:
             yield "\n", None
             yield indent_str, None
@@ -705,11 +713,14 @@ class CForLoop(CStatement):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
+        if self.body is not None:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+        else:
+            yield ";", None
         yield '\n', None
 
 
@@ -2432,13 +2443,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if loop_node.sort == 'while':
             return CWhileLoop(None if loop_node.condition is None else self._handle(loop_node.condition),
-                              self._handle(loop_node.sequence_node, is_expr=False),
+                              None if loop_node.sequence_node is None else
+                                self._handle(loop_node.sequence_node, is_expr=False),
                               tags=tags,
                               codegen=self,
                               )
         elif loop_node.sort == 'do-while':
             return CDoWhileLoop(self._handle(loop_node.condition),
-                                self._handle(loop_node.sequence_node, is_expr=False),
+                                None if loop_node.sequence_node is None else
+                                    self._handle(loop_node.sequence_node, is_expr=False),
                                 tags=tags,
                                 codegen=self,
                                 )
@@ -2446,7 +2459,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return CForLoop(None if loop_node.initializer is None else self._handle(loop_node.initializer),
                             None if loop_node.condition is None else self._handle(loop_node.condition),
                             None if loop_node.iterator is None else self._handle(loop_node.iterator),
-                            self._handle(loop_node.sequence_node, is_expr=False),
+                            None if loop_node.sequence_node is None else
+                                self._handle(loop_node.sequence_node, is_expr=False),
                             tags=tags,
                             codegen=self,
                             )

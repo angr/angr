@@ -148,10 +148,13 @@ class EmptyNodeRemover:
             return None
         return CascadingConditionNode(node.addr, new_cond_and_nodes, else_node=new_else_node)
 
-    def _handle_Loop(self, node, **kwargs):
+    def _handle_Loop(self, node: LoopNode, **kwargs):
         new_seq = self._walker._handle(node.sequence_node)
 
-        if new_seq is None:
+        if new_seq is None \
+                and node.sort == "while" \
+                and isinstance(node.condition, ailment.Const) \
+                and node.condition.value == 0:
             return None
 
         result = node.copy()
