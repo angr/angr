@@ -1506,6 +1506,20 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
     @for_all_structuring_algos
+    def test_decompiling_dirname_last_component_missing_loop(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dirname")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["last_component"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("for (") == 2  # two loops
+
+    @for_all_structuring_algos
     def test_decompiling_tee_O2_tail_jumps(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tee_O2")
         proj = angr.Project(bin_path, auto_load_libs=False)

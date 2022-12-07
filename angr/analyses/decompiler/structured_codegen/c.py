@@ -705,11 +705,14 @@ class CForLoop(CStatement):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
+        if self.body is not None:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+        else:
+            yield ";", None
         yield '\n', None
 
 
@@ -2446,7 +2449,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return CForLoop(None if loop_node.initializer is None else self._handle(loop_node.initializer),
                             None if loop_node.condition is None else self._handle(loop_node.condition),
                             None if loop_node.iterator is None else self._handle(loop_node.iterator),
-                            self._handle(loop_node.sequence_node, is_expr=False),
+                            None if loop_node.sequence_node is None else
+                                self._handle(loop_node.sequence_node, is_expr=False),
                             tags=tags,
                             codegen=self,
                             )
