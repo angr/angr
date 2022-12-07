@@ -1941,7 +1941,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = MakeTypecastsImplicit.handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
-        self.cexterns = {self._variable(v, 64) for v in self.externs if v not in self._inlined_strings}
+        self.cexterns = {self._variable(v, 1) for v in self.externs if v not in self._inlined_strings}
 
         self.regenerate_text()
 
