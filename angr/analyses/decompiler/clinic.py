@@ -21,7 +21,7 @@ from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
 from ..reaching_definitions import ReachingDefinitionsAnalysis
-from .ailgraph_walker import AILGraphWalker
+from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .ailblock_walker import AILBlockWalker
 from .optimization_passes import get_default_optimization_passes, OptimizationPassStage
 
@@ -248,6 +248,9 @@ class Clinic(Analysis):
         self._update_progress(95., text="Running simplifications 3")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
                                                     variable_kb=variable_kb)
+
+        # remove empty nodes from the graph
+        ail_graph = self.remove_empty_nodes(ail_graph)
 
         self.graph = ail_graph
         self.arg_list = arg_list
@@ -1075,5 +1078,58 @@ class Clinic(Analysis):
                     return op1, op0
                 return op0, op1  # best-effort guess
         return None, None
+
+    @staticmethod
+    @timethis
+    def remove_empty_nodes(graph: networkx.DiGraph) -> networkx.DiGraph:
+
+        def handle_node(node: ailment.Block):
+            if not node.statements:
+                preds = list(pred for pred in graph.predecessors(node) if pred is not node)
+                succs = list(succ for succ in graph.successors(node) if succ is not node)
+                if len(preds) == 1 and len(succs) == 1:
+                    pred = preds[0]
+                    succ = succs[0]
+                    value_updated = False
+                    # update the last statement of pred
+                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                        last_stmt = pred.statements[-1]
+                        if isinstance(last_stmt.true_target, ailment.Expr.Const) \
+                                and last_stmt.true_target.value == node.addr:
+                            last_stmt.true_target.value = succ.addr
+                            value_updated = True
+                        if isinstance(last_stmt.false_target, ailment.Expr.Const) \
+                                and last_stmt.false_target.value == node.addr:
+                            last_stmt.false_target.value = succ.addr
+                            value_updated = True
+
+                    if value_updated:
+                        graph.add_edge(pred, succ)
+                        raise RemoveNodeNotice()
+                elif len(preds) >= 1 and len(succs) == 1:
+                    succ = succs[0]
+                    for pred in preds:
+                        graph.add_edge(pred, succ)
+                        # update the last statement of pred
+                        if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                            last_stmt = pred.statements[-1]
+                            if isinstance(last_stmt.true_target, ailment.Expr.Const) \
+                                    and last_stmt.true_target.value == node.addr:
+                                value_updated = True
+                                last_stmt.true_target.value = succ.addr
+                            if isinstance(last_stmt.false_target, ailment.Expr.Const) \
+                                    and last_stmt.false_target.value == node.addr:
+                                value_updated = True
+                                last_stmt.false_target.value = succ.addr
+
+                    if value_updated:
+                        raise RemoveNodeNotice()
+                elif not preds or not succs:
+                    raise RemoveNodeNotice()
+            return None
+
+        AILGraphWalker(graph, handle_node, replace_nodes=True).walk()
+        return graph
+
 
 register_analysis(Clinic, 'Clinic')

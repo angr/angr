@@ -380,7 +380,7 @@ class DreamStructurer(StructurerBase):
         self._merge_same_conditioned_nodes(seq)
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
-        self._remove_all_jumps(seq)
+        self._remove_redundant_jumps(seq)
 
         empty_node_remover = EmptyNodeRemover(seq)
         new_seq = empty_node_remover.result
