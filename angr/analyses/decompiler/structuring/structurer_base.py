@@ -270,17 +270,6 @@ class StructurerBase(Analysis):
             new_nodes: List = [ ]
             last_nonjump_stmt_idx = 0
 
-            # pre-check: if this node has no jump or conditional jumps, add one at the end of it
-            if not any(isinstance(stmt, (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump, ailment.Stmt.Return))
-                       for stmt in node.statements):
-                node.statements.append(
-                    ailment.Stmt.Jump(
-                        None,
-                        ailment.Expr.Const(None, None, node.addr + node.original_size, self.project.arch.bits),
-                        ins_addr=node.addr + node.original_size,
-                    ),
-                )
-
             # find all jump and indirect jump statements
             for stmt_idx, stmt in enumerate(node.statements):
                 if not isinstance(stmt, (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump)):
