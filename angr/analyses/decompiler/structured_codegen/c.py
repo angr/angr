@@ -609,12 +609,15 @@ class CWhileLoop(CLoop):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
-        yield "\n", None
+        if self.body is None:
+            yield ";", None
+        else:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+            yield "\n", None
 
 
 class CDoWhileLoop(CLoop):
@@ -645,11 +648,16 @@ class CDoWhileLoop(CLoop):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
+        if self.body is not None:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+        else:
+            yield "{", brace
+            yield " ", None
+            yield "}", brace
         if self.codegen.braces_on_own_lines:
             yield "\n", None
             yield indent_str, None
