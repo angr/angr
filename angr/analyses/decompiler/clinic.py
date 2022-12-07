@@ -1135,7 +1135,6 @@ class Clinic(Analysis):
                         raise RemoveNodeNotice()
                 elif not preds or not succs:
                     raise RemoveNodeNotice()
-            return None
 
         AILGraphWalker(graph, handle_node, replace_nodes=True).walk()
         return graph
