@@ -75,7 +75,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             global_struct.member("struct_int").mem.concrete,
             global_struct.member("struct_ll").mem.concrete,
             global_struct.member("struct_char").mem.concrete,
-            global_struct.member("struct_strref").deref.mem.string.concrete,
+            global_struct.member("struct_strref").string.concrete,
             global_struct.member("struct_pointer").mem.concrete,
             computed_struct_array,
             # struct_float is tested below,
@@ -146,6 +146,6 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             }.pop()
             simgr.explore(find=addr)
             s = simgr.found[0]
-            computed_string = s.nvariables["string"].array(0).mem.string.concrete
+            computed_string = s.nvariables["string"].string.concrete
             self.assertEqual(expected_string, computed_string)
             simgr.move(from_stash='found', to_stash='active')

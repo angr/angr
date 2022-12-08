@@ -53,6 +53,12 @@ class SimVariable:
             sim_type = SimTypeReg(size, label=name)
         return self.state.mem[self.addr].with_type(sim_type)
 
+    @property
+    def string(self) -> "SimMemView":
+        first_char = self.deref
+        # first char should have some char type (could be checked here)
+        return first_char.mem.string
+
     def __getitem__(self, i):
         if type(i) == int:
             return self.array(i)
