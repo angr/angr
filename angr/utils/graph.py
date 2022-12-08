@@ -1,4 +1,4 @@
-
+from typing import Tuple, Optional, Dict, List
 from collections import defaultdict
 import logging
 
@@ -23,6 +23,63 @@ def shallow_reverse(g) -> networkx.DiGraph:
         new_g.add_edge(dst, src, **data)
 
     return new_g
+
+
+def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph,Optional[Dict]]:
+    """
+    Invert the given graph and generate the immediate dominator tree on the inverted graph. This is useful for
+    computing post-dominators.
+
+    :param graph:   The graph to invert and generate immediate dominator tree for.
+    :return:        A tuple of the inverted graph and the immediate dominator tree.
+    """
+
+    end_nodes = {n for n in graph.nodes() if graph.out_degree(n) == 0}
+    inverted_graph: networkx.DiGraph = shallow_reverse(graph)
+    if end_nodes:
+        if len(end_nodes) > 1:
+            # make sure there is only one end node
+            dummy_node = "DUMMY_NODE"
+            for end_node in end_nodes:
+                inverted_graph.add_edge(dummy_node, end_node)
+            endnode = dummy_node
+        else:
+            endnode = next(iter(end_nodes))  # pick the end node
+
+        idoms = networkx.immediate_dominators(inverted_graph, endnode)
+    else:
+        idoms = None
+    return inverted_graph, idoms
+
+
+def to_acyclic_graph(graph: networkx.DiGraph, ordered_nodes: Optional[List]=None,
+                     loop_heads: Optional[List]=None) -> networkx.DiGraph:
+    """
+    Convert a given DiGraph into an acyclic graph.
+
+    :param graph:           The graph to convert.
+    :param ordered_nodes:   A list of nodes sorted in a topological order.
+    :param loop_heads:      A list of known loop head nodes.
+    :return:                The converted acyclic graph.
+    """
+
+    if ordered_nodes is None:
+        # take the quasi-topological order of the graph
+        from angr.analyses.cfg.cfg_utils import CFGUtils  # pylint:disable=import-outside-toplevel
+        ordered_nodes = CFGUtils.quasi_topological_sort_nodes(graph, loop_heads=loop_heads)
+
+    acyclic_graph = networkx.DiGraph()
+
+    # add each node and its edge into the graph
+    visited = set()
+    for node in ordered_nodes:
+        visited.add(node)
+        acyclic_graph.add_node(node)
+        for successor in graph.successors(node):
+            if successor not in visited:
+                acyclic_graph.add_edge(node, successor)
+
+    return acyclic_graph
 
 
 def dfs_back_edges(graph, start_node):

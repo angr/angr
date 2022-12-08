@@ -1,11 +1,17 @@
 # decompilation options
-
+from typing import Optional, List, Callable
 from collections import defaultdict
+
+from .structuring import structurer_class_from_name
 
 
 class DecompilationOption:
+    """
+    Describes a decompilation option.
+    """
     def __init__(self, name, description, value_type, cls, param, value_range=None, category="General",
-                 default_value=None, clears_cache=True):
+                 default_value=None, clears_cache=True, candidate_values: Optional[List]=None,
+                 convert: Optional[Callable]=None):
         self.NAME = name
         self.DESCRIPTION = description
         self.value_type = value_type
@@ -15,6 +21,8 @@ class DecompilationOption:
         self.category = category
         self.default_value = default_value
         self.clears_cache = clears_cache
+        self.candidate_values = candidate_values
+        self.convert = convert
 
 
 O = DecompilationOption
@@ -113,6 +121,28 @@ options = [
         default_value=True,
         clears_cache=False,
     ),
+    O(
+        "Structuring algorithm",
+        "Select a structuring algorithm. Currently supports Dream and Phoenix.",
+        type,
+        "recursive_structurer",
+        "structurer_cls",
+        category="Structuring",
+        default_value="Dream",
+        candidate_values=["Dream", "Phoenix"],
+        clears_cache=True,
+        convert=structurer_class_from_name,
+    ),
+    O(
+        "Improve structuring algorithm",
+        "If applicable in deeper structurer, like Phoenix, improves decompilation output",
+        bool,
+        "recursive_structurer",
+        "improve_structurer",
+        category="Structuring",
+        default_value=True,
+        clears_cache=True,
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options
@@ -121,3 +151,14 @@ options_by_category = defaultdict(list)
 
 for o in options:
     options_by_category[o.category].append(o)
+
+
+#
+# Option Helpers
+#
+
+def get_structurer_option() -> Optional[DecompilationOption]:
+    for opt in options:
+        if opt.cls == "recursive_structurer" and opt.param == "structurer_cls":
+            return opt
+    return None

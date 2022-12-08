@@ -5,6 +5,7 @@ import unittest
 import ailment
 import angr
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
 
 
 class TestPropagatorLoops(unittest.TestCase):
@@ -51,7 +52,7 @@ class TestPropagatorLoops(unittest.TestCase):
         rs = p.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=p.kb, func=f)
         snodes = rs.result.nodes
         assert len(snodes) == 3
-        assert isinstance(snodes[1], angr.analyses.decompiler.structurer_nodes.LoopNode)
+        assert isinstance(snodes[1], LoopNode)
         banner('Condition')
         print(str(snodes[1].condition))
         return snodes[1].condition

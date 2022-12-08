@@ -4,7 +4,7 @@ from typing import Optional, List
 
 import networkx
 
-from .structurer_nodes import MultiNode
+from .structuring.structurer_nodes import MultiNode
 
 
 l = logging.getLogger(name=__name__)
@@ -21,9 +21,10 @@ class GraphRegion:
     :ivar graph_with_successors:    The region graph that includes successor nodes.
     """
 
-    __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', )
+    __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', 'full_graph', )
 
-    def __init__(self, head, graph, successors: Optional[list], graph_with_successors: networkx.DiGraph, cyclic):
+    def __init__(self, head, graph, successors: Optional[List], graph_with_successors: Optional[networkx.DiGraph],
+                 cyclic, full_graph: Optional[networkx.DiGraph]):
         self.head = head
         self.graph = graph
         self.successors = successors
@@ -31,7 +32,9 @@ class GraphRegion:
         # successors inside graph_with_successors are *not* deep copied. therefore, you should never modify any
         # successor node in graph_with_successors. to avoid potential programming errors, just treat
         # graph_with_successors as read-only.
-        self.graph_with_successors: networkx.DiGraph = graph_with_successors
+        self.graph_with_successors = graph_with_successors
+
+        self.full_graph = full_graph
         self.cyclic = cyclic
 
     def __repr__(self):
@@ -49,9 +52,20 @@ class GraphRegion:
 
         return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
 
-    def recursive_copy(self):
+    def copy(self) -> 'GraphRegion':
+        return GraphRegion(
+            self.head,
+            networkx.DiGraph(self.graph) if self.graph is not None else None,
+            list(self.successors) if self.successors is not None else None,
+            networkx.DiGraph(self.graph_with_successors) if self.graph_with_successors is not None else None,
+            self.cyclic,
+            networkx.DiGraph(self.full_graph) if self.full_graph is not None else None,
+        )
 
-        nodes_map = { }
+    def recursive_copy(self, nodes_map=None):
+
+        if nodes_map is None:
+            nodes_map = { }
         new_graph = self._recursive_copy(self.graph, nodes_map)
 
         if self.graph_with_successors is not None:
@@ -63,7 +77,13 @@ class GraphRegion:
             new_graph_with_successors = None
             successors = None
 
-        return GraphRegion(nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic)
+        if self.full_graph is not None:
+            new_full_graph = self._recursive_copy(self.full_graph, nodes_map, ignored_nodes=successors)
+        else:
+            new_full_graph = None
+
+        return GraphRegion(nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic,
+                           new_full_graph)
 
     @staticmethod
     def _recursive_copy(old_graph, nodes_map, ignored_nodes=None) -> networkx.DiGraph:
@@ -81,7 +101,7 @@ class GraphRegion:
             else:
                 # make recursive copies
                 if type(node) is GraphRegion:
-                    new_node = node.recursive_copy()
+                    new_node = node.recursive_copy(nodes_map=nodes_map)
                     nodes_map[node] = new_node
                 elif type(node) is MultiNode:
                     new_node = node.copy()
@@ -142,6 +162,21 @@ class GraphRegion:
         if self.graph_with_successors is not None:
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with)
 
+    def replace_region_with_region(self, sub_region: 'GraphRegion', replace_with: 'GraphRegion'):
+
+        if sub_region not in self.graph:
+            l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
+            raise Exception()
+
+        if sub_region is self.head:
+            self.head = replace_with.head
+
+        self._replace_node_in_graph_with_subgraph(self.graph, self.successors, self.full_graph, sub_region,
+                                                  replace_with.graph_with_successors, replace_with.head)
+        if self.graph_with_successors is not None:
+            self._replace_node_in_graph_with_subgraph(self.graph_with_successors, None, self.full_graph, sub_region,
+                                                      replace_with.graph_with_successors, replace_with.head)
+
     @staticmethod
     def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with):
 
@@ -162,5 +197,71 @@ class GraphRegion:
                 graph.add_edge(replace_with, replace_with)
             else:
                 graph.add_edge(replace_with, dst)
+
+        assert node not in graph
+
+    @staticmethod
+    def _replace_node_in_graph_with_subgraph(graph: networkx.DiGraph, known_successors: Optional[List],
+                                             reference_full_graph: Optional[networkx.DiGraph],
+                                             node, sub_graph: networkx.DiGraph, sub_graph_head):
+
+        in_edges = list(graph.in_edges(node))
+        out_edges = list(graph.out_edges(node))
+
+        graph.remove_node(node)
+        sub_graph_nodes = list(sub_graph.nodes)
+        sub_graph_edges = list(sub_graph.edges)
+
+        for src, _ in in_edges:
+            if src is node:
+                graph.add_edge(sub_graph_head, sub_graph_head)
+            else:
+                graph.add_edge(src, sub_graph_head)
+
+        for _, dst in out_edges:
+            if dst is node:
+                # ignore all self-loops
+                continue
+            if known_successors is not None and dst in known_successors:
+                continue
+            # find the correct source
+            if isinstance(dst, GraphRegion) and dst not in sub_graph:
+                # GraphRegion.successors may not store GraphRegion objects. Instead, the heads of GraphRegion objects
+                # are stored.
+                for src in sub_graph.predecessors(dst.head):
+                    graph.add_edge(src, dst)
+                # replace the corresponding nodes in sub_graph_nodes and sub_graph_edges
+                for i in range(len(sub_graph_nodes)):  # pylint:disable=consider-using-enumerate
+                    if sub_graph_nodes[i] is dst.head:
+                        sub_graph_nodes[i] = dst
+                for i in range(len(sub_graph_edges)):  # pylint:disable=consider-using-enumerate
+                    if sub_graph_edges[i][0] is dst.head:
+                        sub_graph_edges[i] = (dst, sub_graph_edges[i][1])
+                    if sub_graph_edges[i][1] is dst.head:
+                        sub_graph_edges[i] = (sub_graph_edges[i][0], dst)
+            else:
+                if dst in sub_graph:
+                    for src in sub_graph.predecessors(dst):
+                        graph.add_edge(src, dst)
+                elif reference_full_graph is not None and dst in reference_full_graph:
+                    for src in reference_full_graph.predecessors(dst):
+                        if src in graph:
+                            graph.add_edge(src, dst)
+                else:
+                    # it may happen that the dst node does not exist in sub_graph
+                    # fallback
+                    l.info("Node dst is not found in sub_graph. Enter the fall back logic.")
+                    for src in sub_graph.nodes:
+                        if sub_graph.out_degree[src] == 0:
+                            graph.add_edge(src, dst)
+
+        graph.add_nodes_from(sub_graph_nodes)
+        graph.add_edges_from(sub_graph_edges)
+        # finally, remove all nodes from the graph in known_successors. they are only supposed to be in
+        # graph_with_successors.
+        if known_successors is not None:
+            for nn in known_successors:
+                if nn in graph:
+                    graph.remove_node(nn)
 
         assert node not in graph

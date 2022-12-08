@@ -410,6 +410,7 @@ void State::commit(uint64_t addr) {
 	curr_block_details.reset();
 	block_mem_reads_data.clear();
 	block_mem_reads_map.clear();
+	block_mem_read_addr_details.clear();
 	block_mem_writes_taint_data.clear();
 	symbolic_stmts_to_erase.clear();
 	taint_engine_next_stmt_idx = -1;
@@ -908,6 +909,21 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		}
 	}
 	mem_writes.push_back(record);
+	for (int i = 0; i < size; i++) {
+		auto entry = block_mem_read_addr_details.find(address + i);
+		if (entry != block_mem_read_addr_details.end()) {
+			// Some previous VEX statements read values from this address that is being written to. Save current value.
+			for (auto &vex_stmt_id: entry->second) {
+				auto &mem_read_result = block_mem_reads_map.at(vex_stmt_id);
+				for (auto &mem_value: mem_read_result.memory_values) {
+					if (!mem_value.is_value_set && (mem_value.address == address + i)) {
+						mem_value.value = record.value.at(i);
+						mem_value.is_value_set = true;
+					}
+				}
+			}
+		}
+	}
 }
 
 void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
@@ -1013,13 +1029,16 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					break;
 				}
 				stmt_taint_entry.sink.value_size = result.value_size;
-				// Flatten list of taint sources and also save them as dependencies of instruction
-				// TODO: Should we not save dependencies if sink is an artificial register?
-				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
-				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
-				if (result.mem_read_size != 0) {
-					stmt_taint_entry.mem_read_size += result.mem_read_size;
-					stmt_taint_entry.has_memory_read = true;
+				stmt_taint_entry.floating_point_op_skip = result.has_floating_point_op_to_skip;
+				if (!stmt_taint_entry.floating_point_op_skip) {
+					// Flatten list of taint sources and also save them as dependencies of instruction
+					// TODO: Should we not save dependencies if sink is an artificial register?
+					stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+					stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+					if (result.mem_read_size != 0) {
+						stmt_taint_entry.mem_read_size += result.mem_read_size;
+						stmt_taint_entry.has_memory_read = true;
+					}
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				if (vex_cc_regs.find(stmt_taint_entry.sink.reg_offset) != vex_cc_regs.end()) {
@@ -1050,15 +1069,26 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 				}
 				auto result = process_vex_expr(stmt->Ist.WrTmp.data, vex_block->tyenv, curr_instr_addr, stmt_idx, last_entity_setter, false);
 				if (result.has_unsupported_expr) {
+					// Only WrTmp statements will have GetI expressions on RHS. If we're concretizing all FP ops, mark temp as concrete
+					if ((result.unsupported_expr_stop_reason == STOP_UNSUPPORTED_EXPR_GETI) && (fp_ops_to_avoid.size() > 0)) {
+						stmt_taint_entry.floating_point_op_skip = true;
+						stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+						block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
+						stmt_taint_entry.reset();
+						break;
+					}
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
-				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
-				if (result.mem_read_size != 0) {
-					stmt_taint_entry.mem_read_size += result.mem_read_size;
-					stmt_taint_entry.has_memory_read = true;
+				stmt_taint_entry.floating_point_op_skip = result.has_floating_point_op_to_skip;
+				if (!stmt_taint_entry.floating_point_op_skip) {
+					stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+					stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+					if (result.mem_read_size != 0) {
+						stmt_taint_entry.mem_read_size += result.mem_read_size;
+						stmt_taint_entry.has_memory_read = true;
+					}
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				stmt_taint_entry.reset();
@@ -1096,11 +1126,14 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 				}
 				stmt_taint_entry.sink.value_size = result.value_size;
 				stmt_taint_entry.mem_write_size += result.value_size;
-				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
-				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
-				if (result.mem_read_size != 0) {
-					stmt_taint_entry.mem_read_size += result.mem_read_size;
-					stmt_taint_entry.has_memory_read = true;
+				stmt_taint_entry.floating_point_op_skip = result.has_floating_point_op_to_skip;
+				if (!stmt_taint_entry.floating_point_op_skip) {
+					stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+					stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+					if (result.mem_read_size != 0) {
+						stmt_taint_entry.mem_read_size += result.mem_read_size;
+						stmt_taint_entry.has_memory_read = true;
+					}
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				stmt_taint_entry.reset();
@@ -1118,11 +1151,14 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
-				stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
-				if (result.mem_read_size != 0) {
-					stmt_taint_entry.mem_read_size += result.mem_read_size;
-					stmt_taint_entry.has_memory_read = true;
+				stmt_taint_entry.floating_point_op_skip = result.has_floating_point_op_to_skip;
+				if (!stmt_taint_entry.floating_point_op_skip) {
+					stmt_taint_entry.sources.insert(result.taint_sources.begin(), result.taint_sources.end());
+					stmt_taint_entry.ite_cond_entity_list.insert(result.ite_cond_entities.begin(), result.ite_cond_entities.end());
+					if (result.mem_read_size != 0) {
+						stmt_taint_entry.mem_read_size += result.mem_read_size;
+						stmt_taint_entry.has_memory_read = true;
+					}
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				block_taint_entry.has_exit_stmt = true;
@@ -1136,7 +1172,16 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 			}
 			case Ist_PutI:
 			{
-				// TODO
+				if (fp_ops_to_avoid.size() > 0) {
+					// All FP ops are being concretized. Mark destination as concrete instead of stopping.
+					stmt_taint_entry.sink.entity_type = TAINT_ENTITY_REG;
+					stmt_taint_entry.sink.instr_addr = curr_instr_addr;
+					stmt_taint_entry.sink.stmt_idx = stmt_idx;
+					stmt_taint_entry.sink.reg_offset = fp_reg_vex_data.first;
+					stmt_taint_entry.sink.value_size = fp_reg_vex_data.second;
+					break;
+				}
+				// PutI statements cannot be handled in VEX since exact register's offset is computed at runtime.
 				block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 				block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_PUTI;
 				break;
@@ -1298,6 +1343,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Unop:
 		{
+			if (fp_ops_to_avoid.count(expr->Iex.Unop.op) > 0) {
+				// Do not propagate taint from this expression since floating points support is not enabled
+				result.has_floating_point_op_to_skip = true;
+				break;
+			}
 			auto temp = process_vex_expr(expr->Iex.Unop.arg, vex_block_tyenv, instr_addr, curr_stmt_idx, entity_setter, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
@@ -1312,6 +1362,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Binop:
 		{
+			if (fp_ops_to_avoid.count(expr->Iex.Binop.op) > 0) {
+				// Do not propagate taint from this expression since floating points support is not enabled
+				result.has_floating_point_op_to_skip = true;
+				break;
+			}
 			auto temp = process_vex_expr(expr->Iex.Binop.arg1, vex_block_tyenv, instr_addr, curr_stmt_idx, entity_setter, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
@@ -1336,6 +1391,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Triop:
 		{
+			if (fp_ops_to_avoid.count(expr->Iex.Triop.details->op) > 0) {
+				// Do not propagate taint from this expression since floating points support is not enabled
+				result.has_floating_point_op_to_skip = true;
+				break;
+			}
 			auto temp = process_vex_expr(expr->Iex.Triop.details->arg1, vex_block_tyenv, instr_addr, curr_stmt_idx, entity_setter, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
@@ -1370,6 +1430,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_Qop:
 		{
+			if (fp_ops_to_avoid.count(expr->Iex.Qop.details->op) > 0) {
+				// Do not propagate taint from this expression since floating points support is not enabled
+				result.has_floating_point_op_to_skip = true;
+				break;
+			}
 			auto temp = process_vex_expr(expr->Iex.Qop.details->arg1, vex_block_tyenv, instr_addr, curr_stmt_idx, entity_setter, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
@@ -1498,9 +1563,15 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 		}
 		case Iex_GetI:
 		{
-			// TODO
+			// GetI statement cannot be handled in VEX since exact register's offset is computed at runtime.
 			result.has_unsupported_expr = true;
 			result.unsupported_expr_stop_reason = STOP_UNSUPPORTED_EXPR_GETI;
+			if (fp_ops_to_avoid.size() > 0) {
+				auto temp = process_vex_expr(expr->Iex.GetI.ix, vex_block_tyenv, instr_addr, curr_stmt_idx,
+											 entity_setter, is_exit_stmt);
+				// ix will be an RdTmp expression.
+				result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
+			}
 			break;
 		}
 		case Iex_Const:
@@ -1824,26 +1895,14 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	}
 
 	// Save info about the memory read
-	unsigned char buf[32];
-	unsigned int has_read_from_uc = 0;
 	for (auto i = 0; i < read_size; i++) {
 		memory_value_t memory_value;
 		memory_value.address = read_address + i;
-		if (find_tainted(read_address + i, 1) != -1) {
-			memory_value.is_value_symbolic = true;
+		if (!is_mem_read_symbolic) {
+			memory_value.is_value_symbolic = false;
 		}
 		else {
-			memory_value.is_value_symbolic = false;
-			if (read_size < sizeof(buf)) {
-				if (!has_read_from_uc) {
-					uc_mem_read(uc, read_address, buf, read_size);
-					has_read_from_uc = 1;
-				}
-				memory_value.value = buf[i];
-			}
-			else {
-				uc_mem_read(uc, memory_value.address, &memory_value.value, 1);
-			}
+			memory_value.is_value_symbolic = (find_tainted(read_address + i, 1) != -1);
 		}
 		memory_read_values.emplace_back(memory_value);
 	}
@@ -1894,19 +1953,46 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 			while (vex_stmt_taint_entry_it != block_taint_entry.block_stmts_taint_data.end()) {
 				if (vex_stmt_taint_entry_it->second.has_memory_read) {
 					mem_read_result_t mem_read_result;
+					bool is_addr_set = false;
 					while (block_mem_reads_data.size() != 0) {
 						auto &next_mem_read = block_mem_reads_data.front();
+						if (!is_addr_set) {
+							mem_read_result.first_byte_addr = next_mem_read.address;
+							is_addr_set = true;
+						}
 						mem_read_result.memory_values.emplace_back(next_mem_read);
 						mem_read_result.is_mem_read_symbolic |= next_mem_read.is_value_symbolic;
 						mem_read_result.read_size += 1;
 						block_mem_reads_data.erase(block_mem_reads_data.begin());
 						if (mem_read_result.read_size == vex_stmt_taint_entry_it->second.mem_read_size) {
 							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx, mem_read_result);
+							for (auto &value: mem_read_result.memory_values) {
+								if (!value.is_value_symbolic) {
+									auto entry = block_mem_read_addr_details.find(value.address);
+									if (entry == block_mem_read_addr_details.end()) {
+										block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>({vex_stmt_taint_entry_it->second.sink.stmt_idx}));
+									}
+									else {
+										entry->second.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx);
+									}
+								}
+							}
 							break;
 						}
 						else if (block_mem_reads_data.size() == 0) {
 							// This entry is of a partial memory read for the instruction being processed.
 							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx, mem_read_result);
+							for (auto &value: mem_read_result.memory_values) {
+								if (!value.is_value_symbolic) {
+									auto entry = block_mem_read_addr_details.find(value.address);
+									if (entry == block_mem_read_addr_details.end()) {
+										block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>({vex_stmt_taint_entry_it->second.sink.stmt_idx}));
+									}
+									else {
+										entry->second.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx);
+									}
+								}
+							}
 							break;
 						}
 					}
@@ -1943,6 +2029,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	auto mem_reads_map_entry = block_mem_reads_map.find(curr_stmt_idx);
 	if (mem_reads_map_entry == block_mem_reads_map.end()) {
 		mem_read_result_t mem_read_result;
+		mem_read_result.first_byte_addr = memory_read_values[0].address;
 		mem_read_result.memory_values = memory_read_values;
 		mem_read_result.is_mem_read_symbolic = is_mem_read_symbolic;
 		mem_read_result.read_size = read_size;
@@ -1953,6 +2040,17 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		mem_read_entry.memory_values.insert(mem_read_entry.memory_values.end(), memory_read_values.begin(), memory_read_values.end());
 		mem_read_entry.is_mem_read_symbolic |= is_mem_read_symbolic;
 		mem_read_entry.read_size += read_size;
+	}
+	for (auto &value: memory_read_values) {
+		if (!value.is_value_symbolic) {
+			auto entry = block_mem_read_addr_details.find(value.address);
+			if (entry == block_mem_read_addr_details.end()) {
+				block_mem_read_addr_details.emplace(value.address, std::unordered_set<int64_t>({curr_stmt_idx}));
+			}
+			else {
+				entry->second.emplace(curr_stmt_idx);
+			}
+		}
 	}
 
 	// At this point the block's memory reads map has been rebuilt and we can propagate taint as before
@@ -2021,6 +2119,14 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 	bool sets_vex_cc_reg;
 
 	auto &taint_sink = vex_stmt_taint_entry.sink;
+	if (vex_stmt_taint_entry.floating_point_op_skip) {
+		// Since statement contains floating point operation that should be skipped, mark sink as concrete and stop.
+		if (taint_sink.entity_type == TAINT_ENTITY_REG) {
+			mark_register_concrete(taint_sink.reg_offset, taint_sink.value_size);
+		}
+		return;
+	}
+
 	auto &taint_srcs = vex_stmt_taint_entry.sources;
 	if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (vex_cc_regs.find(taint_sink.reg_offset) != vex_cc_regs.end())) {
 		sets_vex_cc_reg = true;
@@ -2264,7 +2370,9 @@ void State::continue_propagating_taint() {
 
 void State::save_concrete_memory_deps(vex_stmt_details_t &vex_stmt_det) {
 	if (vex_stmt_det.has_concrete_memory_dep || (vex_stmt_det.has_symbolic_memory_dep && !vex_stmt_det.has_read_from_symbolic_addr)) {
-		archived_memory_values.emplace_back(block_mem_reads_map.at(vex_stmt_det.stmt_idx).memory_values);
+		auto &mem_read_result = block_mem_reads_map.at(vex_stmt_det.stmt_idx);
+		save_mem_values(mem_read_result);
+		archived_memory_values.emplace_back(mem_read_result.memory_values);
 		vex_stmt_det.memory_values = &(archived_memory_values.back()[0]);
 		vex_stmt_det.memory_values_count = archived_memory_values.back().size();
 	}
@@ -2275,13 +2383,27 @@ void State::save_concrete_memory_deps(vex_stmt_details_t &vex_stmt_det) {
 	while (!vex_stmts_to_process.empty()) {
 		auto &curr_stmt = vex_stmts_to_process.front();
 		if ((curr_stmt->has_concrete_memory_dep) || (curr_stmt->has_symbolic_memory_dep && !curr_stmt->has_read_from_symbolic_addr)) {
-			archived_memory_values.emplace_back(block_mem_reads_map.at(curr_stmt->stmt_idx).memory_values);
+			auto &mem_read_result = block_mem_reads_map.at(curr_stmt->stmt_idx);
+			save_mem_values(mem_read_result);
+			archived_memory_values.emplace_back(mem_read_result.memory_values);
 			curr_stmt->memory_values = &(archived_memory_values.back()[0]);
 			curr_stmt->memory_values_count = archived_memory_values.back().size();
 		}
 		vex_stmts_to_process.pop();
 		for (auto it = curr_stmt->stmt_deps.begin(); it != curr_stmt->stmt_deps.end(); *it++) {
 			vex_stmts_to_process.push(it);
+		}
+	}
+	return;
+}
+
+void State::save_mem_values(mem_read_result_t &mem_read_result) {
+	std::vector<uint8_t> mem_bytes;
+	mem_bytes.reserve(mem_read_result.read_size);
+	uc_mem_read(uc, mem_read_result.first_byte_addr, mem_bytes.data(), mem_read_result.read_size);
+	for (auto &mem_value: mem_read_result.memory_values) {
+		if (!mem_value.is_value_symbolic && !mem_value.is_value_set) {
+			mem_value.value = mem_bytes[mem_value.address - mem_read_result.first_byte_addr];
 		}
 	}
 	return;
@@ -3054,3 +3176,12 @@ void simunicorn_get_concrete_writes_to_reexecute(State *state, uint64_t *addrs, 
 	}
 	return;
  }
+
+extern "C"
+void simunicorn_set_fp_regs_fp_ops_vex_codes(State *state, uint64_t start_offset, uint64_t size, uint64_t *ops, uint32_t op_count) {
+	state->fp_reg_vex_data.first = start_offset;
+	state->fp_reg_vex_data.second = size;
+	for (auto i = 0; i < op_count; i++) {
+		state->fp_ops_to_avoid.emplace(ops[i]);
+	}
+}

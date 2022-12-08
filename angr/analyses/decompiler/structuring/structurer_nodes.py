@@ -14,12 +14,12 @@ class EmptyBlockNotice(Exception):
 
 class MultiNode:
 
-    __slots__ = ('nodes', )
+    __slots__ = ('nodes', 'addr', 'idx', )
 
-    def __init__(self, nodes):
+    def __init__(self, nodes, addr=None, idx=None):
 
         # delayed import
-        from .graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
+        from ..graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
 
         self.nodes = [ ]
 
@@ -31,8 +31,11 @@ class MultiNode:
             else:
                 self.nodes.append(node)
 
+        self.addr = addr if addr is not None else self.nodes[0].addr
+        self.idx = idx if idx is not None else self.nodes[0].idx if isinstance(self.nodes[0], ailment.Block) else None
+
     def copy(self):
-        return MultiNode(self.nodes[::])
+        return MultiNode(self.nodes[::], addr=self.addr, idx=self.idx)
 
     def __repr__(self):
 
@@ -43,11 +46,14 @@ class MultiNode:
                 addrs.append(node.addr)
             s = ": %#x-%#x" % (min(addrs), max(addrs))
 
-        return "<MultiNode of %d nodes%s>" % (len(self.nodes), s)
+        return "<MultiNode %#x of %d nodes%s>" % (self.addr, len(self.nodes), s)
 
-    @property
-    def addr(self):
-        return self.nodes[0].addr
+    def __hash__(self):
+        # changing self.nodes does not change the hash, which enables in-place editing
+        return hash((MultiNode, self.addr, self.idx))
+
+    def __eq__(self, other):
+        return isinstance(other, MultiNode) and self.nodes == other.nodes
 
 
 class BaseNode:
@@ -80,6 +86,10 @@ class BaseNode:
             return False
 
         return True
+
+    @property
+    def addr(self) -> int:
+        raise NotImplementedError()
 
 
 class SequenceNode(BaseNode):
@@ -254,6 +264,9 @@ class LoopNode(BaseNode):
     def continue_addr(self, value):
         self._continue_addr = value
 
+    def __repr__(self):
+        return f"<LoopNode {self.sort}@{self.addr:#x}>"
+
 
 class BreakNode(BaseNode):
 
@@ -282,7 +295,7 @@ class ConditionalBreakNode(BreakNode):
         self.condition = condition
 
     def __repr__(self):
-        return "<ConditionalBreakNode %#x target:%#x>" % (self.addr, self.target)
+        return "<ConditionalBreakNode %#x target:%s>" % (self.addr, self.target)
 
 
 class SwitchCaseNode(BaseNode):
@@ -294,3 +307,17 @@ class SwitchCaseNode(BaseNode):
         self.cases: Dict[Union[int,Tuple[int]],SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr
+
+
+class IncompleteSwitchCaseNode(BaseNode):
+    """
+    Describes an incomplete set of switch-case nodes. Usually an intermediate result. Should always be restructured
+    into a SwitchCaseNode by the end of structuring. Only used in Phoenix structurer.
+    """
+
+    __slots__ = ('addr', 'head', 'cases')
+
+    def __init__(self, addr, head, cases):
+        self.addr = addr
+        self.head = head
+        self.cases = cases

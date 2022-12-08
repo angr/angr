@@ -10,11 +10,13 @@ import ailment
 
 from ...utils.lazy_import import lazy_import
 from ...utils import is_pyinstaller
-from ...utils.graph import dominates, shallow_reverse
+from ...utils.graph import dominates, inverted_idoms
 from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
-from .structurer_nodes import (EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode, BreakNode,
-                               ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode, CascadingConditionNode)
+from .structuring.structurer_nodes import (MultiNode, EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode,
+                                           BreakNode, ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode,
+                                           CascadingConditionNode, IncompleteSwitchCaseNode)
+from .graph_region import GraphRegion
 
 if is_pyinstaller():
     # PyInstaller is not happy with lazy import
@@ -39,6 +41,7 @@ class ConditionProcessor:
         self.arch = arch
         self._condition_mapping: Dict[str,Any] = {} if condition_mapping is None else condition_mapping
         self.jump_table_conds: Dict[int,Set] = defaultdict(set)
+        self.edge_conditions = {}
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
@@ -50,7 +53,31 @@ class ConditionProcessor:
         self.guarding_conditions = {}
         self._ast2annotations = {}
 
-    def recover_reaching_conditions(self, region, with_successors=False,
+    def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
+        edge = src, dst
+        edge_data = graph.get_edge_data(*edge)
+        edge_type = edge_data.get('type', 'transition') if edge_data is not None else 'transition'
+        try:
+            predicate = self._extract_predicate(src, dst, edge_type)
+        except EmptyBlockNotice:
+            # catch empty block notice - although this should not really happen
+            predicate = claripy.true
+        return predicate
+
+    def recover_edge_conditions(self, region, graph=None) -> Dict:
+        edge_conditions = {}
+        # traverse the graph to recover the condition for each edge
+        graph = graph or region.graph
+        for src in graph.nodes():
+            nodes = list(graph[src])
+            if len(nodes) >= 1:
+                for dst in nodes:
+                    predicate = self.recover_edge_condition(graph, src, dst)
+                    edge_conditions[(src, dst)] = predicate
+
+        self.edge_conditions = edge_conditions
+
+    def recover_reaching_conditions(self, region, graph=None, with_successors=False,
                                     case_entry_to_switch_head: Optional[Dict[int,int]]=None):
 
         def _strictly_postdominates(inv_idoms, node_a, node_b):
@@ -59,48 +86,24 @@ class ConditionProcessor:
             """
             return dominates(inv_idoms, node_a, node_b)
 
-        edge_conditions = {}
-        predicate_mapping = {}
-        # traverse the graph to recover the condition for each edge
-        for src in region.graph.nodes():
-            nodes = list(region.graph[src])
-            if len(nodes) >= 1:
-                for dst in nodes:
-                    edge = src, dst
-                    edge_data = region.graph.get_edge_data(*edge)
-                    edge_type = edge_data.get('type', 'transition')
-                    try:
-                        predicate = self._extract_predicate(src, dst, edge_type)
-                    except EmptyBlockNotice:
-                        # catch empty block notice - although this should not really happen
-                        predicate = claripy.true
-                    edge_conditions[edge] = predicate
-                    predicate_mapping[predicate] = dst
+        self.recover_edge_conditions(region, graph=graph)
+        edge_conditions = self.edge_conditions
 
-        if with_successors and region.graph_with_successors is not None:
-            _g = region.graph_with_successors
+        if graph:
+            _g = graph
+            head = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
         else:
-            _g = region.graph
+            if with_successors and region.graph_with_successors is not None:
+                _g = region.graph_with_successors
+            else:
+                _g = region.graph
+            head = region.head
 
         # special handling for jump table entries - do not allow crossing between cases
         if case_entry_to_switch_head:
             _g = self._remove_crossing_edges_between_cases(_g, case_entry_to_switch_head)
 
-        end_nodes = {n for n in _g.nodes() if _g.out_degree(n) == 0}
-        inverted_graph: networkx.DiGraph = shallow_reverse(_g)
-        if end_nodes:
-            if len(end_nodes) > 1:
-                # make sure there is only one end node
-                dummy_node = "DUMMY_NODE"
-                for end_node in end_nodes:
-                    inverted_graph.add_edge(dummy_node, end_node)
-                endnode = dummy_node
-            else:
-                endnode = next(iter(end_nodes))  # pick the end node
-
-            idoms = networkx.immediate_dominators(inverted_graph, endnode)
-        else:
-            idoms = None
+        inverted_graph, idoms = inverted_idoms(_g)
 
         reaching_conditions = {}
         # recover the reaching condition for each node
@@ -123,10 +126,10 @@ class ConditionProcessor:
             if out_degree == 0:
                 terminating_nodes.append(node)
 
-            if node is region.head:
+            if node is head:
                 # the head is always reachable
                 reaching_condition = claripy.true
-            elif idoms is not None and _strictly_postdominates(idoms, node, region.head):
+            elif idoms is not None and _strictly_postdominates(idoms, node, head):
                 # the node that post dominates the head is always reachable
                 reaching_conditions[node] = claripy.true
             else:
@@ -180,7 +183,7 @@ class ConditionProcessor:
 
             if diverging_conditions:
                 # the negation of the union of diverging conditions is the guarding condition for this node
-                cond = claripy.Or(*map(claripy.Not, diverging_conditions))
+                cond = claripy.Or(*map(claripy.Not, diverging_conditions))  # pylint:disable=bad-builtin
                 guarding_conditions[the_node] = cond
 
         self.reaching_conditions = reaching_conditions
@@ -324,6 +327,8 @@ class ConditionProcessor:
             return None
         if type(block) is SwitchCaseNode:
             return None
+        if type(block) is IncompleteSwitchCaseNode:
+            return None
         if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.
             return None
@@ -421,7 +426,7 @@ class ConditionProcessor:
 
     EXC_COUNTER = 1000
 
-    def _extract_predicate(self, src_block, dst_block, edge_type):
+    def _extract_predicate(self, src_block, dst_block, edge_type) -> claripy.ast.Bool:
 
         if edge_type == 'exception':
             # TODO: THIS IS ABSOLUTELY A HACK. AT THIS MOMENT YOU SHOULD NOT ATTEMPT TO MAKE SENSE OF EXCEPTION EDGES.
@@ -447,7 +452,13 @@ class ConditionProcessor:
         if type(src_block) is GraphRegion:
             return claripy.true
 
-        last_stmt = self.get_last_statement(src_block)
+        # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
+        if isinstance(src_block, ailment.Block) \
+                and src_block.statements \
+                and isinstance(src_block.statements[0], ailment.Stmt.ConditionalJump):
+            last_stmt = src_block.statements[0]
+        else:
+            last_stmt = self.get_last_statement(src_block)
 
         if last_stmt is None:
             return claripy.true
@@ -567,7 +578,7 @@ class ConditionProcessor:
         raise NotImplementedError(("Condition variable %s has an unsupported operator %s. "
                                    "Consider implementing.") % (cond, cond.op))
 
-    def claripy_ast_from_ail_condition(self, condition) -> claripy.ast.Base:
+    def claripy_ast_from_ail_condition(self, condition) -> claripy.ast.Bool:
 
         # Unpack a condition all the way to the leaves
         if isinstance(condition, claripy.ast.Base):  # pylint:disable=isinstance-second-argument-not-valid-type
@@ -629,7 +640,7 @@ class ConditionProcessor:
         elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
             # does it have a variable associated?
             if condition.variable is not None:
-                var = claripy.BVS('ailexpr_%s-%s' % (repr(condition), condition.variable.name), condition.bits,
+                var = claripy.BVS('ailexpr_%s-%s' % (repr(condition), condition.variable.ident), condition.bits,
                                   explicit_name=True)
             else:
                 var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits,
@@ -649,7 +660,10 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Const):
-            var = claripy.BVV(condition.value, condition.bits)
+            if condition.value in {True, False}:
+                var = claripy.BoolV(condition.value)
+            else:
+                var = claripy.BVV(condition.value, condition.bits)
             return var
         elif isinstance(condition, ailment.Expr.Tmp):
             l.warning("Left-over ailment.Tmp variable %s.", condition)
@@ -1041,7 +1055,3 @@ class ConditionProcessor:
         return claripy.BVS("jump_table_%x" % jumptable_head_addr,
                            self.arch.bits,
                            explicit_name=True)
-
-
-# delayed import
-from .region_identifier import GraphRegion, MultiNode  # pylint:disable=wrong-import-position

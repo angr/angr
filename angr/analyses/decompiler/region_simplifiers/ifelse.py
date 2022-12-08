@@ -2,8 +2,8 @@
 import ailment
 
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice, \
-    CascadingConditionNode
+from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, \
+    EmptyBlockNotice, CascadingConditionNode
 from ..condition_processor import ConditionProcessor
 from ..utils import insert_node
 
@@ -47,7 +47,7 @@ class IfElseFlattener(SequenceWalker):
                 # remove the else node and make it a new node following node
                 else_node = node.false_node
                 node.false_node = None
-                insert_node(parent, index + 1, else_node, index, **kwargs)
+                insert_node(parent, "after", else_node, index, **kwargs)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, parent=None, index=None, **kwargs):
 
@@ -68,7 +68,7 @@ class IfElseFlattener(SequenceWalker):
                 # remove the else node and make it a new node following node
                 else_node = node.else_node
                 node.else_node = None
-                insert_node(parent, index + 1, else_node, index, **kwargs)
+                insert_node(parent, "after", else_node, index, **kwargs)
 
     def _is_statement_terminating(self, stmt):
 

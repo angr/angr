@@ -1,10 +1,15 @@
 from typing import Any, Tuple, Dict, List
 from itertools import count
+import copy
 import logging
 import inspect
 
 import networkx
 
+from ailment.statement import Jump
+from ailment.expression import Const
+
+from ..condition_processor import ConditionProcessor, EmptyBlockNotice
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -138,11 +143,19 @@ class EagerReturnsSimplifier(OptimizationPass):
                     if node in copies:
                         node_copy = copies[node]
                     else:
-                        node_copy = node.copy()
+                        node_copy = copy.deepcopy(node)
                         node_copy.idx = next(self.node_idx)
                         copies[node] = node_copy
 
+                    # modify Jump.target_idx accordingly
                     graph.add_edge(pred, node_copy)
+                    try:
+                        last_stmt = ConditionProcessor.get_last_statement(pred)
+                        if isinstance(last_stmt, Jump) and isinstance(last_stmt.target, Const):
+                            if last_stmt.target.value == node_copy.addr:
+                                last_stmt.target_idx = node_copy.idx
+                    except EmptyBlockNotice:
+                        pass
 
                     for succ in region.successors(node):
                         queue.append((node_copy, succ))

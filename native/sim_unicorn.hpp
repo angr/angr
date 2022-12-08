@@ -132,6 +132,7 @@ namespace std {
 struct memory_value_t {
 	uint64_t address;
 	uint8_t value;
+	bool is_value_set;
 	bool is_value_symbolic;
 
 	bool operator==(const memory_value_t &other_mem_value) const {
@@ -145,16 +146,19 @@ struct memory_value_t {
 	memory_value_t() {
 		address = 0;
 		value = 0;
+		is_value_set = false;
 		is_value_symbolic = false;
 	}
 };
 
 struct mem_read_result_t {
+	address_t first_byte_addr;
 	std::vector<memory_value_t> memory_values;
 	bool is_mem_read_symbolic;
 	uint32_t read_size;
 
 	mem_read_result_t() {
+		first_byte_addr = 0;
 		memory_values.clear();
 		is_mem_read_symbolic = false;
 		read_size = 0;
@@ -367,6 +371,9 @@ struct vex_stmt_taint_entry_t {
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
 
+	// Indicates if statement has a floating point operation for which taint should not be propagated
+	bool floating_point_op_skip;
+
 	// Count number of bytes read from memory by the instruction
 	uint32_t mem_read_size;
 
@@ -382,7 +389,7 @@ struct vex_stmt_taint_entry_t {
 		return (sink == other_stmt.sink) && (sources == other_stmt.sources) &&
 			   (ite_cond_entity_list == other_stmt.ite_cond_entity_list) &&
 			   (has_memory_read == other_stmt.has_memory_read) &&
-			   (is_exit == other_stmt.is_exit) &&
+			   (is_exit == other_stmt.is_exit) && (floating_point_op_skip == other_stmt.floating_point_op_skip) &&
 			   (mem_read_size == other_stmt.mem_read_size) &&
 			   (mem_write_size == other_stmt.mem_write_size);
 	}
@@ -395,6 +402,7 @@ struct vex_stmt_taint_entry_t {
 		sink.reset();
 		sources.clear();
 		ite_cond_entity_list.clear();
+		floating_point_op_skip = false;
 		has_memory_read = false;
 		is_exit = false;
 		mem_read_size = 0;
@@ -439,6 +447,7 @@ struct stop_details_t {
 struct processed_vex_expr_t {
 	std::unordered_set<taint_entity_t> taint_sources;
 	std::unordered_set<taint_entity_t> ite_cond_entities;
+	bool has_floating_point_op_to_skip;
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
 	uint32_t mem_read_size;
@@ -451,6 +460,7 @@ struct processed_vex_expr_t {
 	void reset() {
 		taint_sources.clear();
 		ite_cond_entities.clear();
+		has_floating_point_op_to_skip = false;
 		has_unsupported_expr = false;
 		mem_read_size = 0;
 		value_size = -1;
@@ -608,6 +618,15 @@ class State {
 	// Symbolic memory dependencies of all symbolic VEX statements in current block.
 	std::unordered_set<address_t> block_symbolic_mem_deps;
 
+	// List of all values read from memory in current block
+	std::vector<memory_value_t> block_mem_reads_data;
+
+	// Result of all memory reads executed. VEX statement ID -> memory read result
+	std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
+
+	// List of memory read addresses and VEX statements that read values from them
+	std::unordered_map<address_t, std::unordered_set<int64_t>> block_mem_read_addr_details;
+
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
@@ -654,6 +673,9 @@ class State {
 
 	// Save values of concrete memory reads performed by an instruction and it's dependencies
 	void save_concrete_memory_deps(vex_stmt_details_t &instr);
+
+	// Save memory values of concrete deps
+	void save_mem_values(mem_read_result_t &mem_read_result);
 
 	// Inline functions
 
@@ -758,12 +780,6 @@ class State {
 		std::unordered_map<vex_reg_offset_t, std::pair<uint64_t, uint64_t>> cpu_flags;
 		stop_details_t stop_details;
 
-		// List of all values read from memory in current block
-		std::vector<memory_value_t> block_mem_reads_data;
-
-		// Result of all memory reads executed. VEX statement ID -> memory read result
-		std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
-
 		// Address of all bytes to which symbolic value is written in this run and number of writes to them
 		std::unordered_map<address_t, uint64_t> symbolic_mem_writes;
 
@@ -784,6 +800,12 @@ class State {
 		bool track_stack;
 
 		uc_cb_eventmem_t py_mem_callback;
+
+		// List of floating point operations
+		std::unordered_set<uint64_t> fp_ops_to_avoid;
+
+		// Floating point registers
+		std::pair<uint64_t, uint64_t> fp_reg_vex_data;
 
 		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond, bool symb_syscalls);
 

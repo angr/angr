@@ -9,7 +9,7 @@ from ailment.expression import StackBaseOffset, BinaryOp
 
 from ....sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
                           SimTypeBottom, SimTypeArray, SimTypeFunction, SimTypeFloat, SimTypeDouble, TypeRef,
-                          SimTypeNum, SimTypeFixedSizeArray, SimTypeLength)
+                          SimTypeNum, SimTypeFixedSizeArray, SimTypeLength, SimTypeReg)
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
@@ -18,11 +18,13 @@ from ....errors import UnsupportedNodeTypeError
 from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
 from ..region_identifier import MultiNode
-from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
-                         SwitchCaseNode, ContinueNode, CascadingConditionNode)
+from ..structuring.structurer_nodes import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode,
+                                            BreakNode, SwitchCaseNode, ContinueNode, CascadingConditionNode)
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
+    import archinfo
+    import angr
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.knowledge_plugins.functions import Function
 
@@ -104,6 +106,25 @@ def extract_terms(expr: 'CExpression') -> Tuple[int, List[Tuple[int, 'CExpressio
         return 0, [(1, expr)]
     else:
         return 0, [(1, expr)]
+
+
+def is_machine_word_size_type(type_: SimType, arch: 'archinfo.Arch') -> bool:
+    return isinstance(type_, SimTypeReg) and type_.size == arch.bits
+
+
+def guess_value_type(value: int, project: 'angr.Project') -> Optional[SimType]:
+    if project.kb.functions.contains_addr(value):
+        # might be a function pointer
+        return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+    if value > 4096:
+        sec = project.loader.find_section_containing(value)
+        if sec is not None and sec.is_readable:
+            return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+        seg = project.loader.find_segment_containing(value)
+        if seg is not None and seg.is_readable:
+            return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+    return None
+
 
 #
 #   C Representation Classes
@@ -320,46 +341,41 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             else:
                 name = str(variable)
 
-            vartypes = set(x[1] for x in cvar_and_vartypes)
+            # sort by number of occurrences
+            vartypes = [x[1] for x in cvar_and_vartypes]
+            vartypes = list(dict.fromkeys(sorted(vartypes, key=vartypes.count, reverse=True)))
 
-            if len(vartypes) == 1:
-                # a single type. let's be as C as possible
-                var_type = next(iter(vartypes), None)
-                if isinstance(var_type, SimType):
-                    raw_type_str = var_type.c_repr(name=name)
+            for i, var_type in enumerate(vartypes):
+                if i == 0:
+                    if isinstance(var_type, SimType):
+                        raw_type_str = var_type.c_repr(name=name)
+                    else:
+                        raw_type_str = '%s %s' % (var_type, name)
+
+                    assert name in raw_type_str
+                    type_pre, type_post = raw_type_str.split(name, 1)
+                    if type_pre.endswith(" "):
+                        type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
+                        type_pre = type_pre.rstrip(" ")
+                    else:
+                        type_pre_spaces = ""
+                    yield type_pre, var_type
+                    if type_pre_spaces:
+                        yield type_pre_spaces, None
+                    yield name, cvariable
+                    yield type_post, var_type
+                    yield ";  // ", None
+                    yield variable.loc_repr(self.codegen.project.arch), None
+                # multiple types
                 else:
-                    raw_type_str = '%s %s' % (var_type, name)
-
-                assert name in raw_type_str
-                type_pre, type_post = raw_type_str.split(name, 1)
-                if type_pre.endswith(" "):
-                    type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
-                    type_pre = type_pre.rstrip(" ")
-                else:
-                    type_pre_spaces = ""
-                yield type_pre, var_type
-                if type_pre_spaces:
-                    yield type_pre_spaces, None
-                yield name, cvariable
-                yield type_post, var_type
-            else:
-                # multiple types...
-                for i, var_type in enumerate(vartypes):
-                    if i:
-                        yield "|", None
-
+                    if i == 1:
+                        yield ", Other Possible Types: ", None
+                    else:
+                        yield ", ", None
                     if isinstance(var_type, SimType):
                         yield var_type.c_repr(), var_type
                     else:
                         yield str(var_type), var_type
-
-                yield " ", None
-                yield name, cvariable
-            yield ";", None
-
-            loc_repr = variable.loc_repr(self.codegen.project.arch)
-            yield "  // ", None
-            yield loc_repr, None
             yield "\n", None
 
         if unified_to_var_and_types:
@@ -370,7 +386,17 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         indent_str = self.indent_str(indent)
 
         if self.codegen.show_local_types:
-            for ty in self.variable_manager.types.iter_own():
+            local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
+            for ty in local_types:
+                if isinstance(ty, SimStruct):
+                    for field in ty.fields.values():
+                        if isinstance(field, SimTypePointer):
+                            if isinstance(field.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                                field = field.pts_to.elem_type
+                            else:
+                                field = field.pts_to
+                        if isinstance(field, SimStruct) and field not in local_types:
+                            local_types.append(field)
                 c_repr = ty.c_repr(full=True)
                 c_repr = f'typedef {c_repr} {ty._name}'
                 first = True
@@ -583,12 +609,15 @@ class CWhileLoop(CLoop):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
-        yield "\n", None
+        if self.body is None:
+            yield ";", None
+        else:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+            yield "\n", None
 
 
 class CDoWhileLoop(CLoop):
@@ -619,11 +648,16 @@ class CDoWhileLoop(CLoop):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
+        if self.body is not None:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+        else:
+            yield "{", brace
+            yield " ", None
+            yield "}", brace
         if self.codegen.braces_on_own_lines:
             yield "\n", None
             yield indent_str, None
@@ -679,11 +713,14 @@ class CForLoop(CStatement):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
+        if self.body is not None:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+        else:
+            yield ";", None
         yield '\n', None
 
 
@@ -1915,7 +1952,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = MakeTypecastsImplicit.handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
-        self.cexterns = {self._variable(v, 64) for v in self.externs if v not in self._inlined_strings}
+        self.cexterns = {self._variable(v, 1) for v in self.externs if v not in self._inlined_strings}
 
         self.regenerate_text()
 
@@ -2344,12 +2381,21 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 continue
 
             if isinstance(kernel_type, (SimTypeArray, SimTypeFixedSizeArray)):
-                kernel = CUnaryOp(
-                    "Reference",
-                    self._access_constant_offset(kernel, 0, kernel_type.elem_type, True, renegotiate_type),
-                    codegen=self
-                )
-                continue
+                inner = self._access_constant_offset(kernel, 0, kernel_type.elem_type, True, renegotiate_type)
+                if isinstance(inner, CUnaryOp) and inner.op == "Dereference":
+                    # unpack
+                    kernel = inner.operand
+                else:
+                    kernel = CUnaryOp(
+                        "Reference",
+                        inner,
+                        codegen=self
+                    )
+                if unpack_typeref(unpack_pointer(kernel.type)) == kernel_type:
+                    # we are not making progress
+                    pass
+                else:
+                    continue
 
             l.warning("There's a variable offset with stride shorter than the primitive type. What does this mean?")
             return bail_out()
@@ -2397,13 +2443,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if loop_node.sort == 'while':
             return CWhileLoop(None if loop_node.condition is None else self._handle(loop_node.condition),
-                              self._handle(loop_node.sequence_node, is_expr=False),
+                              None if loop_node.sequence_node is None else
+                                self._handle(loop_node.sequence_node, is_expr=False),
                               tags=tags,
                               codegen=self,
                               )
         elif loop_node.sort == 'do-while':
             return CDoWhileLoop(self._handle(loop_node.condition),
-                                self._handle(loop_node.sequence_node, is_expr=False),
+                                None if loop_node.sequence_node is None else
+                                    self._handle(loop_node.sequence_node, is_expr=False),
                                 tags=tags,
                                 codegen=self,
                                 )
@@ -2411,7 +2459,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return CForLoop(None if loop_node.initializer is None else self._handle(loop_node.initializer),
                             None if loop_node.condition is None else self._handle(loop_node.condition),
                             None if loop_node.iterator is None else self._handle(loop_node.iterator),
-                            self._handle(loop_node.sequence_node, is_expr=False),
+                            None if loop_node.sequence_node is None else
+                                self._handle(loop_node.sequence_node, is_expr=False),
                             tags=tags,
                             codegen=self,
                             )
@@ -2576,6 +2625,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
+                    if type_ is None or is_machine_word_size_type(type_, self.project.arch):
+                        type_ = guess_value_type(arg.value, self.project) or type_
+
                     new_arg = self._handle_Expr_Const(arg, type_=type_)
                 else:
                     new_arg = self._handle(arg)

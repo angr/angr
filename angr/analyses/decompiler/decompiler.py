@@ -1,7 +1,7 @@
 # pylint:disable=unused-import
 import logging
 from collections import defaultdict
-from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, TYPE_CHECKING
+from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any
 
 from cle import SymbolType
 import ailment
@@ -10,6 +10,7 @@ from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
 from ...utils import timethis
 from .. import Analysis, AnalysesHub
+from .structuring import RecursiveStructurer, DreamStructurer, PhoenixStructurer
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .optimization_passes import get_default_optimization_passes
@@ -147,9 +148,17 @@ class Decompiler(Analysis):
 
         cond_proc = ConditionProcessor(self.project.arch)
 
+        # determine force_loop_single_exit according to the structuring algorithm
+        self._force_loop_single_exit = True
+        self._recursive_structurer_params = self.options_to_params(self.options_by_class['recursive_structurer'])
+        if "structurer_cls" not in self._recursive_structurer_params:
+            self._recursive_structurer_params["structurer_cls"] = DreamStructurer
+        if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
+            self._force_loop_single_exit = False
+
         # recover regions
         ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
-            self.func, graph=clinic.graph, cond_proc=cond_proc,
+            self.func, graph=clinic.graph, cond_proc=cond_proc, force_loop_single_exit=self._force_loop_single_exit,
             **self.options_to_params(self.options_by_class['region_identifier']))
         # run optimizations that may require re-RegionIdentification
         self.clinic.graph, ri = self._run_region_simplification_passes(clinic.graph, ri, clinic.reaching_definitions,
@@ -157,7 +166,12 @@ class Decompiler(Analysis):
         self._update_progress(75., text='Structuring code')
 
         # structure it
-        rs = self.project.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=self.kb, func=self.func)
+        rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
+            ri.region,
+            cond_proc=cond_proc,
+            func=self.func,
+            **self._recursive_structurer_params,
+        )
         self._update_progress(80., text='Simplifying regions')
 
         # simplify it
@@ -229,6 +243,7 @@ class Decompiler(Analysis):
                 # always update RI on graph change
                 ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
                     self.func, graph=ail_graph, cond_proc=cond_proc,
+                    force_loop_single_exit=self._force_loop_single_exit,
                     **self.options_to_params(self.options_by_class['region_identifier']))
 
         return ail_graph, ri
@@ -307,18 +322,20 @@ class Decompiler(Analysis):
         return codegen
 
     @staticmethod
-    def options_to_params(options):
+    def options_to_params(options: List[Tuple[DecompilationOption,Any]]) -> Dict[str,Any]:
         """
         Convert decompilation options to a dict of params.
 
-        :param List[Tuple[DecompilationOption, Any]] options:   The decompilation options.
-        :return:                                                A dict of keyword arguments.
-        :rtype:                                                 dict
+        :param options:   The decompilation options.
+        :return:          A dict of keyword arguments.
         """
 
         d = { }
         for option, value in options:
-            d[option.param] = value
+            if option.convert is not None:
+                d[option.param] = option.convert(value)
+            else:
+                d[option.param] = value
         return d
 
 
