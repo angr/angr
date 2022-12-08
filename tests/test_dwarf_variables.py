@@ -76,7 +76,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             global_struct.member("struct_ll").mem.concrete,
             global_struct.member("struct_char").mem.concrete,
             global_struct.member("struct_strref").string.concrete,
-            #global_struct.member("struct_pointer").mem.concrete,   #FIXME Fail
+            global_struct.member("struct_pointer").mem.concrete,
             computed_struct_array,
             # struct_float is tested below,
             # struct_double is tested below,
@@ -88,7 +88,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             256,
             b'a',
             b'hello',
-            #self.s.nvariables["dummy"].addr,   # remove when the FIXME above is fixed
+            self.s.nvariables["dummy"].addr,
             [9, 8, 7],
             # 1.141,
             # 1.141,
