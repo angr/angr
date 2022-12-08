@@ -107,6 +107,17 @@ class MemoryObjectMixin(CooperationBase):
                                                    label=label)
         size = yield
         while True:
+            if data.symbolic and data.op == 'Concat' and data.size() > size * 8:
+                offset = cur_addr - addr
+                # Generate new memory object with only size bytes to speed up extracting bytes
+                cur_data = data.args[offset].concat(*data.args[offset + 1:offset + size])
+                if label is None:
+                    memory_object = SimMemoryObject(cur_data, cur_addr, endness,
+                                                    byte_width=memory.state.arch.byte_width if memory is not None else 8)
+                else:
+                    memory_object = SimLabeledMemoryObject(cur_data, cur_addr, endness,
+                                                           byte_width=memory.state.arch.byte_width if memory is not None else 8,
+                                                           label=label)
             cur_addr += size
             size = yield memory_object, memory_object.base, memory_object.length
 
