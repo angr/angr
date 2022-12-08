@@ -193,13 +193,80 @@ class Instruction(DisassemblyPiece):
         self.disect_instruction()
 
     def disect_instruction(self):
+        self.operands = []
+        self.opcode = Opcode(self)
+
+        if self.arch.name == 'AARCH64':
+            self.disect_operands_on_aarch64()
+        else:
+            self.disect_operands_on_default()
+
+
+    def disect_operands_on_aarch64(self):
+        # TODO check:
+        # - mrs
+        # - msr # currently no examply
+        # []
+        ARM64_B_CONDs = ['eq', 'ne', 'hs', 'lo', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le']
+        
+        opr_str = self.insn.op_str
+        # NOTE: should be corresponding to capstone's operand
+        pieces = self.split_op_string_aarch64(opr_str)
+        if not pieces:
+            return
+
+        for i, p in enumerate(pieces):
+            cur_operand = []
+            if p.isidentifier() and p in self.arch.registers:
+                cur_operand.append(Register(p))
+            else:
+                # TODO: divide into smaller disassembly pieces when possible
+                for i in self.split_op_string(p):
+                    cur_operand.append(i)
+            self.operands.append(cur_operand)
+
+        if not hasattr(self.insn, 'operands') or len(self.insn.operands) == 0:
+            # use our smart split when disassembler's operands not available
+            for i, opr in enumerate(self.operands):
+                self.operands[i] = Operand.build(1, i, opr, self)
+            return
+
+        for i, opr in enumerate(self.operands):
+            if i < len(self.insn.operands):
+                op_type = self.insn.operands[i].type
+            else:
+                op_type = 1 # TODO maybe 0 is better?
+            self.operands[i] = Operand.build(
+                op_type,
+                i,
+                opr,
+                self
+            )
+
+        if len(self.operands) - 1 == len(self.insn.operands):
+            extra_opr = self.operands[-1].children[0]
+            if extra_opr in ARM64_B_CONDs:
+                self.operands[-1] = Operand.build(1, 0, extra_opr, self)
+                return
+
+        if len(self.operands) != len(self.insn.operands):
+            l.error(
+                "Operand parsing failed for instruction %s. "
+                "%d operands are parsed, while %d are expected.",
+                str(self.insn),
+                len(self.operands),
+                len(self.insn.operands)
+            )
+            self.operands = []
+
+
+    def disect_operands_on_default(self):
         # perform a "smart split" of an operands string into smaller pieces
         insn_pieces = self.split_op_string(self.insn.op_str)
-        self.operands = []
-        cur_operand = None
         i = len(insn_pieces) - 1
         cs_op_num = -1
         nested_mem = False
+        cur_operand = None
 
         # iterate over operands in reverse order
         while i >= 0:
@@ -214,11 +281,9 @@ class Instruction(DisassemblyPiece):
 
             # Check if this is a number or an identifier.
             ordc = ord(c[0])
-            # pylint:disable=too-many-boolean-expressions
-            if (ordc >= 0x30 and ordc <= 0x39) or \
-               (ordc >= 0x41 and ordc <= 0x5a) or \
-               (ordc >= 0x61 and ordc <= 0x7a):
-
+            if (0x30 <= ordc <= 0x39) or \
+            (0x41 <= ordc <= 0x5a) or \
+            (0x61 <= ordc <= 0x7a):
                 # perform some basic classification
                 intc = None
                 reg = False
@@ -273,7 +338,6 @@ class Instruction(DisassemblyPiece):
 
             i -= 1
 
-        self.opcode = Opcode(self)
         self.operands.reverse()
 
         if not hasattr(self.insn, 'operands'):
@@ -284,11 +348,12 @@ class Instruction(DisassemblyPiece):
             return
 
         if len(self.operands) != len(self.insn.operands):
-            l.error("Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
-                    str(self.insn),
-                    len(self.operands),
-                    len(self.insn.operands)
-                    )
+            l.error(
+                "Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
+                str(self.insn),
+                len(self.operands),
+                len(self.insn.operands)
+            )
             self.operands = [ ]
             return
 
@@ -301,19 +366,16 @@ class Instruction(DisassemblyPiece):
                 self
             )
 
+
     @staticmethod
     def split_op_string(insn_str):
         pieces = []
         in_word = False
         for c in insn_str:
-            ordc = ord(c)
-            if ordc == 0x20:
+            if c.isspace():
                 in_word = False
                 continue
-            # pylint:disable=too-many-boolean-expressions
-            if (ordc >= 0x30 and ordc <= 0x39) or \
-               (ordc >= 0x41 and ordc <= 0x5a) or \
-               (ordc >= 0x61 and ordc <= 0x7a):
+            if c.isidentifier() or c.isnumeric():
                 if in_word:
                     pieces[-1] += c
                 else:
@@ -324,6 +386,53 @@ class Instruction(DisassemblyPiece):
                 pieces.append(c)
 
         return pieces
+
+
+    @staticmethod
+    def split_op_string_aarch64(insn_str: str):
+        pieces = insn_str.split(', ')
+        # handle nested
+        i = 0
+        s0 = []
+        nested = False
+        while i < len(pieces):
+            p = pieces[i]
+            if p.startswith('['):
+                nested = True
+                s0.append('')
+            if p.endswith(']') or p.endswith(']!'):
+                s0[-1] += ',' + p
+                i += 1
+                nested = False
+                continue
+            if nested:
+                    s0[-1] += p
+            else:
+                s0.append(p)
+            i += 1
+
+        # handle ','
+        s1 = []
+        for s in s0:
+            if '[' in s:
+                s1.append(s)
+            else:
+                s1.extend(s.split(', '))
+
+        # handle extended exprs
+        s2 = []
+        for s in s1:
+            if '[' in s:
+                s2.append(s)
+                continue
+            if s.find('#') < 1:
+                s2.append(s)
+                continue
+            # found exprs like `lsl #16`
+            s2[-1] += ',' + s
+
+        return s2
+
 
     def _render(self, formatting=None):
         return ['%s %s' % (self.opcode.render(formatting)[0], ', '.join(o.render(formatting)[0] for o in self.operands))]
@@ -535,11 +644,12 @@ class Operand(DisassemblyPiece):
             1: RegisterOperand,
             2: ConstantOperand,
             3: MemoryOperand,
-            4: Operand,  # ARM FP
+            4: Operand,   # ARM FP
             64: Operand,  # ARM CIMM
-            65: Operand,  # ARM PIMM
-            66: Operand,  # ARM SETEND
-            67: Operand,  # ARM SYSREG
+            65: Operand,  # ARM PIMM   | ARM64 REG_MRS
+            66: Operand,  # ARM SETEND | ARM64 REG_MSR
+            67: Operand,  # ARM SYSREG | ARM64 PSTATE
+            68: Operand,  # ARM64 SYS
         }
 
         cls = MAPPING.get(operand_type, None)
@@ -652,7 +762,7 @@ class MemoryOperand(Operand):
         if self.children[-1] != ']':
             raise ValueError()
 
-        self.values = self.children[square_bracket_pos + 1: len(self.children) - 1]
+        self.values = self.children[square_bracket_pos + 1:]
 
     def _parse_memop_paren(self):
         offset = [ ]
@@ -751,7 +861,7 @@ class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
 
 
 class Register(OperandPiece):
-    def __init__(self, reg, prefix):
+    def __init__(self, reg, prefix=''):
         self.reg = reg
         self.prefix = prefix
         self.is_ip = self.reg in {"eip", "rip"}  # TODO: Support more architectures
