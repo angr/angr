@@ -1,5 +1,6 @@
-import claripy
 from typing import List, Tuple, Set, Dict, Union, Optional, Any
+
+import claripy
 
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .multi_values import MultiValues
@@ -15,7 +16,6 @@ class CooperationBase:
         """
         Provide this a list of the result of several load calls, and it will compose them into a single result.
         """
-        pass
 
     @classmethod
     def _decompose_objects(cls, addr, data, endness, **kwargs) -> Tuple[Any,int,int]:
@@ -24,14 +24,12 @@ class CooperationBase:
         and it yields a tuple of three elements: the object to store for the next n bytes, the base address of the
         object, and the size of the object.
         """
-        pass
 
     @classmethod
     def _zero_objects(cls, addr, size, **kwargs):
         """
         Like decompose objects, but with a size to zero-fill instead of explicit data
         """
-        pass
 
     @classmethod
     def _force_store_cooperation(cls, addr, data, size, endness, **kwargs):
@@ -98,25 +96,21 @@ class MemoryObjectMixin(CooperationBase):
     def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, label=None, **kwargs):
         # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
         cur_addr = addr + page_addr
+        byte_width=memory.state.arch.byte_width if memory is not None else 8
         if label is None:
-            memory_object = SimMemoryObject(data, cur_addr, endness,
-                                            byte_width=memory.state.arch.byte_width if memory is not None else 8)
+            memory_object = SimMemoryObject(data, cur_addr, endness, byte_width=byte_width)
         else:
-            memory_object = SimLabeledMemoryObject(data, cur_addr, endness,
-                                                   byte_width=memory.state.arch.byte_width if memory is not None else 8,
-                                                   label=label)
+            memory_object = SimLabeledMemoryObject(data, cur_addr, endness, byte_width=byte_width, label=label)
         size = yield
         while True:
             if data.symbolic and data.op == 'Concat' and data.size() > size * 8:
-                offset = cur_addr - addr
+                start_offset = cur_addr - addr
                 # Generate new memory object with only size bytes to speed up extracting bytes
-                cur_data = data.args[offset].concat(*data.args[offset + 1:offset + size])
+                cur_data = data.args[start_offset].concat(*data.args[start_offset + 1:start_offset + size])
                 if label is None:
-                    memory_object = SimMemoryObject(cur_data, cur_addr, endness,
-                                                    byte_width=memory.state.arch.byte_width if memory is not None else 8)
+                    memory_object = SimMemoryObject(cur_data, cur_addr, endness, byte_width=byte_width)
                 else:
-                    memory_object = SimLabeledMemoryObject(cur_data, cur_addr, endness,
-                                                           byte_width=memory.state.arch.byte_width if memory is not None else 8,
+                    memory_object = SimLabeledMemoryObject(cur_data, cur_addr, endness, byte_width=byte_width,
                                                            label=label)
             cur_addr += size
             size = yield memory_object, memory_object.base, memory_object.length
