@@ -41,7 +41,7 @@ class SimVariable:
     def mem(self) -> "SimMemView":
         if self.addr is None:
             raise Exception("Cannot view a variable without an address")
-        if type(self.type) == TypedefType:
+        if isinstance(self.type, TypedefType):
             unpacked = SimVariable(self.state, self.addr, self.type.type)
             return unpacked.mem
 
@@ -64,20 +64,21 @@ class SimVariable:
         return first_char.mem.string
 
     def __getitem__(self, i):
-        if type(i) == int:
+        if isinstance(i, int):
             return self.array(i)
-        if type(i) == str:
+        elif isinstance(i, str):
             return self.member(i)
+        raise KeyError
 
     def array(self, i) -> "SimVariable":
-        if type(self.type) == TypedefType:
+        if isinstance(self.type, TypedefType):
             unpacked = SimVariable(self.state, self.addr, self.type.type)
             return unpacked.array(i)
-        elif type(self.type) == ArrayType:
+        elif isinstance(self.type, ArrayType):
             # an array already addresses its first element
             addr = self.addr
             el_type = self.type.element_type
-        elif type(self.type) == PointerType:
+        elif isinstance(self.type, PointerType):
             if self.addr is None:
                 addr = None
             else:
@@ -93,10 +94,10 @@ class SimVariable:
         return SimVariable(self.state, new_addr, el_type)
 
     def member(self, member_name: str) -> "SimVariable":
-        if type(self.type) == TypedefType:
+        if isinstance(self.type, TypedefType):
             unpacked = SimVariable(self.state, self.addr, self.type.type)
             return unpacked.member(member_name)
-        elif type(self.type) == StructType:
+        elif isinstance(self.type, StructType):
             member = self.type[member_name]
             if self.addr is None:
                 addr = None
