@@ -80,6 +80,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             computed_struct_array,
             # struct_float is tested below,
             # struct_double is tested below,
+            global_struct.member("struct_my_type").mem.concrete,
         ]
 
         expected_result = [
@@ -92,6 +93,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             [9, 8, 7],
             # 1.141,
             # 1.141,
+            16,
         ]
 
         self.assertEqual(computed_result, expected_result,
@@ -157,7 +159,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         addr = {
                 addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)
         }.pop()
-        simgr.explore(find = addr)
+        simgr.explore(find=addr)
         s = simgr.found[0]
         computed_value = s.nvariables["static_var"].mem.concrete
         self.assertEqual(computed_value, 0)
@@ -169,7 +171,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         addr = {
                 addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)
         }.pop()
-        simgr.explore(find = addr)
+        simgr.explore(find=addr)
         s = simgr.found[0]
         computed_value = s.nvariables["local_in_loop"].mem.concrete
         self.assertEqual(computed_value, 9)
@@ -181,7 +183,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         addr = {
                 addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)
         }.pop()
-        simgr.explore(find = addr)
+        simgr.explore(find=addr)
         s = simgr.found[0]
         computed_value = s.nvariables["local_in_if"].mem.concrete
         self.assertEqual(computed_value, 52)
@@ -189,11 +191,11 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
     def test_resolve_local_struct(self):
         simgr = self.p.factory.simgr()
         filename = "/home/lukas/Software/angr-dev/binaries/tests_src/various_variables.c"
-        line = 139
+        line = 144
         addr = {
                 addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)
         }.pop()
-        simgr.explore(find = addr)
+        simgr.explore(find=addr)
         s = simgr.found[0]
         local_struct = s.nvariables["local_struct"]
 
@@ -212,6 +214,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             computed_struct_array,
             # struct_float is tested below,
             # struct_double is tested below,
+            local_struct.member("struct_my_type").mem.concrete,
         ]
 
         expected_result = [
@@ -224,6 +227,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             [9, 8, 7],
             # 1.141,
             # 1.141,
+            16,
         ]
 
         self.assertEqual(computed_result, expected_result,
@@ -237,4 +241,3 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
 
 if __name__ == '__main__':
     main()
-

@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 import logging
 
 from cle.backends.elf.variable import Variable
-from cle.backends.elf.variable_type import VariableType, BaseType, PointerType, ArrayType, StructType
+from cle.backends.elf.variable_type import VariableType, BaseType, PointerType, ArrayType, StructType, TypedefType
 
 from angr.sim_state import SimState
 from angr.sim_type import ALL_TYPES, SimTypeReg
@@ -41,6 +41,10 @@ class SimVariable:
     def mem(self) -> "SimMemView":
         if self.addr is None:
             raise Exception("Cannot view a variable without an address")
+        if type(self.type) == TypedefType:
+            unpacked = SimVariable(self.state, self.addr, self.type.type)
+            return unpacked.mem
+
         arch = self.state.arch
         size = self.type.byte_size * arch.byte_width
         name = self.type.name
@@ -66,7 +70,10 @@ class SimVariable:
             return self.member(i)
 
     def array(self, i) -> "SimVariable":
-        if type(self.type) == ArrayType:
+        if type(self.type) == TypedefType:
+            unpacked = SimVariable(self.state, self.addr, self.type.type)
+            return unpacked.array(i)
+        elif type(self.type) == ArrayType:
             # an array already addresses its first element
             addr = self.addr
             el_type = self.type.element_type
@@ -86,7 +93,10 @@ class SimVariable:
         return SimVariable(self.state, new_addr, el_type)
 
     def member(self, member_name: str) -> "SimVariable":
-        if type(self.type) == StructType:
+        if type(self.type) == TypedefType:
+            unpacked = SimVariable(self.state, self.addr, self.type.type)
+            return unpacked.member(member_name)
+        elif type(self.type) == StructType:
             member = self.type[member_name]
             if self.addr is None:
                 addr = None
