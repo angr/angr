@@ -215,9 +215,19 @@ class Instruction(DisassemblyPiece):
             cur_operand = []
             if p.isidentifier() and p in self.arch.registers:
                 cur_operand.append(Register(p))
-            else:
-                for i in self.split_op_string(p):
-                    cur_operand.append(i)
+            else:               
+                for s in self.split_op_string(p):
+                    if '0' <= s[0] <= '9':
+                        # In AARCH64 there must be an '#' before an immediate
+                        v = int(s, 0)
+                        with_sign = False
+                        if cur_operand[-1] in ('+', '-'):
+                            v = -v
+                            with_sign = True
+                            cur_operand.pop() # remove the sign
+                        cur_operand.append(Value(v, with_sign))
+                    else:
+                        cur_operand.append(s)
             self.operands.append(cur_operand)
 
         if not hasattr(self.insn, 'operands') or len(self.insn.operands) == 0:
@@ -879,7 +889,7 @@ class Register(OperandPiece):
 
 
 class Value(OperandPiece):
-    def __init__(self, val, render_with_sign):
+    def __init__(self, val, render_with_sign=False):
         self.val = val
         self.render_with_sign = render_with_sign
 
