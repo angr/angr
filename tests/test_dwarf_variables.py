@@ -16,7 +16,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             os.path.join(TESTS_BASE, 'tests', 'x86_64', 'various_variables'),
             load_debug_info=True
         )
-        self.p.kb.nvariables.load_from_dwarf()
+        self.p.kb.dvars.load_from_dwarf()
         simgr = self.p.factory.simgr()
         main_addr = self.p.loader.find_symbol("main").rebased_addr
         simgr.explore(find=main_addr)
@@ -26,7 +26,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
     # tests for global variables
 
     def test_resolve_a(self):
-        a = self.s.nvariables["a"]
+        a = self.s.dvars["a"]
         computed_result = []
         for i in range(9):
             computed_result.append(a.array(i).mem.concrete)
@@ -35,35 +35,35 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
                          "global variable \"a\" array values is computed wrong")
 
     def test_resolve_pointer(self):
-        pointer = self.s.nvariables["pointer"]
+        pointer = self.s.dvars["pointer"]
         computed_result = pointer.deref.mem.concrete
         expected_result = 0
         self.assertEqual(computed_result, expected_result,
                          "global variable \"pointer\" dereferences value is computed wrong")
 
     def test_resolve_pointer2(self):
-        pointer2 = self.s.nvariables["pointer2"]
+        pointer2 = self.s.dvars["pointer2"]
         computed_result = pointer2.deref.mem.concrete
         expected_result = 1
         self.assertEqual(computed_result, expected_result,
                          "global variable \"pointer2\" dereferences value is computed wrong")
 
     def test_resolve_global_var(self):
-        global_var = self.s.nvariables["global_var"]
+        global_var = self.s.dvars["global_var"]
         computed_result = global_var.mem.concrete
         expected_result = 7
         self.assertEqual(computed_result, expected_result,
                          "global variable \"global_var\" value is computed wrong")
 
     def test_resolve_extern_var(self):
-        extern_var = self.s.nvariables["extern_var"]
+        extern_var = self.s.dvars["extern_var"]
         computed_result = extern_var.mem.concrete
         expected_result = 42
         self.assertEqual(computed_result, expected_result,
                          "global variable \"extern_var\" value is computed wrong")
 
     def test_resolve_global_struct(self):
-        global_struct = self.s.nvariables["global_struct"]
+        global_struct = self.s.dvars["global_struct"]
 
         computed_struct_array = []
         a = global_struct.member("struct_array")
@@ -89,7 +89,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             256,
             b'a',
             b'hello',
-            self.s.nvariables["dummy"].addr,
+            self.s.dvars["dummy"].addr,
             [9, 8, 7],
             # 1.141,
             # 1.141,
@@ -116,7 +116,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         s = simgr.active[0]
         result = []
         for i in range(9):
-            result.append(s.nvariables["global_var"].mem.concrete)
+            result.append(s.dvars["global_var"].mem.concrete)
             simgr.step()
             s = simgr.active[0]
         ref = [7, 8, 10, 13, 17, 22, 28, 35, 43]
@@ -129,7 +129,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         simgr.move(from_stash='found', to_stash='active')
         simgr.step()
         s = simgr.active[0]
-        local_var = s.nvariables["local_var"].mem.concrete
+        local_var = s.dvars["local_var"].mem.concrete
         ref = 0
         self.assertEqual(local_var, ref)
 
@@ -148,7 +148,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             }.pop()
             simgr.explore(find=addr)
             s = simgr.found[0]
-            computed_string = s.nvariables["string"].string.concrete
+            computed_string = s.dvars["string"].string.concrete
             self.assertEqual(expected_string, computed_string)
             simgr.move(from_stash='found', to_stash='active')
 
@@ -161,7 +161,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         }.pop()
         simgr.explore(find=addr)
         s = simgr.found[0]
-        computed_value = s.nvariables["static_var"].mem.concrete
+        computed_value = s.dvars["static_var"].mem.concrete
         self.assertEqual(computed_value, 0)
 
     def test_local_in_loop(self):
@@ -173,7 +173,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         }.pop()
         simgr.explore(find=addr)
         s = simgr.found[0]
-        computed_value = s.nvariables["local_in_loop"].mem.concrete
+        computed_value = s.dvars["local_in_loop"].mem.concrete
         self.assertEqual(computed_value, 9)
 
     def test_local_in_if(self):
@@ -185,7 +185,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         }.pop()
         simgr.explore(find=addr)
         s = simgr.found[0]
-        computed_value = s.nvariables["local_in_if"].mem.concrete
+        computed_value = s.dvars["local_in_if"].mem.concrete
         self.assertEqual(computed_value, 52)
 
     def test_resolve_local_struct(self):
@@ -197,7 +197,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
         }.pop()
         simgr.explore(find=addr)
         s = simgr.found[0]
-        local_struct = s.nvariables["local_struct"]
+        local_struct = s.dvars["local_struct"]
 
         computed_struct_array = []
         a = local_struct.member("struct_array")
@@ -223,7 +223,7 @@ class TestResolveGlobalVariableInStateFromName(TestCase):
             256,
             b'a',
             b'hello',
-            s.nvariables["local_pointer"].mem.concrete,
+            s.dvars["local_pointer"].mem.concrete,
             [9, 8, 7],
             # 1.141,
             # 1.141,
