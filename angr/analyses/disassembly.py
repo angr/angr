@@ -203,10 +203,6 @@ class Instruction(DisassemblyPiece):
 
 
     def disect_operands_on_aarch64(self):
-        # TODO check:
-        # - mrs
-        # - msr # currently no examply
-        # []
         ARM64_B_CONDs = ['eq', 'ne', 'hs', 'lo', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le']
         
         opr_str = self.insn.op_str
@@ -220,7 +216,6 @@ class Instruction(DisassemblyPiece):
             if p.isidentifier() and p in self.arch.registers:
                 cur_operand.append(Register(p))
             else:
-                # TODO: divide into smaller disassembly pieces when possible
                 for i in self.split_op_string(p):
                     cur_operand.append(i)
             self.operands.append(cur_operand)
@@ -235,7 +230,7 @@ class Instruction(DisassemblyPiece):
             if i < len(self.insn.operands):
                 op_type = self.insn.operands[i].type
             else:
-                op_type = 1 # TODO maybe 0 is better?
+                op_type = 0
             self.operands[i] = Operand.build(
                 op_type,
                 i,
@@ -406,7 +401,7 @@ class Instruction(DisassemblyPiece):
                 nested = False
                 continue
             if nested:
-                    s0[-1] += p
+                s0[-1] += p
             else:
                 s0.append(p)
             i += 1
@@ -641,6 +636,7 @@ class Operand(DisassemblyPiece):
 
         # Maps capstone operand types to operand classes
         MAPPING = {
+            0: Operand,   # default type
             1: RegisterOperand,
             2: ConstantOperand,
             3: MemoryOperand,
@@ -704,7 +700,9 @@ class MemoryOperand(Operand):
         # [ '[', Register, ']' ]
         # or
         # [ Value, '(', Regsiter, ')' ]
-
+        #
+        # for arm64, there could be a '!' after ']' for pre-indexed addressing
+        self.pre_indexed = False
         # it will be converted into more meaningful and Pythonic properties
 
         self.segment_selector = None
@@ -759,10 +757,15 @@ class MemoryOperand(Operand):
             self.prefix = [ ]
             self.segment_selector = None
 
+        values_end = len(self.children) - 1
         if self.children[-1] != ']':
-            raise ValueError()
+            if self.children[-1] == '!' and self.children[-2] == ']':
+                self.pre_indexed = True
+                values_end -= 1
+            else:
+                raise ValueError()
 
-        self.values = self.children[square_bracket_pos + 1:]
+        self.values = self.children[square_bracket_pos + 1:values_end]
 
     def _parse_memop_paren(self):
         offset = [ ]
@@ -849,8 +852,9 @@ class MemoryOperand(Operand):
 
             if segment_selector_str and prefix_str:
                 prefix_str += ' '
+            pre_index_suffix = '!' if self.pre_indexed else ''
 
-            return [ '%s%s%s' % (prefix_str, segment_selector_str, value_str) ]
+            return [ '%s%s%s%s' % (prefix_str, segment_selector_str, value_str, pre_index_suffix) ]
 
 
 class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
@@ -864,7 +868,7 @@ class Register(OperandPiece):
     def __init__(self, reg, prefix=''):
         self.reg = reg
         self.prefix = prefix
-        self.is_ip = self.reg in {"eip", "rip"}  # TODO: Support more architectures
+        self.is_ip = self.reg in {"eip", "rip", "pc"}  # TODO: Support more architectures
 
     def _render(self, formatting):
         # TODO: register renaming
