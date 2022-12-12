@@ -3,10 +3,38 @@ from unittest import TestCase, main
 
 import angr
 from angr.analyses import Disassembly
-from angr.analyses.disassembly import MemoryOperand
+from angr.analyses.disassembly import MemoryOperand, Instruction
 
 
 class TestDisassembly(TestCase):
+    def test_arm64_disect_instruction(self):
+        proj = angr.load_shellcode(
+            b"\x00\xe4\x00\x6f"
+            b"\x43\x3c\x0b\x0e"
+            b"\x54\x9a\xb7\x72"
+            b"\xfc\x6f\xba\xa9"
+            b"\x88\x03\x98\x1a",
+            "AARCH64", 0
+        )
+        # movi   v0.2d, #0000000000000000'  ; SIMD register
+        # umov   w3, v2.b[5]                ; SIMD register index
+        # movk   w20, #0xbcd2, lsl #16      ; ARM64 shifter
+        # stp    x28, x27, [sp, #-0x60]!    ; ARM64 pre-indexed operand
+        # csel   w8, w28, w24, eq           ; Condition code at the end
+        block = proj.factory.block(0)
+        disasm = proj.analyses[Disassembly].prep()(
+            ranges=[(block.addr, block.addr + block.size)]
+        )
+
+        insns = filter(lambda r: isinstance(r, Instruction), disasm.raw_result)
+        rendered_insns = [i.render()[0] for i in insns]
+        assert 'v0.2d' in rendered_insns[0]
+        assert 'v2.b[5]' in rendered_insns[1]
+        assert 'lsl#16' in rendered_insns[2].replace(' ', '')
+        assert rendered_insns[3].endswith(']!')
+        assert rendered_insns[4].endswith('eq')
+
+
     def test_mips32_missing_offset_in_instructions(self):
         proj = angr.load_shellcode(b"\x8f\xbc\x00\x10"
                                    b"\x02\x20\x30\x21"
