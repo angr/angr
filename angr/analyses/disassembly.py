@@ -194,6 +194,123 @@ class Instruction(DisassemblyPiece):
         self.disect_instruction()
 
     def disect_instruction(self):
+        if self.arch.name == "AARCH64":
+            self.disect_instruction_for_aarch64()
+        else:
+            # the default one works well for x86, add more arch-specific
+            # code when you find it doesn't meet your need.
+            self.disect_instruction_by_default()
+    
+    def disect_instruction_for_aarch64(self):
+        ## ARM64 consts from capstone
+        # ARM64 conditional
+        ARM64_CC = ['', 'eq', 'ne', 'hs', 'lo', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le', 'al', 'nv']
+        # ARM64 shift type
+        ARM64_SFT = ['', 'lsl', 'lsr', 'asr', 'ror', 'msl']
+        # ARM64 extender type, starts with uxt/sxt
+        ARM64_EXT = ['', 'uxtb', 'uxth', 'uxtw', 'uxtx', 'sxtb', 'sxth', 'sxtw', 'sxtx']
+
+        # don't forget to initialize self.opcode
+        self.opcode = Opcode(self)
+
+        cc = self.insn.cc
+        assert 0 <= cc < len(ARM64_CC)
+        expected_cc_op = ''
+        if cc != 0:
+            # exists in "B.cc", "BC.cc", or after all operands (e.g. instruction "csel")
+            if not (self.insn.mnemonic.startswith('b.') or self.insn.mnemonic.startswith('bc.')):
+                # a dummy operand (Cond string) is expected at the end of op_str
+                expected_cc_op = ARM64_CC[cc]
+        
+        # We use capstone for arm64 disassembly, so this assertion must success
+        assert hasattr(self.insn, 'operands')
+
+        if len(self.insn.operands) == 0:
+            self.operands = []
+            return
+
+        op_str = self.insn.op_str
+        # splited by comma outside of squared brackets
+        dummy_operands = self.split_aarch64_op_string(op_str)
+        if len(dummy_operands) != len(self.insn.operands):
+            if not op_str.endswith(expected_cc_op) :
+                l.error(
+                    "Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
+                    str(self.insn),
+                    len(self.operands),
+                    len(self.insn.operands)
+                )
+                self.operands = [ ]
+                return
+        
+        for operand in dummy_operands:
+            opr_pieces = self.split_op_string(operand)
+            cur_operand = []
+            if opr_pieces[0][0].isalpha() and opr_pieces[0] in self.arch.registers:
+                cur_operand.append(Register(opr_pieces[0]))
+                cur_operand.extend(opr_pieces[1:])  # SIMD register's suffix
+                self.operands.append(cur_operand)
+                continue
+
+            for i, p in enumerate(opr_pieces):
+                if p[0].isnumeric():
+                    if i > 1 and (opr_pieces[i-2] in ARM64_SFT or opr_pieces[i-2] in ARM64_EXT):
+                        cur_operand.append(p)
+                        continue
+                    # Always set False. I don't see any '+' sign appear 
+                    # in capstone's arm64 disasm result
+                    with_sign = False
+                    try:
+                        v = int(p, 0)
+                    except ValueError:
+                        l.error("Failed to parse operand %s at %016x. Please report.", p, self.addr)
+                        cur_operand.append(p)
+                        continue
+                    if i > 0 and opr_pieces[i-1] == '-':
+                        v = -v
+                        cur_operand.pop()
+                    cur_operand.append(Value(v, with_sign))
+                else:
+                    cur_operand.append(p)
+            self.operands.append(cur_operand)
+
+        for i, opr in enumerate(self.operands):
+            if i < len(self.insn.operands):
+                op_type = self.insn.operands[i].type
+            else:
+                # set extra dummy operand type to default 0
+                op_type = 0
+            self.operands[i] = Operand.build(
+                op_type,
+                i,
+                opr,
+                self
+            )
+    
+    @staticmethod
+    def split_aarch64_op_string(op_str: str):
+        pieces = []
+        outside_brackets = True
+        cur_opr = ''
+        for c in op_str:
+            if c == '[':
+                outside_brackets = False
+            if c == ']':
+                outside_brackets = True
+            if c == ',' and outside_brackets:
+                pieces.append(cur_opr)
+                cur_opr = ''
+                continue
+            if c == ' ':
+                continue
+            cur_opr += c
+        if cur_opr:
+            pieces.append(cur_opr)
+
+        return pieces
+
+
+    def disect_instruction_by_default(self):
         # perform a "smart split" of an operands string into smaller pieces
         insn_pieces = self.split_op_string(self.insn.op_str)
         self.operands = []
@@ -308,14 +425,10 @@ class Instruction(DisassemblyPiece):
         pieces = []
         in_word = False
         for c in insn_str:
-            ordc = ord(c)
-            if ordc == 0x20:
+            if c.isspace():
                 in_word = False
                 continue
-            # pylint:disable=too-many-boolean-expressions
-            if 0x30 <= ordc <= 0x39 or \
-               0x41 <= ordc <= 0x5a or \
-               0x61 <= ordc <= 0x7a:
+            if c.isalnum():
                 if in_word:
                     pieces[-1] += c
                 else:
@@ -324,7 +437,6 @@ class Instruction(DisassemblyPiece):
             else:
                 in_word = False
                 pieces.append(c)
-
         return pieces
 
     def _render(self, formatting=None):
@@ -534,14 +646,18 @@ class Operand(DisassemblyPiece):
 
         # Maps capstone operand types to operand classes
         MAPPING = {
+            0: Operand,   # default type for operand that haven't been fully implemented
             1: RegisterOperand,
             2: ConstantOperand,
             3: MemoryOperand,
-            4: Operand,  # ARM FP
+            4: Operand,   # ARM FP
             64: Operand,  # ARM CIMM
-            65: Operand,  # ARM PIMM
-            66: Operand,  # ARM SETEND
-            67: Operand,  # ARM SYSREG
+            65: Operand,  # ARM PIMM   | ARM64 REG_MRS
+            66: Operand,  # ARM SETEND | ARM64 REG_MSR
+            67: Operand,  # ARM SYSREG | ARM64 PSTATE
+            68: Operand,  # ARM64 SYS
+            69: Operand,  # ARM64 PREFETCH
+            70: Operand,  # ARM64 BARRIER
         }
 
         cls = MAPPING.get(operand_type, None)
@@ -601,6 +717,7 @@ class MemoryOperand(Operand):
 
         self.segment_selector = None
         self.prefix = [ ]
+        self.suffix_str = ''   # could be arm pre index mark "!"
         self.values = [ ]
         self.offset = [ ]
         # offset_location
@@ -651,10 +768,16 @@ class MemoryOperand(Operand):
             self.prefix = [ ]
             self.segment_selector = None
 
+        close_square_pos = len(self.children) - 1
         if self.children[-1] != ']':
-            raise ValueError()
+            if self.children[-1] == '!' and self.children[-2] == ']':
+                # arm64 pre index
+                self.suffix_str = '!'
+                close_square_pos -= 1
+            else:
+                raise ValueError()
 
-        self.values = self.children[square_bracket_pos + 1: len(self.children) - 1]
+        self.values = self.children[square_bracket_pos + 1: close_square_pos]
 
     def _parse_memop_paren(self):
         offset = [ ]
@@ -742,7 +865,7 @@ class MemoryOperand(Operand):
             if segment_selector_str and prefix_str:
                 prefix_str += ' '
 
-            return [ '%s%s%s' % (prefix_str, segment_selector_str, value_str) ]
+            return [ '%s%s%s%s' % (prefix_str, segment_selector_str, value_str, self.suffix_str) ]
 
 
 class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
@@ -753,10 +876,10 @@ class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
 
 
 class Register(OperandPiece):
-    def __init__(self, reg, prefix):
+    def __init__(self, reg, prefix=''):
         self.reg = reg
         self.prefix = prefix
-        self.is_ip = self.reg in {"eip", "rip"}  # TODO: Support more architectures
+        self.is_ip = self.reg in {"eip", "rip", "pc"}  # TODO: Support more architectures
 
     def _render(self, formatting):
         # TODO: register renaming
