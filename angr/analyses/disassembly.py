@@ -172,6 +172,7 @@ class Instruction(DisassemblyPiece):
         self.arch = self.project.arch
         self.format = ''
         self.components = ()
+        self.opcode = None
         self.operands = [ ]
 
         # the following members will be filled in after disecting the instruction
@@ -215,9 +216,9 @@ class Instruction(DisassemblyPiece):
             # Check if this is a number or an identifier.
             ordc = ord(c[0])
             # pylint:disable=too-many-boolean-expressions
-            if (ordc >= 0x30 and ordc <= 0x39) or \
-               (ordc >= 0x41 and ordc <= 0x5a) or \
-               (ordc >= 0x61 and ordc <= 0x7a):
+            if 0x30 <= ordc <= 0x39 or \
+               0x41 <= ordc <= 0x5a or \
+               0x61 <= ordc <= 0x7a:
 
                 # perform some basic classification
                 intc = None
@@ -284,11 +285,12 @@ class Instruction(DisassemblyPiece):
             return
 
         if len(self.operands) != len(self.insn.operands):
-            l.error("Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
-                    str(self.insn),
-                    len(self.operands),
-                    len(self.insn.operands)
-                    )
+            l.error(
+                "Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
+                str(self.insn),
+                len(self.operands),
+                len(self.insn.operands)
+            )
             self.operands = [ ]
             return
 
@@ -311,9 +313,9 @@ class Instruction(DisassemblyPiece):
                 in_word = False
                 continue
             # pylint:disable=too-many-boolean-expressions
-            if (ordc >= 0x30 and ordc <= 0x39) or \
-               (ordc >= 0x41 and ordc <= 0x5a) or \
-               (ordc >= 0x61 and ordc <= 0x7a):
+            if 0x30 <= ordc <= 0x39 or \
+               0x41 <= ordc <= 0x5a or \
+               0x61 <= ordc <= 0x7a:
                 if in_word:
                     pieces[-1] += c
                 else:
