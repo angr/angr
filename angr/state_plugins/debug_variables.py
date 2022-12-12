@@ -27,8 +27,8 @@ class SimVariable:
         self.type = var_type
 
     @staticmethod
-    def from_cle_variable(state: SimState, cle_variable: Variable) -> "SimVariable":
-        addr = cle_variable.rebased_addr_from_cfa(state.dwarf_cfa)
+    def from_cle_variable(state: SimState, cle_variable: Variable, dwarf_cfa) -> "SimVariable":
+        addr = cle_variable.rebased_addr_from_cfa(dwarf_cfa)
         var_type = cle_variable.type
         return SimVariable(state, addr, var_type)
 
@@ -120,11 +120,31 @@ class SimVariables(SimStatePlugin):
     def __init__(self):
         super().__init__()
 
+    @property
+    def dwarf_cfa(self):
+        try:
+            return self._dwarf_cfa
+        except AttributeError:
+            return self.dwarf_cfa_approx
+
+    @dwarf_cfa.setter
+    def dwarf_cfa(self, new_val):
+        self._dwarf_cfa = new_val
+
+    @property
+    def dwarf_cfa_approx(self):
+        # FIXME This is only an approximation!
+        if self.state.arch.name == 'AMD64':
+            return self.state.regs.rbp + 16
+        elif self.state.arch.name == 'X86':
+            return self.state.regs.ebp + 8
+        return 0
+
     def get_variable(self, var_name: str) -> SimVariable:
         kb = self.state.project.kb
         cle_var = kb.dvars[var_name][self.state.ip]
         if cle_var:
-            return SimVariable.from_cle_variable(self.state, cle_var)
+            return SimVariable.from_cle_variable(self.state, cle_var, self.dwarf_cfa)
         return None
 
     def __getitem__(self, var_name: str) -> SimVariable:
