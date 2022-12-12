@@ -44,6 +44,8 @@ class SimVariable:
         if isinstance(self.type, TypedefType):
             unpacked = SimVariable(self.state, self.addr, self.type.type)
             return unpacked.mem
+        if self.type is None or self.type.byte_size is None:
+            return self.state.mem[self.addr]
 
         arch = self.state.arch
         size = self.type.byte_size * arch.byte_width
@@ -87,7 +89,9 @@ class SimVariable:
         else:
             raise Exception("{} object cannot be dereferenced".format(self.type))
 
-        if addr is None or el_type.byte_size is None:
+        if i == 0:
+            new_addr = addr
+        elif addr is None or el_type is None or el_type.byte_size is None:
             new_addr = None
         else:
             new_addr = addr + i * el_type.byte_size
