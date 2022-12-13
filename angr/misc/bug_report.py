@@ -95,7 +95,10 @@ def print_native_info():
     for module, funcs in native_modules.items():
         try:
             globals()[module] = __import__(module)
-            print(f"{module}: {funcs()}")
+            try:
+                print(f"{module}: {funcs()}")
+            except Exception as e:
+                print(f"{module}: imported but path finding raised a {type(e)}: {e}")
         except ModuleNotFoundError:
             print(f"{module}: NOT FOUND")
         except ImportError:
