@@ -10,7 +10,7 @@ TESTS_BASE = os.path.join(
 )
 
 
-class TestResolveGlobalVariableInStateFromName(TestCase):
+class TestDwarfVariables(TestCase):
     def setUp(self):
         self.p = angr.Project(
             os.path.join(TESTS_BASE, 'tests', 'x86_64', 'various_variables'),

@@ -8,7 +8,6 @@ from angr.sim_state import SimState
 from angr.sim_type import ALL_TYPES, SimTypeReg
 
 from .plugin import SimStatePlugin
-from .sim_action_object import ast_stripping_decorator, SimActionObject
 
 l = logging.getLogger(name=__name__)
 
@@ -16,10 +15,10 @@ if TYPE_CHECKING:
     from angr.state_plugins.view import SimMemView
 
 
-class SimVariable:
+class SimDebugVariable:
     """
-    A SimVariable will get dynamically created when queriyng for variable in a state with the SimVariables state
-    plugin. It features a link to the state, an address and a type.
+    A SimDebugVariable will get dynamically created when queriyng for variable in a state with the
+    SimDebugVariablePlugin. It features a link to the state, an address and a type.
     """
     def __init__(self, state: SimState, addr, var_type: VariableType):
         self.state = state
@@ -27,13 +26,13 @@ class SimVariable:
         self.type = var_type
 
     @staticmethod
-    def from_cle_variable(state: SimState, cle_variable: Variable, dwarf_cfa) -> "SimVariable":
+    def from_cle_variable(state: SimState, cle_variable: Variable, dwarf_cfa) -> "SimDebugVariable":
         addr = cle_variable.rebased_addr_from_cfa(dwarf_cfa)
         var_type = cle_variable.type
-        return SimVariable(state, addr, var_type)
+        return SimDebugVariable(state, addr, var_type)
 
     @property
-    def deref(self) -> "SimVariable":
+    def deref(self) -> "SimDebugVariable":
         # dereferincing is equivalent to getting the first array element
         return self.array(0)
 
@@ -42,7 +41,7 @@ class SimVariable:
         if self.addr is None:
             raise Exception("Cannot view a variable without an address")
         if isinstance(self.type, TypedefType):
-            unpacked = SimVariable(self.state, self.addr, self.type.type)
+            unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.mem
         if self.type is None or self.type.byte_size is None:
             return self.state.mem[self.addr]
@@ -72,9 +71,9 @@ class SimVariable:
             return self.member(i)
         raise KeyError
 
-    def array(self, i) -> "SimVariable":
+    def array(self, i) -> "SimDebugVariable":
         if isinstance(self.type, TypedefType):
-            unpacked = SimVariable(self.state, self.addr, self.type.type)
+            unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.array(i)
         elif isinstance(self.type, ArrayType):
             # an array already addresses its first element
@@ -95,11 +94,11 @@ class SimVariable:
             new_addr = None
         else:
             new_addr = addr + i * el_type.byte_size
-        return SimVariable(self.state, new_addr, el_type)
+        return SimDebugVariable(self.state, new_addr, el_type)
 
-    def member(self, member_name: str) -> "SimVariable":
+    def member(self, member_name: str) -> "SimDebugVariable":
         if isinstance(self.type, TypedefType):
-            unpacked = SimVariable(self.state, self.addr, self.type.type)
+            unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.member(member_name)
         elif isinstance(self.type, StructType):
             member = self.type[member_name]
@@ -107,12 +106,12 @@ class SimVariable:
                 addr = None
             else:
                 addr = self.addr + member.addr_offset
-            return SimVariable(self.state, addr, member.type)
+            return SimDebugVariable(self.state, addr, member.type)
 
         raise Exception("{} object has no members".format(self.type))
 
 
-class SimVariables(SimStatePlugin):
+class SimDebugVariablePlugin(SimStatePlugin):
     """
     This is the plugin you'll use to interact with (global/local) program variables.
     These variables have a name and a visibility scope which depends on the pc address of the state.
@@ -124,6 +123,17 @@ class SimVariables(SimStatePlugin):
     def __init__(self):
         super().__init__()
 
+    def get_variable(self, var_name: str) -> SimDebugVariable:
+        kb = self.state.project.kb
+        cle_var = kb.dvars[var_name][self.state.ip]
+        if cle_var:
+            return SimDebugVariable.from_cle_variable(self.state, cle_var, self.dwarf_cfa)
+        return None
+
+    def __getitem__(self, var_name: str) -> SimDebugVariable:
+        return self.get_variable(var_name)
+
+    # DWARF cfa
     @property
     def dwarf_cfa(self):
         try:
@@ -144,19 +154,5 @@ class SimVariables(SimStatePlugin):
             return self.state.regs.ebp + 8
         return 0
 
-    def get_variable(self, var_name: str) -> SimVariable:
-        kb = self.state.project.kb
-        cle_var = kb.dvars[var_name][self.state.ip]
-        if cle_var:
-            return SimVariable.from_cle_variable(self.state, cle_var, self.dwarf_cfa)
-        return None
 
-    def __getitem__(self, var_name: str) -> SimVariable:
-        return self.get_variable(var_name)
-
-
-SimState.register_default('dvars', SimVariables)
-
-from .. import sim_options as o
-from .inspect import BP_AFTER
-from ..errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
+SimState.register_default('dvars', SimDebugVariablePlugin)
