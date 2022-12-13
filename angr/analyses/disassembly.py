@@ -244,6 +244,7 @@ class Instruction(DisassemblyPiece):
                 return
         
         for operand in dummy_operands:
+            # FIXME: '\x00\x00\x01\x4E'    TBL     V0.16B, {V0.16B}, V1.16B
             opr_pieces = self.split_op_string(operand)
             cur_operand = []
             if opr_pieces[0][0].isalpha() and opr_pieces[0] in self.arch.registers:
@@ -270,6 +271,8 @@ class Instruction(DisassemblyPiece):
                         v = -v
                         cur_operand.pop()
                     cur_operand.append(Value(v, with_sign))
+                elif p[0].isalpha() and p in self.arch.registers:
+                    cur_operand.append(Register(p))
                 else:
                     cur_operand.append(p)
             self.operands.append(cur_operand)
