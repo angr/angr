@@ -2,6 +2,8 @@ import imp
 import os
 import sys
 import datetime
+import gc
+import ctypes
 
 from .import_hooks import remove_fake_pkg_resources
 
@@ -15,10 +17,11 @@ except ImportError:
 
 
 angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'z3', 'unicorn']
-native_modules = {'angr': 'angr.state_plugins.unicorn_engine._UC_NATIVE',
-                  'unicorn': 'unicorn.unicorn._uc',
-                  'pyvex': 'pyvex.pvc',
-                  'z3': "[x for x in gc.get_objects() if type(x) is ctypes.CDLL and 'z3' in str(x)][0]"} # YIKES FOREVER
+native_modules = {'angr': lambda: angr.state_plugins.unicorn_engine._UC_NATIVE,
+                  'unicorn': lambda: unicorn.unicorn._uc,
+                  'pyvex': lambda: pyvex.pvc,
+                  'z3': lambda: [x for x in gc.get_objects() if type(x) is ctypes.CDLL and 'z3' in str(x)][0], # YIKES FOREVER
+                  }
 python_packages = {'z3': 'z3-solver'}
 
 
@@ -26,17 +29,6 @@ def get_venv():
     if 'VIRTUAL_ENV' in os.environ:
         return os.environ['VIRTUAL_ENV']
     return None
-
-
-def import_module(module):
-    try:
-        # because we want to import using a variable, do it this way
-        module_obj = __import__(module)
-        # create a global object containging our module
-        globals()[module] = module_obj
-    except ImportError:
-        sys.stderr.write("ERROR: missing python module: " + module + "\n")
-        sys.exit(1)
 
 
 def print_versions():
@@ -100,12 +92,16 @@ def print_system_info():
 
 def print_native_info():
     print("######### Native Module Info ##########")
-    for module, path in native_modules.items():
+    for module, funcs in native_modules.items():
         try:
-            import_module(module)
-            print("%s: %s" % (module, str(eval(path))))
-        except:
-            print("%s: NOT FOUND" % (module))
+            globals()[module] = __import__(module)
+            print(f"{module}: {funcs()}")
+        except ModuleNotFoundError:
+            print(f"{module}: NOT FOUND")
+        except ImportError:
+            print(f"{module}: FOUND BUT FAILED TO IMPORT")
+        except Exception as e:
+            print(f"{module}: __import__ raised a {type(e)}: {e}")
 
 
 def bug_report():
