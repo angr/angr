@@ -207,8 +207,6 @@ class Instruction(DisassemblyPiece):
         ARM64_CC = ['', 'eq', 'ne', 'hs', 'lo', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le', 'al', 'nv']
         # ARM64 shift type
         ARM64_SFT = ['', 'lsl', 'lsr', 'asr', 'ror', 'msl']
-        # ARM64 extender type, starts with uxt/sxt
-        ARM64_EXT = ['', 'uxtb', 'uxth', 'uxtw', 'uxtx', 'sxtb', 'sxth', 'sxtw', 'sxtx']
 
         # don't forget to initialize self.opcode
         self.opcode = Opcode(self)
@@ -244,7 +242,6 @@ class Instruction(DisassemblyPiece):
                 return
         
         for operand in dummy_operands:
-            # FIXME: '\x00\x00\x01\x4E'    TBL     V0.16B, {V0.16B}, V1.16B
             opr_pieces = self.split_op_string(operand)
             cur_operand = []
             if opr_pieces[0][0].isalpha() and opr_pieces[0] in self.arch.registers:
@@ -255,10 +252,14 @@ class Instruction(DisassemblyPiece):
 
             for i, p in enumerate(opr_pieces):
                 if p[0].isnumeric():
-                    if i > 1 and (opr_pieces[i-2] in ARM64_SFT or opr_pieces[i-2] in ARM64_EXT):
+                    if i > 0 and opr_pieces[i-1] == '.' or \
+                       i > 1 and (
+                            opr_pieces[i-2] in ARM64_SFT or
+                            opr_pieces[i-2][:3] in ('uxt', 'sxt')
+                       ):
                         cur_operand.append(p)
                         continue
-                    # Always set False. I don't see any '+' sign appear 
+                    # Always set False. I don't see any '+' sign appear
                     # in capstone's arm64 disasm result
                     with_sign = False
                     try:
@@ -296,9 +297,9 @@ class Instruction(DisassemblyPiece):
         outside_brackets = True
         cur_opr = ''
         for c in op_str:
-            if c == '[':
+            if c == '[' or c == '{':
                 outside_brackets = False
-            if c == ']':
+            if c == ']' or c == '}':
                 outside_brackets = True
             if c == ',' and outside_brackets:
                 pieces.append(cur_opr)

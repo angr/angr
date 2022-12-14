@@ -13,26 +13,31 @@ class TestDisassembly(TestCase):
             b"\x43\x3c\x0b\x0e"
             b"\x54\x9a\xb7\x72"
             b"\xfc\x6f\xba\xa9"
-            b"\x88\x03\x98\x1a",
+            b"\x88\x03\x98\x1a"
+            b"\x00\x60\x01\x4e",
             "AARCH64", 0
         )
-        # movi   v0.2d, #0000000000000000'  ; SIMD register
-        # umov   w3, v2.b[5]                ; SIMD register index
-        # movk   w20, #0xbcd2, lsl #16      ; ARM64 shifter
-        # stp    x28, x27, [sp, #-0x60]!    ; ARM64 pre-indexed operand
-        # csel   w8, w28, w24, eq           ; Condition code at the end
+        # movi   v0.2d, #0000000000000000'                              ; SIMD register
+        # umov   w3, v2.b[5]                                            ; SIMD register index
+        # movk   w20, #0xbcd2, lsl #16                                  ; ARM64 shifter
+        # stp    x28, x27, [sp, #-0x60]!                                ; ARM64 pre-indexed operand
+        # csel   w8, w28, w24, eq                                       ; Condition code at the end
+        # tbl    v0.16b, {v0.16b, v1.16b, v2.16b, v3.16b}, v1.16b       ; Multiple SIMD regs in table
         block = proj.factory.block(0)
         disasm = proj.analyses[Disassembly].prep()(
             ranges=[(block.addr, block.addr + block.size)]
         )
 
         insns = filter(lambda r: isinstance(r, Instruction), disasm.raw_result)
-        rendered_insns = [i.render()[0] for i in insns]
+        rendered_insns = [i.render()[0].lower() for i in insns]
         assert 'v0.2d' in rendered_insns[0]
         assert 'v2.b[5]' in rendered_insns[1]
         assert 'lsl#16' in rendered_insns[2].replace(' ', '')
         assert rendered_insns[3].endswith(']!')
         assert rendered_insns[4].endswith('eq')
+        insn = rendered_insns[5]
+        regs_table = insn[insn.index('{')+1:insn.index('}')].replace(' ', '').split(',')
+        assert ['v0.16b', 'v1.16b', 'v2.16b', 'v3.16b'] == regs_table
 
 
     def test_mips32_missing_offset_in_instructions(self):
