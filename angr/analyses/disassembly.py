@@ -2,6 +2,8 @@ import logging
 from collections import defaultdict
 from typing import Union, Optional, Sequence, Tuple, Any
 
+import archinfo
+
 import pyvex
 from angr.knowledge_plugins import Function
 
@@ -284,11 +286,15 @@ class Instruction(DisassemblyPiece):
             return
 
         if len(self.operands) != len(self.insn.operands):
-            l.error("Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
-                    str(self.insn),
-                    len(self.operands),
-                    len(self.insn.operands)
-                    )
+            if isinstance(self.arch, archinfo.ArchARM) and self.insn.mnemonic[:2] == "it":
+                # ARM IT instructions have op_str, but they are not considered operands by Capstone
+                pass
+            else:
+                l.error("Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
+                        str(self.insn),
+                        len(self.operands),
+                        len(self.insn.operands)
+                        )
             self.operands = [ ]
             return
 
