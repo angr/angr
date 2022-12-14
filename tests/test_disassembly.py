@@ -28,7 +28,7 @@ class TestDisassembly(TestCase):
             ranges=[(block.addr, block.addr + block.size)]
         )
 
-        insns = filter(lambda r: isinstance(r, Instruction), disasm.raw_result)
+        insns = [r for r in disasm.raw_result if isinstance(r, Instruction)]
         rendered_insns = [i.render()[0].lower() for i in insns]
         assert 'v0.2d' in rendered_insns[0]
         assert 'v2.b[5]' in rendered_insns[1]
