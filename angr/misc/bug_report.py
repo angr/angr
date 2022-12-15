@@ -17,10 +17,12 @@ except ImportError:
 
 
 angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'z3', 'unicorn']
-native_modules = {'angr': lambda: angr.state_plugins.unicorn_engine._UC_NATIVE,
-                  'unicorn': lambda: unicorn.unicorn._uc,
-                  'pyvex': lambda: pyvex.pvc,
-                  'z3': lambda: [x for x in gc.get_objects() if type(x) is ctypes.CDLL and 'z3' in str(x)][0], # YIKES FOREVER
+native_modules = {'angr': lambda: angr.state_plugins.unicorn_engine._UC_NATIVE, # pylint: disable=undefined-variable
+                  'unicorn': lambda: unicorn.unicorn._uc, # pylint: disable=undefined-variable
+                  'pyvex': lambda: pyvex.pvc, # pylint: disable=undefined-variable
+                  'z3': lambda: [
+                        x for x in gc.get_objects() if type(x) is ctypes.CDLL and 'z3' in str(x)
+                    ][0], # YIKES FOREVER
                   }
 python_packages = {'z3': 'z3-solver'}
 
@@ -44,14 +46,14 @@ def print_versions():
         except ImportError:
             print("Python could not find " + m)
             continue
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             print("An error occurred importing %s: %s" % (m, e))
         print("Python found it in %s" % (python_filename))
         try:
             pip_package = python_packages.get(m, m)
             pip_version = pkg_resources.get_distribution(pip_package)
             print("Pip version %s" % pip_version)
-        except:
+        except Exception:  # pylint: disable-broad-except
             print("Pip version not found!")
         print_git_info(python_filename)
 
@@ -77,7 +79,7 @@ def print_git_info(dirname):
             print("\tChecked out from remote %s: %s" % (remote_name, remote_url))
         else:
             print("Tracking local branch %s" % cur_tb.name)
-    except:
+    except Exception:  # pylint: disable=broad-except
         print("Could not resolve tracking branch or remote info!")
 
 
@@ -97,13 +99,13 @@ def print_native_info():
             globals()[module] = __import__(module)
             try:
                 print(f"{module}: {funcs()}")
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 print(f"{module}: imported but path finding raised a {type(e)}: {e}")
         except ModuleNotFoundError:
             print(f"{module}: NOT FOUND")
         except ImportError:
             print(f"{module}: FOUND BUT FAILED TO IMPORT")
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             print(f"{module}: __import__ raised a {type(e)}: {e}")
 
 
