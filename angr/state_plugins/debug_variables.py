@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 import logging
 
 from cle.backends.elf.variable import Variable
-from cle.backends.elf.variable_type import VariableType, BaseType, PointerType, ArrayType, StructType, TypedefType
+from cle.backends.elf.variable_type import VariableType, PointerType, ArrayType, StructType, TypedefType
 
 from angr.sim_state import SimState
 from angr.sim_type import ALL_TYPES, SimTypeReg
@@ -120,8 +120,6 @@ class SimDebugVariablePlugin(SimStatePlugin):
 
     This plugin should be available on a state as ``state.dvars``.
     """
-    def __init__(self):
-        super().__init__()
 
     def get_variable(self, var_name: str) -> SimDebugVariable:
         kb = self.state.project.kb

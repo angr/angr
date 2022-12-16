@@ -1,8 +1,9 @@
-import angr
-from unittest import TestCase, main
 import os
-from cle.backends.elf.variable_type import *
 import math
+
+from unittest import TestCase, main
+
+import angr
 
 TESTS_BASE = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
@@ -11,6 +12,9 @@ TESTS_BASE = os.path.join(
 
 
 class TestDwarfVariables(TestCase):
+    """
+    Test dwarf variables import and resolution of these variables
+    """
     def setUp(self):
         self.p = angr.Project(
             os.path.join(TESTS_BASE, 'tests', 'x86_64', 'various_variables'),
@@ -115,7 +119,7 @@ class TestDwarfVariables(TestCase):
         simgr.step()
         s = simgr.active[0]
         result = []
-        for i in range(9):
+        for _ in range(9):
             result.append(s.dvars["global_var"].mem.concrete)
             simgr.step()
             s = simgr.active[0]

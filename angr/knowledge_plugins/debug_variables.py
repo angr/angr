@@ -95,10 +95,7 @@ class DebugVariable(DebugVariableContainer):
         return self.cle_variable
 
     def contains(self, dvar: 'DebugVariable') -> bool:
-        if self.low_pc <= dvar.low_pc and dvar.high_pc <= self.high_pc:
-            return True
-        else:
-            return False
+        return self.low_pc <= dvar.low_pc and dvar.high_pc <= self.high_pc
 
     def test_unsupported_overlap(self, dvar: 'DebugVariable') -> bool:
         """
@@ -113,9 +110,9 @@ class DebugVariable(DebugVariableContainer):
         h2 = dvar.high_pc
         if l1 == l2 and h1 == h2:
             return True
-        if l2 < l1 and l1 < h2 and h2 < h1:
+        if l2 < l1 < h2 < h1:
             return True
-        if l1 < l2 and l2 < h1 and h1 < h2:
+        if l1 < l2 < h1 < h2:
             return True
         return False
 
@@ -200,14 +197,14 @@ class DebugVariableManager(KnowledgeBasePlugin):
             else:
                 cu_list = obj.compilation_units
 
-            for cu in cu_list:
-                for cle_var in cu.global_variables:
+            for cu_curr in cu_list:
+                for cle_var in cu_curr.global_variables:
                     if cle_var.external:
                         self.add_variable(cle_var, obj.min_addr, obj.max_addr)
                     else:
                         # static variable
-                        self.add_variable(cle_var, cu.min_addr, cu.max_addr)
-                for subp in cu.functions.values():
+                        self.add_variable(cle_var, cu_curr.min_addr, cu_curr.max_addr)
+                for subp in cu_curr.functions.values():
                     for cle_var in subp.local_variables:
                         low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
                         high_pc = cle_var.lexical_block.high_pc + obj.mapped_base
