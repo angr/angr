@@ -1,6 +1,7 @@
 
 from .functions import FunctionManager, Function
 from .variables import VariableManager
+from .debug_variables import DebugVariableManager
 from .comments import Comments
 from .data import Data
 from .indirect_jumps import IndirectJumps
