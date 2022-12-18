@@ -1,7 +1,7 @@
 /*
  Cexpr.g4
  Based on of C.g4, see the copyright infos below
- Adapted by Lukas Grätz to parse C expressions in angr
+ Adapted for angr to parse (type agnostic) expressions by Lukas Grätz
 
  If you make any changes, be sure to run
 
@@ -36,7 +36,6 @@
  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-/** C 2011 grammar built from the C11 Spec */
 grammar Cexpr;
 
 

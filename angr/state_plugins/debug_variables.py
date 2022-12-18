@@ -168,7 +168,16 @@ class SimDebugVariablePlugin(SimStatePlugin):
 
     def eval_expr(self, c_expr: str):
         """
-        This lets you evaluate c expressions on a state.
+        Evaluate (restricted) c expression on a angr state. You can use variables and types (registered in angr).
+        Pointer arithmetic, e.g. "*(ptr + 5)", "(int*)0x12345", is currently not supported.
+
+        :param str c_expr:                  C expression to evaluate
+
+        Example:
+            s.dvars.eval_expr("(int)global_struct->struct_pointer > *pointer2")
+
+        Warning:
+            '(int)*x' is parsed as a multiplication; use '(int)(*x)' for the typecast
         """
         return c_expr_eval(c_expr, self.get_variable)
 
