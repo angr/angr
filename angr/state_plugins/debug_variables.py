@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 import logging
 
+from angr.c_expr_eval import c_expr_eval
+
 from cle.backends.elf.variable import Variable
 from cle.backends.elf.variable_type import VariableType, PointerType, ArrayType, StructType, TypedefType
 
@@ -13,6 +15,7 @@ l = logging.getLogger(name=__name__)
 
 if TYPE_CHECKING:
     from angr.state_plugins.view import SimMemView
+    from angr.sim_type import SimType
 
 
 class SimDebugVariable:
@@ -37,14 +40,18 @@ class SimDebugVariable:
         return self.array(0)
 
     @property
-    def mem(self) -> "SimMemView":
+    def mem_untyped(self) -> "SimMemView":
         if self.addr is None:
             raise Exception("Cannot view a variable without an address")
+        return self.state.mem[self.addr]
+
+    @property
+    def mem(self) -> "SimMemView":
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.mem
         if self.type is None or self.type.byte_size is None:
-            return self.state.mem[self.addr]
+            return self.mem_untyped
 
         arch = self.state.arch
         size = self.type.byte_size * arch.byte_width
@@ -56,13 +63,20 @@ class SimDebugVariable:
             # FIXME A lot more types are supported by angr that are not in ALL_TYPES (structs, arrays, pointers)
             # Use a fallback type
             sim_type = SimTypeReg(size, label=name)
-        return self.state.mem[self.addr].with_type(sim_type)
+        return self.mem_untyped.with_type(sim_type)
 
     @property
     def string(self) -> "SimMemView":
         first_char = self.deref
         # first char should have some char type (could be checked here)
-        return first_char.mem.string
+        return first_char.mem_untyped.string
+
+    def with_type(self, sim_type: "SimType") -> "SimMemView":
+        return self.mem_untyped.with_type(sim_type)
+
+    @property
+    def resolved(self):
+        return self.mem.resolved
 
     def __getitem__(self, i):
         if isinstance(i, int):
@@ -151,6 +165,12 @@ class SimDebugVariablePlugin(SimStatePlugin):
         elif self.state.arch.name == 'X86':
             return self.state.regs.ebp + 8
         return 0
+
+    def eval_expr(self, c_expr: str):
+        """
+        This lets you evaluate c expressions on a state.
+        """
+        return c_expr_eval(c_expr, self.get_variable)
 
 
 SimState.register_default('dvars', SimDebugVariablePlugin)
