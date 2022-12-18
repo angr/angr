@@ -8,6 +8,10 @@ def get_original_text(ctx):
 
 
 class C_expr_eval_visitor(CexprVisitor):
+    """
+    Used by ``angr.c_expr_eval.c_expr_transl()``.
+    """
+    # pylint: disable=no-else-raise
     def visitPostfixExpr(self, ctx: CexprParser.PostfixExprContext):
         if ctx.Arrow():
             return self.visit(ctx.postfixExpr()) + ".member('" + ctx.Identifier().getText() + "').deref"

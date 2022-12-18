@@ -3,9 +3,10 @@
  Based on of C.g4, see the copyright infos below
  Adapted for angr to parse (type agnostic) expressions by Lukas Grätz
 
- If you make any changes, be sure to run
+ If you make any changes, be sure to run:
 
- antlr4 -Dlanguage=Python3 -visitor Cexpr.g4
+    antlr4 -Dlanguage=Python3 -visitor Cexpr.g4
+    for file in Cexpr*.py; do sed -i '1i # pylint: skip-file' $file; done
 */
 
 /*

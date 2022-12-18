@@ -1,3 +1,4 @@
+# pylint: skip-file
 # Generated from Cexpr.g4 by ANTLR 4.11.1
 # encoding: utf-8
 from antlr4 import *
