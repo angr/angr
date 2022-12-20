@@ -50,12 +50,15 @@ class PhoenixStructurer(StructurerBase):
 
         self._analyze()
 
+    @staticmethod
+    def _assert_graph_ok(g, msg: str) -> None:
+        assert not _DEBUG or len(list(networkx.connected_components(networkx.Graph(g)))) <= 1,
+            f"{msg} Please report this."
+
     def _analyze(self):
         # iterate until there is only one node in the region
 
-        if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
-            l.error("Incorrect region graph (with more than one connected component). Investigate.")
-            import ipdb; ipdb.set_trace()
+        self._assert_graph_ok(self._region.graph, "Incorrect region graph (with more than one connected component).")
 
         has_cycle = self._has_cycle()
 
@@ -122,9 +125,7 @@ class PhoenixStructurer(StructurerBase):
             )
             l.debug("... matching cyclic schemas: %s at %r", matched, node)
             any_matches |= matched
-            if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
-                l.error("Removed incorrect edges. Investigate.")
-                import ipdb; ipdb.set_trace()
+            self._assert_graph_ok(self._region.graph, "Removed incorrect edges.")
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
@@ -579,9 +580,7 @@ class PhoenixStructurer(StructurerBase):
         # traverse the graph in reverse topological order
         any_matches = False
 
-        if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
-            l.error("Got a wrong graph to work on. Investigate.")
-            import ipdb; ipdb.set_trace()
+        self._assert_graph_ok(self._region.graph, "Got a wrong graph to work on.")
 
         if graph.in_degree[head] == 0:
             acyclic_graph = graph
@@ -589,9 +588,7 @@ class PhoenixStructurer(StructurerBase):
             acyclic_graph = networkx.DiGraph(graph)
             acyclic_graph.remove_edges_from(graph.in_edges(head))
 
-            if _DEBUG and len(list(networkx.connected_components(networkx.Graph(acyclic_graph)))) > 1:
-                l.error("Removed wrong edges. Investigate.")
-                import ipdb; ipdb.set_trace()
+            self._assert_graph_ok(acyclic_graph, "Removed wrong edges.")
 
         for node in list(reversed(CFGUtils.quasi_topological_sort_nodes(acyclic_graph))):
             if node not in graph:
@@ -619,9 +616,7 @@ class PhoenixStructurer(StructurerBase):
                     matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node)
                     l.debug("... matched: %s", matched)
                     any_matches |= matched
-            if _DEBUG and len(list(networkx.connected_components(networkx.Graph(self._region.graph)))) > 1:
-                l.error("Removed incorrect edges. Investigate.")
-                import ipdb; ipdb.set_trace()
+            self._assert_graph_ok(self._region.graph, "Removed incorrect edges.")
         return any_matches
 
     # switch cases
