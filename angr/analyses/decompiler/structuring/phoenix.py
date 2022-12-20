@@ -52,8 +52,7 @@ class PhoenixStructurer(StructurerBase):
 
     @staticmethod
     def _assert_graph_ok(g, msg: str) -> None:
-        assert not _DEBUG or len(list(networkx.connected_components(networkx.Graph(g)))) <= 1,
-            f"{msg} Please report this."
+        assert not _DEBUG or len(list(networkx.connected_components(networkx.Graph(g)))) <= 1, f"{msg} Please report this."
 
     def _analyze(self):
         # iterate until there is only one node in the region
