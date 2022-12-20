@@ -62,12 +62,12 @@ class Identifier(Analysis):
         self._reg_list = a.default_symbolic_registers
         self._reg_list = [r for r in self._reg_list if r not in (self._sp_reg, self._ip_reg)]
 
-        self.matches = dict()
+        self.matches = {}
 
         self.callsites = None
         self.inv_callsites = None
-        self.func_info = dict()
-        self.block_to_func = dict()
+        self.func_info = {}
+        self.block_to_func = {}
 
         self.map_callsites()
 
@@ -277,7 +277,7 @@ class Identifier(Analysis):
             return False
 
     def map_callsites(self):
-        callsites = dict()
+        callsites = {}
         for f in self._cfg.functions.values():
             for callsite in f.get_call_sites():
                 if f.get_call_target(callsite) is None:
@@ -291,7 +291,7 @@ class Identifier(Analysis):
             self.inv_callsites[f].add(c)
 
         # create map of blocks to the function they reside in
-        self.block_to_func = dict()
+        self.block_to_func = {}
         for f in self._cfg.functions.values():
             for b in f.graph.nodes():
                 self.block_to_func[b.addr] = f
@@ -357,7 +357,7 @@ class Identifier(Analysis):
 
         # get the accesses of calling func
         calling_func = self.block_to_func[callsite]
-        reverse_accesses = dict()
+        reverse_accesses = {}
         calling_func_info = self.func_info[calling_func]
         stack_var_accesses = calling_func_info.stack_var_accesses
         for stack_var, v in stack_var_accesses.items():
@@ -476,7 +476,7 @@ class Identifier(Analysis):
 
         initial_state = self.base_symbolic_state.copy()
 
-        reg_dict = dict()
+        reg_dict = {}
         for r in self._reg_list + [self._bp_reg]:
             reg_dict[hash(initial_state.registers.load(r))] = r
 
@@ -682,7 +682,7 @@ class Identifier(Analysis):
                 if is_buffer:
                     buffers.add(bp_off)
 
-        stack_args = list()
+        stack_args = []
         stack_arg_accesses = defaultdict(set)
         for v in stack_vars:
             if v > 0:

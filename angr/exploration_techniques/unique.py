@@ -22,7 +22,7 @@ class UniqueSearch(ExplorationTechnique):
         super(UniqueSearch, self).__init__()
         self.similarity_func = similarity_func or UniqueSearch.similarity
         self.deferred_stash = deferred_stash
-        self.uniqueness = dict()
+        self.uniqueness = {}
         self.num_deadended = 0
 
     def setup(self, simgr):
