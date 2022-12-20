@@ -1,7 +1,7 @@
 /*
  Cexpr.g4
  Based on of C.g4, see the copyright infos below
- Adapted for angr to parse (type agnostic) expressions by Lukas Grätz
+ Adapted for angr to parse (type agnostic) expressions
 
  If you make any changes, be sure to run:
 
