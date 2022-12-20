@@ -116,7 +116,7 @@ class HookNode(CodeNode):
         self.sim_procedure = sim_procedure
 
     def __repr__(self):
-        return '<HookNode {!r} at {} (size {})>'.format(self.sim_procedure, repr_addr(self.addr), self.size)
+        return f'<HookNode {self.sim_procedure!r} at {repr_addr(self.addr)} (size {self.size})>'
 
     def __hash__(self):
         return hash((self.addr, self.size, self.sim_procedure))
@@ -134,6 +134,6 @@ class HookNode(CodeNode):
 class SyscallNode(HookNode):
     is_hook = False
     def __repr__(self):
-        return '<SyscallNode {!r} at {:#x} (size {})>'.format(self.sim_procedure, self.addr, self.size)
+        return f'<SyscallNode {self.sim_procedure!r} at {self.addr:#x} (size {self.size})>'
 
 from .block import Block

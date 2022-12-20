@@ -47,7 +47,7 @@ class GraphRegion:
             if hasattr(node, 'addr'):
                 addrs.append(node.addr)
         if addrs:
-            s = ": {:#x}-{:#x}".format(min(addrs), max(addrs))
+            s = f": {min(addrs):#x}-{max(addrs):#x}"
 
         return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
 

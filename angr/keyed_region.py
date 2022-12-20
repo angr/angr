@@ -29,7 +29,7 @@ class StoredObject:
         return hash((self.start, self.size, self.obj))
 
     def __repr__(self):
-        return "<SO {}@{:#x}, {} bytes>".format(repr(self.obj), self.start, self.size)
+        return f"<SO {repr(self.obj)}@{self.start:#x}, {self.size} bytes>"
 
     @property
     def obj_id(self):
@@ -246,7 +246,7 @@ class KeyedRegion:
 
         s = [ ]
         for offset, variables in offset_to_vars.items():
-            s.append("Offset {:#x}: {}".format(offset, variables))
+            s.append(f"Offset {offset:#x}: {variables}")
         return "\n".join(s)
 
     def add_variable(self, start, variable):

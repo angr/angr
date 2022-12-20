@@ -299,7 +299,7 @@ class SimUninitializedAccessError(SimExpressionError):
         self.expr = expr
 
     def __repr__(self):
-        return "SimUninitializedAccessError (expr {} is used as {})".format(self.expr, self.expr_type)
+        return f"SimUninitializedAccessError (expr {self.expr} is used as {self.expr_type})"
 
     def __reduce__(self):
         return (SimUninitializedAccessError, (self.expr_type, self.expr))
@@ -429,7 +429,7 @@ class SimSegfaultException(SimException, SimMemoryError):
         self.addr = addr
         self.reason = reason
         self.original_addr = original_addr
-        super(SimSegfaultError, self).__init__('{:#x} ({})'.format(addr, reason))
+        super(SimSegfaultError, self).__init__(f'{addr:#x} ({reason})')
 
     def __repr__(self):
         return 'SimSegfaultException({:#x} ({}{})'.format(

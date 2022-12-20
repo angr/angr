@@ -59,7 +59,7 @@ class AnalysisLogEntry:
                 msg_str = msg_str[:36] + '...'
                 if msg_str[0] in ('"', "'"):
                     msg_str += msg_str[0]
-            return '<AnalysisLogEntry {} with {}: {}>'.format(msg_str, self.exc_type.__name__, self.exc_value)
+            return f'<AnalysisLogEntry {msg_str} with {self.exc_type.__name__}: {self.exc_value}>'
 
 
 A = TypeVar("A", bound="Analysis")
@@ -291,7 +291,7 @@ class Analysis:
         self.__dict__.update(state)
 
     def __repr__(self):
-        return '<{} Analysis Result at {:#x}>'.format(self._name, id(self))
+        return f'<{self._name} Analysis Result at {id(self):#x}>'
 
 
 default_analyses = VendorPreset()

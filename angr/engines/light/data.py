@@ -171,7 +171,7 @@ class RegisterOffset:
             offset_str = '' if self.offset == 0 else "%+x" % self.offset
         else:
             offset_str = str(self.offset)
-        return "{}{}".format(self.reg, offset_str)
+        return f"{self.reg}{offset_str}"
 
     def __add__(self, other):
         if not self.symbolic and type(other) is int:

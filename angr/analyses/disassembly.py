@@ -95,7 +95,7 @@ class FunctionStart(DisassemblyPiece):
 
     def _render(self, formatting):
         # TODO: Make the individual elements be individual Pieces
-        return ['{} = {:#x}'.format(name, offset) for offset, name in self.vars]
+        return [f'{name} = {offset:#x}' for offset, name in self.vars]
 
     def height(self, formatting):
         return len(self.vars)
@@ -869,7 +869,7 @@ class MemoryOperand(Operand):
             if segment_selector_str and prefix_str:
                 prefix_str += ' '
 
-            return [ '{}{}{}{}'.format(prefix_str, segment_selector_str, value_str, self.suffix_str) ]
+            return [ f'{prefix_str}{segment_selector_str}{value_str}{self.suffix_str}' ]
 
 
 class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method

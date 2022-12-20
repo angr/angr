@@ -373,7 +373,7 @@ class SimIROp:
         print("Operation: %s" % self.name)
         for k,v in self.op_attrs.items():
             if v is not None and v != "":
-                print("... {}: {}".format(k, v))
+                print(f"... {k}: {v}")
 
     def calculate(self, *args):
         if not all(isinstance(a, claripy.ast.Base) for a in args):

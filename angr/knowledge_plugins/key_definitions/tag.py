@@ -17,7 +17,7 @@ class Tag:
         self.metadata = metadata
 
     def __repr__(self):
-        return "<{} {{Metadata: {}}}>".format(self.__class__.__name__, self.metadata)
+        return f"<{self.__class__.__name__} {{Metadata: {self.metadata}}}>"
 
 class FunctionTag(Tag):
     """
@@ -30,7 +30,7 @@ class FunctionTag(Tag):
 
     def __repr__(self):
         if self.function:
-            return '<{} {{Function: {:#x}, Metadata:{}}}>'.format(self.__class__.__name__, self.function, self.metadata)
+            return f'<{self.__class__.__name__} {{Function: {self.function:#x}, Metadata:{self.metadata}}}>'
         else:
             return super().__repr__()
 

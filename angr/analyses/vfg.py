@@ -63,9 +63,9 @@ class VFGJob(CFGJobBase):
             call_site_str = "%#x" % call_site if call_site is not None else "None"
 
             if func_addr in kb.functions:
-                s.append("{}[{}]".format(kb.functions[func_addr].name, call_site_str))
+                s.append(f"{kb.functions[func_addr].name}[{call_site_str}]")
             else:
-                s.append("{:#x}[{}]".format(func_addr, call_site_str))
+                s.append(f"{func_addr:#x}[{call_site_str}]")
 
         return "//".join(s)
 
@@ -220,7 +220,7 @@ class VFGNode:
                self.input_variables == o.input_variables)
 
     def __repr__(self):
-        s = "VFGNode[{:#x}] <{}>".format(self.addr, repr(self.key))
+        s = f"VFGNode[{self.addr:#x}] <{repr(self.key)}>"
         return s
 
     def append_state(self, s, is_widened_state=False):

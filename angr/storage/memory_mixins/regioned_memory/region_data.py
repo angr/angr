@@ -35,7 +35,7 @@ class AddressWrapper:
         return self.region == other.region and self.address == other.address
 
     def __repr__(self):
-        return "<{}> {}".format(self.region, hex(self.address))
+        return f"<{self.region}> {hex(self.address)}"
 
     def to_valueset(self, state):
         """

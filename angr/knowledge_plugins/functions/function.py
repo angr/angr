@@ -499,7 +499,7 @@ class Function(Serializable):
             return False
 
     def __str__(self):
-        s = 'Function {} [{}]\n'.format(self.name, self.addr)
+        s = f'Function {self.name} [{self.addr}]\n'
         s += '  Syscall: %s\n' % self.is_syscall
         s += '  SP difference: %d\n' % self.sp_delta
         s += '  Has return: %s\n' % self.has_return
@@ -516,7 +516,7 @@ class Function(Serializable):
         if self.is_syscall:
             return '<Syscall function {} ({})>'.format(self.name,
                                                    hex(self.addr) if isinstance(self.addr, int) else self.addr)
-        return '<Function {} ({})>'.format(self.name, hex(self.addr) if isinstance(self.addr, int) else self.addr)
+        return f'<Function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>'
 
     def __setstate__(self, state):
         for k, v in state.items():
@@ -702,12 +702,12 @@ class Function(Serializable):
     def _confirm_fakeret(self, src, dst):
 
         if src not in self.transition_graph or dst not in self.transition_graph[src]:
-            raise AngrValueError('FakeRet edge ({}, {}) is not in transition graph.'.format(src, dst))
+            raise AngrValueError(f'FakeRet edge ({src}, {dst}) is not in transition graph.')
 
         data = self.transition_graph[src][dst]
 
         if 'type' not in data or data['type'] != 'fake_return':
-            raise AngrValueError('Edge ({}, {}) is not a FakeRet edge'.format(src, dst))
+            raise AngrValueError(f'Edge ({src}, {dst}) is not a FakeRet edge')
 
         # it's confirmed. register the node if needed
         if 'outside' not in data or data['outside'] is False:

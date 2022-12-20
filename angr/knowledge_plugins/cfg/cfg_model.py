@@ -495,6 +495,6 @@ class CFGModel(Serializable):
         """
 
         if not self.graph.has_edge(src_block, dst_block):
-            raise AngrCFGError('Edge ({}, {}) does not exist in CFG'.format(src_block, dst_block))
+            raise AngrCFGError(f'Edge ({src_block}, {dst_block}) does not exist in CFG')
 
         return self.graph[src_block][dst_block]['stmt_idx']

@@ -53,7 +53,7 @@ class StateOption:
         else:
             types = ",".join(t.__name__ for t in self.types)
 
-        return "<O {}[{}]{}>".format(self.name, types, desc)
+        return f"<O {self.name}[{types}]{desc}>"
 
     def __getstate__(self):
         return {

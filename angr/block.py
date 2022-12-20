@@ -68,10 +68,10 @@ class DisassemblerInsn:
         raise NotImplementedError()
 
     def __str__(self):
-        return "{:#x}:\t{}\t{}".format(self.address, self.mnemonic, self.op_str)
+        return f"{self.address:#x}:\t{self.mnemonic}\t{self.op_str}"
 
     def __repr__(self):
-        return '<DisassemblerInsn "{}" for {:#x}>'.format(self.mnemonic, self.address)
+        return f'<DisassemblerInsn "{self.mnemonic}" for {self.address:#x}>'
 
 
 class CapstoneBlock(DisassemblerBlock):

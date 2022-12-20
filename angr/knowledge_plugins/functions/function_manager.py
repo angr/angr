@@ -135,7 +135,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         """
         with open(filepath, "wb") as f:
             for src, dst in self.callgraph.edges():
-                f.write("{:#x}\tDirectEdge\t{:#x}\n".format(src, dst))
+                f.write(f"{src:#x}\tDirectEdge\t{dst:#x}\n")
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
         if isinstance(node, self.address_types):
@@ -412,7 +412,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
     def dbg_draw(self, prefix='dbg_function_'):
         for func_addr, func in self._function_map.items():
-            filename = "{}{:#08x}.png".format(prefix, func_addr)
+            filename = f"{prefix}{func_addr:#08x}.png"
             func.dbg_draw(filename)
 
     def rebuild_callgraph(self):

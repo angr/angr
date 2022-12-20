@@ -57,7 +57,7 @@ class CFGArchOptions:
         # make sure options are valid
         for k in options.keys():
             if self.arch.name not in self.OPTIONS or k not in self.OPTIONS[self.arch.name]:
-                raise KeyError('Architecture {} does not support arch-specific option "{}".'.format(self.arch.name, k))
+                raise KeyError(f'Architecture {self.arch.name} does not support arch-specific option "{k}".')
 
         for k, v in options.items():
             self.__setattr__(k, v)
@@ -77,7 +77,7 @@ class CFGArchOptions:
             if sort is None or isinstance(option_value, sort):
                 self._options[option_name] = option_value
             else:
-                raise ValueError('Value for option "{}" must be of type {}'.format(option_name, sort))
+                raise ValueError(f'Value for option "{option_name}" must be of type {sort}')
 
         else:
             super().__setattr__(option_name, option_value )

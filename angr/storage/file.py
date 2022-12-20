@@ -476,7 +476,7 @@ class SimPackets(SimFileBase):
             _, realsize = self.content[pos]
             self.state.add_constraints(realsize <= size)  # assert that the packet fits within the read request
             if not self.state.solver.satisfiable():
-                raise SimFileError("SimPackets could not fit the current packet into the read request of {} bytes: {}".format(size, self.content[pos]))
+                raise SimFileError(f"SimPackets could not fit the current packet into the read request of {size} bytes: {self.content[pos]}")
             return self.content[pos] + (pos+1,)
 
         # typecheck

@@ -85,7 +85,7 @@ class SimConstantVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        s = "<{}|const {}>".format(self.region, self.value)
+        s = f"<{self.region}|const {self.value}>"
 
         return s
 
@@ -182,7 +182,7 @@ class SimRegisterVariable(SimVariable):
         ident_str = "[%s]" % self.ident if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
 
-        s = "<{}{}|Reg {}, {}B>".format(region_str, ident_str, self.reg, self.size)
+        s = f"<{region_str}{ident_str}|Reg {self.reg}, {self.size}B>"
 
         return s
 
@@ -252,9 +252,9 @@ class SimMemoryVariable(SimVariable):
             size = '%s' % self.size
 
         if type(self.addr) is int:
-            s = "<{}: {}-Mem {:#x} {}>".format(self.name, self.region, self.addr, size)
+            s = f"<{self.name}: {self.region}-Mem {self.addr:#x} {size}>"
         else:
-            s = "<{}: {}-Mem {} {}>".format(self.name, self.region, self.addr, size)
+            s = f"<{self.name}: {self.region}-Mem {self.addr} {size}>"
 
         return s
 
@@ -360,9 +360,9 @@ class SimStackVariable(SimMemoryVariable):
             else:
                 offset = ""
 
-            s = "<{}{}|{} {}{}, {} B>".format(region_str, ident, prefix, self.base, offset, size)
+            s = f"<{region_str}{ident}|{prefix} {self.base}{offset}, {size} B>"
         else:
-            s = "<{}{}|{} {}{}, {} B>".format(region_str, ident, prefix, self.base, self.addr, size)
+            s = f"<{region_str}{ident}|{prefix} {self.base}{self.addr}, {size} B>"
 
         return s
 

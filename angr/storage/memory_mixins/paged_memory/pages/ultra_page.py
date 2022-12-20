@@ -273,7 +273,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     mo, fv in memory_objects
                 ] if min_size != 0 else []
                 created = [
-                    (self._default_value(None, min_size, name="merge_uc_{}_{:x}".format(uc.id, b), memory=memory),
+                    (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory),
                      fv) for
                     uc, fv in unconstrained_in
                 ]

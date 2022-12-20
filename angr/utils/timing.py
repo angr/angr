@@ -24,9 +24,9 @@ def timethis(func):
             sec = millisec / 1000
             if PRINT:
                 if sec > 1.0:
-                    print("[timing] {} took {:f} seconds ({:f} milliseconds).".format(func.__name__, sec, millisec))
+                    print(f"[timing] {func.__name__} took {sec:f} seconds ({millisec:f} milliseconds).")
                 else:
-                    print("[timing] {} took {:f} milliseconds.".format(func.__name__, millisec))
+                    print(f"[timing] {func.__name__} took {millisec:f} milliseconds.")
             total_time[func] += millisec
             if TIME_DISTRIBUTION:
                 time_distribution[func].append(millisec)

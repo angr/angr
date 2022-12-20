@@ -11,7 +11,7 @@ class ManualMergepoint(ExplorationTechnique):
         self.wait_counter_limit = wait_counter
         self.prune = prune
         self.wait_counter = 0
-        self.stash = 'merge_waiting_{:#x}_{:x}'.format(self.address, id(self))
+        self.stash = f'merge_waiting_{self.address:#x}_{id(self):x}'
         self.filter_marker = 'skip_next_filter_%#x' % self.address
 
     def setup(self, simgr):

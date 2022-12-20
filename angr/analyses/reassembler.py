@@ -220,7 +220,7 @@ class DataLabel(Label):
             offset = self.offset
             sign = '+' if offset >= 0 else '-'
             offset = abs(offset)
-            return '({}{}{})'.format(self.name, sign, offset)
+            return f'({self.name}{sign}{offset})'
 
     def __str__(self):
         #if self.var_size is not None:
@@ -514,7 +514,7 @@ class Operand:
                                               self.scale
                                               )
                 elif self.base:  # not self.index
-                    s = "{}({})".format(disp, base)
+                    s = f"{disp}({base})"
                 else:
                     s = disp
 
@@ -585,7 +585,7 @@ class Operand:
             ref_type = "DATAREF"
 
         if ref_type:
-            return "{} <{}>".format(op_type, ref_type)
+            return f"{op_type} <{ref_type}>"
         else:
             return op_type
 
@@ -761,8 +761,8 @@ class Instruction:
 
     def dbg_comments(self):
         operands = ", ".join([ str(operand) for operand in self.operands ])
-        capstone_str = "{:#08x}:\t{}\t{}".format(self.addr, self.mnemonic, self.op_str)
-        comments = "\t# {} [{}]".format(capstone_str, operands)
+        capstone_str = f"{self.addr:#08x}:\t{self.mnemonic}\t{self.op_str}"
+        comments = f"\t# {capstone_str} [{operands}]"
 
         return comments
 
@@ -795,7 +795,7 @@ class Instruction:
             inserted_asm_after_label = "\n".join(self.binary.inserted_asm_after_label[self.addr])
             inserted_asm_after_label += "\n"
 
-        not_symbolized = "\t{}\t{}".format(self.mnemonic, self.op_str)
+        not_symbolized = f"\t{self.mnemonic}\t{self.op_str}"
         if not symbolized:
             asm = not_symbolized
 
@@ -1417,11 +1417,11 @@ class Data:
                     if isinstance(symbolized_label, int):
                         s += "\t%s %d\n" % (directive, symbolized_label)
                     else:
-                        s += "\t{} {}\n".format(directive, symbolized_label.operand_str)
+                        s += f"\t{directive} {symbolized_label.operand_str}\n"
 
             else:
                 for label in self.content:
-                    s += "\t{} {}\n".format(directive, label.operand_str)
+                    s += f"\t{directive} {label.operand_str}\n"
 
         elif self.sort == MemoryDataSort.SegmentBoundary:
 
@@ -1703,7 +1703,7 @@ class Relocation:
         self.sort = sort
 
     def __repr__(self):
-        s = "<Reloc {} {:#x} ({:#x})>".format(self.sort, self.addr, self.ref_addr)
+        s = f"<Reloc {self.sort} {self.addr:#x} ({self.ref_addr:#x})>"
         return s
 
 

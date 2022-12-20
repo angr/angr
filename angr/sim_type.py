@@ -382,7 +382,7 @@ class SimTypeInt(SimTypeReg):
             out = 'unsigned ' + out
         if name is None:
             return out
-        return '{} {}'.format(out, name)
+        return f'{out} {name}'
 
     def __repr__(self):
         name = self._base_name
@@ -401,7 +401,7 @@ class SimTypeInt(SimTypeReg):
         try:
             return self._arch.sizeof[self._base_name]
         except KeyError:
-            raise ValueError("Arch {} doesn't have its {} type defined!".format(self._arch.name, self._base_name))
+            raise ValueError(f"Arch {self._arch.name} doesn't have its {self._base_name} type defined!")
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
@@ -570,7 +570,7 @@ class SimTypePointer(SimTypeReg):
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         # if it points to an array, we do not need to add a *
         deref_chr = '*' if not isinstance(self.pts_to, SimTypeArray) else ''
-        name_with_deref = deref_chr if name is None else '{}{}'.format(deref_chr, name)
+        name_with_deref = deref_chr if name is None else f'{deref_chr}{name}'
         return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):
@@ -660,7 +660,7 @@ class SimTypeFixedSizeArray(SimType):
         if name is None:
             return repr(self)
 
-        name = '{}[{}]'.format(name, self.length)
+        name = f'{name}[{self.length}]'
         return self.elem_type.c_repr(name, full, memo, indent)
 
     _can_refine_int = True
@@ -1221,7 +1221,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @staticmethod
     def _field_str(field_name, field_type):
-        return "\"{}\": {}".format(field_name, field_type._init_str())
+        return f"\"{field_name}\": {field_type._init_str()}"
 
     def _init_str(self):
         return "{}({{{}}}, name=\"{}\", pack={}, align={})".format(
@@ -1335,7 +1335,7 @@ class SimUnion(NamedTypeMixin, SimType):
     def __repr__(self):
         # use the str instead of repr of each member to avoid exceed recursion
         # depth when representing self-referential unions
-        return 'union {} {{\n\t{}\n}}'.format(self.name, '\n\t'.join('{} {};'.format(name, str(ty))
+        return 'union {} {{\n\t{}\n}}'.format(self.name, '\n\t'.join(f'{name} {str(ty)};'
                                                                for name, ty in self.members.items()))
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
@@ -1362,10 +1362,10 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @staticmethod
     def _field_str(field_name, field_type):
-        return "\"{}\": {}".format(field_name, field_type._init_str())
+        return f"\"{field_name}\": {field_type._init_str()}"
 
     def __str__(self):
-        return 'union {}'.format(self.name)
+        return f'union {self.name}'
 
     def _with_arch(self, arch):
         out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.items()}, self.label)

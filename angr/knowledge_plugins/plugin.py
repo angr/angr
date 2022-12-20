@@ -9,5 +9,5 @@ class KnowledgeBasePlugin:
     @staticmethod
     def register_default(name, cls):
         if name in default_plugins:
-            raise Exception("{} is already set as the default for {}".format(default_plugins[name], name))
+            raise Exception(f"{default_plugins[name]} is already set as the default for {name}")
         default_plugins[name] = cls

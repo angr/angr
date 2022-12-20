@@ -35,11 +35,11 @@ class AST:
         _short_repr = lambda a: a.short_repr
 
         if len(self.operands) == 1:
-            return "{}{}".format(self.op, _short_repr(self.operands[0]))
+            return f"{self.op}{_short_repr(self.operands[0])}"
         elif len(self.operands) == 2:
-            return "{} {} {}".format(_short_repr(self.operands[0]), self.op, _short_repr(self.operands[1]))
+            return f"{_short_repr(self.operands[0])} {self.op} {_short_repr(self.operands[1])}"
         else:
-            return "{} ({})".format(self.op, self.operands)
+            return f"{self.op} ({self.operands})"
 
 
 class ProgramVariable:
@@ -69,17 +69,17 @@ class ProgramVariable:
 
     def __repr__(self):
         if self._arch is not None:
-            s = "{{{} @ {}}}".format(self.variable, self.location)
+            s = f"{{{self.variable} @ {self.location}}}"
         else:
-            s = "{{{} @ {}}}".format(self.variable, self.location)
+            s = f"{{{self.variable} @ {self.location}}}"
         return s
 
     @property
     def short_repr(self):
         if self._arch is not None:
-            s = "{{{}@{}}}".format(self.variable, self.location.short_repr)
+            s = f"{{{self.variable}@{self.location.short_repr}}}"
         else:
-            s = "{{{}@{}}}".format(self.variable, self.location.short_repr)
+            s = f"{{{self.variable}@{self.location.short_repr}}}"
         return s
 
 
@@ -559,7 +559,7 @@ class DDG(Analysis):
         """
         # TODO: make it prettier
         for src, dst, data in self.graph.edges(data=True):
-            print("{} <-- {}, {}".format(src, dst, data))
+            print(f"{src} <-- {dst}, {data}")
 
     def dbg_repr(self):
         """
@@ -851,7 +851,7 @@ class DDG(Analysis):
             elif a.type == 'constraint':
                 pass
             else:
-                handler_name = "_handle_{}_{}".format(a.type, a.action)
+                handler_name = f"_handle_{a.type}_{a.action}"
                 if hasattr(self, handler_name):
                     getattr(self, handler_name)(a, current_code_location, state, statement)
                 else:

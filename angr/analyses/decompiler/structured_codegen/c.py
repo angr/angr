@@ -350,7 +350,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     if isinstance(var_type, SimType):
                         raw_type_str = var_type.c_repr(name=name)
                     else:
-                        raw_type_str = '{} {}'.format(var_type, name)
+                        raw_type_str = f'{var_type} {name}'
 
                     assert name in raw_type_str
                     type_pre, type_post = raw_type_str.split(name, 1)

@@ -34,7 +34,7 @@ class BlockID:
         return " -> ".join(s)
 
     def __repr__(self):
-        return "<BlockID {:#08x} ({}) % {}>".format(self.addr, self.callsite_repr(), self.jump_type)
+        return f"<BlockID {self.addr:#08x} ({self.callsite_repr()}) % {self.jump_type}>"
 
     def __hash__(self):
         if self._hash is None:
@@ -89,7 +89,7 @@ class FunctionKey:
         return " -> ".join(s)
 
     def __repr__(self):
-        s = "<FuncKey {:#08x} ({})>".format(self.addr, self.callsite_repr())
+        s = f"<FuncKey {self.addr:#08x} ({self.callsite_repr()})>"
         return s
 
     def __hash__(self):
@@ -175,4 +175,4 @@ class CFGJobBase:
         if isinstance(self.addr, SootAddressDescriptor):
             return f"<Entry {self.addr} {self.jumpkind}>"
         else:
-            return "<Entry {:#08x} % {}>".format(self.addr, self.jumpkind)
+            return f"<Entry {self.addr:#08x} % {self.jumpkind}>"

@@ -378,7 +378,7 @@ class IRSB:
             next_str = '%x' % self.next
         else:
             next_str = str(self.next)
-        sa.append("   NEXT: {}; {}".format(next_str, self.jumpkind))
+        sa.append(f"   NEXT: {next_str}; {self.jumpkind}")
         sa.append("}")
         return "\n".join(sa)
 

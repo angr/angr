@@ -8,7 +8,7 @@ class TypedValue(claripy.BackendObject):
         self.value = value
 
     def __repr__(self):
-        return 'TypedValue({}, {})'.format(repr(self.ty), repr(self.value))
+        return f'TypedValue({repr(self.ty)}, {repr(self.value)})'
 
 class TypeBackend(claripy.Backend):
     def __init__(self):

@@ -72,7 +72,7 @@ def do_trace(proj, test_name, input_data, **kwargs):
         bin_location,
         "tests_data",
         "runner_traces",
-        "{}_{}_{}.p".format(test_name, os.path.basename(proj.filename), proj.arch.name),
+        f"{test_name}_{os.path.basename(proj.filename)}_{proj.arch.name}.p",
     )
 
     if os.path.isfile(fname):

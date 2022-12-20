@@ -50,7 +50,7 @@ class Cacher(ExplorationTechnique):
         if self.container is None:
             # Create a temporary directory to hold the cache files
             tmp_directory = tempfile.mkdtemp(prefix="angr_cacher_container")
-            self.container = os.path.join(tmp_directory, "{}-{}.cache".format(os.path.basename(binary), binhash))
+            self.container = os.path.join(tmp_directory, f"{os.path.basename(binary)}-{binhash}.cache")
 
         # Container is the file name.
         elif isinstance(self.container, str) and not self.container_pickle_str:

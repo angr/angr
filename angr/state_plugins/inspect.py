@@ -151,7 +151,7 @@ class BP:
     """
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
         if len({ k.replace("_unique", "") for k in kwargs} - set(inspect_attributes)) != 0:
-            raise ValueError("Invalid inspect attribute(s) {} passed in. Should be one of {}, or their _unique option.".format(kwargs, inspect_attributes))
+            raise ValueError(f"Invalid inspect attribute(s) {kwargs} passed in. Should be one of {inspect_attributes}, or their _unique option.")
 
         self.kwargs = kwargs
 

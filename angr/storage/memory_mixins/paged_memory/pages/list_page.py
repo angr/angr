@@ -69,7 +69,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         global_end_addr = addr + page_addr
         global_start_addr = result[-1][0]
         size = global_end_addr - global_start_addr
-        new_ast = self._default_value(global_start_addr, size, name='{}_{:x}'.format(memory.id, global_start_addr),
+        new_ast = self._default_value(global_start_addr, size, name=f'{memory.id}_{global_start_addr:x}',
                                       key=(self.category, global_start_addr), memory=memory, **kwargs)
         new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness,
                                    byte_width=memory.state.arch.byte_width if memory is not None else 8)
@@ -193,7 +193,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                 extracted = [(mo.bytes_at(page_addr+b, min_size), fv) for mo, fv in memory_objects] \
                     if min_size != 0 else []
                 created = [
-                    (self._default_value(None, min_size, name="merge_uc_{}_{:x}".format(uc.id, b), memory=memory),
+                    (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory),
                      fv) for
                     uc, fv in unconstrained_in
                 ]

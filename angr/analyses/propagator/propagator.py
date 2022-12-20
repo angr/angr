@@ -268,7 +268,7 @@ class Equivalence:
         self.atom1 = atom1
 
     def __repr__(self):
-        return "<Eq@{!r}: {!r}=={!r}>".format(self.codeloc, self.atom0, self.atom1)
+        return f"<Eq@{self.codeloc!r}: {self.atom0!r}=={self.atom1!r}>"
 
     def __eq__(self, other):
         return type(other) is Equivalence \

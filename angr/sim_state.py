@@ -697,7 +697,7 @@ class SimState(PluginHub):
             ) - {None.__class__}
             if len(plugin_classes) != 1:
                 raise SimMergeError(
-                    "There are differing plugin classes ({}) for plugin {}".format(plugin_classes, p)
+                    f"There are differing plugin classes ({plugin_classes}) for plugin {p}"
                 )
             plugin_class = plugin_classes.pop()
 
@@ -877,7 +877,7 @@ class SimState(PluginHub):
                 bp_value = None
             else:
                 bp_value = self.solver.eval(bp_sim)
-                result = "SP = 0x{:08x}, BP = 0x{:08x}\n".format(sp_value, bp_value)
+                result = f"SP = 0x{sp_value:08x}, BP = 0x{bp_value:08x}\n"
             if depth is None:
                 # bp_value cannot be None here
                 depth = (bp_value - sp_value) // var_size + 1 # Print one more value
@@ -901,11 +901,11 @@ class SimState(PluginHub):
                 val = self._stack_values_to_string(stack_values)
 
                 if pointer_value == sp_value:
-                    line = "(sp){: 16x} | {}".format(pointer_value, val)
+                    line = f"(sp){pointer_value: 16x} | {val}"
                 elif pointer_value == bp_value:
-                    line = "(bp){: 16x} | {}".format(pointer_value, val)
+                    line = f"(bp){pointer_value: 16x} | {val}"
                 else:
-                    line = "{: 20x} | {}".format(pointer_value, val)
+                    line = f"{pointer_value: 20x} | {val}"
 
                 pointer_value += var_size
                 result += line + "\n"

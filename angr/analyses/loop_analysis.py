@@ -25,7 +25,7 @@ class AnnotatedVariable:
         self.type = type_
 
     def __repr__(self):
-        return "{}//{}".format(self.variable, self.type)
+        return f"{self.variable}//{self.type}"
 
     def __eq__(self, other):
         return type(other) is AnnotatedVariable and other.type == self.type and other.variable == self.variable
@@ -42,7 +42,7 @@ class Condition:
         self.val1 = val1
 
     def __repr__(self):
-        return "{} {} {}".format(self.val0, self.op, self.val1)
+        return f"{self.val0} {self.op} {self.val1}"
 
     @classmethod
     def from_opstr(cls, opstr):

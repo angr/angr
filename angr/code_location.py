@@ -55,13 +55,13 @@ class CodeLocation:
         if self.context is None:
             s += " contextless"
         else:
-            s += " context: {!r}".format(self.context)
+            s += f" context: {self.context!r}"
 
         ss = [ ]
         if self.info:
             for k, v in self.info.items():
                 if v != tuple() and v is not None:
-                    ss.append("{}={}".format(k, v))
+                    ss.append(f"{k}={v}")
             if ss:
                 s += " with %s" % ", ".join(ss)
         s += ">"

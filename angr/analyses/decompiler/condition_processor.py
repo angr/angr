@@ -640,7 +640,7 @@ class ConditionProcessor:
         elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
             # does it have a variable associated?
             if condition.variable is not None:
-                var = claripy.BVS('ailexpr_{}-{}'.format(repr(condition), condition.variable.ident), condition.bits,
+                var = claripy.BVS(f'ailexpr_{repr(condition)}-{condition.variable.ident}', condition.bits,
                                   explicit_name=True)
             else:
                 var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits,

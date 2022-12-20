@@ -124,7 +124,7 @@ class CFGNode(Serializable):
                 self._name = sym.name
             if self._name is not None:
                 offset = self.addr - self.function_address
-                self._name = "{}{:+#x}".format(self._name, offset)
+                self._name = f"{self._name}{offset:+#x}"
 
         return self._name
 

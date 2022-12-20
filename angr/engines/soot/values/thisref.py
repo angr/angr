@@ -30,7 +30,7 @@ class SimSootValue_ThisRef(SimSootValue):
 
     @property
     def id(self):
-        return "{}.{}.this".format(self.heap_alloc_id, self.type)
+        return f"{self.heap_alloc_id}.{self.type}.this"
 
     def set_field(self, state, field_name, field_type, field_value):
         """
