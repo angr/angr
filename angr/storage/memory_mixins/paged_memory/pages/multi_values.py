@@ -111,7 +111,7 @@ class MultiValues:
         return max_offset * 8 + max_len  # FIXME: we are assuming byte_width of 8
 
     def merge(self, mv: 'MultiValues') -> 'MultiValues':
-        new_values = dict((k, set(v)) for k, v in self.items())
+        new_values = {k: set(v) for k, v in self.items()}
         for off, vs in mv.items():
             if off not in new_values:
                 new_values[off] = set(vs)

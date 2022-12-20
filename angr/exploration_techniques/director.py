@@ -1,4 +1,3 @@
-
 import logging
 from collections import defaultdict
 
@@ -15,7 +14,7 @@ from . import ExplorationTechnique
 l = logging.getLogger(name=__name__)
 
 
-class BaseGoal(object):
+class BaseGoal:
 
     REQUIRE_CFG_STATES = False
 
@@ -118,7 +117,7 @@ class ExecuteAddressGoal(BaseGoal):
     """
 
     def __init__(self, addr):
-        super(ExecuteAddressGoal, self).__init__('execute_address')
+        super().__init__('execute_address')
 
         self.addr = addr
 
@@ -177,7 +176,7 @@ class CallFunctionGoal(BaseGoal):
     REQUIRE_CFG_STATES = True
 
     def __init__(self, function, arguments):
-        super(CallFunctionGoal, self).__init__('function_call')
+        super().__init__('function_call')
 
         self.function = function
         self.arguments = arguments
@@ -377,7 +376,7 @@ class Director(ExplorationTechnique):
         Constructor.
         """
 
-        super(Director, self).__init__()
+        super().__init__()
 
         self._peek_blocks = peek_blocks
         self._peek_functions = peek_functions

@@ -846,7 +846,7 @@ def test_multivalued_list_page():
     assert len(a.keys()) == 1
     assert 0 in a
     assert len(list(a.values())[0]) == 2
-    assert set(state.solver.eval_exact(item, 1)[0] for item in list(a.values())[0]) == { 0x40, 0x85868788 }
+    assert {state.solver.eval_exact(item, 1)[0] for item in list(a.values())[0]} == { 0x40, 0x85868788 }
 
     # weak updates with symbolic values
     A = claripy.BVS("a", 64)

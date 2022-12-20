@@ -1,4 +1,3 @@
-
 import pyvex
 
 from ..utils import looks_like_sql

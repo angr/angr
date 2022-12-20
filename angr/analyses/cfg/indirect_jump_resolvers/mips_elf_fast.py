@@ -413,7 +413,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
     @staticmethod
     def _set_gp_load_callback(state, blade, project, gp_offset, gp_value):
         tmps = {}
-        for block_addr_in_slice in set(slice_node[0] for slice_node in blade.slice.nodes()):
+        for block_addr_in_slice in {slice_node[0] for slice_node in blade.slice.nodes()}:
             for stmt in project.factory.block(block_addr_in_slice, cross_insn_opt=False).vex.statements:
                 if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Load from memory to a tmp - assuming it's loading from the stack

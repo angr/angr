@@ -1,4 +1,3 @@
-
 import logging
 
 from .plugin import SimStatePlugin
@@ -8,7 +7,7 @@ l = logging.getLogger(name=__name__)
 
 class SimStateGlobals(SimStatePlugin):
     def __init__(self, backer=None):
-        super(SimStateGlobals, self).__init__()
+        super().__init__()
         self._backer = backer if backer is not None else {}
 
     def set_state(self, state):

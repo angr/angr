@@ -1,4 +1,3 @@
-
 from ..libc.scanf import scanf
 from ..libc.fscanf import fscanf
 

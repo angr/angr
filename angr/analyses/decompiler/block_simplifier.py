@@ -222,7 +222,7 @@ class BlockSimplifier(Analysis):
         # Find dead assignments
         dead_defs_stmt_idx = set()
         all_defs: Iterable['Definition'] = rd.all_definitions
-        stackarg_offsets = set(tpl[1] for tpl in self._stack_arg_offsets) \
+        stackarg_offsets = {tpl[1] for tpl in self._stack_arg_offsets} \
             if self._stack_arg_offsets is not None else None
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
@@ -272,7 +272,7 @@ class BlockSimplifier(Analysis):
         used_tmps = set()
         # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well
         for tmp, used_locs in rd.one_result.tmp_uses.items():
-            used_at = set(loc.stmt_idx for loc in used_locs)
+            used_at = {loc.stmt_idx for loc in used_locs}
             if used_at.issubset(dead_defs_stmt_idx):
                 continue
             used_tmps.add(tmp)

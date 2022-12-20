@@ -13,7 +13,7 @@ class CharacterIsDigit(JavaSimProcedure):
     )
 
     def run(self, char_ref):
-        log.debug('Called SimProcedure java.lang.Character.isDigit with args: {}'.format(char_ref))
+        log.debug(f'Called SimProcedure java.lang.Character.isDigit with args: {char_ref}')
         char_str = self.state.memory.load(char_ref)
 
         constraint = claripy.StrIsDigit(char_str)
@@ -28,7 +28,7 @@ class CharacterIsSpaceChar(JavaSimProcedure):
     )
 
     def run(self, char_ref):
-        log.debug('Called SimProcedure java.lang.Character.isSpaceChar with args: {}'.format(char_ref))
+        log.debug(f'Called SimProcedure java.lang.Character.isSpaceChar with args: {char_ref}')
         char_str = self.state.memory.load(char_ref)
 
         # Should we add other unicode SPACE_SEPARATOR?

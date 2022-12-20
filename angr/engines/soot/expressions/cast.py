@@ -1,4 +1,3 @@
-
 import logging
 
 from archinfo import ArchSoot

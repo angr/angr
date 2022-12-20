@@ -8,7 +8,7 @@ l = logging.getLogger(name=__name__)
 
 class realloc(Func):
     def __init__(self):
-        super(realloc, self).__init__() #pylint disable=useless-super-delegation
+        super().__init__() #pylint disable=useless-super-delegation
 
     def num_args(self):
         return 2

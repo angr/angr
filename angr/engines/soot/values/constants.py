@@ -1,4 +1,3 @@
-
 from .base import SimSootValue
 
 class SimSootValue_IntConstant(SimSootValue):
@@ -6,7 +5,7 @@ class SimSootValue_IntConstant(SimSootValue):
     __slots__ = [ 'value', 'type' ]
 
     def __init__(self, value, type_):
-        super(SimSootValue_IntConstant, self).__init__()
+        super().__init__()
         self.value = value
         self.type = type_
 

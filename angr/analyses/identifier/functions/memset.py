@@ -1,4 +1,3 @@
-
 import random
 
 from ..func import Func, TestData
@@ -14,7 +13,7 @@ class memset(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super(memset, self).__init__() #pylint disable=useless-super-delegation
+        super().__init__() #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "memset"

@@ -16,7 +16,7 @@ class Threading(ExplorationTechnique):
     This is because of python's GIL, which says that only one thread at a time may be executing python code.
     """
     def __init__(self, threads=8, local_stash='thread_local'):
-        super(Threading, self).__init__()
+        super().__init__()
         self.threads = threads
         self.queued = set()
         self.tasks = set()

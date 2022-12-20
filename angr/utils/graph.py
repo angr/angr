@@ -105,12 +105,10 @@ def dfs_back_edges(graph, start_node):
                 if child in visited:
                     yield node, child
                 else:
-                    for s, t in _dfs_back_edges_core(child):
-                        yield s, t
+                    yield from _dfs_back_edges_core(child)
         finished.add(node)
 
-    for s,t in _dfs_back_edges_core(start_node):
-        yield s,t
+    yield from _dfs_back_edges_core(start_node)
 
 
 def subgraph_between_nodes(graph, source, frontier, include_frontier=False):

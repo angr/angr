@@ -4,7 +4,7 @@ from ..sim_procedure import SimProcedure
 
 l = logging.getLogger(name=__name__)
 
-class DataGraphMeta(object):
+class DataGraphMeta:
     def __init__(self):
         self._p = None
 

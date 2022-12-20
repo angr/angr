@@ -1,4 +1,3 @@
-
 import logging
 
 from archinfo.arch_soot import SootAddressDescriptor
@@ -11,7 +10,7 @@ l = logging.getLogger(name=__name__)
 # TODO: Make callsite an object and use it in BlockID and FunctionKey
 
 
-class BlockID(object):
+class BlockID:
     """
     A context-sensitive key for a SimRun object.
     """
@@ -35,7 +34,7 @@ class BlockID(object):
         return " -> ".join(s)
 
     def __repr__(self):
-        return "<BlockID %#08x (%s) %% %s>" % (self.addr, self.callsite_repr(), self.jump_type)
+        return "<BlockID {:#08x} ({}) % {}>".format(self.addr, self.callsite_repr(), self.jump_type)
 
     def __hash__(self):
         if self._hash is None:
@@ -67,7 +66,7 @@ class BlockID(object):
         return None
 
 
-class FunctionKey(object):
+class FunctionKey:
     """
     A context-sensitive key for a function.
     """
@@ -90,7 +89,7 @@ class FunctionKey(object):
         return " -> ".join(s)
 
     def __repr__(self):
-        s = "<FuncKey %#08x (%s)>" % (self.addr, self.callsite_repr())
+        s = "<FuncKey {:#08x} ({})>".format(self.addr, self.callsite_repr())
         return s
 
     def __hash__(self):
@@ -107,7 +106,7 @@ class FunctionKey(object):
         return FunctionKey(addr, callsite_tuples)
 
 
-class CFGJobBase(object):
+class CFGJobBase:
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
@@ -174,6 +173,6 @@ class CFGJobBase(object):
 
     def __repr__(self):
         if isinstance(self.addr, SootAddressDescriptor):
-            return "<Entry {} {}>".format(self.addr, self.jumpkind)
+            return f"<Entry {self.addr} {self.jumpkind}>"
         else:
-            return "<Entry %#08x %% %s>" % (self.addr, self.jumpkind)
+            return "<Entry {:#08x} % {}>".format(self.addr, self.jumpkind)

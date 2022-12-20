@@ -1,4 +1,3 @@
-
 from archinfo.arch_soot import SootArgument, SootMethodDescriptor
 
 from . import translate_expr
@@ -9,7 +8,7 @@ from .base import SimSootExpr
 
 class InvokeBase(SimSootExpr):
     def __init__(self, expr, state):
-        super(InvokeBase, self).__init__(expr, state)
+        super().__init__(expr, state)
         self.method = None
         self.args = None
 
@@ -110,4 +109,4 @@ class SimSootExpr_StaticInvoke(InvokeBase):
 
 class SimSootExpr_InterfaceInvoke(SimSootExpr_VirtualInvoke):
     def _resolve_invoke_target(self, expr, state):
-        return super(SimSootExpr_InterfaceInvoke, self)._resolve_invoke_target(expr, state)
+        return super()._resolve_invoke_target(expr, state)

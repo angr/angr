@@ -1,4 +1,3 @@
-
 import random
 import struct
 
@@ -15,7 +14,7 @@ class receive_n4(Func):
     # fd buf size
     # buf size
     def __init__(self):
-        super(receive_n4, self).__init__()  #pylint disable=useless-super-delegation
+        super().__init__()  #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "receive_n4"
@@ -48,7 +47,7 @@ class receive_n3(Func):
     # fd buf size
     # buf size
     def __init__(self):
-        super(receive_n3, self).__init__()  #pylint disable=useless-super-delegation
+        super().__init__()  #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "receive_n3"
@@ -79,7 +78,7 @@ class receive_n2(Func):
     # fd buf size
     # buf size
     def __init__(self):
-        super(receive_n2, self).__init__()  #pylint disable=useless-super-delegation
+        super().__init__()  #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "receive_n2"

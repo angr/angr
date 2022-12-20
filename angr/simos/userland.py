@@ -17,7 +17,7 @@ class SimUserland(SimOS):
     addresses, where a SimProcedure from the syscall library provided at construction time will be executed.
     """
     def __init__(self, project, syscall_library=None, syscall_addr_alignment=4, **kwargs):
-        super(SimUserland, self).__init__(project, **kwargs)
+        super().__init__(project, **kwargs)
         self.syscall_library = syscall_library.copy()
         self.syscall_addr_alignment = syscall_addr_alignment
         self.kernel_base = None

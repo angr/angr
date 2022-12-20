@@ -16,7 +16,7 @@ def _raw_ast(a):
     elif type(a) is dict:
         return { k:_raw_ast(a[k]) for k in a }
     elif type(a) in (tuple, list, set, frozenset):
-        return type(a)((_raw_ast(b) for b in a))
+        return type(a)(_raw_ast(b) for b in a)
     elif type(a) in (zip, filter, map):
         return (_raw_ast(i) for i in a)
     else:
@@ -27,12 +27,10 @@ def _all_objects(a):
         yield a
     elif type(a) is dict:
         for b in a.values():
-            for o in _all_objects(b):
-                yield o
+            yield from _all_objects(b)
     elif type(a) is (tuple, list, set, frozenset):
         for b in a:
-            for o in _all_objects(b):
-                yield o
+            yield from _all_objects(b)
 
 def ast_stripping_op(f, *args, **kwargs):
     new_args = _raw_ast(args)
@@ -78,7 +76,7 @@ class SimActionObject:
             self.tmp_deps = _noneset if tmp_deps is None else tmp_deps
 
     def __repr__(self):
-        return '<SAO {}>'.format(self.ast)
+        return f'<SAO {self.ast}>'
 
     def __getstate__(self):
         return self.ast, self.reg_deps, self.tmp_deps

@@ -1,5 +1,4 @@
-
-class CFGArchOptions(object):
+class CFGArchOptions:
     """
     Stores architecture-specific options and settings, as well as the detailed explanation of those options and
     settings.
@@ -58,7 +57,7 @@ class CFGArchOptions(object):
         # make sure options are valid
         for k in options.keys():
             if self.arch.name not in self.OPTIONS or k not in self.OPTIONS[self.arch.name]:
-                raise KeyError('Architecture %s does not support arch-specific option "%s".' % (self.arch.name, k))
+                raise KeyError('Architecture {} does not support arch-specific option "{}".'.format(self.arch.name, k))
 
         for k, v in options.items():
             self.__setattr__(k, v)
@@ -78,7 +77,7 @@ class CFGArchOptions(object):
             if sort is None or isinstance(option_value, sort):
                 self._options[option_name] = option_value
             else:
-                raise ValueError('Value for option "%s" must be of type %s' % (option_name, sort))
+                raise ValueError('Value for option "{}" must be of type {}'.format(option_name, sort))
 
         else:
-            super(CFGArchOptions, self).__setattr__(option_name, option_value )
+            super().__setattr__(option_name, option_value )

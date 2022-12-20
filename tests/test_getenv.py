@@ -26,7 +26,7 @@ class TestRunEcho(unittest.TestCase):
         assert len(simgr.deadended) == 1
 
         output_lines = simgr.deadended[0].posix.dumps(1).decode().splitlines(keepends=False)
-        expect_output = ["# {k}={v}".format(k=k,v=v) for k,v in env.items()] + \
+        expect_output = [f"# {k}={v}" for k,v in env.items()] + \
             [ "{k}: {v}".format(k=k, v=env.get(k,"__NULL__"))  for k in TEST_name ] + \
                 ["!! Bingo "+self.flag]
 

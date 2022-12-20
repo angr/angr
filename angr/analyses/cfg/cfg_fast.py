@@ -421,9 +421,9 @@ class CFGJob:
 
     def __repr__(self):
         if isinstance(self.addr, SootAddressDescriptor):
-            return "<CFGJob {}>".format(self.addr)
+            return f"<CFGJob {self.addr}>"
         else:
-            return "<CFGJob%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
+            return "<CFGJob{} {:#08x} @ func {:#08x}>".format(" syscall" if self.syscall else "", self.addr, self.func_addr)
 
     def __eq__(self, other):
         return self.addr == other.addr and \

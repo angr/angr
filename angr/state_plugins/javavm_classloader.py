@@ -18,7 +18,7 @@ class SimJavaVmClassloader(SimStatePlugin):
     """
 
     def __init__(self, initialized_classes=None):
-        super(SimJavaVmClassloader, self).__init__()
+        super().__init__()
         self._initialized_classes = set() if initialized_classes is None else initialized_classes
 
     def get_class(self, class_name, init_class=False, step_func=None):

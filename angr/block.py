@@ -68,10 +68,10 @@ class DisassemblerInsn:
         raise NotImplementedError()
 
     def __str__(self):
-        return "%#x:\t%s\t%s" % (self.address, self.mnemonic, self.op_str)
+        return "{:#x}:\t{}\t{}".format(self.address, self.mnemonic, self.op_str)
 
     def __repr__(self):
-        return '<DisassemblerInsn "%s" for %#x>' % (self.mnemonic, self.address)
+        return '<DisassemblerInsn "{}" for {:#x}>'.format(self.mnemonic, self.address)
 
 
 class CapstoneBlock(DisassemblerBlock):
@@ -233,8 +233,8 @@ class Block(Serializable):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
 
     def __getstate__(self):
-        return dict((k, getattr(self, k)) for k in self.__slots__
-                    if k not in {'_capstone', '_disassembly', '_project'})
+        return {k: getattr(self, k) for k in self.__slots__
+                    if k not in {'_capstone', '_disassembly', '_project'}}
 
     def __setstate__(self, data):
         for k, v in data.items():

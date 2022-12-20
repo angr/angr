@@ -259,8 +259,8 @@ class ConditionProcessor:
 
         elif isinstance(node, SwitchCaseNode):
             return SwitchCaseNode(self.convert_claripy_bool_ast(node.switch_expr, memo=memo),
-                                  dict((idx, self.remove_claripy_bool_asts(case_node, memo=memo))
-                                       for idx, case_node in node.cases.items()),
+                                  {idx: self.remove_claripy_bool_asts(case_node, memo=memo)
+                                       for idx, case_node in node.cases.items()},
                                   self.remove_claripy_bool_asts(node.default_node, memo=memo),
                                   addr=node.addr)
 
@@ -640,7 +640,7 @@ class ConditionProcessor:
         elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
             # does it have a variable associated?
             if condition.variable is not None:
-                var = claripy.BVS('ailexpr_%s-%s' % (repr(condition), condition.variable.ident), condition.bits,
+                var = claripy.BVS('ailexpr_{}-{}'.format(repr(condition), condition.variable.ident), condition.bits,
                                   explicit_name=True)
             else:
                 var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits,
@@ -932,20 +932,20 @@ class ConditionProcessor:
                              r1_with: claripy.ast.Bool) -> claripy.ast.Bool:
         if ast.op == "And":
             return ast.make_like("And", (
-                (ConditionProcessor._replace_term_in_ast(
+                ConditionProcessor._replace_term_in_ast(
                     arg,
                     r0,
                     r0_with,
                     r1,
-                    r1_with) for arg in ast.args)))
+                    r1_with) for arg in ast.args))
         elif ast.op == "Or":
             return ast.make_like("Or", (
-                 (ConditionProcessor._replace_term_in_ast(
+                 ConditionProcessor._replace_term_in_ast(
                     arg,
                     r0,
                     r0_with,
                     r1,
-                    r1_with) for arg in ast.args)))
+                    r1_with) for arg in ast.args))
         elif ast.op == "Not":
             return ast.make_like("Not", (
                 ConditionProcessor._replace_term_in_ast(

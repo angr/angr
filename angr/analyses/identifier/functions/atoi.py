@@ -1,4 +1,3 @@
-
 import random
 import string
 
@@ -7,7 +6,7 @@ from ..func import Func, TestData
 
 class atoi(Func):
     def __init__(self):
-        super(atoi, self).__init__()
+        super().__init__()
         self.skips_whitespace = False
         self.allows_negative = True
 

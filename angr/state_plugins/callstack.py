@@ -1,4 +1,3 @@
-
 import collections
 from itertools import dropwhile
 import logging

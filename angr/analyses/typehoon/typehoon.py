@@ -89,7 +89,7 @@ class Typehoon(Analysis):
             for tv in typevars:
                 typevar_to_var[tv] = k
 
-        print("### {} constraints".format(len(self._constraints)))
+        print(f"### {len(self._constraints)} constraints")
         for constraint in self._constraints:
             print("    " + constraint.pp_str(typevar_to_var))
         print("### end of constraints ###")
@@ -108,10 +108,10 @@ class Typehoon(Analysis):
             for tv in typevars:
                 typevar_to_var[tv] = k
 
-        print("### {} solutions".format(len(self.solution)))
+        print(f"### {len(self.solution)} solutions")
         for typevar in sorted(self.solution.keys(), key=str):
             sol = self.solution[typevar]
-            print("    {} -> {}".format(typevar_to_var.get(typevar, typevar), sol))
+            print(f"    {typevar_to_var.get(typevar, typevar)} -> {sol}")
         print("### end of solutions ###")
 
     #

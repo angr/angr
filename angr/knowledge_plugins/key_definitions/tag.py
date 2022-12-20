@@ -17,7 +17,7 @@ class Tag:
         self.metadata = metadata
 
     def __repr__(self):
-        return "<%s {Metadata: %s}>" % (self.__class__.__name__, self.metadata)
+        return "<{} {{Metadata: {}}}>".format(self.__class__.__name__, self.metadata)
 
 class FunctionTag(Tag):
     """
@@ -25,14 +25,14 @@ class FunctionTag(Tag):
     """
 
     def __init__(self, function: int=None, metadata: object=None):
-        super(FunctionTag, self).__init__(metadata)
+        super().__init__(metadata)
         self.function = function
 
     def __repr__(self):
         if self.function:
-            return '<%s {Function: %#x, Metadata:%s}>' % (self.__class__.__name__, self.function, self.metadata)
+            return '<{} {{Function: {:#x}, Metadata:{}}}>'.format(self.__class__.__name__, self.function, self.metadata)
         else:
-            return super(FunctionTag, self).__repr__()
+            return super().__repr__()
 
 
 class SideEffectTag(FunctionTag):

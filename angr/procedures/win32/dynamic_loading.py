@@ -59,7 +59,7 @@ class GetProcAddress(angr.SimProcedure):
         else:
             name = self.state.mem[name_addr].string.concrete.decode('utf-8')
 
-        full_name = '%s.%s' % (obj.provides, name)
+        full_name = '{}.{}'.format(obj.provides, name)
         self.procs.add(full_name)
 
         sym = obj.get_symbol(name)
@@ -82,7 +82,7 @@ class GetProcAddress(angr.SimProcedure):
             return 0
 
         name = sym.name # fix ordinal names
-        full_name = '%s.%s' % (obj.provides, name)
+        full_name = '{}.{}'.format(obj.provides, name)
         self.procs.add(full_name)
 
         l.debug("GetProcAddress: Imported %s (%#x) from %s", name, sym.rebased_addr, obj.provides)

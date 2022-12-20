@@ -69,7 +69,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         global_end_addr = addr + page_addr
         global_start_addr = result[-1][0]
         size = global_end_addr - global_start_addr
-        new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr),
+        new_ast = self._default_value(global_start_addr, size, name='{}_{:x}'.format(memory.id, global_start_addr),
                                       key=(self.category, global_start_addr), memory=memory, **kwargs)
         new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness,
                                    byte_width=memory.state.arch.byte_width if memory is not None else 8)
@@ -132,10 +132,10 @@ class ListPage(MemoryObjectMixin, PageBase):
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
-            mos = set(mo for mo, _ in memory_objects)
-            mo_bases = set(mo.base for mo, _ in memory_objects)
-            mo_lengths = set(mo.length for mo, _ in memory_objects)
-            endnesses = set(mo.endness for mo in mos)
+            mos = {mo for mo, _ in memory_objects}
+            mo_bases = {mo.base for mo, _ in memory_objects}
+            mo_lengths = {mo.length for mo, _ in memory_objects}
+            endnesses = {mo.endness for mo in mos}
 
             if not unconstrained_in and not (mos - merged_objects):  # pylint:disable=superfluous-parens
                 continue
@@ -193,7 +193,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                 extracted = [(mo.bytes_at(page_addr+b, min_size), fv) for mo, fv in memory_objects] \
                     if min_size != 0 else []
                 created = [
-                    (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
+                    (self._default_value(None, min_size, name="merge_uc_{}_{:x}".format(uc.id, b), memory=memory),
                      fv) for
                     uc, fv in unconstrained_in
                 ]

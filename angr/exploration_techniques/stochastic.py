@@ -18,7 +18,7 @@ class StochasticSearch(ExplorationTechnique):
         :param start_state:  The initial state from which exploration stems.
         :param restart_prob: The probability of randomly restarting the search (default 0.0001).
         """
-        super(StochasticSearch, self).__init__()
+        super().__init__()
         self.start_state = start_state
         self.restart_prob = restart_prob
         self._random = random.Random()
@@ -38,7 +38,7 @@ class StochasticSearch(ExplorationTechnique):
                 param states: Diverging states.
                 """
                 assert len(states) >= 2
-                total_weight = sum((self.affinity[s.addr] for s in states))
+                total_weight = sum(self.affinity[s.addr] for s in states)
                 selected = self._random.uniform(0, total_weight)
                 i = 0
                 for i, state in enumerate(states):

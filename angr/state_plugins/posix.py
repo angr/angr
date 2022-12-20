@@ -458,7 +458,7 @@ class SimSystemPosix(SimStatePlugin):
         if guest_path is not None and mount is not None:
             stat = mount._get_stat(guest_path, dereference=True)
             if stat is None:
-                raise SimPosixError("file %s does not exist on mount %s" % (guest_path, mount))
+                raise SimPosixError("file {} does not exist on mount {}".format(guest_path, mount))
             size = stat.st_size
             mode = stat.st_mode
             ino = stat.st_ino

@@ -33,7 +33,7 @@ def compare_symbolic(state, test_value):
 def check_value(project, init_type, comparison):
     main_object = project.loader.main_object
     state = project.factory.blank_state(security_cookie_init=init_type)
-    value = getattr(state.mem[main_object.load_config['SecurityCookie']], "uint{0}_t".format(state.arch.bits))
+    value = getattr(state.mem[main_object.load_config['SecurityCookie']], f"uint{state.arch.bits}_t")
     comparison(state, value)
 
 

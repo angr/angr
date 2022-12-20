@@ -86,7 +86,7 @@ class TestVfg(unittest.TestCase):
         states = vfg.final_states
         assert len(states) == 2
         stack_check_fail = proj._extern_obj.get_pseudo_addr("symbol hook: __stack_chk_fail")
-        assert set([s.solver.eval_one(s.ip) for s in states]) == {
+        assert {s.solver.eval_one(s.ip) for s in states} == {
             stack_check_fail,
             0x4005B4,
         }

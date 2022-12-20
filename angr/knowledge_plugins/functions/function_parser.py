@@ -174,7 +174,7 @@ class FunctionParser:
                 except KeyError:
                     raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
 
-            data = dict((k, pickle.loads(v)) for k, v in edge_cmsg.data.items())
+            data = {k: pickle.loads(v) for k, v in edge_cmsg.data.items()}
             data['outside'] = edge_cmsg.is_outside
             data['ins_addr'] = edge_cmsg.ins_addr
             data['stmt_idx'] = edge_cmsg.stmt_idx

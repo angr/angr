@@ -74,9 +74,9 @@ def tracer_linux(filename, test_name, stdin, add_options=None, remove_options=No
         test_name,
         stdin,
         ld_linux=p.loader.linux_loader_object.binary,
-        library_path=set(
+        library_path={
             os.path.dirname(obj.binary) for obj in p.loader.all_elf_objects
-        ),
+        },
         record_stdout=True,
     )
     s = p.factory.full_init_state(

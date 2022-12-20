@@ -27,7 +27,7 @@ l = logging.getLogger('angr.simos.JavaVM')
 class SimJavaVM(SimOS):
 
     def __init__(self, *args, **kwargs):
-        super(SimJavaVM, self).__init__(*args, name='JavaVM', **kwargs)
+        super().__init__(*args, name='JavaVM', **kwargs)
 
         # is the binary using JNI libraries?
         self.is_javavm_with_jni_support = self.project.loader.main_object.jni_support
@@ -62,7 +62,7 @@ class SimJavaVM(SimOS):
             self.native_symbols = {}
             for lib in self.native_libs:
                 for name, symbol in lib.symbols_by_name.items():
-                    if name.startswith(u'Java'):
+                    if name.startswith('Java'):
                         self.native_symbols[name] = symbol
 
             # Step 4: Allocate memory for the return hook
@@ -112,7 +112,7 @@ class SimJavaVM(SimOS):
             # Note: Setting `addr` to a `native address` (i.e. not an SootAddressDescriptor).
             #       makes sure that the SimState is not in "Soot-mode".
             # TODO: use state_blank function from the native simos and not the super class
-            state = super(SimJavaVM, self).state_blank(addr=0, **kwargs)
+            state = super().state_blank(addr=0, **kwargs)
             native_addr_size = self.native_simos.arch.bits
             # Let the JNIEnv pointer point to the function table
             state.memory.store(addr=self.jni_env,
@@ -292,15 +292,15 @@ class SimJavaVM(SimOS):
     @staticmethod
     def _get_default_symbolic_value_by_type(type_, state):
         if type_ in ['byte', 'char', 'short', 'int', 'boolean']:
-            return BVS('default_value_{}'.format(type_), 32)
+            return BVS(f'default_value_{type_}', 32)
         if type_ == "long":
-            return BVS('default_value_{}'.format(type_), 64)
+            return BVS(f'default_value_{type_}', 64)
         if type_ == 'float':
-            return FPS('default_value_{}'.format(type_), FSORT_FLOAT)
+            return FPS(f'default_value_{type_}', FSORT_FLOAT)
         if type_ == 'double':
-            return FPS('default_value_{}'.format(type_), FSORT_DOUBLE)
+            return FPS(f'default_value_{type_}', FSORT_DOUBLE)
         if type_ == 'java.lang.String':
-            return SimSootValue_StringRef.new_string(state, StringS('default_value_{}'.format(type_), 1000))
+            return SimSootValue_StringRef.new_string(state, StringS(f'default_value_{type_}', 1000))
         if type_.endswith('[][]'):
             raise NotImplementedError
             # multiarray = SimSootExpr_NewMultiArray.new_array(self.state, element_type, size)

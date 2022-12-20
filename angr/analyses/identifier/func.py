@@ -1,5 +1,4 @@
-
-class TestData(object):
+class TestData:
     def __init__(self, input_args, expected_output_args, expected_return_val, max_steps, preloaded_stdin=None,
                  expected_stdout=None):
         assert isinstance(input_args, (list, tuple))
@@ -20,7 +19,7 @@ class TestData(object):
         self.max_steps = max_steps
 
 
-class Func(object):
+class Func:
     def __init__(self):
         pass
 

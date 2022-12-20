@@ -1,4 +1,3 @@
-
 class Serializable:
     """
     The base class of all protobuf-serializable classes in angr.

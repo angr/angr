@@ -25,7 +25,7 @@ def test_alignment():
 
             # ensure stack alignment is correct
             assert st.solver.is_true(
-                ((st.regs.sp + cc.STACKARG_SP_DIFF) % cc.STACK_ALIGNMENT == 0)
+                (st.regs.sp + cc.STACKARG_SP_DIFF) % cc.STACK_ALIGNMENT == 0
             ), ("non-zero stack alignment after setup_callsite for %s" % cc)
 
 
@@ -41,7 +41,7 @@ def test_sys_v_abi_compliance():
 
     # (rsp+8) must be aligned to 16 as required by System V ABI.
     # ref: https://raw.githubusercontent.com/wiki/hjl-tools/x86-psABI/x86-64-psABI-1.0.pdf , page 18t
-    assert st.solver.is_true(((st.regs.rsp + 8) % 16 == 0)),  'System V ABI calling convention violated!'
+    assert st.solver.is_true((st.regs.rsp + 8) % 16 == 0),  'System V ABI calling convention violated!'
 
 
 def test_initial_allocation():

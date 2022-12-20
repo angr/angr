@@ -1,4 +1,3 @@
-
 def translate_value(value, state):
     value_name = value.__class__.__name__
     if value_name.startswith("Soot"): value_name = value_name[4:]

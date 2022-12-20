@@ -31,7 +31,7 @@ _SORT_TO_IDX = {
     MemoryDataSort.FloatingPoint: cfg_pb2.MemoryData.FloatingPoint,
 }
 
-_IDX_TO_SORT = dict((v, k) for k, v in _SORT_TO_IDX.items())
+_IDX_TO_SORT = {v: k for k, v in _SORT_TO_IDX.items()}
 
 
 class MemoryData(Serializable):
@@ -56,7 +56,7 @@ class MemoryData(Serializable):
         return self.addr
 
     def __repr__(self):
-        return "\\%#x, %s, %s/" % (self.address,
+        return "\\{:#x}, {}, {}/".format(self.address,
                                    "%d bytes" % self.size if self.size is not None else "size unknown",
                                    self.sort
                                    )

@@ -96,7 +96,7 @@ class SimState(PluginHub):
             **kwargs):
         if kwargs:
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
-        super(SimState, self).__init__()
+        super().__init__()
         self.project = project
 
         # Java & Java JNI
@@ -402,18 +402,18 @@ class SimState(PluginHub):
             # twice; one for the native and one for the java view of the state.
             suffix = '_soot' if self.ip_is_soot_addr else '_vex'
             name = name + suffix if self.has_plugin(name + suffix) else name
-        return super(SimState, self).get_plugin(name)
+        return super().get_plugin(name)
 
     def has_plugin(self, name):
         if self._is_java_jni_project:
             # In case of the JavaVM with JNI support, also check for toggled plugins.
-            return super(SimState, self).has_plugin(name) or super(SimState, self).has_plugin(name + '_soot')
-        return super(SimState, self).has_plugin(name)
+            return super().has_plugin(name) or super().has_plugin(name + '_soot')
+        return super().has_plugin(name)
 
     def register_plugin(self, name, plugin, inhibit_init=False): # pylint: disable=arguments-differ
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
         self._set_plugin_state(plugin, inhibit_init=inhibit_init)
-        return super(SimState, self).register_plugin(name, plugin)
+        return super().register_plugin(name, plugin)
 
     def _init_plugin(self, plugin_cls: Type[SimStatePlugin]) -> SimStatePlugin:
         plugin = plugin_cls()
@@ -673,7 +673,7 @@ class SimState(PluginHub):
                 (self.solver.true if len(mc) == 0 else self.solver.And(*mc)) for mc in merge_conditions
             ]
 
-        if len(set(o.arch.name for o in others)) != 1:
+        if len({o.arch.name for o in others}) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
 
         all_plugins = set(self.plugins.keys()) | set.union(*(set(o.plugins.keys()) for o in others))
@@ -693,11 +693,11 @@ class SimState(PluginHub):
             their_plugins = [ (pl.plugins[p] if p in pl.plugins else None) for pl in others ]
 
             plugin_classes = (
-                set([our_plugin.__class__]) | set(pl.__class__ for pl in their_plugins)
-            ) - set([None.__class__])
+                {our_plugin.__class__} | {pl.__class__ for pl in their_plugins}
+            ) - {None.__class__}
             if len(plugin_classes) != 1:
                 raise SimMergeError(
-                    "There are differing plugin classes (%s) for plugin %s" % (plugin_classes, p)
+                    "There are differing plugin classes ({}) for plugin {}".format(plugin_classes, p)
                 )
             plugin_class = plugin_classes.pop()
 
@@ -736,9 +736,9 @@ class SimState(PluginHub):
         :return:
         """
 
-        if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
+        if len({frozenset(o.plugins.keys()) for o in others}) != 1:
             raise SimMergeError("Unable to widen due to different sets of plugins.")
-        if len(set(o.arch.name for o in others)) != 1:
+        if len({o.arch.name for o in others}) != 1:
             raise SimMergeError("Unable to widen due to different architectures.")
 
         widened = self.copy()
@@ -877,7 +877,7 @@ class SimState(PluginHub):
                 bp_value = None
             else:
                 bp_value = self.solver.eval(bp_sim)
-                result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
+                result = "SP = 0x{:08x}, BP = 0x{:08x}\n".format(sp_value, bp_value)
             if depth is None:
                 # bp_value cannot be None here
                 depth = (bp_value - sp_value) // var_size + 1 # Print one more value
@@ -901,11 +901,11 @@ class SimState(PluginHub):
                 val = self._stack_values_to_string(stack_values)
 
                 if pointer_value == sp_value:
-                    line = "(sp)% 16x | %s" % (pointer_value, val)
+                    line = "(sp){: 16x} | {}".format(pointer_value, val)
                 elif pointer_value == bp_value:
-                    line = "(bp)% 16x | %s" % (pointer_value, val)
+                    line = "(bp){: 16x} | {}".format(pointer_value, val)
                 else:
-                    line = "% 20x | %s" % (pointer_value, val)
+                    line = "{: 20x} | {}".format(pointer_value, val)
 
                 pointer_value += var_size
                 result += line + "\n"

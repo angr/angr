@@ -13,7 +13,7 @@ from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryV
 l = logging.getLogger(name=__name__)
 
 
-class AST(object):
+class AST:
     """
     A mini implementation for AST
     """
@@ -35,14 +35,14 @@ class AST(object):
         _short_repr = lambda a: a.short_repr
 
         if len(self.operands) == 1:
-            return "%s%s" % (self.op, _short_repr(self.operands[0]))
+            return "{}{}".format(self.op, _short_repr(self.operands[0]))
         elif len(self.operands) == 2:
-            return "%s %s %s" % (_short_repr(self.operands[0]), self.op, _short_repr(self.operands[1]))
+            return "{} {} {}".format(_short_repr(self.operands[0]), self.op, _short_repr(self.operands[1]))
         else:
-            return "%s (%s)" % (self.op, self.operands)
+            return "{} ({})".format(self.op, self.operands)
 
 
-class ProgramVariable(object):
+class ProgramVariable:
     """
     Describes a variable in the program at a specific location.
 
@@ -69,21 +69,21 @@ class ProgramVariable(object):
 
     def __repr__(self):
         if self._arch is not None:
-            s = "{%s @ %s}" % (self.variable, self.location)
+            s = "{{{} @ {}}}".format(self.variable, self.location)
         else:
-            s = "{%s @ %s}" % (self.variable, self.location)
+            s = "{{{} @ {}}}".format(self.variable, self.location)
         return s
 
     @property
     def short_repr(self):
         if self._arch is not None:
-            s = "{%s@%s}" % (self.variable, self.location.short_repr)
+            s = "{{{}@{}}}".format(self.variable, self.location.short_repr)
         else:
-            s = "{%s@%s}" % (self.variable, self.location.short_repr)
+            s = "{{{}@{}}}".format(self.variable, self.location.short_repr)
         return s
 
 
-class DDGJob(object):
+class DDGJob:
     def __init__(self, cfg_node, call_depth):
         self.cfg_node = cfg_node
         self.call_depth = call_depth
@@ -307,7 +307,7 @@ class LiveDefinitions:
         return self._defs.keys()
 
 
-class DDGViewItem(object):
+class DDGViewItem:
     def __init__(self, ddg, variable, simplified=False):
         self._ddg = ddg
         self._variable = variable
@@ -351,7 +351,7 @@ class DDGViewItem(object):
         return DDGViewItem(self._ddg, prog_var, simplified=self._simplified)
 
 
-class DDGViewInstruction(object):
+class DDGViewInstruction:
     def __init__(self, cfg, ddg, insn_addr, simplified=False):
         self._cfg = cfg
         self._ddg = ddg
@@ -423,7 +423,7 @@ class DDGViewInstruction(object):
         return list(defs)
 
 
-class DDGView(object):
+class DDGView:
     """
     A view of the data dependence graph.
     """
@@ -559,7 +559,7 @@ class DDG(Analysis):
         """
         # TODO: make it prettier
         for src, dst, data in self.graph.edges(data=True):
-            print("%s <-- %s, %s" % (src, dst, data))
+            print("{} <-- {}, {}".format(src, dst, data))
 
     def dbg_repr(self):
         """
@@ -851,7 +851,7 @@ class DDG(Analysis):
             elif a.type == 'constraint':
                 pass
             else:
-                handler_name = "_handle_%s_%s" % (a.type, a.action)
+                handler_name = "_handle_{}_{}".format(a.type, a.action)
                 if hasattr(self, handler_name):
                     getattr(self, handler_name)(a, current_code_location, state, statement)
                 else:

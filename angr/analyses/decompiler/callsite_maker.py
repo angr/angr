@@ -143,9 +143,9 @@ class CallSiteMaker(Analysis):
                           "statements.", last_stmt.ins_addr)
                 self.stack_arg_offsets = None
             else:
-                self.stack_arg_offsets = set(
+                self.stack_arg_offsets = {
                     (last_stmt.ins_addr, sp_offset + arg.stack_offset - stackarg_sp_diff) for arg in stack_arg_locs
-                )
+                }
 
         ret_expr = last_stmt.ret_expr
         # if ret_expr is None, it means in previous steps (such as during AIL simplification) we have deemed the return

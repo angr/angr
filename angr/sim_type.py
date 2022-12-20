@@ -236,7 +236,7 @@ class SimTypeBottom(SimType):
 
 
     def _init_str(self):
-        return "%s(%s)" % (
+        return "{}({})".format(
             self.__class__.__name__,
             ("label=\"%s\"" % self.label) if self.label else ""
         )
@@ -279,7 +279,7 @@ class SimTypeReg(SimType):
         self._size = size
 
     def __repr__(self):
-        return "reg{}_t".format(self.size)
+        return f"reg{self.size}_t"
 
     def extract(self, state, addr, concrete=False):
         # TODO: EDG says this looks dangerously closed-minded. Just in case...
@@ -304,7 +304,7 @@ class SimTypeReg(SimType):
         elif isinstance(value, bytes):
             store_endness = 'Iend_BE'
         else:
-            raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
+            raise TypeError(f"unrecognized expression type for SimType {type(self).__name__}")
 
         state.memory.store(addr, value, endness=store_endness)
 
@@ -352,7 +352,7 @@ class SimTypeNum(SimType):
         elif isinstance(value, bytes):
             store_endness = 'Iend_BE'
         else:
-            raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
+            raise TypeError(f"unrecognized expression type for SimType {type(self).__name__}")
 
         state.memory.store(addr, value, endness=store_endness)
 
@@ -382,7 +382,7 @@ class SimTypeInt(SimTypeReg):
             out = 'unsigned ' + out
         if name is None:
             return out
-        return '%s %s' % (out, name)
+        return '{} {}'.format(out, name)
 
     def __repr__(self):
         name = self._base_name
@@ -401,7 +401,7 @@ class SimTypeInt(SimTypeReg):
         try:
             return self._arch.sizeof[self._base_name]
         except KeyError:
-            raise ValueError("Arch %s doesn't have its %s type defined!" % (self._arch.name, self._base_name))
+            raise ValueError("Arch {} doesn't have its {} type defined!".format(self._arch.name, self._base_name))
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
@@ -413,7 +413,7 @@ class SimTypeInt(SimTypeReg):
         return n
 
     def _init_str(self):
-        return "%s(signed=%s%s)" % (
+        return "{}(signed={}{})".format(
             self.__class__.__name__,
             self.signed,
             (', label="%s"' % self.label) if self.label is not None else "",
@@ -490,7 +490,7 @@ class SimTypeChar(SimTypeReg):
         return out
 
     def _init_str(self):
-        return "%s(%s)" % (
+        return "{}({})".format(
             self.__class__.__name__,
             ('label="%s"' % self.label) if self.label is not None else "",
         )
@@ -541,7 +541,7 @@ class SimTypeFd(SimTypeReg):
         return SimTypeFd(label=self.label)
 
     def _init_str(self):
-        return "%s(%s)" % (
+        return "{}({})".format(
             self.__class__.__name__,
             ('label="%s"' % self.label) if self.label is not None else "",
         )
@@ -565,12 +565,12 @@ class SimTypePointer(SimTypeReg):
         self.offset = offset
 
     def __repr__(self):
-        return '{}*'.format(self.pts_to)
+        return f'{self.pts_to}*'
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         # if it points to an array, we do not need to add a *
         deref_chr = '*' if not isinstance(self.pts_to, SimTypeArray) else ''
-        name_with_deref = deref_chr if name is None else '%s%s' % (deref_chr, name)
+        name_with_deref = deref_chr if name is None else '{}{}'.format(deref_chr, name)
         return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):
@@ -633,7 +633,7 @@ class SimTypeReference(SimTypeReg):
         return out
 
     def _init_str(self):
-        return "%s(%s%s)" % (
+        return "{}({}{})".format(
             self.__class__.__name__,
             self.refs._init_str(),
             (', label="%s"' % self.label) if self.label is not None else "",
@@ -654,13 +654,13 @@ class SimTypeFixedSizeArray(SimType):
         self.length = length
 
     def __repr__(self):
-        return '{}[{}]'.format(self.elem_type, self.length)
+        return f'{self.elem_type}[{self.length}]'
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         if name is None:
             return repr(self)
 
-        name = '%s[%s]' % (name, self.length)
+        name = '{}[{}]'.format(name, self.length)
         return self.elem_type.c_repr(name, full, memo, indent)
 
     _can_refine_int = True
@@ -724,7 +724,7 @@ class SimTypeArray(SimType):
         if name is None:
             return repr(self)
 
-        name = '%s[%s]' % (name, self.length if self.length is not None else '')
+        name = '{}[{}]'.format(name, self.length if self.length is not None else '')
         return self.elem_type.c_repr(name, full, memo, indent)
 
     @property
@@ -836,7 +836,7 @@ class SimTypeWString(NamedTypeMixin, SimTypeArray):
         if not concrete:
             return out
         else:
-            return u''.join(chr(state.solver.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x))
+            return ''.join(chr(state.solver.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x))
                             for x in out.chop(16))
 
     _can_refine_int = True
@@ -891,7 +891,7 @@ class SimTypeFunction(SimType):
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         name2 = name or ''
-        name3 = '(%s)(%s)' % (
+        name3 = '({})({})'.format(
             name2,
             ', '.join(
                 a.c_repr(n, full-1, memo, indent) for a, n in zip(
@@ -923,7 +923,7 @@ class SimTypeFunction(SimType):
         return ", ".join('"%s"' % arg_name for arg_name in argnames)
 
     def _init_str(self):
-        return "%s([%s], %s%s%s%s)" % (
+        return "{}([{}], {}{}{}{})".format(
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty._init_str(),
@@ -957,7 +957,7 @@ class SimTypeCppFunction(SimTypeFunction):
         return str(self.label)+'({}) -> {}'.format(', '.join(argstrs), self.returnty)
 
     def _init_str(self):
-        return "%s([%s], %s%s%s%s)" % (
+        return "{}([{}], {}{}{}{})".format(
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty,
@@ -1074,7 +1074,7 @@ class SimTypeDouble(SimTypeFloat):
         return 8 if self.align_double else 4
 
     def _init_str(self):
-        return "%s(align_double=%s)" % (
+        return "{}(align_double={})".format(
             self.__class__.__name__,
             self.align_double
         )
@@ -1170,7 +1170,7 @@ class SimStruct(NamedTypeMixin, SimType):
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(new_indented + v.c_repr(k, full-1, new_memo, new_indent) + ';'
                                for k, v in self.fields.items())
-        return 'struct %s {%s%s%s%s}%s' % (self.name, newline, members, newline, indented,
+        return 'struct {} {{{}{}{}{}}}{}'.format(self.name, newline, members, newline, indented,
                                            '' if name is None else ' ' + name)
 
     def __hash__(self):
@@ -1221,10 +1221,10 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @staticmethod
     def _field_str(field_name, field_type):
-        return "\"%s\": %s" % (field_name, field_type._init_str())
+        return "\"{}\": {}".format(field_name, field_type._init_str())
 
     def _init_str(self):
-        return "%s({%s}, name=\"%s\", pack=%s, align=%s)" % (
+        return "{}({{{}}}, name=\"{}\", pack={}, align={})".format(
             self.__class__.__name__,
             ", ".join([self._field_str(f, ty) for f, ty in self.fields.items()]),
             self._name,
@@ -1264,7 +1264,7 @@ class SimStructValue:
                 s = f(indent=indent+2)
             except AttributeError:
                 s = repr(value)
-            fields.append(' ' * (indent + 2) + '.{} = {}'.format(name, s))
+            fields.append(' ' * (indent + 2) + f'.{name} = {s}')
 
         return '{{\n{}\n{}}}'.format(',\n'.join(fields), ' ' * indent)
 
@@ -1335,7 +1335,7 @@ class SimUnion(NamedTypeMixin, SimType):
     def __repr__(self):
         # use the str instead of repr of each member to avoid exceed recursion
         # depth when representing self-referential unions
-        return 'union %s {\n\t%s\n}' % (self.name, '\n\t'.join('%s %s;' % (name, str(ty))
+        return 'union {} {{\n\t{}\n}}'.format(self.name, '\n\t'.join('{} {};'.format(name, str(ty))
                                                                for name, ty in self.members.items()))
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
@@ -1349,11 +1349,11 @@ class SimUnion(NamedTypeMixin, SimType):
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(new_indented + v.c_repr(k, full-1, new_memo, new_indent) + ';'
                                for k, v in self.members.items())
-        return 'union %s {%s%s%s%s}%s' % (self.name, newline, members, newline, indented,
+        return 'union {} {{{}{}{}{}}}{}'.format(self.name, newline, members, newline, indented,
                                           '' if name is None else ' ' + name)
 
     def _init_str(self):
-        return "%s({%s}, name=\"%s\", label=\"%s\")" % (
+        return "{}({{{}}}, name=\"{}\", label=\"{}\")".format(
             self.__class__.__name__,
             ", ".join([self._field_str(f, ty) for f, ty in self.members.items()]),
             self._name,
@@ -1362,10 +1362,10 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @staticmethod
     def _field_str(field_name, field_type):
-        return "\"%s\": %s" % (field_name, field_type._init_str())
+        return "\"{}\": {}".format(field_name, field_type._init_str())
 
     def __str__(self):
-        return 'union %s' % (self.name, )
+        return 'union {}'.format(self.name)
 
     def _with_arch(self, arch):
         out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.items()}, self.label)
@@ -1395,7 +1395,7 @@ class SimUnionValue:
                 s = f(indent=indent+2)
             except AttributeError:
                 s = repr(value)
-            fields.append(' ' * (indent + 2) + '.{} = {}'.format(name, s))
+            fields.append(' ' * (indent + 2) + f'.{name} = {s}')
 
         return '{{\n{}\n{}}}'.format(',\n'.join(fields), ' ' * indent)
 
@@ -1480,7 +1480,7 @@ class SimCppClassValue:
                 s = f(indent=indent+2)
             except AttributeError:
                 s = repr(value)
-            fields.append(' ' * (indent + 2) + '.{} = {}'.format(name, s))
+            fields.append(' ' * (indent + 2) + f'.{name} = {s}')
 
         return '{{\n{}\n{}}}'.format(',\n'.join(fields), ' ' * indent)
 

@@ -1,6 +1,6 @@
 import claripy
 
-class StringTableSpec(object):
+class StringTableSpec:
     def __init__(self, byte_width=8):
         self._contents = []
         self._str_len = 0

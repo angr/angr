@@ -1,4 +1,3 @@
-
 import random
 import string
 
@@ -29,7 +28,7 @@ def int2base(x, base):
     return ''.join(digits)
 
 
-class OneTwoOrThree(object):
+class OneTwoOrThree:
     def __eq__(self, other):
         if other == 1:
             return True
@@ -51,7 +50,7 @@ class OneTwoOrThree(object):
 
 class based_atoi(Func):
     def __init__(self):
-        super(based_atoi, self).__init__()
+        super().__init__()
         self.allows_negative = True
         self.base = None
 

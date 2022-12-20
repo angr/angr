@@ -1,4 +1,3 @@
-
 from . import JNISimProcedure
 from ...engines.soot.values import SimSootValue_ThisRef
 from .method_calls import CallMethodBase

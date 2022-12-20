@@ -59,7 +59,7 @@ class AnalysisLogEntry:
                 msg_str = msg_str[:36] + '...'
                 if msg_str[0] in ('"', "'"):
                     msg_str += msg_str[0]
-            return '<AnalysisLogEntry %s with %s: %s>' % (msg_str, self.exc_type.__name__, self.exc_value)
+            return '<AnalysisLogEntry {} with {}: {}>'.format(msg_str, self.exc_type.__name__, self.exc_value)
 
 
 A = TypeVar("A", bound="Analysis")
@@ -68,7 +68,7 @@ class AnalysesHub(PluginVendor):
     This class contains functions for all the registered and runnable analyses,
     """
     def __init__(self, project):
-        super(AnalysesHub, self).__init__()
+        super().__init__()
         self.project = project
 
     @deprecated()
@@ -79,12 +79,12 @@ class AnalysesHub(PluginVendor):
         return AnalysisFactory(self.project, plugin_cls)
 
     def __getstate__(self):
-        s = super(AnalysesHub, self).__getstate__()
+        s = super().__getstate__()
         return (s, self.project)
 
     def __setstate__(self, sd):
         s, self.project = sd
-        super(AnalysesHub, self).__setstate__(s)
+        super().__setstate__(s)
 
     def __getitem__(self, plugin_cls: "Type[A]") -> "AnalysisFactory[A]":
         return AnalysisFactory(self.project, plugin_cls)
@@ -291,7 +291,7 @@ class Analysis:
         self.__dict__.update(state)
 
     def __repr__(self):
-        return '<%s Analysis Result at %#x>' % (self._name, id(self))
+        return '<{} Analysis Result at {:#x}>'.format(self._name, id(self))
 
 
 default_analyses = VendorPreset()

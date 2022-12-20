@@ -299,7 +299,7 @@ class SimUninitializedAccessError(SimExpressionError):
         self.expr = expr
 
     def __repr__(self):
-        return "SimUninitializedAccessError (expr %s is used as %s)" % (self.expr, self.expr_type)
+        return "SimUninitializedAccessError (expr {} is used as {})".format(self.expr, self.expr_type)
 
     def __reduce__(self):
         return (SimUninitializedAccessError, (self.expr_type, self.expr))
@@ -355,7 +355,7 @@ UnsupportedSyscallError = AngrUnsupportedSyscallError
 
 class SimReliftException(SimEngineError):
     def __init__(self, state):
-        super(SimReliftException, self).__init__()
+        super().__init__()
         self.state = state
 
 #
@@ -429,10 +429,10 @@ class SimSegfaultException(SimException, SimMemoryError):
         self.addr = addr
         self.reason = reason
         self.original_addr = original_addr
-        super(SimSegfaultError, self).__init__('%#x (%s)' % (addr, reason))
+        super(SimSegfaultError, self).__init__('{:#x} ({})'.format(addr, reason))
 
     def __repr__(self):
-        return 'SimSegfaultException(%#x (%s%s)' % (
+        return 'SimSegfaultException({:#x} ({}{})'.format(
             self.addr,
             self.reason,
             (', original %s' % self.original_addr.__repr__(max_depth=3)) if self.original_addr is not None else ''

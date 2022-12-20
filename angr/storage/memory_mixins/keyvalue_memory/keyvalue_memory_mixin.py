@@ -31,4 +31,4 @@ class KeyValueMemoryMixin(MemoryMixin):
         return o
 
     def __str__(self):
-        return "\n".join(["%s: %s (%s)" % (k, v.value, v.type) for k,v in self._store.items()])
+        return "\n".join(["{}: {} ({})".format(k, v.value, v.type) for k,v in self._store.items()])

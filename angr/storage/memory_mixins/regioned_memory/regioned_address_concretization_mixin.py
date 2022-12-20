@@ -62,12 +62,12 @@ class RegionedAddressConcretizationMixin(MemoryMixin):
         """
         Utility function for merging. Does the merge operation on lists of strategies
         """
-        if len(set(len(sl) for sl in strategy_lists)) != 1:
+        if len({len(sl) for sl in strategy_lists}) != 1:
             raise SimMergeError("unable to merge memories with amounts of strategies")
 
         merged_strategies = [ ]
         for strategies in zip(*strategy_lists):
-            if len(set(s.__class__ for s in strategies)) != 1:
+            if len({s.__class__ for s in strategies}) != 1:
                 raise SimMergeError("unable to merge memories with different types of strategies")
 
             unique = list(set(strategies))

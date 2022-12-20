@@ -14,7 +14,7 @@ class StringBuilderInit(JavaSimProcedure):
     )
 
     def run(self, this_ref):
-        log.debug('Called SimProcedure java.lang.StringBuilder.<init> with args: {}'.format(this_ref))
+        log.debug(f'Called SimProcedure java.lang.StringBuilder.<init> with args: {this_ref}')
 
         str_ref = SimSootValue_StringRef.new_string(self.state, claripy.StringV(''))
         this_ref.store_field(self.state, 'str', 'java.lang.String', str_ref)
@@ -29,7 +29,7 @@ class StringBuilderAppend(JavaSimProcedure):
     )
 
     def run(self, this_ref, thing):
-        log.debug('Called SimProcedure java.lang.StringBuilder.append with args: {} {}'.format(this_ref, thing))
+        log.debug(f'Called SimProcedure java.lang.StringBuilder.append with args: {this_ref} {thing}')
         field = this_ref.get_field(self.state, 'str', 'java.lang.String')
         field_str = self.state.memory.load(field)
 

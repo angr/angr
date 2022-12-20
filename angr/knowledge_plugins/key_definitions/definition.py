@@ -33,9 +33,9 @@ class Definition:
 
     def __repr__(self):
         if not self.tags:
-            return '<Definition {Atom:%s, Codeloc:%s}%s>' % (self.atom, self.codeloc, "" if not self.dummy else "dummy")
+            return '<Definition {{Atom:{}, Codeloc:{}}}{}>'.format(self.atom, self.codeloc, "" if not self.dummy else "dummy")
         else:
-            return '<Definition {Tags:%s, Atom:%s, Codeloc:%s}%s>' % (repr(self.tags), self.atom, self.codeloc,
+            return '<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>'.format(repr(self.tags), self.atom, self.codeloc,
                                                                     "" if not self.dummy else " dummy")
 
     def __str__(self):

@@ -6,7 +6,7 @@ from rpyc.utils.server import ThreadedServer
 class AngrServer(threading.Thread):
     def __init__(self, active_projects=None, port=1234, host='localhost'):
         if active_projects is None: active_projects = {}
-        super(AngrServer, self).__init__()
+        super().__init__()
         self.port = port
         self.host = host
         class AngrService(rpyc.Service):

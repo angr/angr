@@ -44,7 +44,7 @@ class SimWindows(SimOS):
     Environment for the Windows Win32 subsystem. Does not support syscalls currently.
     """
     def __init__(self, project):
-        super(SimWindows, self).__init__(project, name='Win32')
+        super().__init__(project, name='Win32')
 
         load_win32api_definitions()
 
@@ -55,7 +55,7 @@ class SimWindows(SimOS):
         self.wcmdln_ptr = None
 
     def configure_project(self):
-        super(SimWindows, self).configure_project()
+        super().configure_project()
 
         # here are some symbols which we MUST hook, regardless of what the user wants
         self._weak_hook_symbol('GetProcAddress', L['kernel32.dll'].get('GetProcAddress', self.arch))
@@ -86,7 +86,7 @@ class SimWindows(SimOS):
 
     # pylint: disable=arguments-differ
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
-        state = super(SimWindows, self).state_entry(**kwargs)
+        state = super().state_entry(**kwargs)
 
         # Handle default values
         filename = self.project.filename or 'dummy_filename'
@@ -183,7 +183,7 @@ class SimWindows(SimOS):
             add_options = kwargs.get('add_options', set())
             add_options.add(o.ENABLE_NX)
             kwargs['add_options'] = add_options
-        state = super(SimWindows, self).state_blank(thread_idx=thread_idx, **kwargs)
+        state = super().state_blank(thread_idx=thread_idx, **kwargs)
 
         if not self.is_dump:
             # yikes!!!
@@ -543,5 +543,5 @@ class SimWindows(SimOS):
         elif sc_init is SecurityCookieInit.SYMBOLIC:
             sc_value = claripy.BVS('_security_cookie', state.arch.bits)
         else:
-            raise TypeError("security_cookie_init must SecurityCookieInit, not {0}".format(type(sc_init).__name__))
-        setattr(state.mem[cookie], "uint{0}_t".format(state.arch.bits), sc_value)
+            raise TypeError(f"security_cookie_init must SecurityCookieInit, not {type(sc_init).__name__}")
+        setattr(state.mem[cookie], f"uint{state.arch.bits}_t", sc_value)

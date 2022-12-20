@@ -675,7 +675,7 @@ class Project:
             self.store_function, self.load_function = None, None
             # ignore analyses. we re-initialize analyses when restoring from pickling so that we do not lose any newly
             # added analyses classes
-            d = dict((k, v) for k, v in self.__dict__.items() if k not in {'analyses', })
+            d = {k: v for k, v in self.__dict__.items() if k not in {'analyses', }}
             return d
         finally:
             self.store_function, self.load_function = store_func, load_func

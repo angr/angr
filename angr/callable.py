@@ -3,7 +3,7 @@ import pycparser
 from .calling_conventions import DEFAULT_CC, SimCC
 
 
-class Callable(object):
+class Callable:
     """
     Callable is a representation of a function in the binary that can be
     interacted with like a native python function.

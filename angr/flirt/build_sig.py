@@ -142,7 +142,7 @@ def process_exc_file(exc_path: str):
 
     TODO: Add caller-callee-based de-duplication.
     """
-    with open(exc_path, "r") as f:
+    with open(exc_path) as f:
         data = f.read()
         lines = data.split("\n")
 

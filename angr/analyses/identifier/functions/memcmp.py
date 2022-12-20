@@ -1,4 +1,3 @@
-
 import random
 
 from ..func import Func, TestData
@@ -12,7 +11,7 @@ def rand_str(length, byte_list=None):
 
 class memcmp(Func):
     def __init__(self):
-        super(memcmp, self).__init__() #pylint disable=useless-super-delegation
+        super().__init__() #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "memcmp"

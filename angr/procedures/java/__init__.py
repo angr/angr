@@ -1,4 +1,3 @@
-
 import itertools
 
 from ...sim_procedure import SimProcedure

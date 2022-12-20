@@ -21,4 +21,4 @@ class transmit(orig_transmit):
         if self.state.has_plugin("zen_plugin"):
             self.state.get_plugin("zen_plugin").analyze_transmit(self.state, buf)
 
-        return super(transmit, self).run(fd, buf, count, tx_bytes)
+        return super().run(fd, buf, count, tx_bytes)

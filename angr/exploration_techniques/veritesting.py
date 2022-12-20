@@ -10,7 +10,7 @@ class Veritesting(ExplorationTechnique):
     [1] https://users.ece.cmu.edu/~aavgerin/papers/veritesting-icse-2014.pdf
     """
     def __init__(self, **options):
-        super(Veritesting, self).__init__()
+        super().__init__()
         self.options = options
 
     def step_state(self, simgr, state, successor_func=None, **kwargs):

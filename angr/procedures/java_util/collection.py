@@ -23,7 +23,7 @@ class GetIterator(JavaSimProcedure):
     )
 
     def run(self, this_ref):
-        log.debug('Called SimProcedure java.util.*.iterator with args: {}'.format(this_ref))
+        log.debug(f'Called SimProcedure java.util.*.iterator with args: {this_ref}')
 
         iterator_ref = SimSootValue_ThisRef.new_object(self.state, 'java.util.Iterator')
         elems_array_ref = this_ref.get_field(self.state, ELEMS, 'java.lang.Object[]')

@@ -85,7 +85,7 @@ class SimConstantVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        s = "<%s|const %s>" % (self.region, self.value)
+        s = "<{}|const {}>".format(self.region, self.value)
 
         return s
 
@@ -182,7 +182,7 @@ class SimRegisterVariable(SimVariable):
         ident_str = "[%s]" % self.ident if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
 
-        s = "<%s%s|Reg %s, %sB>" % (region_str, ident_str, self.reg, self.size)
+        s = "<{}{}|Reg {}, {}B>".format(region_str, ident_str, self.reg, self.size)
 
         return s
 
@@ -252,9 +252,9 @@ class SimMemoryVariable(SimVariable):
             size = '%s' % self.size
 
         if type(self.addr) is int:
-            s = "<%s: %s-Mem %#x %s>" % (self.name, self.region, self.addr, size)
+            s = "<{}: {}-Mem {:#x} {}>".format(self.name, self.region, self.addr, size)
         else:
-            s = "<%s: %s-Mem %s %s>" % (self.name, self.region, self.addr, size)
+            s = "<{}: {}-Mem {} {}>".format(self.name, self.region, self.addr, size)
 
         return s
 
@@ -360,9 +360,9 @@ class SimStackVariable(SimMemoryVariable):
             else:
                 offset = ""
 
-            s = "<%s%s|%s %s%s, %s B>" % (region_str, ident, prefix, self.base, offset, size)
+            s = "<{}{}|{} {}{}, {} B>".format(region_str, ident, prefix, self.base, offset, size)
         else:
-            s = "<%s%s|%s %s%s, %s B>" % (region_str, ident, prefix, self.base, self.addr, size)
+            s = "<{}{}|{} {}{}, {} B>".format(region_str, ident, prefix, self.base, self.addr, size)
 
         return s
 
@@ -474,8 +474,8 @@ class SimVariableSet(collections.abc.MutableSet):
         return len(self.register_variables) + len(self.memory_variables)
 
     def __iter__(self):
-        for i in self.register_variables: yield i
-        for i in self.memory_variables: yield i
+        yield from self.register_variables
+        yield from self.memory_variables
 
     def add_memory_variables(self, addrs, size):
         for a in addrs:

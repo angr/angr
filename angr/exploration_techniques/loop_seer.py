@@ -32,7 +32,7 @@ class LoopSeer(ExplorationTechnique):
                                       (Defaults to True to maintain the original behavior)
         """
 
-        super(LoopSeer, self).__init__()
+        super().__init__()
         self.cfg = cfg
         self.functions = functions
         self.bound = bound

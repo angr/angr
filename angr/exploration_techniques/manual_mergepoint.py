@@ -6,12 +6,12 @@ l = logging.getLogger(name=__name__)
 
 class ManualMergepoint(ExplorationTechnique):
     def __init__(self, address, wait_counter=10, prune=True):
-        super(ManualMergepoint, self).__init__()
+        super().__init__()
         self.address = address
         self.wait_counter_limit = wait_counter
         self.prune = prune
         self.wait_counter = 0
-        self.stash = 'merge_waiting_%#x_%x' % (self.address, id(self))
+        self.stash = 'merge_waiting_{:#x}_{:x}'.format(self.address, id(self))
         self.filter_marker = 'skip_next_filter_%#x' % self.address
 
     def setup(self, simgr):

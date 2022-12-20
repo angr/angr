@@ -58,7 +58,7 @@ class FlsAlloc(TlsAlloc):
     def run(self, callback):
         if not self.state.solver.is_true(callback == 0):
             raise angr.errors.SimValueError("Can't handle callback function in FlsAlloc")
-        return super(FlsAlloc, self).run()
+        return super().run()
 
 class FlsGetValue(TlsGetValue):
     KEY = 'win32_fls'

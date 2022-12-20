@@ -276,11 +276,9 @@ class VariableRecoveryStateBase:
     @property
     def variables(self):
         for ro in self.stack_region:
-            for var in ro.internal_objects:
-                yield var
+            yield from ro.internal_objects
         for ro in self.register_region:
-            for var in ro.internal_objects:
-                yield var
+            yield from ro.internal_objects
 
     def get_variable_definitions(self, block_addr):
         """

@@ -247,7 +247,7 @@ class StateHierarchy:
         """
 
         with self.defer_cleanup(), self._lock:
-            histories = set(self.get_ref(s.history) for s in states)
+            histories = {self.get_ref(s.history) for s in states}
 
             for n in networkx.algorithms.dfs_postorder_nodes(self._graph):
                 intersection = histories.intersection(self.all_successors(n))

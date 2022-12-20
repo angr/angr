@@ -51,7 +51,7 @@ class MemoryRegion:
         self.cle_region = cle_region
 
     def __repr__(self):
-        return "<MemoryRegion %#x-%#x, type %s>" % (self.addr, self.addr+self.size, self.type)
+        return "<MemoryRegion {:#x}-{:#x}, type {}>".format(self.addr, self.addr+self.size, self.type)
 
 #
 # An address can be mapped to one of the following types of object
@@ -76,7 +76,7 @@ class Unknown:
             raise Exception("You cannot create an unknown region of size 0.")
 
     def __repr__(self):
-        s = "<Unknown %#x-%#x>" % (self.addr, self.addr + self.size)
+        s = "<Unknown {:#x}-{:#x}>".format(self.addr, self.addr + self.size)
         return s
 
 
@@ -245,13 +245,13 @@ class CFBlanket(Analysis):
                     continue
                 min_addr, max_addr = section.min_addr, section.max_addr
                 output.append("### Object %s" % repr(section))
-                output.append("### Range %#x-%#x" % (min_addr, max_addr))
+                output.append("### Range {:#x}-{:#x}".format(min_addr, max_addr))
 
                 pos = min_addr
                 while pos < max_addr:
                     try:
                         addr, thing = self.floor_item(pos)
-                        output.append("%#x: %s" % (addr, repr(thing)))
+                        output.append("{:#x}: {}".format(addr, repr(thing)))
 
                         if thing.size == 0: pos += 1
                         else: pos += thing.size

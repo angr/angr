@@ -27,10 +27,10 @@ class Equivalence(TypeConstraint):
         self.type_b = type_b
 
     def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
-        return "{} == {}".format(self.type_a.pp_str(mapping), self.type_b.pp_str(mapping))
+        return f"{self.type_a.pp_str(mapping)} == {self.type_b.pp_str(mapping)}"
 
     def __repr__(self):
-        return "%s == %s" % (self.type_a, self.type_b)
+        return "{} == {}".format(self.type_a, self.type_b)
 
     def __eq__(self, other):
         return type(other) is Equivalence and (
@@ -52,7 +52,7 @@ class Existence(TypeConstraint):
         self.type_ = type_
 
     def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
-        return "V {}".format(self.type_.pp_str(mapping))
+        return f"V {self.type_.pp_str(mapping)}"
 
     def __repr__(self):
         return "V %s" % self.type_
@@ -84,10 +84,10 @@ class Subtype(TypeConstraint):
         self.sub_type = sub_type
 
     def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
-        return "{} <: {}".format(self.sub_type.pp_str(mapping), self.super_type.pp_str(mapping))
+        return f"{self.sub_type.pp_str(mapping)} <: {self.super_type.pp_str(mapping)}"
 
     def __repr__(self):
-        return "%s <: %s" % (self.sub_type, self.super_type)
+        return "{} <: {}".format(self.sub_type, self.super_type)
 
     def __eq__(self, other):
         return type(other) is Subtype and self.sub_type == other.sub_type and self.super_type == other.super_type
@@ -143,7 +143,7 @@ class Add(TypeConstraint):
         )
 
     def __repr__(self):
-        return "%r == %r + %r" % (self.type_r, self.type_0, self.type_1)
+        return "{!r} == {!r} + {!r}".format(self.type_r, self.type_0, self.type_1)
 
     def __eq__(self, other):
         return type(other) is Add \
@@ -208,7 +208,7 @@ class Sub(TypeConstraint):
         )
 
     def __repr__(self):
-        return "%r == %r - %r" % (self.type_r, self.type_0, self.type_1)
+        return "{!r} == {!r} - {!r}".format(self.type_r, self.type_0, self.type_1)
 
     def __eq__(self, other):
         return type(other) is Sub \
@@ -291,7 +291,7 @@ class DerivedTypeVariable(TypeVariable):
         self.label = label
 
     def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
-        return "{}.{}".format(self.type_var.pp_str(mapping), self.label)
+        return f"{self.type_var.pp_str(mapping)}.{self.label}"
 
     def __eq__(self, other):
         return isinstance(other, DerivedTypeVariable) and \
@@ -302,7 +302,7 @@ class DerivedTypeVariable(TypeVariable):
         return hash((DerivedTypeVariable, self.type_var, self.label))
 
     def __repr__(self):
-        return "%r.%r" % (self.type_var, self.label)
+        return "{!r}.{!r}".format(self.type_var, self.label)
 
     def replace(self, replacements):
 

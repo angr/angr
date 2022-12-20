@@ -119,7 +119,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
             self._max_addr = self._min_addr = 0
         else:
             self._min_addr = self._page_addr(min(self.symbolization_target_pages))
-            self._max_addr = self._page_addr((max(self.symbolization_target_pages)+1))
+            self._max_addr = self._page_addr(max(self.symbolization_target_pages)+1)
 
     def set_symbolization_for_all_pages(self):
         """

@@ -70,7 +70,7 @@ class BlockNode(CodeNode):
 
     is_hook = False
     def __init__(self, addr, size, bytestr=None, **kwargs):
-        super(BlockNode, self).__init__(addr, size, **kwargs)
+        super().__init__(addr, size, **kwargs)
         self.bytestr = bytestr
 
     def __repr__(self):
@@ -88,7 +88,7 @@ class SootBlockNode(BlockNode):
     __slots__ = ['stmts']
 
     def __init__(self, addr, size, stmts, **kwargs):
-        super(SootBlockNode, self).__init__(addr, size, **kwargs)
+        super().__init__(addr, size, **kwargs)
         self.stmts = stmts
 
         assert (stmts is None and size == 0) or (size == len(stmts))
@@ -112,17 +112,17 @@ class HookNode(CodeNode):
         """
         :param type sim_procedure: the the sim_procedure class
         """
-        super(HookNode, self).__init__(addr, size, **kwargs)
+        super().__init__(addr, size, **kwargs)
         self.sim_procedure = sim_procedure
 
     def __repr__(self):
-        return '<HookNode %r at %s (size %s)>' % (self.sim_procedure, repr_addr(self.addr), self.size)
+        return '<HookNode {!r} at {} (size {})>'.format(self.sim_procedure, repr_addr(self.addr), self.size)
 
     def __hash__(self):
         return hash((self.addr, self.size, self.sim_procedure))
 
     def __eq__(self, other):
-        return super(HookNode, self).__eq__(other) and \
+        return super().__eq__(other) and \
             self.sim_procedure == other.sim_procedure
 
     def __getstate__(self):
@@ -134,6 +134,6 @@ class HookNode(CodeNode):
 class SyscallNode(HookNode):
     is_hook = False
     def __repr__(self):
-        return '<SyscallNode %r at %#x (size %s)>' % (self.sim_procedure, self.addr, self.size)
+        return '<SyscallNode {!r} at {:#x} (size {})>'.format(self.sim_procedure, self.addr, self.size)
 
 from .block import Block

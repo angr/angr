@@ -484,8 +484,7 @@ class LiveDefinitions:
 
     def get_tmp_definitions(self, tmp_idx: int) -> Iterable[Definition]:
         if tmp_idx in self.tmps:
-            for tmp in self.tmps[tmp_idx]:
-                yield tmp
+            yield from self.tmps[tmp_idx]
         else:
             return
 

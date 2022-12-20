@@ -305,7 +305,7 @@ class SimIROp:
 
             f = f if f is not None else getattr(self, '_op_fgeneric_' + self._generic_name, None)
             if f is None:
-                raise SimOperationError("no fp implementation found for operation {}".format(self._generic_name))
+                raise SimOperationError(f"no fp implementation found for operation {self._generic_name}")
 
             self._calculate = partial(self._auto_vectorize, f)
 
@@ -373,7 +373,7 @@ class SimIROp:
         print("Operation: %s" % self.name)
         for k,v in self.op_attrs.items():
             if v is not None and v != "":
-                print("... %s: %s" % (k, v))
+                print("... {}: {}".format(k, v))
 
     def calculate(self, *args):
         if not all(isinstance(a, claripy.ast.Base) for a in args):

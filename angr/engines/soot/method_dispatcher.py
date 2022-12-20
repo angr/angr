@@ -1,4 +1,3 @@
-
 import logging
 
 from archinfo.arch_soot import SootMethodDescriptor

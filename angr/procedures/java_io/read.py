@@ -1,4 +1,3 @@
-
 from ..java import JavaSimProcedure
 
 

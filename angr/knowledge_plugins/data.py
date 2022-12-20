@@ -4,7 +4,7 @@ from .plugin import KnowledgeBasePlugin
 class Data(KnowledgeBasePlugin):
 
     def __init__(self, kb):
-        super(Data, self).__init__()
+        super().__init__()
         self._kb = kb
 
     def copy(self):

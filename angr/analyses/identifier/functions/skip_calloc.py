@@ -1,11 +1,10 @@
-
 from ..func import Func, TestData
 from ....errors import SimMemoryError
 
 
 class calloc(Func):
     def __init__(self):
-        super(calloc, self).__init__() #pylint disable=useless-super-delegation
+        super().__init__() #pylint disable=useless-super-delegation
 
     def num_args(self):
         return 2

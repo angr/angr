@@ -1,4 +1,3 @@
-
 import random
 import string
 
@@ -11,7 +10,7 @@ class sprintf(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super(sprintf, self).__init__()
+        super().__init__()
         self.format_spec_char = None
         self.string_spec_char = None
         self.allows_n = False
@@ -65,7 +64,7 @@ class sprintf(Func):
                         if not a.symbolic:
                             interesting_chars.add(s.solver.eval(a))
 
-        interesting_chars = set(chr(a) for a in interesting_chars if 0 < a < 0x80)
+        interesting_chars = {chr(a) for a in interesting_chars if 0 < a < 0x80}
         alphanum = set(string.ascii_letters + string.digits)
         possible_format_specifiers = [c for c in interesting_chars if c not in alphanum]
         possible_formats = [c for c in interesting_chars if c in alphanum]

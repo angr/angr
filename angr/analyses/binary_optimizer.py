@@ -1,4 +1,3 @@
-
 import logging
 import re
 from collections import defaultdict
@@ -13,14 +12,14 @@ from ..sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVa
 l = logging.getLogger(name=__name__)
 
 
-class ConstantPropagation(object):
+class ConstantPropagation:
     def __init__(self, constant, constant_assignment_loc, constant_consuming_loc):
         self.constant = constant
         self.constant_assignment_loc = constant_assignment_loc
         self.constant_consuming_loc = constant_consuming_loc
 
     def __repr__(self):
-        s = "<Constant %#x propagates from %#x to %#x>" % (
+        s = "<Constant {:#x} propagates from {:#x} to {:#x}>".format(
             self.constant,
             self.constant_assignment_loc.ins_addr,
             self.constant_consuming_loc.ins_addr
@@ -29,7 +28,7 @@ class ConstantPropagation(object):
         return s
 
 
-class RedundantStackVariable(object):
+class RedundantStackVariable:
     def __init__(self, argument, stack_variable, stack_variable_consuming_locs):
         self.argument = argument
         self.stack_variable = stack_variable
@@ -47,7 +46,7 @@ class RedundantStackVariable(object):
         return s
 
 
-class RegisterReallocation(object):
+class RegisterReallocation:
     def __init__(self, stack_variable, register_variable, stack_variable_sources, stack_variable_consumers,
                  prologue_addr, prologue_size, epilogue_addr, epilogue_size):
         """
@@ -83,7 +82,7 @@ class RegisterReallocation(object):
         return s
 
 
-class DeadAssignment(object):
+class DeadAssignment:
     def __init__(self, pv):
         """
         Constructor.
@@ -439,7 +438,7 @@ class BinaryOptimizer(Analysis):
         # push ebp (insn0 - read, insn0 - write) ; sub esp, 0xXX (insn2) ;
         # add esp, 0xXX (insn3) ; pop ebp (insn4) ; ret (insn5)
 
-        esp_insns = set( n.location.ins_addr for n in esp_variables )
+        esp_insns = { n.location.ins_addr for n in esp_variables }
         if esp_insns != { insn0.address, insn2.address, insn3.address, insn4.address, insn5.address } | call_insns:
             return
 

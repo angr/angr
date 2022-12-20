@@ -117,4 +117,4 @@ class MemoryRegionMetaMixin(MemoryMixin):
         """
         print("%sA-locs:" % (" " * indent))
         for aloc_id, aloc in self.alocs.items():
-            print("%s<0x%x> %s" % (" " * (indent + 2), aloc_id, aloc))
+            print("{}<0x{:x}> {}".format(" " * (indent + 2), aloc_id, aloc))

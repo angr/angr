@@ -1,5 +1,4 @@
-
-class IRange(object):
+class IRange:
     """
     A simple range object for testing inclusion. Like range but works for huge numbers.
     """

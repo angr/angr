@@ -6,7 +6,7 @@ from .plugin import KnowledgeBasePlugin
 class IndirectJumps(KnowledgeBasePlugin, dict):
 
     def __init__(self, kb):
-        super(IndirectJumps, self).__init__()
+        super().__init__()
         self._kb = kb
         self.unresolved = set()
 

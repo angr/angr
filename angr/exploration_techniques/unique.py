@@ -19,7 +19,7 @@ class UniqueSearch(ExplorationTechnique):
         :param similarity_func: How to calculate similarity between two states.
         :param deferred_stash:  Where to store the deferred states.
         """
-        super(UniqueSearch, self).__init__()
+        super().__init__()
         self.similarity_func = similarity_func or UniqueSearch.similarity
         self.deferred_stash = deferred_stash
         self.uniqueness = dict()

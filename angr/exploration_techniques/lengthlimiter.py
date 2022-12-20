@@ -6,7 +6,7 @@ class LengthLimiter(ExplorationTechnique):
     """
 
     def __init__(self, max_length, drop=False):
-        super(LengthLimiter, self).__init__()
+        super().__init__()
         self._max_length = max_length
         self._drop = drop
 

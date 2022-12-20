@@ -280,7 +280,7 @@ class TestCfgemulate(unittest.TestCase):
                             page_size=1,
                             auto_load_libs=False)
         cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
-        assert set(f for f in proj.kb.functions) >= set(function_addresses)
+        assert {f for f in proj.kb.functions} >= set(function_addresses)
         o.modes["fastpath"] ^= {o.DO_CCALLS}
 
     def test_fauxware(self):
@@ -470,7 +470,7 @@ class TestCfgemulate(unittest.TestCase):
         blocks = list(cfg.kb.functions["main"].blocks)
 
         assert len(blocks) == 2
-        assert set(block.addr for block in blocks) == {0x10B79, 0x10BBF}
+        assert {block.addr for block in blocks} == {0x10B79, 0x10BBF}
 
     def test_armel_incorrect_function_detection_caused_by_branch(self):
 
@@ -555,7 +555,7 @@ class TestCfgemulate(unittest.TestCase):
             for src, dst in edges[arch]:
                 src_node = cfg.get_any_node(src)
                 dst_node = cfg.get_any_node(dst)
-                assert dst_node in src_node.successors, "CFG edge %s-%s is not found." % (
+                assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
                     src_node,
                     dst_node,
                 )
@@ -627,7 +627,7 @@ class TestCfgemulate(unittest.TestCase):
         for src, dst in edges:
             src_node = target_function_cfg_emulated.get_any_node(src)
             dst_node = target_function_cfg_emulated.get_any_node(dst)
-            assert dst_node in src_node.successors, "CFG edge %s-%s is not found." % (
+            assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
                 src_node,
                 dst_node,
             )

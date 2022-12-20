@@ -6,7 +6,7 @@ class SimConcretizationStrategyNonzeroRange(SimConcretizationStrategy):
     """
 
     def __init__(self, limit, **kwargs):
-        super(SimConcretizationStrategyNonzeroRange, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self._limit = limit
 
     def _concretize(self, memory, addr, extra_constraints=None, **kwargs):

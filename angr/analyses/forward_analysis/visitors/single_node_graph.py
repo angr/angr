@@ -9,7 +9,7 @@ class SingleNodeGraphVisitor(GraphVisitor):
     __slots__ = ('node', 'node_returned', )
 
     def __init__(self, node):
-        super(SingleNodeGraphVisitor, self).__init__()
+        super().__init__()
         self.node = node
         self.node_returned = False
 

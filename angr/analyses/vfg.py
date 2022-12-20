@@ -31,7 +31,7 @@ class VFGJob(CFGJobBase):
     A job descriptor that contains local variables used during VFG analysis.
     """
     def __init__(self, *args, **kwargs):
-        super(VFGJob, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.call_stack_suffix = None
         self.vfg_node = None
@@ -63,9 +63,9 @@ class VFGJob(CFGJobBase):
             call_site_str = "%#x" % call_site if call_site is not None else "None"
 
             if func_addr in kb.functions:
-                s.append("%s[%s]" % (kb.functions[func_addr].name, call_site_str))
+                s.append("{}[{}]".format(kb.functions[func_addr].name, call_site_str))
             else:
-                s.append("%#x[%s]" % (func_addr, call_site_str))
+                s.append("{:#x}[{}]".format(func_addr, call_site_str))
 
         return "//".join(s)
 
@@ -100,7 +100,7 @@ class FunctionAnalysis(AnalysisTask):
     Analyze a function, generate fix-point states from all endpoints of that function, and then merge them to one state.
     """
     def __init__(self, function_address, return_address):
-        super(FunctionAnalysis, self).__init__()
+        super().__init__()
 
         self.function_address = function_address
         self.return_address = return_address
@@ -129,7 +129,7 @@ class CallAnalysis(AnalysisTask):
     those functions, and merge them into one state.
     """
     def __init__(self, address, return_address, function_analysis_tasks=None, mergeable_plugins=None):
-        super(CallAnalysis, self).__init__()
+        super().__init__()
 
         self.address = address
         self.return_address = return_address
@@ -220,7 +220,7 @@ class VFGNode:
                self.input_variables == o.input_variables)
 
     def __repr__(self):
-        s = "VFGNode[%#x] <%s>" % (self.addr, repr(self.key))
+        s = "VFGNode[{:#x}] <{}>".format(self.addr, repr(self.key))
         return s
 
     def append_state(self, s, is_widened_state=False):
@@ -941,7 +941,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # pop all finished tasks from the task stack
 
-        pending_task_func_addrs = set(k.func_addr for k in self._pending_returns.keys())
+        pending_task_func_addrs = {k.func_addr for k in self._pending_returns.keys()}
         while True:
             task = self._top_task
 

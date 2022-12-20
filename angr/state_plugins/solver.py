@@ -35,7 +35,7 @@ def timed_function(f):
 
             try:
                 if s.scratch.sim_procedure is None and s.scratch.bbl_addr is not None:
-                    location = "bbl %#x, stmt %s (inst %s)" % (
+                    location = "bbl {:#x}, stmt {} (inst {})".format(
                         s.scratch.bbl_addr,
                         s.scratch.stmt_idx,
                         ('%s' % s.scratch.ins_addr if s.scratch.ins_addr is None else '%#x' % s.scratch.ins_addr)
@@ -703,10 +703,10 @@ class SimSolver(SimStatePlugin):
         if cast_to is bytes:
             if len(e) == 0:
                 return b""
-            return binascii.unhexlify('{:x}'.format(solution).zfill(len(e)//4))
+            return binascii.unhexlify(f'{solution:x}'.zfill(len(e)//4))
 
         if cast_to is not int:
-            raise ValueError("cast_to parameter {!r} is not a valid cast target, currently supported are only int and bytes!".format(cast_to))
+            raise ValueError(f"cast_to parameter {cast_to!r} is not a valid cast target, currently supported are only int and bytes!")
 
         return solution
 

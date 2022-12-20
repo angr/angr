@@ -1,4 +1,3 @@
-
 import logging
 
 from ..sim_state import SimState
@@ -14,7 +13,7 @@ class SimStateJNIReferences(SimStatePlugin):
     """
 
     def __init__(self, local_refs=None, global_refs=None):
-        super(SimStateJNIReferences, self).__init__()
+        super().__init__()
         self.local_refs = local_refs if local_refs else {}
         self.global_refs = global_refs if global_refs else {}
 

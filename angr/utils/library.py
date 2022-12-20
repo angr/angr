@@ -79,7 +79,7 @@ def convert_cproto_to_py(c_decl) -> Tuple[str,'SimTypeFunction',str]:
 
         func_name, func_proto = next(iter(parsed_decl.items()))
 
-        s.append('"%s": %s,' % (func_name, func_proto._init_str()))  # The real Python string
+        s.append('"{}": {},'.format(func_name, func_proto._init_str()))  # The real Python string
 
     except Exception:  # pylint:disable=broad-except
         # Silently catch all parsing errors... supporting all function declarations is impossible
@@ -115,7 +115,7 @@ def convert_cppproto_to_py(cpp_decl: str,
 
         func_name, func_proto = next(iter(parsed_decl.items()))
 
-        s.append('"%s": %s,' % (func_name, func_proto._init_str()))  # The real Python string
+        s.append('"{}": {},'.format(func_name, func_proto._init_str()))  # The real Python string
 
     except Exception:  # pylint:disable=broad-except
         try:

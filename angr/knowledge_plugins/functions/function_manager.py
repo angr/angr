@@ -65,7 +65,7 @@ class FunctionDict(SortedDict):
             self[k] = v
 
     def __getstate__(self):
-        return dict((v, k) for (v, k) in self.items())
+        return {v: k for (v, k) in self.items()}
 
 
 class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
@@ -135,7 +135,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         """
         with open(filepath, "wb") as f:
             for src, dst in self.callgraph.edges():
-                f.write("%#x\tDirectEdge\t%#x\n" % (src, dst))
+                f.write("{:#x}\tDirectEdge\t{:#x}\n".format(src, dst))
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
         if isinstance(node, self.address_types):
@@ -312,8 +312,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         return len(self._function_map)
 
     def __iter__(self):
-        for i in sorted(self._function_map.keys()):
-            yield i
+        yield from sorted(self._function_map.keys())
 
     def get_by_addr(self, addr) -> Function:
         return self._function_map.get(addr)
@@ -413,7 +412,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
     def dbg_draw(self, prefix='dbg_function_'):
         for func_addr, func in self._function_map.items():
-            filename = "%s%#08x.png" % (prefix, func_addr)
+            filename = "{}{:#08x}.png".format(prefix, func_addr)
             func.dbg_draw(filename)
 
     def rebuild_callgraph(self):

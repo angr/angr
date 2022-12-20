@@ -8,7 +8,7 @@ l = logging.getLogger(name=__name__)
 
 class X86PeIatResolver(IndirectJumpResolver):
     def __init__(self, project):
-        super(X86PeIatResolver, self).__init__(project, timeless=True)
+        super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         if not isinstance(self.project.simos, SimWindows):

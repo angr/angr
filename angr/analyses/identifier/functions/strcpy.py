@@ -13,7 +13,7 @@ class strcpy(Func):
     non_null = list(range(1, 256))
 
     def __init__(self):
-        super(strcpy, self).__init__() #pylint disable=useless-super-delegation
+        super().__init__() #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "strcpy"

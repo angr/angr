@@ -75,7 +75,7 @@ class SimEngineLight(
     def __init__(self):
 
         logger = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
-        super(SimEngineLight, self).__init__(logger=logger)
+        super().__init__(logger=logger)
 
         # local variables
         self.state = None

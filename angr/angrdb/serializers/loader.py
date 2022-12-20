@@ -1,4 +1,3 @@
-
 from io import BytesIO
 from typing import List
 
@@ -13,7 +12,7 @@ class LoaderSerializer:
     Serialize/unserialize a CLE Loader object into/from an angr DB.
     """
 
-    backend2name = dict((v, k) for k, v in cle.ALL_BACKENDS.items())
+    backend2name = {v: k for k, v in cle.ALL_BACKENDS.items()}
 
     @staticmethod
     def dump(session, loader):

@@ -25,7 +25,7 @@ class SimRegNameView(SimStatePlugin):
         :rtype:       claripy.ast.Base
         """
 
-        state = super(SimRegNameView, self).__getattribute__('state') # type: SimState
+        state = super().__getattribute__('state') # type: SimState
 
         if isinstance(k, str) and k.startswith('_'):
             k = k[1:]
@@ -40,7 +40,7 @@ class SimRegNameView(SimStatePlugin):
         try:
             return state.registers.load(k, inspect=inspect, disable_actions=disable_actions, events=events)
         except KeyError:
-            return super(SimRegNameView, self).__getattribute__(k)
+            return super().__getattribute__(k)
 
     def __setattr__(self, k, v):
         """
@@ -138,14 +138,14 @@ class SimMemView(SimStatePlugin):
     """
 
     def __init__(self, ty=None, addr=None, state=None):
-        super(SimMemView, self).__init__()
+        super().__init__()
         self._type = ty
         self._addr = addr
         if state is not None:
             self.set_state(state)
 
     def set_state(self, state):
-        super(SimMemView, self).set_state(state)
+        super().set_state(state)
 
         # Make sure self._addr is always an AST
         if isinstance(self._addr, int):
@@ -286,7 +286,7 @@ class SimMemView(SimStatePlugin):
         return self._type.store(self.state, self._addr, value)
 
 
-class StructMode(object):
+class StructMode:
     def __init__(self, view):
         self._view = view
 

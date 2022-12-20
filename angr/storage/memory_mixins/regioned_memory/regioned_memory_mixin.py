@@ -407,8 +407,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
             model_vsa = addr_e._model_vsa
             if isinstance(model_vsa, ValueSet):
-                for region, offset in model_vsa.items():
-                    yield region, offset
+                yield from model_vsa.items()
             else:
                 raise SimAbstractMemoryError('Cannot parse address as a VSA ValueSet')
         else:
