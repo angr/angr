@@ -204,8 +204,8 @@ def test_struct_bitfield_complex():
     bitfield_struct2 = angr.types.parse_type(
         """struct bitfield_struct2
     {
-        uint64_t    target    : 36,    
-                    high8     :  8,   
+        uint64_t    target    : 36,
+                    high8     :  8,
                     reserved  :  7,
                     next      : 12,
                     bind      :  1;

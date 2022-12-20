@@ -16,7 +16,7 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("mapi32.dll")
 prototypes = \
     {
-        # 
+        #
         'MAPIFreeBuffer': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["pv"]),
     }
 

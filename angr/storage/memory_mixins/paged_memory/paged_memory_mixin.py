@@ -525,7 +525,6 @@ class PagedMemoryMixin(MemoryMixin):
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
         difference = my_pages.symmetric_difference(other_pages)
-        
         changes: Dict[int,Optional[Set[int]]] = {d: None for d in difference}
 
         for pageno in intersection:
