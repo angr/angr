@@ -16,7 +16,7 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("windows.data.pdf.dll")
 prototypes = \
     {
-        # 
+        #
         'PdfCreateRenderer': SimTypeFunction([SimTypeBottom(label="IDXGIDevice"), SimTypePointer(SimTypeBottom(label="IPdfRendererNative"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pDevice", "ppRenderer"]),
     }
 

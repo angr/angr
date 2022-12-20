@@ -16,7 +16,7 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("rometadata.dll")
 prototypes = \
     {
-        # 
+        #
         'MetaDataGetDispenser': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["rclsid", "riid", "ppv"]),
     }
 

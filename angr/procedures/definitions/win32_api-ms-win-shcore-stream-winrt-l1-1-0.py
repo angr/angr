@@ -16,11 +16,11 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-shcore-stream-winrt-l1-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'CreateRandomAccessStreamOnFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["filePath", "accessMode", "riid", "ppv"]),
-        # 
+        #
         'CreateRandomAccessStreamOverStream': SimTypeFunction([SimTypeBottom(label="IStream"), SimTypeInt(signed=False, label="BSOS_OPTIONS"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["stream", "options", "riid", "ppv"]),
-        # 
+        #
         'CreateStreamOverRandomAccessStream': SimTypeFunction([SimTypeBottom(label="IUnknown"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="Void"), offset=0), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["randomAccessStream", "riid", "ppv"]),
     }
 

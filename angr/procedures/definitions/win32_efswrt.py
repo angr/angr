@@ -16,9 +16,9 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("efswrt.dll")
 prototypes = \
     {
-        # 
+        #
         'ProtectFileToEnterpriseIdentity': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimTypeChar(label="Char"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["fileOrFolderPath", "identity"]),
-        # 
+        #
         'UnprotectFile': SimTypeFunction([SimTypePointer(SimTypeChar(label="Char"), offset=0), SimTypePointer(SimStruct({"audit": SimTypeBool()}, name="FILE_UNPROTECT_OPTIONS", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["fileOrFolderPath", "options"]),
     }
 

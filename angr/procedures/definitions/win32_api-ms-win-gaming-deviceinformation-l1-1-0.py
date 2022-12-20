@@ -16,7 +16,7 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-gaming-deviceinformation-l1-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'GetGamingDeviceModelInformation': SimTypeFunction([SimTypePointer(SimStruct({"vendorId": SimTypeInt(signed=False, label="GAMING_DEVICE_VENDOR_ID"), "deviceId": SimTypeInt(signed=False, label="GAMING_DEVICE_DEVICE_ID")}, name="GAMING_DEVICE_MODEL_INFORMATION", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["information"]),
     }
 
