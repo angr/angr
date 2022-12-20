@@ -113,7 +113,7 @@ class SimEngineLight(
 
         if not self._call_stack:
             # contextful but the callstack is empty
-            return tuple()
+            return ()
 
         # Convert to Tuple to make `context` hashable if not None
         call_stack_addresses = tuple(self._call_stack)

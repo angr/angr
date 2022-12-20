@@ -308,7 +308,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         # for each constraint we check what the max stdin it has and how much stdout we have
         self.stdin_min_stdout_constraints = {}
         self.stdin_min_stdout_reads = {}
-        self.format_infos = dict()
+        self.format_infos = {}
         self.pending_info = None
         self.str_to_int_pairs = []
         self.int_to_str_pairs = []
@@ -633,11 +633,11 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
     def __init__(self, max_depth=13):
         angr.state_plugins.SimStatePlugin.__init__(self)
         # dict from cache key to asts
-        self.replacements = dict()
+        self.replacements = {}
         # dict from zen vars to the depth
-        self.depths = dict()
+        self.depths = {}
         # dict from zen vars to the bytes contained
-        self.byte_dict = dict()
+        self.byte_dict = {}
         # the max depth an object can have before it is replaced with a zen object with no constraint
         self.max_depth = max_depth
         # the zen replacement constraints (the ones that don't preconstrain input)

@@ -23,7 +23,7 @@ def makeFunction(function_manager, function_address, function_name):
 class MockFunctionManager:
     def __init__(self):
         self.callgraph = networkx.MultiDiGraph()
-        self._function_map = dict()
+        self._function_map = {}
     def function(self, address):
         return self._function_map[address]
 

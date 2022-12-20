@@ -4,7 +4,7 @@ class Serializable:
     The base class of all protobuf-serializable classes in angr.
     """
 
-    __slots__ = tuple()
+    __slots__ = ()
 
     @classmethod
     def _get_cmsg(cls):
