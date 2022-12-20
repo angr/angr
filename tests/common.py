@@ -48,7 +48,7 @@ def slow_test(func):
     slow_test_env = (
         os.environ["SKIP_SLOW_TESTS"].lower()
         if "SKIP_SLOW_TESTS" in os.environ
-        else ''
+        else ""
     )
     return skipIf(
         slow_test_env == "true" or slow_test_env == "1", "Skipping slow test"

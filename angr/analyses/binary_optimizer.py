@@ -320,8 +320,7 @@ class BinaryOptimizer(Analysis):
                         argument_register_as_retval.add(argument_variable)
 
             else:
-                # TODO:
-                import ipdb; ipdb.set_trace()
+                raise NotImplementedError() # TODO:
 
         #import pprint
         #pprint.pprint(argument_to_local, width=160)

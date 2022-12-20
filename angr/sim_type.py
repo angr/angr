@@ -2674,7 +2674,7 @@ def _make_scope(predefined_types=None):
     Generate CParser scope_stack argument to parse method
     """
     all_types = ChainMap(predefined_types or {}, ALL_TYPES)
-    scope = dict()
+    scope = {}
     for ty in all_types:
         if ty in BASIC_TYPES:
             continue
@@ -2871,7 +2871,7 @@ def _accepts_scope_stack():
     def parse(self,text, filename='', debug=False, scope_stack=None):
         self.clex.filename = filename
         self.clex.reset_lineno()
-        self._scope_stack = [dict()] if scope_stack is None else scope_stack
+        self._scope_stack = [{}] if scope_stack is None else scope_stack
         self._last_yielded_token = None
         return self.cparser.parse(
             input=text,

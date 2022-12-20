@@ -214,8 +214,7 @@ def do_it(in_dir, out_file):
             arg_names = [ ]
             for param in f["Params"]:
                 new_param = handle_json_type(param["Type"])
-                if new_param is None:
-                    import ipdb; ipdb.set_trace()
+                assert new_param is not None, "This should not happen, please report this."
                 args.append(new_param)
                 arg_names.append(param["Name"])
             new_func = angr.types.SimTypeFunction(args, ret_type, arg_names=arg_names)

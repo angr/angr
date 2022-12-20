@@ -215,7 +215,7 @@ class BP:
         :param state:   The state.
         """
         if self.action is None or self.action == BP_IPDB:
-            import ipdb; ipdb.set_trace() #pylint:disable=F0401
+            ipdb = __import__("ipdb").set_trace()
         elif self.action == BP_IPYTHON:
             import IPython
             shell = IPython.terminal.embed.InteractiveShellEmbed()

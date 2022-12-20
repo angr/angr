@@ -9,7 +9,7 @@ from ..func import Func
 
 # Import all classes under the current directory, and group them based on
 # lib names.
-Functions = dict()
+Functions = {}
 path = os.path.dirname(os.path.abspath(__file__))
 skip_dirs = ['__init__.py']
 skip_procs = ['__init__', 'func']

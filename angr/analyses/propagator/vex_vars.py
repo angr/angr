@@ -2,7 +2,7 @@
 
 class VEXVariable:
 
-    __slots__ = tuple()
+    __slots__ = ()
 
     def __hash__(self):
         raise NotImplementedError()

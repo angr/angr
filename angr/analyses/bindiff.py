@@ -293,9 +293,9 @@ class NormalizedFunction:
         # start by copying the graph
         self.graph: networkx.DiGraph = function.graph.copy()
         self.project = function._function_manager._kb._project
-        self.call_sites = dict()
+        self.call_sites = {}
         self.startpoint = function.startpoint
-        self.merged_blocks = dict()
+        self.merged_blocks = {}
         self.orig_function = function
 
         # find nodes which end in call and combine them
@@ -359,8 +359,8 @@ class FunctionDiff:
         self._project_b = self._function_b.project
         self._bindiff = bindiff
 
-        self._attributes_a = dict()
-        self._attributes_a = dict()
+        self._attributes_a = {}
+        self._attributes_b = {}
 
         self._block_matches = set()
         self._unmatched_blocks_from_a = set()
@@ -408,7 +408,7 @@ class FunctionDiff:
         :return: A list of block matches which appear to differ
         """
         differing_blocks = []
-        diffs = dict()
+        diffs = {}
         for (block_a, block_b) in self._block_matches:
             if self.blocks_probably_identical(block_a, block_b) and \
                     not self.blocks_probably_identical(block_a, block_b, check_constants=True):
@@ -657,8 +657,8 @@ class FunctionDiff:
         processed_matches = {(x, y) for (x, y) in initial_matches}
 
         # Keep a dict of current matches, which will be updated if better matches are found
-        matched_a = dict()
-        matched_b = dict()
+        matched_a = {}
+        matched_b = {}
         for (x, y) in processed_matches:
             matched_a[x] = y
             matched_b[y] = x
@@ -869,10 +869,10 @@ class BinDiff(Analysis):
         l.debug("Done computing cfg's")
 
         self._p2 = other_project
-        self._attributes_a = dict()
-        self._attributes_a = dict()
+        self._attributes_a = {}
+        self._attributes_b = {}
 
-        self._function_diffs = dict()
+        self._function_diffs = {}
         self.function_matches = set()
         self._unmatched_functions_from_a = set()
         self._unmatched_functions_from_b = set()
@@ -953,7 +953,7 @@ class BinDiff(Analysis):
         """
         :return: A dict of block matches with differing constants to the tuple of constants
         """
-        diffs = dict()
+        diffs = {}
         for (func_a, func_b) in self.function_matches:
             diffs.update(self.get_function_diff(func_a, func_b).blocks_with_differing_constants)
         return diffs
@@ -983,7 +983,7 @@ class BinDiff(Analysis):
         :returns:    a dictionary of function addresses to tuples of attributes
         """
         # the attributes we use are the number of basic blocks, number of edges, and number of subfunction calls
-        attributes = dict()
+        attributes = {}
         all_funcs = set(cfg.kb.callgraph.nodes())
         for function_addr in cfg.kb.functions:
             # skip syscalls and functions which are None in the cfg
@@ -1037,8 +1037,8 @@ class BinDiff(Analysis):
                 plt_matches.append((addr, self._p2.loader.main_object.plt[name]))
 
         # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
-        func_to_addr_a = dict()
-        func_to_addr_b = dict()
+        func_to_addr_a = {}
+        func_to_addr_b = {}
         for (k, hook) in self.project._sim_procedures.items():
             if "resolves" in hook.kwargs:
                 func_to_addr_a[hook.kwargs['resolves']] = k
@@ -1098,8 +1098,8 @@ class BinDiff(Analysis):
         processed_matches = {(x, y) for (x, y) in initial_matches}
 
         # Keep a dict of current matches, which will be updated if better matches are found
-        matched_a = dict()
-        matched_b = dict()
+        matched_a = {}
+        matched_b = {}
         for (x, y) in processed_matches:
             matched_a[x] = y
             matched_b[y] = x

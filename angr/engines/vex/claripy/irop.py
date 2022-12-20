@@ -377,7 +377,6 @@ class SimIROp:
 
     def calculate(self, *args):
         if not all(isinstance(a, claripy.ast.Base) for a in args):
-            import ipdb; ipdb.set_trace()
             raise SimOperationError("IROp needs all args as claripy expressions")
 
         if not self._float:

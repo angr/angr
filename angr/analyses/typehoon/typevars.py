@@ -389,7 +389,7 @@ class TypeVariables:
 
 class BaseLabel:
 
-    __slots__ = tuple()
+    __slots__ = ()
 
     def __eq__(self, other):
         return type(self) is type(other) and hash(self) == hash(other)
@@ -422,7 +422,7 @@ class FuncOut(BaseLabel):
 
 class Load(BaseLabel):
 
-    __slots__ = tuple()
+    __slots__ = ()
 
     def __repr__(self):
         return "load"
@@ -430,7 +430,7 @@ class Load(BaseLabel):
 
 class Store(BaseLabel):
 
-    __slots__ = tuple()
+    __slots__ = ()
 
     def __repr__(self):
         return "store"
