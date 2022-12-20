@@ -60,7 +60,7 @@ class CodeLocation:
         ss = [ ]
         if self.info:
             for k, v in self.info.items():
-                if v != tuple() and v is not None:
+                if v != () and v is not None:
                     ss.append(f"{k}={v}")
             if ss:
                 s += " with %s" % ", ".join(ss)
