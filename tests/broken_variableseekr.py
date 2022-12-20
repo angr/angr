@@ -170,8 +170,6 @@ def test_uninitialized_reads(arch, starts):
                 else:
                     l.info("%s(%d),  referenced at %08x", var, var._size, var._inst_addr)
 
-    import ipdb; ipdb.set_trace()
-
 if __name__ == "__main__":
     try:
         __import__('standard_logging')
