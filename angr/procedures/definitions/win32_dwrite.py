@@ -16,7 +16,7 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("dwrite.dll")
 prototypes = \
     {
-        # 
+        #
         'DWriteCreateFactory': SimTypeFunction([SimTypeInt(signed=False, label="DWRITE_FACTORY_TYPE"), SimTypePointer(SimTypeBottom(label="Guid"), offset=0), SimTypePointer(SimTypeBottom(label="IUnknown"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["factoryType", "iid", "factory"]),
     }
 
