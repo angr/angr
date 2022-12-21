@@ -66,10 +66,10 @@ class Assignment(Statement):
         return stable_hash((Assignment, self.idx, self.dst, self.src))
 
     def __repr__(self):
-        return "Assignment (%s, %s)" % (self.dst, self.src)
+        return f"Assignment ({self.dst}, {self.src})"
 
     def __str__(self):
-        return "%s = %s" % (str(self.dst), str(self.src))
+        return f"{str(self.dst)} = {str(self.src)}"
 
     def replace(self, old_expr, new_expr):
 
@@ -137,7 +137,7 @@ class Store(Statement):
 
     def __str__(self):
         if self.variable is None:
-            return "STORE(addr=%s, data=%s, size=%s, endness=%s, guard=%s)" % (self.addr, str(self.data), self.size,
+            return "STORE(addr={}, data={}, size={}, endness={}, guard={})".format(self.addr, str(self.data), self.size,
                                                                                self.endness, self.guard)
         else:
             return "%s =%s %s<%d>%s" % (self.variable.name, "L" if self.endness == "Iend_LE" else "B", str(self.data),
@@ -255,11 +255,11 @@ class ConditionalJump(Statement):
         return stable_hash((ConditionalJump, self.idx, self.condition, self.true_target, self.false_target))
 
     def __repr__(self):
-        return "ConditionalJump (condition: %s, true: %s, false: %s)" % (self.condition, self.true_target,
+        return "ConditionalJump (condition: {}, true: {}, false: {})".format(self.condition, self.true_target,
                                                                          self.false_target)
 
     def __str__(self):
-        return "if (%s) { Goto %s } else { Goto %s }" % (
+        return "if ({}) {{ Goto {} }} else {{ Goto {} }}".format(
             self.condition,
             self.true_target,
             self.false_target,
@@ -321,7 +321,7 @@ class Call(Expression, Statement):
         return stable_hash((Call, self.idx, self.target))
 
     def __repr__(self):
-        return "Call (target: %s, prototype: %s, args: %s)" % (self.target, self.prototype, self.args)
+        return f"Call (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
 
     def __str__(self):
 
@@ -329,11 +329,11 @@ class Call(Expression, Statement):
         if self.args is None:
             if self.calling_convention is not None:
                 s = ("%s" % cc) if self.prototype is None else \
-                    "%s: %s" % (self.calling_convention, self.calling_convention.arg_locs(self.prototype))
+                    f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
             else:
                 s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
         else:
-            s = ("%s: %s" % (cc, self.args)) if self.prototype is None else "%s: %s" % (self.calling_convention,
+            s = (f"{cc}: {self.args}") if self.prototype is None else "{}: {}".format(self.calling_convention,
                                                                                         self.args)
 
         if self.ret_expr is None:
@@ -345,7 +345,7 @@ class Call(Expression, Statement):
         else:
             fp_ret_s = f"{self.fp_ret_expr}"
 
-        return "Call(%s, %s, ret: %s, fp_ret: %s)" % (
+        return "Call({}, {}, ret: {}, fp_ret: {})".format(
             self.target,
             s,
             ret_s,
@@ -461,7 +461,7 @@ class Return(Statement):
         return stable_hash((Return, self.idx, self.target, tuple(self.ret_exprs)))
 
     def __repr__(self):
-        return "Return to %r (%s)" % (self.target, ",".join(repr(x) for x in self.ret_exprs))
+        return "Return to {!r} ({})".format(self.target, ",".join(repr(x) for x in self.ret_exprs))
 
     def __str__(self):
         exprs = (",".join(str(ret_expr) for ret_expr in self.ret_exprs))

@@ -1,4 +1,3 @@
-
 class SkipConversionNotice(Exception):
     pass
 

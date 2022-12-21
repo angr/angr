@@ -208,7 +208,7 @@ class UnaryOp(Op):
         self.variable_offset = variable_offset
 
     def __str__(self):
-        return "(%s %s)" % (self.op, str(self.operand))
+        return f"({self.op} {str(self.operand)})"
 
     def __repr__(self):
         return str(self)
@@ -458,10 +458,10 @@ class BinaryOp(Op):
 
     def __str__(self):
         op_str = self.OPSTR_MAP.get(self.verbose_op, self.verbose_op)
-        return "(%s %s %s)" % (str(self.operands[0]), op_str, str(self.operands[1]))
+        return f"({str(self.operands[0])} {op_str} {str(self.operands[1])})"
 
     def __repr__(self):
-        return "%s(%s, %s)" % (self.verbose_op, self.operands[0], self.operands[1])
+        return f"{self.verbose_op}({self.operands[0]}, {self.operands[1]})"
 
     def likes(self, other):
         return type(other) is BinaryOp and \
@@ -578,7 +578,7 @@ class TernaryOp(Op):
         return f"{self.verbose_op}({self.operands[0]}, {self.operands[1]}, {self.operands[2]})"
 
     def __repr__(self):
-        return "%s(%s, %s, %s)" % (self.verbose_op, self.operands[0], self.operands[1], self.operands[2])
+        return f"{self.verbose_op}({self.operands[0]}, {self.operands[1]}, {self.operands[2]})"
 
     def likes(self, other):
         return type(other) is TernaryOp and \
@@ -741,7 +741,7 @@ class ITE(Expression):
         return str(self)
 
     def __str__(self):
-        return "((%s) ? (%s) : (%s))" % (self.cond, self.iftrue, self.iffalse)
+        return f"(({self.cond}) ? ({self.iftrue}) : ({self.iffalse}))"
 
     def likes(self, atom):
         return type(atom) is ITE and \
@@ -905,14 +905,14 @@ class BasePointerOffset(Expression):
             return "BaseOffset(%s)" % self.base
         if isinstance(self.offset, int):
             return "BaseOffset(%s, %d)" % (self.base, self.offset)
-        return "BaseOffset(%s, %s)" % (self.base, self.offset)
+        return f"BaseOffset({self.base}, {self.offset})"
 
     def __str__(self):
         if self.offset is None:
             return str(self.base)
         if isinstance(self.offset, int):
             return "%s%+d" % (self.base, self.offset)
-        return "%s+%s" % (self.base, self.offset)
+        return f"{self.base}+{self.offset}"
 
     def likes(self, other):
         return type(other) is type(self) and \
