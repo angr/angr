@@ -16,9 +16,9 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-psm-appnotify-l1-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'RegisterAppStateChangeNotification': SimTypeFunction([SimTypePointer(SimTypeFunction([SimTypeChar(label="Byte"), SimTypePointer(SimTypeBottom(label="Void"), offset=0)], SimTypeBottom(label="Void"), arg_names=["Quiesced", "Context"]), offset=0), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypePointer(SimTypePointer(SimStruct({}, name="_APPSTATE_REGISTRATION", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=False, label="UInt32"), arg_names=["Routine", "Context", "Registration"]),
-        # 
+        #
         'UnregisterAppStateChangeNotification': SimTypeFunction([SimTypePointer(SimStruct({}, name="_APPSTATE_REGISTRATION", pack=False, align=None), offset=0)], SimTypeBottom(label="Void"), arg_names=["Registration"]),
     }
 

@@ -113,7 +113,7 @@ class Function(Serializable):
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
         self.info = {}  # storing special information, like $gp values for MIPS32
-        self.tags = tuple()  # store function tags. can be set manually by performing CodeTagging analysis.
+        self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
 
         # TODO: Can we remove the following two members?
         # Register offsets of those arguments passed in registers

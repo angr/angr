@@ -15,7 +15,7 @@ class TestIdentifier(unittest.TestCase):
         p = angr.Project(os.path.join(bin_location, "tests", "i386", "identifiable"))
         idfer = p.analyses.Identifier(require_predecessors=False)
 
-        seen = dict()
+        seen = {}
         for addr, symbol in idfer.run():
             seen[addr] = symbol
 

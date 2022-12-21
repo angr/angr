@@ -200,7 +200,7 @@ class Instruction(DisassemblyPiece):
             # the default one works well for x86, add more arch-specific
             # code when you find it doesn't meet your need.
             self.disect_instruction_by_default()
-    
+
     def disect_instruction_for_aarch64(self):
         ## ARM64 consts from capstone
         # ARM64 conditional
@@ -219,7 +219,7 @@ class Instruction(DisassemblyPiece):
             if not (self.insn.mnemonic.startswith('b.') or self.insn.mnemonic.startswith('bc.')):
                 # a dummy operand (Cond string) is expected at the end of op_str
                 expected_cc_op = ARM64_CC[cc]
-        
+
         # We use capstone for arm64 disassembly, so this assertion must success
         assert hasattr(self.insn, 'operands')
 
@@ -240,7 +240,7 @@ class Instruction(DisassemblyPiece):
                 )
                 self.operands = [ ]
                 return
-        
+
         for operand in dummy_operands:
             opr_pieces = self.split_op_string(operand)
             cur_operand = []
@@ -290,7 +290,7 @@ class Instruction(DisassemblyPiece):
                 opr,
                 self
             )
-    
+
     @staticmethod
     def split_aarch64_op_string(op_str: str):
         pieces = []

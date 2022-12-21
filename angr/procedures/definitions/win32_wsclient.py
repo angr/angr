@@ -16,11 +16,11 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("wsclient.dll")
 prototypes = \
     {
-        # 
+        #
         'CheckDeveloperLicense': SimTypeFunction([SimTypePointer(SimStruct({"dwLowDateTime": SimTypeInt(signed=False, label="UInt32"), "dwHighDateTime": SimTypeInt(signed=False, label="UInt32")}, name="FILETIME", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["pExpiration"]),
-        # 
+        #
         'AcquireDeveloperLicense': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypePointer(SimStruct({"dwLowDateTime": SimTypeInt(signed=False, label="UInt32"), "dwHighDateTime": SimTypeInt(signed=False, label="UInt32")}, name="FILETIME", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwndParent", "pExpiration"]),
-        # 
+        #
         'RemoveDeveloperLicense': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["hwndParent"]),
     }
 

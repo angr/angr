@@ -49,9 +49,7 @@ def timed_function(f):
                 location = "unknown"
             lt.log(int((end-start)*10), '%s took %s seconds at %s', f.__name__, round(duration, 2), location)
 
-            if 0 <= break_time < duration:
-                #pylint: disable = import-outside-toplevel
-                import ipdb; ipdb.set_trace()
+            assert not (0 <= break_time < duration), "Please report this."
 
             return r
 

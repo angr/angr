@@ -16,7 +16,7 @@ lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 lib.set_library_names("api-ms-win-core-winrt-robuffer-l1-1-0.dll")
 prototypes = \
     {
-        # 
+        #
         'RoGetBufferMarshaler': SimTypeFunction([SimTypePointer(SimTypeBottom(label="IMarshal"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["bufferMarshaler"]),
     }
 
