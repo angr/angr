@@ -22,7 +22,7 @@ class PluginHub:
     """
 
     def __init__(self):
-        super(PluginHub, self).__init__()
+        super().__init__()
         self._active_plugins = {} # type: Dict[str, SimStatePlugin]
         self._active_preset = None # type: Optional[PluginPreset]
         self._provided_by_preset = [] # type: List[int]
@@ -271,7 +271,7 @@ class PluginVendor(PluginHub):
         pass
 
     def __dir__(self):
-        x = super(PluginVendor, self).__dir__()
+        x = super().__dir__()
         x.remove('release_plugin')
         x.remove('register_plugin')
         x.remove('has_plugin')

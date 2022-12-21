@@ -143,7 +143,7 @@ class DreamStructurer(StructurerBase):
 
         # find loop nodes and successors
         loop_subgraph = networkx.subgraph(graph, loop_nodes)
-        loop_node_addrs = set( node.addr for node in loop_subgraph )
+        loop_node_addrs = { node.addr for node in loop_subgraph }
 
         # Case A: The loop successor is inside the current region (does it happen at all?)
         loop_successors = set()
@@ -238,7 +238,7 @@ class DreamStructurer(StructurerBase):
 
         queue = [ loop_head ]
         traversed = set()
-        loop_successor_addrs = set(succ.addr for succ in loop_successors)
+        loop_successor_addrs = {succ.addr for succ in loop_successors}
         replaced_nodes = {}
         outedges = [ ]
 
@@ -883,10 +883,10 @@ class DreamStructurer(StructurerBase):
             for subexpr in cond_subexprs:
                 guarded_node_candidates = self._nodes_guarded_by_common_subexpr(seq, subexpr, entry_node_idx + 1)
                 if guarded_nodes is None:
-                    guarded_nodes = set(node_ for _, node_, _ in guarded_node_candidates)
+                    guarded_nodes = {node_ for _, node_, _ in guarded_node_candidates}
                 else:
                     guarded_nodes = guarded_nodes.intersection(
-                        set(node_ for _, node_, _ in guarded_node_candidates))
+                        {node_ for _, node_, _ in guarded_node_candidates})
 
             if guarded_nodes is not None:
                 # keep the topological order of nodes in Sequence node
@@ -894,8 +894,8 @@ class DreamStructurer(StructurerBase):
                 for node_ in sorted_guarded_nodes:
                     if node_ is not entry_node and node_.addr not in entry_addrs_set:
                         # fix reaching condition
-                        reaching_condition_subexprs = set(
-                            ex for ex in get_ast_subexprs(node_.reaching_condition)).difference(set(cond_subexprs))
+                        reaching_condition_subexprs = {
+                            ex for ex in get_ast_subexprs(node_.reaching_condition)}.difference(set(cond_subexprs))
                         new_reaching_condition = claripy.And(*reaching_condition_subexprs)
                         new_node = CodeNode(node_.node, new_reaching_condition)
                         case_node.add_node(new_node)

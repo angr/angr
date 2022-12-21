@@ -224,7 +224,7 @@ class MemoryLocation(Atom):
         stack_format = ' (stack)' if self.is_on_stack else ''
         size = "%d" % self.size if isinstance(self.size, int) else self.size
 
-        return "<Mem %s<%s>%s>" % (address_format, size, stack_format)
+        return f"<Mem {address_format}<{size}>{stack_format}>"
 
     @property
     def is_on_stack(self) -> bool:

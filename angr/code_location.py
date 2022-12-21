@@ -41,7 +41,7 @@ class CodeLocation:
             return '<%s>' % self.sim_procedure
 
         if self.stmt_idx is None:
-            s = "<%s%#x(-)" % (
+            s = "<{}{:#x}(-)".format(
                 ("%#x " % self.ins_addr) if self.ins_addr else "",
                 self.block_addr,
             )
@@ -55,13 +55,13 @@ class CodeLocation:
         if self.context is None:
             s += " contextless"
         else:
-            s += " context: %r" % (self.context,)
+            s += f" context: {self.context!r}"
 
         ss = [ ]
         if self.info:
             for k, v in self.info.items():
                 if v != () and v is not None:
-                    ss.append("%s=%s" % (k, v))
+                    ss.append(f"{k}={v}")
             if ss:
                 s += " with %s" % ", ".join(ss)
         s += ">"

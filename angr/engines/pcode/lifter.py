@@ -262,7 +262,7 @@ class IRSB:
         print(self._pp_str())
 
     def __repr__(self) -> str:
-        return "IRSB <0x%x bytes, %s ins., %s> at 0x%x" % (
+        return "IRSB <0x{:x} bytes, {} ins., {}> at 0x{:x}".format(
             self.size,
             self.instructions,
             self.arch,
@@ -378,7 +378,7 @@ class IRSB:
             next_str = '%x' % self.next
         else:
             next_str = str(self.next)
-        sa.append("   NEXT: %s; %s" % (next_str, self.jumpkind))
+        sa.append(f"   NEXT: {next_str}; {self.jumpkind}")
         sa.append("}")
         return "\n".join(sa)
 

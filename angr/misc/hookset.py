@@ -41,7 +41,7 @@ class HookSet:
                 try:
                     hooked.pending.remove(hook)
                 except ValueError as e:
-                    raise ValueError("%s is not hooked by %s" % (target, hook)) from e
+                    raise ValueError(f"{target} is not hooked by {hook}") from e
             if not hooked.pending:
                 setattr(target, name, hooked.func)
 

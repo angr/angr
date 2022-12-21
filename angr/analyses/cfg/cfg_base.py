@@ -346,7 +346,7 @@ class CFGBase(Analysis):
             raise ValueError("%r is not in CFG." % block_to)
 
         if block_to not in self.graph[block_from]:
-            raise ValueError("Edge %r->%r does not exist." % (block_from, block_to))
+            raise ValueError(f"Edge {block_from!r}->{block_to!r} does not exist.")
 
         self.graph.remove_edge(block_from, block_to)
 
@@ -2290,7 +2290,7 @@ class CFGBase(Analysis):
                 MIPS32_BE_NOOPS = {
                     b"\x00\x20\x08\x25",  # move $at, $at
                 }
-                insns = set(block.bytes[i:i + 4] for i in range(0, block.size, 4))
+                insns = {block.bytes[i:i + 4] for i in range(0, block.size, 4)}
                 if MIPS32_BE_NOOPS.issuperset(insns):
                     return True
 
@@ -2307,7 +2307,7 @@ class CFGBase(Analysis):
                         b"\x00\x00\x00\x00",  # andeq r0, r0, r0
                         b"\xe1\xa0\x00\x00",  # mov r0, r0
                     }
-                insns = set(block.bytes[i:i + 4] for i in range(0, block.size, 4))
+                insns = {block.bytes[i:i + 4] for i in range(0, block.size, 4)}
                 if ARM_NOOPS.issuperset(insns):
                     return True
 
@@ -2325,7 +2325,7 @@ class CFGBase(Analysis):
                         b"\x00\xb0",  # add sp, #0
                         b"\xbf\x00",  # nop
                     }
-                insns = set(block.bytes[i:i+2] for i in range(0, block.size, 2))
+                insns = {block.bytes[i:i+2] for i in range(0, block.size, 2)}
                 if THUMB_NOOPS.issuperset(insns):
                     return True
 

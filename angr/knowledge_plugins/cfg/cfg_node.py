@@ -124,7 +124,7 @@ class CFGNode(Serializable):
                 self._name = sym.name
             if self._name is not None:
                 offset = self.addr - self.function_address
-                self._name = "%s%+#x" % (self._name, offset)
+                self._name = f"{self._name}{offset:+#x}"
 
         return self._name
 
@@ -159,8 +159,7 @@ class CFGNode(Serializable):
 
         for instr_addr in self.instruction_addrs:
             refs = list(kb.xrefs.get_xrefs_by_ins_addr(instr_addr))
-            for ref in refs:
-                yield ref
+            yield from refs
 
     @property
     def accessed_data_references(self):
@@ -374,7 +373,7 @@ class CFGENode(CFGNode):
                  creation_failure_info=None,
                  ):
 
-        super(CFGENode, self).__init__(addr, size, cfg,
+        super().__init__(addr, size, cfg,
                                        simprocedure_name=simprocedure_name,
                                        no_ret=no_ret,
                                        function_address=function_address,
@@ -431,7 +430,7 @@ class CFGENode(CFGNode):
         if self.looping_times > 0:
             s += " - %d" % self.looping_times
         if self.creation_failure_info is not None:
-            s += ' - creation failed: {}'.format(self.creation_failure_info.long_reason)
+            s += f' - creation failed: {self.creation_failure_info.long_reason}'
         s += ">"
         return s
 

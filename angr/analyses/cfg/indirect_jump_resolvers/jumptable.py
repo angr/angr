@@ -1766,7 +1766,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # the default exit
             default_exit_taken = DEFAULT_STATEMENT in stmt_ids
-            s = "%s %x:default | PUT(%s) = %s; %s" % ("+" if default_exit_taken else " ", addr, irsb.offsIP, irsb.next,
+            s = "{} {:x}:default | PUT({}) = {}; {}".format("+" if default_exit_taken else " ", addr, irsb.offsIP, irsb.next,
                                                       irsb.jumpkind
                                                       )
             print(s)

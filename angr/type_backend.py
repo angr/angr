@@ -8,11 +8,11 @@ class TypedValue(claripy.BackendObject):
         self.value = value
 
     def __repr__(self):
-        return 'TypedValue(%s, %s)' % (repr(self.ty), repr(self.value))
+        return f'TypedValue({repr(self.ty)}, {repr(self.value)})'
 
 class TypeBackend(claripy.Backend):
     def __init__(self):
-        super(TypeBackend, self).__init__(solver_required=False)
+        super().__init__(solver_required=False)
 
         self._op_expr['BVS'] = self._make_top
         self._op_expr['BVV'] = self._make_top

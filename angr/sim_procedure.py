@@ -270,7 +270,7 @@ class SimProcedure:
         # make a copy of the canon copy, customize it for the specific continuation, then hook it
         if name not in self.canonical.continuations:
             cont = copy.copy(self.canonical)
-            target_name = '%s.%s' % (self.display_name, name)
+            target_name = f'{self.display_name}.{name}'
             should_be_none = self.project.loader.extern_object.get_symbol(target_name)
             if should_be_none is None:
                 cont.addr = self.project.loader.extern_object.make_extern(target_name, sym_type=SymbolType.TYPE_OTHER).rebased_addr

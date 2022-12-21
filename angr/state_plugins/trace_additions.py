@@ -22,7 +22,7 @@ before being printed.
 """
 
 
-class FormatInfo(object):
+class FormatInfo:
     def copy(self):
         raise NotImplementedError
 
@@ -670,7 +670,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
     def get_expr_depth(self, expr):
         flag_args = self.get_flag_rand_args(expr)
         flag_arg_vars = set.union(*[set(v.variables) for v in flag_args])
-        flag_arg_vars = set(v for v in flag_arg_vars if v.startswith("cgc-flag") or v.startswith("random"))
+        flag_arg_vars = {v for v in flag_arg_vars if v.startswith("cgc-flag") or v.startswith("random")}
         if len(flag_arg_vars) == 0:
             return 0
         depth = max(self.depths.get(v, 0) for v in flag_arg_vars) + 1
@@ -700,7 +700,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
     def get_flag_bytes(self, ast):
         flag_args = self.get_flag_rand_args(ast)
         flag_arg_vars = set.union(*[set(v.variables) for v in flag_args])
-        flag_arg_vars = set(v for v in flag_arg_vars if v.startswith("cgc-flag"))
+        flag_arg_vars = {v for v in flag_arg_vars if v.startswith("cgc-flag")}
         contained_bytes = set()
         for v in flag_arg_vars:
             if v in self.byte_dict:
@@ -708,7 +708,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         return contained_bytes
 
     def filter_constraints(self, constraints):
-        zen_cache_keys = set(x.cache_key for x in self.zen_constraints)
+        zen_cache_keys = {x.cache_key for x in self.zen_constraints}
         new_cons = [ ]
         for con in constraints:
             if con.cache_key in zen_cache_keys or \

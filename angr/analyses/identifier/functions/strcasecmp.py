@@ -1,4 +1,3 @@
-
 import random
 
 from .strcmp import strcmp
@@ -14,7 +13,7 @@ class strcasecmp(strcmp):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super(strcasecmp, self).__init__() #pylint disable=useless-super-delegation
+        super().__init__() #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "strcasecmp"

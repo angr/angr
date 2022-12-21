@@ -25,7 +25,7 @@ def auto_import_packages(base_module, base_path, ignore_dirs=(), ignore_files=()
             l.warning("Unable to autoimport package %s.%s", base_module, lib_module_name, exc_info=True)
         else:
             if scan_modules:
-                for name, mod in auto_import_modules('%s.%s' % (base_module, lib_module_name), lib_path, ignore_files=ignore_files):
+                for name, mod in auto_import_modules(f'{base_module}.{lib_module_name}', lib_path, ignore_files=ignore_files):
                     if name not in dir(package):
                         setattr(package, name, mod)
             yield lib_module_name, package

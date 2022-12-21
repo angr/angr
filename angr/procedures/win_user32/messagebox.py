@@ -17,7 +17,7 @@ class MessageBoxA(angr.SimProcedure):
 
 class MessageBoxExA(MessageBoxA):
     def run(self, hWnd, lpText, lpCaption, uType, wLanguageId):
-        super(MessageBoxExA, self).run(hWnd, lpText, lpCaption, uType)
+        super().run(hWnd, lpText, lpCaption, uType)
 
 class MessageBoxW(MessageBoxA):
     def extract(self, addr):
@@ -35,7 +35,7 @@ class MessageBoxIndirectA(MessageBoxExA):
         lpszCaption = self.state.mem[lpMsgBoxParams + 0x10].dword.resolved
         dwStyle = self.state.mem[lpMsgBoxParams + 0x14].dword.resolved
         dwLanguageId = self.state.mem[lpMsgBoxParams + 0x24].dword.resolved
-        super(MessageBoxIndirectA, self).run(hwndOwner, lpszText, lpszCaption, dwStyle, dwLanguageId)
+        super().run(hwndOwner, lpszText, lpszCaption, dwStyle, dwLanguageId)
 
 class MessageBoxIndirectW(MessageBoxW, MessageBoxIndirectA):
     pass

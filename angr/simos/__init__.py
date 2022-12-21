@@ -1,4 +1,3 @@
-
 """
 Manage OS-level configuration.
 """

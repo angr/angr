@@ -86,7 +86,7 @@ class SimDebugVariable:
                 addr = self.state.memory.load(self.addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
             el_type = self.type.referenced_type
         else:
-            raise Exception("{} object cannot be dereferenced".format(self.type))
+            raise Exception(f"{self.type} object cannot be dereferenced")
 
         if i == 0:
             new_addr = addr
@@ -108,7 +108,7 @@ class SimDebugVariable:
                 addr = self.addr + member.addr_offset
             return SimDebugVariable(self.state, addr, member.type)
 
-        raise Exception("{} object has no members".format(self.type))
+        raise Exception(f"{self.type} object has no members")
 
 
 class SimDebugVariablePlugin(SimStatePlugin):

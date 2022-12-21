@@ -211,7 +211,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     concretes.append((pg.concrete_data[b], fv))
 
             # fast path: no memory objects, no unconstrained positions, and only one concrete value
-            if not memory_objects and not unconstrained_in and len(set(cv for cv, _ in concretes)) == 1:
+            if not memory_objects and not unconstrained_in and len({cv for cv, _ in concretes}) == 1:
                 cv = concretes[0][0]
                 self.store(b, cv, size=1, cooperate=True, page_addr=page_addr, memory=memory)
                 continue
@@ -221,9 +221,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 mo = SimMemoryObject(claripy.BVV(cv, size=8), page_addr + b, 'Iend_LE')
                 memory_objects.append((mo, fv))
 
-            mos = set(mo for mo, _ in memory_objects)
-            mo_bases = set(mo.base for mo, _ in memory_objects)
-            mo_lengths = set(mo.length for mo, _ in memory_objects)
+            mos = {mo for mo, _ in memory_objects}
+            mo_bases = {mo.base for mo, _ in memory_objects}
+            mo_lengths = {mo.length for mo, _ in memory_objects}
 
             if not unconstrained_in and not mos - merged_objects:
                 continue
@@ -273,7 +273,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     mo, fv in memory_objects
                 ] if min_size != 0 else []
                 created = [
-                    (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
+                    (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory),
                      fv) for
                     uc, fv in unconstrained_in
                 ]

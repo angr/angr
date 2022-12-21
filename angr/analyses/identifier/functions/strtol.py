@@ -1,4 +1,3 @@
-
 import random
 import string
 
@@ -28,7 +27,7 @@ def int2base(x, base):
 
 class strtol(Func):
     def __init__(self):
-        super(strtol, self).__init__()
+        super().__init__()
         self.skips_whitespace = False
         self.version = ""
 

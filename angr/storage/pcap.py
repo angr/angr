@@ -6,7 +6,7 @@ import dpkt
 l = logging.getLogger(name=__name__)
 
 
-class PCAP(object):
+class PCAP:
     def __init__(self, path, ip_port_tup, init=True):
         self.path = path
         self.packet_num = 0

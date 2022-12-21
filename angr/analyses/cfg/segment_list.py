@@ -28,7 +28,7 @@ class Segment:
         self.sort = sort
 
     def __repr__(self):
-        s = "[%#x-%#x, %s]" % (self.start, self.end, self.sort)
+        s = f"[{self.start:#x}-{self.end:#x}, {self.sort}]"
         return s
 
     @property

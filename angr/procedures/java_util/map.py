@@ -32,7 +32,7 @@ class MapInit(JavaSimProcedure):
     )
 
     def run(self, this_ref):
-        log.debug('Called SimProcedure java.util.Map.<init> with args: {}'.format(this_ref))
+        log.debug(f'Called SimProcedure java.util.Map.<init> with args: {this_ref}')
         # init map size
         this_ref.store_field(self.state, MAP_SIZE, 'int', claripy.BVV(0, 32))
         array_ref = SimSootExpr_NewArray.new_array(self.state, 'java.lang.Object', claripy.BVV(1000, 32))
@@ -49,7 +49,7 @@ class MapPut(JavaSimProcedure):
     )
 
     def run(self, this_ref, key_ref, value_ref):
-        log.debug('Called SimProcedure java.util.Map.add with args: {} {} {}'.format(this_ref, key_ref, value_ref))
+        log.debug(f'Called SimProcedure java.util.Map.add with args: {this_ref} {key_ref} {value_ref}')
 
         if this_ref.symbolic:
             return SimSootExpr_NullConstant
@@ -79,7 +79,7 @@ class MapGet(JavaSimProcedure):
     )
 
     def run(self, this_ref, key_ref):
-        log.debug('Called SimProcedure java.util.Map.get with args: {} {}'.format(this_ref, key_ref))
+        log.debug(f'Called SimProcedure java.util.Map.get with args: {this_ref} {key_ref}')
 
         if this_ref.symbolic:
             return SimSootValue_ThisRef(self.state, 'java.lang.Object', symbolic=True)
@@ -98,7 +98,7 @@ class MapSize(JavaSimProcedure):
     )
 
     def run(self, this_ref):
-        log.debug('Called SimProcedure java.util.Map.size with args: {}'.format(this_ref))
+        log.debug(f'Called SimProcedure java.util.Map.size with args: {this_ref}')
 
         if this_ref.symbolic:
             return claripy.BVS('map_size', 32)
@@ -114,7 +114,7 @@ class MapContainsKey(JavaSimProcedure):
     )
 
     def run(self, this_ref, key_ref):
-        log.debug('Called SimProcedure java.util.Map.containsKey with args: {} {}'.format(this_ref, key_ref))
+        log.debug(f'Called SimProcedure java.util.Map.containsKey with args: {this_ref} {key_ref}')
 
         if this_ref.symbolic:
             return claripy.BoolS('contains_key')
@@ -135,7 +135,7 @@ class MapKeySet(JavaSimProcedure):
     )
 
     def run(self, this_ref):
-        log.debug('Called SimProcedure java.util.Map.keySet with args: {}'.format(this_ref))
+        log.debug(f'Called SimProcedure java.util.Map.keySet with args: {this_ref}')
 
         if this_ref.symbolic:
             return SimSootValue_ThisRef.new_object(self.state, 'java.util.Set', symbolic=True)

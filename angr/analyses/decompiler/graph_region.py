@@ -1,4 +1,3 @@
-
 import logging
 from typing import Optional, List
 
@@ -48,7 +47,7 @@ class GraphRegion:
             if hasattr(node, 'addr'):
                 addrs.append(node.addr)
         if addrs:
-            s = ": %#x-%#x" % (min(addrs), max(addrs))
+            s = f": {min(addrs):#x}-{max(addrs):#x}"
 
         return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
 
@@ -69,7 +68,7 @@ class GraphRegion:
         new_graph = self._recursive_copy(self.graph, nodes_map)
 
         if self.graph_with_successors is not None:
-            successors = set(nodes_map.get(succ, succ) for succ in self.successors)
+            successors = {nodes_map.get(succ, succ) for succ in self.successors}
             # for performance reasons, successors that are only in graph_with_successors are not recursively copied
             new_graph_with_successors = self._recursive_copy(self.graph_with_successors, nodes_map,
                                                              ignored_nodes=successors)

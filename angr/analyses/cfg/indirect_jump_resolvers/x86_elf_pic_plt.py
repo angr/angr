@@ -1,4 +1,3 @@
-
 import logging
 
 import archinfo
@@ -18,7 +17,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
     """
 
     def __init__(self, project):
-        super(X86ElfPicPltResolver, self).__init__(project, timeless=True)
+        super().__init__(project, timeless=True)
 
         self._got_addr_cache = { }
 

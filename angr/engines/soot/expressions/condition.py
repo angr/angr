@@ -1,4 +1,3 @@
-
 import operator
 
 from archinfo.arch_soot import SootNullConstant

@@ -1,4 +1,3 @@
-
 import logging
 import re
 import string
@@ -166,7 +165,7 @@ class Label:
         #if self.var_size is not None:
         #    s = ".type {name},@object\n.comm {name},{size},{size}".format(name=self.name, size=self.var_size)
         #else:
-        s = ".{name}:".format(name=self.name)
+        s = f".{self.name}:"
         return s
 
     def __hash__(self):
@@ -221,7 +220,7 @@ class DataLabel(Label):
             offset = self.offset
             sign = '+' if offset >= 0 else '-'
             offset = abs(offset)
-            return '(%s%s%s)' % (self.name, sign, offset)
+            return f'({self.name}{sign}{offset})'
 
     def __str__(self):
         #if self.var_size is not None:
@@ -515,7 +514,7 @@ class Operand:
                                               self.scale
                                               )
                 elif self.base:  # not self.index
-                    s = "%s(%s)" % (disp, base)
+                    s = f"{disp}({base})"
                 else:
                     s = disp
 
@@ -586,7 +585,7 @@ class Operand:
             ref_type = "DATAREF"
 
         if ref_type:
-            return "%s <%s>" % (op_type, ref_type)
+            return f"{op_type} <{ref_type}>"
         else:
             return op_type
 
@@ -762,8 +761,8 @@ class Instruction:
 
     def dbg_comments(self):
         operands = ", ".join([ str(operand) for operand in self.operands ])
-        capstone_str = "%#08x:\t%s\t%s" % (self.addr, self.mnemonic, self.op_str)
-        comments = "\t# %s [%s]" % (capstone_str, operands)
+        capstone_str = f"{self.addr:#08x}:\t{self.mnemonic}\t{self.op_str}"
+        comments = f"\t# {capstone_str} [{operands}]"
 
         return comments
 
@@ -796,7 +795,7 @@ class Instruction:
             inserted_asm_after_label = "\n".join(self.binary.inserted_asm_after_label[self.addr])
             inserted_asm_after_label += "\n"
 
-        not_symbolized = "\t%s\t%s" % (self.mnemonic, self.op_str)
+        not_symbolized = f"\t{self.mnemonic}\t{self.op_str}"
         if not symbolized:
             asm = not_symbolized
 
@@ -837,7 +836,7 @@ class Instruction:
                             else:
                                 all_operands[i] = 'OFFSET FLAT:' + all_operands[i]
 
-            asm = "\t%s%s" % (mnemonic, "\t" + ", ".join(all_operands))
+            asm = "\t{}{}".format(mnemonic, "\t" + ", ".join(all_operands))
 
         if self.addr in self.binary._removed_instructions:
             contents = [dbg_comments, inserted_asm_before_label, labels, inserted_asm_after_label]
@@ -1382,7 +1381,7 @@ class Data:
                     directive = ".ascii"
                 else:
                     directive = ".asciz"
-                s += "\t.{directive} \"{str}\"".format(directive=directive, str=string_escape(self.content[0]))
+                s += f"\t.{directive} \"{string_escape(self.content[0])}\""
             s += '\n'
 
         elif self.sort == MemoryDataSort.PointerArray:
@@ -1418,11 +1417,11 @@ class Data:
                     if isinstance(symbolized_label, int):
                         s += "\t%s %d\n" % (directive, symbolized_label)
                     else:
-                        s += "\t%s %s\n" % (directive, symbolized_label.operand_str)
+                        s += f"\t{directive} {symbolized_label.operand_str}\n"
 
             else:
                 for label in self.content:
-                    s += "\t%s %s\n" % (directive, label.operand_str)
+                    s += f"\t{directive} {label.operand_str}\n"
 
         elif self.sort == MemoryDataSort.SegmentBoundary:
 
@@ -1704,7 +1703,7 @@ class Relocation:
         self.sort = sort
 
     def __repr__(self):
-        s = "<Reloc %s %#x (%#x)>" % (self.sort, self.addr, self.ref_addr)
+        s = f"<Reloc {self.sort} {self.addr:#x} ({self.ref_addr:#x})>"
         return s
 
 
@@ -2524,8 +2523,8 @@ class Reassembler(Analysis):
                                    }
 
         # make sure there are always memory data entries pointing at the end of sections
-        all_data_addrs = set(d.addr for d in self.data)
-        all_procedure_addrs = set(f.addr for f in self.procedures)
+        all_data_addrs = {d.addr for d in self.data}
+        all_procedure_addrs = {f.addr for f in self.procedures}
         all_addrs = all_data_addrs | all_procedure_addrs
 
         if has_sections:
@@ -2628,7 +2627,7 @@ class Reassembler(Analysis):
         if data is None:
             return False
         ints = [i for i in data]
-        if len(set([(i - j) for i, j in zip(ints, ints[1:])])) == 1:
+        if len({(i - j) for i, j in zip(ints, ints[1:])}) == 1:
             # arithmetic progression
             # backoff: it should not be ending with a pointer
             closest_aligned_addr = (addr + size - 1) & 0xfffffffc

@@ -1,4 +1,3 @@
-
 from .errors import SimStateOptionsError
 
 
@@ -54,7 +53,7 @@ class StateOption:
         else:
             types = ",".join(t.__name__ for t in self.types)
 
-        return "<O %s[%s]%s>" % (self.name, types, desc)
+        return f"<O {self.name}[{types}]{desc}>"
 
     def __getstate__(self):
         return {
@@ -247,7 +246,7 @@ class SimStateOptions:
 
     def __setattr__(self, key, value):
         if key in { 'OPTIONS', '_options' }:
-            super(SimStateOptions, self).__setattr__(key, value)
+            super().__setattr__(key, value)
             return
         self[key] = value
 
@@ -362,9 +361,9 @@ class SimStateOptions:
                 # Skip Boolean switches that are False
                 continue
 
-            s = "{option}: {value}".format(option=o.name, value=value)
+            s = f"{o.name}: {value}"
             if description:
-                s += " | {description}".format(description=o.description)
+                s += f" | {o.description}"
 
             total.append(s)
 

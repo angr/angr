@@ -26,7 +26,7 @@ class TestDirector(unittest.TestCase):
         assert len(pg.deprioritized) > 0
 
     def test_call_function_brancher(self):
-        class NonLocal(object):
+        class NonLocal:
             the_state = None
             the_goal = None
 

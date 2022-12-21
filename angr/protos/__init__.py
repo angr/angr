@@ -1,4 +1,3 @@
-
 # Generating proto files
 #
 #  $ cd angr

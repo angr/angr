@@ -1,4 +1,3 @@
-
 import random
 import itertools
 
@@ -17,7 +16,7 @@ def rand_str(length, byte_list=None):
 class receive_until_fd(Func):
     # fd buf char max_len
     def __init__(self):
-        super(receive_until_fd, self).__init__()
+        super().__init__()
         self.version = None
         self.error_return = None
         self.arg_order = None
@@ -162,7 +161,7 @@ class receive_until_fd(Func):
 class receive_until(Func):
     # buf char max_len
     def __init__(self):
-        super(receive_until, self).__init__()
+        super().__init__()
         self.version = None
         self.error_return = None
         self.arg_order = None

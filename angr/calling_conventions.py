@@ -907,19 +907,19 @@ class SimCC:
                     isinstance(ty.elem_type, SimTypeChar):
                 ref = False
                 if len(arg) > ty.length:
-                    raise TypeError("String %s is too long for %s" % (repr(arg), ty))
+                    raise TypeError(f"String {repr(arg)} is too long for {ty}")
                 arg = arg.ljust(ty.length, b'\0')
             elif isinstance(ty, SimTypeArray) and \
                     isinstance(ty.elem_type, SimTypeChar):
                 ref = True
                 if ty.length is not None:
                     if len(arg) > ty.length:
-                        raise TypeError("String %s is too long for %s" % (repr(arg), ty))
+                        raise TypeError(f"String {repr(arg)} is too long for {ty}")
                     arg = arg.ljust(ty.length, b'\0')
             elif isinstance(ty, SimTypeString):
                 ref = False
                 if len(arg) > ty.length + 1:
-                    raise TypeError("String %s is too long for %s" % (repr(arg), ty))
+                    raise TypeError(f"String {repr(arg)} is too long for {ty}")
                 arg = arg.ljust(ty.length + 1, b'\0')
             else:
                 raise TypeError("Type mismatch: Expected %s, got char*" % ty)
@@ -936,13 +936,13 @@ class SimCC:
                 ref = False
                 subty = ty.elem_type
                 if len(arg) != ty.length:
-                    raise TypeError("Array %s is the wrong length for %s" % (repr(arg), ty))
+                    raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
             elif isinstance(ty, SimTypeArray):
                 ref = True
                 subty = ty.elem_type
                 if ty.length is not None:
                     if len(arg) != ty.length:
-                        raise TypeError("Array %s is the wrong length for %s" % (repr(arg), ty))
+                        raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
             else:
                 raise TypeError("Type mismatch: Expected %s, got char*" % ty)
 
@@ -953,7 +953,7 @@ class SimCC:
 
         elif isinstance(arg, (tuple, dict, SimStructValue)):
             if not isinstance(ty, SimStruct):
-                raise TypeError("Type mismatch: Expected %s, got %s (i.e. struct)" % (ty, type(arg)))
+                raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
             if type(arg) is not SimStructValue:
                 if len(arg) != len(ty.fields):
                     raise TypeError("Wrong number of fields in struct, expected %d got %d" % (len(ty.fields), len(arg)))
@@ -980,11 +980,11 @@ class SimCC:
         elif isinstance(arg, claripy.ast.FP):
             if isinstance(ty, SimTypeFloat):
                 if len(arg) != ty.size:
-                    raise TypeError("Type mismatch: expected %s, got %s" % (ty, arg.sort))
+                    raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
                 return arg
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
                 return arg.val_to_bv(ty.size, ty.signed)
-            raise TypeError("Type mismatch: expected %s, got %s" % (ty, arg.sort))
+            raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
 
         elif isinstance(arg, claripy.ast.BV):
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
@@ -1000,7 +1000,7 @@ class SimCC:
             raise TypeError("I don't know how to serialize %s." % repr(arg))
 
     def __repr__(self):
-        return "<{}>".format(self.__class__.__name__)
+        return f"<{self.__class__.__name__}>"
 
     def __eq__(self, other):
         return isinstance(other, self.__class__)

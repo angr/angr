@@ -17,7 +17,7 @@ class SimCGC(SimUserland):
     """
 
     def __init__(self, project, **kwargs):
-        super(SimCGC, self).__init__(project,
+        super().__init__(project,
                 syscall_library=L['cgcabi'],
                 syscall_addr_alignment=1,
                 name="CGC",
@@ -35,7 +35,7 @@ class SimCGC(SimUserland):
         if kwargs.get('stack_size', None) is None:
             kwargs['stack_size'] = 1024*1024*8
 
-        s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
+        s = super().state_blank(**kwargs)  # pylint:disable=invalid-name
 
         # pre-grow the stack. unsure if this is strictly required or just a hack around a compiler bug
         if hasattr(s.memory, 'allocate_stack_pages'):
@@ -84,7 +84,7 @@ class SimCGC(SimUserland):
             add_options = set()
         add_options.add(o.ZERO_FILL_UNCONSTRAINED_MEMORY)
 
-        state = super(SimCGC, self).state_entry(add_options=add_options, **kwargs)
+        state = super().state_entry(add_options=add_options, **kwargs)
 
         if isinstance(self.project.loader.main_object, BackedCGC):
             # Update allocation base

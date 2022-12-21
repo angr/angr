@@ -1,4 +1,3 @@
-
 import collections
 import itertools
 import logging
@@ -36,7 +35,7 @@ class JNISimProcedure(SimProcedure):
                                       returnty=state.project.simos.get_native_type(self.return_ty))
             self.cc = DefaultCC[state.arch.name](state.arch)
             self.prototype = prototype
-        super(JNISimProcedure, self).execute(state, successors, arguments, ret_to)
+        super().execute(state, successors, arguments, ret_to)
 
     #
     # Memory

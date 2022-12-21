@@ -1,4 +1,3 @@
-
 import random
 import string
 
@@ -8,7 +7,7 @@ from ..func import Func, TestData
 digs = string.digits + string.ascii_letters
 
 
-class TwoOrThree(object):
+class TwoOrThree:
     def __eq__(self, other):
         if other == 2:
             return True
@@ -24,7 +23,7 @@ class TwoOrThree(object):
         return True
 
 
-class ThreeOrFour(object):
+class ThreeOrFour:
     def __eq__(self, other):
         if other == 3:
             return True
@@ -40,7 +39,7 @@ class ThreeOrFour(object):
         return True
 
 
-class FourOrFive(object):
+class FourOrFive:
     def __eq__(self, other):
         if other == 4:
             return True
@@ -58,7 +57,7 @@ class FourOrFive(object):
 
 class int2str(Func):
     def __init__(self):
-        super(int2str, self).__init__()
+        super().__init__()
         self.is_signed = False
 
     def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
@@ -120,7 +119,7 @@ class int2str(Func):
 
 class int2str_v2(Func):
     def __init__(self):
-        super(int2str_v2, self).__init__()
+        super().__init__()
         self.is_signed = False
 
     def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
@@ -181,7 +180,7 @@ class int2str_v2(Func):
 
 class int2str_v3(Func):
     def __init__(self):
-        super(int2str_v3, self).__init__()
+        super().__init__()
         self.is_signed = False
 
     def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
@@ -242,7 +241,7 @@ class int2str_v3(Func):
 
 class int2str_v4(Func):
     def __init__(self):
-        super(int2str_v4, self).__init__()
+        super().__init__()
         self.is_signed = False
 
     def rand_str(self, length, byte_list=None): #pylint disable=no-self-use

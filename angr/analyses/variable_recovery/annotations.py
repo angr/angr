@@ -1,10 +1,9 @@
-
 from claripy import Annotation
 
 
 class StackLocationAnnotation(Annotation):
     def __init__(self, offset):
-        super(StackLocationAnnotation, self).__init__()
+        super().__init__()
 
         self.offset = offset
 
@@ -28,7 +27,7 @@ class StackLocationAnnotation(Annotation):
 
 class VariableSourceAnnotation(Annotation):
     def __init__(self, block_addr, stmt_idx, ins_addr):
-        super(VariableSourceAnnotation, self).__init__()
+        super().__init__()
 
         self.block_addr = block_addr
         self.stmt_idx = stmt_idx

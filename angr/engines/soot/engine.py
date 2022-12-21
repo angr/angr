@@ -1,4 +1,3 @@
-
 import logging
 
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
@@ -34,7 +33,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         try:
             method = the_binary.get_soot_method(method, params=method.params)
         except CLEError as ex:
-            raise SimTranslationError("CLE error: {}".format(ex))
+            raise SimTranslationError(f"CLE error: {ex}")
 
         if stmt_idx is None:
             return method.blocks[0] if method.blocks else None
@@ -208,7 +207,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
 
         method = addr.method
         class_name = method.class_name
-        method_prototype = "%s(%s)" % (method.name, ",".join(method.params))
+        method_prototype = "{}({})".format(method.name, ",".join(method.params))
 
         if class_name in SIM_PROCEDURES and \
                 method_prototype in SIM_PROCEDURES[class_name]:

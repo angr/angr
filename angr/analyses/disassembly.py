@@ -56,7 +56,7 @@ class DisassemblyPiece:
     @staticmethod
     def color(string, coloring, formatting):
         try:
-            return '%s%s%s' % (formatting['colors'][coloring][0], string, formatting['colors'][coloring][1])
+            return '{}{}{}'.format(formatting['colors'][coloring][0], string, formatting['colors'][coloring][1])
         except KeyError:
             return string
 
@@ -95,7 +95,7 @@ class FunctionStart(DisassemblyPiece):
 
     def _render(self, formatting):
         # TODO: Make the individual elements be individual Pieces
-        return ['%s = %#x' % (name, offset) for offset, name in self.vars]
+        return [f'{name} = {offset:#x}' for offset, name in self.vars]
 
     def height(self, formatting):
         return len(self.vars)
@@ -444,7 +444,7 @@ class Instruction(DisassemblyPiece):
         return pieces
 
     def _render(self, formatting=None):
-        return ['%s %s' % (self.opcode.render(formatting)[0], ', '.join(o.render(formatting)[0] for o in self.operands))]
+        return ['{} {}'.format(self.opcode.render(formatting)[0], ', '.join(o.render(formatting)[0] for o in self.operands))]
 
 
 class SootExpression(DisassemblyPiece):
@@ -457,7 +457,7 @@ class SootExpression(DisassemblyPiece):
 
 class SootExpressionTarget(SootExpression):
     def __init__(self, target_stmt_idx):
-        super(SootExpressionTarget, self).__init__(target_stmt_idx)
+        super().__init__(target_stmt_idx)
         self.target_stmt_idx = target_stmt_idx
 
     def _render(self, formatting=None):
@@ -467,7 +467,7 @@ class SootExpressionTarget(SootExpression):
 class SootExpressionStaticFieldRef(SootExpression):
     def __init__(self, field):
         field_str = ".".join(field)
-        super(SootExpressionStaticFieldRef, self).__init__(field_str)
+        super().__init__(field_str)
         self.field = field
         self.field_str = field_str
 
@@ -483,7 +483,7 @@ class SootExpressionInvoke(SootExpression):
 
     def __init__(self, invoke_type, expr):
 
-        super(SootExpressionInvoke, self).__init__(str(expr))
+        super().__init__(str(expr))
 
         self.invoke_type = invoke_type
         self.base = str(expr.base) if self.invoke_type in (self.Virtual, self.Special) else ""
@@ -492,7 +492,7 @@ class SootExpressionInvoke(SootExpression):
 
     def _render(self, formatting=None):
 
-        return [ "%s%s(%s) [%s]" % (self.base + "." if self.base else "",
+        return [ "{}{}({}) [{}]".format(self.base + "." if self.base else "",
                                     self.method_name,
                                     self.arg_str,
                                     self.invoke_type
@@ -703,12 +703,12 @@ class RegisterOperand(Operand):
         if custom_value_str:
             return [custom_value_str]
         else:
-            return super(RegisterOperand, self)._render(formatting)
+            return super()._render(formatting)
 
 
 class MemoryOperand(Operand):
     def __init__(self, op_num, children, parentinsn):
-        super(MemoryOperand, self).__init__(op_num, children, parentinsn)
+        super().__init__(op_num, children, parentinsn)
 
         # a typical "children" looks like the following:
         # [ 'dword', 'ptr', '[', Register, Value, ']' ]
@@ -814,7 +814,7 @@ class MemoryOperand(Operand):
     def _render(self, formatting):
         if self.prefix is None:
             # we failed in parsing. use the default rendering
-            return super(MemoryOperand, self)._render(formatting)
+            return super()._render(formatting)
         else:
             values_style = self.values_style
             show_prefix = True
@@ -869,7 +869,7 @@ class MemoryOperand(Operand):
             if segment_selector_str and prefix_str:
                 prefix_str += ' '
 
-            return [ '%s%s%s%s' % (prefix_str, segment_selector_str, value_str, self.suffix_str) ]
+            return [ f'{prefix_str}{segment_selector_str}{value_str}{self.suffix_str}' ]
 
 
 class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
@@ -924,7 +924,7 @@ class Value(OperandPiece):
                     if labeloffset == 0:
                         lbl = self.project.kb.labels[self.val]
                         return [lbl]
-                    return ['%s%s%#+x' % ('+' if self.render_with_sign else '', self.project.kb.labels[self.val + labeloffset], labeloffset)]
+                    return ['{}{}{:#+x}'.format('+' if self.render_with_sign else '', self.project.kb.labels[self.val + labeloffset], labeloffset)]
             except KeyError:
                 pass
 

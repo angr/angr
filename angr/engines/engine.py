@@ -73,7 +73,7 @@ class TLSMixin:
         for subcls in cls.mro():
             for attr in subcls.__dict__.get('_%s__tls' % subcls.__name__, ()):
                 if attr.startswith('__'):
-                    attr = '_%s%s' % (subcls.__name__, attr)
+                    attr = f'_{subcls.__name__}{attr}'
 
                 if hasattr(cls, attr):
                     if type(getattr(cls, attr, None)) is not TLSProperty:

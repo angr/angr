@@ -74,7 +74,7 @@ def load_signatures(path: str) -> None:
                 meta_path = os.path.join(root, filename[:-4] + ".meta")
                 if os.path.isfile(meta_path):
                     # yes!
-                    with open(meta_path, "r") as f:
+                    with open(meta_path) as f:
                         meta = json.load(f)
 
                     arch = meta.get("arch", None)

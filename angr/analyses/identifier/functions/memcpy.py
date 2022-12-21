@@ -1,4 +1,3 @@
-
 import random
 
 from ....sim_type import SimTypeFunction, SimTypeInt
@@ -16,7 +15,7 @@ class memcpy(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super(memcpy, self).__init__() #pylint disable=useless-super-delegation
+        super().__init__() #pylint disable=useless-super-delegation
         self.memmove_safe = False
 
     def get_name(self): #pylint disable=no-self-use

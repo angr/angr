@@ -38,7 +38,7 @@ class VariableAccess(Serializable):
             VariableAccessSort.READ: "read",
             VariableAccessSort.REFERENCE: "reference",
         }[self.access_type]
-        return "%s %s @ %s (offset %s)" % (access_type, self.variable, self.location, self.offset)
+        return f"{access_type} {self.variable} @ {self.location} (offset {self.offset})"
 
     def __eq__(self, other):
         return type(other) is VariableAccess and \

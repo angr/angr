@@ -22,7 +22,7 @@ class DrillerCore(ExplorationTechnique):
         :param fuzz_bitmap: AFL's bitmap of state transitions. Defaults to saying every transition is worth satisfying.
         """
 
-        super(DrillerCore, self).__init__()
+        super().__init__()
         self.trace = trace
         self.fuzz_bitmap = fuzz_bitmap or b"\xff" * 65536
 

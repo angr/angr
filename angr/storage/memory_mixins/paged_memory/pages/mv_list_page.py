@@ -83,7 +83,7 @@ class MVListPage(
         size = global_end_addr - global_start_addr
         new_ast = self._default_value(global_start_addr,
                                       size,
-                                      name='%s_%x' % (memory.id, global_start_addr),
+                                      name=f'{memory.id}_{global_start_addr:x}',
                                       key=(self.category, global_start_addr),
                                       memory=memory,
                                       **kwargs)
@@ -168,10 +168,10 @@ class MVListPage(
             if not memory_objects:
                 continue
 
-            mos = set(mo for mo, _ in memory_objects)
-            mo_bases = set(mo.base for mo, _ in memory_objects)
-            mo_lengths = set(mo.length for mo, _ in memory_objects)
-            endnesses = set(mo.endness for mo in mos)
+            mos = {mo for mo, _ in memory_objects}
+            mo_bases = {mo.base for mo, _ in memory_objects}
+            mo_lengths = {mo.length for mo, _ in memory_objects}
+            endnesses = {mo.endness for mo in mos}
 
             if not unconstrained_in and not (mos - merged_objects):  # pylint:disable=superfluous-parens
                 continue
@@ -227,7 +227,7 @@ class MVListPage(
                              memory_objects] if min_size != 0 else []
                 if not memory.skip_missing_values_during_merging:
                     created = [
-                        (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
+                        (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory),
                          fv) for
                         uc, fv in unconstrained_in
                     ]

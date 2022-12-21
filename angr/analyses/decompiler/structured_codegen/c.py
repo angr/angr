@@ -350,7 +350,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     if isinstance(var_type, SimType):
                         raw_type_str = var_type.c_repr(name=name)
                     else:
-                        raw_type_str = '%s %s' % (var_type, name)
+                        raw_type_str = f'{var_type} {name}'
 
                     assert name in raw_type_str
                     type_pre, type_post = raw_type_str.split(name, 1)
@@ -1612,7 +1612,7 @@ class CTypeCast(CExpression):
         paren = CClosingObject("(")
         if self.codegen.show_casts:
             yield "(", paren
-            yield "{}".format(self.dst_type.c_repr(name=None)), self
+            yield f"{self.dst_type.c_repr(name=None)}", self
             yield ")", paren
 
         if isinstance(self.expr, CBinaryOp):
@@ -1942,7 +1942,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         obj = self._handle(self._sequence)
 
-        self.cnode2ailexpr = dict((v, k[0]) for k, v in self.ailexpr2cnode.items())
+        self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
 
         self.cfunc = CFunction(self._func.addr, self._func.name, self._func.prototype, arg_list, obj,
                                self._variables_in_use, self._variable_kb.variables[self._func.addr],
@@ -3013,18 +3013,18 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
     @classmethod
     def handle_CAssignment(cls, obj):
         obj.rhs = cls.collapse(obj.lhs.type, obj.rhs)
-        return super(MakeTypecastsImplicit, cls).handle_CAssignment(obj)
+        return super().handle_CAssignment(obj)
 
     @classmethod
     def handle_CFunctionCall(cls, obj: CFunctionCall):
         for i, (c_arg, arg_ty) in enumerate(zip(obj.args, obj.prototype.args)):
             obj.args[i] = cls.collapse(arg_ty, c_arg)
-        return super(MakeTypecastsImplicit, cls).handle_CFunctionCall(obj)
+        return super().handle_CFunctionCall(obj)
 
     @classmethod
     def handle_CReturn(cls, obj: CReturn):
         obj.retval = cls.collapse(obj.codegen._func.prototype.returnty, obj.retval)
-        return super(MakeTypecastsImplicit, cls).handle_CReturn(obj)
+        return super().handle_CReturn(obj)
 
     @classmethod
     def handle_CBinaryOp(cls, obj: CBinaryOp):
@@ -3040,12 +3040,12 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
                     obj.rhs = new_rhs
                 else:
                     break
-        return super(MakeTypecastsImplicit, cls).handle_CBinaryOp(obj)
+        return super().handle_CBinaryOp(obj)
 
     @classmethod
     def handle_CTypeCast(cls, obj):
         obj.expr = cls.collapse(obj.dst_type, obj.expr)
-        return super(MakeTypecastsImplicit, cls).handle_CTypeCast(obj)
+        return super().handle_CTypeCast(obj)
 
 class FieldReferenceCleanup(CStructuredCodeWalker):
     @classmethod
@@ -3054,12 +3054,12 @@ class FieldReferenceCleanup(CStructuredCodeWalker):
             obj = obj.codegen._access_reference(obj.expr, obj.dst_type.pts_to)
             if not isinstance(obj, CTypeCast):
                 return cls.handle(obj)
-        return super(FieldReferenceCleanup, cls).handle_CTypeCast(obj)
+        return super().handle_CTypeCast(obj)
 
 class PointerArithmeticFixer(CStructuredCodeWalker):
     @classmethod
     def handle_CBinaryOp(cls, obj):
-        obj = super(PointerArithmeticFixer, cls).handle_CBinaryOp(obj)
+        obj = super().handle_CBinaryOp(obj)
         if obj.op in ('Add', 'Sub') and \
                 isinstance(obj.type, SimTypePointer) and \
                 not isinstance(obj.type.pts_to, SimTypeBottom):

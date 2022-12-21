@@ -44,7 +44,7 @@ class MultiNode:
         for node in self.nodes:
             if hasattr(node, 'addr'):
                 addrs.append(node.addr)
-            s = ": %#x-%#x" % (min(addrs), max(addrs))
+            s = f": {min(addrs):#x}-{max(addrs):#x}"
 
         return "<MultiNode %#x of %d nodes%s>" % (self.addr, len(self.nodes), s)
 
@@ -210,7 +210,7 @@ class ConditionNode(BaseNode):
         if self.addr is not None:
             return "<ConditionNode %#x>" % self.addr
         else:
-            return "<ConditionNode (%r|%r)>" % (self.true_node, self.false_node)
+            return f"<ConditionNode ({self.true_node!r}|{self.false_node!r})>"
 
 
 class CascadingConditionNode(BaseNode):
@@ -295,7 +295,7 @@ class ConditionalBreakNode(BreakNode):
         self.condition = condition
 
     def __repr__(self):
-        return "<ConditionalBreakNode %#x target:%s>" % (self.addr, self.target)
+        return f"<ConditionalBreakNode {self.addr:#x} target:{self.target}>"
 
 
 class SwitchCaseNode(BaseNode):

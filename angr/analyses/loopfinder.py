@@ -5,7 +5,7 @@ from . import Analysis
 
 l = logging.getLogger(name=__name__)
 
-class Loop(object):
+class Loop:
     def __init__(self, entry, entry_edges, break_edges, continue_edges, body_nodes, graph, subloops):
         self.entry = entry
         self.entry_edges = entry_edges

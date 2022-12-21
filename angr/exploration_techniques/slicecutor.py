@@ -20,7 +20,7 @@ class Slicecutor(ExplorationTechnique):
         :param force_sat:           If a branch specified by the slice is unsatisfiable, set this option to True if you
                                     want to force it to be satisfiable and be taken anyway.
         """
-        super(Slicecutor, self).__init__()
+        super().__init__()
 
         self._annotated_cfg = annotated_cfg
         self._force_taking_exit = force_taking_exit

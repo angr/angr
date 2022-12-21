@@ -1,4 +1,3 @@
-
 # analyses
 from .cfg_fast import CFGFast
 from .cfg_emulated import CFGEmulated

@@ -24,7 +24,7 @@ class SimEngineConcrete(SuccessorsMixin):
             raise AngrError
 
         l.info("Initializing SimEngineConcrete with ConcreteTarget provided.")
-        super(SimEngineConcrete, self).__init__()
+        super().__init__()
         self.project = project
         if isinstance(self.project.concrete_target, ConcreteTarget) and \
                 self.check_concrete_target_methods(self.project.concrete_target):

@@ -10,7 +10,7 @@ TARGET_APP = os.path.join(os.path.dirname(os.path.realpath(str(__file__))),
 
 l = logging.getLogger('angr.tests.libc.fgets')
 
-p = angr.Project("{}".format(TARGET_APP), auto_load_libs=False)
+p = angr.Project(f"{TARGET_APP}", auto_load_libs=False)
 
 find_normal = p.loader.find_symbol('find_normal').rebased_addr
 find_exact = p.loader.find_symbol('find_exact').rebased_addr

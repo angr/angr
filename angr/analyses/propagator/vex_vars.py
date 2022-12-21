@@ -1,4 +1,3 @@
-
 # VEX Variables
 
 class VEXVariable:

@@ -1,4 +1,3 @@
-
 import logging
 import random
 import string
@@ -15,7 +14,7 @@ class printf(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super(printf, self).__init__()
+        super().__init__()
         self.format_spec_char = None
         self.string_spec_char = None
         self.allows_n = False
@@ -68,7 +67,7 @@ class printf(Func):
                         if not a.symbolic:
                             interesting_chars.add(s.solver.eval(a))
 
-        interesting_chars = set(chr(a) for a in interesting_chars if 0 < a < 0x80)
+        interesting_chars = {chr(a) for a in interesting_chars if 0 < a < 0x80}
         alphanum = set(string.ascii_letters + string.digits)
         possible_format_specifiers = [c for c in interesting_chars if c not in alphanum and c in string.printable and c not in string.whitespace]
         possible_formats = [c for c in interesting_chars if c in alphanum]

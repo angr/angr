@@ -1,4 +1,3 @@
-
 from collections import defaultdict
 from itertools import chain
 import logging
@@ -20,7 +19,7 @@ l = logging.getLogger(name=__name__)
 NUM_TESTS = 5
 
 
-class FuncInfo(object):
+class FuncInfo:
     def __init__(self):
         self.stack_vars = None
         self.stack_var_accesses = None

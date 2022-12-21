@@ -26,7 +26,7 @@ class SimLinux(SimUserland):
     """
 
     def __init__(self, project, **kwargs):
-        super(SimLinux, self).__init__(project,
+        super().__init__(project,
                 syscall_library=L['linux'],
                 syscall_addr_alignment=project.arch.instruction_alignment,
                 name="Linux",
@@ -129,7 +129,7 @@ class SimLinux(SimUserland):
         else:
             syscall_abis = [] # ?
 
-        super(SimLinux, self).configure_project(syscall_abis)
+        super().configure_project(syscall_abis)
 
         if not self._is_core:
             # Only set up ifunc resolution if we are using the ELF backend on AMD64
@@ -249,7 +249,7 @@ class SimLinux(SimUserland):
         return state
 
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
-        state = super(SimLinux, self).state_entry(**kwargs)
+        state = super().state_entry(**kwargs)
 
         # Handle default values
         filename = self.project.filename or 'dummy_filename'
@@ -391,7 +391,7 @@ class SimLinux(SimUserland):
 
     def state_full_init(self, **kwargs):
         kwargs['addr'] = self._loader_addr
-        return super(SimLinux, self).state_full_init(**kwargs)
+        return super().state_full_init(**kwargs)
 
     def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """

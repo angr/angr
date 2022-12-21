@@ -7,7 +7,7 @@ import angr
 class TestHookSet(unittest.TestCase):
     def test_hookset(self):
 
-        class Foo(object):
+        class Foo:
             def run(self):
                 return self.blah()
 
@@ -20,15 +20,15 @@ class TestHookSet(unittest.TestCase):
             def remove_hooks(self, tech):
                 angr.misc.HookSet.remove_hooks(self, blah=tech.blah)
 
-        class Bar(object):
+        class Bar:
             def blah(self, foo): #pylint:disable=no-self-use
                 return ['bar'] + foo.blah()
 
-        class Baz(object):
+        class Baz:
             def blah(self, foo): # pylint:disable=no-self-use
                 return ['baz'] + foo.blah()
 
-        class Coward(object):
+        class Coward:
             def blah(self, foo): #pylint:disable=no-self-use,unused-argument
                 return ['coward']
 

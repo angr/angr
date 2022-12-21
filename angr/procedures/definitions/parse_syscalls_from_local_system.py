@@ -1,4 +1,3 @@
-# coding: utf-8
 import xml.etree.ElementTree
 import glob
 import os
@@ -10,7 +9,7 @@ def parse_gdb_xml_file(fname):
     return {int(e.attrib['number']): e.attrib['name'] for e in syscalls}
 
 def parse_unistd_include_header(header_path):
-    with open(header_path, 'r') as f:
+    with open(header_path) as f:
         lines = [l.strip() for l in f.read().strip().split('\n') if '__NR_' in l]
         syscalls = {}
         for l in lines:

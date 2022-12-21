@@ -32,7 +32,7 @@ class Cacher(ExplorationTechnique):
         :param load_func:  If provided, should be a function that defines how Cacher should uncache the
                            SimulationManager. Default to uncaching the stash to be stepped.
         """
-        super(Cacher, self).__init__()
+        super().__init__()
         self._dump_cond, _ = condition_to_lambda(when)
         self._dump_cache = dump_cache
         self._load_cache = load_cache
@@ -50,7 +50,7 @@ class Cacher(ExplorationTechnique):
         if self.container is None:
             # Create a temporary directory to hold the cache files
             tmp_directory = tempfile.mkdtemp(prefix="angr_cacher_container")
-            self.container = os.path.join(tmp_directory, "%s-%s.cache" % (os.path.basename(binary), binhash))
+            self.container = os.path.join(tmp_directory, f"{os.path.basename(binary)}-{binhash}.cache")
 
         # Container is the file name.
         elif isinstance(self.container, str) and not self.container_pickle_str:

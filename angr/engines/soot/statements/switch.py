@@ -1,4 +1,3 @@
-
 import logging
 
 from claripy import Or

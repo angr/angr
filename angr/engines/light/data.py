@@ -1,4 +1,3 @@
-
 import ailment
 
 from ...utils.constants import is_alignment_mask
@@ -172,7 +171,7 @@ class RegisterOffset:
             offset_str = '' if self.offset == 0 else "%+x" % self.offset
         else:
             offset_str = str(self.offset)
-        return "%s%s" % (self.reg, offset_str)
+        return f"{self.reg}{offset_str}"
 
     def __add__(self, other):
         if not self.symbolic and type(other) is int:
@@ -334,7 +333,7 @@ class SpOffset(RegisterOffset):
     __slots__ = ('is_base', )
 
     def __init__(self, bits, offset, is_base=False):
-        super(SpOffset, self).__init__(bits, 'sp', offset)
+        super().__init__(bits, 'sp', offset)
         self.is_base = is_base
 
     def __repr__(self):
@@ -342,7 +341,7 @@ class SpOffset(RegisterOffset):
             offset_str = '' if self.offset == 0 else "%+#x" % self.offset
         else:
             offset_str = str(self.offset)
-        return "%s%s" % ('BP' if self.is_base else 'SP', offset_str)
+        return "{}{}".format('BP' if self.is_base else 'SP', offset_str)
 
     def __add__(self, other):
         other = ArithmeticExpression.try_unpack_const(other)

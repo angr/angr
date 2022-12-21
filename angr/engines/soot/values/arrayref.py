@@ -15,7 +15,7 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
     __slots__ = [ 'id', 'element_type', 'size', '_default_value_generator', 'type' ]
 
     def __init__(self, heap_alloc_id, element_type, size, default_value_generator=None):
-        self.id = "%s.array_%s" % (heap_alloc_id, element_type)
+        self.id = f"{heap_alloc_id}.array_{element_type}"
         self.element_type = element_type
         self.size = size
         self._default_value_generator = default_value_generator
@@ -53,7 +53,7 @@ class SimSootValue_ArrayRef(SimSootValue):
     __slots__ = [ 'id', 'base', 'index' ]
 
     def __init__(self, base, index):
-        self.id = "%s[%s]" % (base.id, index)
+        self.id = f"{base.id}[{index}]"
         self.base = base
         self.index = index
 

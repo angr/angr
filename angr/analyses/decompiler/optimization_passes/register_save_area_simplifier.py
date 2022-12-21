@@ -184,8 +184,8 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 del result[reg]
                 continue
 
-            stack_offsets = set(stack_offset for stack_offset, _ in info['stored']) | \
-                set(stack_offset for stack_offset, _ in info['restored'])
+            stack_offsets = {stack_offset for stack_offset, _ in info['stored']} | \
+                {stack_offset for stack_offset, _ in info['restored']}
 
             if len(stack_offsets) != 1:
                 # (c)

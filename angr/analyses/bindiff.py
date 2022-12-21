@@ -1,4 +1,3 @@
-
 import logging
 import math
 import types
@@ -118,7 +117,7 @@ def _normalized_levenshtein_distance(s1, s2, acceptable_differences):
     """
     if len(s1) > len(s2):
         s1, s2 = s2, s1
-        acceptable_differences = set(-i for i in acceptable_differences)
+        acceptable_differences = {-i for i in acceptable_differences}
     distances = range(len(s1) + 1)
     for index2, num2 in enumerate(s2):
         new_distances = [index2 + 1]
@@ -655,7 +654,7 @@ class FunctionDiff:
         to_process = deque(initial_matches)
 
         # Keep track of which matches we've already added to the queue
-        processed_matches = set((x, y) for (x, y) in initial_matches)
+        processed_matches = {(x, y) for (x, y) in initial_matches}
 
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
@@ -711,11 +710,11 @@ class FunctionDiff:
                         to_process.appendleft((x, y))
 
         # reformat matches into a set of pairs
-        self._block_matches = set((x, y) for (x, y) in matched_a.items())
+        self._block_matches = {(x, y) for (x, y) in matched_a.items()}
 
         # get the unmatched blocks
-        self._unmatched_blocks_from_a = set(x for x in self._function_a.graph.nodes() if x not in matched_a)
-        self._unmatched_blocks_from_b = set(x for x in self._function_b.graph.nodes() if x not in matched_b)
+        self._unmatched_blocks_from_a = {x for x in self._function_a.graph.nodes() if x not in matched_a}
+        self._unmatched_blocks_from_b = {x for x in self._function_b.graph.nodes() if x not in matched_b}
 
     @staticmethod
     def _get_ordered_successors(project, block, succ):
@@ -1096,7 +1095,7 @@ class BinDiff(Analysis):
         to_process = deque(initial_matches)
 
         # Keep track of which matches we've already added to the queue
-        processed_matches = set((x, y) for (x, y) in initial_matches)
+        processed_matches = {(x, y) for (x, y) in initial_matches}
 
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
@@ -1169,8 +1168,8 @@ class BinDiff(Analysis):
                 self.function_matches.add((x, y))
 
         # get the unmatched functions
-        self._unmatched_functions_from_a = set(x for x in self.attributes_a.keys() if x not in matched_a)
-        self._unmatched_functions_from_b = set(x for x in self.attributes_b.keys() if x not in matched_b)
+        self._unmatched_functions_from_a = {x for x in self.attributes_a.keys() if x not in matched_a}
+        self._unmatched_functions_from_b = {x for x in self.attributes_b.keys() if x not in matched_b}
 
         # remove unneeded function diffs
         for (x, y) in dict(self._function_diffs):

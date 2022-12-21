@@ -38,7 +38,7 @@ class SimAction(SimEvent):
                 location = "0x%x:%d" % (self.ins_addr, self.stmt_idx)  # TODO: Revert this!
             else:
                 location = "0x%x" % self.bbl_addr
-        return "<%s %s %s>" % (self.__class__.__name__, location, self._desc())
+        return f"<{self.__class__.__name__} {location} {self._desc()}>"
 
     def _desc(self):
         raise NotImplementedError()

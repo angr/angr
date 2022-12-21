@@ -7,7 +7,7 @@ class LoopVisitor(GraphVisitor):
     :param angr.analyses.loopfinder.Loop loop: The loop to visit.
     """
     def __init__(self, loop):
-        super(LoopVisitor, self).__init__()
+        super().__init__()
         self.loop = loop
 
         self.reset()

@@ -268,7 +268,7 @@ class Equivalence:
         self.atom1 = atom1
 
     def __repr__(self):
-        return "<Eq@%r: %r==%r>" % (self.codeloc, self.atom0, self.atom1)
+        return f"<Eq@{self.codeloc!r}: {self.atom0!r}=={self.atom1!r}>"
 
     def __eq__(self, other):
         return type(other) is Equivalence \
@@ -735,7 +735,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         # Filter replacements and remove all TOP values
         if self.replacements is not None:
             for codeloc in list(self.replacements.keys()):
-                rep = dict((k, v) for k, v in self.replacements[codeloc].items() if not PropagatorState.is_top(v))
+                rep = {k: v for k, v in self.replacements[codeloc].items() if not PropagatorState.is_top(v)}
                 self.replacements[codeloc] = rep
 
         if self._function is not None:

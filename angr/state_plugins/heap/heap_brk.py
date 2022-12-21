@@ -25,7 +25,7 @@ class SimHeapBrk(SimHeapBase):
     """
 
     def __init__(self, heap_base=None, heap_size=None):
-        super(SimHeapBrk, self).__init__(heap_base, heap_size)
+        super().__init__(heap_base, heap_size)
         self.heap_location = self.heap_base
 
     @SimStatePlugin.memo

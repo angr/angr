@@ -1,4 +1,3 @@
-
 from . import translate_value
 from .base import SimSootValue
 from ..field_dispatcher import resolve_field
@@ -9,7 +8,7 @@ class SimSootValue_InstanceFieldRef(SimSootValue):
     __slots__ = ['id', 'class_name', 'field_name', 'type']
 
     def __init__(self, heap_alloc_id, class_name, field_name, type_):
-        self.id = "%s.%s.%s" % (heap_alloc_id, class_name, field_name)
+        self.id = f"{heap_alloc_id}.{class_name}.{field_name}"
         self.class_name = class_name
         self.field_name = field_name
         self.type = type_

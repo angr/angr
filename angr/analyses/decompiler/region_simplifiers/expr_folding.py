@@ -194,7 +194,7 @@ class ExpressionCounter(SequenceWalker):
                         # dependency
                         dependency_finder = ExpressionUseFinder()
                         dependency_finder.walk_expression(stmt.src)
-                        dependencies = tuple(set(self._u(v) for v in dependency_finder.uses))
+                        dependencies = tuple({self._u(v) for v in dependency_finder.uses})
                         self.assignments[u].add((stmt.src,
                                                  dependencies,
                                                  StatementLocation(node.addr, node.idx, idx),
@@ -206,7 +206,7 @@ class ExpressionCounter(SequenceWalker):
                 if u is not None:
                     dependency_finder = ExpressionUseFinder()
                     dependency_finder.walk_expression(stmt)
-                    dependencies = tuple(set(self._u(v) for v in dependency_finder.uses))
+                    dependencies = tuple({self._u(v) for v in dependency_finder.uses})
                     self.assignments[u].add((stmt,
                                              dependencies,
                                              StatementLocation(node.addr, node.idx, idx),

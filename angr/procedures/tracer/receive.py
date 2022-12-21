@@ -18,4 +18,4 @@ class receive(orig_receive):
                 l.debug("Fixed receive call's fd.")
                 fd = self.state.solver.BVV(0, self.state.arch.bits)
 
-        return super(receive, self).run(fd, buf, count, rx_bytes)
+        return super().run(fd, buf, count, rx_bytes)

@@ -1,4 +1,3 @@
-
 import logging
 l = logging.getLogger(name=__name__)
 
@@ -74,7 +73,7 @@ class SimUCManager(SimStatePlugin):
         return len(ast.variables.intersection(self.state.solver._solver.variables)) != 0
 
     def set_state(self, state):
-        super(SimUCManager, self).set_state(state)
+        super().set_state(state)
         self._region_base = 0xd0 << (self.state.arch.bits - 8)
 
 

@@ -36,7 +36,7 @@ class HeapReAlloc(angr.SimProcedure):
 
 class GlobalAlloc(HeapAlloc):
     def run(self, Flags, Size):
-        return super(GlobalAlloc, self).run(1, Flags, Size)
+        return super().run(1, Flags, Size)
 
 
 class HeapFree(angr.SimProcedure):

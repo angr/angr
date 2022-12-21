@@ -1,4 +1,3 @@
-
 import logging
 
 from ...errors import AngrCallableError, AngrCallableMultistateError
@@ -9,7 +8,7 @@ l = logging.getLogger(name=__name__)
 # l.setLevel("DEBUG")
 
 
-class IdentifierCallable(object):
+class IdentifierCallable:
     """
     Callable is a representation of a function in the binary that can be
     interacted with like a native python function.

@@ -194,7 +194,7 @@ class AnnotatedCFG:
         for addr, run in self._addr_to_run.items():
             if addr is None:
                 continue
-            ret_str += "%#x => %s\n" % (addr, run)
+            ret_str += f"{addr:#x} => {run}\n"
         l.debug("statements: ")
         for addr, stmts in self._run_statement_whitelist.items():
             if addr is None:

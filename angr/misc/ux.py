@@ -20,7 +20,7 @@ def deprecated(replacement=None):
                 if replacement is None:
                     warnings.warn("Don't use %s" % (func.__name__), DeprecationWarning)
                 else:
-                    warnings.warn("Use %s instead of %s" % (replacement, func.__name__), DeprecationWarning)
+                    warnings.warn(f"Use {replacement} instead of {func.__name__}", DeprecationWarning)
                 already_complained.add(func)
             return func(*args, **kwargs)
         return inner

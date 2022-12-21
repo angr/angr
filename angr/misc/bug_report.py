@@ -47,7 +47,7 @@ def print_versions():
             print("Python could not find " + m)
             continue
         except Exception as e:  # pylint: disable=broad-except
-            print("An error occurred importing %s: %s" % (m, e))
+            print(f"An error occurred importing {m}: {e}")
         print("Python found it in %s" % (python_filename))
         try:
             pip_package = python_packages.get(m, m)
@@ -69,14 +69,14 @@ def print_git_info(dirname):
     cur_commit = repo.commit()
     cur_branch = repo.active_branch
     print("Git info:")
-    print("\tCurrent commit %s from branch %s" % (cur_commit.hexsha, cur_branch.name))
+    print(f"\tCurrent commit {cur_commit.hexsha} from branch {cur_branch.name}")
     try:
         # EDG: Git is insane, but this should work 99% of the time
         cur_tb = cur_branch.tracking_branch()
         if cur_tb.is_remote():
             remote_name = cur_tb.remote_name
             remote_url = repo.remotes[remote_name].url
-            print("\tChecked out from remote %s: %s" % (remote_name, remote_url))
+            print(f"\tChecked out from remote {remote_name}: {remote_url}")
         else:
             print("Tracking local branch %s" % cur_tb.name)
     except Exception:  # pylint: disable=broad-except

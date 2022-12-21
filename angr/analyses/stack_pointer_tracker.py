@@ -137,7 +137,7 @@ class OffsetVal:
         return hash((type(self), self._reg, self._offset))
 
     def __repr__(self):
-        return 'reg({}){:+}'.format(self.reg, (self.offset - 2**self.reg.bitlen) if self.offset != 0 else 0)
+        return f'reg({self.reg}){(self.offset - 2**self.reg.bitlen) if self.offset != 0 else 0:+}'
 
 
 class FrozenStackPointerTrackerState:

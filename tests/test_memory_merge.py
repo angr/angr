@@ -71,7 +71,7 @@ class TestMemoryMerge(TestCase):
 
         state3, _, __ = state1.merge(state2)
         vals = (v for v in state3.solver.eval_upto(state3.memory.load(state3.regs.rsp, 2), 10))
-        assert set([0x1122, 0xaabb]) == set(vals)
+        assert {0x1122, 0xaabb} == set(vals)
 
     def test_history_tracking(self):
         state = SimState(arch="AMD64", mode="symbolic", plugins={'memory': UltraPageMemory()})

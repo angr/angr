@@ -13,7 +13,7 @@ class strncpy(Func):
     non_null = list(range(1, 256))
 
     def __init__(self):
-        super(strncpy, self).__init__()
+        super().__init__()
         self.forced_null = False
 
     def get_name(self):

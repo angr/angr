@@ -863,7 +863,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
     cc_dep2_nbits = cc_dep2[nbits-1:0]
 
     # check for a specialized version first
-    funcname = "pc_actions_%s_%s" % (op, cond)
+    funcname = f"pc_actions_{op}_{cond}"
     if funcname in globals():
         r = globals()[funcname](state, cc_dep1_nbits, cc_dep2_nbits, cc_ndep)
     else:
@@ -874,7 +874,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
             r = globals()[cond_funcname](state, cc_expr)
         else:
             l.warning('Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.', op, cond)
-            raise SimCCallError('Operation %s with condition %s not found.' % (op, cond))
+            raise SimCCallError(f'Operation {op} with condition {cond} not found.')
 
     return claripy.Concat(claripy.BVV(0, data[platform]['size'] - 1), r)
 

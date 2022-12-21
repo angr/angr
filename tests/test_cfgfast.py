@@ -78,7 +78,7 @@ class TestCfgfast(unittest.TestCase):
             dst_node = cfg.model.get_any_node(dst)
             assert src_node is not None, "CFG node 0x%x is not found." % src
             assert dst_node is not None, "CFG node 0x%x is not found." % dst
-            assert dst_node in src_node.successors, "CFG edge %s-%s is not found." % (
+            assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
                 src_node,
                 dst_node,
             )
@@ -571,7 +571,7 @@ class TestCfgfast(unittest.TestCase):
         # the SimProcedure puts should have more than one successors, which are all return targets
         assert len(puts_successor.successors) == 3
         simputs_successor = puts_successor.successors
-        return_targets = set(a.addr for a in simputs_successor)
+        return_targets = {a.addr for a in simputs_successor}
         assert return_targets == {0x400800, 0x40087E, 0x4008B6}
 
     #
@@ -610,7 +610,7 @@ class TestCfgfast(unittest.TestCase):
         main_func = cfg.kb.functions["main"]
 
         # all instruction addresses of the block must be odd
-        block = next((b for b in main_func.blocks if b.addr == main_func.addr))
+        block = next(b for b in main_func.blocks if b.addr == main_func.addr)
 
         assert len(block.instruction_addrs) == 12
         for instr_addr in block.instruction_addrs:
@@ -709,7 +709,7 @@ class TestCfgfast(unittest.TestCase):
             )
             assert len(return_block_addrs) == len(expected_return_addrs), msg
             for expected_addr in expected_return_addrs:
-                msg = "expected retaddr %x not found for returning_block %x" % (
+                msg = "expected retaddr {:x} not found for returning_block {:x}".format(
                     expected_addr,
                     returning_block_addr,
                 )
@@ -830,7 +830,7 @@ class TestCfgfast(unittest.TestCase):
         cfg = proj.analyses.CFGFast()
 
         assert len(list(cfg.functions[0x404EE4].blocks)) == 3
-        assert set(ep.addr for ep in cfg.functions[0x404EE4].endpoints) == {
+        assert {ep.addr for ep in cfg.functions[0x404EE4].endpoints} == {
             0x404F00,
             0x404F08,
         }
@@ -1061,7 +1061,7 @@ class TestCfgfastDataReferences(unittest.TestCase):
         xrefs = proj.kb.xrefs
         refs = list(xrefs.get_xrefs_by_dst(0x120007dd8))
         assert len(refs) == 2
-        assert set(x.ins_addr for x in refs) == {0x1200020e8, 0x120002108}
+        assert {x.ins_addr for x in refs} == {0x1200020e8, 0x120002108}
 
     def test_data_references_i386_gcc_pie(self):
 
@@ -1078,7 +1078,7 @@ class TestCfgfastDataReferences(unittest.TestCase):
         xrefs = proj.kb.xrefs
         refs = list(xrefs.get_xrefs_by_dst(0x405bb0))
         assert len(refs) == 1
-        assert set(x.ins_addr for x in refs) == {0x4011dd}
+        assert {x.ins_addr for x in refs} == {0x4011dd}
 
     def test_data_references_wide_string(self):
         path = os.path.join(test_location, 'x86_64', 'windows', 'fauxware-wide.exe')

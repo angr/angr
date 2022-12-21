@@ -150,8 +150,8 @@ class BP:
     A breakpoint.
     """
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
-        if len(set([ k.replace("_unique", "") for k in kwargs]) - set(inspect_attributes)) != 0:
-            raise ValueError("Invalid inspect attribute(s) %s passed in. Should be one of %s, or their _unique option." % (kwargs, inspect_attributes))
+        if len({ k.replace("_unique", "") for k in kwargs} - set(inspect_attributes)) != 0:
+            raise ValueError(f"Invalid inspect attribute(s) {kwargs} passed in. Should be one of {inspect_attributes}, or their _unique option.")
 
         self.kwargs = kwargs
 
@@ -255,7 +255,7 @@ class SimInspector(SimStatePlugin):
             setattr(self, i, None)
 
     def __dir__(self):
-        return sorted(set(dir(super(SimInspector, self)) + dir(inspect_attributes) + dir(self.__class__)))
+        return sorted(set(dir(super()) + dir(inspect_attributes) + dir(self.__class__)))
 
     def _set_inspect_attrs(self, **kwargs):
         for k,v in kwargs.items():
@@ -305,7 +305,7 @@ class SimInspector(SimStatePlugin):
         :return:            The created breakpoint.
         """
         if event_type not in event_types:
-            raise ValueError("Invalid event type %s passed in. Should be one of: %s" % (event_type,
+            raise ValueError("Invalid event type {} passed in. Should be one of: {}".format(event_type,
                                                                                         ", ".join(event_types))
                              )
         self._breakpoints[event_type].append(bp)

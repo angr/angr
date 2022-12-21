@@ -10,7 +10,7 @@ class DFS(ExplorationTechnique):
     """
 
     def __init__(self, deferred_stash='deferred'):
-        super(DFS, self).__init__()
+        super().__init__()
         self._random = random.Random()
         self._random.seed(10)
         self.deferred_stash = deferred_stash

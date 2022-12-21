@@ -1,4 +1,3 @@
-
 import logging
 
 from ..func import Func, TestData
@@ -10,7 +9,7 @@ l = logging.getLogger(name=__name__)
 
 class free(Func):
     def __init__(self):
-        super(free, self).__init__() #pylint disable=useless-super-delegation
+        super().__init__() #pylint disable=useless-super-delegation
 
     def num_args(self):
         return 1

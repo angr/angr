@@ -7,7 +7,7 @@ class CallGraphVisitor(GraphVisitor):
     :param networkx.DiGraph callgraph:
     """
     def __init__(self, callgraph):
-        super(CallGraphVisitor, self).__init__()
+        super().__init__()
         self.callgraph = callgraph
 
         self.reset()

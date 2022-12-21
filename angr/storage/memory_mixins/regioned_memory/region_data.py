@@ -35,7 +35,7 @@ class AddressWrapper:
         return self.region == other.region and self.address == other.address
 
     def __repr__(self):
-        return "<%s> %s" % (self.region, hex(self.address))
+        return f"<{self.region}> {hex(self.address)}"
 
     def to_valueset(self, state):
         """
@@ -60,7 +60,7 @@ class RegionDescriptor:
         self.related_function_address = related_function_address
 
     def __repr__(self):
-        return "<%s - %#x>" % (
+        return "<{} - {:#x}>".format(
             self.region_id,
             self.related_function_address if self.related_function_address is not None else 0
         )

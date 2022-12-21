@@ -61,7 +61,7 @@ class TestJumpTableResolver(unittest.TestCase):
             assert j.block_addr in jump_tables, "Jump table @ block %#x is not found in CFG." % j.block_addr
             jumptable_addr = jump_tables[j.block_addr].jumptable_addr
             assert j.table_addr == jumptable_addr, \
-                                    "Mismatch jump table addresses (expecting %s, got %s)." % (
+                                    "Mismatch jump table addresses (expecting {}, got {}).".format(
                                         ("%#x" % j.table_addr) if j.table_addr is not None else "None",
                                         ("%#x" % jumptable_addr) if jumptable_addr is not None else "None",
                                     )

@@ -1,4 +1,3 @@
-
 class XRefType:
     Offset = 0
     Read = 1

@@ -386,8 +386,8 @@ class CallingConventionAnalysis(Analysis):
                     not (d.codeloc.block_addr == caller_block_addr and d.codeloc.stmt_idx == DEFAULT_STATEMENT):
                 defs_by_reg_offset[d.offset].append(d)
         defined_reg_offsets = set(defs_by_reg_offset.keys())
-        defs_by_stack_offset = dict((-d.atom.addr.offset, d) for d in all_stack_defs
-                                    if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset))
+        defs_by_stack_offset = {-d.atom.addr.offset: d for d in all_stack_defs
+                                    if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)}
 
         arg_session = default_cc.arg_session(SimTypeInt().with_arch(self.project.arch))
         for _ in range(30):  # at most 30 arguments
@@ -423,7 +423,7 @@ class CallingConventionAnalysis(Analysis):
                 update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and
                 not proto.args
         ):
-            if len(set(len(fact.args) for fact in facts)) == 1:
+            if len({len(fact.args) for fact in facts}) == 1:
                 fact = next(iter(facts))
                 proto.args = [self._guess_arg_type(arg) for arg in fact.args]
 
@@ -486,7 +486,7 @@ class CallingConventionAnalysis(Analysis):
                     restored_reg_vars.add(SimRegArg(reg_name, var_.size))
 
             else:
-                reg_offsets: Set[int] = set(r.reg for r in reg_vars_with_single_access)
+                reg_offsets: Set[int] = {r.reg for r in reg_vars_with_single_access}
                 for var_ in var_manager.get_variables(sort="reg"):
                     if var_.reg in (reg_offsets - {self.project.arch.ret_offset}):
                         # check if there is only a write to it

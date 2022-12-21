@@ -202,7 +202,7 @@ class Tracer(ExplorationTechnique):
                 if ((addr - angr_addr) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > threshold):
                     indices.add(idx)
 
-            indices = set(i for i in indices if self._filter_idx(angr_addr, i))
+            indices = {i for i in indices if self._filter_idx(angr_addr, i)}
             threshold //= 2
 
         return indices
@@ -692,7 +692,7 @@ class Tracer(ExplorationTechnique):
         while True:
             curr_block = state.project.factory.block(self._translate_trace_addr(curr_block_addr))
             curr_block_last_insn = curr_block.capstone.insns[-1]
-            if any((curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types)):
+            if any(curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types):
                 # Found last block
                 big_block_end = curr_block.addr + curr_block.size - 1
                 break
@@ -767,7 +767,7 @@ class Tracer(ExplorationTechnique):
         while True:
             curr_block = state.project.factory.block(self._translate_trace_addr(curr_block_addr))
             curr_block_last_insn = curr_block.capstone.insns[-1]
-            if any((curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types)):
+            if any(curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types):
                 # Found last block
                 angr_big_block_end_addr = curr_block.addr + curr_block.size - 1
                 break

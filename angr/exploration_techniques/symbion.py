@@ -1,4 +1,3 @@
-
 import logging
 from .common import condition_to_lambda
 from . import ExplorationTechnique
@@ -22,7 +21,7 @@ class Symbion(ExplorationTechnique):
     """
 
     def __init__(self, find=None, memory_concretize=None, register_concretize=None, timeout=0, find_stash='found'):
-        super(Symbion, self).__init__()
+        super().__init__()
 
         # need to keep the raw list of addresses to
         self.breakpoints = find

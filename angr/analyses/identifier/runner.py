@@ -1,4 +1,3 @@
-
 import random
 import logging
 import os
@@ -21,13 +20,13 @@ flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../exa
 try:
     with open(flag_loc, "rb") as f:
         FLAG_DATA = f.read()
-except IOError:
+except OSError:
     FLAG_DATA = b"A"*0x1000
 
 assert len(FLAG_DATA) == 0x1000
 
 
-class Runner(object):
+class Runner:
     def __init__(self, project, cfg):
         # this is kind of fucked up
         project.simos.syscall_library.update(SIM_LIBRARIES['cgcabi_tracer'])
