@@ -1,13 +1,17 @@
 import logging
 import re
+from typing import TYPE_CHECKING
 from collections import defaultdict
 
 from . import Analysis, CFGEmulated, DDG
 
-from ..knowledge_base import KnowledgeBase
-from .. import SIM_PROCEDURES
-from ..codenode import HookNode
-from ..sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
+from angr.knowledge_base import KnowledgeBase
+from angr.codenode import HookNode
+from angr.sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
+from angr import SIM_PROCEDURES
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins import Function
 
 l = logging.getLogger(name=__name__)
 
@@ -136,7 +140,7 @@ class BinaryOptimizer(Analysis):
         self.optimize()
 
     def optimize(self):
-        f: angr.knowledge.Function
+        f: angr.knowledge_plugins.Function
         for f in self.kb.functions.values():
             # if there are unresolved targets in this function, we do not try to optimize it
             unresolvable_targets = (SIM_PROCEDURES['stubs']['UnresolvableJumpTarget'],

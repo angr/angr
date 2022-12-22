@@ -13,19 +13,19 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.functions.function_manager import FunctionManager
-from ...knowledge_plugins.functions.function import Function
-from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
-from ...misc.ux import deprecated
-from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from ...utils.constants import DEFAULT_STATEMENT
-from ...procedures.procedure_dict import SIM_PROCEDURES
-from ...errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError, \
+from angr.knowledge_plugins.functions.function_manager import FunctionManager
+from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
+from angr.misc.ux import deprecated
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.procedures.procedure_dict import SIM_PROCEDURES
+from angr.errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError, \
     SimError
-from ...codenode import HookNode, BlockNode
-from ...engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
-from .. import Analysis
-from ..stack_pointer_tracker import StackPointerTracker
+from angr.codenode import HookNode, BlockNode
+from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
+from angr.analyses import Analysis
+from angr.analyses.stack_pointer_tracker import StackPointerTracker
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 l = logging.getLogger(name=__name__)
@@ -171,7 +171,7 @@ class CFGBase(Analysis):
         if model is not None:
             self._model = model
         else:
-            self._model: angr.knowledge_plugins.cfg.CFGModel = self.kb.cfgs.new_model(self.tag)
+            self._model: CFGModel = self.kb.cfgs.new_model(self.tag)
 
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
@@ -957,10 +957,10 @@ class CFGBase(Analysis):
 
         analyzed_functions = set()
         # short-hand
-        functions: angr.knowledge.FunctionManager = self.kb.functions
+        functions: FunctionManager = self.kb.functions
 
         while all_functions:
-            func: angr.knowledge.Function = all_functions.pop(-1)
+            func: Function = all_functions.pop(-1)
             analyzed_functions.add(func.addr)
 
             if func.returning is not None:

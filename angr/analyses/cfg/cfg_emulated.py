@@ -1201,7 +1201,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             the_jobs = [ ]
             if block_id in self._pending_jobs:
-                the_jobs: Pendingjob = self._pending_jobs.pop(block_id)
+                the_jobs: "Pendingjob" = self._pending_jobs.pop(block_id)
                 for the_job in the_jobs:
                     self._deregister_analysis_job(the_job.caller_func_addr, the_job)
             else:
