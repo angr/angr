@@ -1,19 +1,20 @@
-import angr
 import logging
 
+import angr
+
+
 l = logging.getLogger(name=__name__)
-#l.setLevel("DEBUG")
 
-""" BOOL GetLastInputInfo(
-  PLASTINPUTINFO plii
-);
+# BOOL GetLastInputInfo(
+#   PLASTINPUTINFO plii
+# );
 
-typedef struct tagLASTINPUTINFO {
-  UINT  cbSize;  // The size of the structure, in bytes.
-                 // This member must be set to sizeof(LASTINPUTINFO).
-  DWORD dwTime;
-} LASTINPUTINFO, *PLASTINPUTINFO;
-"""
+# typedef struct tagLASTINPUTINFO {
+#   UINT  cbSize;  // The size of the structure, in bytes.
+#                  // This member must be set to sizeof(LASTINPUTINFO).
+#   DWORD dwTime;
+# } LASTINPUTINFO, *PLASTINPUTINFO;
+
 class GetLastInputInfo(angr.SimProcedure):
     cbSize = None
     dwTime = None

@@ -1,12 +1,3 @@
-import angr
-import claripy
-import string
-import logging
-
-l = logging.getLogger(name=__name__)
-
-
-#pylint:disable=pointless-string-statement
 """
 This file contains objects to track additional information during a trace or
 modify symbolic variables during a trace.
@@ -20,6 +11,15 @@ to avoid situations where they become to complex for z3, but the actual equation
 This can happen in challenge response if all of the values in the flag page are multiplied together
 before being printed.
 """
+
+import logging
+import string
+
+import angr
+import claripy
+
+
+l = logging.getLogger(name=__name__)
 
 
 class FormatInfo:
