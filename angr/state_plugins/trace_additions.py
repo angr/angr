@@ -12,10 +12,12 @@ This can happen in challenge response if all of the values in the flag page are 
 before being printed.
 """
 
+import logging
+import string
+
 import angr
 import claripy
-import string
-import logging
+
 
 l = logging.getLogger(name=__name__)
 
