@@ -3,12 +3,12 @@ import re
 from typing import TYPE_CHECKING
 from collections import defaultdict
 
-from . import Analysis, CFGEmulated, DDG
-
 from angr.knowledge_base import KnowledgeBase
 from angr.codenode import HookNode
 from angr.sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 from angr import SIM_PROCEDURES
+
+from . import Analysis, CFGEmulated, DDG
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
