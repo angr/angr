@@ -1,10 +1,8 @@
 import angr
 
-"""
-references:
-https://elixir.bootlin.com/linux/latest/source/arch/arm/kernel/entry-armv.S
-https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
-"""
+# references:
+# https://elixir.bootlin.com/linux/latest/source/arch/arm/kernel/entry-armv.S
+# https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
 
 class _kuser_helper_version(angr.SimProcedure):
     # pylint: disable=arguments-differ
