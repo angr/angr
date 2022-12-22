@@ -199,7 +199,7 @@ class Block(Serializable):
         self._load_from_ro_regions = load_from_ro_regions
 
         self._instructions = num_inst
-        self._instruction_addrs = [] # type: List[int]
+        self._instruction_addrs: List[int] = []
 
         self._parse_vex_info(self._vex)
 

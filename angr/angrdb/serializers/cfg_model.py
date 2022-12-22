@@ -34,7 +34,7 @@ class CFGModelSerializer:
     @staticmethod
     def load(session, db_kb, ident, cfg_manager, loader=None):
 
-        db_cfg = session.query(DbCFGModel).filter_by(kb=db_kb, ident=ident).scalar()  # type: DbCFGModel
+        db_cfg: DbCFGModel = session.query(DbCFGModel).filter_by(kb=db_kb, ident=ident).scalar()
         if db_cfg is None:
             return None
 

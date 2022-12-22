@@ -57,7 +57,7 @@ class CFGFastSoot(CFGFast):
 
         self._function_returns = defaultdict(set)
 
-        entry = self.project.entry  # type:SootAddressDescriptor
+        entry: SootAddressDescriptor = self.project.entry
         entry_func = entry.method
 
         obj = self.project.loader.main_object

@@ -64,9 +64,9 @@ class SimulationManager:
     ALL = '_ALL'
     DROP = '_DROP'
 
-    _integral_stashes = (
+    _integral_stashes: Tuple[str] = (
         'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained'
-    ) # type: Tuple[str]
+    )
 
     def __init__(self,
             project,
@@ -90,7 +90,7 @@ class SimulationManager:
 
         if stashes is None:
             stashes = self._create_integral_stashes()
-        self._stashes = stashes # type: defaultdict[str, List['SimState']]
+        self._stashes: DefaultDict[str, List['SimState']] = stashes
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._save_unsat = save_unsat
         self._auto_drop = {SimulationManager.DROP, }

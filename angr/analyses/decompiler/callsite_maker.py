@@ -5,18 +5,18 @@ import logging
 import archinfo
 from ailment import Stmt, Expr
 
-from ...procedures.stubs.format_parser import FormatParser, FormatSpecifier
-from ...errors import SimMemoryMissingError
-from ...sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
-from ...calling_conventions import SimRegArg, SimStackArg, SimCC
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
-from ...knowledge_plugins.key_definitions.definition import Definition
-from .. import Analysis, register_analysis
+from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
+from angr.errors import SimMemoryMissingError
+from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
+from angr.calling_conventions import SimRegArg, SimStackArg, SimCC
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.analyses import Analysis, register_analysis
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
     from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
+    from angr.knowledge_plugins.key_definitions.definition import Definition
 
 
 l = logging.getLogger(name=__name__)
@@ -79,7 +79,7 @@ class CallSiteMaker(Analysis):
                         if variadic_args:
                             callsite_ty = copy.copy(prototype)
                             callsite_ty.args = list(callsite_ty.args)
-                            for i in range(variadic_args):
+                            for _ in range(variadic_args):
                                 callsite_ty.args.append(SimTypeInt().with_arch(self.project.arch))
                             arg_locs = cc.arg_locs(callsite_ty)
 
@@ -174,7 +174,7 @@ class CallSiteMaker(Analysis):
 
         self.result_block = new_block
 
-    def _find_variable_from_definition(self, def_):
+    def _find_variable_from_definition(self, def_: "Definition"):
         """
 
         :param Definition def_: The reaching definition of a variable.
@@ -230,7 +230,7 @@ class CallSiteMaker(Analysis):
             else:
                 # Find the definition
                 # FIXME: Multiple definitions - we need phi nodes
-                value, def_ = next(iter(values_and_defs_))  # type:Definition
+                value, def_ = next(iter(values_and_defs_))
                 variable = self._find_variable_from_definition(def_)
                 return value, variable
 

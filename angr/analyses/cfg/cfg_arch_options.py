@@ -71,7 +71,7 @@ class CFGArchOptions:
     def __setattr__(self, option_name, option_value):
         if option_name in self._options:
 
-            # type checking
+            # Type checking
             sort = self.OPTIONS[self.arch.name][option_name][0]
 
             if sort is None or isinstance(option_value, sort):

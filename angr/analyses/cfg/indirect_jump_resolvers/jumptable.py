@@ -1,5 +1,5 @@
 # pylint:disable=wrong-import-position,wrong-import-order
-from typing import Tuple, Optional, Dict, Sequence, TYPE_CHECKING
+from typing import Tuple, Optional, Dict, Sequence, TYPE_CHECKING, List
 import logging
 import functools
 from collections import defaultdict, OrderedDict
@@ -70,9 +70,9 @@ class JumpTargetBaseAddr:
     def __init__(self, stmt_loc, stmt, tmp, base_addr=None, tmp_1=None):
         self.stmt_loc = stmt_loc
         self.stmt = stmt
-        self.tmp = tmp  # type:int
+        self.tmp: int = tmp
         self.tmp_1 = tmp_1
-        self.base_addr = base_addr  # type:int
+        self.base_addr: int = base_addr
 
         assert base_addr is not None or tmp_1 is not None
 
@@ -972,7 +972,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # initialization
         load_stmt_loc, load_stmt, load_size = None, None, None
         stmts_to_remove = [stmt_loc]
-        stmts_adding_base_addr = []  # type: list[JumpTargetBaseAddr]
+        stmts_adding_base_addr: List[JumpTargetBaseAddr] = []
         # All temporary variables that hold indirect addresses loaded out of the memory
         # Obviously, load_stmt.tmp must be here
         # if there are additional data transferring statements between the Load statement and the base-address-adding

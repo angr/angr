@@ -411,7 +411,7 @@ class SimEngineVRAIL(
                 remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
 
         return RichR(remainder,
-                     # typevar=r0.typevar,  # FIXME: Handle typevars for Div
+                     #| typevar=r0.typevar,  # FIXME: Handle typevars for Div
                      )
 
     def _ail_handle_DivMod(self, expr: ailment.Expr.BinaryOp):
@@ -443,7 +443,7 @@ class SimEngineVRAIL(
             )
 
         return RichR(r,
-                     # typevar=r0.typevar,  # FIXME: Handle typevars for DivMod
+                     #| typevar=r0.typevar,  # FIXME: Handle typevars for DivMod
                      )
 
     def _ail_handle_Xor(self, expr):

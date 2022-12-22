@@ -1,4 +1,4 @@
-from typing import List, Generator, TYPE_CHECKING
+from typing import List, Generator, TYPE_CHECKING, Optional
 import logging
 from collections import defaultdict
 
@@ -45,9 +45,9 @@ class VFGJob(CFGJobBase):
         # if this job has a call successor, do we plan to skip the call successor or not
         self.call_skipped = False
         # if the call is skipped, calling stack of the skipped function is saved in `call_context_key`
-        self.call_function_key = None  # type: FunctionKey
+        self.call_function_key: Optional[FunctionKey] = None
 
-        self.call_task = None  # type: CallAnalysis
+        self.call_task: Optional[CallAnalysis] = None
 
     @property
     def block_id(self):
@@ -1025,11 +1025,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         """
 
         :param iterable jobs:
-        :return: True if should widen, Flase otherwise
+        :return: True if should widen, False otherwise
         :rtype: bool
         """
 
-        job_0, _ = jobs[-2:]  # type: VFGJob
+        job_0: VFGJob
+        _: VFGJob
+        job_0, _ = jobs[-2:]
 
         addr = job_0.addr
 
@@ -1049,7 +1051,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :return:
         """
 
-        job_0, job_1 = jobs[-2:]  # type: VFGJob
+        job_0: VFGJob
+        job_1: VFGJob
+        job_0, job_1 = jobs[-2:]
 
         # update jobs
         for job in jobs:
@@ -1076,7 +1080,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             # We don't have any paths remaining. Let's pop a previously-missing return to
             # process
 
-            top_task = self._top_task  # type: FunctionAnalysis
+            top_task: FunctionAnalysis = self._top_task
             func_addr = top_task.function_address
 
             pending_ret_key = self._get_pending_job(func_addr)
@@ -1729,7 +1733,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
     def _trace_pending_job(self, job_key):
 
-        pending_job = self._pending_returns.pop(job_key)  # type: PendingJob
+        pending_job: PendingJob = self._pending_returns.pop(job_key)
         addr = job_key.addr
 
         # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
@@ -1755,7 +1759,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     def _get_pending_job(self, func_addr):
 
         pending_ret_key = None
-        for k in self._pending_returns.keys():  # type: BlockID
+        k: BlockID
+        for k in self._pending_returns.keys():
             if k.func_addr == func_addr:
                 pending_ret_key = k
                 break

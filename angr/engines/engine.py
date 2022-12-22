@@ -20,7 +20,7 @@ class SimEngineBase:
     def __init__(self, project=None, **kwargs):
         if kwargs:
             raise TypeError("Unused initializer args: " + ", ".join(kwargs.keys()))
-        self.project = project  # type: Optional[angr.Project]
+        self.project: Optional[angr.Project] = project
         self.state = None
 
     __tls = ('state',)

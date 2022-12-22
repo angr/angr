@@ -792,7 +792,8 @@ class AILSimplifier(Analysis):
         rd = self._compute_reaching_definitions()
         stackarg_offsets = {tpl[1] for tpl in self._stack_arg_offsets} \
             if self._stack_arg_offsets is not None else None
-        for def_ in rd.all_definitions:  # type: Definition
+        def_: Definition
+        for def_ in rd.all_definitions:
             if def_.dummy:
                 continue
             # we do not remove references to global memory regions no matter what

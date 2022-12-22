@@ -1268,7 +1268,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # l.debug("... got %d jobs: %s", len(jobs), jobs)
 
-        for job_ in jobs:  # type: CFGJob
+        job_: CFGJob
+        for job_ in jobs:
             # register those jobs
             self._register_analysis_job(job_.func_addr, job_)
 
@@ -2725,7 +2726,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return elfheader_sort, elfheader_size
 
         try:
-            ref = next(iter(self.kb.xrefs.get_xrefs_by_dst(data_addr)))  # type: XRef
+            ref: XRef = next(iter(self.kb.xrefs.get_xrefs_by_dst(data_addr)))
             irsb_addr = ref.block_addr
             stmt_idx = ref.stmt_idx
         except StopIteration:

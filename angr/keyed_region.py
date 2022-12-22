@@ -187,8 +187,11 @@ class KeyedRegion:
             raise ValueError("The canonical sizes of two KeyedRegion objects must equal.")
 
         # TODO: is the current solution not optimal enough?
-        for _, item in other._storage.items():  # type: RegionObject
-            for so in item.stored_objects:  # type: StoredObject
+        _: RegionObject
+        item: RegionObject
+        for _, item in other._storage.items():
+            so: StoredObject
+            for so in item.stored_objects:
                 if replacements and so.obj in replacements:
                     so = StoredObject(so.start, replacements[so.obj], so.size)
                 self._object_mapping[so.obj_id] = so
@@ -205,8 +208,11 @@ class KeyedRegion:
         :return:        self
         """
 
-        for _, item in other._storage.items():  # type: RegionObject
-            for so in item.stored_objects:  # type: StoredObject
+        _: RegionObject
+        item: RegionObject
+        for _, item in other._storage.items():
+            so: StoredObject
+            for so in item.stored_objects:
                 if replacements and so.obj in replacements:
                     so = StoredObject(so.start, replacements[so.obj], so.size)
                 self._object_mapping[so.obj_id] = so
@@ -226,7 +232,7 @@ class KeyedRegion:
             old_var_id = id(old_var)
             if old_var_id in self._object_mapping:
                 # FIXME: we need to check if old_var still exists in the storage
-                old_so = self._object_mapping[old_var_id]  # type: StoredObject
+                old_so: StoredObject = self._object_mapping[old_var_id]
                 self._store(old_so.start, new_var, old_so.size, overwrite=True)
 
         return self

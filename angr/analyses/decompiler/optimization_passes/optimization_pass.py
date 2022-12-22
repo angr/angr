@@ -87,13 +87,13 @@ class OptimizationPass(BaseOptimizationPass):
         # self._blocks is just a cache
         self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
         self._blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = blocks_by_addr_and_idx
-        self._graph = graph  # type: Optional[networkx.DiGraph]
+        self._graph: Optional[networkx.DiGraph] = graph
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
 
         # output
-        self.out_graph = None  # type: Optional[networkx.DiGraph]
+        self.out_graph: Optional[networkx.DiGraph] = None
 
     @property
     def blocks_by_addr(self) -> Dict[int,Set[ailment.Block]]:
