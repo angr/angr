@@ -64,7 +64,7 @@ class CCallMultivaluedException(Exception):
 ### x86* data ###
 ##################
 
-data = {
+data: Dict[str, Dict[str, Dict[str, Optional[int]]]] = {
     'AMD64': {
         'CondTypes': { },
         'CondBitOffsets': { },
@@ -76,7 +76,7 @@ data = {
         'CondBitMasks': { },
         'OpTypes': { },
     }
-} # type: Dict[str, Dict[str, Dict[str, Optional[int]]]]
+}
 
 # condition types
 data['AMD64']['CondTypes']['CondO']      = 0  # /* overflow           */

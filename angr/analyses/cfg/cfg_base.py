@@ -171,7 +171,7 @@ class CFGBase(Analysis):
         if model is not None:
             self._model = model
         else:
-            self._model = self.kb.cfgs.new_model(self.tag)  # type: angr.knowledge_plugins.cfg.CFGModel
+            self._model: angr.knowledge_plugins.cfg.CFGModel = self.kb.cfgs.new_model(self.tag)
 
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
@@ -957,10 +957,10 @@ class CFGBase(Analysis):
 
         analyzed_functions = set()
         # short-hand
-        functions = self.kb.functions  # type: angr.knowledge.FunctionManager
+        functions: angr.knowledge.FunctionManager = self.kb.functions
 
         while all_functions:
-            func = all_functions.pop(-1)  # type: angr.knowledge.Function
+            func: angr.knowledge.Function = all_functions.pop(-1)
             analyzed_functions.add(func.addr)
 
             if func.returning is not None:
@@ -2006,7 +2006,7 @@ class CFGBase(Analysis):
         traversed = set() if traversed_cfg_nodes is None else traversed_cfg_nodes
 
         while stack:
-            n = stack.pop(last=False)  # type: CFGNode
+            n: CFGNode = stack.pop(last=False)
 
             if n in traversed:
                 continue
@@ -2550,7 +2550,7 @@ class CFGBase(Analysis):
             self.indirect_jumps[addr] = ij
             resolved = False
         else:
-            ij = self.indirect_jumps[addr]  # type: IndirectJump
+            ij: IndirectJump = self.indirect_jumps[addr]
             resolved = len(ij.resolved_targets) > 0
 
         return resolved, ij.resolved_targets, ij
@@ -2571,7 +2571,9 @@ class CFGBase(Analysis):
         l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
         all_targets = set()
-        for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type:int,IndirectJump
+        idx: int
+        jump: IndirectJump
+        for idx, jump in enumerate(self._indirect_jumps_to_resolve):
             if self._low_priority:
                 self._release_gil(idx, 50, 0.000001)
             all_targets |= self._process_one_indirect_jump(jump)

@@ -416,7 +416,8 @@ class DDGViewInstruction:
         else:
             graph = self._ddg.data_graph
 
-        for n in graph.nodes():  # type: ProgramVariable
+        n: ProgramVariable
+        for n in graph.nodes():
             if n.location.ins_addr == self._insn_addr:
                 defs.add(DDGViewItem(self._ddg, n, simplified=self._simplified))
 
@@ -1540,7 +1541,8 @@ class DDG(Analysis):
 
         defs = []
 
-        for n in graph.nodes():  # type: ProgramVariable
+        n: ProgramVariable
+        for n in graph.nodes():
             if n.variable == variable:
                 if location is None:
                     defs.append(n)

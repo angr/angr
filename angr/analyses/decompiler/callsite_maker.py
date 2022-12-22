@@ -230,7 +230,7 @@ class CallSiteMaker(Analysis):
             else:
                 # Find the definition
                 # FIXME: Multiple definitions - we need phi nodes
-                value, def_ = next(iter(values_and_defs_))  # type:Definition
+                value, def_ = next(iter(values_and_defs_))
                 variable = self._find_variable_from_definition(def_)
                 return value, variable
 

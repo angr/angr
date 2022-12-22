@@ -136,7 +136,8 @@ class BinaryOptimizer(Analysis):
         self.optimize()
 
     def optimize(self):
-        for f in self.kb.functions.values():  # type: angr.knowledge.Function
+        f: angr.knowledge.Function
+        for f in self.kb.functions.values():
             # if there are unresolved targets in this function, we do not try to optimize it
             unresolvable_targets = (SIM_PROCEDURES['stubs']['UnresolvableJumpTarget'],
                                     SIM_PROCEDURES['stubs']['UnresolvableCallTarget'])
@@ -449,7 +450,8 @@ class BinaryOptimizer(Analysis):
         # look at consumer of those esp variables. no other instruction should be consuming them
         # esp_consumer_insns = { insn0.address, insn1.address, insn2.address, insn3.address, insn4.address,
         #                        insn5.address} | esp_insns
-        # for esp_variable in esp_variables:  # type: angr.analyses.ddg.ProgramVariable
+        # esp_variable: angr.analyses.ddg.ProgramVariable
+        # for esp_variable in esp_variables:
         #     consumers = data_graph.successors(esp_variable)
         #     if any([ consumer.location.ins_addr not in esp_consumer_insns for consumer in consumers ]):
         #         return

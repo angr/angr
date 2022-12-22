@@ -25,7 +25,7 @@ class SimRegNameView(SimStatePlugin):
         :rtype:       claripy.ast.Base
         """
 
-        state = super().__getattribute__('state') # type: SimState
+        state: SimState = super().__getattribute__('state')
 
         if isinstance(k, str) and k.startswith('_'):
             k = k[1:]

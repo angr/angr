@@ -172,13 +172,13 @@ class Tracer(ExplorationTechnique):
         self._follow_unsat = follow_unsat
         self._fast_forward_to_entry = fast_forward_to_entry
 
-        self._aslr_slides = {}  # type: Dict[cle.Backend, int]
+        self._aslr_slides: Dict[cle.Backend, int] = {}
         self._current_slide = None
 
         self._fd_bytes = None
 
         # keep track of the last basic block we hit
-        self.predecessors = [None] * keep_predecessors # type: List[angr.SimState]
+        self.predecessors: List[angr.SimState] = [None] * keep_predecessors
         self.last_state = None
 
         # whether we should follow the trace

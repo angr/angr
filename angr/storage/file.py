@@ -479,7 +479,7 @@ class SimPackets(SimFileBase):
                 raise SimFileError(f"SimPackets could not fit the current packet into the read request of {size} bytes: {self.content[pos]}")
             return self.content[pos] + (pos+1,)
 
-        # typecheck
+        # Type check
         if type(size) is int:
             size = self.state.solver.BVV(size, self.state.arch.bits)
 

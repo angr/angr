@@ -200,7 +200,7 @@ class JNISimProcedure(SimProcedure):
 #
 # JNI function table
 # => Map all interface function to the name of their corresponding SimProcedure
-jni_functions = collections.OrderedDict() # type: collections.OrderedDict[str, str]
+jni_functions: collections.OrderedDict[str, str] = collections.OrderedDict()
 not_implemented = "UnsupportedJNIFunction"
 
 # Reserved Entries

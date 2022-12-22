@@ -1,5 +1,5 @@
 # pylint:disable=unused-import,missing-class-docstring,wrong-import-position
-import angr  # type annotations
+import angr  # For type annotations
 
 
 class ExplorationTechnique:
@@ -25,7 +25,7 @@ class ExplorationTechnique:
     def __init__(self):
         # this attribute will be set from above by the manager
         if not hasattr(self, 'project'):
-            self.project = None # type: angr.project.Project
+            self.project: angr.project.Project = None
 
     def setup(self, simgr):
         """

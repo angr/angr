@@ -132,7 +132,7 @@ class SimpleSolver:
         # collect equivalence relations
         for constraint in self._constraints:
             if isinstance(constraint, Equivalence):
-                # type_a == type_b
+                #| type_a == type_b
                 # we apply unification and removes one of them
                 ta, tb = constraint.type_a, constraint.type_b
                 if isinstance(ta, TypeConstant) and isinstance(tb, TypeVariable):

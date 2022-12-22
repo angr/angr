@@ -307,7 +307,7 @@ class Decompiler(Analysis):
         else:
             must_struct = None
 
-        # type inference
+        # Type inference
         try:
             tp = self.project.analyses.Typehoon(type_constraints, kb=var_kb, var_mapping=var_to_typevar,
                                                 must_struct=must_struct, ground_truth=groundtruth)

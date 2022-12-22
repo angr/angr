@@ -48,7 +48,7 @@ class LoaderSerializer:
         all_objects = { }  # path to object
         main_object = None
 
-        db_objects = session.query(DbObject)  # type: List[DbObject]
+        db_objects: List[DbObject] = session.query(DbObject)
 
         for db_o in db_objects:
             all_objects[db_o.path] = db_o

@@ -714,7 +714,7 @@ class Clinic(Analysis):
                 return
             if isinstance(self.function.prototype.returnty, SimTypeFloat) \
                     or any(isinstance(arg, SimTypeFloat) for arg in self.function.prototype.args):
-                # type inference does not yet support floating point variables, but calling convention analysis does
+                # Type inference does not yet support floating point variables, but calling convention analysis does
                 # FIXME: remove this branch once type inference supports floating point variables
                 return
 

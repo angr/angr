@@ -14,8 +14,8 @@ class TestDb(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True,
-                                    normalize=True)  # type: angr.analyses.CFGFast
+        cfg: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True,
+                                    normalize=True)
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()
@@ -71,8 +71,8 @@ class TestDb(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        _ = proj.analyses.CFGFast(data_references=True, cross_references=True,
-                                  normalize=True)  # type: angr.analyses.CFGFast
+        _: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True,
+                                  normalize=True)
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()
@@ -114,8 +114,8 @@ class TestDb(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        _ = proj.analyses.CFGFast(data_references=True, cross_references=True,
-                                  normalize=True)  # type: angr.analyses.CFGFast
+        _: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True,
+                                  normalize=True)
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()
