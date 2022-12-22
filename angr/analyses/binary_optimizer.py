@@ -140,7 +140,7 @@ class BinaryOptimizer(Analysis):
         self.optimize()
 
     def optimize(self):
-        f: angr.knowledge_plugins.Function
+        f: Function
         for f in self.kb.functions.values():
             # if there are unresolved targets in this function, we do not try to optimize it
             unresolvable_targets = (SIM_PROCEDURES['stubs']['UnresolvableJumpTarget'],
@@ -157,7 +157,7 @@ class BinaryOptimizer(Analysis):
     def _optimize_function(self, function):
         """
 
-        :param angr.knowledge.Function function:
+        :param Function function:
         :return:
         """
 
@@ -362,7 +362,7 @@ class BinaryOptimizer(Analysis):
         - Prologue and epilogue of the function is identifiable.
         - At least one register is not used in the entire function.
 
-        :param angr.knowledge.Function function:
+        :param Function function:
         :param networkx.MultiDiGraph data_graph:
         :return: None
         """
@@ -621,7 +621,7 @@ class BinaryOptimizer(Analysis):
 
         BROKEN - DO NOT USE IT
 
-        :param angr.knowledge.Function function:
+        :param Function function:
         :param networkx.MultiDiGraph data_graph:
         :return: None
         """
