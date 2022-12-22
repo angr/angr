@@ -964,8 +964,8 @@ def amd64g_check_ldmxcsr(state, mxcsr):
 
 # https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2304
 def amd64g_create_mxcsr(state, sseround):
-    sseround &= 3
-    return 0x1F80 | (sseround << 13)
+    return 0x1F80 | ((sseround & 3) << 13)
+
 
 
 # https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2316
@@ -1355,9 +1355,6 @@ EmFail_S390X_fpext = 17
 EmFail_S390X_invalid_PFPO_rounding_mode = 18
 EmFail_S390X_invalid_PFPO_function = 19
 
-
-def amd64g_create_mxcsr(state, sseround):
-    return 0x1F80 | ((sseround & 3) << 13)
 
 def amd64g_check_ldmxcsr(state, mxcsr):
     rmode = claripy.LShR(mxcsr, 13) & 3

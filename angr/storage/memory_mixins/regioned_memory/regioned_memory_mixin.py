@@ -6,17 +6,19 @@ import claripy
 from claripy.ast import Bool, Bits, BV
 from claripy.vsa import StridedInterval, ValueSet, RegionAnnotation
 
-from ....sim_options import (HYBRID_SOLVER, APPROXIMATE_FIRST, AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY,
+from angr.sim_options import (HYBRID_SOLVER, APPROXIMATE_FIRST, AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY,
     KEEP_MEMORY_READS_DISCRETE, CONSERVATIVE_WRITE_STRATEGY)
-from ....state_plugins.sim_action_object import _raw_ast
-from ....errors import SimMemoryError, SimAbstractMemoryError
-from .. import MemoryMixin
+from angr.state_plugins.sim_action_object import _raw_ast
+from angr.errors import SimMemoryError, SimAbstractMemoryError
+from angr.storage.memory_mixins import MemoryMixin
 from .region_data import AddressWrapper, RegionMap
 from .abstract_address_descriptor import AbstractAddressDescriptor
 
 if TYPE_CHECKING:
-    from ....sim_state import SimState
-    from .. import RegionedMemory
+    from angr.sim_state import SimState
+    from angr.storage.memory_mixins import RegionedMemory
+else:
+    RegionedMemory = None
 
 
 _l = logging.getLogger(name=__name__)
@@ -50,7 +52,8 @@ class RegionedMemoryMixin(MemoryMixin):
 
         if regioned_memory_cls is None:
             # delayed import
-            from .. import RegionedMemory
+            if RegionedMemory is None:
+                from angr.storage.memory_mixins import RegionedMemory
             regioned_memory_cls = RegionedMemory
 
         self._regioned_memory_cls = regioned_memory_cls
