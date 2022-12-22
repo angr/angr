@@ -1,15 +1,16 @@
-import angr
 import logging
 
-l = logging.getLogger(name=__name__)
-#l.setLevel("DEBUG")
+import angr
 
-""" BOOL GetProcessAffinityMask(
-  HANDLE     hProcess,
-  PDWORD_PTR lpProcessAffinityMask,
-  PDWORD_PTR lpSystemAffinityMask
-);
-"""
+
+l = logging.getLogger(name=__name__)
+
+# BOOL GetProcessAffinityMask(
+#   HANDLE     hProcess,
+#   PDWORD_PTR lpProcessAffinityMask,
+#   PDWORD_PTR lpSystemAffinityMask
+# );
+
 class GetProcessAffinityMask(angr.SimProcedure):
     paffinity_mask = None
     saffinity_mask = None
