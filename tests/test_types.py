@@ -1,5 +1,7 @@
 # pylint:disable=unused-variable
 
+from typing import Dict
+
 import archinfo
 import claripy
 
