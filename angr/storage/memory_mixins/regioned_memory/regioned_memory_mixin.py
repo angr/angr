@@ -52,6 +52,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         if regioned_memory_cls is None:
             # delayed import
+            global RegionedMemory
             if RegionedMemory is None:
                 from angr.storage.memory_mixins import RegionedMemory
             regioned_memory_cls = RegionedMemory
