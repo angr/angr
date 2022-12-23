@@ -175,12 +175,12 @@ class Instruction(DisassemblyPiece):
         self.opcode = None
         self.operands = [ ]
 
-        # the following members will be filled in after disecting the instruction
+        # the following members will be filled in after dissecting the instruction
         self.type = None
         self.branch_type = None
         self.branch_target_operand = None
 
-        self.disect_instruction()
+        self.dissect_instruction()
 
         if isinstance(insn, CapstoneInsn):
             decode_instruction(self.arch, self)
@@ -191,17 +191,17 @@ class Instruction(DisassemblyPiece):
 
     def reload_format(self):
         self.insn = CapstoneInsn(next(self.arch.capstone.disasm(self.insn.bytes, self.addr)))
-        self.disect_instruction()
+        self.dissect_instruction()
 
-    def disect_instruction(self):
+    def dissect_instruction(self):
         if self.arch.name == "AARCH64":
-            self.disect_instruction_for_aarch64()
+            self.dissect_instruction_for_aarch64()
         else:
             # the default one works well for x86, add more arch-specific
             # code when you find it doesn't meet your need.
-            self.disect_instruction_by_default()
+            self.dissect_instruction_by_default()
 
-    def disect_instruction_for_aarch64(self):
+    def dissect_instruction_for_aarch64(self):
         ## ARM64 consts from capstone
         # ARM64 conditional
         ARM64_CC = ['', 'eq', 'ne', 'hs', 'lo', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le', 'al', 'nv']
@@ -228,7 +228,7 @@ class Instruction(DisassemblyPiece):
             return
 
         op_str = self.insn.op_str
-        # splited by comma outside of squared brackets
+        # split by comma outside squared brackets
         dummy_operands = self.split_aarch64_op_string(op_str)
         if len(dummy_operands) != len(self.insn.operands):
             if not op_str.endswith(expected_cc_op) :
@@ -314,7 +314,7 @@ class Instruction(DisassemblyPiece):
         return pieces
 
 
-    def disect_instruction_by_default(self):
+    def dissect_instruction_by_default(self):
         # perform a "smart split" of an operands string into smaller pieces
         insn_pieces = self.split_op_string(self.insn.op_str)
         self.operands = []
