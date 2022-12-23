@@ -1010,6 +1010,8 @@ class SimIROp:
             else:
                 # TODO: other bit lengths
                 return rounded_fp
+
+    def _generic_pack_saturation(self, args, src_size, dst_size, src_signed, dst_signed):
         """
         Generic pack with saturation.
         Split args in chunks of src_size and then pack them into saturated chunks of dst_size bits.
