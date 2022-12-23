@@ -996,20 +996,13 @@ class SimIROp:
         else:
             rm = self._translate_rm(args[0])
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
-            rounded_fp = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
             
             # if exponent is large enough, floating points are always integers.
-            if args[1].length == 64:
-                return claripy.If(args[1].raw_to_bv()[62:52] >= 2**10+51, args[1].raw_to_fp(), rounded_fp)
-            elif args[1].length == 32:
-                return claripy.If(args[1].raw_to_bv()[30:23] >= 2**7+22, args[1].raw_to_fp(), rounded_fp)
-            elif args[1].length == 16:
-                return claripy.If(args[1].raw_to_bv()[14:10] >= 2**4+9, args[1].raw_to_fp(), rounded_fp)
-            elif args[1].length == 8:
-                return claripy.If(args[1].raw_to_bv()[6:3] >= 2**3+2, args[1].raw_to_fp(), rounded_fp)
-            else:
-                # TODO: other bit lengths
-                return rounded_fp
+            fsort = claripy.fp.FSort.from_size(args[1].length)
+            mantissa_bits = fsort.mantissa-1 # -1 since FSort has mantissa value 1 higher than the number of bits
+            exp_bits = fsort.exp
+            rounded_fp = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, fsort)
+            return claripy.If(args[1].raw_to_bv()[exp_bits+mantissa_bits-1:mantissa_bits] >= (2**(exp_bits-1)-1)+mantissa_bits, args[1].raw_to_fp(), rounded_fp)
 
     def _generic_pack_saturation(self, args, src_size, dst_size, src_signed, dst_signed):
         """
