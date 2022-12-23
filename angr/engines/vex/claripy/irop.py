@@ -994,13 +994,22 @@ class SimIROp:
                 rounded.append(claripy.fpToSBV(rm, left, self._vector_size))
             return claripy.Concat(*rounded)
         else:
-            # note: this a bad solution because it will cut off high values
-            # TODO: look into fixing this
             rm = self._translate_rm(args[0])
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
-            return claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
-
-    def _generic_pack_saturation(self, args, src_size, dst_size, src_signed, dst_signed):
+            rounded_fp = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
+            
+            # if exponent is large enough, floating points are always integers.
+            if args[1].length == 64:
+                return claripy.If(args[1].raw_to_bv()[62:52] >= 2**10+51, args[1].raw_to_fp(), rounded_fp)
+            elif args[1].length == 32:
+                return claripy.If(args[1].raw_to_bv()[30:23] >= 2**7+22, args[1].raw_to_fp(), rounded_fp)
+            elif args[1].length == 16:
+                return claripy.If(args[1].raw_to_bv()[14:10] >= 2**4+9, args[1].raw_to_fp(), rounded_fp)
+            elif args[1].length == 8:
+                return claripy.If(args[1].raw_to_bv()[6:3] >= 2**3+2, args[1].raw_to_fp(), rounded_fp)
+            else:
+                # TODO: other bit lengths
+                return rounded_fp
         """
         Generic pack with saturation.
         Split args in chunks of src_size and then pack them into saturated chunks of dst_size bits.
