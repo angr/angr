@@ -156,7 +156,7 @@ class Clinic(Analysis):
         self._convert_all()
 
         ail_graph = self._make_ailgraph()
-        
+
         # Run simplification passes
         self._update_progress(22., text="Optimizing fresh ailment graph")
         ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
