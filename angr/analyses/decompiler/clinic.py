@@ -157,6 +157,10 @@ class Clinic(Analysis):
 
         ail_graph = self._make_ailgraph()
 
+        # Run simplification passes
+        self._update_progress(22., text="Optimizing fresh ailment graph")
+        ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
+
         # Fix "fake" indirect jumps and calls
         self._update_progress(25., text="Analyzing simple indirect jumps")
         ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
@@ -171,7 +175,7 @@ class Clinic(Analysis):
             ail_graph = self._make_returns(ail_graph)
 
         # full-function constant-only propagation
-        self._update_progress(37., text="Constant propagation")
+        self._update_progress(33., text="Constant propagation")
         self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False, narrow_expressions=False,
                                 only_consts=True, max_iterations=1)
 
