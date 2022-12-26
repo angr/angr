@@ -617,7 +617,7 @@ class SimCC:
                 ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()))
             return SimReferenceArgument(ptr_loc, SimStackArg(0, ty.size // self.arch.byte_width, is_fp=isinstance(ty, SimTypeFloat)))
 
-        if isinstance(ty, SimTypeFloat):
+        if isinstance(ty, SimTypeFloat) and self.FP_RETURN_VAL is not None:
             return self.FP_RETURN_VAL.refine(size=ty.size // self.arch.byte_width, arch=self.arch, is_fp=True)
 
         if ty.size > self.RETURN_VAL.size * self.arch.byte_width:
