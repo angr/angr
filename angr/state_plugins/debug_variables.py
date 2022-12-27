@@ -13,6 +13,7 @@ l = logging.getLogger(name=__name__)
 
 if TYPE_CHECKING:
     from angr.state_plugins.view import SimMemView
+    from angr.sim_type import SimType
 
 
 class SimDebugVariable:
@@ -32,19 +33,18 @@ class SimDebugVariable:
         return SimDebugVariable(state, addr, var_type)
 
     @property
-    def deref(self) -> "SimDebugVariable":
-        # dereferincing is equivalent to getting the first array element
-        return self.array(0)
+    def mem_untyped(self) -> "SimMemView":
+        if self.addr is None:
+            raise Exception("Cannot view a variable without an address")
+        return self.state.mem[self.addr]
 
     @property
     def mem(self) -> "SimMemView":
-        if self.addr is None:
-            raise Exception("Cannot view a variable without an address")
         if isinstance(self.type, TypedefType):
             unpacked = SimDebugVariable(self.state, self.addr, self.type.type)
             return unpacked.mem
         if self.type is None or self.type.byte_size is None:
-            return self.state.mem[self.addr]
+            return self.mem_untyped
 
         arch = self.state.arch
         size = self.type.byte_size * arch.byte_width
@@ -56,13 +56,33 @@ class SimDebugVariable:
             # FIXME A lot more types are supported by angr that are not in ALL_TYPES (structs, arrays, pointers)
             # Use a fallback type
             sim_type = SimTypeReg(size, label=name)
-        return self.state.mem[self.addr].with_type(sim_type)
+        return self.mem_untyped.with_type(sim_type)
+
+    # methods and properties equivalent to SimMemView
 
     @property
     def string(self) -> "SimMemView":
         first_char = self.deref
         # first char should have some char type (could be checked here)
-        return first_char.mem.string
+        return first_char.mem_untyped.string
+
+    def with_type(self, sim_type: "SimType") -> "SimMemView":
+        return self.mem_untyped.with_type(sim_type)
+
+    @property
+    def resolvable(self):
+        return self.mem.resolvable
+
+    @property
+    def resolved(self):
+        return self.mem.resolved
+
+    @property
+    def concrete(self):
+        return self.mem.concrete
+
+    def store(self, value):
+        return self.mem.store(value)
 
     def __getitem__(self, i):
         if isinstance(i, int):
@@ -70,6 +90,11 @@ class SimDebugVariable:
         elif isinstance(i, str):
             return self.member(i)
         raise KeyError
+
+    @property
+    def deref(self) -> "SimDebugVariable":
+        # dereferincing is equivalent to getting the first array element
+        return self.array(0)
 
     def array(self, i) -> "SimDebugVariable":
         if isinstance(self.type, TypedefType):
@@ -117,11 +142,20 @@ class SimDebugVariablePlugin(SimStatePlugin):
     These variables have a name and a visibility scope which depends on the pc address of the state.
     With this plugin, you can access/modify the value of such variable or find its memory address.
     For creating program varibles, or for importing them from cle, see the knowledge plugin debug_variables.
+    Run ``p.kb.dvars.load_from_dwarf()`` before using this plugin.
 
-    This plugin should be available on a state as ``state.dvars``.
+    Example:
+        >>> p = angr.Project("various_variables", load_debug_info=True)
+        >>> p.kb.dvars.load_from_dwarf()
+        >>> state =  # navigate to the state you want
+        >>> state.dvars.get_variable("pointer2").deref.mem
+        <int (32 bits) <BV32 0x1> at 0x404020>
     """
 
     def get_variable(self, var_name: str) -> SimDebugVariable:
+        """
+        Returns the visible variable (if any) with name ``var_name`` based on the current ``state.ip``.
+        """
         kb = self.state.project.kb
         cle_var = kb.dvars[var_name][self.state.ip]
         if cle_var:
@@ -134,6 +168,9 @@ class SimDebugVariablePlugin(SimStatePlugin):
     # DWARF cfa
     @property
     def dwarf_cfa(self):
+        """
+        Returns the current cfa computation. Set this property to the correct value if needed.
+        """
         try:
             return self._dwarf_cfa
         except AttributeError:

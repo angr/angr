@@ -276,6 +276,15 @@ class SimMemView(SimStatePlugin):
             raise ValueError("Trying to produce array without specifying type")
         return self._deeper(ty=SimTypeFixedSizeArray(self._type, n))
 
+    def member(self, member_name: str) -> "SimMemView":
+        """
+        If self is a struct and member_name is a member of the struct, return
+        that member element. Otherwise raise an exception.
+        """
+        if self._type and member_name in self._type._refine_dir():
+            return self._type._refine(self, member_name)
+        raise ValueError("Trying to find a struct member that cannot be found")
+
     def store(self, value):
         if self._addr is None:
             raise ValueError("Trying to store to location without specifying address")
