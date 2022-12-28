@@ -257,7 +257,10 @@ class Block(Serializable):
     def pp(self, **kwargs):
         if self._project is not None:
             addr = self.addr - 1 if self.thumb else self.addr
-            print(self._project.analyses.Disassembly(ranges=[(addr, addr + self.size)]).render(**kwargs))
+            print(self._project.analyses.Disassembly(
+                ranges=[(addr, addr + self.size)],
+                thumb=self.thumb,
+            ).render(**kwargs))
         else:
             self.disassembly.pp()
 

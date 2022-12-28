@@ -979,6 +979,7 @@ class Disassembly(Analysis):
     """
 
     def __init__(self, function: Optional[Function] = None, ranges: Optional[Sequence[Tuple[int,int]]] = None,
+                 thumb: bool = False,
                  include_ir: bool = False):
         self.raw_result = []
         self.raw_result_map = {
@@ -1006,7 +1007,7 @@ class Disassembly(Analysis):
                 # CFG not available yet. Simply disassemble the code in the given regions. In the future we may want
                 # to handle this case by automatically running CFG analysis on given ranges.
                 for start, end in ranges:
-                    self.parse_block(BlockNode(start, end - start))
+                    self.parse_block(BlockNode(start, end - start, thumb=thumb))
             else:
                 self._graph = cfg.graph
                 for start, end in ranges:
@@ -1027,8 +1028,9 @@ class Disassembly(Analysis):
                             block_bytes = block.bytestr[delta:] if block.bytestr else None
                             blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
                     for i, block in enumerate(blocks):
-                        if block.size and block.addr + block.size > end:
-                            delta = block.addr + block.size - end
+                        real_block_addr = block.addr if not block.thumb else block.addr - 1
+                        if block.size and real_block_addr + block.size > end:
+                            delta = real_block_addr + block.size - end
                             block_bytes = block.bytestr[0:-delta] if block.bytestr else None
                             blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
 
