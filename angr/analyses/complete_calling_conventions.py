@@ -29,11 +29,22 @@ class CompleteCallingConventionsAnalysis(Analysis):
     convention analysis.
     """
 
-    def __init__(self, recover_variables=False, low_priority=False, force=False, cfg: Optional[CFGModel]=None,
-                 analyze_callsites: bool=False, skip_signature_matched_functions: bool=False,
-                 max_function_blocks: Optional[int]=None, max_function_size: Optional[int]=None, workers: int=0,
-                 cc_callback: Optional[Callable]=None, prioritize_func_addrs: Optional[Iterable[int]]=None,
-                 skip_other_funcs: bool=False, auto_start: bool=True):
+    def __init__(
+            self,
+            recover_variables=False,
+            low_priority=False,
+            force=False,
+            cfg: Optional[CFGModel]=None,
+            analyze_callsites: bool=False,
+            skip_signature_matched_functions: bool=False,
+            max_function_blocks: Optional[int]=None,
+            max_function_size: Optional[int]=None,
+            workers: int=0,
+            cc_callback: Optional[Callable]=None,
+            prioritize_func_addrs: Optional[Iterable[int]]=None,
+            skip_other_funcs: bool=False,
+            auto_start: bool=True
+        ):
         """
 
         :param recover_variables:   Recover variables on each function before performing calling convention analysis.
