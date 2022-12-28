@@ -13,6 +13,7 @@ from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
 
 if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions import Function
     from angr.calling_conventions import SimCC
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
     from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
@@ -51,57 +52,77 @@ class CallSiteMaker(Analysis):
 
         cc = None
         prototype = None
-        args = None
+        func = None
         stack_arg_locs: List[SimStackArg] = [ ]
         stackarg_sp_diff = 0
 
-        target = self._get_call_target(last_stmt)
-        if target is not None and target in self.kb.functions:
-            # function-specific logic when the calling target is known
-            func = self.kb.functions[target]
-            if func.prototype is None:
-                func.find_declaration()
-            cc = func.calling_convention
-            prototype = func.prototype
+        # priority:
+        # 0. manually-specified call-site prototype
+        # 1. function-specific prototype
+        # 2. automatically recovered call-site prototype
 
-            args = [ ]
-            arg_locs = None
-            if cc is None:
-                l.warning('%s has an unknown calling convention.', repr(func))
-            else:
-                stackarg_sp_diff = func.calling_convention.STACKARG_SP_DIFF
-                if prototype is not None:
-                    # Make arguments
-                    arg_locs = cc.arg_locs(prototype)
-                    if prototype.variadic:
-                        # determine the number of variadic arguments
-                        variadic_args = self._determine_variadic_arguments(func, cc, last_stmt)
-                        if variadic_args:
-                            callsite_ty = copy.copy(prototype)
-                            callsite_ty.args = list(callsite_ty.args)
-                            for _ in range(variadic_args):
-                                callsite_ty.args.append(SimTypeInt().with_arch(self.project.arch))
-                            arg_locs = cc.arg_locs(callsite_ty)
+        # manually-specified call-site prototype
+        has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(self.block.addr)
+        if has_callsite_prototype:
+            manually_specified = self.kb.callsite_prototypes.get_prototype_type(self.block.addr)
+            if manually_specified:
+                cc = self.kb.callsite_prototypes.get_cc(self.block.addr)
+                prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
 
-            if arg_locs is not None:
-                for arg_loc in arg_locs:
-                    if type(arg_loc) is SimRegArg:
-                        size = arg_loc.size
-                        offset = arg_loc.check_offset(cc.arch)
-                        args.append(Expr.Register(self._atom_idx(), None, offset, size * 8,
-                                                  reg_name=arg_loc.reg_name))
-                    elif type(arg_loc) is SimStackArg:
+        # function-specific prototype
+        if cc is None or prototype is None:
+            target = self._get_call_target(last_stmt)
+            if target is not None and target in self.kb.functions:
+                # function-specific logic when the calling target is known
+                func = self.kb.functions[target]
+                if func.prototype is None:
+                    func.find_declaration()
+                cc = func.calling_convention
+                prototype = func.prototype
 
-                        stack_arg_locs.append(arg_loc)
-                        _, the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
+        # automatically recovered call-site prototype
+        if (cc is None or prototype is None) and has_callsite_prototype:
+            cc = self.kb.callsite_prototypes.get_cc(self.block.addr)
+            prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
 
-                        if the_arg is not None:
-                            args.append(the_arg)
-                        else:
-                            args.append(None)
+        args = [ ]
+        arg_locs = None
+        if cc is None:
+            l.warning('Call site %#x (callee %s) has an unknown calling convention.', self.block.addr, repr(func))
+        else:
+            stackarg_sp_diff = cc.STACKARG_SP_DIFF
+            if prototype is not None:
+                # Make arguments
+                arg_locs = cc.arg_locs(prototype)
+                if prototype.variadic:
+                    # determine the number of variadic arguments
+                    variadic_args = self._determine_variadic_arguments(func, cc, last_stmt)
+                    if variadic_args:
+                        callsite_ty = copy.copy(prototype)
+                        callsite_ty.args = list(callsite_ty.args)
+                        for _ in range(variadic_args):
+                            callsite_ty.args.append(SimTypeInt().with_arch(self.project.arch))
+                        arg_locs = cc.arg_locs(callsite_ty)
 
+        if arg_locs is not None:
+            for arg_loc in arg_locs:
+                if type(arg_loc) is SimRegArg:
+                    size = arg_loc.size
+                    offset = arg_loc.check_offset(cc.arch)
+                    args.append(Expr.Register(self._atom_idx(), None, offset, size * 8,
+                                              reg_name=arg_loc.reg_name))
+                elif type(arg_loc) is SimStackArg:
+
+                    stack_arg_locs.append(arg_loc)
+                    _, the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
+
+                    if the_arg is not None:
+                        args.append(the_arg)
                     else:
-                        raise NotImplementedError('Not implemented yet.')
+                        args.append(None)
+
+                else:
+                    raise NotImplementedError('Not implemented yet.')
 
         # Remove the old call statement
         new_stmts = self.block.statements[:-1]
@@ -288,8 +309,8 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func, cc: 'SimCC', call_stmt) -> Optional[int]:
-        if "printf" in func.name or "scanf" in func.name:
+    def _determine_variadic_arguments(self, func: Optional['Function'], cc: 'SimCC', call_stmt) -> Optional[int]:
+        if func is not None and "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None
 

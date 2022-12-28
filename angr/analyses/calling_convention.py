@@ -89,12 +89,23 @@ class CallingConventionAnalysis(Analysis):
     :ivar cc:           The recovered calling convention for the function.
     """
 
-    def __init__(self, func: 'Function', cfg: Optional['CFGModel']=None, analyze_callsites: bool=False):
+    def __init__(
+            self,
+            func: Optional['Function'],
+            cfg: Optional['CFGModel']=None,
+            analyze_callsites: bool=False,
+            caller_func_addr: Optional[int]=None,
+            callsite_block_addr: Optional[int]=None,
+            callsite_insn_addr: Optional[int]=None,
+    ):
 
         self._function = func
         self._variable_manager = self.kb.variables
         self._cfg = cfg
         self.analyze_callsites = analyze_callsites
+        self.caller_func_addr = caller_func_addr
+        self.callsite_block_addr = callsite_block_addr
+        self.callsite_insn_addr = callsite_insn_addr
 
         self.cc: Optional[SimCC] = None
         self.prototype: Optional[SimTypeFunction] = None
@@ -102,7 +113,19 @@ class CallingConventionAnalysis(Analysis):
         if self._cfg is None and 'CFGFast' in self.kb.cfgs:
             self._cfg = self.kb.cfgs['CFGFast']
 
-        self._analyze()
+        if self._function is not None:
+            # caller function analysis mode
+            self._analyze()
+        elif self.analyze_callsites \
+                and self.caller_func_addr is not None \
+                and self.callsite_block_addr is not None \
+                and self.callsite_insn_addr is not None:
+            # callsite analysis mode
+            self._analyze_callsite_only()
+        else:
+            raise TypeError("You must specify a function to analyze, or specify \"caller_func_addr\","
+                            " \"callsite_block_addr\" and \"callsite_insn_addr\" to only analyze a call site.")
+
         if self.prototype is not None:
             self.prototype = self.prototype.with_arch(self.project.arch)
 
@@ -122,7 +145,7 @@ class CallingConventionAnalysis(Analysis):
             self.prototype = self._function.prototype
 
             if self.cc is None or self.prototype is None:
-                callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
+                callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
                 cc = DefaultCC[self.project.arch.name](self.project.arch)
                 prototype = self._adjust_prototype(self.prototype, callsite_facts,
                                                    update_arguments=UpdateArgumentsOption.AlwaysUpdate)
@@ -143,12 +166,27 @@ class CallingConventionAnalysis(Analysis):
             cc, prototype = r
             if self.analyze_callsites:
                 # only take the first 3 because running reaching definition analysis on all functions is costly
-                callsite_facts = self._analyze_callsites(max_analyzing_callsites=3)
+                callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=3)
                 prototype = self._adjust_prototype(prototype, callsite_facts,
                                                    update_arguments=UpdateArgumentsOption.UpdateWhenCCHasNoArgs)
 
             self.cc = cc
             self.prototype = prototype
+
+    def _analyze_callsite_only(self):
+        callsite_facts = [
+            self._analyze_callsite(
+                self.caller_func_addr,
+                self.callsite_block_addr,
+                self.callsite_insn_addr,
+            )
+        ]
+        cc = DefaultCC[self.project.arch.name](self.project.arch)
+        prototype = SimTypeFunction([], None)
+        prototype = self._adjust_prototype(prototype, callsite_facts,
+                                           update_arguments=UpdateArgumentsOption.AlwaysUpdate)
+        self.cc = cc
+        self.prototype = prototype
 
     def _analyze_plt(self) -> Optional[Tuple[SimCC,SimTypeFunction]]:
         """
@@ -188,13 +226,16 @@ class CallingConventionAnalysis(Analysis):
             else:
                 return real_func.calling_convention, real_func.prototype
 
-        # determine the calling convention by analyzing its callsites
-        callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
-        cc = DefaultCC[self.project.arch.name](self.project.arch)
-        prototype = SimTypeFunction([ ], None)
-        prototype = self._adjust_prototype(prototype, callsite_facts,
-                                           update_arguments=UpdateArgumentsOption.AlwaysUpdate)
-        return cc, prototype
+        if self.analyze_callsites:
+            # determine the calling convention by analyzing its callsites
+            callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
+            cc = DefaultCC[self.project.arch.name](self.project.arch)
+            prototype = SimTypeFunction([ ], None)
+            prototype = self._adjust_prototype(prototype, callsite_facts,
+                                               update_arguments=UpdateArgumentsOption.AlwaysUpdate)
+            return cc, prototype
+
+        return None
 
     def _analyze_function(self) -> Optional[Tuple[SimCC,SimTypeFunction]]:
         """
@@ -234,7 +275,27 @@ class CallingConventionAnalysis(Analysis):
 
         return cc, prototype
 
-    def _analyze_callsites(self, max_analyzing_callsites: int=3) -> List[CallSiteFact]:  # pylint:disable=no-self-use
+    def _analyze_callsite(self, caller_addr: int, caller_block_addr: int, call_insn_addr: int) -> CallSiteFact:
+        func = self.kb.functions[caller_addr]
+        subgraph = self._generate_callsite_subgraph(func, caller_block_addr)
+
+        rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
+            func,
+            func_graph=subgraph,
+            observation_points=[
+                ('insn', call_insn_addr, OP_BEFORE),
+                ('node', caller_block_addr, OP_AFTER)
+            ],
+            function_handler=DummyFunctionHandler(),
+        )
+        # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
+        fact = self._collect_callsite_fact(caller_block_addr, call_insn_addr, rda.model)
+        return fact
+
+    def _extract_and_analyze_callsites(
+            self,
+            max_analyzing_callsites: int=3,
+    ) -> List[CallSiteFact]:  # pylint:disable=no-self-use
         """
         Analyze all call sites of the function and determine the possible number of arguments and if the function
         returns anything or not.
@@ -275,20 +336,7 @@ class CallingConventionAnalysis(Analysis):
             # call.
             for call_site_tuple in call_site_tuples:
                 caller_block_addr, call_insn_addr = call_site_tuple
-                func = self.kb.functions[caller.addr]
-                subgraph = self._generate_callsite_subgraph(func, caller_block_addr)
-
-                rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
-                    func,
-                    func_graph=subgraph,
-                    observation_points=[
-                        ('insn', call_insn_addr, OP_BEFORE),
-                        ('node', caller_block_addr, OP_AFTER)
-                    ],
-                    function_handler=DummyFunctionHandler(),
-                )
-                # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-                fact = self._analyze_callsite(caller_block_addr, call_insn_addr, rda.model)
+                fact = self._analyze_callsite(caller.addr, caller_block_addr, call_insn_addr)
                 facts.append(fact)
 
                 ctr += 1
@@ -322,9 +370,12 @@ class CallingConventionAnalysis(Analysis):
 
         return subgraph
 
-    def _analyze_callsite(self, caller_block_addr: int,
-                          call_insn_addr: int,
-                          rda: ReachingDefinitionsModel) -> CallSiteFact:
+    def _collect_callsite_fact(
+            self,
+            caller_block_addr: int,
+            call_insn_addr: int,
+            rda: ReachingDefinitionsModel,
+    ) -> CallSiteFact:
 
         fact = CallSiteFact(
             True, # by default we treat all return values as used
