@@ -14,7 +14,6 @@ from angr.analyses import Analysis, register_analysis
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
-    from angr.calling_conventions import SimCC
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
     from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
     from angr.knowledge_plugins.key_definitions.definition import Definition
@@ -309,12 +308,12 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Optional['Function'], cc: 'SimCC', call_stmt) -> Optional[int]:
+    def _determine_variadic_arguments(self, func: Optional['Function'], cc: SimCC, call_stmt) -> Optional[int]:
         if func is not None and "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None
 
-    def _determine_variadic_arguments_for_format_strings(self, func, cc: 'SimCC', call_stmt) -> Optional[int]:
+    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_stmt) -> Optional[int]:
         proto = func.prototype
         if proto is None:
             # TODO: Support cases where prototypes are not available
