@@ -433,7 +433,7 @@ class TestDecompiler(unittest.TestCase):
         # make sure function calls exist
         assert "set_program_name(" in dec.codegen.text
         assert "setlocale(" in dec.codegen.text
-        assert "usage();" in dec.codegen.text
+        assert "usage(0);" in dec.codegen.text
 
     @for_all_structuring_algos
     def test_decompiling_1after909_verify_password(self, decompiler_options=None):
