@@ -16,9 +16,6 @@ from .abstract_address_descriptor import AbstractAddressDescriptor
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState
-    from angr.storage.memory_mixins import RegionedMemory
-else:
-    RegionedMemory = None
 
 
 _l = logging.getLogger(name=__name__)
@@ -52,9 +49,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         if regioned_memory_cls is None:
             # delayed import
-            global RegionedMemory
-            if RegionedMemory is None:
-                from angr.storage.memory_mixins import RegionedMemory
+            from angr.storage.memory_mixins import RegionedMemory
             regioned_memory_cls = RegionedMemory
 
         self._regioned_memory_cls = regioned_memory_cls

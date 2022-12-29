@@ -948,19 +948,34 @@ def amd64g_check_ldmxcsr(state, mxcsr):
     # /* Detect any required emulation warnings. */
     ew = EmNote_NONE
 
-    if ((mxcsr & 0x1F80) != 0x1F80).is_true:
-        # /* unmasked exceptions! */
-        ew = EmWarn_X86_sseExns
+    cond = ((mxcsr & 0x1F80) != 0x1F80)
+    if not mxcsr.symbolic:  # Fast path
+        if cond.is_true:
+            # /* unmasked exceptions! */
+            ew = EmWarn_X86_sseExns
 
-    elif (mxcsr & (1 << 15)).is_true:
-        # /* FZ is set */
-        ew = EmWarn_X86_fz
-    elif (mxcsr & (1 << 6)).is_true:
-        # /* DAZ is set */
-        ew = EmWarn_X86_daz
+        elif (mxcsr & (1 << 15)).is_true:
+            # /* FZ is set */
+            ew = EmWarn_X86_fz
+        elif (mxcsr & (1 << 6)).is_true:
+            # /* DAZ is set */
+            ew = EmWarn_X86_daz
 
-    return (ew << 32) | rmode
+        return (ew << 32) | rmode
 
+    return (claripy.If(
+            cond,
+            claripy.BVV(EmWarn_X86_sseExns, 64),
+            claripy.If(
+                mxcsr & (1<<15) != 0,
+                claripy.BVV(EmWarn_X86_fz, 64),
+                claripy.If(
+                    mxcsr & (1<<6) != 0,
+                    claripy.BVV(EmWarn_X86_daz, 64),
+                    claripy.BVV(EmNote_NONE, 64)
+                )
+            )
+         ) << 32) | rmode
 
 # https://github.com/angr/vex/blob/master/priv/guest_amd64_helpers.c#L2304
 def amd64g_create_mxcsr(state, sseround):
@@ -1355,25 +1370,6 @@ EmFail_S390X_fpext = 17
 EmFail_S390X_invalid_PFPO_rounding_mode = 18
 EmFail_S390X_invalid_PFPO_function = 19
 
-
-def amd64g_check_ldmxcsr(state, mxcsr):
-    rmode = claripy.LShR(mxcsr, 13) & 3
-
-    ew = claripy.If(
-            (mxcsr & 0x1F80) != 0x1F80,
-            claripy.BVV(EmWarn_X86_sseExns, 64),
-            claripy.If(
-                mxcsr & (1<<15) != 0,
-                claripy.BVV(EmWarn_X86_fz, 64),
-                claripy.If(
-                    mxcsr & (1<<6) != 0,
-                    claripy.BVV(EmWarn_X86_daz, 64),
-                    claripy.BVV(EmNote_NONE, 64)
-                )
-            )
-         )
-
-    return (ew << 32) | rmode
 
 #################
 ### ARM Flags ###
