@@ -8,17 +8,17 @@ from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, 
 from claripy.ast.fp import FP, fpToIEEEBV
 from claripy.ast.bv import BV
 
-from angr.calling_conventions import DEFAULT_CC, SimCCSoot
-from angr.engines.soot import SootMixin
-from angr.engines.soot.expressions import SimSootExpr_NewArray #, SimSootExpr_NewMultiArray
-from angr.engines.soot.values import (SimSootValue_ArrayRef,
+from ..calling_conventions import DEFAULT_CC, SimCCSoot
+from ..engines.soot import SootMixin
+from ..engines.soot.expressions import SimSootExpr_NewArray #, SimSootExpr_NewMultiArray
+from ..engines.soot.values import (SimSootValue_ArrayRef,
                                    SimSootValue_StringRef,
                                    SimSootValue_ThisRef,
                                    SimSootValue_StaticFieldRef)
-from angr.errors import AngrSimOSError
-from angr.procedures.java_jni import jni_functions
-from angr.sim_state import SimState
-from angr.sim_type import SimTypeFunction, SimTypeNum
+from ..errors import AngrSimOSError
+from ..procedures.java_jni import jni_functions
+from ..sim_state import SimState
+from ..sim_type import SimTypeFunction, SimTypeNum
 from .simos import SimOS
 
 l = logging.getLogger('angr.simos.JavaVM')
