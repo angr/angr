@@ -6,7 +6,7 @@ import claripy
 from claripy.ast import Bool, Bits, BV
 from claripy.vsa import StridedInterval, ValueSet, RegionAnnotation
 
-from ....sim_options import (HYBRID_SOLVER, APPROXIMATE_FIRST, AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY,
+from ....sim_options import (AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY,
     KEEP_MEMORY_READS_DISCRETE, CONSERVATIVE_WRITE_STRATEGY)
 from ....state_plugins.sim_action_object import _raw_ast
 from ....errors import SimMemoryError, SimAbstractMemoryError
@@ -16,7 +16,6 @@ from .abstract_address_descriptor import AbstractAddressDescriptor
 
 if TYPE_CHECKING:
     from ....sim_state import SimState
-    from .. import RegionedMemory
 
 
 _l = logging.getLogger(name=__name__)
