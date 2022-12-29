@@ -6,7 +6,7 @@ import claripy
 from claripy.ast import Bool, Bits, BV
 from claripy.vsa import StridedInterval, ValueSet, RegionAnnotation
 
-from angr.sim_options import (HYBRID_SOLVER, APPROXIMATE_FIRST, AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY,
+from angr.sim_options import (AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY,
     KEEP_MEMORY_READS_DISCRETE, CONSERVATIVE_WRITE_STRATEGY)
 from angr.state_plugins.sim_action_object import _raw_ast
 from angr.errors import SimMemoryError, SimAbstractMemoryError
