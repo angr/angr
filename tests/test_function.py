@@ -32,7 +32,7 @@ class TestFunction(unittest.TestCase):
             os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
         )
         cfg = p.analyses.CFG()
-        func_main = cfg.kb.functions["main"]  # type: angr.knowledge_plugins.Function
+        func_main: angr.knowledge_plugins.Function = cfg.kb.functions["main"]
 
         func_main.apply_definition("int main(int argc, char** argv)")
 

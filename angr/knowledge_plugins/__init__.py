@@ -15,3 +15,4 @@ from .propagations import Propagations
 from .structured_code import StructuredCodeManager
 from .types import TypesStore
 from .gotos import Gotos
+from .callsite_prototypes import CallsitePrototypes

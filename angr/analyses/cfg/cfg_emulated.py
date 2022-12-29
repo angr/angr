@@ -1201,8 +1201,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             the_jobs = [ ]
             if block_id in self._pending_jobs:
-                the_jobs = self._pending_jobs.pop(block_id)
-                for the_job in the_jobs:  # type: Pendingjob
+                the_jobs: "Pendingjob" = self._pending_jobs.pop(block_id)
+                for the_job in the_jobs:
                     self._deregister_analysis_job(the_job.caller_func_addr, the_job)
             else:
                 the_jobs = [job]
@@ -3128,7 +3128,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if loop_callback is not None:
             graph_copy = networkx.DiGraph(self._graph)
 
-            for loop in loop_finder.loops:  # type: angr.analyses.loopfinder.Loop
+            loop: angr.analyses.loopfinder.Loop
+            for loop in loop_finder.loops:
                 loop_callback(graph_copy, loop)
 
             self.model.graph = graph_copy

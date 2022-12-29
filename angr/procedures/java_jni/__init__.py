@@ -1,7 +1,7 @@
 import collections
 import itertools
 import logging
-from typing import Optional
+import typing
 
 from archinfo import ArchSoot
 from claripy import BVV, StrSubstr
@@ -20,7 +20,7 @@ class JNISimProcedure(SimProcedure):
     """
 
     # Java type of return value
-    return_ty: Optional[str] = None
+    return_ty: typing.Optional[str] = None
 
     # jboolean constants
     JNI_TRUE = 1
@@ -200,7 +200,7 @@ class JNISimProcedure(SimProcedure):
 #
 # JNI function table
 # => Map all interface function to the name of their corresponding SimProcedure
-jni_functions = collections.OrderedDict() # type: collections.OrderedDict[str, str]
+jni_functions: typing.OrderedDict[str, str] = collections.OrderedDict()
 not_implemented = "UnsupportedJNIFunction"
 
 # Reserved Entries

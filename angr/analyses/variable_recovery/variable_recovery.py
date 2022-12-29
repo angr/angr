@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Tuple
 
 import claripy
-import angr # type annotations; pylint: disable=unused-import
+import angr # For type annotations; pylint: disable=unused-import
 
 from ...errors import SimMemoryMissingError
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues

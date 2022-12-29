@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 import logging
 import re
 import string
@@ -19,6 +20,9 @@ from ..knowledge_plugins.cfg.memory_data import MemoryDataSort
 from ..knowledge_plugins.functions import Function
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
+
+if TYPE_CHECKING:
+    from .cfg import CFGNode
 
 l = logging.getLogger(name=__name__)
 
@@ -1126,7 +1130,8 @@ class Procedure:
             s = self.asm_code
             assembly.append((self.addr, s))
         elif self.blocks:
-            for b in sorted(self.blocks, key=lambda x:x.addr):  # type: BasicBlock
+            b: BasicBlock
+            for b in sorted(self.blocks, key=lambda x:x.addr):
                 s = b.assembly(comments=comments, symbolized=symbolized)
                 assembly.append((b.addr, s))
 
@@ -1141,7 +1146,8 @@ class Procedure:
         """
 
         addrs = [ ]
-        for b in sorted(self.blocks, key=lambda x: x.addr):  # type: BasicBlock
+        b: BasicBlock
+        for b in sorted(self.blocks, key=lambda x: x.addr):
             addrs.extend(b.instruction_addresses())
 
         return sorted(set(addrs), key=lambda x: x[0])
@@ -2073,7 +2079,8 @@ class Reassembler(Analysis):
 
         # Get all instruction addresses, and modify those labels pointing to the middle of an instruction
         insn_addrs =  [ ]
-        for proc in self.procedures:  # type: Procedure
+        proc: Procedure
+        for proc in self.procedures:
             insn_addrs.extend(proc.instruction_addresses())
         # just to be safe
         insn_addrs = sorted(set(insn_addrs), key=lambda x: x[0])
@@ -2818,7 +2825,7 @@ class Reassembler(Analysis):
 
             # execute the single basic block and see how the value is used
             base_graph = networkx.DiGraph()
-            candidate_node = self.cfg.model.get_any_node(candidate.irsb_addr)  # type: angr.analyses.cfg_node.CFGNode
+            candidate_node: CFGNode = self.cfg.model.get_any_node(candidate.irsb_addr)
             if candidate_node is None:
                 continue
             base_graph.add_node(candidate_node)
@@ -2828,7 +2835,7 @@ class Reassembler(Analysis):
                                                     keep_state=True,
                                                     base_graph=base_graph
                                                     )
-            candidate_irsb = cfg.get_any_irsb(candidate.irsb_addr)  # type: SimIRSB
+            candidate_irsb = cfg.get_any_irsb(candidate.irsb_addr)
             ddg = self.project.analyses[DDG].prep(kb=tmp_kb)(cfg=cfg)
 
             mem_var_node = None

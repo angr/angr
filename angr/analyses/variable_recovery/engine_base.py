@@ -558,7 +558,7 @@ class SimEngineVRBase(SimEngineLight):
                         concrete_offset = None
                         dynamic_offset = stack_offset
                 else:
-                    # type(stack_offset) is int
+                    #| type(stack_offset) is int
                     concrete_offset = stack_offset
                     dynamic_offset = None
 
@@ -826,7 +826,7 @@ class SimEngineVRBase(SimEngineLight):
                     self.state.typevars.add_type_variable(var, codeloc, typevar)
                 else:
                     # FIXME: This is an extremely stupid hack. Fix it later.
-                    # typevar = next(reversed(list(self.state.typevars[var].values())))
+                    #| typevar = next(reversed(list(self.state.typevars[var].values())))
                     typevar = self.state.typevars[var]
 
         if len(value_list) == 1:

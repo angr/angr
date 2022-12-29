@@ -46,14 +46,14 @@ class SimEngineInitFinderVEX(
             if not obj.has_memory:
                 # Objects without memory are definitely uninitialized
                 return True
-            section = obj.find_section_containing(addr)  # type: Section
+            section: Section = obj.find_section_containing(addr)
             if section is not None:
                 return section.name in {'.bss', }
 
             if isinstance(obj, MetaELF):
                 # for ELFs, if p_memsz >= p_filesz, the extra bytes are considered NOBITS
                 # https://docs.oracle.com/cd/E19120-01/open.solaris/819-0690/gjpww/index.html
-                segment = obj.find_segment_containing(addr)  # type: Segment
+                segment: Segment = obj.find_segment_containing(addr)
                 if segment is not None and segment.memsize > segment.filesize:
                     return segment.vaddr + segment.filesize <= addr < segment.vaddr + segment.memsize
         return False

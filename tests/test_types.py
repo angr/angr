@@ -1,5 +1,7 @@
 # pylint:disable=unused-variable
 
+from typing import Dict
+
 import archinfo
 import claripy
 
@@ -234,18 +236,18 @@ def test_union_struct_referencing_each_other():
 
 def test_top_type():
     angr.types.register_types({"undefined": angr.types.SimTypeTop()})
-    fdef = angr.types.parse_defns(
+    fdef: Dict[str, SimTypeFunction]  = angr.types.parse_defns(
         "undefined f(undefined param_1, int param_2);"
-    )  # type: Dict[str, SimTypeFunction]
+    )
     sig = fdef["f"]
     assert sig.args == [angr.types.SimTypeTop(), angr.types.SimTypeInt()]
 
 
 def test_arg_names():
     angr.types.register_types({"undefined": angr.types.SimTypeTop()})
-    fdef = angr.types.parse_defns(
+    fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns(
         "int f(int param_1, int param_2);"
-    )  # type: Dict[str, SimTypeFunction]
+    )
     sig = fdef["f"]
     assert sig.arg_names == ["param_1", "param_2"]
 
@@ -256,13 +258,13 @@ def test_arg_names():
     ), "Function type generated with .with_arch() doesn't have identical arg_names"
 
     # If for some reason only some of the parameters are named, the list can only be partially not None, but has to match the positions
-    fdef = angr.types.parse_defns(
+    fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns(
         "int f(int param1, int);"
-    )  # type: Dict[str, SimTypeFunction]
+    )
     sig = fdef["f"]
     assert sig.arg_names == ["param1", None]
 
-    fdef = angr.types.parse_defns("int f();")  # type: Dict[str, SimTypeFunction]
+    fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("int f();")
     sig = fdef["f"]
     assert sig.arg_names == ()
 

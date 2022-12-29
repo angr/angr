@@ -175,12 +175,12 @@ class Instruction(DisassemblyPiece):
         self.opcode = None
         self.operands = [ ]
 
-        # the following members will be filled in after disecting the instruction
+        # the following members will be filled in after dissecting the instruction
         self.type = None
         self.branch_type = None
         self.branch_target_operand = None
 
-        self.disect_instruction()
+        self.dissect_instruction()
 
         if isinstance(insn, CapstoneInsn):
             decode_instruction(self.arch, self)
@@ -191,17 +191,17 @@ class Instruction(DisassemblyPiece):
 
     def reload_format(self):
         self.insn = CapstoneInsn(next(self.arch.capstone.disasm(self.insn.bytes, self.addr)))
-        self.disect_instruction()
+        self.dissect_instruction()
 
-    def disect_instruction(self):
+    def dissect_instruction(self):
         if self.arch.name == "AARCH64":
-            self.disect_instruction_for_aarch64()
+            self.dissect_instruction_for_aarch64()
         else:
             # the default one works well for x86, add more arch-specific
             # code when you find it doesn't meet your need.
-            self.disect_instruction_by_default()
+            self.dissect_instruction_by_default()
 
-    def disect_instruction_for_aarch64(self):
+    def dissect_instruction_for_aarch64(self):
         ## ARM64 consts from capstone
         # ARM64 conditional
         ARM64_CC = ['', 'eq', 'ne', 'hs', 'lo', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le', 'al', 'nv']
@@ -228,7 +228,7 @@ class Instruction(DisassemblyPiece):
             return
 
         op_str = self.insn.op_str
-        # splited by comma outside of squared brackets
+        # split by comma outside squared brackets
         dummy_operands = self.split_aarch64_op_string(op_str)
         if len(dummy_operands) != len(self.insn.operands):
             if not op_str.endswith(expected_cc_op) :
@@ -314,7 +314,7 @@ class Instruction(DisassemblyPiece):
         return pieces
 
 
-    def disect_instruction_by_default(self):
+    def dissect_instruction_by_default(self):
         # perform a "smart split" of an operands string into smaller pieces
         insn_pieces = self.split_op_string(self.insn.op_str)
         self.operands = []
@@ -979,6 +979,7 @@ class Disassembly(Analysis):
     """
 
     def __init__(self, function: Optional[Function] = None, ranges: Optional[Sequence[Tuple[int,int]]] = None,
+                 thumb: bool = False,
                  include_ir: bool = False):
         self.raw_result = []
         self.raw_result_map = {
@@ -1006,7 +1007,7 @@ class Disassembly(Analysis):
                 # CFG not available yet. Simply disassemble the code in the given regions. In the future we may want
                 # to handle this case by automatically running CFG analysis on given ranges.
                 for start, end in ranges:
-                    self.parse_block(BlockNode(start, end - start))
+                    self.parse_block(BlockNode(start, end - start, thumb=thumb))
             else:
                 self._graph = cfg.graph
                 for start, end in ranges:
@@ -1027,8 +1028,9 @@ class Disassembly(Analysis):
                             block_bytes = block.bytestr[delta:] if block.bytestr else None
                             blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
                     for i, block in enumerate(blocks):
-                        if block.size and block.addr + block.size > end:
-                            delta = block.addr + block.size - end
+                        real_block_addr = block.addr if not block.thumb else block.addr - 1
+                        if block.size and real_block_addr + block.size > end:
+                            delta = real_block_addr + block.size - end
                             block_bytes = block.bytestr[0:-delta] if block.bytestr else None
                             blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
 

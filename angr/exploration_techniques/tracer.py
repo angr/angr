@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, TYPE_CHECKING
 import logging
 import cle
 
@@ -7,6 +7,9 @@ from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 from . import ExplorationTechnique
 from .. import BP_BEFORE, BP_AFTER, sim_options
 from ..errors import AngrTracerError, SimIRSBNoDecodeError
+
+if TYPE_CHECKING:
+    from angr.sim_state import SimState
 
 
 l = logging.getLogger(name=__name__)
@@ -172,13 +175,13 @@ class Tracer(ExplorationTechnique):
         self._follow_unsat = follow_unsat
         self._fast_forward_to_entry = fast_forward_to_entry
 
-        self._aslr_slides = {}  # type: Dict[cle.Backend, int]
+        self._aslr_slides: Dict[cle.Backend, int] = {}
         self._current_slide = None
 
         self._fd_bytes = None
 
         # keep track of the last basic block we hit
-        self.predecessors = [None] * keep_predecessors # type: List[angr.SimState]
+        self.predecessors: List["SimState"] = [None] * keep_predecessors
         self.last_state = None
 
         # whether we should follow the trace
@@ -501,7 +504,7 @@ class Tracer(ExplorationTechnique):
         self._update_state_tracking(res[0])
         return res[0]
 
-    def _update_state_tracking(self, state: 'angr.SimState'):
+    def _update_state_tracking(self, state: "SimState"):
         idx = state.globals['trace_idx']
         sync = state.globals['sync_idx']
         timer = state.globals['sync_timer']
@@ -671,7 +674,7 @@ class Tracer(ExplorationTechnique):
         else:
             raise AngrTracerError("Trace desynced on jumping into %#x, where no library is mapped!" % state_addr)
 
-    def _check_qemu_block_in_unicorn_block(self, state: 'angr.SimState', trace_curr_idx, state_desync_block_idx):
+    def _check_qemu_block_in_unicorn_block(self, state: "SimState", trace_curr_idx, state_desync_block_idx):
         """
         Check if desync occurred because unicorn block was split into multiple blocks in qemu tracer. If yes, find the
         correct increment for trace index
@@ -712,7 +715,7 @@ class Tracer(ExplorationTechnique):
 
         return (True, next_contain_index - trace_curr_idx)
 
-    def _check_qemu_unicorn_large_block_split(self, state: 'angr.SimState', trace_curr_idx, state_desync_block_idx):
+    def _check_qemu_unicorn_large_block_split(self, state: "SimState", trace_curr_idx, state_desync_block_idx):
         """
         Check if desync occurred because large blocks are split up at different instructions by qemu and unicorn. This
         is done by reconstructing part of block executed so far from the trace and state history and checking if they

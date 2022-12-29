@@ -59,7 +59,7 @@ class Server:
 
         self._workers = [ ]
         self._stopped = False
-        self._active_workers = multiprocessing.Value('i', lock=True)  # type: multiprocessing.Value
+        self._active_workers = multiprocessing.Value('i', lock=True)
 
     def __setstate__(self, state):
 

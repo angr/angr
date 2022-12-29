@@ -21,7 +21,7 @@ class Bucketizer(ExplorationTechnique):
     def successors(self, simgr, state, **kwargs):
 
         # step first
-        successors = super().successors(simgr, state, **kwargs)  # type: SimSuccessors
+        successors: SimSuccessors = super().successors(simgr, state, **kwargs)
 
         # if there are more than one successor, we try to get rid of the ones that we don't want
 

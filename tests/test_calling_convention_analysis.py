@@ -240,7 +240,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         cfg = proj.analyses.CFG(data_references=True, normalize=True)
 
         func = cfg.functions.function(name="mosquitto_publish", plt=True)
-        cca = proj.analyses.CallingConvention(func)
+        cca = proj.analyses.CallingConvention(func, analyze_callsites=True)
         assert len(cca.prototype.args) == 6
 
     def test_x64_return_value_used(self):

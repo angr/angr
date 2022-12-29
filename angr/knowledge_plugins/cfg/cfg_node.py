@@ -1,18 +1,19 @@
 import traceback
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Optional
 
 from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
 
-from ...codenode import BlockNode, HookNode, SyscallNode
-from ...engines.successors import SimSuccessors
-from ...serializable import Serializable
-from ...protos import cfg_pb2
-from ...errors import AngrError, SimError
+from angr.codenode import BlockNode, HookNode, SyscallNode
+from angr.engines.successors import SimSuccessors
+from angr.serializable import Serializable
+from angr.protos import cfg_pb2
+from angr.errors import AngrError, SimError
 
 if TYPE_CHECKING:
     from .cfg_model import CFGModel
+    import angr
 
 _l = logging.getLogger(__name__)
 
@@ -75,9 +76,9 @@ class CFGNode(Serializable):
         self.no_ret = no_ret
         self._cfg_model: 'CFGModel' = cfg
         self.function_address = function_address
-        self.block_id = block_id  # type: int or BlockID
+        self.block_id: Union["angr.analyses.cfg.cfg_job_base.BlockID", int] = block_id
         self.thumb = thumb
-        self.byte_string = byte_string  # type: None or bytes
+        self.byte_string: Optional[bytes] = byte_string
 
         self._name = None
         if name is not None:

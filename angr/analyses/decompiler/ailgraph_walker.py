@@ -11,7 +11,7 @@ class AILGraphWalker:
     """
     def __init__(self, graph, handler, replace_nodes: bool=False):
 
-        self.graph = graph  # type: networkx.DiGraph
+        self.graph: networkx.DiGraph = graph
         self.handler = handler
         self._replace_nodes = replace_nodes
 

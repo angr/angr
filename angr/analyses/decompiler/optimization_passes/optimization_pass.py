@@ -23,11 +23,12 @@ class OptimizationPassStage(Enum):
     """
     Enums about optimization pass stages.
     """
-    AFTER_SINGLE_BLOCK_SIMPLIFICATION = 0
-    AFTER_GLOBAL_SIMPLIFICATION = 1
-    AFTER_VARIABLE_RECOVERY = 2
-    DURING_REGION_IDENTIFICATION = 3
-    AFTER_STRUCTURING = 4
+    AFTER_AIL_GRAPH_CREATION = 0
+    AFTER_SINGLE_BLOCK_SIMPLIFICATION = 1
+    AFTER_GLOBAL_SIMPLIFICATION = 2
+    AFTER_VARIABLE_RECOVERY = 3
+    DURING_REGION_IDENTIFICATION = 4
+    AFTER_STRUCTURING = 5
 
 
 class BaseOptimizationPass:
@@ -87,13 +88,13 @@ class OptimizationPass(BaseOptimizationPass):
         # self._blocks is just a cache
         self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
         self._blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = blocks_by_addr_and_idx
-        self._graph = graph  # type: Optional[networkx.DiGraph]
+        self._graph: Optional[networkx.DiGraph] = graph
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
 
         # output
-        self.out_graph = None  # type: Optional[networkx.DiGraph]
+        self.out_graph: Optional[networkx.DiGraph] = None
 
     @property
     def blocks_by_addr(self) -> Dict[int,Set[ailment.Block]]:

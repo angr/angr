@@ -141,7 +141,7 @@ class Project:
         if isinstance(arch, str):
             self.arch = archinfo.arch_from_id(arch)  # may raise ArchError, let the user see this
         elif isinstance(arch, archinfo.Arch):
-            self.arch = arch # type: archinfo.Arch
+            self.arch: archinfo.Arch = arch
         elif arch is None:
             self.arch = self.loader.main_object.arch
         else:

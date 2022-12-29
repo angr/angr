@@ -157,6 +157,10 @@ class Clinic(Analysis):
 
         ail_graph = self._make_ailgraph()
 
+        # Run simplification passes
+        self._update_progress(22., text="Optimizing fresh ailment graph")
+        ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
+
         # Fix "fake" indirect jumps and calls
         self._update_progress(25., text="Analyzing simple indirect jumps")
         ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
@@ -171,7 +175,7 @@ class Clinic(Analysis):
             ail_graph = self._make_returns(ail_graph)
 
         # full-function constant-only propagation
-        self._update_progress(37., text="Constant propagation")
+        self._update_progress(33., text="Constant propagation")
         self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False, narrow_expressions=False,
                                 only_consts=True, max_iterations=1)
 
@@ -296,20 +300,88 @@ class Clinic(Analysis):
                 self._func_graph.remove_node(node)
 
     @timethis
-    def _recover_calling_conventions(self):
+    def _recover_calling_conventions(self) -> None:
+        """
+        Examine the calling convention and function prototype for each function called. For functions with missing
+        calling conventions or function prototypes, analyze each *call site* and recover the calling convention and
+        function prototype of the callee function.
 
-        callees = set()
+        :return: None
+        """
+
         for node in self.function.transition_graph:
-            if isinstance(node, Function):
-                callees.add(node.addr)
-        callees.add(self.function.addr)
+            if not isinstance(node, Function):
+                continue
 
-        self.project.analyses.CompleteCallingConventions(
-            recover_variables=False,
-            prioritize_func_addrs=callees,
-            skip_other_funcs=True,
-            skip_signature_matched_functions=False,
-        )
+            # case 0: the calling convention and prototype are available
+            if node.calling_convention is not None and node.prototype is not None:
+                continue
+
+            call_sites = [ ]
+            for pred in self.function.transition_graph.predecessors(node):
+                call_sites.append(pred)
+            # case 1: calling conventions and prototypes are available at every single call site
+            if all(self.kb.callsite_prototypes.has_prototype(callsite.addr) for callsite in call_sites):
+                continue
+
+            # case 2: the callee is a SimProcedure
+            if node.is_simprocedure:
+                cc = self.project.analyses.CallingConvention(node)
+                if cc.cc is not None and cc.prototype is not None:
+                    node.calling_convention = cc.cc
+                    node.prototype = cc.prototype
+                    continue
+
+            # case 3: the callee is a PLT function
+            if node.is_plt:
+                cc = self.project.analyses.CallingConvention(node)
+                if cc.cc is not None and cc.prototype is not None:
+                    node.calling_convention = cc.cc
+                    node.prototype = cc.prototype
+                    continue
+
+            # case 4: fall back to call site analysis
+            for callsite in call_sites:
+                if self.kb.callsite_prototypes.has_prototype(callsite.addr):
+                    continue
+
+                # parse the call instruction address from the edge
+                callsite_ins_addr = None
+                edge_data = [ data for src, dst, data in self.function.transition_graph.in_edges(node, data=True)
+                              if src is callsite ]
+                if len(edge_data) == 1:
+                    callsite_ins_addr = edge_data[0].get('ins_addr', None)
+                if callsite_ins_addr is None:
+                    # parse the block...
+                    callsite_block = self.project.factory.block(callsite.addr, size=callsite.size)
+                    if self.project.arch.branch_delay_slot:
+                        if callsite_block.instructions < 2:
+                            continue
+                        callsite_ins_addr = callsite_block.instruction_addrs[-2]
+                    else:
+                        if callsite_block.instructions == 0:
+                            continue
+                        callsite_ins_addr = callsite_block.instruction_addrs[-1]
+
+                cc = self.project.analyses.CallingConvention(
+                    None,
+                    analyze_callsites=True,
+                    caller_func_addr=self.function.addr,
+                    callsite_block_addr=callsite.addr,
+                    callsite_insn_addr=callsite_ins_addr,
+                )
+
+                if cc.cc is not None and cc.prototype is not None:
+                    self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype, manual=False)
+
+        # finally, recovery the calling convention of the current function
+        if self.function.prototype is None or self.function.calling_convention is None:
+            self.project.analyses.CompleteCallingConventions(
+                recover_variables=True,
+                prioritize_func_addrs=[self.function.addr],
+                skip_other_funcs=True,
+                skip_signature_matched_functions=False,
+            )
 
     @timethis
     def _track_stack_pointers(self):
@@ -714,7 +786,7 @@ class Clinic(Analysis):
                 return
             if isinstance(self.function.prototype.returnty, SimTypeFloat) \
                     or any(isinstance(arg, SimTypeFloat) for arg in self.function.prototype.args):
-                # type inference does not yet support floating point variables, but calling convention analysis does
+                # Type inference does not yet support floating point variables, but calling convention analysis does
                 # FIXME: remove this branch once type inference supports floating point variables
                 return
 

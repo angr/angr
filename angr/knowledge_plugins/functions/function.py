@@ -96,7 +96,7 @@ class Function(Serializable):
         # Calling convention
         self.calling_convention: Optional[SimCC] = None
         # Function prototype
-        self.prototype = None  # type: Optional[SimTypeFunction]
+        self.prototype: Optional[SimTypeFunction] = None
         self.is_prototype_guessed: bool = True
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -121,7 +121,7 @@ class Function(Serializable):
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
-        self._project = None  # type: Optional[Project] # will be initialized upon the first access to self.project
+        self._project: Optional[Project] = None  # will be initialized upon the first access to self.project
 
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
 
@@ -1484,7 +1484,9 @@ class Function(Serializable):
         if len(func_def.keys()) > 1:
             raise Exception("Too many definitions: %s " % list(func_def.keys()))
 
-        name, ty = func_def.popitem() # type: str, SimTypeFunction
+        name: str
+        ty: SimTypeFunction
+        name, ty = func_def.popitem()
         self.name = name
         self.prototype = ty.with_arch(self.project.arch)
         # setup the calling convention

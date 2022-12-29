@@ -199,7 +199,7 @@ class Block(Serializable):
         self._load_from_ro_regions = load_from_ro_regions
 
         self._instructions = num_inst
-        self._instruction_addrs = [] # type: List[int]
+        self._instruction_addrs: List[int] = []
 
         self._parse_vex_info(self._vex)
 
@@ -257,7 +257,10 @@ class Block(Serializable):
     def pp(self, **kwargs):
         if self._project is not None:
             addr = self.addr - 1 if self.thumb else self.addr
-            print(self._project.analyses.Disassembly(ranges=[(addr, addr + self.size)]).render(**kwargs))
+            print(self._project.analyses.Disassembly(
+                ranges=[(addr, addr + self.size)],
+                thumb=self.thumb,
+            ).render(**kwargs))
         else:
             self.disassembly.pp()
 
