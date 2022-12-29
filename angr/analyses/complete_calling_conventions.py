@@ -167,11 +167,12 @@ class CompleteCallingConventionsAnalysis(Analysis):
             traversed_func_addrs = set()
             depends_on = {}
             dependents = defaultdict(set)
+            func_addrs_set = set(self._func_addrs)
             for func_addr in reversed(self._func_addrs):
                 traversed_func_addrs.add(func_addr)
                 depends_on[func_addr] = set()
                 for callee in self.kb.functions.callgraph.successors(func_addr):
-                    if callee not in traversed_func_addrs:
+                    if callee not in traversed_func_addrs and callee in func_addrs_set:
                         depends_on[func_addr].add(callee)
                         dependents[callee].add(func_addr)
 
