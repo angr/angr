@@ -1678,9 +1678,13 @@ class CConstant(CExpression):
         if result is None:
             result = False
             if isinstance(self.value, int):
-                if self.value <= 0xffff_ffff and self.value >= 0xf000_0000:
+                if self._type is not None:
+                    value_size = self._type.size
+                else:
+                    value_size = None
+                if value_size == 32 and 0xf000_0000 <= self.value <= 0xffff_ffff:
                     result = True
-                elif self.value <= 0xffff_ffff_ffff_ffff and self.value >= 0xf000_0000_0000_0000:
+                elif value_size == 64 and 0xf000_0000_0000_0000 <= self.value <= 0xffff_ffff_ffff_ffff:
                     result = True
 
         return result
