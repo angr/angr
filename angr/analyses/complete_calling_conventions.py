@@ -176,7 +176,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         dependents[callee].add(func_addr)
 
             # enqueue all leaf functions
-            for func_addr in list(k for k in depends_on.keys() if not depends_on[k]):
+            for func_addr in list(k for k in depends_on if not depends_on[k]):  # pylint:disable=consider-using-dict-items
                 self._func_queue.put((func_addr, None))
                 del depends_on[func_addr]
                 self._remaining_funcs.value -= 1
