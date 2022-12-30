@@ -2,8 +2,8 @@
 import os
 from unittest import TestCase, main
 
-import angr
 import claripy
+import angr
 from angr import options as o
 
 
@@ -47,7 +47,6 @@ class TestSelfModifyingCOde(TestCase):
                 # this is the missing relifted block address in angr's history. skip it
                 j += 1
             else:
-                import ipdb; ipdb.set_trace()
                 raise Exception("History mismatch")
         assert i == len(pg_bbl_addrs)
         assert j == len(u_bbl_addrs)
