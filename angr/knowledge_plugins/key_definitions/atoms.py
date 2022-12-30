@@ -1,7 +1,6 @@
 from typing import Dict, Tuple, Union, Optional
 
 import claripy
-import ailment
 
 from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
@@ -76,6 +75,9 @@ class GuardUse(Atom):
 
 
 class FunctionCall(Atom):
+    """
+    Represents a function call.
+    """
     __slots__ = ('target', 'callsite')
 
     def __init__(self, target, callsite):
@@ -109,6 +111,9 @@ class FunctionCall(Atom):
 
 
 class ConstantSrc(Atom):
+    """
+    Represents a constant.
+    """
     __slots__ = ('const',)
 
     def __init__(self, const):
@@ -251,12 +256,16 @@ class MemoryLocation(Atom):
 
     def __eq__(self, other):
         # pylint:disable=isinstance-second-argument-not-valid-type
-        return type(other) is MemoryLocation and \
-               (
-                    self.addr is other.addr if (isinstance(self.addr, (claripy.ast.BV)) or isinstance(other.addr, claripy.ast.BV)) else self.addr == other.addr
-               ) and \
-               self.size == other.size and \
-               self.endness == other.endness
+        return (type(other) is MemoryLocation and
+                (
+                    self.addr is other.addr if (
+                            isinstance(self.addr, claripy.ast.BV)
+                            or isinstance(other.addr, claripy.ast.BV)
+                    ) else self.addr == other.addr
+                )
+                and self.size == other.size
+                and self.endness == other.endness
+                )
 
     __hash__ = Atom.__hash__
 
