@@ -527,6 +527,9 @@ class TestDecompiler(unittest.TestCase):
         assert "free(v" in code
         assert "free(NULL" not in code and "free(0" not in code
 
+        # return values are either 0xffffffff or -1
+        assert " = 4294967295;" in code or " = -1;" in code
+
     @for_all_structuring_algos
     def test_decompiling_libsoap(self, decompiler_options=None):
 
