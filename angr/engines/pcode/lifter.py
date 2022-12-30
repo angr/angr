@@ -878,7 +878,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         use_cache: Optional[bool] = None,
         cache_size: int = 50000,
         default_opt_level: int = 1,
-        support_selfmodifying_code: Optional[bool] = None,
+        selfmodifying_code: Optional[bool] = None,
         single_step: bool = False,
         default_strict_block_end: bool = False,
         **kwargs
@@ -888,7 +888,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         self._use_cache = use_cache
         self._default_opt_level = default_opt_level
         self._cache_size = cache_size
-        self._support_selfmodifying_code = support_selfmodifying_code
+        self.selfmodifying_code = selfmodifying_code
         self._single_step = single_step
         self.default_strict_block_end = default_strict_block_end
 
@@ -897,13 +897,13 @@ class PcodeLifterEngineMixin(SimEngineBase):
                 self._use_cache = self.project._translation_cache
             else:
                 self._use_cache = False
-        if self._support_selfmodifying_code is None:
+        if self.selfmodifying_code is None:
             if self.project is not None:
-                self._support_selfmodifying_code = (
-                    self.project._support_selfmodifying_code
+                self.selfmodifying_code = (
+                    self.project.selfmodifying_code
                 )
             else:
-                self._support_selfmodifying_code = False
+                self.selfmodifying_code = False
 
         # block cache
         self._block_cache = None
@@ -1041,7 +1041,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
                 opt_level = self._default_opt_level
         if strict_block_end is None:
             strict_block_end = self.default_strict_block_end
-        if self._support_selfmodifying_code:
+        if self.selfmodifying_code:
             if opt_level > 0:
                 if once("vex-engine-smc-opt-warning"):
                     l.warning(
@@ -1197,7 +1197,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         buff, size = b"", 0
 
         # Load from the clemory if we can
-        smc = self._support_selfmodifying_code
+        smc = self.selfmodifying_code
 
         # skip loading from the clemory if we're using the ultra page
         # TODO: is this a good change? it neuters lookback optimizations
@@ -1296,7 +1296,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         s = {
             "_use_cache": self._use_cache,
             "_default_opt_level": self._default_opt_level,
-            "_support_selfmodifying_code": self._support_selfmodifying_code,
+            "selfmodifying_code": self.selfmodifying_code,
             "_single_step": self._single_step,
             "_cache_size": self._cache_size,
             "default_strict_block_end": self.default_strict_block_end,
@@ -1308,7 +1308,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         s, ostate = state
         self._use_cache = s["_use_cache"]
         self._default_opt_level = s["_default_opt_level"]
-        self._support_selfmodifying_code = s["_support_selfmodifying_code"]
+        self.selfmodifying_code = s["selfmodifying_code"]
         self._single_step = s["_single_step"]
         self._cache_size = s["_cache_size"]
         self.default_strict_block_end = s["default_strict_block_end"]

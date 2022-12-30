@@ -260,6 +260,7 @@ class Block(Serializable):
             print(self._project.analyses.Disassembly(
                 ranges=[(addr, addr + self.size)],
                 thumb=self.thumb,
+                block_bytes=self.bytes,
             ).render(**kwargs))
         else:
             self.disassembly.pp()

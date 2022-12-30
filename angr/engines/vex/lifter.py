@@ -27,7 +27,7 @@ class VEXLifter(SimEngineBase):
                  use_cache=None,
                  cache_size=50000,
                  default_opt_level=1,
-                 support_selfmodifying_code=None,
+                 selfmodifying_code=None,
                  single_step=False,
                  default_strict_block_end=False, **kwargs):
 
@@ -36,7 +36,7 @@ class VEXLifter(SimEngineBase):
         self._use_cache = use_cache
         self._default_opt_level = default_opt_level
         self._cache_size = cache_size
-        self._support_selfmodifying_code = support_selfmodifying_code
+        self.selfmodifying_code = selfmodifying_code
         self._single_step = single_step
         self.default_strict_block_end = default_strict_block_end
 
@@ -45,11 +45,11 @@ class VEXLifter(SimEngineBase):
                 self._use_cache = self.project._translation_cache
             else:
                 self._use_cache = False
-        if self._support_selfmodifying_code is None:
+        if self.selfmodifying_code is None:
             if self.project is not None:
-                self._support_selfmodifying_code = self.project._support_selfmodifying_code
+                self.selfmodifying_code = self.project.selfmodifying_code
             else:
-                self._support_selfmodifying_code = False
+                self.selfmodifying_code = False
 
         # block cache
         self._block_cache = None
@@ -154,7 +154,7 @@ class VEXLifter(SimEngineBase):
                 cross_insn_opt = True
         if strict_block_end is None:
             strict_block_end = self.default_strict_block_end
-        if self._support_selfmodifying_code:
+        if self.selfmodifying_code:
             if opt_level > 0:
                 if once('vex-engine-smc-opt-warning'):
                     l.warning("Self-modifying code is not always correctly optimized by PyVEX. "
@@ -284,7 +284,7 @@ class VEXLifter(SimEngineBase):
         buff, size, offset = b"", 0, 0
 
         # Load from the clemory if we can
-        smc = self._support_selfmodifying_code
+        smc = self.selfmodifying_code
 
         # skip loading from the clemory if we're using the ultra page
         # TODO: is this a good change? it neuters lookback optimizations
@@ -378,7 +378,7 @@ class VEXLifter(SimEngineBase):
         s = {
             '_use_cache': self._use_cache,
             '_default_opt_level': self._default_opt_level,
-             '_support_selfmodifying_code': self._support_selfmodifying_code,
+             'selfmodifying_code': self.selfmodifying_code,
              '_single_step': self._single_step,
              '_cache_size': self._cache_size,
              'default_strict_block_end': self.default_strict_block_end
@@ -390,7 +390,7 @@ class VEXLifter(SimEngineBase):
         s, ostate = state
         self._use_cache = s['_use_cache']
         self._default_opt_level = s['_default_opt_level']
-        self._support_selfmodifying_code = s['_support_selfmodifying_code']
+        self.selfmodifying_code = s['selfmodifying_code']
         self._single_step = s['_single_step']
         self._cache_size = s['_cache_size']
         self.default_strict_block_end = s['default_strict_block_end']

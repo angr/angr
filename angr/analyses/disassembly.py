@@ -978,9 +978,14 @@ class Disassembly(Analysis):
     Produce formatted machine code disassembly.
     """
 
-    def __init__(self, function: Optional[Function] = None, ranges: Optional[Sequence[Tuple[int,int]]] = None,
-                 thumb: bool = False,
-                 include_ir: bool = False):
+    def __init__(
+            self,
+            function: Optional[Function] = None,
+            ranges: Optional[Sequence[Tuple[int,int]]] = None,
+            thumb: bool = False,
+            include_ir: bool = False,
+            block_bytes: Optional[bytes] = None,
+    ):
         self.raw_result = []
         self.raw_result_map = {
             'block_starts': {},
@@ -993,6 +998,7 @@ class Disassembly(Analysis):
         self.block_to_insn_addrs = defaultdict(list)
         self._func_cache = {}
         self._include_ir = include_ir
+        self._block_bytes = block_bytes
         self._graph = None
 
         if function is not None:
@@ -1003,39 +1009,52 @@ class Disassembly(Analysis):
                 self.parse_block(block)
         elif ranges is not None:
             cfg = self.project.kb.cfgs.get_most_accurate()
-            if cfg is None:
-                # CFG not available yet. Simply disassemble the code in the given regions. In the future we may want
-                # to handle this case by automatically running CFG analysis on given ranges.
+            fallback = True
+            if cfg is not None:
+                try:
+                    self._graph = cfg.graph
+                    for start, end in ranges:
+                        if start == end:
+                            continue
+                        assert start < end
+
+                        # Grab all blocks that intersect target range
+                        blocks = sorted([n.to_codenode()
+                                         for n in self._graph.nodes() if not (n.addr + (n.size or 1) <= start or
+                                                                              n.addr >= end)],
+                                        key=lambda node: (node.addr, not node.is_hook))
+
+                        # Trim blocks that are not within range
+                        for i, block in enumerate(blocks):
+                            if block.size and block.addr < start:
+                                delta = start - block.addr
+                                block_bytes = block.bytestr[delta:] if block.bytestr else None
+                                blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
+                        for i, block in enumerate(blocks):
+                            real_block_addr = block.addr if not block.thumb else block.addr - 1
+                            if block.size and real_block_addr + block.size > end:
+                                delta = real_block_addr + block.size - end
+                                block_bytes = block.bytestr[0:-delta] if block.bytestr else None
+                                blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
+
+                        for block in blocks:
+                            self.parse_block(block)
+                    fallback = False
+                except KeyError:
+                    pass
+
+            if fallback:
+                # CFG not available, or the block cannot be found in the CFG (e.g., the block is dynamically
+                # generated). Simply disassemble the code in the given regions. In the future we may want to handle
+                # this case by automatically running CFG analysis on given ranges.
                 for start, end in ranges:
-                    self.parse_block(BlockNode(start, end - start, thumb=thumb))
-            else:
-                self._graph = cfg.graph
-                for start, end in ranges:
-                    if start == end:
-                        continue
-                    assert start < end
-
-                    # Grab all blocks that intersect target range
-                    blocks = sorted([n.to_codenode()
-                                     for n in self._graph.nodes() if not (n.addr + (n.size or 1) <= start or
-                                                                          n.addr >= end)],
-                                    key=lambda node: (node.addr, not node.is_hook))
-
-                    # Trim blocks that are not within range
-                    for i, block in enumerate(blocks):
-                        if block.size and block.addr < start:
-                            delta = start - block.addr
-                            block_bytes = block.bytestr[delta:] if block.bytestr else None
-                            blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
-                    for i, block in enumerate(blocks):
-                        real_block_addr = block.addr if not block.thumb else block.addr - 1
-                        if block.size and real_block_addr + block.size > end:
-                            delta = real_block_addr + block.size - end
-                            block_bytes = block.bytestr[0:-delta] if block.bytestr else None
-                            blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
-
-                    for block in blocks:
-                        self.parse_block(block)
+                    self.parse_block(BlockNode(
+                        start,
+                        end - start,
+                        thumb=thumb,
+                        bytestr=self._block_bytes if len(ranges) == 1 else None,
+                    )
+                    )
 
     def func_lookup(self, block):
         try:
