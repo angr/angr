@@ -939,7 +939,7 @@ class SimCC:
 
             val = [SimCC._standardize_value(sarg, subty, state, alloc) for sarg in arg]
             if ref:
-                val = alloc(claripy.Concat(*val), state)
+                val = alloc(val, state)
             return val
 
         elif isinstance(arg, (tuple, dict, SimStructValue)):
