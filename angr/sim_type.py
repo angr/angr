@@ -1,4 +1,4 @@
-# pylint:disable=abstract-method,line-too-long
+# pylint:disable=abstract-method,line-too-long,missing-class-docstring
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
@@ -2784,7 +2784,7 @@ _type_parser_singleton = None
 
 
 def type_parser_singleton() -> Optional[pycparser.CParser]:
-    global _type_parser_singleton
+    global _type_parser_singleton  # pylint:disable=global-statement
     if pycparser is not None:
         if _type_parser_singleton is None:
             _type_parser_singleton = pycparser.CParser()

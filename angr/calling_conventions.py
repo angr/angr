@@ -1,5 +1,6 @@
+# pylint:disable=line-too-long,missing-class-docstring
 import logging
-from typing import Union, Optional, List, Dict, Type
+from typing import Optional, List, Dict, Type
 from collections import defaultdict
 
 import claripy
