@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Union, TYPE_CHECKING, Tuple
 import logging
 
 import pyvex
@@ -14,12 +14,14 @@ from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC, SimStructArg, SimArrayArg
 from ...utils.constants import DEFAULT_STATEMENT
 from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
 from ...knowledge_plugins.key_definitions.undefined import Undefined
 from ...code_location import CodeLocation
+from ...analyses.reaching_definitions.call_trace import CallTrace
 from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
 
@@ -90,9 +92,16 @@ class SimEngineRDVEX(
     # Private methods
     #
 
-    @staticmethod
-    def _external_codeloc():
-        return ExternalCodeLocation()
+    def _generate_call_string(self) -> Tuple[int, ...]:
+        if isinstance(self.state._subject.content, Function):
+            return (self.state._subject.content.addr,)
+        elif isinstance(self.state._subject.content, CallTrace):
+            return tuple(x.caller_func_addr for x in self.state._subject.content.callsites)
+        else:
+            return None
+
+    def _external_codeloc(self):
+        return ExternalCodeLocation(self._generate_call_string())
 
     #
     # VEX statement handlers
@@ -323,7 +332,7 @@ class SimEngineRDVEX(
         except SimMemoryMissingError:
             top = self.state.top(size * self.arch.byte_width)
             # annotate it
-            top = self.state.annotate_with_def(top, Definition(reg_atom, ExternalCodeLocation()))
+            top = self.state.annotate_with_def(top, Definition(reg_atom, self._external_codeloc()))
             values = MultiValues(top)
             # write it to registers
             self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
@@ -363,7 +372,7 @@ class SimEngineRDVEX(
         top = self.state.top(bits)
         # annotate it
         dummy_atom = MemoryLocation(0, size)
-        def_ = Definition(dummy_atom, ExternalCodeLocation())
+        def_ = Definition(dummy_atom, self._external_codeloc())
         top = self.state.annotate_with_def(top, def_)
         # add use
         self.state.add_memory_use_by_def(def_, self._codeloc())
@@ -418,7 +427,7 @@ class SimEngineRDVEX(
                         val = self.project.loader.memory.unpack_word(addr_v, size=size)
                         section = self.project.loader.find_section_containing(addr_v)
                         missing_atom = MemoryLocation(addr_v, size)
-                        missing_def = Definition(missing_atom, ExternalCodeLocation())
+                        missing_def = Definition(missing_atom, self._external_codeloc())
                         if val == 0 and (not section or section.is_writable):
                             top = self.state.top(size*self.arch.byte_width)
                             v = self.state.annotate_with_def(top, missing_def)

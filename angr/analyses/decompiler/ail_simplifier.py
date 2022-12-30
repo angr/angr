@@ -811,7 +811,9 @@ class AILSimplifier(Analysis):
             uses = rd.all_uses.get_uses(def_)
 
             if not uses:
-                stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
+                if not isinstance(def_.codeloc, ExternalCodeLocation):
+                    stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
+                        def_.codeloc.stmt_idx)
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block

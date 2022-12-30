@@ -124,6 +124,10 @@ class MultiValues:
             return False
         if self._single_value is not None and other._single_value is not None:
             return self._single_value is other._single_value
+        if self._single_value is not None and other._single_value is None:
+            return False
+        if self._single_value is None and other._single_value is not None:
+            return False
         if set(self._values.keys()) != set(other._values.keys()):
             return False
         for k in self._values.keys():
@@ -153,7 +157,7 @@ class MultiValues:
     def keys(self) -> Set[int]:
         if self._single_value is not None:
             return { 0 }
-        return { } if not self._values else set(self._values.keys())
+        return set() if not self._values else set(self._values.keys())
 
     def values(self) -> Generator[Set[claripy.ast.Base],None,None]:
         if self._single_value is not None:
@@ -168,7 +172,7 @@ class MultiValues:
             yield 0, { self._single_value }
         else:
             if self._values is None:
-                yield 0, { }
+                yield 0, set()
             else:
                 yield from self._values.items()
 

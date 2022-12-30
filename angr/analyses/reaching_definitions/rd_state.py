@@ -4,11 +4,13 @@ import logging
 import archinfo
 import claripy
 
+from ...analyses.reaching_definitions.call_trace import CallTrace
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...storage.memory_mixins import MultiValuedMemory
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation, FunctionCall, \
     ConstantSrc
+from ...knowledge_plugins.functions.function import Function
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.environment import Environment
 from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
@@ -235,10 +237,27 @@ class ReachingDefinitionsState:
 
         return self
 
+    def _generate_call_string(self, current_address: int) -> Tuple[int, ...]:
+        if isinstance(self._subject.content, Function):
+            return (self._subject.content.addr,)
+        elif isinstance(self._subject.content, CallTrace):
+            if any(current_address == x.caller_func_addr for x in self._subject.content.callsites):
+                callsites = iter(reversed([x.caller_func_addr for x in self._subject.content.callsites]))
+                for call_addr in callsites:
+                    if current_address == call_addr:
+                        break
+                return tuple(callsites)
+            else:
+                return tuple(x.caller_func_addr for x in self._subject.content.callsites)
+        else:
+            l.warning("Subject with unknown content-type")
+            return None
+
     def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int]=None):
         # initialize stack pointer
+        call_string = self._generate_call_string(func_addr)
         sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+        sp_def = Definition(sp_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
         sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
         self.register_definitions.store(self.arch.sp_offset, sp)
 
@@ -247,7 +266,7 @@ class ReachingDefinitionsState:
                 l.warning("func_addr must not be None to initialize a function in mips")
             t9_offset = self.arch.registers['t9'][0]
             t9_atom = Register(t9_offset, self.arch.bytes)
-            t9_def = Definition(t9_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            t9_def = Definition(t9_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(t9_offset, t9)
         if cc is not None:
@@ -260,7 +279,7 @@ class ReachingDefinitionsState:
                             # FIXME: implement reg_offset handling in SimRegArg
                             reg_offset = self.arch.registers[arg.reg_name][0]
                             reg_atom = Register(reg_offset, self.arch.bytes)
-                            reg_def = Definition(reg_atom, ExternalCodeLocation(),
+                            reg_def = Definition(reg_atom, ExternalCodeLocation(call_string),
                                                  tags={ParameterTag(function=func_addr)})
                             reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
                             self.register_definitions.store(reg_offset, reg)
@@ -268,7 +287,7 @@ class ReachingDefinitionsState:
                         # initialize stack parameters
                         elif isinstance(arg, SimStackArg):
                             ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
-                            ml_def = Definition(ml_atom, ExternalCodeLocation(),
+                            ml_def = Definition(ml_atom, ExternalCodeLocation(call_string),
                                                 tags={ParameterTag(function=func_addr)})
                             ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
                             stack_address = self.get_stack_address(self.stack_address(arg.stack_offset))
@@ -283,13 +302,13 @@ class ReachingDefinitionsState:
                 raise TypeError("rtoc_value must be provided on PPC64.")
             offset, size = self.arch.registers['rtoc']
             rtoc_atom = Register(offset, size)
-            rtoc_def = Definition(rtoc_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            rtoc_def = Definition(rtoc_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
             rtoc = self.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
             self.register_definitions.store(offset, rtoc)
         elif self.arch.name.startswith('MIPS64'):
             offset, size = self.arch.registers['t9']
             t9_atom = Register(offset, size)
-            t9_def = Definition(t9_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            t9_def = Definition(t9_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(offset, t9)
 
