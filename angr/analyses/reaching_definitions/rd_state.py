@@ -253,7 +253,6 @@ class ReachingDefinitionsState:
             l.warning("Subject with unknown content-type")
             return None
 
-
     def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int]=None):
         # initialize stack pointer
         call_string = self._generate_call_string(func_addr)
@@ -267,7 +266,7 @@ class ReachingDefinitionsState:
                 l.warning("func_addr must not be None to initialize a function in mips")
             t9_offset = self.arch.registers['t9'][0]
             t9_atom = Register(t9_offset, self.arch.bytes)
-            t9_def = Definition(t9_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            t9_def = Definition(t9_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(t9_offset, t9)
         if cc is not None:

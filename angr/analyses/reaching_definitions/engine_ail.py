@@ -435,7 +435,7 @@ class SimEngineRDAIL(
             # the value does not exist
             top = self.state.top(size * self.state.arch.byte_width)
             # annotate it
-            top = self.state.annotate_with_def(top, Definition(reg_atom, ExternalCodeLocation()))
+            top = self.state.annotate_with_def(top, Definition(reg_atom, self._external_codeloc()))
             value = MultiValues(top)
             # write it back
             self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), value)
@@ -477,7 +477,7 @@ class SimEngineRDAIL(
             top = self.state.top(bits)
             # annotate it
             dummy_atom = MemoryLocation(0, size, endness=expr.endness)
-            def_ = Definition(dummy_atom, ExternalCodeLocation())
+            def_ = Definition(dummy_atom, self._external_codeloc())
             top = self.state.annotate_with_def(top, def_)
             # add use
             self.state.add_memory_use_by_def(def_, self._codeloc(), expr=expr)
@@ -531,7 +531,7 @@ class SimEngineRDAIL(
             top = self.state.top(expr.to_bits)
             # annotate it
             dummy_atom = MemoryLocation(0, size, endness=self.arch.memory_endness)
-            def_ = Definition(dummy_atom, ExternalCodeLocation())
+            def_ = Definition(dummy_atom, self._external_codeloc())
             top = self.state.annotate_with_def(top, def_)
             # add use
             self.state.add_memory_use_by_def(def_, self._codeloc(), expr=expr)

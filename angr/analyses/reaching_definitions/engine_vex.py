@@ -100,7 +100,6 @@ class SimEngineRDVEX(
         else:
             return None
 
-
     def _external_codeloc(self):
         return ExternalCodeLocation(self._generate_call_string())
 
@@ -333,7 +332,7 @@ class SimEngineRDVEX(
         except SimMemoryMissingError:
             top = self.state.top(size * self.arch.byte_width)
             # annotate it
-            top = self.state.annotate_with_def(top, Definition(reg_atom, ExternalCodeLocation()))
+            top = self.state.annotate_with_def(top, Definition(reg_atom, self._external_codeloc()))
             values = MultiValues(top)
             # write it to registers
             self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
@@ -373,7 +372,7 @@ class SimEngineRDVEX(
         top = self.state.top(bits)
         # annotate it
         dummy_atom = MemoryLocation(0, size)
-        def_ = Definition(dummy_atom, ExternalCodeLocation())
+        def_ = Definition(dummy_atom, self._external_codeloc())
         top = self.state.annotate_with_def(top, def_)
         # add use
         self.state.add_memory_use_by_def(def_, self._codeloc())
@@ -428,7 +427,7 @@ class SimEngineRDVEX(
                         val = self.project.loader.memory.unpack_word(addr_v, size=size)
                         section = self.project.loader.find_section_containing(addr_v)
                         missing_atom = MemoryLocation(addr_v, size)
-                        missing_def = Definition(missing_atom, ExternalCodeLocation())
+                        missing_def = Definition(missing_atom, self._external_codeloc())
                         if val == 0 and (not section or section.is_writable):
                             top = self.state.top(size*self.arch.byte_width)
                             v = self.state.annotate_with_def(top, missing_def)
