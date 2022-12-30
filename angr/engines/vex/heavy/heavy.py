@@ -220,7 +220,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         self.state.scratch.ins_addr = ins_addr
 
         # Raise an exception if we're suddenly in self-modifying code
-        if self.project.selfmodifying_code and self.state.scratch.dirty_addrs:
+        if (self.project is None or self.project.selfmodifying_code) and self.state.scratch.dirty_addrs:
             for subaddr in range(stmt.len):
                 if subaddr + stmt.addr in self.state.scratch.dirty_addrs:
                     raise errors.SimReliftException(self.state)

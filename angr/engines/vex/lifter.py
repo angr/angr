@@ -390,7 +390,8 @@ class VEXLifter(SimEngineBase):
         s, ostate = state
         self._use_cache = s['_use_cache']
         self._default_opt_level = s['_default_opt_level']
-        self.selfmodifying_code = s['selfmodifying_code']
+        self.selfmodifying_code = s['selfmodifying_code'] \
+            if 'selfmodifying_code' in s else s['_support_selfmodifying_code']
         self._single_step = s['_single_step']
         self._cache_size = s['_cache_size']
         self.default_strict_block_end = s['default_strict_block_end']
