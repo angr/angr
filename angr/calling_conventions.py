@@ -1,5 +1,6 @@
+# pylint:disable=line-too-long,missing-class-docstring
 import logging
-from typing import Union, Optional, List, Dict, Type
+from typing import Optional, List, Dict, Type
 from collections import defaultdict
 
 import claripy
@@ -897,46 +898,37 @@ class SimCC:
             return alloc(real_value, state)
 
         elif isinstance(arg, (str, bytes)):
+            # sanitize the argument and request standardization again with SimTypeArray
             if type(arg) is str:
                 arg = arg.encode()
             arg += b'\0'
             if isinstance(ty, SimTypePointer) and \
                     isinstance(ty.pts_to, SimTypeChar):
-                ref = True
+                pass
             elif isinstance(ty, SimTypeFixedSizeArray) and \
                     isinstance(ty.elem_type, SimTypeChar):
-                ref = False
                 if len(arg) > ty.length:
                     raise TypeError(f"String {repr(arg)} is too long for {ty}")
                 arg = arg.ljust(ty.length, b'\0')
             elif isinstance(ty, SimTypeArray) and \
                     isinstance(ty.elem_type, SimTypeChar):
-                ref = True
                 if ty.length is not None:
                     if len(arg) > ty.length:
                         raise TypeError(f"String {repr(arg)} is too long for {ty}")
                     arg = arg.ljust(ty.length, b'\0')
             elif isinstance(ty, SimTypeString):
-                ref = False
                 if len(arg) > ty.length + 1:
                     raise TypeError(f"String {repr(arg)} is too long for {ty}")
                 arg = arg.ljust(ty.length + 1, b'\0')
             else:
                 raise TypeError("Type mismatch: Expected %s, got char*" % ty)
-            val = SimCC._standardize_value(list(arg), SimTypeFixedSizeArray(SimTypeChar(), len(arg)), state, alloc)
-            if ref:
-                val = alloc(val, state)
+            val = SimCC._standardize_value(list(arg), SimTypeArray(SimTypeChar(), len(arg)), state, alloc)
             return val
 
         elif isinstance(arg, list):
             if isinstance(ty, (SimTypePointer, SimTypeReference)):
                 ref = True
                 subty = ty.pts_to
-            elif isinstance(ty, SimTypeFixedSizeArray):
-                ref = False
-                subty = ty.elem_type
-                if len(arg) != ty.length:
-                    raise TypeError(f"Array {repr(arg)} is the wrong length for {ty}")
             elif isinstance(ty, SimTypeArray):
                 ref = True
                 subty = ty.elem_type
@@ -948,7 +940,7 @@ class SimCC:
 
             val = [SimCC._standardize_value(sarg, subty, state, alloc) for sarg in arg]
             if ref:
-                val = alloc(claripy.Concat(*val), state)
+                val = alloc(val, state)
             return val
 
         elif isinstance(arg, (tuple, dict, SimStructValue)):
