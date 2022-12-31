@@ -1586,6 +1586,20 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("if (v0 == 0)") == 3 or d.codegen.text.count("if (v0 != 0)") == 3
         assert d.codegen.text.count("break;") == 1
 
+    @structuring_algo("phoenix")
+    def test_decompiling_setb(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "basenc")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["c_isupper"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert f.prototype.returnty is not None and f.prototype.returnty.size == 8
+        assert "a0 - 65 < 26;" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -431,8 +431,32 @@ class SimEngineRDAIL(
         # first check if it is ever defined
         try:
             value: MultiValues = self.state.register_definitions.load(reg_offset, size=size)
-        except SimMemoryMissingError:
-            # the value does not exist
+        except SimMemoryMissingError as ex:
+            # the full value does not exist, but we handle partial existence, too
+            missing_defs = None
+            if ex.missing_size != size:
+                existing_values = [ ]
+                i = 0
+                while i < size:
+                    try:
+                        value: MultiValues = self.state.register_definitions.load(reg_offset + i, size=1)
+                    except SimMemoryMissingError as ex_:
+                        i += ex_.missing_size
+                        continue
+                    i += 1
+                    existing_values.append(value)
+                # extract existing definitions
+                for existing_value in existing_values:
+                    for vs in existing_value.values():
+                        for v in vs:
+                            if missing_defs is None:
+                                missing_defs = self.state.extract_defs(v)
+                            else:
+                                missing_defs = chain(missing_defs, self.state.extract_defs(v))
+
+            if missing_defs is not None:
+                self.state.add_register_use_by_defs(missing_defs, self._codeloc(), expr=expr)
+
             top = self.state.top(size * self.state.arch.byte_width)
             # annotate it
             top = self.state.annotate_with_def(top, Definition(reg_atom, self._external_codeloc()))

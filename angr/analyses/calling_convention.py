@@ -270,7 +270,7 @@ class CallingConventionAnalysis(Analysis):
             # reorder args
             args = self._reorder_args(input_args, cc)
             # guess the type of the return value -- it's going to be a wild guess...
-            ret_type = self._guess_retval_type(cc)
+            ret_type = self._guess_retval_type(cc, vm.ret_val_size)
             prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type)
 
         return cc, prototype
@@ -678,7 +678,7 @@ class CallingConventionAnalysis(Analysis):
             # Unsupported for now
             return SimTypeBottom()
 
-    def _guess_retval_type(self, cc: SimCC) -> SimType:
+    def _guess_retval_type(self, cc: SimCC, ret_val_size: Optional[int]) -> SimType:
         if cc.FP_RETURN_VAL:
             # examine the last block of the function and see which registers are assigned to
             if self._function.ret_sites:
@@ -693,7 +693,18 @@ class CallingConventionAnalysis(Analysis):
                                     # possibly float
                                     return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
 
-        return SimTypeInt()
+        if ret_val_size is not None:
+            if ret_val_size == 1:
+                return SimTypeChar()
+            elif ret_val_size == 2:
+                return SimTypeShort()
+            elif 3 <= ret_val_size <= 4:
+                return SimTypeInt()
+            elif 5 <= ret_val_size <= 8:
+                return SimTypeLongLong()
+
+        # fallback
+        return SimTypeInt() if cc.arch.bits == 32 else SimTypeLongLong()
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")

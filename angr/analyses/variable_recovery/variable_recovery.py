@@ -24,7 +24,8 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     :ivar angr.knowledge.variable_manager.VariableManager variable_manager: The variable manager.
     """
 
-    def __init__(self, block_addr, analysis, arch, func, concrete_states, stack_region=None, register_region=None):
+    def __init__(self, block_addr, analysis, arch, func, concrete_states, stack_region=None, register_region=None,
+                 ret_val_size=None):
 
         super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region)
 
