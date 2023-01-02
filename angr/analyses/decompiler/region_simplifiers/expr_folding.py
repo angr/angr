@@ -400,6 +400,8 @@ class ExpressionFolder(SequenceWalker):
 class StoreStatementFinder(SequenceWalker):
     """
     Determine if there are any Store statements between two given statements.
+
+    This class overrides _handle_Sequence() and _handle_MultiNode() to ensure they traverse nodes from top to bottom.
     """
     def __init__(self, node, intervals: Iterable[Tuple[StatementLocation,LocationBase]]):
         handlers = {
@@ -422,6 +424,20 @@ class StoreStatementFinder(SequenceWalker):
 
         super().__init__(handlers)
         self.walk(node)
+
+    def _handle_Sequence(self, node, **kwargs):
+        i = 0
+        while i < len(node.nodes):
+            node_ = node.nodes[i]
+            self._handle(node_, parent=node, index=i)
+            i += 1
+
+    def _handle_MultiNode(self, node, **kwargs):
+        i = 0
+        while i < len(node.nodes):
+            node_ = node.nodes[i]
+            self._handle(node_, parent=node, index=i)
+            i += 1
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         stmt_loc = StatementLocation(node.addr, node.idx, None)
