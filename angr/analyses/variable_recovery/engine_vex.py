@@ -211,7 +211,7 @@ class SimEngineVRVEX(
         if r0.typevar is not None and r1.data.concrete:
             typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data._model_concrete.value))
 
-        sum_ = r0.data + r1.data
+        sum_ = self.state.top(result_size)
         return RichR(sum_,
                      typevar=typevar,
                      type_constraints={ typevars.Subtype(r0.typevar, r1.typevar) },
@@ -233,7 +233,7 @@ class SimEngineVRVEX(
         if r0.typevar is not None and r1.data.concrete:
             typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data._model_concrete.value))
 
-        diff = r0.data - r1.data
+        diff = self.state.top(result_size)
         return RichR(diff,
                      typevar=typevar,
                      )
