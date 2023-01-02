@@ -335,8 +335,9 @@ class StructurerBase(Analysis):
         walker = SequenceWalker(handlers=handlers)
         walker.walk(loop_node)
 
-    @staticmethod
-    def _rewrite_jumps_to_continues(loop_seq):
+    def _rewrite_jumps_to_continues(self, loop_seq):
+
+        last_stmts = self.cond_proc.get_last_statements(loop_seq)
 
         def _rewrite_jump_to_continue(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
             if not node.statements:
@@ -346,11 +347,28 @@ class StructurerBase(Analysis):
                 targets = extract_jump_targets(stmt)
                 if any(target == loop_seq.addr for target in targets):
                     # This node has an exit to the beginning of the loop
+                    # but, we do not add continue statement at the very end of a loop
+                    if not stmt in last_stmts:
+                        # create a continue node
+                        continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
+                        # insert this node to the parent
+                        insert_node(parent, "after", continue_node, index, label=label)  # insert after
+                    # remove this statement
+                    node.statements = node.statements[:-1]
+            elif isinstance(stmt, ailment.Stmt.ConditionalJump):
+                cond = None
+                if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == loop_seq.addr:
+                    cond = self.cond_proc.claripy_ast_from_ail_condition(stmt.condition)
+                elif isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value == loop_seq.addr:
+                    cond = claripy.Not(self.cond_proc.claripy_ast_from_ail_condition(stmt.condition))
+                if cond is not None:
                     # create a continue node
                     continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
+                    # create a condition node
+                    cond_node = ConditionNode(stmt.ins_addr, None, cond, continue_node)
                     # insert this node to the parent
-                    insert_node(parent, "after", continue_node, index, label=label)  # insert after
-                    # remove this statement
+                    insert_node(parent, "after", cond_node, index, label=label)
+                    # remove the current conditional jump statement
                     node.statements = node.statements[:-1]
 
         def _dummy(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
@@ -502,7 +520,7 @@ class StructurerBase(Analysis):
                         # amazing!
                         merged_cond = ConditionProcessor.simplify_condition(
                             claripy.And(self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
-                                        cond_node_inner.condition))
+                                        self.cond_proc.claripy_ast_from_ail_condition(cond_node_inner.condition)))
                         new_node = ConditionNode(cond_node.addr,
                                                  None,
                                                  merged_cond,
@@ -519,7 +537,7 @@ class StructurerBase(Analysis):
                         # amazing!
                         merged_cond = ConditionProcessor.simplify_condition(
                             claripy.And(self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
-                                        condbreak_node.condition))
+                                        self.cond_proc.claripy_ast_from_ail_condition(condbreak_node.condition)))
                         new_node = ConditionalBreakNode(condbreak_node.addr, merged_cond, condbreak_node.target)
                         seq_node.nodes[i] = new_node
                         walker.merged = True

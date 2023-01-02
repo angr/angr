@@ -1,4 +1,4 @@
-# pylint: disable=missing-class-docstring,no-self-use,
+# pylint: disable=missing-class-docstring,no-self-use,line-too-long
 import logging
 import os
 import re
@@ -1599,6 +1599,22 @@ class TestDecompiler(unittest.TestCase):
 
         assert f.prototype.returnty is not None and f.prototype.returnty.size == 8
         assert "a0 - 65 < 26;" in d.codegen.text
+
+    @for_all_structuring_algos
+    def test_decompiling_tac_base_len(self, decompiler_options=None):
+        # source: https://github.com/coreutils/gnulib/blob/08ba9aaebff69a02cbb794c6213314fd09dd5ec5/lib/basename-lgpl.c#L52
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tac")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["base_len"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        spaceless_text = d.codegen.text.replace(" ", "").replace("\n", "")
+        assert "==47" in spaceless_text or "!= 47" in spaceless_text
+        assert "=47){continue;}" in spaceless_text
 
 
 if __name__ == "__main__":
