@@ -1620,7 +1620,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                       current_function_addr
                                       )
 
-        for block_id in pending_exits_to_remove:
+        for block_id in set(pending_exits_to_remove):
             l.debug('Removing all pending exits to %#x since the target function %#x does not return',
                     self._block_id_addr(block_id),
                     next(iter(self._pending_jobs[block_id])).returning_source,
