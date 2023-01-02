@@ -134,8 +134,8 @@ class PhoenixStructurer(StructurerBase):
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node,
                                                           [ succ.addr for succ in self._region.successors ])
-                # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
-                self._rewrite_jumps_to_continues(loop_node.sequence_node)
+            # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
+            self._rewrite_jumps_to_continues(loop_node.sequence_node)
             return True
 
         matched, loop_node = self._match_cyclic_dowhile(node, head, graph, full_graph)
@@ -144,11 +144,18 @@ class PhoenixStructurer(StructurerBase):
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node,
                                                           [ succ.addr for succ in self._region.successors ])
-                # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
-                self._rewrite_jumps_to_continues(loop_node.sequence_node)
+            # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
+            self._rewrite_jumps_to_continues(loop_node.sequence_node)
             return True
 
-        matched = self._match_cyclic_natural_loop(node, head, graph, full_graph)
+        matched, loop_node = self._match_cyclic_natural_loop(node, head, graph, full_graph)
+        if matched:
+            if len(self._region.successors) == 1:
+                # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
+                self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node,
+                                                          [ succ.addr for succ in self._region.successors ])
+            # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
+            self._rewrite_jumps_to_continues(loop_node.sequence_node)
         return matched
 
     def _match_cyclic_while(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode]]:
@@ -308,10 +315,10 @@ class PhoenixStructurer(StructurerBase):
                     return True, loop_node
         return False, None
 
-    def _match_cyclic_natural_loop(self, node, head, graph, full_graph) -> bool:
+    def _match_cyclic_natural_loop(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode]]:
 
         if not (node is head or graph.in_degree[node] == 2):
-            return False
+            return False, None
 
         # check if there is a cycle that starts with head and ends with head
         next_node = node
@@ -320,13 +327,13 @@ class PhoenixStructurer(StructurerBase):
         while True:
             succs = list(full_graph.successors(next_node))
             if len(succs) != 1:
-                return False
+                return False, None
             next_node = succs[0]
 
             if next_node is node:
                 break
             if next_node is not node and next_node in seen_nodes:
-                return False
+                return False, None
 
             seen_nodes.add(next_node)
             seq_node.nodes.append(next_node)
@@ -345,7 +352,7 @@ class PhoenixStructurer(StructurerBase):
                 full_graph.remove_node(node_)
         self.replace_nodes(full_graph, node, loop_node, self_loop=False)
 
-        return True
+        return True, loop_node
 
     def _refine_cyclic(self) -> bool:
         return self._refine_cyclic_core(self._region.head)

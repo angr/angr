@@ -352,6 +352,21 @@ class StructurerBase(Analysis):
                     insert_node(parent, "after", continue_node, index, label=label)  # insert after
                     # remove this statement
                     node.statements = node.statements[:-1]
+            elif isinstance(stmt, ailment.Stmt.ConditionalJump):
+                cond = None
+                if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == loop_seq.addr:
+                    cond = stmt.condition
+                elif isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value == loop_seq.addr:
+                    cond = ailment.Expr.UnaryOp(None, 'Not', stmt.condition)
+                if cond is not None:
+                    # create a continue node
+                    continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
+                    # create a condition node
+                    cond_node = ConditionNode(stmt.ins_addr, None, cond, continue_node)
+                    # insert this node to the parent
+                    insert_node(parent, "after", cond_node, index, label=label)
+                    # remove the current conditional jump statement
+                    node.statements = node.statements[:-1]
 
         def _dummy(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
             return

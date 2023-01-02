@@ -4,7 +4,7 @@ import ailment
 
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import MultiNode, SequenceNode, CodeNode, ConditionNode, SwitchCaseNode,\
-    ConditionalBreakNode, BreakNode, LoopNode, CascadingConditionNode
+    ConditionalBreakNode, BreakNode, LoopNode, CascadingConditionNode, ContinueNode
 from .condition_processor import ConditionProcessor
 
 
@@ -32,6 +32,7 @@ class EmptyNodeRemover:
             CascadingConditionNode: self._handle_CascadingCondition,
             SwitchCaseNode: self._handle_SwitchCase,
             LoopNode: self._handle_Loop,
+            ContinueNode: self._handle_Continue,
 
             MultiNode: self._handle_MultiNode,
             BreakNode: self._handle_Default,
@@ -160,6 +161,9 @@ class EmptyNodeRemover:
         result = node.copy()
         result.sequence_node = new_seq
         return result
+
+    def _handle_Continue(self, node: ContinueNode, **kwargs):
+        return node
 
     def _handle_SwitchCase(self, node, **kwargs):
 
