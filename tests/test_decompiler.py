@@ -1,4 +1,4 @@
-# pylint: disable=missing-class-docstring,no-self-use,
+# pylint: disable=missing-class-docstring,no-self-use,line-too-long
 import logging
 import os
 import re
