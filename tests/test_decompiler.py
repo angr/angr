@@ -1449,7 +1449,7 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(proj.kb.functions["print_long_format"], options=decompiler_options)
         self._print_decompilation_result(dec)
 
-        assert "if (timespec_cmp(" in dec.codegen.text
+        assert "if (timespec_cmp(" in dec.codegen.text or "if ((int)timespec_cmp(" in dec.codegen.text
         assert "&& localtime_rz(localtz, " in dec.codegen.text
 
     @structuring_algo("phoenix")
