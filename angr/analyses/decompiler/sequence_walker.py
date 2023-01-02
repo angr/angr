@@ -54,10 +54,14 @@ class SequenceWalker:
         return CodeNode(new_inner_node, node.reaching_condition)
 
     def _handle_Sequence(self, node, **kwargs):
-        i = 0
         nodes_copy = list(node.nodes)
         changed = False
-        while i < len(nodes_copy):
+
+        # we iterate backwards because users of this function may invoke insert_node() directly to insert nodes to the
+        # parent node, either before the current node or after the current node. iterating backwards allows us to
+        # ensure `i` always points to the right index in node.nodes, even after custom insertions.
+        i = len(nodes_copy) - 1
+        while i > -1:
             node_ = nodes_copy[i]
             new_node = self._handle(node_, parent=node, index=i)
             if new_node is not None:
@@ -66,7 +70,7 @@ class SequenceWalker:
                     node.nodes[i] = new_node
                 else:
                     nodes_copy[i] = new_node
-            i += 1
+            i -= 1
 
         if not changed:
             return None
@@ -75,16 +79,17 @@ class SequenceWalker:
         return SequenceNode(node.addr, nodes=nodes_copy)
 
     def _handle_MultiNode(self, node, **kwargs):
-        i = 0
         changed = False
         nodes_copy = list(node.nodes)
-        while i < len(nodes_copy):
+
+        i = len(nodes_copy) - 1
+        while i > -1:
             node_ = nodes_copy[i]
             new_node = self._handle(node_, parent=node, index=i)
             if new_node is not None:
                 changed = True
                 node.nodes[i] = new_node
-            i += 1
+            i -= 1
         return None if not changed else node
 
     def _handle_SwitchCase(self, node, **kwargs):
