@@ -88,6 +88,8 @@ class VariableManagerInternal(Serializable):
         self.variable_to_types: Dict[SimVariable,SimType] = { }
         self.variables_with_manual_types = set()
 
+        self.ret_val_size = None
+
     #
     # Serialization
     #

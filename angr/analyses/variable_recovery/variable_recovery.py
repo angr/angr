@@ -33,7 +33,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         self.register_callbacks(self.concrete_states)
 
     def __repr__(self):
-        return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self.register_region), len(self.stack_region))
+        return "<VRAbstractState>"
 
     @property
     def concrete_states(self):
@@ -370,7 +370,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                     # either nothing is annotated, or more than one element is annotated
                     raise ValueError()
 
-                return True, sum([ offset for _, offset in parsed ])
+                return True, sum(off for _, off in parsed)
             elif addr.op == '__sub__':
                 # __sub__ might have multiple arguments
 
@@ -383,7 +383,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                     # more than one argument is annotated. we don't support it.
                     raise ValueError()
 
-                return True, first_offset - sum([ offset for _, offset in parsed[1:] ])
+                return True, first_offset - sum(off for _, off in parsed[1:])
             else:
                 anno = next(iter(anno for anno in addr.annotations if isinstance(anno, StackLocationAnnotation)), None)
                 if anno is None:
@@ -393,8 +393,10 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 return True, anno.offset
 
         # find the annotated AST
-        try: annotated, offset = _parse(addr)
-        except ValueError: return None
+        try:
+            annotated, offset = _parse(addr)
+        except ValueError:
+            return None
 
         if not annotated:
             return None

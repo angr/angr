@@ -34,12 +34,13 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
     """
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
                  typevars=None, type_constraints=None, delayed_type_constraints=None, stack_offset_typevars=None,
-                 project=None):
+                 project=None, ret_val_size=None):
 
         super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region,
                          global_region=global_region, typevars=typevars, type_constraints=type_constraints,
                          delayed_type_constraints=delayed_type_constraints, stack_offset_typevars=stack_offset_typevars,
                          project=project)
+        self.ret_val_size = ret_val_size
 
     def __repr__(self):
         return "<VRAbstractState@%#x: %d register variables, %d stack variables>" % (
@@ -65,6 +66,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             delayed_type_constraints=self.delayed_type_constraints.copy(),
             stack_offset_typevars=dict(self.stack_offset_typevars),
             project=self.project,
+            ret_val_size=self.ret_val_size,
         )
 
         return state
@@ -148,6 +150,13 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
                     merged_typeconstraints.add(Equivalence(orig_typevar, typevar))
             stack_offset_typevars[offset] = typevar
 
+        ret_val_size = self.ret_val_size
+        for o in others:
+            if o.ret_val_size is not None:
+                if ret_val_size is None or o.ret_val_size > ret_val_size:
+                    ret_val_size = o.ret_val_size
+                    merge_occurred = True
+
         # clean up
         self.phi_variables = {}
         self.successor_block_addr = None
@@ -165,6 +174,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             delayed_type_constraints=delayed_typeconstraints,
             stack_offset_typevars=stack_offset_typevars,
             project=self.project,
+            ret_val_size=ret_val_size,
         )
 
         return state, merge_occurred
@@ -240,6 +250,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._node_to_cc = { }
         self.var_to_typevars = defaultdict(set)
         self.type_constraints = None
+        self.ret_val_size = None
 
         self._analyze()
 
@@ -374,6 +385,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         for var, typevar in state.typevars._typevars.items():
             self.var_to_typevars[var].add(typevar)
 
+        if state.ret_val_size is not None:
+            if self.ret_val_size is None or self.ret_val_size < state.ret_val_size:
+                self.ret_val_size = state.ret_val_size
+
         state.downsize()
         self._outstates[node.addr] = state
 
@@ -400,6 +415,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                 sorted_typevars = list(sorted(typevars, key=lambda x: str(x)))  # pylint:disable=unnecessary-lambda
                 for tv in sorted_typevars[1:]:
                     self.type_constraints.add(Equivalence(sorted_typevars[0], tv))
+
+        self.variable_manager[self.function.addr].ret_val_size = self.ret_val_size
 
     #
     # Private methods

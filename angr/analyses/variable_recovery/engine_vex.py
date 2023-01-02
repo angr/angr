@@ -6,13 +6,13 @@ import pyvex
 from archinfo.arch_arm import is_arm_arch
 
 from ...errors import SimMemoryMissingError
-from ...calling_conventions import SimRegArg, SimStackArg
+from ...calling_conventions import SimRegArg, SimStackArg, DefaultCC
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.light import SimEngineLightVEXMixin
-from ..typehoon import typevars, typeconsts
-from .engine_base import SimEngineVRBase, RichR
 from ...knowledge_plugins import Function
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from ..typehoon import typevars, typeconsts
+from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:
     from .variable_recovery_base import VariableRecoveryStateBase
@@ -166,9 +166,30 @@ class SimEngineVRVEX(
                             self._load(addr, loc.size)
 
     def _process_block_end(self):
+
+        # handles block-end calls
         current_addr = self.state.block_addr
         for target_func in self.call_info.get(current_addr, []):
             self._handle_function_concrete(target_func)
+
+        # handles return statements
+        if self.block.vex.jumpkind == "Ijk_Ret":
+            # determine the size of the return register
+            # TODO: Handle multiple return registers
+            cc = self.state.function.calling_convention
+            if cc is None:
+                cc = DefaultCC[self.arch.name](self.arch)
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                ret_val_size = 0
+                reg_offset = cc.RETURN_VAL.check_offset(self.arch)
+                for i in range(cc.RETURN_VAL.size):
+                    try:
+                        _ = self.state.register_region.load(reg_offset + i, 1)
+                        ret_val_size = i + 1
+                    except SimMemoryMissingError:
+                        break
+                self.state.ret_val_size = ret_val_size \
+                    if self.state.ret_val_size is None else max(self.state.ret_val_size, ret_val_size)
 
     def _handle_Const(self, expr):
         return RichR(claripy_value(expr.con.type, expr.con.value, size=expr.con.size),

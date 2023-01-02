@@ -756,8 +756,8 @@ class Clinic(Analysis):
                         self._next_atom(),
                         None,
                         reg[0],
-                        reg[1] * self.project.arch.byte_width,
-                        reg_name=self.project.arch.translate_register_name(reg[0], reg[1])
+                        ret_val.size * self.project.arch.byte_width,
+                        reg_name=self.project.arch.translate_register_name(reg[0], ret_val.size)
                     ))
                 else:
                     l.warning("Unsupported type of return expression %s.", type(ret_val))
@@ -813,8 +813,10 @@ class Clinic(Analysis):
 
             func_args.append(func_arg)
 
-        # TODO: need a new method of determining whether a function returns void
-        returnty = SimTypeInt()
+        if self.function.prototype is not None:
+            returnty = self.function.prototype.returnty
+        else:
+            returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.is_prototype_guessed = False
