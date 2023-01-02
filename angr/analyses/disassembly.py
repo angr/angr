@@ -322,6 +322,7 @@ class Instruction(DisassemblyPiece):
         i = len(insn_pieces) - 1
         cs_op_num = -1
         nested_mem = False
+        arm_shift_ops = ['lsl', 'lsr', 'asr', 'ror', 'rrx']
 
         # iterate over operands in reverse order
         while i >= 0:
@@ -360,6 +361,7 @@ class Instruction(DisassemblyPiece):
                         prefix = insn_pieces[i-1]
                         insn_pieces[i-1] = ''
                     cur_operand.append(Register(c, prefix))
+
                 elif intc is not None:
                     with_sign = False
                     if i > 0 and insn_pieces[i-1] in ('+', '-'):
@@ -368,10 +370,11 @@ class Instruction(DisassemblyPiece):
                             intc = -intc  # pylint: disable=invalid-unary-operand-type
                         insn_pieces[i-1] = ''
                     cur_operand.append(Value(intc, with_sign))
+
                 else:
                     cur_operand.append(c)
 
-            elif c == ',' and not nested_mem:
+            elif c == ',' and not nested_mem and insn_pieces[i+1] not in arm_shift_ops:
                 cs_op_num -= 1
                 cur_operand = None
 
@@ -390,12 +393,19 @@ class Instruction(DisassemblyPiece):
                 if cur_operand is None:
                     cur_operand = [c]
                     self.operands.append(cur_operand)
+
                 else:
                     cur_operand.append(c if c[0] != ',' else c + ' ')
 
             i -= 1
 
         self.opcode = Opcode(self)
+
+        # This is a hack to fix a capstone bug.
+        if 'ARM' in self.project.arch.name and self.insn.mnemonic[:3] in arm_shift_ops:
+            shift = [', '] + self.operands.pop(-1)
+            self.operands[-1].extend(shift)
+
         self.operands.reverse()
 
         if not hasattr(self.insn, 'operands'):
