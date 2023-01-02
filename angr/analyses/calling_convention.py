@@ -271,6 +271,9 @@ class CallingConventionAnalysis(Analysis):
             args = self._reorder_args(input_args, cc)
             # guess the type of the return value -- it's going to be a wild guess...
             ret_type = self._guess_retval_type(cc, vm.ret_val_size)
+            if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
+                # hack - main must return an int even in 64-bit binaries
+                ret_type = SimTypeInt()
             prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type)
 
         return cc, prototype
