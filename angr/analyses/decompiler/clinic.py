@@ -813,7 +813,8 @@ class Clinic(Analysis):
 
             func_args.append(func_arg)
 
-        if self.function.prototype is not None:
+        if self.function.prototype is not None \
+                and self.function.prototype.returnty is not None:
             returnty = self.function.prototype.returnty
         else:
             returnty = SimTypeInt()
