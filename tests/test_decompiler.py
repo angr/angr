@@ -1616,6 +1616,69 @@ class TestDecompiler(unittest.TestCase):
         assert "==47" in spaceless_text or "!= 47" in spaceless_text
         assert "=47){continue;}" in spaceless_text
 
+    @structuring_algo("dream")
+    def test_decompiling_dd_argmatch_to_argument_noeagerreturns(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64",
+            "linux",
+        )
+        all_optimization_passes = [
+            p for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+
+        f = proj.kb.functions["argmatch_to_argument"]
+        d = proj.analyses[Decompiler].prep()(
+            f,
+            cfg=cfg.model,
+            options=decompiler_options,
+            optimization_passes=all_optimization_passes,
+        )
+        self._print_decompilation_result(d)
+
+        # break should always be followed by a curly brace, not another statement
+        t = d.codegen.text.replace(" ", "").replace("\n", "")
+        assert "break;}" in t
+        t = t.replace("break;}", "")
+        assert "break;" not in t
+
+        # continue should always be followed by a curly brace, not another statement
+        assert "continue;}" in t
+        t = t.replace("continue;}", "")
+        assert "continue;" not in t
+
+    @for_all_structuring_algos
+    def test_decompiling_dd_argmatch_to_argument_eagerreturns(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["argmatch_to_argument"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # return should always be followed by a curly brace, not another statement
+        t = d.codegen.text.replace(" ", "").replace("\n", "")
+        return_stmt_ctr = 0
+        for m in re.finditer(r"return[^;]+;", t):
+            return_stmt_ctr += 1
+            assert t[m.start() + len(m.group(0))] == "}"
+
+        if return_stmt_ctr == 0:
+            assert False, "Cannot find any return statements."
+
+        # continue should always be followed by a curly brace, not another statement
+        if "continue;}" in t:
+            t = t.replace("continue;}", "")
+            assert "continue;" not in t
+
 
 if __name__ == "__main__":
     unittest.main()
