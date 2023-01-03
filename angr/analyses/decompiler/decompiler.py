@@ -156,13 +156,23 @@ class Decompiler(Analysis):
         if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
             self._force_loop_single_exit = False
 
+        clinic.graph = self._run_graph_simplification_passes(
+            clinic.graph,
+            clinic.reaching_definitions,
+            ite_exprs=ite_exprs,
+        )
+
         # recover regions
         ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self.func, graph=clinic.graph, cond_proc=cond_proc, force_loop_single_exit=self._force_loop_single_exit,
             **self.options_to_params(self.options_by_class['region_identifier']))
         # run optimizations that may require re-RegionIdentification
-        self.clinic.graph, ri = self._run_region_simplification_passes(clinic.graph, ri, clinic.reaching_definitions,
-                                                                       ite_exprs=ite_exprs)
+        clinic.graph, ri = self._run_region_simplification_passes(
+            clinic.graph,
+            ri,
+            clinic.reaching_definitions,
+            ite_exprs=ite_exprs,
+        )
         self._update_progress(75., text='Structuring code')
 
         # structure it
@@ -197,6 +207,43 @@ class Decompiler(Analysis):
         self.codegen = codegen
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
+
+    @timethis
+    def _run_graph_simplification_passes(self, ail_graph, reaching_definitions, **kwargs):
+        """
+        Runs optimizations that should be executed before region identification.
+
+        :param ail_graph:   DiGraph with AIL Statements
+        :param reaching_defenitions: ReachingDefenitionAnalysis
+        :return:            The possibly new AIL DiGraph and RegionIdentifier
+        """
+        addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
+        addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
+
+        # update blocks_map to allow node_addr to node lookup
+        def _updatedict_handler(node):
+            addr_and_idx_to_blocks[(node.addr, node.idx)] = node
+            addr_to_blocks[node.addr].add(node)
+
+        AILGraphWalker(ail_graph, _updatedict_handler).walk()
+
+        # run each pass
+        for pass_ in self._optimization_passes:
+
+            # only for post region id opts
+            if pass_.STAGE != OptimizationPassStage.BEFORE_REGION_IDENTIFICATION:
+                continue
+
+            a = pass_(self.func, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
+                      graph=ail_graph, variable_kb=self._variable_kb, reaching_definitions=reaching_definitions,
+                      **kwargs)
+
+            # should be None if no changes
+            if a.out_graph:
+                # use the new graph
+                ail_graph = a.out_graph
+
+        return ail_graph
 
     @timethis
     def _run_region_simplification_passes(self, ail_graph, ri, reaching_definitions, **kwargs):

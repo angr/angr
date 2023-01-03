@@ -22,13 +22,22 @@ class MultipleBlocksException(Exception):
 class OptimizationPassStage(Enum):
     """
     Enums about optimization pass stages.
+
+    Note that the region identification pass (RegionIdentifier) may modify existing AIL blocks *without updating the
+    topology of the original AIL graph*. For example, loop successor refinement may modify create a new AIL block with
+    an artificial address, and alter existing jump targets of jump statements and conditional jump statements to point
+    to this new block. However, loop successor refinement does not update the topology of the original AIL graph, which
+    means this new AIL block does not exist in the original AIL graph. As a result, until this behavior of
+    RegionIdentifier changes in the future, DURING_REGION_IDENTIFICATION optimization passes should not modify existing
+    jump targets.
     """
     AFTER_AIL_GRAPH_CREATION = 0
     AFTER_SINGLE_BLOCK_SIMPLIFICATION = 1
     AFTER_GLOBAL_SIMPLIFICATION = 2
     AFTER_VARIABLE_RECOVERY = 3
-    DURING_REGION_IDENTIFICATION = 4
-    AFTER_STRUCTURING = 5
+    BEFORE_REGION_IDENTIFICATION = 4
+    DURING_REGION_IDENTIFICATION = 5
+    AFTER_STRUCTURING = 6
 
 
 class BaseOptimizationPass:
