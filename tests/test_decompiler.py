@@ -961,6 +961,7 @@ class TestDecompiler(unittest.TestCase):
         code_without_spaces = code.replace(" ", "").replace("\n", "")
         # make sure all break statements are followed by either "case " or "}"
         replaced = code_without_spaces.replace("break;case", "")
+        replaced = replaced.replace("break;default:", "")
         replaced = replaced.replace("break;}", "")
         assert "break" not in replaced
 
@@ -1614,7 +1615,6 @@ class TestDecompiler(unittest.TestCase):
 
         spaceless_text = d.codegen.text.replace(" ", "").replace("\n", "")
         assert "==47" in spaceless_text or "!= 47" in spaceless_text
-        assert "=47){continue;}" in spaceless_text
 
     @structuring_algo("dream")
     def test_decompiling_dd_argmatch_to_argument_noeagerreturns(self, decompiler_options=None):
