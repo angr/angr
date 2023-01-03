@@ -1248,7 +1248,9 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[right] == 1:
                 left, right = right, left
-            if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] >= 1:
+            if self._is_single_statement_block(left) \
+                    and full_graph.in_degree[left] == 1 \
+                    and full_graph.in_degree[right] >= 1:
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
@@ -1285,7 +1287,9 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 2:
                 left, right = right, left
-            if full_graph.in_degree[left] == 2 and full_graph.in_degree[right] == 1:
+            if self._is_single_statement_block(right) \
+                    and full_graph.in_degree[left] == 2 \
+                    and full_graph.in_degree[right] == 1:
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
@@ -1316,7 +1320,9 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[successor] == 1:
                 left, successor = successor, left
-            if full_graph.in_degree[left] == 1 and full_graph.in_degree[successor] >= 1:
+            if self._is_single_statement_block(left) \
+                    and full_graph.in_degree[left] == 1 \
+                    and full_graph.in_degree[successor] >= 1:
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_successor = self.cond_proc.recover_edge_condition(full_graph, start_node, successor)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_successor):
@@ -1353,7 +1359,9 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[else_node] == 1:
                 left, else_node = else_node, left
-            if full_graph.in_degree[left] == 1 and full_graph.in_degree[else_node] >= 1:
+            if self._is_single_statement_block(left) \
+                    and full_graph.in_degree[left] == 1 \
+                    and full_graph.in_degree[else_node] >= 1:
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_else = self.cond_proc.recover_edge_condition(full_graph, start_node, else_node)
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_else):
