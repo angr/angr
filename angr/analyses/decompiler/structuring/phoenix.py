@@ -277,22 +277,23 @@ class PhoenixStructurer(StructurerBase):
 
                     # possible candidate
                     _, succ_block = self._find_node_going_to_dst(succ, out_node)
-                    edge_cond_succhead = self.cond_proc.recover_edge_condition(full_graph, succ_block, node)
-                    edge_cond_succout = self.cond_proc.recover_edge_condition(full_graph, succ_block, out_node)
-                    if claripy.is_true(claripy.Not(edge_cond_succhead) == edge_cond_succout):
-                        # c = !c
-                        self._remove_last_statement_if_jump(succ)
-                        new_node = SequenceNode(node.addr, nodes=[node, succ])
-                        loop_node = LoopNode('do-while', edge_cond_succhead, new_node,
-                                             addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
-                                             )
+                    if succ_block is not None:
+                        edge_cond_succhead = self.cond_proc.recover_edge_condition(full_graph, succ_block, node)
+                        edge_cond_succout = self.cond_proc.recover_edge_condition(full_graph, succ_block, out_node)
+                        if claripy.is_true(claripy.Not(edge_cond_succhead) == edge_cond_succout):
+                            # c = !c
+                            self._remove_last_statement_if_jump(succ)
+                            new_node = SequenceNode(node.addr, nodes=[node, succ])
+                            loop_node = LoopNode('do-while', edge_cond_succhead, new_node,
+                                                 addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
+                                                 )
 
-                        # on the original graph
-                        self.replace_nodes(graph, node, loop_node, old_node_1=succ, self_loop=False)
-                        # on the graph with successors
-                        self.replace_nodes(full_graph, node, loop_node, old_node_1=succ, self_loop=False)
+                            # on the original graph
+                            self.replace_nodes(graph, node, loop_node, old_node_1=succ, self_loop=False)
+                            # on the graph with successors
+                            self.replace_nodes(full_graph, node, loop_node, old_node_1=succ, self_loop=False)
 
-                        return True, loop_node
+                            return True, loop_node
         elif ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 2 and node in succs:
             # head forms a self-loop
             succs.remove(node)
@@ -474,24 +475,25 @@ class PhoenixStructurer(StructurerBase):
                             has_continue = True
                             headgoing_edges.remove(head_going_edge)
 
-                        # create the ConditionBreak node
+                        # create the "break" node. in fact, we create a jump or a conditional jump, which will be
+                        # rewritten to break nodes after. directly creating break nodes may lead to unwanted results,
+                        # e.g., inserting a break (that's intended to break out of the loop) inside a switch-case that
+                        # is nested within a loop.
                         last_src_stmt = self.cond_proc.get_last_statement(src_block)
                         break_cond = self.cond_proc.recover_edge_condition(fullgraph, src_block, dst)
                         if claripy.is_true(break_cond):
-                            break_node = BreakNode(
-                                src_block.addr,  # FIXME: Use the instruction address of the last instruction
-                                Const(None, None, successor.addr, self.project.arch.bits))
+                            break_stmt = Jump(None, Const(None, None, successor.addr, self.project.arch.bits), None,
+                                              ins_addr=last_src_stmt.ins_addr)
+                            break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
                         else:
-                            break_node = ConditionalBreakNode(
-                                src_block.addr,  # FIXME: Use the instruction address of the last instruction
-                                break_cond,
-                                Const(None, None, successor.addr, self.project.arch.bits))
+                            break_node = Block(last_src_stmt.ins_addr, None, statements=[last_src_stmt])
                         new_node = SequenceNode(src_block.addr, nodes=[src_block, break_node])
                         if has_continue:
                             if self.is_a_jump_target(last_src_stmt, loop_head.addr):
                                 # instead of a conditional break node, we should insert a condition node instead
-                                break_node = BreakNode(last_src_stmt.ins_addr,
-                                                       Const(None, None, successor.addr, self.project.arch.bits))
+                                break_stmt = Jump(None, Const(None, None, successor.addr, self.project.arch.bits), None,
+                                                  ins_addr=last_src_stmt.ins_addr)
+                                break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
                                 cont_node = ContinueNode(last_src_stmt.ins_addr,
                                                          Const(None, None, loop_head.addr, self.project.arch.bits))
                                 cond_node = ConditionNode(
