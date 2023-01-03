@@ -470,7 +470,7 @@ class PhoenixStructurer(StructurerBase):
                         # at the same time, examine if there is an edge that goes from src to head. if so, we deal with
                         # it here as well.
                         head_going_edge = src, loop_head
-                        if head_going_edge in headgoing_edges:
+                        if head_going_edge in headgoing_edges and len(headgoing_edges) > 1:
                             has_continue = True
                             headgoing_edges.remove(head_going_edge)
 
