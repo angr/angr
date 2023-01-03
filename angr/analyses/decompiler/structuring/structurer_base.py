@@ -274,6 +274,13 @@ class StructurerBase(Analysis):
             for stmt_idx, stmt in enumerate(node.statements):
                 if not isinstance(stmt, (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump)):
                     continue
+                # skip if this is a jump that jumps directly to its successor within the same SequenceNode
+                if isinstance(stmt, ailment.Stmt.Jump) \
+                        and isinstance(parent, SequenceNode) \
+                        and index + 1 < len(parent.nodes) \
+                        and isinstance(stmt.target, ailment.Expr.Const) \
+                        and parent.nodes[index + 1].addr == stmt.target.value:
+                    continue
                 targets = extract_jump_targets(stmt)
                 if any(target in successor_addrs for target in targets):
                     # This node has an exit to the outside of the loop

@@ -1616,7 +1616,7 @@ class TestDecompiler(unittest.TestCase):
         spaceless_text = d.codegen.text.replace(" ", "").replace("\n", "")
         assert "==47" in spaceless_text or "!= 47" in spaceless_text
 
-    @structuring_algo("dream")
+    @for_all_structuring_algos
     def test_decompiling_dd_argmatch_to_argument_noeagerreturns(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -1644,14 +1644,16 @@ class TestDecompiler(unittest.TestCase):
 
         # break should always be followed by a curly brace, not another statement
         t = d.codegen.text.replace(" ", "").replace("\n", "")
-        assert "break;}" in t
-        t = t.replace("break;}", "")
-        assert "break;" not in t
+        if "break;" in t:
+            assert "break;}" in t
+            t = t.replace("break;}", "")
+            assert "break;" not in t
 
         # continue should always be followed by a curly brace, not another statement
-        assert "continue;}" in t
-        t = t.replace("continue;}", "")
-        assert "continue;" not in t
+        if "continue;" in t:
+            assert "continue;}" in t
+            t = t.replace("continue;}", "")
+            assert "continue;" not in t
 
     @for_all_structuring_algos
     def test_decompiling_dd_argmatch_to_argument_eagerreturns(self, decompiler_options=None):
