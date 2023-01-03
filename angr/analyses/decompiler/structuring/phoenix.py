@@ -237,28 +237,30 @@ class PhoenixStructurer(StructurerBase):
                         return True, loop_node
 
                 elif self._phoenix_improved:
-                    _, head_block = self._find_node_going_to_dst(node, left)
-                    edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
-                    edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
-                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                        # c = !c
-                        self._remove_last_statement_if_jump(node)
-                        cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
-                        new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
-                        loop_node = LoopNode('while', claripy.true, new_node,
-                                             addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
-                                             )
+                    if full_graph.out_degree[node] == 1:
+                        # while (true) { ...; if (...) break; }
+                        _, head_block = self._find_node_going_to_dst(node, left)
+                        edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
+                        edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
+                        if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                            # c = !c
+                            self._remove_last_statement_if_jump(node)
+                            cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
+                            new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
+                            loop_node = LoopNode('while', claripy.true, new_node,
+                                                 addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
+                                                 )
 
-                        # on the original graph
-                        self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
-                        # on the graph with successors
-                        self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
+                            # on the original graph
+                            self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
+                            # on the graph with successors
+                            self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
 
-                        # ensure the loop has only one successor: the right node
-                        self._remove_edges_except(graph, loop_node, right)
-                        self._remove_edges_except(full_graph, loop_node, right)
+                            # ensure the loop has only one successor: the right node
+                            self._remove_edges_except(graph, loop_node, right)
+                            self._remove_edges_except(full_graph, loop_node, right)
 
-                        return True, loop_node
+                            return True, loop_node
 
         return False, None
 
@@ -476,9 +478,9 @@ class PhoenixStructurer(StructurerBase):
                             headgoing_edges.remove(head_going_edge)
 
                         # create the "break" node. in fact, we create a jump or a conditional jump, which will be
-                        # rewritten to break nodes after. directly creating break nodes may lead to unwanted results,
-                        # e.g., inserting a break (that's intended to break out of the loop) inside a switch-case that
-                        # is nested within a loop.
+                        # rewritten to break nodes after (if possible). directly creating break nodes may lead to
+                        # unwanted results, e.g., inserting a break (that's intended to break out of the loop) inside a
+                        # switch-case that is nested within a loop.
                         last_src_stmt = self.cond_proc.get_last_statement(src_block)
                         break_cond = self.cond_proc.recover_edge_condition(fullgraph, src_block, dst)
                         if claripy.is_true(break_cond):
@@ -486,7 +488,15 @@ class PhoenixStructurer(StructurerBase):
                                               ins_addr=last_src_stmt.ins_addr)
                             break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
                         else:
-                            break_node = Block(last_src_stmt.ins_addr, None, statements=[last_src_stmt])
+                            break_stmt = Jump(None, Const(None, None, successor.addr, self.project.arch.bits), None,
+                                              ins_addr=last_src_stmt.ins_addr)
+                            break_node_inner = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
+                            break_node = ConditionNode(
+                                last_src_stmt.ins_addr,
+                                None,
+                                break_cond,
+                                break_node_inner,
+                            )
                         new_node = SequenceNode(src_block.addr, nodes=[src_block, break_node])
                         if has_continue:
                             if self.is_a_jump_target(last_src_stmt, loop_head.addr):
