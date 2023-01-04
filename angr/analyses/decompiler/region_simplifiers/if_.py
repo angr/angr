@@ -127,7 +127,3 @@ class IfSimplifier(SequenceWalker):
                 if true_cond or false_cond:
                     # We can safely remove this statement
                     block.statements = block.statements[:-1]
-                else:
-                    l.error("An unexpected successor %s follows the conditional statement %s.",
-                            successor, cond_stmt
-                            )

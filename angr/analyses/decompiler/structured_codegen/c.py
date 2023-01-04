@@ -2667,9 +2667,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CGoto(self._handle(stmt.target), tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_ConditionalJump(self, stmt: Stmt.ConditionalJump):
+        else_node = None \
+            if stmt.false_target is None else CGoto(self._handle(stmt.false_target), tags=stmt.tags, codegen=self)
         ifelse = CIfElse(
             [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), tags=stmt.tags, codegen=self))],
-            else_node=CGoto(self._handle(stmt.false_target), tags=stmt.tags, codegen=self),
+            else_node=else_node,
             tags=stmt.tags,
             codegen=self,
         )

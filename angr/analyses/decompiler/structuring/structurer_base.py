@@ -201,25 +201,48 @@ class StructurerBase(Analysis):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
-                    goto_stmt: Optional[ailment.Stmt.Jump] = None
+                    jump_stmt: Optional[Union[ailment.Stmt.Jump,ailment.Stmt.ConditionalJump]] = None
                     if isinstance(this_node, ailment.Block) and \
                             this_node.statements and \
-                            isinstance(this_node.statements[-1], ailment.Stmt.Jump):
-                        goto_stmt: ailment.Stmt.Jump = this_node.statements[-1]
+                            isinstance(this_node.statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                        jump_stmt = this_node.statements[-1]
                     elif isinstance(this_node, MultiNode) and \
                             this_node.nodes and \
                             isinstance(this_node.nodes[-1], ailment.Block) and \
                             this_node.nodes[-1].statements and \
-                            isinstance(this_node.nodes[-1].statements[-1], ailment.Stmt.Jump):
+                            isinstance(this_node.nodes[-1].statements[-1],
+                                       (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
                         this_node = this_node.nodes[-1]
-                        goto_stmt: ailment.Stmt.Jump = this_node.statements[-1]
+                        jump_stmt = this_node.statements[-1]
 
-                    if goto_stmt is not None:
+                    if isinstance(jump_stmt, ailment.Stmt.Jump):
                         next_node = node.nodes[i + 1]
-                        if isinstance(goto_stmt.target, ailment.Expr.Const) and \
-                                goto_stmt.target.value == next_node.addr:
+                        if isinstance(jump_stmt.target, ailment.Expr.Const) and \
+                                jump_stmt.target.value == next_node.addr:
                             # this goto is useless
                             this_node.statements = this_node.statements[:-1]
+                    elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
+                        next_node = node.nodes[i + 1]
+                        if isinstance(jump_stmt.true_target, ailment.Expr.Const) and \
+                                jump_stmt.true_target.value == next_node.addr:
+                            # remove the true target
+                            this_node.statements[-1] = ailment.Stmt.ConditionalJump(
+                                jump_stmt.idx,
+                                claripy.Not(jump_stmt.condition),
+                                jump_stmt.false_target,
+                                None,
+                                **jump_stmt.tags,
+                            )
+                        elif isinstance(jump_stmt.false_target, ailment.Expr.Const) and \
+                                jump_stmt.false_target.value == next_node.addr:
+                            # remove the false target
+                            this_node.statements[-1] = ailment.Stmt.ConditionalJump(
+                                jump_stmt.idx,
+                                jump_stmt.condition,
+                                jump_stmt.true_target,
+                                None,
+                                **jump_stmt.tags,
+                            )
 
             return walker._handle_Sequence(node, **kwargs)
 
@@ -227,25 +250,48 @@ class StructurerBase(Analysis):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
-                    goto_stmt: Optional[ailment.Stmt.Jump] = None
+                    jump_stmt: Optional[Union[ailment.Stmt.Jump,ailment.Stmt.ConditionalJump]] = None
                     if isinstance(this_node, ailment.Block) and \
                             this_node.statements and \
-                            isinstance(this_node.statements[-1], ailment.Stmt.Jump):
-                        goto_stmt: ailment.Stmt.Jump = this_node.statements[-1]
+                            isinstance(this_node.statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                        jump_stmt = this_node.statements[-1]
                     elif isinstance(this_node, MultiNode) and \
                             this_node.nodes and \
                             isinstance(this_node.nodes[-1], ailment.Block) and \
                             this_node.nodes[-1].statements and \
-                            isinstance(this_node.nodes[-1].statements[-1], ailment.Stmt.Jump):
-                        goto_stmt: ailment.Stmt.Jump = this_node.nodes[-1].statements[-1]
+                            isinstance(this_node.nodes[-1].statements[-1],
+                                       (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                        jump_stmt = this_node.nodes[-1].statements[-1]
                         this_node = this_node.nodes[-1]
 
-                    if goto_stmt is not None:
+                    if isinstance(jump_stmt, ailment.Stmt.Jump):
                         next_node = node.nodes[i + 1]
-                        if isinstance(goto_stmt.target, ailment.Expr.Const) and \
-                                goto_stmt.target.value == next_node.addr:
+                        if isinstance(jump_stmt.target, ailment.Expr.Const) and \
+                                jump_stmt.target.value == next_node.addr:
                             # this goto is useless
                             this_node.statements = this_node.statements[:-1]
+                    elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
+                        next_node = node.nodes[i + 1]
+                        if isinstance(jump_stmt.true_target, ailment.Expr.Const) and \
+                                jump_stmt.true_target.value == next_node.addr:
+                            # remove the true target
+                            this_node.statements[-1] = ailment.Stmt.ConditionalJump(
+                                jump_stmt.idx,
+                                claripy.Not(jump_stmt.condition),
+                                jump_stmt.false_target,
+                                None,
+                                **jump_stmt.tags,
+                            )
+                        elif isinstance(jump_stmt.false_target, ailment.Expr.Const) and \
+                                jump_stmt.false_target.value == next_node.addr:
+                            # remove the false target
+                            this_node.statements[-1] = ailment.Stmt.ConditionalJump(
+                                jump_stmt.idx,
+                                jump_stmt.condition,
+                                jump_stmt.true_target,
+                                None,
+                                **jump_stmt.tags,
+                            )
 
             return walker._handle_MultiNode(node, **kwargs)
 
@@ -573,6 +619,43 @@ class StructurerBase(Analysis):
     def _merge_nodes(node_0, node_1):
 
         addr = node_0.addr if node_0.addr is not None else node_1.addr
+
+        # fix the last block of node_0 and remove useless goto statements
+        if isinstance(node_0, SequenceNode) and node_0.nodes:
+            last_node = node_0.nodes[-1]
+        elif isinstance(node_0, MultiNode) and node_0.nodes:
+            last_node = node_0.nodes[-1]
+        elif isinstance(node_0, ailment.Block):
+            last_node = node_0
+        else:
+            last_node = None
+        if isinstance(last_node, ailment.Block) \
+                and last_node.statements:
+            if isinstance(last_node.statements[-1], ailment.Stmt.Jump):
+                last_node.statements = last_node.statements[:-1]
+            elif isinstance(last_node.statements[-1], ailment.Stmt.ConditionalJump):
+                last_stmt = last_node.statements[-1]
+                if isinstance(last_stmt.true_target, ailment.Expr.Const) \
+                        and last_stmt.true_target.value == node_1.addr:
+                    new_stmt = ailment.Stmt.ConditionalJump(
+                        last_stmt.idx,
+                        claripy.Not(last_stmt.condition),
+                        last_stmt.false_target,
+                        None,
+                        **last_stmt.tags,
+                    )
+                    last_node.statements[-1] = new_stmt
+                elif isinstance(last_stmt.false_target, ailment.Expr.Const) \
+                        and last_stmt.false_target.value == node_1.addr:
+                    new_stmt = ailment.Stmt.ConditionalJump(
+                        last_stmt.idx,
+                        last_stmt.condition,
+                        last_stmt.true_target,
+                        None,
+                        **last_stmt.tags,
+                    )
+                    last_node.statements[-1] = new_stmt
+
         if isinstance(node_0, SequenceNode):
             if isinstance(node_1, SequenceNode):
                 return SequenceNode(addr, nodes=node_0.nodes + node_1.nodes)
