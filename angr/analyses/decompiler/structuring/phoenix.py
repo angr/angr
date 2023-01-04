@@ -217,9 +217,8 @@ class PhoenixStructurer(StructurerBase):
                     if PhoenixStructurer._is_single_statement_block(node):
                         # the single-statement-block check is to ensure we don't execute any code before the
                         # conditional jump. this way the entire node can be dropped.
-                        last_stmt = self._remove_last_statement_if_jump(node)
                         new_node = SequenceNode(node.addr, nodes=[node, left])
-                        loop_node = LoopNode('while', edge_cond_left, new_node, addr=last_stmt.ins_addr)
+                        loop_node = LoopNode('while', edge_cond_left, new_node, addr=node.addr)
 
                         # on the original graph
                         self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
@@ -267,9 +266,7 @@ class PhoenixStructurer(StructurerBase):
                             self._remove_last_statement_if_jump(node)
                             cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
                             new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
-                            loop_node = LoopNode('while', claripy.true, new_node,
-                                                 addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
-                                                 )
+                            loop_node = LoopNode('while', claripy.true, new_node, addr=node.addr)
 
                             # on the original graph
                             self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
@@ -306,9 +303,7 @@ class PhoenixStructurer(StructurerBase):
                             # c = !c
                             self._remove_last_statement_if_jump(succ)
                             new_node = SequenceNode(node.addr, nodes=[node, succ])
-                            loop_node = LoopNode('do-while', edge_cond_succhead, new_node,
-                                                 addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
-                                                 )
+                            loop_node = LoopNode('do-while', edge_cond_succhead, new_node, addr=node.addr)
 
                             # on the original graph
                             self.replace_nodes(graph, node, loop_node, old_node_1=succ, self_loop=False)
@@ -571,7 +566,7 @@ class PhoenixStructurer(StructurerBase):
 
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
                 # src at this point. we need to find the Jump statement and replace it.
-                cont_parent, cont_block = self._find_node_going_to_dst(src, loop_head)
+                _, cont_block = self._find_node_going_to_dst(src, loop_head)
                 if cont_block is None:
                     # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
                     # case being the loop head. in such cases, we can just remove the edge.
