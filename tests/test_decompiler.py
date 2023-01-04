@@ -535,6 +535,15 @@ class TestDecompiler(unittest.TestCase):
         # return values are either 0xffffffff or -1
         assert " = 4294967295;" in code or " = -1;" in code
 
+        # the while loop containing puts("Empty title"); must have both continue and break
+        for i, line in enumerate(code_lines):
+            if line == "puts(\"Empty title\");":
+                assert "continue;" in code_lines[i-9:i+9]
+                assert "break;" in code_lines[i-9:i+9]
+                break
+        else:
+            assert False, "Did not find statement 'puts(\"Empty title\");'"
+
     @for_all_structuring_algos
     def test_decompiling_libsoap(self, decompiler_options=None):
 
