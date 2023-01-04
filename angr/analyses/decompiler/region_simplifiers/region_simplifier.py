@@ -33,9 +33,6 @@ class RegionSimplifier(Analysis):
         """
 
         r = self.region
-        if self.variable_kb is not None:
-            # Fold expressions that are only used once into their use sites
-            r = self._fold_oneuse_expressions(r)
         # Remove empty nodes
         r = self._remove_empty_nodes(r)
         # Find nested if-else constructs and convert them into CascadingIfs
@@ -52,6 +49,10 @@ class RegionSimplifier(Analysis):
         r = self._simplify_loops(r)
         # Remove empty nodes again
         r = self._remove_empty_nodes(r)
+
+        if self.variable_kb is not None:
+            # Fold expressions that are only used once into their use sites
+            r = self._fold_oneuse_expressions(r)
 
         self.result = r
 

@@ -228,7 +228,7 @@ class StructurerBase(Analysis):
                             # remove the true target
                             this_node.statements[-1] = ailment.Stmt.ConditionalJump(
                                 jump_stmt.idx,
-                                claripy.Not(jump_stmt.condition),
+                                ailment.Expr.UnaryOp(None, "Not", jump_stmt.condition),
                                 jump_stmt.false_target,
                                 None,
                                 **jump_stmt.tags,
@@ -277,7 +277,7 @@ class StructurerBase(Analysis):
                             # remove the true target
                             this_node.statements[-1] = ailment.Stmt.ConditionalJump(
                                 jump_stmt.idx,
-                                claripy.Not(jump_stmt.condition),
+                                ailment.Expr.UnaryOp(None, "Not", jump_stmt.condition),
                                 jump_stmt.false_target,
                                 None,
                                 **jump_stmt.tags,
@@ -466,7 +466,7 @@ class StructurerBase(Analysis):
                 )
             elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
                     (true_target_value is None or true_target_value not in loop_successor_addrs):
-                cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
+                cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', last_stmt.condition)
                 target = last_stmt.false_target.value
                 new_node = ConditionalBreakNode(
                     last_stmt.ins_addr,
@@ -639,7 +639,7 @@ class StructurerBase(Analysis):
                         and last_stmt.true_target.value == node_1.addr:
                     new_stmt = ailment.Stmt.ConditionalJump(
                         last_stmt.idx,
-                        claripy.Not(last_stmt.condition),
+                        ailment.Expr.UnaryOp(None, "Not", last_stmt.condition),
                         last_stmt.false_target,
                         None,
                         **last_stmt.tags,

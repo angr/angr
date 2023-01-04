@@ -156,6 +156,7 @@ class Clinic(Analysis):
         self._convert_all()
 
         ail_graph = self._make_ailgraph()
+        self._remove_redundant_jump_blocks(ail_graph)
 
         # Run simplification passes
         self._update_progress(22., text="Optimizing fresh ailment graph")
@@ -1101,6 +1102,35 @@ class Clinic(Analysis):
                 graph.add_edge(src, dst, **data)
 
         return graph
+
+    @staticmethod
+    def _remove_redundant_jump_blocks(ail_graph):
+        for node in list(ail_graph.nodes):
+            if len(node.statements) == 1 \
+                    and isinstance(node.statements[0], ailment.Stmt.Jump) \
+                    and isinstance(node.statements[0].target, ailment.Expr.Const):
+                jump_target = node.statements[0].target.value
+                succs = list(ail_graph.successors(node))
+                if len(succs) == 1 and succs[0].addr == jump_target:
+                    preds = list(ail_graph.predecessors(node))
+                    if len(preds) == 1 and ail_graph.out_degree[preds[0]] == 2:
+                        # remove this node
+                        for pred in preds:
+                            if pred.statements:
+                                last_stmt = pred.statements[-1]
+                                if isinstance(last_stmt, ailment.Stmt.Jump) \
+                                        and isinstance(last_stmt.target, ailment.Expr.Const) \
+                                        and last_stmt.target.value == node.addr:
+                                    last_stmt.target.value = succs[0].addr
+                                elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                                    if isinstance(last_stmt.true_target, ailment.Expr.Const) \
+                                            and last_stmt.true_target.value == node.addr:
+                                        last_stmt.true_target.value = succs[0].addr
+                                    if isinstance(last_stmt.false_target, ailment.Expr.Const) \
+                                            and last_stmt.false_target.value == node.addr:
+                                        last_stmt.false_target.value = succs[0].addr
+                            ail_graph.add_edge(pred, succs[0])
+                        ail_graph.remove_node(node)
 
     @staticmethod
     def _collect_externs(ail_graph, variable_kb):

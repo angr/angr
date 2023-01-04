@@ -128,22 +128,18 @@ class PhoenixStructurer(StructurerBase):
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
-        matched, loop_node = self._match_cyclic_while(node, head, graph, full_graph)
+        matched, loop_node, successor_node = self._match_cyclic_while(node, head, graph, full_graph)
         if matched:
-            if len(self._region.successors) == 1:
-                # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
-                self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node,
-                                                          [ succ.addr for succ in self._region.successors ])
+            # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
+            self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
             return True
 
-        matched, loop_node = self._match_cyclic_dowhile(node, head, graph, full_graph)
+        matched, loop_node, successor_node = self._match_cyclic_dowhile(node, head, graph, full_graph)
         if matched:
-            if len(self._region.successors) == 1:
-                # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
-                self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node,
-                                                          [ succ.addr for succ in self._region.successors ])
+            # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
+            self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
             return True
@@ -158,7 +154,7 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
         return matched
 
-    def _match_cyclic_while(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode]]:
+    def _match_cyclic_while(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode],Optional[BaseNode]]:
         succs = list(full_graph.successors(node))
         if len(succs) == 2:
             left, right = succs
@@ -203,7 +199,7 @@ class PhoenixStructurer(StructurerBase):
                         self._remove_edges_except(graph, loop_node, right)
                         self._remove_edges_except(full_graph, loop_node, right)
 
-                        return True, loop_node
+                        return True, loop_node, right
             elif full_graph.has_edge(left, node) \
                     and left is not head and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
                     and not full_graph.has_edge(right, node):
@@ -217,7 +213,7 @@ class PhoenixStructurer(StructurerBase):
                     if PhoenixStructurer._is_single_statement_block(node):
                         # the single-statement-block check is to ensure we don't execute any code before the
                         # conditional jump. this way the entire node can be dropped.
-                        new_node = SequenceNode(node.addr, nodes=[node, left])
+                        new_node = SequenceNode(node.addr, nodes=[left])
                         loop_node = LoopNode('while', edge_cond_left, new_node, addr=node.addr)
 
                         # on the original graph
@@ -229,10 +225,10 @@ class PhoenixStructurer(StructurerBase):
                         self._remove_edges_except(graph, loop_node, right)
                         self._remove_edges_except(full_graph, loop_node, right)
 
-                        return True, loop_node
+                        return True, loop_node, right
                     else:
                         # we generate a while-true loop instead
-                        last_stmt = self._remove_last_statement_if_jump(node)
+                        last_stmt = self._remove_last_statement_if_jump(head_block)
                         cond_jump = Jump(
                             None,
                             Const(None, None, right.addr, self.project.arch.bits),
@@ -253,7 +249,7 @@ class PhoenixStructurer(StructurerBase):
                         self._remove_edges_except(graph, loop_node, right)
                         self._remove_edges_except(full_graph, loop_node, right)
 
-                        return True, loop_node
+                        return True, loop_node, right
 
                 elif self._phoenix_improved:
                     if full_graph.out_degree[node] == 1:
@@ -263,7 +259,7 @@ class PhoenixStructurer(StructurerBase):
                         edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                         if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                             # c = !c
-                            self._remove_last_statement_if_jump(node)
+                            self._remove_last_statement_if_jump(head_block)
                             cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
                             new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
                             loop_node = LoopNode('while', claripy.true, new_node, addr=node.addr)
@@ -277,11 +273,11 @@ class PhoenixStructurer(StructurerBase):
                             self._remove_edges_except(graph, loop_node, right)
                             self._remove_edges_except(full_graph, loop_node, right)
 
-                            return True, loop_node
+                            return True, loop_node, right
 
-        return False, None
+        return False, None, None
 
-    def _match_cyclic_dowhile(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode]]:
+    def _match_cyclic_dowhile(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode],Optional[BaseNode]]:
         preds = list(full_graph.predecessors(node))
         succs = list(full_graph.successors(node))
         if ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 1:
@@ -310,7 +306,7 @@ class PhoenixStructurer(StructurerBase):
                             # on the graph with successors
                             self.replace_nodes(full_graph, node, loop_node, old_node_1=succ, self_loop=False)
 
-                            return True, loop_node
+                            return True, loop_node, out_node
         elif ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 2 and node in succs:
             # head forms a self-loop
             succs.remove(node)
@@ -330,8 +326,8 @@ class PhoenixStructurer(StructurerBase):
                     # on the graph with successors
                     self.replace_nodes(full_graph, node, loop_node, self_loop=False)
 
-                    return True, loop_node
-        return False, None
+                    return True, loop_node, succ
+        return False, None, None
 
     def _match_cyclic_natural_loop(self, node, head, graph, full_graph) -> Tuple[bool,Optional[LoopNode]]:
 
