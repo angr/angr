@@ -604,6 +604,7 @@ class RegionIdentifier(Analysis):
                                             # the successor wasn't added to the graph because it does not belong to the
                                             # frontier. we backpatch the successor graph here.
                                             region.graph_with_successors.add_edge(nn, succ)
+                                            region.successors.add(succ)
 
                             # l.debug("Walked back %d levels in postdom tree.", levels)
                             l.debug("Node %r, frontier %r.", node, frontier)
@@ -943,7 +944,8 @@ class RegionIdentifier(Analysis):
                     )
                 )
             else:
-                if not isinstance(node.statements[-1], (Jump, ConditionalJump)):
+                if not isinstance(node.statements[0], ConditionalJump) \
+                        and not isinstance(node.statements[-1], (Jump, ConditionalJump)):
                     node.statements.append(
                         Jump(
                             None,

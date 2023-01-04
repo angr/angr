@@ -189,7 +189,7 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
-                        self._remove_last_statement_if_jump(node)
+                        self._remove_first_statement_if_jump(node)
                         seq_node = SequenceNode(node.addr, nodes=[node]) if not isinstance(node, SequenceNode) else node
                         loop_node = LoopNode('while', edge_cond_left, seq_node, addr=seq_node.addr)
                         self.replace_nodes(graph, node, loop_node, self_loop=False)
@@ -1623,6 +1623,24 @@ class PhoenixStructurer(StructurerBase):
         for succ in list(graph.successors(src)):
             if succ is not src and succ is not dst:
                 graph.remove_edge(src, succ)
+
+    @staticmethod
+    def _remove_first_statement_if_jump(node: Union[BaseNode,Block]) -> Optional[Union[Jump,ConditionalJump]]:
+        if isinstance(node, Block):
+            if node.statements:
+                first_stmt = node.statements[0]
+                if isinstance(first_stmt, (Jump, ConditionalJump)):
+                    node.statements = node.statements[1:]
+                    return first_stmt
+            return None
+        if isinstance(node, MultiNode):
+            for node in node.nodes:
+                if isinstance(node, Block):
+                    if not node.statements:
+                        continue
+                    return PhoenixStructurer._remove_first_statement_if_jump(node)
+                break
+        return None
 
     @staticmethod
     def _remove_last_statement_if_jump(node: BaseNode) -> Optional[Union[Jump,ConditionalJump]]:
