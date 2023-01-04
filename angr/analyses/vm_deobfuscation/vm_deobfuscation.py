@@ -769,9 +769,12 @@ class InputConcretizeEngine(UberEngine):
                 no_constraints_solver = claripy.solvers.SolverComposite()
                 no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
                 no_constraints_solver.add(simplified_addr == conc_addr)
+
+                loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty), endness=self.state.arch.memory_endness)
                 for var_ast in var_ast_list:
                     conc_input_value = no_constraints_solver.eval(var_ast, 5)
-                    conc_addr_and_new_constraints.append((conc_addr, var_ast == conc_input_value[0]))
+                    import ipdb;ipdb.set_trace()
+                    conc_addr_and_new_constraints.append((conc_addr, var_ast == conc_input_value[0], result[0] == loaded_value))
 
             if len(conc_addrs) == 1 or len(conc_addrs) > 2:
                 print("Hmmmm")
@@ -902,7 +905,11 @@ class VMDeobfuscation(Analysis):
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr=start_addr, start_state=None, prev_symbolic_expr_locations_blockwise=None)#start_state=saved_start_state)
         start_state_copy = start_state.copy()
 
+        import ipdb;ipdb.set_trace()
+
+
         new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(cfg, proj, symbolic_expr_locations_blockwise, start_addr=start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
+
         new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "symbolify_cfg.svg"))
@@ -920,6 +927,11 @@ class VMDeobfuscation(Analysis):
 
         start_state_copy = start_state.copy()
         new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
+
+        start_state_copy = start_state.copy()
+        self.perform_semantic_verification(new_cfg, proj, start_state=start_state_copy, start_addr=start_addr,
+                                           input=verification_input)
+        import ipdb;ipdb.set_trace()
 
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr=start_addr,
                                                                                start_state=None,
@@ -2816,6 +2828,7 @@ class VMDeobfuscation(Analysis):
             initial_input_state.partial_symbolic_constraint_solver.add(initial_input_state.regs.sp == actual_stack_end)
 
             initial_input_state.globals['concretized_load_addr_dict'] = {}
+            initial_input_state.globals['replaced_asts_str'] = {}
 
         ####### Adding breakpoints
         def annotate_stack_read_value(state):
