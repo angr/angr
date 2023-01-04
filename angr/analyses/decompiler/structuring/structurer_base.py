@@ -621,7 +621,11 @@ class StructurerBase(Analysis):
                 graph.add_edge(new_node, new_node, **data)
 
     @staticmethod
-    def replace_node_in_node(parent_node: BaseNode, old_node: BaseNode, new_node: BaseNode):
+    def replace_node_in_node(
+            parent_node: BaseNode,
+            old_node: Union[BaseNode,ailment.Block],
+            new_node: Union[BaseNode,ailment.Block],
+    ) -> None:
         if isinstance(parent_node, SequenceNode):
             for i in range(len(parent_node.nodes)):  # pylint:disable=consider-using-enumerate
                 if parent_node.nodes[i] is old_node:

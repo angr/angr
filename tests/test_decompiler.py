@@ -390,6 +390,11 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
+        # the decompilation output should somewhat make sense
+        assert "getenv(\"CHARSETALIASDIR\");" in dec.codegen.text
+        assert "fscanf(" in dec.codegen.text
+        assert "\"%50s %50s\"" in dec.codegen.text
+
         # make sure all "break;" is followed by a curly brace
         dec_no_spaces = dec.codegen.text.replace("\n", "").replace(" ", "")
         replaced = dec_no_spaces.replace("break;}", "")

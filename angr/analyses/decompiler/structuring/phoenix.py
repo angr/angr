@@ -208,22 +208,42 @@ class PhoenixStructurer(StructurerBase):
                     and left is not head and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
                     and not full_graph.has_edge(right, node):
 
-                if PhoenixStructurer._is_single_statement_block(node):
-                    # the single-statement-block check is to ensure we don't execute any code before the conditional
-                    # jump.
-                    # otherwise it's a do-while loop or a natural loop
-
-                    # possible candidate
-                    _, head_block = self._find_node_going_to_dst(node, left)
-                    edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
-                    edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
-                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                        # c = !c
-                        self._remove_last_statement_if_jump(node)
+                # possible candidate
+                _, head_block = self._find_node_going_to_dst(node, left)
+                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
+                edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                    # c = !c
+                    if PhoenixStructurer._is_single_statement_block(node):
+                        # the single-statement-block check is to ensure we don't execute any code before the
+                        # conditional jump. this way the entire node can be dropped.
+                        last_stmt = self._remove_last_statement_if_jump(node)
                         new_node = SequenceNode(node.addr, nodes=[node, left])
-                        loop_node = LoopNode('while', edge_cond_left, new_node,
-                                             addr=node.addr,  # FIXME: Use the instruction address of the last instruction in head
-                                             )
+                        loop_node = LoopNode('while', edge_cond_left, new_node, addr=last_stmt.ins_addr)
+
+                        # on the original graph
+                        self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
+                        # on the graph with successors
+                        self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
+
+                        # ensure the loop has only one successor: the right node
+                        self._remove_edges_except(graph, loop_node, right)
+                        self._remove_edges_except(full_graph, loop_node, right)
+
+                        return True, loop_node
+                    else:
+                        # we generate a while-true loop instead
+                        last_stmt = self._remove_last_statement_if_jump(node)
+                        cond_jump = Jump(
+                            None,
+                            Const(None, None, right.addr, self.project.arch.bits),
+                            None,
+                            ins_addr=last_stmt.ins_addr,
+                        )
+                        jump_node = Block(last_stmt.ins_addr, None, statements=[cond_jump])
+                        cond_jump_node = ConditionNode(last_stmt.ins_addr, None, edge_cond_right, jump_node)
+                        new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
+                        loop_node = LoopNode('while', claripy.true, new_node, addr=node.addr)
 
                         # on the original graph
                         self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
@@ -323,7 +343,7 @@ class PhoenixStructurer(StructurerBase):
         if not (node is head or graph.in_degree[node] == 2):
             return False, None
 
-        # check if there is a cycle that starts with head and ends with head
+        # check if there is a cycle that starts with node and ends with node
         next_node = node
         seq_node = SequenceNode(node.addr, nodes=[node])
         seen_nodes = set()
@@ -563,23 +583,9 @@ class PhoenixStructurer(StructurerBase):
                         graph.remove_edge(src, loop_head)
                     fullgraph.remove_edge(src, loop_head)
                 else:
-                    # replace cont_block with a ContinueNode
+                    # virtualize the edge. later it will be replaced with a ContinueNode or a conditional continue
                     graph.remove_edge(src, loop_head)
                     fullgraph.remove_edge(src, loop_head)
-
-                    last_cont_stmt = self.cond_proc.get_last_statement(cont_block)
-                    if cont_parent is not None:
-                        remove_last_statement(cont_block)
-                        cont_node = ContinueNode(last_cont_stmt.ins_addr,
-                                                 Const(None, None, loop_head.addr, self.project.arch.bits))
-                        new_node_ = SequenceNode(cont_block.addr, nodes=[cont_block, cont_node])
-                        self.replace_node_in_node(cont_parent, cont_block, new_node_)
-                    else:
-                        cont_node = ContinueNode(last_cont_stmt.ins_addr,
-                                                 Const(None, None, loop_head.addr, self.project.arch.bits))
-                        new_node = SequenceNode(src.addr, nodes=[src, cont_node])
-                        self.replace_nodes(graph, src, new_node)
-                        self.replace_nodes(fullgraph, src, new_node)
 
         return bool(outgoing_edges or len(headgoing_edges) > 1)
 
@@ -1628,11 +1634,12 @@ class PhoenixStructurer(StructurerBase):
                 graph.remove_edge(src, succ)
 
     @staticmethod
-    def _remove_last_statement_if_jump(node: BaseNode):
+    def _remove_last_statement_if_jump(node: BaseNode) -> Optional[Union[Jump,ConditionalJump]]:
         try:
             last_stmts = ConditionProcessor.get_last_statements(node)
         except EmptyBlockNotice:
-            return
+            return None
 
         if len(last_stmts) == 1 and isinstance(last_stmts[0], (Jump, ConditionalJump)):
-            remove_last_statement(node)
+            return remove_last_statement(node)
+        return None
