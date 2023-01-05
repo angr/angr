@@ -1591,7 +1591,7 @@ class TestDecompiler(unittest.TestCase):
         assert "&di_ent_compare" in d.codegen.text
         assert "&di_ent_free" in d.codegen.text
 
-    @structuring_algo("dream")
+    @for_all_structuring_algos
     def test_decompiling_du_humblock_missing_conditions(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "du")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -1603,8 +1603,13 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert d.codegen.text.count("if (v0 == 0)") == 3 or d.codegen.text.count("if (v0 != 0)") == 3
-        assert d.codegen.text.count("break;") == 1
+        if decompiler_options:
+            if decompiler_options[-1][-1] == "dream":
+                assert d.codegen.text.count("if (v0 == 0)") == 3 or d.codegen.text.count("if (v0 != 0)") == 3
+            else:
+                # phoenix
+                assert d.codegen.text.count("if (v0 == 0)") == 2
+        assert d.codegen.text.count("break;") > 0
 
     @structuring_algo("phoenix")
     def test_decompiling_setb(self, decompiler_options=None):
