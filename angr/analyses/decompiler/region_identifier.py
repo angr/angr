@@ -611,8 +611,8 @@ class RegionIdentifier(Analysis):
                                         original_successors = secondary_graph.successors(nn)
                                         for succ in original_successors:
                                             if succ not in graph_copy:
-                                                # the successor wasn't added to the graph because it does not belong to the
-                                                # frontier. we backpatch the successor graph here.
+                                                # the successor wasn't added to the graph because it does not belong
+                                                # to the frontier. we backpatch the successor graph here.
                                                 region.graph_with_successors.add_edge(nn, succ)
                                                 region.successors.add(succ)
 

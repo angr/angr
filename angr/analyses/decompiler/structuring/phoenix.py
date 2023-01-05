@@ -1647,11 +1647,11 @@ class PhoenixStructurer(StructurerBase):
                     return first_stmt
             return None
         if isinstance(node, MultiNode):
-            for node in node.nodes:
-                if isinstance(node, Block):
-                    if not node.statements:
+            for nn in node.nodes:
+                if isinstance(nn, Block):
+                    if not nn.statements:
                         continue
-                    return PhoenixStructurer._remove_first_statement_if_jump(node)
+                    return PhoenixStructurer._remove_first_statement_if_jump(nn)
                 break
         return None
 
