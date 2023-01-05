@@ -30,7 +30,7 @@ class RegionIdentifier(Analysis):
     Identifies regions within a function.
     """
     def __init__(self, func, cond_proc=None, graph=None, largest_successor_tree_outside_loop=True,
-                 force_loop_single_exit=True):
+                 force_loop_single_exit=True, complete_successors=False):
         self.function = func
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(
             self.project.arch if self.project is not None else None  # it's only None in test cases
@@ -43,6 +43,7 @@ class RegionIdentifier(Analysis):
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
+        self._complete_successors = complete_successors
 
         self._analyze()
 
@@ -205,7 +206,7 @@ class RegionIdentifier(Analysis):
         sorted_refined_exit_nodes = CFGUtils.quasi_topological_sort_nodes(graph, refined_exit_nodes)
         while len(sorted_refined_exit_nodes) > 1 and new_exit_nodes:
             new_exit_nodes = set()
-            for n in sorted_refined_exit_nodes:
+            for n in list(sorted_refined_exit_nodes):
                 if all((pred is n or pred in refined_loop_nodes) for pred in graph.predecessors(n)) \
                         and dominates(idom, head, n):
                     refined_loop_nodes.add(n)
@@ -218,6 +219,7 @@ class RegionIdentifier(Analysis):
                         # early termination
                         break
             sorted_refined_exit_nodes += list(new_exit_nodes)
+            sorted_refined_exit_nodes = list(set(sorted_refined_exit_nodes))
             sorted_refined_exit_nodes = CFGUtils.quasi_topological_sort_nodes(graph, sorted_refined_exit_nodes)
 
         refined_exit_nodes = set(sorted_refined_exit_nodes)
@@ -597,14 +599,22 @@ class RegionIdentifier(Analysis):
                         if region is not None:
                             # update region.graph_with_successors
                             if secondary_graph is not None:
-                                for nn in list(region.graph_with_successors.nodes):
-                                    original_successors = secondary_graph.successors(nn)
-                                    for succ in original_successors:
-                                        if succ not in graph_copy:
-                                            # the successor wasn't added to the graph because it does not belong to the
-                                            # frontier. we backpatch the successor graph here.
-                                            region.graph_with_successors.add_edge(nn, succ)
-                                            region.successors.add(succ)
+                                if self._complete_successors:
+                                    for nn in list(region.graph_with_successors.nodes):
+                                        original_successors = secondary_graph.successors(nn)
+                                        for succ in original_successors:
+                                            if not region.graph_with_successors.has_edge(nn, succ):
+                                                region.graph_with_successors.add_edge(nn, succ)
+                                                region.successors.add(succ)
+                                else:
+                                    for nn in list(region.graph_with_successors.nodes):
+                                        original_successors = secondary_graph.successors(nn)
+                                        for succ in original_successors:
+                                            if succ not in graph_copy:
+                                                # the successor wasn't added to the graph because it does not belong to the
+                                                # frontier. we backpatch the successor graph here.
+                                                region.graph_with_successors.add_edge(nn, succ)
+                                                region.successors.add(succ)
 
                             # l.debug("Walked back %d levels in postdom tree.", levels)
                             l.debug("Node %r, frontier %r.", node, frontier)

@@ -201,7 +201,8 @@ class PhoenixStructurer(StructurerBase):
 
                         return True, loop_node, right
             elif full_graph.has_edge(left, node) \
-                    and left is not head and full_graph.in_degree[left] == 1 and full_graph.out_degree[left] >= 1 \
+                    and left is not head and full_graph.in_degree[left] == 1 \
+                    and full_graph.out_degree[left] == 1 \
                     and not full_graph.has_edge(right, node):
 
                 # possible candidate
@@ -543,6 +544,8 @@ class PhoenixStructurer(StructurerBase):
                             # directly replace the node in graph
                             self.replace_nodes(graph, src, new_node)
                             self.replace_nodes(fullgraph, src, new_node)
+                            if src is loop_head:
+                                loop_head = new_node
 
                 else:
                     fullgraph.remove_edge(src, dst)
@@ -687,12 +690,18 @@ class PhoenixStructurer(StructurerBase):
         self.whitelist_edges.add((node_a.addr, node_b_addr))
 
         # sanity check: case nodes are successors to node_a. all case nodes must have at most common one successor
+        node_pred = None
+        if graph.in_degree[node] == 1:
+            node_pred = list(graph.predecessors(node))[0]
+
         case_nodes = list(graph.successors(node_a))
         case_node_successors = set()
         for case_node in case_nodes:
+            if case_node is node_pred:
+                continue
             if case_node.addr in jump_table.jumptable_entries:
                 succs = set(graph.successors(case_node))
-                case_node_successors |= succs
+                case_node_successors |= { succ for succ in succs if succ.addr not in jump_table.jumptable_entries }
         if len(case_node_successors) > 1:
             return False
 
