@@ -114,8 +114,9 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
-        # it should be properly structured to a while loop without conditional breaks
-        assert "break" not in dec.codegen.text
+        # it should be properly structured to a while loop without conditional breaks or with only one conditional
+        # break.
+        assert "break" not in dec.codegen.text or dec.codegen.text.count("break;") == 1
 
     @for_all_structuring_algos
     def test_decompiling_all_i386(self, decompiler_options=None):
@@ -390,6 +391,11 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
 
+        # the decompilation output should somewhat make sense
+        assert "getenv(\"CHARSETALIASDIR\");" in dec.codegen.text
+        assert "fscanf(" in dec.codegen.text
+        assert "\"%50s %50s\"" in dec.codegen.text
+
         # make sure all "break;" is followed by a curly brace
         dec_no_spaces = dec.codegen.text.replace("\n", "").replace(" ", "")
         replaced = dec_no_spaces.replace("break;}", "")
@@ -529,6 +535,15 @@ class TestDecompiler(unittest.TestCase):
 
         # return values are either 0xffffffff or -1
         assert " = 4294967295;" in code or " = -1;" in code
+
+        # the while loop containing puts("Empty title"); must have both continue and break
+        for i, line in enumerate(code_lines):
+            if line == "puts(\"Empty title\");":
+                assert "continue;" in code_lines[i-9:i+9]
+                assert "break;" in code_lines[i-9:i+9]
+                break
+        else:
+            assert False, "Did not find statement 'puts(\"Empty title\");'"
 
     @for_all_structuring_algos
     def test_decompiling_libsoap(self, decompiler_options=None):
@@ -940,7 +955,11 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
         code = dec.codegen.text
 
-        assert code.count("else if") == 3
+        # it should make somewhat sense
+        assert "printf(\"[*] flag_buffer = malloc(%d)\\n\"," in code
+
+        if decompiler_options and decompiler_options[-1][-1] == "dream":
+            assert code.count("else if") == 3
 
     @for_all_structuring_algos
     def test_decompiling_missing_function_call(self, decompiler_options=None):
@@ -1087,10 +1106,10 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "cvs")
         p = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = p.analyses.CFGFast(normalize=True)
+        cfg = p.analyses.CFGFast(normalize=True, show_progressbar=not WORKER)
 
         f = p.kb.functions['main']
-        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options, show_progressbar=not WORKER)
         assert d.codegen is not None, "Failed to decompile function %r." % f
         self._print_decompilation_result(d)
 
@@ -1572,7 +1591,7 @@ class TestDecompiler(unittest.TestCase):
         assert "&di_ent_compare" in d.codegen.text
         assert "&di_ent_free" in d.codegen.text
 
-    @structuring_algo("dream")
+    @for_all_structuring_algos
     def test_decompiling_du_humblock_missing_conditions(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "du")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -1584,8 +1603,13 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert d.codegen.text.count("if (v0 == 0)") == 3 or d.codegen.text.count("if (v0 != 0)") == 3
-        assert d.codegen.text.count("break;") == 1
+        if decompiler_options:
+            if decompiler_options[-1][-1] == "dream":
+                assert d.codegen.text.count("if (v0 == 0)") == 3 or d.codegen.text.count("if (v0 != 0)") == 3
+            else:
+                # phoenix
+                assert d.codegen.text.count("if (v0 == 0)") == 2
+        assert d.codegen.text.count("break;") > 0
 
     @structuring_algo("phoenix")
     def test_decompiling_setb(self, decompiler_options=None):

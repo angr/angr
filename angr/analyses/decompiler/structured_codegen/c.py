@@ -1866,6 +1866,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.Assignment: self._handle_Stmt_Assignment,
             Stmt.Call: self._handle_Stmt_Call,
             Stmt.Jump: self._handle_Stmt_Jump,
+            Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
@@ -2664,6 +2665,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Stmt_Jump(self, stmt):
         return CGoto(self._handle(stmt.target), tags=stmt.tags, codegen=self)
+
+    def _handle_Stmt_ConditionalJump(self, stmt: Stmt.ConditionalJump):
+        else_node = None \
+            if stmt.false_target is None else CGoto(self._handle(stmt.false_target), tags=stmt.tags, codegen=self)
+        ifelse = CIfElse(
+            [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), tags=stmt.tags, codegen=self))],
+            else_node=else_node,
+            tags=stmt.tags,
+            codegen=self,
+        )
+        return ifelse
 
     def _handle_Stmt_Return(self, stmt: Stmt.Return):
         if not stmt.ret_exprs:

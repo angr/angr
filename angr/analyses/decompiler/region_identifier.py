@@ -1,12 +1,14 @@
 from itertools import count
 from collections import defaultdict
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import networkx
 
 import ailment
 from ailment import Block
+from ailment.statement import ConditionalJump, Jump
+from ailment.expression import Const
 
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from .. import Analysis, register_analysis
@@ -28,7 +30,7 @@ class RegionIdentifier(Analysis):
     Identifies regions within a function.
     """
     def __init__(self, func, cond_proc=None, graph=None, largest_successor_tree_outside_loop=True,
-                 force_loop_single_exit=True):
+                 force_loop_single_exit=True, complete_successors=False):
         self.function = func
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(
             self.project.arch if self.project is not None else None  # it's only None in test cases
@@ -41,6 +43,7 @@ class RegionIdentifier(Analysis):
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
+        self._complete_successors = complete_successors
 
         self._analyze()
 
@@ -200,20 +203,26 @@ class RegionIdentifier(Analysis):
         # node.
         subgraph = networkx.DiGraph()
 
-        while len(refined_exit_nodes) > 1 and new_exit_nodes:
+        sorted_refined_exit_nodes = CFGUtils.quasi_topological_sort_nodes(graph, refined_exit_nodes)
+        while len(sorted_refined_exit_nodes) > 1 and new_exit_nodes:
             new_exit_nodes = set()
-            for n in list(sorted(refined_exit_nodes,
-                                 key=lambda nn: (nn.addr, nn.idx if isinstance(nn, ailment.Block) else None))):
+            for n in list(sorted_refined_exit_nodes):
                 if all((pred is n or pred in refined_loop_nodes) for pred in graph.predecessors(n)) \
                         and dominates(idom, head, n):
                     refined_loop_nodes.add(n)
-                    refined_exit_nodes.remove(n)
+                    sorted_refined_exit_nodes.remove(n)
                     to_add = set(graph.successors(n)) - refined_loop_nodes
                     new_exit_nodes |= to_add
                     for succ in to_add:
                         subgraph.add_edge(n, succ)
-            refined_exit_nodes |= new_exit_nodes
+                    if len(set(sorted_refined_exit_nodes) | new_exit_nodes) <= 1:
+                        # early termination
+                        break
+            sorted_refined_exit_nodes += list(new_exit_nodes)
+            sorted_refined_exit_nodes = list(set(sorted_refined_exit_nodes))
+            sorted_refined_exit_nodes = CFGUtils.quasi_topological_sort_nodes(graph, sorted_refined_exit_nodes)
 
+        refined_exit_nodes = set(sorted_refined_exit_nodes)
         refined_loop_nodes = refined_loop_nodes - refined_exit_nodes
 
         if self._largest_successor_tree_outside_loop and not refined_exit_nodes:
@@ -376,6 +385,13 @@ class RegionIdentifier(Analysis):
         l.debug("Refined loop nodes %s", self._dbg_block_list(refined_loop_nodes))
         l.debug("Refined exit nodes %s", self._dbg_block_list(refined_exit_nodes))
 
+        # make sure there is a jump statement to the outside at the end of each node going to exit nodes.
+        # this jump statement will be rewritten to a break statement during structuring.
+        for exit_node in refined_exit_nodes:
+            for pred in graph.predecessors(exit_node):
+                if pred in refined_loop_nodes:
+                    self._ensure_jump_at_loop_exit_ends(pred)
+
         if len(refined_exit_nodes) > 1:
             # self._get_start_node(graph)
             node_post_order = list(networkx.dfs_postorder_nodes(graph, head))
@@ -446,10 +462,10 @@ class RegionIdentifier(Analysis):
                 replaced_any_stmt = False
                 last_stmts = self.cond_proc.get_last_statements(src)
                 for last_stmt in last_stmts:
-                    if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                    if isinstance(last_stmt, ConditionalJump):
                         if isinstance(last_stmt.true_target, ailment.Expr.Const) \
                                 and last_stmt.true_target.value == succ.addr:
-                            new_last_stmt = ailment.Stmt.ConditionalJump(
+                            new_last_stmt = ConditionalJump(
                                 last_stmt.idx,
                                 last_stmt.condition,
                                 ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
@@ -458,7 +474,7 @@ class RegionIdentifier(Analysis):
                             )
                         elif isinstance(last_stmt.false_target, ailment.Expr.Const) \
                                 and last_stmt.false_target.value == succ.addr:
-                            new_last_stmt = ailment.Stmt.ConditionalJump(
+                            new_last_stmt = ConditionalJump(
                                 last_stmt.idx,
                                 last_stmt.condition,
                                 last_stmt.true_target,
@@ -468,9 +484,9 @@ class RegionIdentifier(Analysis):
                         else:
                             # none of the two branches is jumping out of the loop
                             continue
-                    elif isinstance(last_stmt, ailment.Stmt.Jump):
+                    elif isinstance(last_stmt, Jump):
                         if isinstance(last_stmt.target, ailment.Expr.Const):
-                            new_last_stmt = ailment.Stmt.Jump(
+                            new_last_stmt = Jump(
                                 last_stmt.idx,
                                 ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
                                 ins_addr=last_stmt.ins_addr,
@@ -583,13 +599,22 @@ class RegionIdentifier(Analysis):
                         if region is not None:
                             # update region.graph_with_successors
                             if secondary_graph is not None:
-                                for nn in list(region.graph_with_successors.nodes):
-                                    original_successors = secondary_graph.successors(nn)
-                                    for succ in original_successors:
-                                        if succ not in graph_copy:
-                                            # the successor wasn't added to the graph because it does not belong to the
-                                            # frontier. we backpatch the successor graph here.
-                                            region.graph_with_successors.add_edge(nn, succ)
+                                if self._complete_successors:
+                                    for nn in list(region.graph_with_successors.nodes):
+                                        original_successors = secondary_graph.successors(nn)
+                                        for succ in original_successors:
+                                            if not region.graph_with_successors.has_edge(nn, succ):
+                                                region.graph_with_successors.add_edge(nn, succ)
+                                                region.successors.add(succ)
+                                else:
+                                    for nn in list(region.graph_with_successors.nodes):
+                                        original_successors = secondary_graph.successors(nn)
+                                        for succ in original_successors:
+                                            if succ not in graph_copy:
+                                                # the successor wasn't added to the graph because it does not belong
+                                                # to the frontier. we backpatch the successor graph here.
+                                                region.graph_with_successors.add_edge(nn, succ)
+                                                region.successors.add(succ)
 
                             # l.debug("Walked back %d levels in postdom tree.", levels)
                             l.debug("Node %r, frontier %r.", node, frontier)
@@ -917,6 +942,30 @@ class RegionIdentifier(Analysis):
 
         assert not node_mommy in graph
         assert not node_kiddie in graph
+
+    def _ensure_jump_at_loop_exit_ends(self, node: Union[Block, MultiNode]) -> None:
+        if isinstance(node, Block):
+            if not node.statements:
+                node.statements.append(
+                    Jump(
+                        None,
+                        Const(None, None, node.addr + node.original_size, self.project.arch.bits),
+                        ins_addr=node.addr,
+                    )
+                )
+            else:
+                if not isinstance(node.statements[0], ConditionalJump) \
+                        and not isinstance(node.statements[-1], (Jump, ConditionalJump)):
+                    node.statements.append(
+                        Jump(
+                            None,
+                            Const(None, None, node.addr + node.original_size, self.project.arch.bits),
+                            ins_addr=node.addr,
+                        )
+                    )
+        elif isinstance(node, MultiNode):
+            if node.nodes:
+                self._ensure_jump_at_loop_exit_ends(node.nodes[-1])
 
     @staticmethod
     def _dbg_block_list(blocks):

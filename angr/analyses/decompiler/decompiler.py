@@ -150,11 +150,13 @@ class Decompiler(Analysis):
 
         # determine force_loop_single_exit according to the structuring algorithm
         self._force_loop_single_exit = True
+        self._complete_successors = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class['recursive_structurer'])
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DreamStructurer
         if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
             self._force_loop_single_exit = False
+            self._complete_successors = True
 
         clinic.graph = self._run_graph_simplification_passes(
             clinic.graph,
@@ -165,6 +167,7 @@ class Decompiler(Analysis):
         # recover regions
         ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self.func, graph=clinic.graph, cond_proc=cond_proc, force_loop_single_exit=self._force_loop_single_exit,
+            complete_successors=self._complete_successors,
             **self.options_to_params(self.options_by_class['region_identifier']))
         # run optimizations that may require re-RegionIdentification
         clinic.graph, ri = self._run_region_simplification_passes(

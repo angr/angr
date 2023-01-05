@@ -95,11 +95,15 @@ class RecursiveStructurer(Analysis):
             # TODO: Properly implement support for multi-entry regions
             StructurerBase._remove_all_jumps(self.result)
 
+        else:
+            StructurerBase._remove_redundant_jumps(self.result)
+
         # remove empty nodes (if any)
         self.result = EmptyNodeRemover(self.result).result
 
-        # remove conditional jumps
-        StructurerBase._remove_conditional_jumps(self.result)
+        if self.structurer_cls is DreamStructurer:
+            # remove conditional jumps
+            StructurerBase._remove_conditional_jumps(self.result)
 
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 

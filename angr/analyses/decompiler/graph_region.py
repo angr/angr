@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List
+from typing import Optional, List, Set
 
 import networkx
 
@@ -22,11 +22,11 @@ class GraphRegion:
 
     __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', 'full_graph', )
 
-    def __init__(self, head, graph, successors: Optional[List], graph_with_successors: Optional[networkx.DiGraph],
+    def __init__(self, head, graph, successors: Optional[Set], graph_with_successors: Optional[networkx.DiGraph],
                  cyclic, full_graph: Optional[networkx.DiGraph]):
         self.head = head
         self.graph = graph
-        self.successors = successors
+        self.successors = set(successors) if successors is not None else None
         # successors inside graph_with_successors should be treated as read-only. when deep-copying GraphRegion objects,
         # successors inside graph_with_successors are *not* deep copied. therefore, you should never modify any
         # successor node in graph_with_successors. to avoid potential programming errors, just treat
@@ -55,7 +55,7 @@ class GraphRegion:
         return GraphRegion(
             self.head,
             networkx.DiGraph(self.graph) if self.graph is not None else None,
-            list(self.successors) if self.successors is not None else None,
+            set(self.successors) if self.successors is not None else None,
             networkx.DiGraph(self.graph_with_successors) if self.graph_with_successors is not None else None,
             self.cyclic,
             networkx.DiGraph(self.full_graph) if self.full_graph is not None else None,
@@ -68,16 +68,22 @@ class GraphRegion:
         new_graph = self._recursive_copy(self.graph, nodes_map)
 
         if self.graph_with_successors is not None:
-            successors = {nodes_map.get(succ, succ) for succ in self.successors}
-            # for performance reasons, successors that are only in graph_with_successors are not recursively copied
-            new_graph_with_successors = self._recursive_copy(self.graph_with_successors, nodes_map,
-                                                             ignored_nodes=successors)
+            successors = set()
+            for succ in self.successors:
+                if succ not in nodes_map:
+                    if isinstance(succ, GraphRegion):
+                        nodes_map[succ] = succ.recursive_copy(nodes_map=nodes_map)
+                    else:
+                        nodes_map[succ] = succ
+                successors.add(nodes_map[succ])
+
+            new_graph_with_successors = self._recursive_copy(self.graph_with_successors, nodes_map)
         else:
             new_graph_with_successors = None
             successors = None
 
         if self.full_graph is not None:
-            new_full_graph = self._recursive_copy(self.full_graph, nodes_map, ignored_nodes=successors)
+            new_full_graph = self._recursive_copy(self.full_graph, nodes_map)
         else:
             new_full_graph = None
 

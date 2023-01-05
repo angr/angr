@@ -33,17 +33,20 @@ class RegionSimplifier(Analysis):
         """
 
         r = self.region
-        if self.variable_kb is not None:
-            # Fold expressions that are only used once into their use sites
-            r = self._fold_oneuse_expressions(r)
         # Remove empty nodes
         r = self._remove_empty_nodes(r)
-        # Find nested if-else constructs and convert them into CascadingIfs
-        r = self._transform_to_cascading_ifs(r)
         # Remove unnecessary Jump statements
         r = self._simplify_gotos(r)
         # Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards
         r = self._simplify_ifs(r)
+        # Remove empty nodes again
+        r = self._remove_empty_nodes(r)
+
+        if self.variable_kb is not None:
+            # Fold expressions that are only used once into their use sites
+            r = self._fold_oneuse_expressions(r)
+            r = self._remove_empty_nodes(r)
+
         # Remove unnecessary else branches if the if branch will always return
         r = self._simplify_ifelses(r)
         #
@@ -52,6 +55,8 @@ class RegionSimplifier(Analysis):
         r = self._simplify_loops(r)
         # Remove empty nodes again
         r = self._remove_empty_nodes(r)
+        # Find nested if-else constructs and convert them into CascadingIfs
+        r = self._transform_to_cascading_ifs(r)
 
         self.result = r
 
