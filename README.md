@@ -3,7 +3,7 @@ angr
 
 [![Latest Release](https://img.shields.io/pypi/v/angr.svg)](https://pypi.python.org/pypi/angr/)
 [![PyPI Statistics](https://img.shields.io/pypi/dm/angr.svg)](https://pypistats.org/packages/angr)
-[![Build Status](https://dev.azure.com/angr/angr/_apis/build/status/angr?branchName=master)](https://dev.azure.com/angr/angr/_build/latest?definitionId=18&branchName=master)
+[![Build Status](https://github.com/angr/angr/actions/workflows/.github/workflows/ci.yml/badge.svg)](https://github.com/angr/angr/actions/workflows/.github/workflows/ci.yml/badge.svg)
 [![License](https://img.shields.io/github/license/angr/angr.svg)](https://github.com/angr/angr/blob/master/LICENSE)
 [![Gitbook](https://img.shields.io/badge/docs-gitbook-green.svg)](https://docs.angr.io)
 [![API Docs](https://img.shields.io/badge/docs-api-green.svg)](https://angr.io/api-doc)
