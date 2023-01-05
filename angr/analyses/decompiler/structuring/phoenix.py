@@ -1060,10 +1060,14 @@ class PhoenixStructurer(StructurerBase):
                         return True
 
             if right in graph and not left in graph:
+                # swap them
                 left, right = right, left
+                left_succs, right_succs = right_succs, left_succs  # pylint:disable=unused-variable
             if left in graph and not right in graph:
                 # potentially If-then
-                if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 2:
+                if full_graph.in_degree[left] == 1 and (
+                        full_graph.in_degree[right] == 2
+                        or full_graph.in_degree[right] == 1 and not left_succs):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
