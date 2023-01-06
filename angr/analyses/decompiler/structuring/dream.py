@@ -579,7 +579,7 @@ class DreamStructurer(StructurerBase):
         else:
             return False
 
-        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jumptable_entries, default_addr, i,
+        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jumptable_entries, i, default_addr,
                                                                   addr2nodes)
         if node_default is None:
             # there must be a default case

@@ -15,8 +15,8 @@ from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
 from ..condition_processor import ConditionProcessor
-from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds, is_empty_node, \
-    has_nonlabel_statements, first_nonlabel_statement
+from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds, \
+    is_empty_or_label_only_node, has_nonlabel_statements, first_nonlabel_statement
 from .structurer_nodes import ConditionNode, SequenceNode, LoopNode, ConditionalBreakNode, BreakNode, ContinueNode, \
     BaseNode, MultiNode, SwitchCaseNode, IncompleteSwitchCaseNode, EmptyBlockNotice
 from .structurer_base import StructurerBase
@@ -790,7 +790,7 @@ class PhoenixStructurer(StructurerBase):
             return False
         if isinstance(node, IncompleteSwitchCaseNode):
             return False
-        if is_empty_node(node):
+        if is_empty_or_label_only_node(node):
             return False
 
         successors = list(graph.successors(node))
