@@ -38,6 +38,22 @@ class AMD64CCallRewriter(CCallRewriterBase):
                                           True,
                                           **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                    elif op_v in {
+                        AMD64_OpTypes['G_CC_OP_LOGICB'],
+                        AMD64_OpTypes['G_CC_OP_LOGICW'],
+                        AMD64_OpTypes['G_CC_OP_LOGICL'],
+                        AMD64_OpTypes['G_CC_OP_LOGICQ'],
+                    }:
+                        if isinstance(dep_2, Expr.Const) and dep_2.value == 0:
+                            # dep_1 >=s 0
+                            r = Expr.BinaryOp(
+                                ccall.idx,
+                                "CmpLE",
+                                (dep_1, dep_2),
+                                True,
+                                **ccall.tags,
+                            )
+                            return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes['CondZ']:
                     if op_v in {AMD64_OpTypes['G_CC_OP_SUBB'], AMD64_OpTypes['G_CC_OP_SUBW'],
                                 AMD64_OpTypes['G_CC_OP_SUBL'], AMD64_OpTypes['G_CC_OP_SUBQ']}:
@@ -73,6 +89,23 @@ class AMD64CCallRewriter(CCallRewriterBase):
                                       calling_convention=SimCCUsercall(self.arch, [], None),
                                       args=[dep_1, dep_2], bits=ccall.bits, **ccall.tags)
                         return r
+                elif cond_v == AMD64_CondTypes['CondS']:
+                    if op_v in {
+                        AMD64_OpTypes['G_CC_OP_LOGICB'],
+                        AMD64_OpTypes['G_CC_OP_LOGICW'],
+                        AMD64_OpTypes['G_CC_OP_LOGICL'],
+                        AMD64_OpTypes['G_CC_OP_LOGICQ'],
+                    }:
+                        if isinstance(dep_2, Expr.Const) and dep_2.value == 0:
+                            # dep_1 < 0
+                            r = Expr.BinaryOp(
+                                ccall.idx,
+                                "CmpLT",
+                                (dep_1, dep_2),
+                                True,
+                                **ccall.tags,
+                            )
+                            return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
         elif ccall.cee_name == "amd64g_calculate_rflags_c":
             # calculate the carry flag
