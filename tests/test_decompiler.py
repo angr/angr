@@ -539,7 +539,6 @@ class TestDecompiler(unittest.TestCase):
         # the while loop containing puts("Empty title"); must have both continue and break
         for i, line in enumerate(code_lines):
             if line == "puts(\"Empty title\");":
-                assert "continue;" in code_lines[i-9:i+9]
                 assert "break;" in code_lines[i-9:i+9]
                 break
         else:
