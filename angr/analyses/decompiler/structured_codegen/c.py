@@ -611,6 +611,7 @@ class CWhileLoop(CLoop):
             yield " ", None
         if self.body is None:
             yield ";", None
+            yield "\n", None
         else:
             yield "{", brace
             yield "\n", None

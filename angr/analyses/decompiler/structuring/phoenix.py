@@ -990,7 +990,7 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=right)
-                        # TODO: Remove the last statement of start_node
+                        self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         if not left_succs:
@@ -1027,7 +1027,7 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        # TODO: Remove the last statement of start_node
+                        self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
@@ -1049,7 +1049,7 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        # TODO: Remove the last statement of start_node
+                        self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
@@ -1073,7 +1073,7 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        # TODO: Remove the last statement of start_node
+                        self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
@@ -1656,7 +1656,7 @@ class PhoenixStructurer(StructurerBase):
         return None
 
     @staticmethod
-    def _remove_last_statement_if_jump(node: BaseNode) -> Optional[Union[Jump,ConditionalJump]]:
+    def _remove_last_statement_if_jump(node: Union[BaseNode,Block]) -> Optional[Union[Jump,ConditionalJump]]:
         try:
             last_stmts = ConditionProcessor.get_last_statements(node)
         except EmptyBlockNotice:

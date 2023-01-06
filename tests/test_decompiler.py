@@ -1051,11 +1051,11 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
         p = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        cfg = p.analyses[CFGFast].prep(show_progressbar=not WORKER)(data_references=True, normalize=True)
 
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text

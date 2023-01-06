@@ -12,7 +12,7 @@ from ..condition_processor import ConditionProcessor
 from ..sequence_walker import SequenceWalker
 from ..utils import extract_jump_targets, insert_node
 from .structurer_nodes import MultiNode, SequenceNode, SwitchCaseNode, CodeNode, ConditionNode, ConditionalBreakNode, \
-    ContinueNode, BaseNode, CascadingConditionNode, BreakNode, LoopNode
+    ContinueNode, BaseNode, CascadingConditionNode, BreakNode, LoopNode, EmptyBlockNotice
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -388,9 +388,12 @@ class StructurerBase(Analysis):
         walker = SequenceWalker(handlers=handlers)
         walker.walk(loop_node)
 
-    def _rewrite_jumps_to_continues(self, loop_seq):
+    def _rewrite_jumps_to_continues(self, loop_seq: SequenceNode):
 
-        last_stmts = self.cond_proc.get_last_statements(loop_seq)
+        try:
+            last_stmts = self.cond_proc.get_last_statements(loop_seq)
+        except EmptyBlockNotice:
+            return
 
         def _rewrite_jump_to_continue(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
             if not node.statements:
