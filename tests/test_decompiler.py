@@ -1079,6 +1079,8 @@ class TestDecompiler(unittest.TestCase):
         code_without_spaces = code.replace(" ", "").replace("\n", "")
         assert "while(true" not in code_without_spaces
         assert "for(" in code_without_spaces
+        m = re.search(r"if\([^=]+==0\)", code_without_spaces)
+        assert m is None
 
     @for_all_structuring_algos
     def test_simple_strcpy(self, decompiler_options=None):

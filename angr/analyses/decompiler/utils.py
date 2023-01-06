@@ -310,6 +310,18 @@ def first_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Stat
     return None
 
 
+def first_nonlabel_node(seq: 'SequenceNode') -> Optional[Union['BaseNode',ailment.Block]]:
+    for node in seq.nodes:
+        if isinstance(node, CodeNode):
+            inner_node = node.node
+        else:
+            inner_node = node
+        if isinstance(inner_node, ailment.Block) and not has_nonlabel_statements(inner_node):
+            continue
+        return node
+    return None
+
+
 # delayed import
 from .structuring.structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, \
     CascadingConditionNode

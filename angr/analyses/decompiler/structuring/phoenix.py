@@ -1656,7 +1656,10 @@ class PhoenixStructurer(StructurerBase):
                     first_stmt = node.statements[idx]
 
                 if isinstance(first_stmt, (Jump, ConditionalJump)):
-                    node.statements = node.statements[1:]
+                    if idx == 0:
+                        node.statements = node.statements[1:]
+                    else:
+                        node.statements = node.statements[0:idx] + node.statements[idx+1:]
                     return first_stmt
             return None
         if isinstance(node, MultiNode):
