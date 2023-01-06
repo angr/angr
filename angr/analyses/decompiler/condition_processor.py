@@ -17,6 +17,7 @@ from .structuring.structurer_nodes import (MultiNode, EmptyBlockNotice, Sequence
                                            BreakNode, ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode,
                                            CascadingConditionNode, IncompleteSwitchCaseNode)
 from .graph_region import GraphRegion
+from .utils import first_nonlabel_statement
 
 if is_pyinstaller():
     # PyInstaller is not happy with lazy import
@@ -455,8 +456,8 @@ class ConditionProcessor:
         # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
         if isinstance(src_block, ailment.Block) \
                 and src_block.statements \
-                and isinstance(src_block.statements[0], ailment.Stmt.ConditionalJump):
-            last_stmt = src_block.statements[0]
+                and isinstance(first_nonlabel_statement(src_block), ailment.Stmt.ConditionalJump):
+            last_stmt = first_nonlabel_statement(src_block)
         else:
             last_stmt = self.get_last_statement(src_block)
 

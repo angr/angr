@@ -1086,22 +1086,33 @@ class CReturn(CStatement):
 
 class CGoto(CStatement):
 
-    __slots__ = ('target', 'tags', )
+    __slots__ = ('target', 'target_idx', 'tags', )
 
-    def __init__(self, target, tags=None, **kwargs):
+    def __init__(self, target, target_idx, tags=None, **kwargs):
         super().__init__(**kwargs)
 
+        if isinstance(target, CConstant):
+            # unpack target
+            target = target.value
+
         self.target = target
+        self.target_idx = target_idx
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
+        lbl = None
+        if self.codegen is not None:
+            lbl = self.codegen.map_addr_to_label.get((self.target, self.target_idx))
 
         yield indent_str, None
         if self.codegen.comment_gotos:
             yield "/* ", None
         yield "goto ", self
-        yield from self.target.c_repr_chunks()
+        if lbl is None:
+            yield from self.target.c_repr_chunks()
+        else:
+            yield lbl.name, lbl
         yield ";", self
         if self.codegen.comment_gotos:
             yield " */", None
@@ -1126,6 +1137,28 @@ class CUnsupportedStatement(CStatement):
 
         yield indent_str, None
         yield str(self.stmt), None
+        yield "\n", None
+
+
+class CLabel(CStatement):
+    """
+    Represents a label in C code.
+    """
+
+    __slots__ = ('name', 'ins_addr', 'block_idx', 'tags', )
+
+    def __init__(self, name: str, ins_addr: int, block_idx: Optional[int], tags=None, **kwargs):
+        super().__init__(**kwargs)
+        self.name = name
+        self.ins_addr = ins_addr
+        self.block_idx = block_idx
+        self.tags = tags
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        # indent-_str = self.indent_str(indent=indent)
+
+        yield self.name, self
+        yield ':', None
         yield "\n", None
 
 
@@ -1436,7 +1469,6 @@ class CBinaryOp(CExpression):
     @property
     def type(self):
         return self._type
-
 
     @property
     def op_precedence(self):
@@ -1846,7 +1878,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=16,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
-                 comment_gotos=True, flavor=None, stmt_comments=None, expr_comments=None, show_externs=True,
+                 comment_gotos=False, flavor=None, stmt_comments=None, expr_comments=None, show_externs=True,
                  externs=None, const_formats=None):
         super().__init__(flavor=flavor)
 
@@ -1869,6 +1901,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
+            Stmt.Label: self._handle_Stmt_Label,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -1911,6 +1944,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
         self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
+        self.map_addr_to_label: Dict[Tuple[int,Optional[int]],CLabel] = {}
         self.cfunc: Optional[CFunction] = None
         self.cexterns: Optional[Set[CVariable]] = None
 
@@ -2664,14 +2698,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return result
 
-    def _handle_Stmt_Jump(self, stmt):
-        return CGoto(self._handle(stmt.target), tags=stmt.tags, codegen=self)
+    def _handle_Stmt_Jump(self, stmt: Stmt.Jump):
+        return CGoto(self._handle(stmt.target), stmt.target_idx, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_ConditionalJump(self, stmt: Stmt.ConditionalJump):
         else_node = None \
-            if stmt.false_target is None else CGoto(self._handle(stmt.false_target), tags=stmt.tags, codegen=self)
+            if stmt.false_target is None else CGoto(self._handle(stmt.false_target), None, tags=stmt.tags, codegen=self)
         ifelse = CIfElse(
-            [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), tags=stmt.tags, codegen=self))],
+            [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self))],
             else_node=else_node,
             tags=stmt.tags,
             codegen=self,
@@ -2689,6 +2723,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
             ret_expr = stmt.ret_exprs[0]
             return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
+
+    def _handle_Stmt_Label(self, stmt: Stmt.Label):
+        clabel = CLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
+        self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
+        return clabel
 
     #
     # AIL expression handlers

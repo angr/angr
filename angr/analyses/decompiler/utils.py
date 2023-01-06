@@ -289,7 +289,7 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
     return transition_graph
 
 
-def is_empty_node(node):
+def is_empty_node(node) -> bool:
     if isinstance(node, ailment.Block):
         return not node.statements
     if isinstance(node, MultiNode):
@@ -297,6 +297,39 @@ def is_empty_node(node):
     if isinstance(node, SequenceNode):
         return all(is_empty_node(n) for n in node.nodes)
     return False
+
+
+def is_empty_or_label_only_node(node) -> bool:
+    if isinstance(node, ailment.Block):
+        return not has_nonlabel_statements(node)
+    if isinstance(node, MultiNode):
+        return all(is_empty_or_label_only_node(n) for n in node.nodes)
+    if isinstance(node, SequenceNode):
+        return all(is_empty_or_label_only_node(n) for n in node.nodes)
+    return False
+
+
+def has_nonlabel_statements(block: ailment.Block) -> bool:
+    return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
+
+
+def first_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Statement]:
+    for stmt in block.statements:
+        if not isinstance(stmt, ailment.Stmt.Label):
+            return stmt
+    return None
+
+
+def first_nonlabel_node(seq: 'SequenceNode') -> Optional[Union['BaseNode',ailment.Block]]:
+    for node in seq.nodes:
+        if isinstance(node, CodeNode):
+            inner_node = node.node
+        else:
+            inner_node = node
+        if isinstance(inner_node, ailment.Block) and not has_nonlabel_statements(inner_node):
+            continue
+        return node
+    return None
 
 
 # delayed import

@@ -3,6 +3,8 @@ import ailment
 from ....analyses import AnalysesHub
 from ...analysis import Analysis
 from ..empty_node_remover import EmptyNodeRemover
+from ..jump_target_collector import JumpTargetCollector
+from ..redundant_label_remover import RedundantLabelRemover
 from .goto import GotoSimplifier
 from .if_ import IfSimplifier
 from .cascading_ifs import CascadingIfsRemover
@@ -39,6 +41,8 @@ class RegionSimplifier(Analysis):
         r = self._simplify_gotos(r)
         # Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards
         r = self._simplify_ifs(r)
+        # Remove labels that are not referenced by anything
+        r = self._simplify_labels(r)
         # Remove empty nodes again
         r = self._remove_empty_nodes(r)
 
@@ -150,6 +154,12 @@ class RegionSimplifier(Analysis):
     @staticmethod
     def _simplify_ifs(region):
         IfSimplifier(region)
+        return region
+
+    @staticmethod
+    def _simplify_labels(region):
+        jcl = JumpTargetCollector(region)
+        RedundantLabelRemover(region, jcl.jump_targets)
         return region
 
     def _simplify_ifelses(self, region):

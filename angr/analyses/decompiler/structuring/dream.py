@@ -15,7 +15,8 @@ from ..empty_node_remover import EmptyNodeRemover
 from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from ..condition_processor import ConditionProcessor
 from ..region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
-from ..utils import extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, remove_last_statement
+from ..utils import extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, remove_last_statement, \
+    first_nonlabel_node
 from .structurer_nodes import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, SwitchCaseNode,
     BreakNode, ContinueNode, MultiNode, CascadingConditionNode, BaseNode, EmptyBlockNotice)
 from .structurer_base import StructurerBase
@@ -200,13 +201,15 @@ class DreamStructurer(StructurerBase):
 
         if loop_node.sort == 'while' and loop_node.condition is None and loop_node.sequence_node.nodes:
             # it's an endless loop
-            first_node = loop_node.sequence_node.nodes[0]
+            first_node = first_nonlabel_node(loop_node.sequence_node)
             if type(first_node) is CodeNode:
-                first_node = first_node.node
-            if type(first_node) is ConditionalBreakNode:
-                while_cond = ConditionProcessor.simplify_condition(claripy.Not(first_node.condition))
+                inner_first_node = first_node.node
+            else:
+                inner_first_node = first_node
+            if type(inner_first_node) is ConditionalBreakNode:
+                while_cond = ConditionProcessor.simplify_condition(claripy.Not(inner_first_node.condition))
                 new_seq = loop_node.sequence_node.copy()
-                new_seq.nodes = new_seq.nodes[1:]
+                new_seq.nodes = [ nn for nn in new_seq.nodes if nn is not first_node ]
                 new_loop_node = LoopNode('while', while_cond, new_seq, addr=loop_node.addr)
 
                 return True, new_loop_node
@@ -576,7 +579,7 @@ class DreamStructurer(StructurerBase):
         else:
             return False
 
-        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jumptable_entries, default_addr, i,
+        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jumptable_entries, i, default_addr,
                                                                   addr2nodes)
         if node_default is None:
             # there must be a default case

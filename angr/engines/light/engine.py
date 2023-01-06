@@ -844,6 +844,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
         self.l.warning('Unsupported statement type %s.', type(stmt).__name__)
 
+    def _ail_handle_Label(self, stmt):
+        pass
+
     def _ail_handle_Jump(self, stmt):
         raise NotImplementedError('Please implement the Jump handler with your own logic.')
 

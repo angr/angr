@@ -7,7 +7,7 @@ import networkx
 
 import claripy
 from ailment.block import Block
-from ailment.statement import ConditionalJump, Jump
+from ailment.statement import ConditionalJump, Jump, Label
 from ailment.expression import Const, UnaryOp
 
 from ....knowledge_plugins.cfg import IndirectJumpType
@@ -15,7 +15,8 @@ from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
 from ..condition_processor import ConditionProcessor
-from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds, is_empty_node
+from ..utils import remove_last_statement, extract_jump_targets, switch_extract_cmp_bounds, \
+    is_empty_or_label_only_node, has_nonlabel_statements, first_nonlabel_statement
 from .structurer_nodes import ConditionNode, SequenceNode, LoopNode, ConditionalBreakNode, BreakNode, ContinueNode, \
     BaseNode, MultiNode, SwitchCaseNode, IncompleteSwitchCaseNode, EmptyBlockNotice
 from .structurer_base import StructurerBase
@@ -180,10 +181,10 @@ class PhoenixStructurer(StructurerBase):
 
                 if (isinstance(head_block, MultiNode) and head_block.nodes
                         and isinstance(head_block.nodes[0], Block) and head_block.nodes[0].statements
-                        and isinstance(head_block.nodes[0].statements[0], ConditionalJump)
+                        and isinstance(first_nonlabel_statement(head_block.nodes[0]), ConditionalJump)
                         or isinstance(head_block, Block)
                         and head_block.statements
-                        and isinstance(head_block.statements[0], ConditionalJump)):
+                        and isinstance(first_nonlabel_statement(head_block), ConditionalJump)):
                     # otherwise it's a do-while loop
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
@@ -789,7 +790,7 @@ class PhoenixStructurer(StructurerBase):
             return False
         if isinstance(node, IncompleteSwitchCaseNode):
             return False
-        if is_empty_node(node):
+        if is_empty_or_label_only_node(node):
             return False
 
         successors = list(graph.successors(node))
@@ -1543,7 +1544,7 @@ class PhoenixStructurer(StructurerBase):
 
         def _handle_Block(block: Block, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.statements:
-                first_stmt = block.statements[0]
+                first_stmt = first_nonlabel_statement(block)
                 if _check(first_stmt):
                     walker.parent = parent
                     walker.block = block
@@ -1622,9 +1623,9 @@ class PhoenixStructurer(StructurerBase):
     @staticmethod
     def _count_statements(node: Union[BaseNode,Block]) -> int:
         if isinstance(node, Block):
-            return len(node.statements)
+            return sum(1 for stmt in node.statements if not isinstance(stmt, Label))
         elif isinstance(node, MultiNode):
-            return sum(len(nn.statements) for nn in node.nodes)
+            return sum(PhoenixStructurer._count_statements(nn) for nn in node.nodes)
         elif isinstance(node, SequenceNode):
             return sum(PhoenixStructurer._count_statements(nn) for nn in node.nodes)
         return 1
@@ -1645,15 +1646,26 @@ class PhoenixStructurer(StructurerBase):
     def _remove_first_statement_if_jump(node: Union[BaseNode,Block]) -> Optional[Union[Jump,ConditionalJump]]:
         if isinstance(node, Block):
             if node.statements:
-                first_stmt = node.statements[0]
+                idx = 0
+                first_stmt = node.statements[idx]
+                while isinstance(first_stmt, Label):
+                    idx += 1
+                    if idx >= len(node.statements):
+                        first_stmt = None
+                        break
+                    first_stmt = node.statements[idx]
+
                 if isinstance(first_stmt, (Jump, ConditionalJump)):
-                    node.statements = node.statements[1:]
+                    if idx == 0:
+                        node.statements = node.statements[1:]
+                    else:
+                        node.statements = node.statements[0:idx] + node.statements[idx+1:]
                     return first_stmt
             return None
         if isinstance(node, MultiNode):
             for nn in node.nodes:
                 if isinstance(nn, Block):
-                    if not nn.statements:
+                    if not has_nonlabel_statements(nn):
                         continue
                     return PhoenixStructurer._remove_first_statement_if_jump(nn)
                 break
