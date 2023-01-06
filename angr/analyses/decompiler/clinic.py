@@ -48,6 +48,7 @@ class Clinic(Analysis):
             exception_edges=False,
             sp_tracker_track_memory=True,
             fold_callexprs_into_conditions=False,
+            insert_labels=True,
             optimization_passes=None,
             cfg=None,
             peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None, # pylint:disable=line-too-long
@@ -72,6 +73,7 @@ class Clinic(Analysis):
         self._blocks_by_addr_and_size = {}
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
+        self._insert_labels = insert_labels
         self._remove_dead_memdefs = remove_dead_memdefs
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
@@ -161,6 +163,8 @@ class Clinic(Analysis):
 
         ail_graph = self._make_ailgraph()
         self._remove_redundant_jump_blocks(ail_graph)
+        if self._insert_labels:
+            self._insert_block_labels(ail_graph)
 
         # Run simplification passes
         self._update_progress(22., text="Optimizing fresh ailment graph")
@@ -1147,6 +1151,7 @@ class Clinic(Analysis):
 
     @staticmethod
     def _remove_redundant_jump_blocks(ail_graph):
+        # note that blocks don't have labels inserted at this point
         for node in list(ail_graph.nodes):
             if len(node.statements) == 1 \
                     and isinstance(node.statements[0], ailment.Stmt.Jump) \
@@ -1173,6 +1178,13 @@ class Clinic(Analysis):
                                         last_stmt.false_target.value = succs[0].addr
                             ail_graph.add_edge(pred, succs[0])
                         ail_graph.remove_node(node)
+
+    @staticmethod
+    def _insert_block_labels(ail_graph):
+        for node in ail_graph.nodes:
+            node: ailment.Block
+            lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
+            node.statements.insert(0, lbl)
 
     @staticmethod
     def _collect_externs(ail_graph, variable_kb):

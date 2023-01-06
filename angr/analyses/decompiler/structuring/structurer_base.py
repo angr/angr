@@ -632,8 +632,7 @@ class StructurerBase(Analysis):
             last_node = node_0
         else:
             last_node = None
-        if isinstance(last_node, ailment.Block) \
-                and last_node.statements:
+        if isinstance(last_node, ailment.Block) and last_node.statements:
             if isinstance(last_node.statements[-1], ailment.Stmt.Jump):
                 last_node.statements = last_node.statements[:-1]
             elif isinstance(last_node.statements[-1], ailment.Stmt.ConditionalJump):

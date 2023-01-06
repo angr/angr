@@ -16,7 +16,7 @@ from ..cfg.cfg_utils import CFGUtils
 from .structuring.structurer_nodes import MultiNode, ConditionNode
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor
-from .utils import replace_last_statement
+from .utils import replace_last_statement, first_nonlabel_statement
 
 l = logging.getLogger(name=__name__)
 
@@ -954,7 +954,7 @@ class RegionIdentifier(Analysis):
                     )
                 )
             else:
-                if not isinstance(node.statements[0], ConditionalJump) \
+                if not isinstance(first_nonlabel_statement(node), ConditionalJump) \
                         and not isinstance(node.statements[-1], (Jump, ConditionalJump)):
                     node.statements.append(
                         Jump(

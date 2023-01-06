@@ -299,6 +299,17 @@ def is_empty_node(node):
     return False
 
 
+def has_nonlabel_statements(block: ailment.Block) -> bool:
+    return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
+
+
+def first_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Statement]:
+    for stmt in block.statements:
+        if not isinstance(stmt, ailment.Stmt.Label):
+            return stmt
+    return None
+
+
 # delayed import
 from .structuring.structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, \
     CascadingConditionNode

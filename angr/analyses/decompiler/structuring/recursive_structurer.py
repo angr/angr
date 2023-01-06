@@ -7,6 +7,8 @@ from ..condition_processor import ConditionProcessor
 from ..graph_region import GraphRegion
 from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from ..empty_node_remover import EmptyNodeRemover
+from ..jump_target_collector import JumpTargetCollector
+from ..redundant_label_remover import RedundantLabelRemover
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
 
@@ -97,6 +99,10 @@ class RecursiveStructurer(Analysis):
 
         else:
             StructurerBase._remove_redundant_jumps(self.result)
+
+        # remove redundant labels
+        jtc = JumpTargetCollector(self.result)
+        self.result = RedundantLabelRemover(self.result, jtc.jump_targets).result
 
         # remove empty nodes (if any)
         self.result = EmptyNodeRemover(self.result).result

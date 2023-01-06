@@ -52,6 +52,7 @@ class SimEngineRDAIL(
             ailment.Stmt.Call: self._ail_handle_Call,
             ailment.Stmt.Return: self._ail_handle_Return,
             ailment.Stmt.DirtyStatement: self._ail_handle_DirtyStatement,
+            ailment.Stmt.Label: ...,
         }
 
         self._expr_handlers = {
@@ -116,7 +117,8 @@ class SimEngineRDAIL(
 
         handler = self._stmt_handlers.get(type(stmt), None)
         if handler is not None:
-            handler(stmt)
+            if handler is not ...:
+                handler(stmt)
         else:
             self.l.warning('Unsupported statement type %s.', type(stmt).__name__)
 

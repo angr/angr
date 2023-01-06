@@ -1726,6 +1726,45 @@ class TestDecompiler(unittest.TestCase):
             t = t.replace("continue;}", "")
             assert "continue;" not in t
 
+    @for_all_structuring_algos
+    def test_decompiling_remove_write_protected_non_symlink(self, decompiler_options=None):
+        # labels test
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "remove.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["write_protected_non_symlink"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                               "linux")
+        all_optimization_passes = [p for p in all_optimization_passes
+                                   if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options,
+                                             optimization_passes=all_optimization_passes)
+        self._print_decompilation_result(d)
+
+        assert "faccessat(" in d.codegen.text
+        if decompiler_options:
+            if decompiler_options[-1][-1] == "phoenix":
+                # make sure there is one label
+                all_labels = set()
+                all_gotos = set()
+                for m in re.finditer(r"LABEL_[^:]+:", d.codegen.text):
+                    all_labels.add(m.group(0)[:-1])
+                for m in re.finditer(r"goto ([^;]+);", d.codegen.text):
+                    all_gotos.add(m.group(1))
+                assert len(all_labels) == 1
+                assert len(all_gotos) == 1
+                assert all_labels == all_gotos
+            else:
+                # dream
+                assert "LABEL_" not in d.codegen.text
+                assert "goto" not in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
