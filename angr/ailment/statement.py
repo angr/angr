@@ -536,3 +536,29 @@ class DirtyStatement(Statement):
 
     def copy(self) -> 'DirtyStatement':
         return DirtyStatement(self.idx, self.dirty_stmt, **self.tags)
+
+
+class Label(Statement):
+    """
+    A dummy statement that indicates a label with a name.
+    """
+
+    __slots__ = ('name', 'ins_addr', 'block_idx', )
+
+    def __init__(self, idx, name: str, ins_addr: int, block_idx: Optional[int] = None, **kwargs):
+        super().__init__(idx, **kwargs)
+        self.name = name
+        self.ins_addr = ins_addr
+        self.block_idx = block_idx
+
+    def _hash_core(self):
+        return stable_hash((Label, self.name, self.ins_addr, self.block_idx, ))
+
+    def __repr__(self):
+        return f"Label {self.name}"
+
+    def __str__(self):
+        return f"{self.name}:"
+
+    def copy(self) -> 'Label':
+        return Label(self.idx, self.name, self.ins_addr, self.block_idx, **self.tags)
