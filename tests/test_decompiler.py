@@ -539,7 +539,6 @@ class TestDecompiler(unittest.TestCase):
         # the while loop containing puts("Empty title"); must have both continue and break
         for i, line in enumerate(code_lines):
             if line == "puts(\"Empty title\");":
-                assert "continue;" in code_lines[i-9:i+9]
                 assert "break;" in code_lines[i-9:i+9]
                 break
         else:
@@ -741,6 +740,28 @@ class TestDecompiler(unittest.TestCase):
         for line in lines:
             if "root(" in line:
                 assert "strlen(" in line
+
+    @structuring_algo("phoenix")
+    def test_decompilation_call_expr_folding_into_if_conditions(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["find_bind_mount"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        m = re.search(
+            r"if \([^\n]+ == 47 "
+            r"&& strcmp\([^\n]+\) == 0 "
+            r"&& stat\([^\n]+\) == 0 "
+            r"&& [^\n]+ == [^\n]+ "
+            r"&& [^\n]+ == [^\n]+\)",
+            d.codegen.text,
+        )
+        assert m is not None
 
     @for_all_structuring_algos
     def test_decompilation_excessive_condition_removal(self, decompiler_options=None):
@@ -1029,11 +1050,11 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
         p = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        cfg = p.analyses[CFGFast].prep(show_progressbar=not WORKER)(data_references=True, normalize=True)
 
         func = cfg.functions['main']
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text

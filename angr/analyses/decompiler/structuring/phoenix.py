@@ -207,62 +207,39 @@ class PhoenixStructurer(StructurerBase):
 
                 # possible candidate
                 _, head_block = self._find_node_going_to_dst(node, left)
-                edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
-                edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                    # c = !c
-                    if PhoenixStructurer._is_single_statement_block(node):
-                        # the single-statement-block check is to ensure we don't execute any code before the
-                        # conditional jump. this way the entire node can be dropped.
-                        new_node = SequenceNode(node.addr, nodes=[left])
-                        loop_node = LoopNode('while', edge_cond_left, new_node, addr=node.addr)
+                if head_block is not None:
+                    edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
+                    edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                        # c = !c
+                        if PhoenixStructurer._is_single_statement_block(node):
+                            # the single-statement-block check is to ensure we don't execute any code before the
+                            # conditional jump. this way the entire node can be dropped.
+                            new_node = SequenceNode(node.addr, nodes=[left])
+                            loop_node = LoopNode('while', edge_cond_left, new_node, addr=node.addr)
 
-                        # on the original graph
-                        self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
-                        # on the graph with successors
-                        self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
+                            # on the original graph
+                            self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
+                            # on the graph with successors
+                            self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
 
-                        # ensure the loop has only one successor: the right node
-                        self._remove_edges_except(graph, loop_node, right)
-                        self._remove_edges_except(full_graph, loop_node, right)
+                            # ensure the loop has only one successor: the right node
+                            self._remove_edges_except(graph, loop_node, right)
+                            self._remove_edges_except(full_graph, loop_node, right)
 
-                        return True, loop_node, right
-                    else:
-                        # we generate a while-true loop instead
-                        last_stmt = self._remove_last_statement_if_jump(head_block)
-                        cond_jump = Jump(
-                            None,
-                            Const(None, None, right.addr, self.project.arch.bits),
-                            None,
-                            ins_addr=last_stmt.ins_addr,
-                        )
-                        jump_node = Block(last_stmt.ins_addr, None, statements=[cond_jump])
-                        cond_jump_node = ConditionNode(last_stmt.ins_addr, None, edge_cond_right, jump_node)
-                        new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
-                        loop_node = LoopNode('while', claripy.true, new_node, addr=node.addr)
-
-                        # on the original graph
-                        self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
-                        # on the graph with successors
-                        self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
-
-                        # ensure the loop has only one successor: the right node
-                        self._remove_edges_except(graph, loop_node, right)
-                        self._remove_edges_except(full_graph, loop_node, right)
-
-                        return True, loop_node, right
-
-                elif self._phoenix_improved:
-                    if full_graph.out_degree[node] == 1:
-                        # while (true) { ...; if (...) break; }
-                        _, head_block = self._find_node_going_to_dst(node, left)
-                        edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
-                        edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
-                        if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
-                            # c = !c
-                            self._remove_last_statement_if_jump(head_block)
-                            cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
-                            new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
+                            return True, loop_node, right
+                        else:
+                            # we generate a while-true loop instead
+                            last_stmt = self._remove_last_statement_if_jump(head_block)
+                            cond_jump = Jump(
+                                None,
+                                Const(None, None, right.addr, self.project.arch.bits),
+                                None,
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                            jump_node = Block(last_stmt.ins_addr, None, statements=[cond_jump])
+                            cond_jump_node = ConditionNode(last_stmt.ins_addr, None, edge_cond_right, jump_node)
+                            new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
                             loop_node = LoopNode('while', claripy.true, new_node, addr=node.addr)
 
                             # on the original graph
@@ -275,6 +252,31 @@ class PhoenixStructurer(StructurerBase):
                             self._remove_edges_except(full_graph, loop_node, right)
 
                             return True, loop_node, right
+
+                if self._phoenix_improved:
+                    if full_graph.out_degree[node] == 1:
+                        # while (true) { ...; if (...) break; }
+                        _, head_block = self._find_node_going_to_dst(node, left)
+                        if head_block is not None:
+                            edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
+                            edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
+                            if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                                # c = !c
+                                self._remove_last_statement_if_jump(head_block)
+                                cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
+                                new_node = SequenceNode(node.addr, nodes=[node, cond_break, left])
+                                loop_node = LoopNode('while', claripy.true, new_node, addr=node.addr)
+
+                                # on the original graph
+                                self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
+                                # on the graph with successors
+                                self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
+
+                                # ensure the loop has only one successor: the right node
+                                self._remove_edges_except(graph, loop_node, right)
+                                self._remove_edges_except(full_graph, loop_node, right)
+
+                                return True, loop_node, right
 
         return False, None, None
 
@@ -990,7 +992,7 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=right)
-                        # TODO: Remove the last statement of start_node
+                        self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         if not left_succs:
@@ -1027,7 +1029,7 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        # TODO: Remove the last statement of start_node
+                        self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
@@ -1049,7 +1051,7 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        # TODO: Remove the last statement of start_node
+                        # self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
@@ -1073,7 +1075,9 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        # TODO: Remove the last statement of start_node
+                        if full_graph.in_degree[right] == 1:
+                            # only remove the if statement when it will no longer be used later
+                            self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
@@ -1656,7 +1660,7 @@ class PhoenixStructurer(StructurerBase):
         return None
 
     @staticmethod
-    def _remove_last_statement_if_jump(node: BaseNode) -> Optional[Union[Jump,ConditionalJump]]:
+    def _remove_last_statement_if_jump(node: Union[BaseNode,Block]) -> Optional[Union[Jump,ConditionalJump]]:
         try:
             last_stmts = ConditionProcessor.get_last_statements(node)
         except EmptyBlockNotice:

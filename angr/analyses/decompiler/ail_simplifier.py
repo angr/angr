@@ -56,15 +56,19 @@ class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
     """
-    def __init__(self, func,
-                 func_graph=None,
-                 remove_dead_memdefs=False,
-                 stack_arg_offsets: Optional[Set[Tuple[int,int]]]=None,
-                 unify_variables=False,
-                 ail_manager: Optional['Manager']=None,
-                 gp: Optional[int]=None,
-                 narrow_expressions=False,
-                 only_consts=False):
+    def __init__(
+            self,
+            func,
+            func_graph=None,
+            remove_dead_memdefs=False,
+            stack_arg_offsets: Optional[Set[Tuple[int,int]]]=None,
+            unify_variables=False,
+            ail_manager: Optional['Manager']=None,
+            gp: Optional[int]=None,
+            narrow_expressions=False,
+            only_consts=False,
+            fold_callexprs_into_conditions=False,
+    ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions = None
@@ -77,6 +81,7 @@ class AILSimplifier(Analysis):
         self._gp = gp
         self._narrow_expressions = narrow_expressions
         self._only_consts = only_consts
+        self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
 
         self._calls_to_remove: Set[CodeLocation] = set()
         self._assignments_to_remove: Set[CodeLocation] = set()
@@ -638,10 +643,13 @@ class AILSimplifier(Analysis):
             s0 = func();
             if (s0) ...
 
-        to avoid cases where func() is called more than once after simplification, another simplification pass will run
-        on the structured graph to further transform it to::
+        s0 can be folded into the condition, which means this example can further be transformed to::
 
             if (func()) ...
+
+        this behavior is controlled by fold_callexprs_into_conditions. This to avoid cases where func() is called more
+        than once after simplification and graph structuring where conditions might be duplicated (e.g., in Dream).
+        In such cases, the one-use expression folder in RegionSimplifier will perform this transformation.
         """
 
         simplified = False
@@ -703,10 +711,11 @@ class AILSimplifier(Analysis):
                     # Propagator to get an updated Equivalence.
                     continue
 
-                # check the statement and make sure it's not a conditional jump
-                the_block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
-                if isinstance(the_block.statements[u.stmt_idx], ConditionalJump):
-                    continue
+                if not self._fold_callexprs_into_conditions:
+                    # check the statement and make sure it's not a conditional jump
+                    the_block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
+                    if isinstance(the_block.statements[u.stmt_idx], ConditionalJump):
+                        continue
 
                 # check if the use and the definition is within the same supernode
                 super_node_blocks = self._get_super_node_blocks(

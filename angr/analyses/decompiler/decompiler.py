@@ -110,6 +110,18 @@ class Decompiler(Analysis):
         else:
             reset_variable_names = self.func.addr not in variable_kb.variables.function_managers
 
+        # determine a few arguments according to the structuring algorithm
+        fold_callexprs_into_conditions = False
+        self._force_loop_single_exit = True
+        self._complete_successors = False
+        self._recursive_structurer_params = self.options_to_params(self.options_by_class['recursive_structurer'])
+        if "structurer_cls" not in self._recursive_structurer_params:
+            self._recursive_structurer_params["structurer_cls"] = DreamStructurer
+        if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
+            self._force_loop_single_exit = False
+            self._complete_successors = True
+            fold_callexprs_into_conditions = True
+
         cache = DecompilationCache(self.func.addr)
         cache.ite_exprs = ite_exprs
         cache.binop_operators = binop_operators
@@ -118,19 +130,21 @@ class Decompiler(Analysis):
         progress_callback = lambda p, **kwargs: self._update_progress(p * (70 - 5) / 100. + 5, **kwargs)
 
         if self._regen_clinic or old_clinic is None or self.func.prototype is None:
-            clinic = self.project.analyses.Clinic(self.func,
-                                                  kb=self.kb,
-                                                  variable_kb=variable_kb,
-                                                  reset_variable_names=reset_variable_names,
-                                                  optimization_passes=self._optimization_passes,
-                                                  sp_tracker_track_memory=self._sp_tracker_track_memory,
-                                                  cfg=self._cfg,
-                                                  peephole_optimizations=self._peephole_optimizations,
-                                                  must_struct=self._vars_must_struct,
-                                                  cache=cache,
-                                                  progress_callback=progress_callback,
-                                                  **self.options_to_params(self.options_by_class['clinic'])
-                                                  )
+            clinic = self.project.analyses.Clinic(
+                self.func,
+                kb=self.kb,
+                variable_kb=variable_kb,
+                reset_variable_names=reset_variable_names,
+                optimization_passes=self._optimization_passes,
+                sp_tracker_track_memory=self._sp_tracker_track_memory,
+                fold_callexprs_into_conditions=fold_callexprs_into_conditions,
+                cfg=self._cfg,
+                peephole_optimizations=self._peephole_optimizations,
+                must_struct=self._vars_must_struct,
+                cache=cache,
+                progress_callback=progress_callback,
+                **self.options_to_params(self.options_by_class['clinic']),
+            )
         else:
             clinic = old_clinic
             # reuse the old, unaltered graph
@@ -147,16 +161,6 @@ class Decompiler(Analysis):
             return
 
         cond_proc = ConditionProcessor(self.project.arch)
-
-        # determine force_loop_single_exit according to the structuring algorithm
-        self._force_loop_single_exit = True
-        self._complete_successors = False
-        self._recursive_structurer_params = self.options_to_params(self.options_by_class['recursive_structurer'])
-        if "structurer_cls" not in self._recursive_structurer_params:
-            self._recursive_structurer_params["structurer_cls"] = DreamStructurer
-        if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
-            self._force_loop_single_exit = False
-            self._complete_successors = True
 
         clinic.graph = self._run_graph_simplification_passes(
             clinic.graph,
