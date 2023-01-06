@@ -41,18 +41,21 @@ class Clinic(Analysis):
     A Clinic deals with AILments.
     """
 
-    def __init__(self, func,
-                 remove_dead_memdefs=False,
-                 exception_edges=False,
-                 sp_tracker_track_memory=True,
-                 optimization_passes=None,
-                 cfg=None,
-                 peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None, # pylint:disable=line-too-long
-                 must_struct: Optional[Set[str]]=None,
-                 variable_kb=None,
-                 reset_variable_names=False,
-                 cache: Optional['DecompilationCache']=None,
-                 ):
+    def __init__(
+            self,
+            func,
+            remove_dead_memdefs=False,
+            exception_edges=False,
+            sp_tracker_track_memory=True,
+            fold_callexprs_into_conditions=False,
+            optimization_passes=None,
+            cfg=None,
+            peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None, # pylint:disable=line-too-long
+            must_struct: Optional[Set[str]]=None,
+            variable_kb=None,
+            reset_variable_names=False,
+            cache: Optional['DecompilationCache']=None,
+    ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
 
@@ -68,6 +71,7 @@ class Clinic(Analysis):
         self._ail_manager = None
         self._blocks_by_addr_and_size = {}
 
+        self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._remove_dead_memdefs = remove_dead_memdefs
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
@@ -177,8 +181,15 @@ class Clinic(Analysis):
 
         # full-function constant-only propagation
         self._update_progress(33., text="Constant propagation")
-        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False, narrow_expressions=False,
-                                only_consts=True, max_iterations=1)
+        self._simplify_function(
+            ail_graph,
+            remove_dead_memdefs=False,
+            unify_variables=False,
+            narrow_expressions=False,
+            only_consts=True,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            max_iterations=1,
+        )
 
         # cached block-level reaching definition analysis results and propagator results
         block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = { }
@@ -197,7 +208,13 @@ class Clinic(Analysis):
 
         # Simplify the entire function for the first time
         self._update_progress(45., text="Simplifying function 1")
-        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False, narrow_expressions=True)
+        self._simplify_function(
+            ail_graph,
+            remove_dead_memdefs=False,
+            unify_variables=False,
+            narrow_expressions=True,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+        )
 
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
@@ -215,8 +232,14 @@ class Clinic(Analysis):
 
         # Simplify the entire function for the second time
         self._update_progress(55., text="Simplifying function 2")
-        self._simplify_function(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
-                                stack_arg_offsets=stackarg_offsets, unify_variables=True, narrow_expressions=True)
+        self._simplify_function(
+            ail_graph,
+            remove_dead_memdefs=self._remove_dead_memdefs,
+            stack_arg_offsets=stackarg_offsets,
+            unify_variables=True,
+            narrow_expressions=True,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+        )
 
         # After global optimization, there might be more chances for peephole optimizations.
         # Simplify blocks for the second time
@@ -226,8 +249,13 @@ class Clinic(Analysis):
 
         # Simplify the entire function for the third time
         self._update_progress(65., text="Simplifying function 3")
-        self._simplify_function(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
-                                stack_arg_offsets=stackarg_offsets, unify_variables=True)
+        self._simplify_function(
+            ail_graph,
+            remove_dead_memdefs=self._remove_dead_memdefs,
+            stack_arg_offsets=stackarg_offsets,
+            unify_variables=True,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+        )
 
         self._update_progress(68., text="Simplifying blocks 4")
         ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
@@ -590,26 +618,39 @@ class Clinic(Analysis):
         return simp.result_block
 
     @timethis
-    def _simplify_function(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None, unify_variables=False,
-                           max_iterations: int = 8, narrow_expressions=False, only_consts=False) -> None:
+    def _simplify_function(
+            self,
+            ail_graph,
+            remove_dead_memdefs=False,
+            stack_arg_offsets=None,
+            unify_variables=False,
+            max_iterations: int = 8,
+            narrow_expressions=False,
+            only_consts=False,
+            fold_callexprs_into_conditions=False,
+    ) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
         """
 
         for idx in range(max_iterations):
-            simplified = self._simplify_function_once(ail_graph, remove_dead_memdefs=remove_dead_memdefs,
-                                                      unify_variables=unify_variables,
-                                                      stack_arg_offsets=stack_arg_offsets,
-                                                      # only narrow once
-                                                      narrow_expressions=narrow_expressions and idx == 0,
-                                                      only_consts=only_consts,
-                                                      )
+            simplified = self._simplify_function_once(
+                ail_graph,
+                remove_dead_memdefs=remove_dead_memdefs,
+                unify_variables=unify_variables,
+                stack_arg_offsets=stack_arg_offsets,
+                # only narrow once
+                narrow_expressions=narrow_expressions and idx == 0,
+                only_consts=only_consts,
+                fold_callexprs_into_conditions=fold_callexprs_into_conditions,
+            )
             if not simplified:
                 break
 
     @timethis
     def _simplify_function_once(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None,
-                                unify_variables=False, narrow_expressions=False, only_consts=False):
+                                unify_variables=False, narrow_expressions=False, only_consts=False,
+                                fold_callexprs_into_conditions=False):
         """
         Simplify the entire function once.
 
@@ -626,6 +667,7 @@ class Clinic(Analysis):
             gp=self.function.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
             narrow_expressions=narrow_expressions,
             only_consts=only_consts,
+            fold_callexprs_into_conditions=fold_callexprs_into_conditions,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions

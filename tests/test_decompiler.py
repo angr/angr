@@ -742,6 +742,28 @@ class TestDecompiler(unittest.TestCase):
             if "root(" in line:
                 assert "strlen(" in line
 
+    @structuring_algo("phoenix")
+    def test_decompilation_call_expr_folding_into_if_conditions(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["find_bind_mount"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        m = re.search(
+            r"if \([^\n]+ == 47 "
+            r"&& strcmp\([^\n]+\) == 0 "
+            r"&& stat\([^\n]+\) == 0 "
+            r"&& [^\n]+ == [^\n]+ "
+            r"&& [^\n]+ == [^\n]+\)",
+            d.codegen.text,
+        )
+        assert m is not None
+
     @for_all_structuring_algos
     def test_decompilation_excessive_condition_removal(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
