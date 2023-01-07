@@ -551,6 +551,9 @@ class Label(Statement):
         self.ins_addr = ins_addr
         self.block_idx = block_idx
 
+    def likes(self, other: "Label"):
+        return isinstance(other, Label)
+
     def _hash_core(self):
         return stable_hash((Label, self.name, self.ins_addr, self.block_idx, ))
 
