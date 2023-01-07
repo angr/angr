@@ -1095,7 +1095,7 @@ class CGoto(CStatement):
             # unpack target
             target = target.value
 
-        self.target = target
+        self.target: int = target
         self.target_idx = target_idx
         self.tags = tags
 
@@ -1110,7 +1110,7 @@ class CGoto(CStatement):
             yield "/* ", None
         yield "goto ", self
         if lbl is None:
-            yield from self.target.c_repr_chunks()
+            yield f"{self.target:#x}", None
         else:
             yield lbl.name, lbl
         yield ";", self
