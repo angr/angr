@@ -298,6 +298,7 @@ class Decompiler(Analysis):
                 ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
                     self.func, graph=ail_graph, cond_proc=cond_proc,
                     force_loop_single_exit=self._force_loop_single_exit,
+                    complete_successors=self._complete_successors,
                     **self.options_to_params(self.options_by_class['region_identifier']))
 
         return ail_graph, ri

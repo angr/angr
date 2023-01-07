@@ -5,6 +5,7 @@ import claripy
 import pyvex
 
 from ...engines.light import SimEngineLightVEXMixin
+from ...calling_conventions import DEFAULT_CC, SimRegArg
 from .values import Top, Bottom
 from .engine_base import SimEnginePropagatorBase
 from .top_checker_mixin import TopCheckerMixin
@@ -109,6 +110,15 @@ class SimEnginePropagatorVEX(
                                               4,
                                               claripy.BVV(self.block.addr + self.block.size, 32)
                                               )
+        if self.arch.name in DEFAULT_CC:
+            cc = DEFAULT_CC[self.arch.name]  # don't instantiate the class for speed
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                offset, size = self.arch.registers[cc.RETURN_VAL.reg_name]
+                self.state.store_register(offset, size, self.state.top(size * self.arch.byte_width))
+            if cc.CALLER_SAVED_REGS:
+                for reg_name in cc.CALLER_SAVED_REGS:
+                    offset, size = self.arch.registers[reg_name]
+                    self.state.store_register(offset, size, self.state.top(size * self.arch.byte_width))
 
     #
     # VEX statement handlers
