@@ -25,10 +25,17 @@ class error(angr.SimProcedure):
                                                  angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
         # Execute each block
         state = blank_state
-        for b in blocks:
-            irsb = self.project.factory.default_engine.process(state, irsb=b, force_addr=b.addr)
-            if irsb.successors:
-                state = irsb.successors[0]
+        for idx, b in enumerate(blocks):
+            successors = self.project.factory.default_engine.process(state, irsb=b, force_addr=b.addr)
+            if successors.all_successors:
+                state = successors.all_successors[0]
+                # if it was a call before reaching the last block, pick the one with Ijk_FakeRet
+                if idx < len(blocks) - 1 \
+                        and b.jumpkind \
+                        and (b.jumpkind == 'Ijk_Call' or b.jumpkind.startswith("Ijk_Sys")):
+                    fakerets = [succ for succ in successors.all_successors if succ.history.jumpkind == "Ijk_FakeRet"]
+                    if fakerets:
+                        state = fakerets[0]
             else:
                 break
 
