@@ -114,9 +114,8 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
-        # it should be properly structured to a while loop without conditional breaks or with only one conditional
-        # break.
-        assert "break" not in dec.codegen.text or dec.codegen.text.count("break;") == 1
+        # it should be properly structured to a while loop without conditional breaks.
+        assert "break" not in dec.codegen.text
 
     @for_all_structuring_algos
     def test_decompiling_all_i386(self, decompiler_options=None):
@@ -1766,6 +1765,22 @@ class TestDecompiler(unittest.TestCase):
                 # dream
                 assert "LABEL_" not in d.codegen.text
                 assert "goto" not in d.codegen.text
+
+    @structuring_algo("phoenix")
+    def test_decompiling_split_lines_split(self, decompiler_options=None):
+        # region identifier's fine-tuned loop refinement logic ensures there is only one goto statement in the
+        # decompilation output.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "split.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["lines_split"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("goto ") == 1
 
 
 if __name__ == "__main__":
