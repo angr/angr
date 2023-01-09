@@ -207,7 +207,7 @@ class PhoenixStructurer(StructurerBase):
                     and not full_graph.has_edge(right, node):
 
                 # possible candidate
-                _, head_block = self._find_node_going_to_dst(node, left)
+                _, head_block = self._find_node_going_to_dst(node, left, condjump_only=True)
                 if head_block is not None:
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
@@ -257,7 +257,7 @@ class PhoenixStructurer(StructurerBase):
                 if self._phoenix_improved:
                     if full_graph.out_degree[node] == 1:
                         # while (true) { ...; if (...) break; }
-                        _, head_block = self._find_node_going_to_dst(node, left)
+                        _, head_block = self._find_node_going_to_dst(node, left, condjump_only=True)
                         if head_block is not None:
                             edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                             edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
@@ -295,7 +295,7 @@ class PhoenixStructurer(StructurerBase):
                 if full_graph.has_edge(succ, node):
 
                     # possible candidate
-                    _, succ_block = self._find_node_going_to_dst(succ, out_node)
+                    _, succ_block = self._find_node_going_to_dst(succ, out_node, condjump_only=True)
                     if succ_block is not None:
                         edge_cond_succhead = self.cond_proc.recover_edge_condition(full_graph, succ_block, node)
                         edge_cond_succout = self.cond_proc.recover_edge_condition(full_graph, succ_block, out_node)
@@ -560,10 +560,7 @@ class PhoenixStructurer(StructurerBase):
 
             for src, _ in headgoing_edges:
                 if src is src_to_ignore:
-                    last_src_stm = self.cond_proc.get_last_statement(src)
-                    if self.is_a_jump_target(last_src_stm, loop_head.addr):
-                        # remove the last statement (which should be a Jump to the loop head)
-                        remove_last_statement(src)
+                    # this edge will be handled during loop structuring
                     continue
 
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
@@ -1516,8 +1513,12 @@ class PhoenixStructurer(StructurerBase):
             remove_last_statement(src)
 
     @staticmethod
-    def _find_node_going_to_dst(node: SequenceNode,
-                                dst: Union[Block,BaseNode]) -> Tuple[Optional[BaseNode],Optional[Block]]:
+    def _find_node_going_to_dst(
+            node: SequenceNode,
+            dst: Union[Block,BaseNode],
+            last=True,
+            condjump_only=False,
+    ) -> Tuple[Optional[BaseNode],Optional[Block]]:
         """
 
         :param node:
@@ -1530,7 +1531,8 @@ class PhoenixStructurer(StructurerBase):
         dst_idx = dst.idx if isinstance(dst, Block) else ...
 
         def _check(last_stmt):
-            if isinstance(last_stmt, Jump) \
+            if not condjump_only \
+                    and isinstance(last_stmt, Jump) \
                     and isinstance(last_stmt.target, Const) \
                     and last_stmt.target.value == dst_addr \
                     and (dst_idx is ... or last_stmt.target_idx == dst_idx):
@@ -1546,26 +1548,22 @@ class PhoenixStructurer(StructurerBase):
             if block.statements:
                 first_stmt = first_nonlabel_statement(block)
                 if _check(first_stmt):
-                    walker.parent = parent
-                    walker.block = block
+                    walker.parent_and_block.append((parent, block))
                 elif len(block.statements) > 1:
                     last_stmt = block.statements[-1]
                     if _check(last_stmt):
-                        walker.parent = parent
-                        walker.block = block
+                        walker.parent_and_block.append((parent, block))
 
         def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.nodes and isinstance(block.nodes[-1], Block) and block.nodes[-1].statements:
                 if _check(block.nodes[-1].statements[-1]):
-                    walker.parent = parent
-                    walker.block = block
+                    walker.parent_and_block.append((parent, block))
                     return
 
         def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if isinstance(break_node.target, Const) and break_node.target.value == dst_addr:
                 # FIXME: idx is ignored
-                walker.parent = parent
-                walker.block = break_node
+                walker.parent_and_block.append((parent, break_node))
                 return
 
         walker = SequenceWalker(
@@ -1576,10 +1574,14 @@ class PhoenixStructurer(StructurerBase):
             },
             update_seqnode_in_place=False
         )
-        walker.parent = None
-        walker.block = None
+        walker.parent_and_block = [ ]
         walker.walk(node)
-        return walker.parent, walker.block
+        if not walker.parent_and_block:
+            return None, None
+        else:
+            if last:
+                return walker.parent_and_block[-1]
+            return walker.parent_and_block[0]
 
     @staticmethod
     def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode, new_seq=None):
