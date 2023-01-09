@@ -158,6 +158,7 @@ class AILSimplifier(Analysis):
         return rd
 
     @staticmethod
+    # pylint:disable=unused-argument
     def _simplify_function_rd_observe_callback(ob_type, **kwargs):
         return ob_type == 'node'
 
