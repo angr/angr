@@ -1625,12 +1625,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        if decompiler_options:
-            if decompiler_options[-1][-1] == "dream":
-                assert d.codegen.text.count("if (v0 == 0)") == 3 or d.codegen.text.count("if (v0 != 0)") == 3
-            else:
-                # phoenix
-                assert d.codegen.text.count("if (v0 == 0)") == 2
+        assert d.codegen.text.count("if (v0 == 0)") == 3 or d.codegen.text.count("if (v0 != 0)") == 3
         assert d.codegen.text.count("break;") > 0
 
     @structuring_algo("phoenix")
