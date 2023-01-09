@@ -8,7 +8,6 @@ from ailment.expression import Register, Convert, Load, StackBaseOffset, Express
     VEXCCallExpression, Tmp, Const
 
 from ...engines.light import SpOffset
-from ...knowledge_plugins.key_definitions.constants import OP_AFTER
 from ...code_location import CodeLocation
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
@@ -159,11 +158,9 @@ class AILSimplifier(Analysis):
         return rd
 
     @staticmethod
+    # pylint:disable=unused-argument
     def _simplify_function_rd_observe_callback(ob_type, **kwargs):
-        if ob_type != 'node':
-            return False
-        op_type = kwargs.pop('op_type')
-        return op_type == OP_AFTER
+        return ob_type == 'node'
 
     def _compute_propagation(self):
         # Propagate expressions or return the existing result
