@@ -729,6 +729,11 @@ class ConditionProcessor:
                 var = claripy.BVS("ailtmp_%d" % condition.tmp_idx, condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
+        elif isinstance(condition, ailment.Expr.MultiStatementExpression):
+            # just cache it
+            var = claripy.BVS("mstmtexpr_%d" % hash(condition), condition.bits, explicit_name=True)
+            self._condition_mapping[var.args[0]] = condition
+            return var
 
         lambda_expr = _mapping.get(condition.verbose_op, None)
         if lambda_expr is None:
