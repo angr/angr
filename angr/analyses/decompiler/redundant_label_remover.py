@@ -66,11 +66,16 @@ class RedundantLabelRemover:
 
     def _handle_Block(self, block: ailment.Block, **kwargs):
         if block.statements:
-            if isinstance(block.statements[0], ailment.Stmt.Label):
-                stmt = block.statements[0]
-                if (stmt.ins_addr, stmt.block_idx) not in self._jump_targets or stmt in self._labels_to_remove:
-                    # useless label - update the block in-place
-                    block.statements = block.statements[1:]
+            # fixed point remove all labels with no edges in
+            while True:
+                for idx, stmt in enumerate(block.statements):
+                    if isinstance(stmt, ailment.Stmt.Label):
+                        if (stmt.ins_addr, stmt.block_idx) not in self._jump_targets or stmt in self._labels_to_remove:
+                            # useless label - update the block in-place
+                            block.statements = block.statements[:idx] + block.statements[idx+1:]
+                            break
+                else:
+                    break
 
             first_stmt = first_nonlabel_statement(block)
             if isinstance(first_stmt, ailment.Stmt.ConditionalJump):
