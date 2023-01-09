@@ -176,11 +176,33 @@ class GraphRegion:
         if sub_region is self.head:
             self.head = replace_with.head
 
+        # special case: a successor in replace_with.successors is a normal AIL block while the corresponding
+        # successor in self.successors is a graph region (with the AIL block as its head). we handle this case here by
+        # creating a new graph_with_successors for the replace_with region
+        successor_map = {}
+        if self.successors:
+            if any(succ not in self.successors for succ in replace_with.successors):
+                for succ in replace_with.successors:
+                    if succ not in self.successors:
+                        for succ_ in self.successors:
+                            if isinstance(succ_, GraphRegion) and succ_.head == succ:
+                                successor_map[succ] = succ_
+        if successor_map:
+            replace_with_graph_with_successors = networkx.DiGraph()
+            for nn in replace_with.graph_with_successors:
+                replace_with_graph_with_successors.add_node(successor_map.get(nn, nn))
+            for n0, n1 in replace_with.graph_with_successors.edges:
+                n0 = successor_map.get(n0, n0)
+                n1 = successor_map.get(n1, n1)
+                replace_with_graph_with_successors.add_edge(n0, n1)
+        else:
+            replace_with_graph_with_successors = replace_with.graph_with_successors
+
         self._replace_node_in_graph_with_subgraph(self.graph, self.successors, self.full_graph, sub_region,
-                                                  replace_with.graph_with_successors, replace_with.head)
+                                                  replace_with_graph_with_successors, replace_with.head)
         if self.graph_with_successors is not None:
             self._replace_node_in_graph_with_subgraph(self.graph_with_successors, None, self.full_graph, sub_region,
-                                                      replace_with.graph_with_successors, replace_with.head)
+                                                      replace_with_graph_with_successors, replace_with.head)
 
     @staticmethod
     def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with):

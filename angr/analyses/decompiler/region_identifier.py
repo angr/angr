@@ -205,19 +205,35 @@ class RegionIdentifier(Analysis):
 
         sorted_refined_exit_nodes = CFGUtils.quasi_topological_sort_nodes(graph, refined_exit_nodes)
         while len(sorted_refined_exit_nodes) > 1 and new_exit_nodes:
-            new_exit_nodes = set()
+            # visit each node in refined_exit_nodes once and determine which nodes to consider as loop nodes
+            candidate_nodes = { }
             for n in list(sorted_refined_exit_nodes):
                 if all((pred is n or pred in refined_loop_nodes) for pred in graph.predecessors(n)) \
                         and dominates(idom, head, n):
-                    refined_loop_nodes.add(n)
-                    sorted_refined_exit_nodes.remove(n)
                     to_add = set(graph.successors(n)) - refined_loop_nodes
-                    new_exit_nodes |= to_add
-                    for succ in to_add:
-                        subgraph.add_edge(n, succ)
-                    if len(set(sorted_refined_exit_nodes) | new_exit_nodes) <= 1:
-                        # early termination
-                        break
+                    candidate_nodes[n] = to_add
+
+            # visit all candidate nodes and only consider candidates that will not be added as exit nodes
+            all_new_exit_candidates = set()
+            for new_exit_candidates in candidate_nodes.values():
+                all_new_exit_candidates |= new_exit_candidates
+
+            # to guarantee progressing, we must ensure all_new_exit_candidates cannot contain all candidate nodes
+            if all(n in all_new_exit_candidates for n in candidate_nodes):
+                all_new_exit_candidates = set()
+
+            # do the actual work
+            new_exit_nodes = set()
+            for n in candidate_nodes:
+                if n in all_new_exit_candidates:
+                    continue
+                refined_loop_nodes.add(n)
+                sorted_refined_exit_nodes.remove(n)
+                to_add = set(graph.successors(n)) - refined_loop_nodes
+                new_exit_nodes |= to_add
+                for succ in to_add:
+                    subgraph.add_edge(n, succ)
+
             sorted_refined_exit_nodes += list(new_exit_nodes)
             sorted_refined_exit_nodes = list(set(sorted_refined_exit_nodes))
             sorted_refined_exit_nodes = CFGUtils.quasi_topological_sort_nodes(graph, sorted_refined_exit_nodes)
