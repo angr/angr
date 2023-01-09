@@ -1111,7 +1111,7 @@ class CGoto(CStatement):
         yield "goto ", self
         if lbl is None:
             if isinstance(self.target, int):
-                yield f"{self.target:#x}", None
+                yield f"LABEL_{self.target:#x}", None
             else:
                 yield from self.target.c_repr_chunks()
         else:

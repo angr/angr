@@ -134,7 +134,7 @@ class GotoSimplifier(SequenceWalker):
             l.debug("Unable to store a goto at %#x because simplifier is kb or functionless", block.addr)
             return
 
-        goto = Goto(addr=block.addr, target_addr=goto_stmt.target.value)
+        goto = Goto(addr=goto_stmt.ins_addr or block.addr, target_addr=goto_stmt.target.value)
         l.debug("Storing %r in kb.gotos", goto)
         self._kb.gotos.locations[self._function.addr].add(
             goto
