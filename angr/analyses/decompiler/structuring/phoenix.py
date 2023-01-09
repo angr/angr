@@ -1069,7 +1069,7 @@ class PhoenixStructurer(StructurerBase):
             if left in graph and not right in graph:
                 # potentially If-then
                 if full_graph.in_degree[left] == 1 and (
-                        full_graph.in_degree[right] == 2
+                        full_graph.in_degree[right] == 2 and left_succs == [right]
                         or full_graph.in_degree[right] == 1 and not left_succs):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
