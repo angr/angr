@@ -1442,7 +1442,7 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         if all_edges_wo_dominance:
-            all_edges_wo_dominance = list(sorted(all_edges_wo_dominance, key=lambda x: (x[0].addr, x[1].addr)))
+            all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance, graph)
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -1450,7 +1450,7 @@ class PhoenixStructurer(StructurerBase):
             return True
 
         if secondary_edges:
-            secondary_edges = list(sorted(secondary_edges, key=lambda x: (x[0].addr, x[1].addr)))
+            secondary_edges = self._chick_order_edges(secondary_edges, graph)
             # virtualize the first edge
             src, dst = secondary_edges[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -1681,3 +1681,14 @@ class PhoenixStructurer(StructurerBase):
         if len(last_stmts) == 1 and isinstance(last_stmts[0], (Jump, ConditionalJump)):
             return remove_last_statement(node)
         return None
+
+    @staticmethod
+    def _chick_order_edges(edges: List, graph) -> List:
+
+        def _sort_edge(edge_):
+            src, dst = edge_
+            dst_in_degree = graph.in_degree[dst]
+            src_out_degree = graph.out_degree[src]
+            return dst_in_degree, src_out_degree, dst.addr, src.addr
+
+        return list(sorted(edges, key=_sort_edge, reverse=True))
