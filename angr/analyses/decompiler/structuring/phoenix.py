@@ -53,12 +53,16 @@ class PhoenixStructurer(StructurerBase):
 
     @staticmethod
     def _assert_graph_ok(g, msg: str) -> None:
-        assert not _DEBUG or len(list(networkx.connected_components(networkx.Graph(g)))) <= 1, f"{msg} Please report this."
+        if _DEBUG:
+            assert len(list(networkx.connected_components(networkx.Graph(g)))) <= 1, \
+                f"{msg}: More than one connected component. Please report this."
+            assert len([nn for nn in g if g.in_degree[nn] == 0]) <= 1, \
+                f"{msg}: More than one graph entrance. Please report this."
 
     def _analyze(self):
         # iterate until there is only one node in the region
 
-        self._assert_graph_ok(self._region.graph, "Incorrect region graph (with more than one connected component).")
+        self._assert_graph_ok(self._region.graph, "Incorrect region graph")
 
         has_cycle = self._has_cycle()
 
@@ -99,6 +103,7 @@ class PhoenixStructurer(StructurerBase):
                     self._region.graph_with_successors if self._region.graph_with_successors is not None
                     else networkx.DiGraph(self._region.graph),
                 )
+                self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
                 if not removed_edge:
                     # cannot make any progress in this region. return the subgraph directly
                     break
@@ -125,7 +130,7 @@ class PhoenixStructurer(StructurerBase):
             )
             l.debug("... matching cyclic schemas: %s at %r", matched, node)
             any_matches |= matched
-            self._assert_graph_ok(self._region.graph, "Removed incorrect edges.")
+            self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
@@ -586,19 +591,37 @@ class PhoenixStructurer(StructurerBase):
     def _analyze_acyclic(self) -> bool:
         # match against known schemas
         l.debug("Matching acyclic schemas for region %r.", self._region)
-        return self._match_acyclic_schemas(
-            self._region.graph,
-            self._region.graph_with_successors
-            if self._region.graph_with_successors is not None
-            else networkx.DiGraph(self._region.graph),
-            self._region.head,
-        )
+
+        any_matches = False
+        idx = 0
+        while True:
+            l.debug("_match_acyclic_schemas: Iteration %d", idx)
+            idx += 1
+
+            any_matches_this_iteration = self._match_acyclic_schemas(
+                self._region.graph,
+                self._region.graph_with_successors
+                if self._region.graph_with_successors is not None
+                else networkx.DiGraph(self._region.graph),
+                self._region.head,
+            )
+            if not any_matches_this_iteration:
+                break
+            any_matches = True
+
+            # update the head if needed
+            if self._region.head not in self._region.graph:
+                # update the head
+                self._region.head = next(iter(node for node in self._region.graph.nodes
+                                              if node.addr == self._region.head.addr))
+
+        return any_matches
 
     def _match_acyclic_schemas(self, graph: networkx.DiGraph, full_graph: networkx.DiGraph, head) -> bool:
         # traverse the graph in reverse topological order
         any_matches = False
 
-        self._assert_graph_ok(self._region.graph, "Got a wrong graph to work on.")
+        self._assert_graph_ok(self._region.graph, "Got a wrong graph to work on")
 
         if graph.in_degree[head] == 0:
             acyclic_graph = graph
@@ -606,7 +629,7 @@ class PhoenixStructurer(StructurerBase):
             acyclic_graph = networkx.DiGraph(graph)
             acyclic_graph.remove_edges_from(graph.in_edges(head))
 
-            self._assert_graph_ok(acyclic_graph, "Removed wrong edges.")
+            self._assert_graph_ok(acyclic_graph, "Removed wrong edges")
 
         for node in list(reversed(CFGUtils.quasi_topological_sort_nodes(acyclic_graph))):
             if node not in graph:
@@ -618,23 +641,28 @@ class PhoenixStructurer(StructurerBase):
             matched = self._match_acyclic_switch_cases(graph, full_graph, node)
             l.debug("... matched: %s", matched)
             any_matches |= matched
-            if not matched:
-                l.debug("... matching acyclic sequence at %r", node)
-                matched = self._match_acyclic_sequence(graph, full_graph, node)
-                l.debug("... matched: %s", matched)
-                any_matches |= matched
-            if not matched:
-                l.debug("... matching acyclic ITE at %r", node)
-                matched = self._match_acyclic_ite(graph, full_graph, node)
-                l.debug("... matched: %s", matched)
-                any_matches |= matched
+            if matched:
+                break
+            l.debug("... matching acyclic sequence at %r", node)
+            matched = self._match_acyclic_sequence(graph, full_graph, node)
+            l.debug("... matched: %s", matched)
+            any_matches |= matched
+            if matched:
+                break
+            l.debug("... matching acyclic ITE at %r", node)
+            matched = self._match_acyclic_ite(graph, full_graph, node)
+            l.debug("... matched: %s", matched)
+            any_matches |= matched
+            if matched:
+                break
             if self._phoenix_improved:
-                if not matched:
-                    l.debug("... matching acyclic ITE with short-circuit conditions at %r", node)
-                    matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node)
-                    l.debug("... matched: %s", matched)
-                    any_matches |= matched
-            self._assert_graph_ok(self._region.graph, "Removed incorrect edges.")
+                l.debug("... matching acyclic ITE with short-circuit conditions at %r", node)
+                matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node)
+                l.debug("... matched: %s", matched)
+                any_matches |= matched
+                if matched:
+                    break
+            self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
         return any_matches
 
     # switch cases
