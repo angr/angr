@@ -159,9 +159,7 @@ class AILSimplifier(Analysis):
 
     @staticmethod
     def _simplify_function_rd_observe_callback(ob_type, **kwargs):
-        if ob_type != 'node':
-            return False
-        return True
+        return ob_type == 'node'
 
     def _compute_propagation(self):
         # Propagate expressions or return the existing result
