@@ -354,7 +354,7 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
-        cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        cfg = p.analyses[CFGFast].prep(show_progressbar=not WORKER)(normalize=True, data_references=True)
 
         # disable eager returns simplifier
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
@@ -363,7 +363,7 @@ class TestDecompiler(unittest.TestCase):
                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
 
         f = cfg.functions[0x401e60]
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options,
+        dec = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(f, cfg=cfg.model, options=decompiler_options,
                                             optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
@@ -1776,6 +1776,22 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert d.codegen.text.count("goto ") == 1
+
+    @structuring_algo("phoenix")
+    def test_decompiling_ptx_fix_output_parameters(self, decompiler_options=None):
+        # the carefully tuned edge sorting logic in Phoenix's last_resort_refinement ensures that there is only one
+        # goto statement in this function.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ptx.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["fix_output_parameters"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert len(list(re.findall(r"LABEL_[^;:]+:", d.codegen.text))) == 1
 
 
 if __name__ == "__main__":

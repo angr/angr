@@ -53,12 +53,16 @@ class PhoenixStructurer(StructurerBase):
 
     @staticmethod
     def _assert_graph_ok(g, msg: str) -> None:
-        assert not _DEBUG or len(list(networkx.connected_components(networkx.Graph(g)))) <= 1, f"{msg} Please report this."
+        if _DEBUG:
+            assert len(list(networkx.connected_components(networkx.Graph(g)))) <= 1, \
+                f"{msg}: More than one connected component. Please report this."
+            assert len([nn for nn in g if g.in_degree[nn] == 0]) <= 1, \
+                f"{msg}: More than one graph entrance. Please report this."
 
     def _analyze(self):
         # iterate until there is only one node in the region
 
-        self._assert_graph_ok(self._region.graph, "Incorrect region graph (with more than one connected component).")
+        self._assert_graph_ok(self._region.graph, "Incorrect region graph")
 
         has_cycle = self._has_cycle()
 
@@ -99,6 +103,7 @@ class PhoenixStructurer(StructurerBase):
                     self._region.graph_with_successors if self._region.graph_with_successors is not None
                     else networkx.DiGraph(self._region.graph),
                 )
+                self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
                 if not removed_edge:
                     # cannot make any progress in this region. return the subgraph directly
                     break
@@ -125,7 +130,7 @@ class PhoenixStructurer(StructurerBase):
             )
             l.debug("... matching cyclic schemas: %s at %r", matched, node)
             any_matches |= matched
-            self._assert_graph_ok(self._region.graph, "Removed incorrect edges.")
+            self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
@@ -207,7 +212,7 @@ class PhoenixStructurer(StructurerBase):
                     and not full_graph.has_edge(right, node):
 
                 # possible candidate
-                _, head_block = self._find_node_going_to_dst(node, left)
+                _, head_block = self._find_node_going_to_dst(node, left, condjump_only=True)
                 if head_block is not None:
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
@@ -257,7 +262,7 @@ class PhoenixStructurer(StructurerBase):
                 if self._phoenix_improved:
                     if full_graph.out_degree[node] == 1:
                         # while (true) { ...; if (...) break; }
-                        _, head_block = self._find_node_going_to_dst(node, left)
+                        _, head_block = self._find_node_going_to_dst(node, left, condjump_only=True)
                         if head_block is not None:
                             edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                             edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
@@ -295,7 +300,7 @@ class PhoenixStructurer(StructurerBase):
                 if full_graph.has_edge(succ, node):
 
                     # possible candidate
-                    _, succ_block = self._find_node_going_to_dst(succ, out_node)
+                    _, succ_block = self._find_node_going_to_dst(succ, out_node, condjump_only=True)
                     if succ_block is not None:
                         edge_cond_succhead = self.cond_proc.recover_edge_condition(full_graph, succ_block, node)
                         edge_cond_succout = self.cond_proc.recover_edge_condition(full_graph, succ_block, out_node)
@@ -560,10 +565,7 @@ class PhoenixStructurer(StructurerBase):
 
             for src, _ in headgoing_edges:
                 if src is src_to_ignore:
-                    last_src_stm = self.cond_proc.get_last_statement(src)
-                    if self.is_a_jump_target(last_src_stm, loop_head.addr):
-                        # remove the last statement (which should be a Jump to the loop head)
-                        remove_last_statement(src)
+                    # this edge will be handled during loop structuring
                     continue
 
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
@@ -589,19 +591,37 @@ class PhoenixStructurer(StructurerBase):
     def _analyze_acyclic(self) -> bool:
         # match against known schemas
         l.debug("Matching acyclic schemas for region %r.", self._region)
-        return self._match_acyclic_schemas(
-            self._region.graph,
-            self._region.graph_with_successors
-            if self._region.graph_with_successors is not None
-            else networkx.DiGraph(self._region.graph),
-            self._region.head,
-        )
+
+        any_matches = False
+        idx = 0
+        while True:
+            l.debug("_match_acyclic_schemas: Iteration %d", idx)
+            idx += 1
+
+            any_matches_this_iteration = self._match_acyclic_schemas(
+                self._region.graph,
+                self._region.graph_with_successors
+                if self._region.graph_with_successors is not None
+                else networkx.DiGraph(self._region.graph),
+                self._region.head,
+            )
+            if not any_matches_this_iteration:
+                break
+            any_matches = True
+
+            # update the head if needed
+            if self._region.head not in self._region.graph:
+                # update the head
+                self._region.head = next(iter(node for node in self._region.graph.nodes
+                                              if node.addr == self._region.head.addr))
+
+        return any_matches
 
     def _match_acyclic_schemas(self, graph: networkx.DiGraph, full_graph: networkx.DiGraph, head) -> bool:
         # traverse the graph in reverse topological order
         any_matches = False
 
-        self._assert_graph_ok(self._region.graph, "Got a wrong graph to work on.")
+        self._assert_graph_ok(self._region.graph, "Got a wrong graph to work on")
 
         if graph.in_degree[head] == 0:
             acyclic_graph = graph
@@ -609,7 +629,7 @@ class PhoenixStructurer(StructurerBase):
             acyclic_graph = networkx.DiGraph(graph)
             acyclic_graph.remove_edges_from(graph.in_edges(head))
 
-            self._assert_graph_ok(acyclic_graph, "Removed wrong edges.")
+            self._assert_graph_ok(acyclic_graph, "Removed wrong edges")
 
         for node in list(reversed(CFGUtils.quasi_topological_sort_nodes(acyclic_graph))):
             if node not in graph:
@@ -621,23 +641,28 @@ class PhoenixStructurer(StructurerBase):
             matched = self._match_acyclic_switch_cases(graph, full_graph, node)
             l.debug("... matched: %s", matched)
             any_matches |= matched
-            if not matched:
-                l.debug("... matching acyclic sequence at %r", node)
-                matched = self._match_acyclic_sequence(graph, full_graph, node)
-                l.debug("... matched: %s", matched)
-                any_matches |= matched
-            if not matched:
-                l.debug("... matching acyclic ITE at %r", node)
-                matched = self._match_acyclic_ite(graph, full_graph, node)
-                l.debug("... matched: %s", matched)
-                any_matches |= matched
+            if matched:
+                break
+            l.debug("... matching acyclic sequence at %r", node)
+            matched = self._match_acyclic_sequence(graph, full_graph, node)
+            l.debug("... matched: %s", matched)
+            any_matches |= matched
+            if matched:
+                break
+            l.debug("... matching acyclic ITE at %r", node)
+            matched = self._match_acyclic_ite(graph, full_graph, node)
+            l.debug("... matched: %s", matched)
+            any_matches |= matched
+            if matched:
+                break
             if self._phoenix_improved:
-                if not matched:
-                    l.debug("... matching acyclic ITE with short-circuit conditions at %r", node)
-                    matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node)
-                    l.debug("... matched: %s", matched)
-                    any_matches |= matched
-            self._assert_graph_ok(self._region.graph, "Removed incorrect edges.")
+                l.debug("... matching acyclic ITE with short-circuit conditions at %r", node)
+                matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node)
+                l.debug("... matched: %s", matched)
+                any_matches |= matched
+                if matched:
+                    break
+            self._assert_graph_ok(self._region.graph, "Removed incorrect edges")
         return any_matches
 
     # switch cases
@@ -1442,7 +1467,7 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         if all_edges_wo_dominance:
-            all_edges_wo_dominance = list(sorted(all_edges_wo_dominance, key=lambda x: (x[0].addr, x[1].addr)))
+            all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance)
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -1450,7 +1475,7 @@ class PhoenixStructurer(StructurerBase):
             return True
 
         if secondary_edges:
-            secondary_edges = list(sorted(secondary_edges, key=lambda x: (x[0].addr, x[1].addr)))
+            secondary_edges = self._chick_order_edges(secondary_edges)
             # virtualize the first edge
             src, dst = secondary_edges[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -1516,8 +1541,12 @@ class PhoenixStructurer(StructurerBase):
             remove_last_statement(src)
 
     @staticmethod
-    def _find_node_going_to_dst(node: SequenceNode,
-                                dst: Union[Block,BaseNode]) -> Tuple[Optional[BaseNode],Optional[Block]]:
+    def _find_node_going_to_dst(
+            node: SequenceNode,
+            dst: Union[Block,BaseNode],
+            last=True,
+            condjump_only=False,
+    ) -> Tuple[Optional[BaseNode],Optional[Block]]:
         """
 
         :param node:
@@ -1530,7 +1559,8 @@ class PhoenixStructurer(StructurerBase):
         dst_idx = dst.idx if isinstance(dst, Block) else ...
 
         def _check(last_stmt):
-            if isinstance(last_stmt, Jump) \
+            if not condjump_only \
+                    and isinstance(last_stmt, Jump) \
                     and isinstance(last_stmt.target, Const) \
                     and last_stmt.target.value == dst_addr \
                     and (dst_idx is ... or last_stmt.target_idx == dst_idx):
@@ -1546,26 +1576,22 @@ class PhoenixStructurer(StructurerBase):
             if block.statements:
                 first_stmt = first_nonlabel_statement(block)
                 if _check(first_stmt):
-                    walker.parent = parent
-                    walker.block = block
+                    walker.parent_and_block.append((parent, block))
                 elif len(block.statements) > 1:
                     last_stmt = block.statements[-1]
                     if _check(last_stmt):
-                        walker.parent = parent
-                        walker.block = block
+                        walker.parent_and_block.append((parent, block))
 
         def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.nodes and isinstance(block.nodes[-1], Block) and block.nodes[-1].statements:
                 if _check(block.nodes[-1].statements[-1]):
-                    walker.parent = parent
-                    walker.block = block
+                    walker.parent_and_block.append((parent, block))
                     return
 
         def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if isinstance(break_node.target, Const) and break_node.target.value == dst_addr:
                 # FIXME: idx is ignored
-                walker.parent = parent
-                walker.block = break_node
+                walker.parent_and_block.append((parent, break_node))
                 return
 
         walker = SequenceWalker(
@@ -1576,10 +1602,14 @@ class PhoenixStructurer(StructurerBase):
             },
             update_seqnode_in_place=False
         )
-        walker.parent = None
-        walker.block = None
+        walker.parent_and_block = [ ]
         walker.walk(node)
-        return walker.parent, walker.block
+        if not walker.parent_and_block:
+            return None, None
+        else:
+            if last:
+                return walker.parent_and_block[-1]
+            return walker.parent_and_block[0]
 
     @staticmethod
     def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode, new_seq=None):
@@ -1681,3 +1711,17 @@ class PhoenixStructurer(StructurerBase):
         if len(last_stmts) == 1 and isinstance(last_stmts[0], (Jump, ConditionalJump)):
             return remove_last_statement(node)
         return None
+
+    @staticmethod
+    def _chick_order_edges(edges: List) -> List:
+
+        graph = networkx.DiGraph()
+        graph.add_edges_from(edges)
+
+        def _sort_edge(edge_):
+            src, dst = edge_
+            dst_in_degree = graph.in_degree[dst]
+            src_out_degree = graph.out_degree[src]
+            return dst_in_degree, src_out_degree, -src.addr, -dst.addr
+
+        return list(sorted(edges, key=_sort_edge, reverse=True))
