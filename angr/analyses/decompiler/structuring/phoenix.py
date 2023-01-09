@@ -1442,7 +1442,7 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         if all_edges_wo_dominance:
-            all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance, graph)
+            all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance)
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -1450,7 +1450,7 @@ class PhoenixStructurer(StructurerBase):
             return True
 
         if secondary_edges:
-            secondary_edges = self._chick_order_edges(secondary_edges, graph)
+            secondary_edges = self._chick_order_edges(secondary_edges)
             # virtualize the first edge
             src, dst = secondary_edges[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -1683,7 +1683,10 @@ class PhoenixStructurer(StructurerBase):
         return None
 
     @staticmethod
-    def _chick_order_edges(edges: List, graph) -> List:
+    def _chick_order_edges(edges: List) -> List:
+
+        graph = networkx.DiGraph()
+        graph.add_edges_from(edges)
 
         def _sort_edge(edge_):
             src, dst = edge_
