@@ -858,7 +858,7 @@ class SimTypeFunction(SimType):
             name2,
             ', '.join(
                 a.c_repr(n, full-1, memo, indent) for a, n in zip(
-                    self.args, self.arg_names if self.arg_names is not None and full else (None,)*len(self.args)
+                    self.args, self.arg_names if self.arg_names and full else (None,)*len(self.args)
                 )
             )
         )
