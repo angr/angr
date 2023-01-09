@@ -1660,7 +1660,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         spaceless_text = d.codegen.text.replace(" ", "").replace("\n", "")
-        assert "==47" in spaceless_text or "!= 47" in spaceless_text
+        assert "==47" in spaceless_text or "!=47" in spaceless_text
 
     @for_all_structuring_algos
     def test_decompiling_dd_argmatch_to_argument_noeagerreturns(self, decompiler_options=None):
