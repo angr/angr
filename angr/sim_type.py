@@ -860,7 +860,7 @@ class SimTypeFunction(SimType):
                 a.c_repr(n, full-1, memo, indent) for a, n in zip(
                     self.args, self.arg_names if self.arg_names and full else (None,)*len(self.args)
                 )
-            )
+            ) + ', ...' if self.variadic else ''
         )
         name4 = self.returnty.c_repr(name3, full, memo, indent) if self.returnty is not None else 'void %s' % name3
         return name4
