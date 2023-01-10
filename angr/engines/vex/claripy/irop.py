@@ -994,11 +994,17 @@ class SimIROp:
                 rounded.append(claripy.fpToSBV(rm, left, self._vector_size))
             return claripy.Concat(*rounded)
         else:
-            # note: this a bad solution because it will cut off high values
-            # TODO: look into fixing this
             rm = self._translate_rm(args[0])
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
-            return claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
+            
+            # if exponent is large enough, floating points are always integers.
+            fsort = claripy.fp.FSort.from_size(args[1].length)
+            mantissa_bits = fsort.mantissa-1 # -1 since FSort has mantissa value 1 higher than the number of bits
+            exp_bits = fsort.exp
+            rounded_fp = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, fsort)
+            exp_bv = args[1].raw_to_bv()[exp_bits+mantissa_bits-1:mantissa_bits]
+            exp_threshold = (2**(exp_bits-1)-1)+mantissa_bits
+            return claripy.If(exp_bv >= exp_threshold, args[1].raw_to_fp(), rounded_fp)
 
     def _generic_pack_saturation(self, args, src_size, dst_size, src_signed, dst_signed):
         """
