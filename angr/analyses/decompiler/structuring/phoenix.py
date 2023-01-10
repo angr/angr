@@ -1732,7 +1732,7 @@ class PhoenixStructurer(StructurerBase):
 
     @staticmethod
     def _replace_node_in_edge_list(edge_list: List[Tuple], old_node, new_node) -> None:
-        for idx in range(len(edge_list)):
+        for idx in range(len(edge_list)):  # pylint:disable=consider-using-enumerate
             edge = edge_list[idx]
             src, dst = edge
             replace = False
