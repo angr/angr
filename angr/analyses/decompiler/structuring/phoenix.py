@@ -542,8 +542,6 @@ class PhoenixStructurer(StructurerBase):
                                 # we don't handle it here.
                                 pass
 
-                        remove_last_statement(src_block)  # remove the last jump or conditional jump in src_block
-
                         fullgraph.remove_edge(src, dst)
                         if src_parent is not None:
                             # replace the node in its parent node
@@ -554,6 +552,12 @@ class PhoenixStructurer(StructurerBase):
                             self.replace_nodes(fullgraph, src, new_node)
                             if src is loop_head:
                                 loop_head = new_node
+
+                        self._replace_node_in_edge_list(outgoing_edges, src_block, new_node)
+                        self._replace_node_in_edge_list(headgoing_edges, src_block, new_node)
+
+                        # remove the last jump or conditional jump in src_block
+                        self._remove_last_statement_if_jump(src_block)
 
                 else:
                     fullgraph.remove_edge(src, dst)
@@ -1725,3 +1729,18 @@ class PhoenixStructurer(StructurerBase):
             return dst_in_degree, src_out_degree, -src.addr, -dst.addr
 
         return list(sorted(edges, key=_sort_edge, reverse=True))
+
+    @staticmethod
+    def _replace_node_in_edge_list(edge_list: List[Tuple], old_node, new_node) -> None:
+        for idx in range(len(edge_list)):
+            edge = edge_list[idx]
+            src, dst = edge
+            replace = False
+            if src is old_node:
+                src = new_node
+                replace = True
+            if dst is old_node:
+                dst = new_node
+                replace = True
+            if replace:
+                edge_list[idx] = src, dst
