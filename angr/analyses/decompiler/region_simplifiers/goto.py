@@ -5,8 +5,9 @@ import logging
 import ailment
 
 from ..sequence_walker import SequenceWalker
+from ..structuring.structurer_nodes import BreakNode, ContinueNode
 from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, \
-    CascadingConditionNode
+    CascadingConditionNode, SwitchCaseNode
 from .node_address_finder import NodeAddressFinder
 from ....knowledge_plugins.gotos import Goto
 
@@ -33,6 +34,7 @@ class GotoSimplifier(SequenceWalker):
             LoopNode: self._handle_loopnode,
             ConditionNode: self._handle_conditionnode,
             CascadingConditionNode: self._handle_cascadingconditionnode,
+            SwitchCaseNode: self._handle_switchcasenode,
             ailment.Block: self._handle_block,
         }
         self._function = function
@@ -50,8 +52,15 @@ class GotoSimplifier(SequenceWalker):
         :return:
         """
 
-        for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
-            self._handle(n0, successor=n1)
+        to_replace = []
+
+        for idx, (n0, n1) in enumerate(list(zip(node.nodes, node.nodes[1:] + [successor]))):
+            result = self._handle(n0, successor=n1, **kwargs)
+            if isinstance(result, list):
+                to_replace.append((idx, result))
+
+        for idx, blocks in to_replace:
+            node.nodes = node.nodes[:idx] + blocks + node.nodes[idx + 1:]
 
     def _handle_codenode(self, node, successor=None, **kwargs):
         """
@@ -60,7 +69,9 @@ class GotoSimplifier(SequenceWalker):
         :return:
         """
 
-        self._handle(node.node, successor=successor)
+        result = self._handle(node.node, successor=successor)
+        if isinstance(result, list):
+            node.node = SequenceNode(node.addr, result)
 
     def _handle_conditionnode(self, node, successor=None, **kwargs):
         """
@@ -71,16 +82,25 @@ class GotoSimplifier(SequenceWalker):
         """
 
         if node.true_node is not None:
-            self._handle(node.true_node, successor=successor)
+            result = self._handle(node.true_node, successor=successor, **kwargs)
+            if isinstance(result, list):
+                node.true_node = SequenceNode(node.true_node.addr, result)
         if node.false_node is not None:
-            self._handle(node.false_node, successor=successor)
+            result = self._handle(node.false_node, successor=successor, **kwargs)
+            if isinstance(result, list):
+                node.false_node = SequenceNode(node.false_node.addr, result)
 
     def _handle_cascadingconditionnode(self, node: CascadingConditionNode, successor=None, **kwargs):
 
-        for _, child_node in node.condition_and_nodes:
-            self._handle(child_node, successor=successor)
+        for idx, (cond, child_node) in enumerate(node.condition_and_nodes):
+            result = self._handle(child_node, successor=successor, **kwargs)
+            if isinstance(result, list):
+                node.condition_and_nodes[idx] = cond, SequenceNode(child_node.addr, result)
+
         if node.else_node is not None:
-            self._handle(node.else_node, successor=successor)
+            result = self._handle(node.else_node, successor=successor, **kwargs)
+            if isinstance(result, list):
+                node.else_node = SequenceNode(node.else_node.addr, result)
 
     def _handle_loopnode(self, node, successor=None, **kwargs):
         """
@@ -90,9 +110,30 @@ class GotoSimplifier(SequenceWalker):
         :return:
         """
 
-        self._handle(node.sequence_node,
-                     successor=node,  # the end of a loop always jumps to the beginning of its body
-                     )
+        if 'loop_successor' in kwargs:
+            del kwargs['loop_successor']
+        if 'loop_head' in kwargs:
+            del kwargs['loop_head']
+
+        result = self._handle(node.sequence_node, loop_head=node, loop_successor=successor, **kwargs)
+        assert result is None
+
+    def _handle_switchcasenode(self, node: SwitchCaseNode, successor=None, **kwargs):
+
+        if 'loop_successor' in kwargs:
+            del kwargs['loop_successor']
+        if 'loop_head' in kwargs:
+            del kwargs['loop_head']
+
+        for idx, case_node in enumerate(node.cases):
+            result = self._handle(case_node, successor=None, **kwargs)
+            if isinstance(result, list):
+                node.cases[idx] = SequenceNode(node.cases[idx].addr, result)
+
+        if node.default_node is not None:
+            result = self._handle(node.default_node, successor=None, **kwargs)
+            if isinstance(result, list):
+                node.default_node = SequenceNode(node.default_node.addr, result)
 
     def _handle_multinode(self, node, successor=None, **kwargs):
         """
@@ -101,10 +142,19 @@ class GotoSimplifier(SequenceWalker):
         :return:
         """
 
-        for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
-            self._handle(n0, successor=n1)
+        to_replace = []
+        for idx, (n0, n1) in enumerate(list(zip(node.nodes, node.nodes[1:] + [successor]))):
+            if isinstance(n0, ailment.Block):
+                result = self._handle(n0, successor=n1, **kwargs)
+                if isinstance(result, list):
+                    to_replace.append((idx, result))
+            else:
+                self._handle(n0, successor=n1, **kwargs)
 
-    def _handle_block(self, block, successor=None, **kwargs):  # pylint:disable=no-self-use
+        for idx, blocks in to_replace:
+            node.nodes = node.nodes[:idx] + blocks + node.nodes[idx + 1:]
+
+    def _handle_block(self, block, successor=None, loop_successor=None, loop_head=None, **kwargs):  # pylint:disable=no-self-use
         """
         This will also record irreducible gotos into the kb if found.
 
@@ -116,11 +166,21 @@ class GotoSimplifier(SequenceWalker):
             goto_stmt = block.statements[-1]  # ailment.Stmt.Jump
             if isinstance(goto_stmt.target, ailment.Expr.Const):
                 goto_target = goto_stmt.target.value
+                as_break = False
+                as_continue = False
                 if successor and goto_target == successor.addr:
                     can_remove = True
                 elif goto_target not in self._node_addrs:
                     # the target block has been removed and is no longer exist. we assume this goto is useless
                     can_remove = True
+                elif loop_successor is not None and goto_target == loop_successor.addr:
+                    # replace it with a break statement
+                    can_remove = True
+                    as_break = True
+                elif loop_head is not None and goto_target == loop_head.addr:
+                    # replace it with a continue statement
+                    can_remove = True
+                    as_continue = True
                 else:
                     can_remove = False
                     self._handle_irreducible_goto(block, goto_stmt)
@@ -128,6 +188,11 @@ class GotoSimplifier(SequenceWalker):
                 if can_remove:
                     # we can remove this statement
                     block.statements = block.statements[:-1]
+                if as_break:
+                    return [block, BreakNode(goto_stmt.ins_addr, loop_successor.addr)]
+                if as_continue:
+                    return [block, ContinueNode(goto_stmt.ins_addr, loop_head.addr)]
+        return None
 
     def _handle_irreducible_goto(self, block, goto_stmt: ailment.Stmt.Jump):
         if not self._kb or not self._function:
