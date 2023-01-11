@@ -1817,6 +1817,23 @@ class TestDecompiler(unittest.TestCase):
         condensed = d.codegen.text.replace(" ", "").replace("\n", "")
         assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=input_seek_errno;", condensed)
 
+    @for_all_structuring_algos
+    def test_decompiling_prototype_recovery_two_blocks(self, decompiler_options=None):
+        # we must analyze both 0x40021d and 0x400225 to determine the prototype of xstrtol
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stty.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["screen_columns"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+
+        assert proj.kb.functions['xstrtol'].prototype is not None
+        assert proj.kb.functions['xstrtol'].prototype.args is not None
+        assert len(proj.kb.functions['xstrtol'].prototype.args) == 5
+        assert re.search(r"xstrtol\([^\n,]+, [^\n,]+, [^\n,]+, [^\n,]+, [^\n,]+\)", d.codegen.text) is not None
+
 
 if __name__ == "__main__":
     unittest.main()

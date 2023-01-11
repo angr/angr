@@ -145,10 +145,23 @@ class CallingConventionAnalysis(Analysis):
             self.prototype = self._function.prototype
 
             if self.cc is None or self.prototype is None:
-                callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
-                cc = DefaultCC[self.project.arch.name](self.project.arch)
-                prototype = self._adjust_prototype(self.prototype, callsite_facts,
-                                                   update_arguments=UpdateArgumentsOption.AlwaysUpdate)
+                for include_callsite_preds in [False, True]:
+                    callsite_facts = self._extract_and_analyze_callsites(
+                        max_analyzing_callsites=1,
+                        include_callsite_preds=include_callsite_preds,
+                    )
+                    cc = DefaultCC[self.project.arch.name](self.project.arch)
+                    if self.prototype is None:
+                        proto = SimTypeFunction([], None)
+                    else:
+                        proto = self.prototype
+                    prototype = self._adjust_prototype(
+                        proto,
+                        callsite_facts,
+                        update_arguments=UpdateArgumentsOption.AlwaysUpdate,
+                    )
+                    if prototype.args:
+                        break
                 self.cc = cc
                 self.prototype = prototype
             return
@@ -174,17 +187,22 @@ class CallingConventionAnalysis(Analysis):
             self.prototype = prototype
 
     def _analyze_callsite_only(self):
-        callsite_facts = [
-            self._analyze_callsite(
-                self.caller_func_addr,
-                self.callsite_block_addr,
-                self.callsite_insn_addr,
-            )
-        ]
-        cc = DefaultCC[self.project.arch.name](self.project.arch)
-        prototype = SimTypeFunction([], None)
-        prototype = self._adjust_prototype(prototype, callsite_facts,
-                                           update_arguments=UpdateArgumentsOption.AlwaysUpdate)
+        for include_callsite_preds in [False, True]:
+            callsite_facts = [
+                self._analyze_callsite(
+                    self.caller_func_addr,
+                    self.callsite_block_addr,
+                    self.callsite_insn_addr,
+                    include_preds=include_callsite_preds,
+                )
+            ]
+            cc = DefaultCC[self.project.arch.name](self.project.arch)
+            prototype = SimTypeFunction([], None)
+            prototype = self._adjust_prototype(prototype, callsite_facts,
+                                               update_arguments=UpdateArgumentsOption.AlwaysUpdate)
+            if prototype.args:
+                break
+
         self.cc = cc
         self.prototype = prototype
 
@@ -278,9 +296,15 @@ class CallingConventionAnalysis(Analysis):
 
         return cc, prototype
 
-    def _analyze_callsite(self, caller_addr: int, caller_block_addr: int, call_insn_addr: int) -> CallSiteFact:
+    def _analyze_callsite(
+            self,
+            caller_addr: int,
+            caller_block_addr: int,
+            call_insn_addr: int,
+            include_preds: bool = False,
+    ) -> CallSiteFact:
         func = self.kb.functions[caller_addr]
-        subgraph = self._generate_callsite_subgraph(func, caller_block_addr)
+        subgraph = self._generate_callsite_subgraph(func, caller_block_addr, include_preds=include_preds)
 
         rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
             func,
@@ -298,6 +322,7 @@ class CallingConventionAnalysis(Analysis):
     def _extract_and_analyze_callsites(
             self,
             max_analyzing_callsites: int=3,
+            include_callsite_preds: bool = False,
     ) -> List[CallSiteFact]:  # pylint:disable=no-self-use
         """
         Analyze all call sites of the function and determine the possible number of arguments and if the function
@@ -339,7 +364,12 @@ class CallingConventionAnalysis(Analysis):
             # call.
             for call_site_tuple in call_site_tuples:
                 caller_block_addr, call_insn_addr = call_site_tuple
-                fact = self._analyze_callsite(caller.addr, caller_block_addr, call_insn_addr)
+                fact = self._analyze_callsite(
+                    caller.addr,
+                    caller_block_addr,
+                    call_insn_addr,
+                    include_preds=include_callsite_preds,
+                )
                 facts.append(fact)
 
                 ctr += 1
@@ -348,13 +378,25 @@ class CallingConventionAnalysis(Analysis):
 
         return facts
 
-    def _generate_callsite_subgraph(self, func: 'Function', callsite_block_addr: int) -> Optional[networkx.DiGraph]:
+    def _generate_callsite_subgraph(
+            self,
+            func: 'Function',
+            callsite_block_addr: int,
+            include_preds: bool=False,
+    ) -> Optional[networkx.DiGraph]:
         the_block = func.get_node(callsite_block_addr)
         if the_block is None:
             return None
 
         subgraph = networkx.DiGraph()
         subgraph.add_node(the_block)
+
+        if include_preds:
+            # add a predecessor
+            for src, _, data in func.graph.in_edges(the_block, data=True):
+                if src is not the_block:
+                    subgraph.add_edge(src, the_block, **data)
+                    break  # only add the first non-cycle in-edge
 
         for _, dst, data in func.graph.out_edges(the_block, data=True):
             subgraph.add_edge(the_block, dst, **data)
