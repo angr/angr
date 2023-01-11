@@ -18,6 +18,7 @@ from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
 from ..knowledge_plugins.variables.variable_access import VariableAccessSort
 from ..utils.constants import DEFAULT_STATEMENT
+from .. import SIM_PROCEDURES
 from .reaching_definitions import get_all_definitions
 from .reaching_definitions.external_codeloc import ExternalCodeLocation
 from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
@@ -135,6 +136,14 @@ class CallingConventionAnalysis(Analysis):
         """
 
         if self._function.is_simprocedure:
+            hooker = self.project.hooked_by(self._function.addr)
+            if isinstance(hooker, (
+                    SIM_PROCEDURES['stubs']['UnresolvableCallTarget'],
+                    SIM_PROCEDURES['stubs']['UnresolvableJumpTarget'],
+                    SIM_PROCEDURES['stubs']['UserHook'],
+            )):
+                return
+
             if self._function.prototype is None:
                 # try our luck
                 # we set ignore_binary_name to True because the binary name SimProcedures is "cle##externs" and does not
