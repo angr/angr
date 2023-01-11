@@ -562,6 +562,18 @@ class AILSimplifier(Analysis):
 
                 remove_initial_assignment = False  # expression folding will take care of it
 
+            # ensure the uses we consider are all after the eq location
+            filtered_all_uses_with_def = [ ]
+            for def_, use_and_expr in all_uses_with_def:
+                u = use_and_expr[0]
+                if u.block_addr == eq.codeloc.block_addr \
+                        and u.block_idx == eq.codeloc.block_idx \
+                        and u.stmt_idx < eq.codeloc.stmt_idx:
+                    # this use happens before the assignment - ignore it
+                    continue
+                filtered_all_uses_with_def.append((def_, use_and_expr))
+            all_uses_with_def = filtered_all_uses_with_def
+
             if not all_uses_with_def:
                 # definitions without uses may simply be our data-flow analysis being incorrect. do not remove them.
                 continue
