@@ -1793,6 +1793,30 @@ class TestDecompiler(unittest.TestCase):
 
         assert len(list(re.findall(r"LABEL_[^;:]+:", d.codegen.text))) == 1
 
+    @structuring_algo("phoenix")
+    def test_decompiling_dd_advance_input_after_read_error(self, decompiler_options=None):
+        # incorrect _unify_local_variables logic was creating incorrectly simplified logic:
+        #
+        #   *(v2) = input_seek_errno;
+        #   v2 = __errno_location();
+        #
+        # it should be
+        #
+        #   v2 = __errno_location();
+        #   *(v2) = input_seek_errno;
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["advance_input_after_read_error"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        condensed = d.codegen.text.replace(" ", "").replace("\n", "")
+        assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=input_seek_errno;", condensed)
+
 
 if __name__ == "__main__":
     unittest.main()

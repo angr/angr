@@ -339,6 +339,8 @@ class ReachingDefinitionsState:
         return state, merged_0 or merged_1
 
     def _cycle(self, code_loc: CodeLocation) -> None:
+        if isinstance(code_loc, ExternalCodeLocation):
+            return
         if code_loc != self.current_codeloc:
             self.current_codeloc = code_loc
             self.codeloc_uses = set()
