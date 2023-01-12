@@ -685,7 +685,7 @@ class StatementGraph:
     def subgraph(self, nodes):
         return self._graph.subgraph(nodes)
 
-
+debug=False
 class InputConcretizeEngine(UberEngine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -698,7 +698,7 @@ class InputConcretizeEngine(UberEngine):
             for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
                 for to_repl_expr in expr_list:
                     if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
-                        sym_result = self.state.solver.BVS("pre_constrain_sym_expr_"+str(codeloc), result[0].size())
+                        sym_result = self.state.solver.BVS("symbolified_expr"+str(hex(codeloc.block_addr)), result[0].size())
                         self.state.globals['expr_loc_map'][sym_result.args[0]] = (codeloc, expr)
                         new_result = sym_result
 
@@ -714,34 +714,43 @@ class InputConcretizeEngine(UberEngine):
 
         result = super()._perform_vex_expr_Load((simplified_addr, addr[1]), ty, endness, **kwargs)
 
+        # if str(self.state.globals['cur_block_id']) == '<BlockID 0x40206c (0x0@0x0 -> None@0x401d10 -> 0x401e52@0x401fc0) VM-VPC:None % Jump Type:normal>' and self.state.scratch.stmt_idx in [10,3]:
+        #     import ipdb;ipdb.set_trace()
+
         save = False
         var_ast_list = []
         # if isinstance(result[0].args[0], str) and result[0].args[0].startswith('mem_7ffef368'):
         #     print("Time to DEBUG")
         #     import ipdb;ipdb.set_trace()
-        if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_'):
-            if not self.state.solver.symbolic(simplified_addr):
-                return result
 
-            for ast in simplified_addr.leaf_asts():
-                if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
-                    save = True
-                    var_ast_list.append(ast)
-                elif isinstance(ast.args[0], str) and ast.args[0].startswith('pre_constrain_sym_expr_'):
-                    self.state.globals['to_use_symbolic_exprs'].append(self.state.globals['expr_loc_map'][ast.args[0]])
-                    save = True
-                    var_ast_list.append(ast)
+        no_constraints_solver = claripy.solvers.SolverComposite()
+        no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
+        conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
 
-            if not save:
-                poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0], 5)
-                if len(poss_addrs) < 5:
-                    #import ipdb;ipdb.set_trace()
-                    save = True
+        if len(conc_addrs) < 5:
+            if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_'):
+                if not self.state.solver.symbolic(simplified_addr):
+                    return result
 
-                    for ast in simplified_addr.leaf_asts():
-                        if self.state.solver.symbolic(ast):
-                            if ast.args[0] not in self.state.globals['replaced_asts_str']:
-                                var_ast_list.append(ast)
+                for ast in simplified_addr.leaf_asts():
+                    if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
+                        save = True
+                        var_ast_list.append(ast)
+                    elif isinstance(ast.args[0], str) and ast.args[0].startswith('symbolified_expr'):
+                        self.state.globals['to_use_symbolic_exprs'].append(self.state.globals['expr_loc_map'][ast.args[0]])
+                        save = True
+                        var_ast_list.append(ast)
+
+                if not save:
+                    poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0], 5)
+                    if len(poss_addrs) < 5:
+                        #import ipdb;ipdb.set_trace()
+                        save = True
+
+                        for ast in simplified_addr.leaf_asts():
+                            if self.state.solver.symbolic(ast):
+                                if ast.args[0] not in self.state.globals['replaced_asts_str']:
+                                    var_ast_list.append(ast)
 
         if len(var_ast_list) > 1:
             print("More than one variables? which one to save.... maybe both")
@@ -749,10 +758,13 @@ class InputConcretizeEngine(UberEngine):
 
 
         if save:
+            global debug
+            if debug:
+                import ipdb;ipdb.set_trace()
             #create a solver without any constraints and use that to solve. This is equivalent to simplifying it and should not have the same issues that regular symbolic execution/solving with contraints should have
-            no_constraints_solver = claripy.solvers.SolverComposite()
-            no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
-            conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
+            # no_constraints_solver = claripy.solvers.SolverComposite()
+            # no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
+            # conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
 
             ## USE THIS THE PARTIAL CONSTRAINTS INSTEAD OF UNONCONSTRINAED SOLVER, there's a bug which returns two values hence unot using this now
             # the bug has been fixed(by passed.... something to do with replacement solver usage) we can now use this
@@ -766,6 +778,7 @@ class InputConcretizeEngine(UberEngine):
             # for conc_addr in conc_addrs:
             #     conc_addr_and_new_constraints.append(conc_addr)
             for conc_addr in conc_addrs:
+                new_ast_constraints = []
                 no_constraints_solver = claripy.solvers.SolverComposite()
                 no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
                 no_constraints_solver.add(simplified_addr == conc_addr)
@@ -773,8 +786,11 @@ class InputConcretizeEngine(UberEngine):
                 loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty), endness=self.state.arch.memory_endness)
                 for var_ast in var_ast_list:
                     conc_input_value = no_constraints_solver.eval(var_ast, 5)
-                    import ipdb;ipdb.set_trace()
-                    conc_addr_and_new_constraints.append((conc_addr, var_ast == conc_input_value[0], result[0] == loaded_value))
+                    new_ast_constraints.append(var_ast == conc_input_value[0])
+                    # add this new constraint, and then solve for the rest as well
+                    no_constraints_solver.add(var_ast == conc_input_value[0])
+
+                conc_addr_and_new_constraints.append((conc_addr, new_ast_constraints, result[0] == loaded_value))
 
             if len(conc_addrs) == 1 or len(conc_addrs) > 2:
                 print("Hmmmm")
@@ -907,23 +923,25 @@ class VMDeobfuscation(Analysis):
 
         import ipdb;ipdb.set_trace()
 
-
+        global debug
+        debug = True
         new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(cfg, proj, symbolic_expr_locations_blockwise, start_addr=start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
+
 
         new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "symbolify_cfg.svg"))
 
         # filter the locations that we symbolize during constant propagation based on the previous analysis, to reduce the load on constant prop
-        new_symbolic_expr_locations_blockwise = defaultdict(lambda: defaultdict(list))
-        for codeloc, expr in to_use_symbolic_exprs:
-            for expr_list in symbolic_expr_locations_blockwise[codeloc.block_id].values():
-                for cur_expr in expr_list:
-                    if cur_expr == expr:
-                        new_symbolic_expr_locations_blockwise[codeloc.block_id][codeloc].append(expr)
-
-        import ipdb;ipdb.set_trace()
-        symbolic_expr_locations_blockwise = new_symbolic_expr_locations_blockwise
+        # new_symbolic_expr_locations_blockwise = defaultdict(lambda: defaultdict(list))
+        # for codeloc, expr in to_use_symbolic_exprs:
+        #     for expr_list in symbolic_expr_locations_blockwise[codeloc.block_id].values():
+        #         for cur_expr in expr_list:
+        #             if cur_expr == expr:
+        #                 new_symbolic_expr_locations_blockwise[codeloc.block_id][codeloc].append(expr)
+        #
+        # import ipdb;ipdb.set_trace()
+        # symbolic_expr_locations_blockwise = new_symbolic_expr_locations_blockwise
 
         start_state_copy = start_state.copy()
         new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
@@ -1059,6 +1077,7 @@ class VMDeobfuscation(Analysis):
                                                remove_insts=remove_insts
                                                # enable_advanced_backward_slicing=True
                                                )
+        self.project.prev_symbolic_expr_locations_blockwise = None
 
         return cfg, cfg.to_use_symbolic_exprs
 

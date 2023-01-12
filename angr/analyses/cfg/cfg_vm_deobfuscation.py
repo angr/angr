@@ -1549,7 +1549,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             if len(conc_addr_and_new_constraints) > 2:
                                 print("More than two possible jumps? is this not a direct jump converted to an indirect jump?")
                                 import ipdb;ipdb.set_trace()
-                            for conc_addr, input_constraint, loaded_value_constraint in conc_addr_and_new_constraints: #input_constraint
+                            for conc_addr, input_constraints, loaded_value_constraint in conc_addr_and_new_constraints: #input_constraint
                                 sym_addr = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][2]
                                 size = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][1]
                                 new_state = sim_successors.unconstrained_successors[0].copy()
@@ -1566,10 +1566,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 new_state.partial_symbolic_constraint_solver.add(loaded_value_constraint)
                                 new_state.globals['replaced_asts_str'][loaded_value_constraint.args[0].args[0]] = "replaced"
 
-                                new_state.add_constraints(input_constraint)
-                                new_state.solver._solver.add_replacement(input_constraint.args[0], input_constraint.args[1], invalidate_cache=False)
-                                new_state.partial_symbolic_constraint_solver.add(input_constraint)
-                                new_state.globals['replaced_asts_str'][input_constraint.args[0].args[0]] = "replaced"
+                                for ast_constraint in input_constraints:
+                                    new_state.add_constraints(ast_constraint)
+                                    new_state.solver._solver.add_replacement(ast_constraint.args[0], ast_constraint.args[1], invalidate_cache=False)
+                                    new_state.partial_symbolic_constraint_solver.add(ast_constraint)
+                                    new_state.globals['replaced_asts_str'][ast_constraint.args[0].args[0]] = "replaced"
 
                                 # new_state.regs.ip = new_state.solver.simplify(new_state.regs.ip).replace_dict(new_state.solver._solver._replacement_cache)
                                 # new_state.scratch.target = new_state.solver.simplify(new_state.scratch.target).replace_dict(new_state.solver._solver._replacement_cache)
