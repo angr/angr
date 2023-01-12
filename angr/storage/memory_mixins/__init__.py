@@ -11,7 +11,7 @@ class MemoryMixin(SimStatePlugin):
 
     SUPPORTS_CONCRETE_LOAD = False
 
-    def __init__(self, memory_id=None, endness='Iend_BE'):
+    def __init__(self, memory_id=None, endness="Iend_BE"):
         super().__init__()
         self.id = memory_id
         self.endness = endness
@@ -29,14 +29,14 @@ class MemoryMixin(SimStatePlugin):
         or file.
         """
 
-        if self.id in ('reg', 'mem'):
+        if self.id in ("reg", "mem"):
             return self.id
 
-        elif self.id.startswith('file'):
-            return 'file'
+        elif self.id.startswith("file"):
+            return "file"
 
-        elif '_' in self.id:
-            return self.id.split('_')[0]
+        elif "_" in self.id:
+            return self.id.split("_")[0]
 
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
@@ -44,7 +44,7 @@ class MemoryMixin(SimStatePlugin):
     @property
     def variable_key_prefix(self):
         s = self.category
-        if s == 'file':
+        if s == "file":
             return (s, self.id)
         return (s,)
 
@@ -117,7 +117,7 @@ class MemoryMixin(SimStatePlugin):
         """
         pass
 
-    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int, **kwargs) -> Optional[Any]:
+    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, **kwargs) -> Optional[Any]:
         """
         Override this method to provide value merging support.
 
@@ -178,15 +178,27 @@ from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 
 from .paged_memory.page_backer_mixins import ClemoryBackerMixin, ConcreteBackerMixin, DictBackerMixin
-from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin, \
-    ListPagesWithLabelsMixin, MVListPagesMixin, MVListPagesWithLabelsMixin
+from .paged_memory.paged_memory_mixin import (
+    PagedMemoryMixin,
+    ListPagesMixin,
+    UltraPagesMixin,
+    ListPagesWithLabelsMixin,
+    MVListPagesMixin,
+    MVListPagesWithLabelsMixin,
+)
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
 from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
 
 from .slotted_memory import SlottedMemoryMixin
-from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFindMixin, AbstractMergerMixin, \
-    MemoryRegionMetaMixin, RegionedAddressConcretizationMixin
+from .regioned_memory import (
+    RegionedMemoryMixin,
+    RegionCategoryMixin,
+    StaticFindMixin,
+    AbstractMergerMixin,
+    MemoryRegionMetaMixin,
+    RegionedAddressConcretizationMixin,
+)
 from .keyvalue_memory import KeyValueMemoryMixin
 from .javavm_memory import JavaVmMemoryMixin
 
@@ -204,7 +216,7 @@ class DefaultMemory(
     SizeConcretizationMixin,
     SizeNormalizationMixin,
     AddressConcretizationMixin,
-    #InspectMixinLow,
+    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     ConvenientMappingsMixin,
@@ -236,7 +248,7 @@ class DefaultListPagesMemory(
     SizeNormalizationMixin,
     InspectMixinHigh,
     AddressConcretizationMixin,
-    #InspectMixinLow,
+    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     ConvenientMappingsMixin,
@@ -277,7 +289,7 @@ class AbstractMemory(
     UnderconstrainedMixin,
     SizeConcretizationMixin,
     SizeNormalizationMixin,
-    #InspectMixinLow,
+    # InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
     RegionedAddressConcretizationMixin,
@@ -322,6 +334,7 @@ class LabeledMemory(
     """
     LabeledMemory is used in static analysis. It allows storing values with labels, such as `Definition`.
     """
+
     def _default_value(self, addr, size, **kwargs):
         # TODO: Make _default_value() a separate Mixin
 
@@ -331,7 +344,7 @@ class LabeledMemory(
             return self.state.top(size * self.state.arch.byte_width)
 
         # we never fill default values for non-existent loads
-        kwargs['fill_missing'] = False
+        kwargs["fill_missing"] = False
         return super()._default_value(addr, size, **kwargs)
 
 
@@ -351,7 +364,7 @@ class MultiValuedMemory(
             return self.state.top(size * self.state.arch.byte_width)
 
         # we never fill default values for non-existent loads
-        kwargs['fill_missing'] = False
+        kwargs["fill_missing"] = False
         return super()._default_value(addr, size, **kwargs)
 
 
@@ -368,8 +381,9 @@ class JavaVmMemory(
 
 
 from angr.sim_state import SimState
-SimState.register_default('sym_memory', DefaultMemory)
-SimState.register_default('fast_memory', FastMemory)
-SimState.register_default('abs_memory', AbstractMemory)
-SimState.register_default('keyvalue_memory', KeyValueMemory)
-SimState.register_default('javavm_memory', JavaVmMemory)
+
+SimState.register_default("sym_memory", DefaultMemory)
+SimState.register_default("fast_memory", FastMemory)
+SimState.register_default("abs_memory", AbstractMemory)
+SimState.register_default("keyvalue_memory", KeyValueMemory)
+SimState.register_default("javavm_memory", JavaVmMemory)

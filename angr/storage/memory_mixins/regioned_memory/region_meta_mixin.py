@@ -8,19 +8,27 @@ from .. import MemoryMixin
 
 class MemoryRegionMetaMixin(MemoryMixin):
 
-    __slots__ = ('_endness', '_id', '_state', '_is_stack', '_related_function_addr', '_alocs', '_memory', )
+    __slots__ = (
+        "_endness",
+        "_id",
+        "_state",
+        "_is_stack",
+        "_related_function_addr",
+        "_alocs",
+        "_memory",
+    )
 
     def __init__(self, related_function_addr=None, **kwargs):
         super().__init__(**kwargs)
         self._related_function_addr = related_function_addr
         # This is a map from tuple (basicblock_key, stmt_id) to AbstractLocation objects
-        self.alocs: Dict[Tuple[Any,int],AbstractLocation] = { }
+        self.alocs: Dict[Tuple[Any, int], AbstractLocation] = {}
 
         self._is_stack = None
 
     @MemoryMixin.memo
     def copy(self, memo):
-        r: 'MemoryRegionMetaMixin' = super().copy(memo)
+        r: "MemoryRegionMetaMixin" = super().copy(memo)
         r.alocs = copy.deepcopy(self.alocs)
         r._related_function_addr = self._related_function_addr
         r._is_stack = self._is_stack
@@ -31,7 +39,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
         if self.id is None:
             return None
         if self._is_stack is None:
-            self._is_stack = self.id.startswith('stack_')
+            self._is_stack = self.id.startswith("stack_")
         return self._is_stack
 
     @property
@@ -50,7 +58,7 @@ class MemoryRegionMetaMixin(MemoryMixin):
         :return:        A list of covered AbstractLocation objects, or an empty list if there is none.
         """
 
-        ret = [ ]
+        ret = []
         for aloc in self.alocs.values():
             for seg in aloc.segments:
                 if seg.offset >= addr and seg.offset < addr + size:
@@ -67,11 +75,9 @@ class MemoryRegionMetaMixin(MemoryMixin):
             aloc_id = bbl_addr
 
         if aloc_id not in self.alocs:
-            self.alocs[aloc_id] = self.state.solver.AbstractLocation(bbl_addr,
-                                                                      stmt_id,
-                                                                      self.id,
-                                                                      region_offset=addr,
-                                                                      size=len(data) // self.state.arch.byte_width)
+            self.alocs[aloc_id] = self.state.solver.AbstractLocation(
+                bbl_addr, stmt_id, self.id, region_offset=addr, size=len(data) // self.state.arch.byte_width
+            )
             return super().store(addr, data, endness=endness, **kwargs)
         else:
             if self.alocs[aloc_id].update(addr, len(data) // self.state.arch.byte_width):
@@ -79,8 +85,10 @@ class MemoryRegionMetaMixin(MemoryMixin):
             else:
                 return super().store(addr, data, endness=endness, **kwargs)
 
-    def load(self, addr, size=None, bbl_addr=None, stmt_idx=None, ins_addr=None, **kwargs): #pylint:disable=unused-argument
-        #if bbl_addr is not None and stmt_id is not None:
+    def load(
+        self, addr, size=None, bbl_addr=None, stmt_idx=None, ins_addr=None, **kwargs
+    ):  # pylint:disable=unused-argument
+        # if bbl_addr is not None and stmt_id is not None:
         return super().load(addr, size=size, **kwargs)
 
     def _merge_alocs(self, other_region):
@@ -101,15 +109,13 @@ class MemoryRegionMetaMixin(MemoryMixin):
         r = False
         for other_region in others:
             self._merge_alocs(other_region)
-            r |= super().merge(
-                [other_region], merge_conditions, common_ancestor=common_ancestor
-            )
+            r |= super().merge([other_region], merge_conditions, common_ancestor=common_ancestor)
         return r
 
     def widen(self, others):
         for other_region in others:
             self._merge_alocs(other_region)
-            super().widen([ other_region.memory ])
+            super().widen([other_region.memory])
 
     def dbg_print(self, indent=0):
         """

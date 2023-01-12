@@ -6,6 +6,7 @@ class PicklableLock:
     Normal thread-locks are not pickleable. This provides a pickleable lock by mandating that the lock is unlocked
     during serialization.
     """
+
     _LOCK = threading.Lock
 
     def __init__(self, *args, **kwargs):
@@ -37,7 +38,8 @@ class PicklableRLock(PicklableLock):
     Same as above, but uses RLock instead of Lock for locking. Note that RLock does not provide an interface to tell
     whether is it presently held by any thread, and thus this class will lie about whether it is locked.
     """
+
     _LOCK = threading.RLock
 
     def locked(self):
-        return False   # ummmmmmmmmmmmmmmm
+        return False  # ummmmmmmmmmmmmmmm

@@ -8,7 +8,10 @@ class CCallRewriterBase:
     The base class for CCall rewriters.
     """
 
-    __slots__ = ('result', 'arch', )
+    __slots__ = (
+        "result",
+        "arch",
+    )
 
     def __init__(self, ccall: ailment.Expr.VEXCCallExpression, arch):
         self.arch = arch

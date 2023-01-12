@@ -11,7 +11,7 @@ def rand_str(length, byte_list=None):
 
 class memcmp(Func):
     def __init__(self):
-        super().__init__() #pylint disable=useless-super-delegation
+        super().__init__()  # pylint disable=useless-super-delegation
 
     def get_name(self):
         return "memcmp"
@@ -19,7 +19,7 @@ class memcmp(Func):
     def num_args(self):
         return 3
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["buf1", "buf2", "len"]
 
     def gen_input_output_pair(self):
@@ -65,6 +65,5 @@ class memcmp(Func):
 
         if outval1 != 0 or outval2 == 0:
             return False
-
 
         return True

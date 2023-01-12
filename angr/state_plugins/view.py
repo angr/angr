@@ -25,9 +25,9 @@ class SimRegNameView(SimStatePlugin):
         :rtype:       claripy.ast.Base
         """
 
-        state: SimState = super().__getattribute__('state')
+        state: SimState = super().__getattribute__("state")
 
-        if isinstance(k, str) and k.startswith('_'):
+        if isinstance(k, str) and k.startswith("_"):
             k = k[1:]
             inspect = False
             disable_actions = True
@@ -52,10 +52,10 @@ class SimRegNameView(SimStatePlugin):
         :return:      None
         """
 
-        if k == 'state' or k in dir(SimStatePlugin):
+        if k == "state" or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
 
-        if isinstance(k, str) and k.startswith('_'):
+        if isinstance(k, str) and k.startswith("_"):
             k = k[1:]
             inspect = False
             disable_actions = True
@@ -67,10 +67,12 @@ class SimRegNameView(SimStatePlugin):
         # instruction pointer flag every time the ip gets written.
         # This flag will then toggle between the native and the java view of the
         # state.
-        if self.state.project and \
-           isinstance(self.state.project.arch, ArchSoot) and \
-           k == 'ip' and \
-           self.state.project.simos.is_javavm_with_jni_support:
+        if (
+            self.state.project
+            and isinstance(self.state.project.arch, ArchSoot)
+            and k == "ip"
+            and self.state.project.simos.is_javavm_with_jni_support
+        ):
             self.state.ip_is_soot_addr = isinstance(v, SootAddressDescriptor)
 
         try:
@@ -83,24 +85,30 @@ class SimRegNameView(SimStatePlugin):
                 raise AttributeError(k)
 
     def __dir__(self):
-        if self.state.arch.name in ('X86', 'AMD64'):
-            return list(self.state.arch.registers.keys()) + ['st%d' % n for n in range(8)] + ['tag%d' % n for n in range(8)] + ['flags', 'eflags', 'rflags']
+        if self.state.arch.name in ("X86", "AMD64"):
+            return (
+                list(self.state.arch.registers.keys())
+                + ["st%d" % n for n in range(8)]
+                + ["tag%d" % n for n in range(8)]
+                + ["flags", "eflags", "rflags"]
+            )
         elif is_arm_arch(self.state.arch):
-            return list(self.state.arch.registers.keys()) + ['flags']
+            return list(self.state.arch.registers.keys()) + ["flags"]
         return self.state.arch.registers.keys()
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         return SimRegNameView()
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return False
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         return False
 
     def get(self, reg_name):
         return self.__getattr__(reg_name)
+
 
 class SimMemView(SimStatePlugin):
     """
@@ -151,16 +159,16 @@ class SimMemView(SimStatePlugin):
         if isinstance(self._addr, int):
             self._addr = self.state.solver.BVV(self._addr, self.state.arch.bits)
 
-    def _deeper(self, **kwargs) -> 'SimMemView':
-        if 'ty' not in kwargs:
-            kwargs['ty'] = self._type
-        if 'addr' not in kwargs:
-            kwargs['addr'] = self._addr
-        if 'state' not in kwargs:
-            kwargs['state'] = self.state
+    def _deeper(self, **kwargs) -> "SimMemView":
+        if "ty" not in kwargs:
+            kwargs["ty"] = self._type
+        if "addr" not in kwargs:
+            kwargs["addr"] = self._addr
+        if "state" not in kwargs:
+            kwargs["state"] = self.state
         return SimMemView(**kwargs)
 
-    def __getitem__(self, k) -> 'SimMemView':
+    def __getitem__(self, k) -> "SimMemView":
         if isinstance(k, slice):
             if k.step is not None:
                 raise ValueError("Slices with strides are not supported")
@@ -184,38 +192,47 @@ class SimMemView(SimStatePlugin):
 
     def __repr__(self):
         if self._addr is None:
-            return '<SimMemView>'
-        value = '<unresolvable>' if not self.resolvable else self.resolved
+            return "<SimMemView>"
+        value = "<unresolvable>" if not self.resolvable else self.resolved
 
         if isinstance(self._addr, claripy.ast.Base):
             addr = self._addr.__repr__(inner=True)
-        elif hasattr(self._addr, 'ast') and isinstance(self._addr.ast, claripy.ast.Base):
+        elif hasattr(self._addr, "ast") and isinstance(self._addr.ast, claripy.ast.Base):
             addr = self._addr.ast.__repr__(inner=True)
         else:
             addr = repr(self._addr)
 
-        type_name = repr(self._type) if self._type is not None else '<untyped>'
-        return '<{} {} at {}>'.format(type_name,
-                                      value,
-                                      addr)
+        type_name = repr(self._type) if self._type is not None else "<untyped>"
+        return "<{} {} at {}>".format(type_name, value, addr)
 
     def __dir__(self):
-        return self._type._refine_dir() if self._type else [x for x in SimMemView.types if ' ' not in x] + ['struct']
+        return self._type._refine_dir() if self._type else [x for x in SimMemView.types if " " not in x] + ["struct"]
 
     struct: "StructMode"
+
     def __getattr__(self, k):
-        if k in ('concrete', 'deref', 'resolvable', 'resolved', 'state', 'array', 'store', '_addr', '_type') or k in dir(SimStatePlugin):
+        if k in (
+            "concrete",
+            "deref",
+            "resolvable",
+            "resolved",
+            "state",
+            "array",
+            "store",
+            "_addr",
+            "_type",
+        ) or k in dir(SimStatePlugin):
             return object.__getattribute__(self, k)
         if self._type and k in self._type._refine_dir():
             return self._type._refine(self, k)
-        if k == 'struct':
+        if k == "struct":
             return StructMode(self)
         if k in SimMemView.types:
             return self._deeper(ty=SimMemView.types[k].with_arch(self.state.arch))
         raise AttributeError(k)
 
     def __setattr__(self, k, v):
-        if k in ('state', '_addr', '_type') or k in dir(SimStatePlugin):
+        if k in ("state", "_addr", "_type") or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
         return self.__getattr__(k).store(v)
 
@@ -233,13 +250,13 @@ class SimMemView(SimStatePlugin):
         return self._deeper(ty=ty)
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         return SimMemView()
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return False
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         return False
 
     @property
@@ -300,22 +317,25 @@ class StructMode:
         self._view = view
 
     def __dir__(self):
-        return [x[7:] for x in SimMemView.types if x.startswith('struct ')]
+        return [x[7:] for x in SimMemView.types if x.startswith("struct ")]
 
     def __getattr__(self, k):
-        assert k != '_view'
-        return self._view._deeper(ty=SimMemView.types['struct ' + k].with_arch(self._view.state.arch))
+        assert k != "_view"
+        return self._view._deeper(ty=SimMemView.types["struct " + k].with_arch(self._view.state.arch))
 
     def __setattr__(self, k, v):
-        if k == '_view':
+        if k == "_view":
             object.__setattr__(self, k, v)
         else:
             self.__getattr__(k).store(v)
 
+
 from ..sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
-SimMemView.types = ALL_TYPES # identity purposefully here
+
+SimMemView.types = ALL_TYPES  # identity purposefully here
 
 
 from angr.sim_state import SimState
-SimState.register_default('mem', SimMemView)
-SimState.register_default('regs', SimRegNameView)
+
+SimState.register_default("mem", SimMemView)
+SimState.register_default("regs", SimRegNameView)

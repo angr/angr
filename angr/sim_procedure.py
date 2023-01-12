@@ -97,16 +97,27 @@ class SimProcedure:
                             you want to extract variadic args.
 
     """
+
     state: "SimState"
+
     def __init__(
-        self, project=None, cc=None, prototype=None, symbolic_return=None,
-        returns=None, is_syscall=False, is_stub=False,
-        num_args=None, display_name=None, library_name=None,
-        is_function=None, **kwargs
+        self,
+        project=None,
+        cc=None,
+        prototype=None,
+        symbolic_return=None,
+        returns=None,
+        is_syscall=False,
+        is_stub=False,
+        num_args=None,
+        display_name=None,
+        library_name=None,
+        is_function=None,
+        **kwargs,
     ):
         # WE'LL FIGURE IT OUT
         self.project: angr.Project = project
-        self.arch: archinfo.arch.Arch  = project.arch if project is not None else None
+        self.arch: archinfo.arch.Arch = project.arch if project is not None else None
         self.addr = None
         self.cc: angr.SimCC = cc
         if type(prototype) is str:
@@ -128,7 +139,7 @@ class SimProcedure:
         self.is_stub = is_stub
         self.is_continuation = False
         self.continuations = {}
-        self.run_func = 'run'
+        self.run_func = "run"
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
@@ -161,10 +172,10 @@ class SimProcedure:
         """
         return (
             self.display_name,
-            ' (cont: %s)' % self.run_func if self.is_continuation else '',
-            ' (syscall)' if self.is_syscall else '',
-            ' (inline)' if not self.use_state_arguments else '',
-            ' (stub)' if self.is_stub else '',
+            " (cont: %s)" % self.run_func if self.is_continuation else "",
+            " (syscall)" if self.is_syscall else "",
+            " (inline)" if not self.use_state_arguments else "",
+            " (stub)" if self.is_stub else "",
         )
 
     def execute(self, state, successors=None, arguments=None, ret_to=None):
@@ -185,8 +196,10 @@ class SimProcedure:
             if self.arch.name in DEFAULT_CC:
                 self.cc = DEFAULT_CC[self.arch.name](self.arch)
             else:
-                raise SimProcedureError('There is no default calling convention for architecture %s.'
-                                        ' You must specify a calling convention.' % self.arch.name)
+                raise SimProcedureError(
+                    "There is no default calling convention for architecture %s."
+                    " You must specify a calling convention." % self.arch.name
+                )
         if self.prototype._arch is None:
             self.prototype = self.prototype.with_arch(self.arch)
 
@@ -201,22 +214,22 @@ class SimProcedure:
             state.history.recent_syscall_count = 1
 
         state._inspect(
-            'simprocedure',
+            "simprocedure",
             BP_BEFORE,
             simprocedure_name=inst.display_name,
             simprocedure_addr=self.addr,
             simprocedure=inst,
-            simprocedure_result=NO_OVERRIDE
+            simprocedure_result=NO_OVERRIDE,
         )
 
-        r = state._inspect_getattr('simprocedure_result', NO_OVERRIDE)
+        r = state._inspect_getattr("simprocedure_result", NO_OVERRIDE)
         if r is NO_OVERRIDE:
             # get the arguments
 
             # If the simprocedure is related to a Java function call the appropriate setup_args methos
             # TODO: should we move this?
             if self.is_java:
-                sim_args = self._setup_args(inst, state, arguments) #pylint:disable=assignment-from-no-return
+                sim_args = self._setup_args(inst, state, arguments)  # pylint:disable=assignment-from-no-return
                 self.use_state_arguments = False
 
             # handle if this is a continuation from a return
@@ -232,18 +245,22 @@ class SimProcedure:
                     state.regs.lr = saved_lr
                 inst.arguments = sim_args
                 inst.use_state_arguments = True
-                inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness)
+                inst.call_ret_expr = state.registers.load(
+                    state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness
+                )
                 for name, val in saved_local_vars:
                     setattr(inst, name, val)
             else:
                 if arguments is None:
                     inst.use_state_arguments = True
                     inst.arg_session = inst.cc.arg_session(inst.prototype.returnty)
-                    sim_args = [inst.cc.next_arg(inst.arg_session, ty).get_value(inst.state) for ty in inst.prototype.args]
+                    sim_args = [
+                        inst.cc.next_arg(inst.arg_session, ty).get_value(inst.state) for ty in inst.prototype.args
+                    ]
                     inst.arguments = sim_args
                 else:
                     inst.use_state_arguments = False
-                    sim_args = arguments[:inst.num_args]
+                    sim_args = arguments[: inst.num_args]
                     inst.arguments = arguments
                     inst.arg_session = 0
 
@@ -252,14 +269,14 @@ class SimProcedure:
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
         state._inspect(
-            'simprocedure',
+            "simprocedure",
             BP_AFTER,
             simprocedure_name=inst.display_name,
             simprocedure_addr=self.addr,
             simprocedure=inst,
-            simprocedure_result=r
+            simprocedure_result=r,
         )
-        r = state._inspect_getattr('simprocedure_result', r)
+        r = state._inspect_getattr("simprocedure_result", r)
 
         if inst.returns and inst.is_function and not inst.inhibit_autoret:
             inst.ret(r)
@@ -270,10 +287,12 @@ class SimProcedure:
         # make a copy of the canon copy, customize it for the specific continuation, then hook it
         if name not in self.canonical.continuations:
             cont = copy.copy(self.canonical)
-            target_name = f'{self.display_name}.{name}'
+            target_name = f"{self.display_name}.{name}"
             should_be_none = self.project.loader.extern_object.get_symbol(target_name)
             if should_be_none is None:
-                cont.addr = self.project.loader.extern_object.make_extern(target_name, sym_type=SymbolType.TYPE_OTHER).rebased_addr
+                cont.addr = self.project.loader.extern_object.make_extern(
+                    target_name, sym_type=SymbolType.TYPE_OTHER
+                ).rebased_addr
             else:
                 l.error("Trying to make continuation %s but it already exists. This is bad.", target_name)
                 cont.addr = self.project.loader.extern_object.allocate()
@@ -295,7 +314,7 @@ class SimProcedure:
     ALT_NAMES = None  # alternative names
     local_vars: Tuple[str, ...] = ()
 
-    def run(self, *args, **kwargs): # pylint: disable=unused-argument
+    def run(self, *args, **kwargs):  # pylint: disable=unused-argument
         """
         Implement the actual procedure here!
         """
@@ -342,9 +361,10 @@ class SimProcedure:
     # Working with calling conventions
     #
 
-    def _setup_args(self, inst, state, args): #pylint:disable=unused-argument,no-self-use
+    def _setup_args(self, inst, state, args):  # pylint:disable=unused-argument,no-self-use
         raise SimProcedureError("the java-specific _setup_args() method was invoked on a non-Java SimProcedure.")
-    def _compute_ret_addr(self, expr): #pylint:disable=unused-argument,no-self-use
+
+    def _compute_ret_addr(self, expr):  # pylint:disable=unused-argument,no-self-use
         raise SimProcedureError("the java-specific _compute_ret_addr() method was invoked on a non-Java SimProcedure.")
 
     def set_args(self, args):
@@ -360,7 +380,6 @@ class SimProcedure:
             result = self.arguments[self.num_args + self.arg_session]
             self.arg_session += 1
             return result
-
 
         if index is not None:
             raise Exception("you think you're so fucking smart? you implement this logic then")
@@ -384,7 +403,7 @@ class SimProcedure:
         :param sim_kwargs:      Any additional keyword args will be passed as sim_kwargs to the
                                 procedure construtor
         """
-        e_args = [ self.state.solver.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments ]
+        e_args = [self.state.solver.BVV(a, self.state.arch.bits) if isinstance(a, int) else a for a in arguments]
         p = procedure(project=self.project, **kwargs)
         return p.execute(self.state, None, arguments=e_args)
 
@@ -406,9 +425,8 @@ class SimProcedure:
             if self.symbolic_return:
                 size = len(expr)
                 new_expr = self.state.solver.Unconstrained(
-                        "symbolic_return_" + self.display_name,
-                        size,
-                        key=('symbolic_return', self.display_name)) #pylint:disable=maybe-no-member
+                    "symbolic_return_" + self.display_name, size, key=("symbolic_return", self.display_name)
+                )  # pylint:disable=maybe-no-member
                 self.state.add_constraints(new_expr == expr)
                 expr = new_expr
 
@@ -418,7 +436,7 @@ class SimProcedure:
         # TODO: I had to put this check here because I don't understand why self.use_state_arguments gets reset to true
         # when calling the function ret. at the calling point the attribute is set to False
         if isinstance(self.addr, SootAddressDescriptor):
-            ret_addr = self._compute_ret_addr(expr) #pylint:disable=assignment-from-no-return
+            ret_addr = self._compute_ret_addr(expr)  # pylint:disable=assignment-from-no-return
         elif self.use_state_arguments:
             ret_addr = self.cc.teardown_callsite(self.state, expr, prototype=self.prototype)
 
@@ -435,10 +453,9 @@ class SimProcedure:
         self._prepare_ret_state()
 
         self._exit_action(self.state, ret_addr)
-        self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
+        self.successors.add_successor(self.state, ret_addr, self.state.solver.true, "Ijk_Ret")
 
-
-    def call(self, addr, args, continue_at, cc=None, prototype=None, jumpkind='Ijk_Call'):
+    def call(self, addr, args, continue_at, cc=None, prototype=None, jumpkind="Ijk_Call"):
         """
         Add an exit representing calling another function via pointer.
 
@@ -459,21 +476,23 @@ class SimProcedure:
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
         saved_local_vars = list(zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars)))
-        simcallstack_entry = (self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
-                              self.arguments,
-                              saved_local_vars,
-                              self.state.regs.lr if self.state.arch.lr_offset is not None else None,
-                              ret_addr)
+        simcallstack_entry = (
+            self.state.regs.sp if hasattr(self.state.regs, "sp") else None,
+            self.arguments,
+            saved_local_vars,
+            self.state.regs.lr if self.state.arch.lr_offset is not None else None,
+            ret_addr,
+        )
         cc.setup_callsite(call_state, ret_addr, args, prototype)
         call_state.callstack.top.procedure_data = simcallstack_entry
 
         # TODO: Move this to setup_callsite?
         if isinstance(call_state.addr, SootAddressDescriptor):
             pass
-        elif call_state.libc.ppc64_abiv == 'ppc64_1':
-            call_state.regs.r2 = self.state.mem[addr + 8:].long.resolved
+        elif call_state.libc.ppc64_abiv == "ppc64_1":
+            call_state.regs.r2 = self.state.mem[addr + 8 :].long.resolved
             addr = call_state.mem[addr:].long.resolved
-        elif call_state.arch.name in ('MIPS32', 'MIPS64'):
+        elif call_state.arch.name in ("MIPS32", "MIPS64"):
             call_state.regs.t9 = addr
 
         self._exit_action(call_state, addr)
@@ -485,9 +504,9 @@ class SimProcedure:
             cc.setup_callsite(ret_state, ret_addr, args, prototype)
             ret_state.callstack.top.procedure_data = simcallstack_entry
             guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.solver.false
-            self.successors.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
+            self.successors.add_successor(ret_state, ret_addr, guard, "Ijk_FakeRet")
 
-    def jump(self, addr, jumpkind='Ijk_Boring'):
+    def jump(self, addr, jumpkind="Ijk_Boring"):
         """
         Add an exit representing jumping to an address.
         """
@@ -505,8 +524,8 @@ class SimProcedure:
 
         if isinstance(exit_code, int):
             exit_code = self.state.solver.BVV(exit_code, self.state.arch.bits)
-        self.state.history.add_event('terminate', exit_code=exit_code)
-        self.successors.add_successor(self.state, self.state.regs.ip, self.state.solver.true, 'Ijk_Exit')
+        self.state.history.add_event("terminate", exit_code=exit_code)
+        self.successors.add_successor(self.state, self.state.regs.ip, self.state.solver.true, "Ijk_Exit")
 
     @staticmethod
     def _exit_action(state, addr):

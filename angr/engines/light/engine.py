@@ -55,11 +55,11 @@ class SimEngineLightMixin:
                                 type of SpOffset expression.
         """
 
-        if 'SpOffset' in spoffset_expr.variables:
+        if "SpOffset" in spoffset_expr.variables:
             # Local variable
             if spoffset_expr.op == "BVS":
                 return 0
-            elif spoffset_expr.op == '__add__':
+            elif spoffset_expr.op == "__add__":
                 if len(spoffset_expr.args) == 1:
                     # Unexpected but fine
                     return 0
@@ -93,7 +93,7 @@ class SimEngineLight(
     def process(self, state, *args, **kwargs):
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
-        self._process(state, None, block=kwargs.pop('block', None), whitelist=kwargs.pop('whitelist', None))
+        self._process(state, None, block=kwargs.pop("block", None), whitelist=kwargs.pop("whitelist", None))
 
     def _process(self, new_state, successors, *args, **kwargs):
         raise NotImplementedError()
@@ -120,16 +120,16 @@ class SimEngineLight(
         return call_stack_addresses
 
     def _codeloc(self, block_only=False):
-        return CodeLocation(self.block.addr,
-                            None if block_only else self.stmt_idx,
-                            ins_addr=None if block_only else self.ins_addr,
-                            context=self._context
-                            )
+        return CodeLocation(
+            self.block.addr,
+            None if block_only else self.stmt_idx,
+            ins_addr=None if block_only else self.ins_addr,
+            context=self._context,
+        )
 
 
 # noinspection PyPep8Naming
 class SimEngineLightVEXMixin(SimEngineLightMixin):
-
     def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
 
         # initialize local variables
@@ -172,17 +172,17 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         # Note that without global information, we cannot handle cases where we *jump* to another function (jumpkind ==
         # "Ijk_Boring"). Users are supposed to overwrite this method, detect these cases with the help of global
         # information (such as CFG or symbol addresses), and handle them accordingly.
-        if self.block.vex.jumpkind == 'Ijk_Call':
+        if self.block.vex.jumpkind == "Ijk_Call":
             self.stmt_idx = DEFAULT_STATEMENT
-            handler = '_handle_function'
+            handler = "_handle_function"
             if hasattr(self, handler):
                 func_addr = self._expr(self.block.vex.next)
                 if func_addr is not None:
                     getattr(self, handler)(func_addr)
                 else:
-                    self.l.debug('Cannot determine the callee address at %#x.', self.block.addr)
+                    self.l.debug("Cannot determine the callee address at %#x.", self.block.addr)
             else:
-                self.l.warning('Function handler not implemented.')
+                self.l.warning("Function handler not implemented.")
 
     #
     # Statement handlers
@@ -192,8 +192,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         handler = "_handle_%s" % type(stmt).__name__
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
-        elif type(stmt).__name__ not in ('IMark', 'AbiHint'):
-            self.l.error('Unsupported statement type %s.', type(stmt).__name__)
+        elif type(stmt).__name__ not in ("IMark", "AbiHint"):
+            self.l.error("Unsupported statement type %s.", type(stmt).__name__)
 
     # synchronize with function _handle_WrTmpData()
     def _handle_WrTmp(self, stmt):
@@ -210,16 +210,16 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         self.tmps[tmp] = data
 
     def _handle_Put(self, stmt):
-        raise NotImplementedError('Please implement the Put handler with your own logic.')
+        raise NotImplementedError("Please implement the Put handler with your own logic.")
 
     def _handle_Store(self, stmt):
-        raise NotImplementedError('Please implement the Store handler with your own logic.')
+        raise NotImplementedError("Please implement the Store handler with your own logic.")
 
     def _handle_StoreG(self, stmt):
-        raise NotImplementedError('Please implement the StoreG handler with your own logic.')
+        raise NotImplementedError("Please implement the StoreG handler with your own logic.")
 
     def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
-        raise NotImplementedError('Please implement the LLSC handler with your own logic.')
+        raise NotImplementedError("Please implement the LLSC handler with your own logic.")
 
     #
     # Expression handlers
@@ -231,11 +231,11 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
         else:
-            self.l.error('Unsupported expression type %s.', type(expr).__name__)
+            self.l.error("Unsupported expression type %s.", type(expr).__name__)
         return None
 
     def _handle_Triop(self, expr: pyvex.IRExpr.Triop):
-        self.l.error('Unsupported Triop %s.', expr.op)
+        self.l.error("Unsupported Triop %s.", expr.op)
         return None
 
     def _handle_RdTmp(self, expr):
@@ -246,13 +246,13 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         return None
 
     def _handle_Get(self, expr):
-        raise NotImplementedError('Please implement the Get handler with your own logic.')
+        raise NotImplementedError("Please implement the Get handler with your own logic.")
 
     def _handle_Load(self, expr):
-        raise NotImplementedError('Please implement the Load handler with your own logic.')
+        raise NotImplementedError("Please implement the Load handler with your own logic.")
 
     def _handle_LoadG(self, stmt):
-        raise NotImplementedError('Please implement the LoadG handler with your own logic.')
+        raise NotImplementedError("Please implement the LoadG handler with your own logic.")
 
     def _handle_Exit(self, stmt):
         self._expr(stmt.guard)
@@ -278,83 +278,83 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         except (UnsupportedIROpError, SimOperationError):
             pass
 
-        if simop is not None and simop.op_attrs.get('conversion', None):
-            handler = '_handle_Conversion'
+        if simop is not None and simop.op_attrs.get("conversion", None):
+            handler = "_handle_Conversion"
         # Notice order of "Not" comparisons
-        elif expr.op == 'Iop_Not1':
-            handler = '_handle_Not1'
-        elif expr.op.startswith('Iop_Not'):
-            handler = '_handle_Not'
-        elif expr.op.startswith('Iop_Clz'):
-            handler = '_handle_Clz'
-        elif expr.op.startswith('Iop_Ctz'):
-            handler = '_handle_Ctz'
+        elif expr.op == "Iop_Not1":
+            handler = "_handle_Not1"
+        elif expr.op.startswith("Iop_Not"):
+            handler = "_handle_Not"
+        elif expr.op.startswith("Iop_Clz"):
+            handler = "_handle_Clz"
+        elif expr.op.startswith("Iop_Ctz"):
+            handler = "_handle_Ctz"
 
         if handler is not None and hasattr(self, handler):
             return getattr(self, handler)(expr)
         else:
-            self.l.error('Unsupported Unop %s.', expr.op)
+            self.l.error("Unsupported Unop %s.", expr.op)
             return None
 
     def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
         handler = None
-        if expr.op.startswith('Iop_And'):
-            handler = '_handle_And'
-        elif expr.op.startswith('Iop_Mod'):
-            handler = '_handle_Mod'
-        elif expr.op.startswith('Iop_Or'):
-            handler = '_handle_Or'
-        elif expr.op.startswith('Iop_Add'):
-            handler = '_handle_Add'
-        elif expr.op.startswith('Iop_HAdd'):
-            handler = '_handle_HAdd'
-        elif expr.op.startswith('Iop_Sub'):
-            handler = '_handle_Sub'
-        elif expr.op.startswith('Iop_QSub'):
-            handler = '_handle_QSub'
-        elif expr.op.startswith('Iop_Mull'):
+        if expr.op.startswith("Iop_And"):
+            handler = "_handle_And"
+        elif expr.op.startswith("Iop_Mod"):
+            handler = "_handle_Mod"
+        elif expr.op.startswith("Iop_Or"):
+            handler = "_handle_Or"
+        elif expr.op.startswith("Iop_Add"):
+            handler = "_handle_Add"
+        elif expr.op.startswith("Iop_HAdd"):
+            handler = "_handle_HAdd"
+        elif expr.op.startswith("Iop_Sub"):
+            handler = "_handle_Sub"
+        elif expr.op.startswith("Iop_QSub"):
+            handler = "_handle_QSub"
+        elif expr.op.startswith("Iop_Mull"):
             handler = "_handle_Mull"
-        elif expr.op.startswith('Iop_Mul'):
+        elif expr.op.startswith("Iop_Mul"):
             handler = "_handle_Mul"
-        elif expr.op.startswith('Iop_DivMod'):
+        elif expr.op.startswith("Iop_DivMod"):
             handler = "_handle_DivMod"
-        elif expr.op.startswith('Iop_Div'):
+        elif expr.op.startswith("Iop_Div"):
             handler = "_handle_Div"
-        elif expr.op.startswith('Iop_Xor'):
-            handler = '_handle_Xor'
-        elif expr.op.startswith('Iop_Shl'):
-            handler = '_handle_Shl'
-        elif expr.op.startswith('Iop_Shr'):
-            handler = '_handle_Shr'
-        elif expr.op.startswith('Iop_Sal'):
+        elif expr.op.startswith("Iop_Xor"):
+            handler = "_handle_Xor"
+        elif expr.op.startswith("Iop_Shl"):
+            handler = "_handle_Shl"
+        elif expr.op.startswith("Iop_Shr"):
+            handler = "_handle_Shr"
+        elif expr.op.startswith("Iop_Sal"):
             # intended use of SHL
-            handler = '_handle_Shl'
-        elif expr.op.startswith('Iop_Sar'):
-            handler = '_handle_Sar'
-        elif expr.op.startswith('Iop_CmpEQ'):
-            handler = '_handle_CmpEQ'
-        elif expr.op.startswith('Iop_CmpNE'):
-            handler = '_handle_CmpNE'
-        elif expr.op.startswith('Iop_CmpLT'):
-            handler = '_handle_CmpLT'
-        elif expr.op.startswith('Iop_CmpLE'):
-            handler = '_handle_CmpLE'
-        elif expr.op.startswith('Iop_CmpGE'):
-            handler = '_handle_CmpGE'
-        elif expr.op.startswith('Iop_CmpGT'):
-            handler = '_handle_CmpGT'
-        elif expr.op.startswith('Iop_CmpORD'):
-            handler = '_handle_CmpORD'
-        elif expr.op.startswith('Iop_CmpF'):
-            handler = '_handle_CmpF'
-        elif expr.op == 'Iop_32HLto64':
-            handler = '_handle_32HLto64'
-        elif expr.op.startswith('Const'):
-            handler = '_handle_Const'
-        elif expr.op.startswith('Iop_16HLto32'):
-            handler = '_handle_16HLto32'
-        elif expr.op.startswith('Iop_ExpCmpNE64'):
-            handler = '_handle_ExpCmpNE64'
+            handler = "_handle_Shl"
+        elif expr.op.startswith("Iop_Sar"):
+            handler = "_handle_Sar"
+        elif expr.op.startswith("Iop_CmpEQ"):
+            handler = "_handle_CmpEQ"
+        elif expr.op.startswith("Iop_CmpNE"):
+            handler = "_handle_CmpNE"
+        elif expr.op.startswith("Iop_CmpLT"):
+            handler = "_handle_CmpLT"
+        elif expr.op.startswith("Iop_CmpLE"):
+            handler = "_handle_CmpLE"
+        elif expr.op.startswith("Iop_CmpGE"):
+            handler = "_handle_CmpGE"
+        elif expr.op.startswith("Iop_CmpGT"):
+            handler = "_handle_CmpGT"
+        elif expr.op.startswith("Iop_CmpORD"):
+            handler = "_handle_CmpORD"
+        elif expr.op.startswith("Iop_CmpF"):
+            handler = "_handle_CmpF"
+        elif expr.op == "Iop_32HLto64":
+            handler = "_handle_32HLto64"
+        elif expr.op.startswith("Const"):
+            handler = "_handle_Const"
+        elif expr.op.startswith("Iop_16HLto32"):
+            handler = "_handle_16HLto32"
+        elif expr.op.startswith("Iop_ExpCmpNE64"):
+            handler = "_handle_ExpCmpNE64"
 
         vector_size, vector_count = None, None
         if handler is not None:
@@ -370,12 +370,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
                 return getattr(self, handler)(expr, vector_size, vector_count)
             return getattr(self, handler)(expr)
         else:
-            self.l.error('Unsupported Binop %s.', expr.op)
+            self.l.error("Unsupported Binop %s.", expr.op)
 
         return None
 
     def _handle_CCall(self, expr):  # pylint:disable=useless-return
-        self.l.warning('Unsupported expression type CCall with callee %s.', str(expr.cee))
+        self.l.warning("Unsupported expression type CCall with callee %s.", str(expr.cee))
         return None
 
     #
@@ -424,7 +424,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
     # Binary operation handlers
     #
 
-    def _binop_get_args(self, expr) -> Union[Optional[Tuple[Any,Any]],Optional[Any]]:
+    def _binop_get_args(self, expr) -> Union[Optional[Tuple[Any, Any]], Optional[Any]]:
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:
@@ -442,7 +442,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_And(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -452,7 +453,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Or(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -497,7 +499,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Add(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -507,7 +510,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Sub(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -517,7 +521,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Mul(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -527,7 +532,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_DivMod(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -537,27 +543,26 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         from_size = expr_0.size()
         to_size = expr_1.size()
         if signed:
-            quotient = (expr_0.SDiv(claripy.SignExt(from_size - to_size, expr_1)))
-            remainder = (expr_1.SMod(claripy.SignExt(from_size - to_size, expr_1)))
+            quotient = expr_0.SDiv(claripy.SignExt(from_size - to_size, expr_1))
+            remainder = expr_1.SMod(claripy.SignExt(from_size - to_size, expr_1))
             quotient_size = to_size
             remainder_size = to_size
             return claripy.Concat(
-                claripy.Extract(remainder_size - 1, 0, remainder),
-                claripy.Extract(quotient_size - 1, 0, quotient)
+                claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
             )
         else:
-            quotient = (expr_0 // claripy.ZeroExt(from_size - to_size, expr_1))
-            remainder = (expr_0 % claripy.ZeroExt(from_size - to_size, expr_1))
+            quotient = expr_0 // claripy.ZeroExt(from_size - to_size, expr_1)
+            remainder = expr_0 % claripy.ZeroExt(from_size - to_size, expr_1)
             quotient_size = to_size
             remainder_size = to_size
             return claripy.Concat(
-                claripy.Extract(remainder_size - 1, 0, remainder),
-                claripy.Extract(quotient_size - 1, 0, quotient)
+                claripy.Extract(remainder_size - 1, 0, remainder), claripy.Extract(quotient_size - 1, 0, quotient)
             )
 
     def _handle_Div(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -570,7 +575,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Mod(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -583,7 +589,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Xor(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -597,7 +604,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Shl(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -617,7 +625,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_Shr(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -638,7 +647,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
     def _handle_Sar(self, expr):
         # EDG asks: is this right?
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -658,7 +668,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_CmpEQ(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -668,7 +679,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_CmpNE(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -678,7 +690,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_CmpLE(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -688,7 +701,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_CmpGE(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -698,7 +712,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_CmpLT(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -708,7 +723,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_CmpGT(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            return r
         expr_0, expr_1 = args
 
         if self._is_top(expr_0) or self._is_top(expr_1):
@@ -766,8 +782,9 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
 # noinspection PyPep8Naming
 class SimEngineLightAILMixin(SimEngineLightMixin):
-
-    def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
+    def _process(
+        self, state, successors, *args, block=None, whitelist=None, **kwargs
+    ):  # pylint:disable=arguments-differ
 
         self.tmps = {}
         self.block: ailment.Block = block
@@ -813,7 +830,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
         if h is not None:
             return h(expr)
-        self.l.warning('Unsupported expression type %s.', type(expr).__name__)
+        self.l.warning("Unsupported expression type %s.", type(expr).__name__)
         return None
 
     #
@@ -822,9 +839,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
     def _codeloc(self):
         # noinspection PyUnresolvedReferences
-        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr,
-                            context=self._context,
-                            block_idx=self.block.idx)
+        return CodeLocation(
+            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self._context, block_idx=self.block.idx
+        )
 
     #
     # Statement handlers
@@ -842,19 +859,19 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             getattr(self, old_handler)(stmt)
             return
 
-        self.l.warning('Unsupported statement type %s.', type(stmt).__name__)
+        self.l.warning("Unsupported statement type %s.", type(stmt).__name__)
 
     def _ail_handle_Label(self, stmt):
         pass
 
     def _ail_handle_Jump(self, stmt):
-        raise NotImplementedError('Please implement the Jump handler with your own logic.')
+        raise NotImplementedError("Please implement the Jump handler with your own logic.")
 
     def _ail_handle_Call(self, stmt):
-        raise NotImplementedError('Please implement the Call handler with your own logic.')
+        raise NotImplementedError("Please implement the Call handler with your own logic.")
 
     def _ail_handle_Return(self, stmt):
-        raise NotImplementedError('Please implement the Return handler with your own logic.')
+        raise NotImplementedError("Please implement the Return handler with your own logic.")
 
     #
     # Expression handlers
@@ -875,23 +892,28 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             return None
 
     def _ail_handle_Load(self, expr):
-        raise NotImplementedError('Please implement the Load handler with your own logic.')
+        raise NotImplementedError("Please implement the Load handler with your own logic.")
 
     def _ail_handle_CallExpr(self, expr):
-        raise NotImplementedError('Please implement the CallExpr handler with your own logic.')
+        raise NotImplementedError("Please implement the CallExpr handler with your own logic.")
 
     def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
         arg = self._expr(expr.operand)
 
-        if isinstance(arg, int) and (expr.from_bits == 32
-                                     and expr.from_type == "I"
-                                     and expr.to_bits == 32
-                                     and expr.to_type == "F"):
+        if isinstance(arg, int) and (
+            expr.from_bits == 32 and expr.from_type == "I" and expr.to_bits == 32 and expr.to_type == "F"
+        ):
             # int -> float
             b = struct.pack("<I", arg)
             f = struct.unpack("<f", b)[0]
             return f
-        elif isinstance(arg, float) and expr.from_bits == 32 and expr.from_type == "F" and expr.to_bits == 32 and expr.to_type == "I":
+        elif (
+            isinstance(arg, float)
+            and expr.from_bits == 32
+            and expr.from_type == "F"
+            and expr.to_bits == 32
+            and expr.to_type == "I"
+        ):
             # float -> int
             b = struct.pack("<f", arg)
             v = struct.unpack("<I", b)[0]
@@ -900,31 +922,31 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         return expr
 
     def _ail_handle_UnaryOp(self, expr):
-        handler_name = '_ail_handle_%s' % expr.op
+        handler_name = "_ail_handle_%s" % expr.op
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            self.l.warning('Unsupported UnaryOp %s.', expr.op)
+            self.l.warning("Unsupported UnaryOp %s.", expr.op)
             return None
 
         return handler(expr)
 
     def _ail_handle_BinaryOp(self, expr):
-        handler_name = '_ail_handle_%s' % expr.op
+        handler_name = "_ail_handle_%s" % expr.op
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            self.l.warning('Unsupported BinaryOp %s.', expr.op)
+            self.l.warning("Unsupported BinaryOp %s.", expr.op)
             return None
 
         return handler(expr)
 
     def _ail_handle_TernaryOp(self, expr):
-        handler_name = '_ail_handle_%s' % expr.op
+        handler_name = "_ail_handle_%s" % expr.op
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            self.l.warning('Unsupported Ternary %s.', expr.op)
+            self.l.warning("Unsupported Ternary %s.", expr.op)
             return None
 
         return handler(expr)
@@ -947,7 +969,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 <= expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'CmpLT', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, "CmpLT", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Add(self, expr):
 
@@ -963,10 +985,15 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 + expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Add', [expr_0, expr_1], expr.signed,
-                                         floating_point=expr.floating_point,
-                                         rounding_mode=expr.rounding_mode,
-                                         **expr.tags)
+            return ailment.Expr.BinaryOp(
+                expr.idx,
+                "Add",
+                [expr_0, expr_1],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
 
     def _ail_handle_Sub(self, expr):
 
@@ -989,10 +1016,15 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 - expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], expr.signed,
-                                         floating_point=expr.floating_point,
-                                         rounding_mode=expr.rounding_mode,
-                                         **expr.tags)
+            return ailment.Expr.BinaryOp(
+                expr.idx,
+                "Sub",
+                [expr_0, expr_1],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
 
     def _ail_handle_Div(self, expr):
 
@@ -1009,10 +1041,15 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 // expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Div', [expr_0, expr_1], expr.signed,
-                                         floating_point=expr.floating_point,
-                                         rounding_mode=expr.rounding_mode,
-                                         **expr.tags)
+            return ailment.Expr.BinaryOp(
+                expr.idx,
+                "Div",
+                [expr_0, expr_1],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
 
     def _ail_handle_DivMod(self, expr):
 
@@ -1029,7 +1066,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 % expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'DivMod', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, "DivMod", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Mul(self, expr):
 
@@ -1046,10 +1083,16 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 * expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], expr.signed, bits=expr.bits,
-                                         floating_point=expr.floating_point,
-                                         rounding_mode=expr.rounding_mode,
-                                         **expr.tags)
+            return ailment.Expr.BinaryOp(
+                expr.idx,
+                "Mul",
+                [expr_0, expr_1],
+                expr.signed,
+                bits=expr.bits,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
 
     def _ail_handle_Mull(self, expr):
 
@@ -1066,10 +1109,16 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 * expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Mull', [expr_0, expr_1], expr.signed, bits=expr.bits,
-                                         floating_point=expr.floating_point,
-                                         rounding_mode=expr.rounding_mode,
-                                         **expr.tags)
+            return ailment.Expr.BinaryOp(
+                expr.idx,
+                "Mull",
+                [expr_0, expr_1],
+                expr.signed,
+                bits=expr.bits,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
 
     def _ail_handle_And(self, expr):
 
@@ -1086,7 +1135,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 & expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'And', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, "And", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Or(self, expr):
 
@@ -1103,7 +1152,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 | expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Or', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, "Or", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Xor(self, expr):
 
@@ -1120,7 +1169,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 ^ expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Xor', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, "Xor", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Shr(self, expr):
 
@@ -1136,7 +1185,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 >> expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Shr', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, "Shr", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Shl(self, expr):
 
@@ -1152,7 +1201,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 << expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Shl', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, "Shl", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Sal(self, expr):
         return self._ail_handle_Shl(expr)
@@ -1171,7 +1220,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 >> expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Sar', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, "Sar", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Concat(self, expr):
 
@@ -1184,7 +1233,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         if expr_1 is None:
             expr_1 = arg1
 
-        return ailment.Expr.BinaryOp(expr.idx, 'Concat', [expr_0, expr_1], expr.signed, **expr.tags)
+        return ailment.Expr.BinaryOp(expr.idx, "Concat", [expr_0, expr_1], expr.signed, **expr.tags)
 
     #
     # Unary operation handlers
@@ -1206,7 +1255,7 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return ~data  # pylint:disable=invalid-unary-operand-type
         except TypeError:
-            return ailment.Expr.UnaryOp(expr.idx, 'Not', data, **expr.tags)
+            return ailment.Expr.UnaryOp(expr.idx, "Not", data, **expr.tags)
 
 
 # Compatibility

@@ -27,11 +27,7 @@ class PossibleObject:
         return hash((self.addr, self.size, self.class_name))
 
     def __eq__(self, other):
-        return (
-            self.size == other.size
-            and self.addr == other.size
-            and self.class_name == other.class_name
-        )
+        return self.size == other.size and self.addr == other.size and self.class_name == other.class_name
 
 
 class NewFunctionHandler(FunctionHandler):
@@ -74,9 +70,7 @@ class NewFunctionHandler(FunctionHandler):
             # reading from rdi for the size argument passed to new()
             cc = self.project.kb.functions[function_address].calling_convention
             if cc is not None:
-                size_arg_reg_offset = self.project.arch.registers[cc.args[0].reg_name][
-                    0
-                ]
+                size_arg_reg_offset = self.project.arch.registers[cc.args[0].reg_name][0]
                 size_arg_reg_size = cc.args[0].size
             else:
                 size_arg_reg_offset = self.project.arch.registers["rdi"][0]
@@ -86,15 +80,11 @@ class NewFunctionHandler(FunctionHandler):
 
             if size is not None:
                 # None since we do not know it's class yet, it is a possible this pointer
-                self.possible_objects_dict[self.max_addr] = PossibleObject(
-                    size, self.max_addr
-                )
+                self.possible_objects_dict[self.max_addr] = PossibleObject(size, self.max_addr)
 
             # assigning eax a concrete address to track the possible this pointer
             if cc is not None:
-                ret_val_reg_offset = self.project.arch.registers[
-                    cc.return_val.reg_name
-                ][0]
+                ret_val_reg_offset = self.project.arch.registers[cc.return_val.reg_name][0]
                 ret_val_reg_size = cc.return_val.size
             else:
                 ret_val_reg_offset = self.project.arch.registers["rax"][0]
@@ -103,27 +93,15 @@ class NewFunctionHandler(FunctionHandler):
             state.kill_and_add_definition(
                 atom,
                 codeloc,
-                MultiValues(
-                    offset_to_values={
-                        0: {
-                            claripy.BVV(
-                                self.max_addr, word_size * state.arch.byte_width
-                            )
-                        }
-                    }
-                ),
+                MultiValues(offset_to_values={0: {claripy.BVV(self.max_addr, word_size * state.arch.byte_width)}}),
             )
             # setting the values pointed by rax to zero
             memory_location = MemoryLocation(self.max_addr, size)
             offset_to_values = {}
 
             for offset in range(0, size, word_size):
-                offset_to_values[offset] = {
-                    claripy.BVV(0, word_size * state.arch.byte_width)
-                }
-            state.kill_and_add_definition(
-                memory_location, codeloc, MultiValues(offset_to_values=offset_to_values)
-            )
+                offset_to_values[offset] = {claripy.BVV(0, word_size * state.arch.byte_width)}
+            state.kill_and_add_definition(memory_location, codeloc, MultiValues(offset_to_values=offset_to_values))
             self.max_addr += size
 
         elif "ctor" in self.project.kb.functions[function_address].demangled_name:
@@ -133,15 +111,12 @@ class NewFunctionHandler(FunctionHandler):
                 v1 = state.register_definitions.load(72, state.arch.bits // state.arch.byte_width).one_value()
                 obj_addr = v1._model_concrete.value if v1 is not None else None
                 if obj_addr is not None and addr == obj_addr:
-                    col_ind = self.project.kb.functions[
-                        function_address
-                    ].demangled_name.rfind("::")
-                    class_name = self.project.kb.functions[
-                        function_address
-                    ].demangled_name[:col_ind]
+                    col_ind = self.project.kb.functions[function_address].demangled_name.rfind("::")
+                    class_name = self.project.kb.functions[function_address].demangled_name[:col_ind]
                     possible_object.class_name = class_name
         executed_rda = True
         return executed_rda, state, visited_blocks, dep_graph
+
 
 class StaticObjectFinder(Analysis):
     """
@@ -171,9 +146,7 @@ class StaticObjectFinder(Analysis):
             cc = self.project.kb.functions[func].calling_convention
             word_size = self.project.arch.bits // self.project.arch.byte_width
             # the map fo this ptrs
-            newhandler = NewFunctionHandler(
-                max_addr=max_addr, new_func_addr=new_func_addr, project=self.project
-            )
+            newhandler = NewFunctionHandler(max_addr=max_addr, new_func_addr=new_func_addr, project=self.project)
             max_addr = newhandler.max_addr
             # this performs RDA as well as mark possible object instances for non stripped binaries
             rd = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
@@ -188,17 +161,11 @@ class StaticObjectFinder(Analysis):
             for node in all_functions[func].graph.nodes():
                 if all_functions[func].get_call_target(node.addr) == new_func_addr:
                     ret_node_addr = all_functions[func].get_call_return(node.addr)
-                    call_after_new_addr = all_functions[func].get_call_target(
-                        ret_node_addr
-                    )
-                    rd_before_node = rd.get_reaching_definitions_by_node(
-                        ret_node_addr, OP_BEFORE
-                    )
+                    call_after_new_addr = all_functions[func].get_call_target(ret_node_addr)
+                    rd_before_node = rd.get_reaching_definitions_by_node(ret_node_addr, OP_BEFORE)
 
                     if cc is not None:
-                        ret_val_reg_offset = self.project.arch.registers[
-                            cc.return_val.reg_name
-                        ][0]
+                        ret_val_reg_offset = self.project.arch.registers[cc.return_val.reg_name][0]
                         ret_val_reg_size = cc.return_val.size
                     else:
                         ret_val_reg_offset = self.project.arch.registers["rax"][0]
@@ -206,14 +173,10 @@ class StaticObjectFinder(Analysis):
                     v0 = rd_before_node.register_definitions.load(ret_val_reg_offset, ret_val_reg_size).one_value()
                     addr_of_new_obj = v0._model_concrete.value if v0 is not None else None
 
-                    rd_after_node = rd.get_reaching_definitions_by_node(
-                        ret_node_addr, OP_AFTER
-                    )
+                    rd_after_node = rd.get_reaching_definitions_by_node(ret_node_addr, OP_AFTER)
 
                     if cc is not None:
-                        this_ptr_reg_offset = self.project.arch.registers[
-                            cc.args[0].reg_name
-                        ][0]
+                        this_ptr_reg_offset = self.project.arch.registers[cc.args[0].reg_name][0]
                         this_ptr_reg_size = cc.args[0].size
                     else:
                         this_ptr_reg_offset = self.project.arch.registers["rdi"][0]
@@ -222,9 +185,7 @@ class StaticObjectFinder(Analysis):
                     addr_in_rdi = v1._model_concrete.value if v1 is not None else None
 
                     if addr_of_new_obj is not None and addr_of_new_obj == addr_in_rdi:
-                        self.possible_constructors[call_after_new_addr].append(
-                            self.possible_objects[addr_of_new_obj]
-                        )
+                        self.possible_constructors[call_after_new_addr].append(self.possible_objects[addr_of_new_obj])
 
 
 AnalysesHub.register_default("StaticObjectFinder", StaticObjectFinder)

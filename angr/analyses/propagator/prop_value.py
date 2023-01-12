@@ -14,9 +14,9 @@ class Detail:
     :ivar def_at:   Where this expression is defined, or None if it was never defined in the first place.
     """
 
-    __slots__ = ('size', 'expr', 'def_at')
+    __slots__ = ("size", "expr", "def_at")
 
-    def __init__(self, size: int, expr: Optional[ailment.Expression], def_at: Optional['CodeLocation']):
+    def __init__(self, size: int, expr: Optional[ailment.Expression], def_at: Optional["CodeLocation"]):
         self.size = size
         self.expr = expr
         self.def_at = def_at
@@ -27,16 +27,18 @@ class Detail:
 
 # The base value
 
+
 class PropValue:
     """
     Describes immutable basic value type that is used in Propagator.
     """
 
-    __slots__ = ('value', 'offset_and_details',)
+    __slots__ = (
+        "value",
+        "offset_and_details",
+    )
 
-    def __init__(self,
-                 value: claripy.ast.Bits,
-                 offset_and_details: Optional[Dict[int,Detail]] = None):
+    def __init__(self, value: claripy.ast.Bits, offset_and_details: Optional[Dict[int, Detail]] = None):
         self.value = value
         self.offset_and_details = offset_and_details
 
@@ -58,7 +60,7 @@ class PropValue:
         return None
 
     @property
-    def one_defat(self) -> Optional['CodeLocation']:
+    def one_defat(self) -> Optional["CodeLocation"]:
         """
         Get the definition location of the expression that starts at offset 0 and covers the entire PropValue. Returns
         None if there are no expressions or multiple expressions.
@@ -73,16 +75,16 @@ class PropValue:
     def to_label(self):
         raise NotImplementedError()
 
-    def with_details(self, size: int, expr: ailment.Expression, def_at: 'CodeLocation') -> 'PropValue':
+    def with_details(self, size: int, expr: ailment.Expression, def_at: "CodeLocation") -> "PropValue":
         return PropValue(self.value, offset_and_details={0: Detail(size, expr, def_at)})
 
-    def all_exprs(self) -> Generator[ailment.Expression,None,None]:
+    def all_exprs(self) -> Generator[ailment.Expression, None, None]:
         if not self.offset_and_details:
             return
         for detail in self.offset_and_details.values():
             yield detail.expr
 
-    def non_zero_exprs(self) -> Generator[ailment.Expression,None,None]:
+    def non_zero_exprs(self) -> Generator[ailment.Expression, None, None]:
         if not self.offset_and_details:
             return
         for detail in self.offset_and_details.values():
@@ -100,9 +102,9 @@ class PropValue:
         if isinstance(value, claripy.ast.FP):
             # converting the FP value to an AST so that we can chop
             value = claripy.fpToIEEEBV(value)
-        return value[chop_start : chop_end]
+        return value[chop_start:chop_end]
 
-    def value_and_labels(self) -> Generator[Tuple[int,claripy.ast.Bits,int,Optional[Dict]],None,None]:
+    def value_and_labels(self) -> Generator[Tuple[int, claripy.ast.Bits, int, Optional[Dict]], None, None]:
         if not self.offset_and_details:
             return
         keys = list(sorted(self.offset_and_details.keys()))
@@ -114,32 +116,32 @@ class PropValue:
         for idx, offset in enumerate(keys):
             detail = self.offset_and_details[offset]
             end_offset = offset + detail.size
-            label = {
-                'expr': detail.expr,
-                'def_at': detail.def_at
-            }
+            label = {"expr": detail.expr, "def_at": detail.def_at}
             yield offset, self.chop_value(self.value, offset, end_offset), end_offset - offset, label
 
             # gap detection
             if idx != len(keys) - 1:
                 next_offset = keys[idx + 1]
                 if end_offset != next_offset:
-                    yield end_offset, self.chop_value(self.value, end_offset, next_offset), next_offset - end_offset, \
-                          None
+                    yield end_offset, self.chop_value(
+                        self.value, end_offset, next_offset
+                    ), next_offset - end_offset, None
 
         # final gap detection
         if end_offset < self.value.size() // 8:
-            yield end_offset, self.chop_value(self.value, end_offset, self.value.size() // 8), \
-                self.value.size() // 8 - end_offset, None
+            yield end_offset, self.chop_value(
+                self.value, end_offset, self.value.size() // 8
+            ), self.value.size() // 8 - end_offset, None
 
     @staticmethod
-    def from_value_and_labels(value: claripy.ast.Bits,
-                              labels: Iterable[Tuple[int,int,int,Dict[str,Any]]]) -> 'PropValue':
+    def from_value_and_labels(
+        value: claripy.ast.Bits, labels: Iterable[Tuple[int, int, int, Dict[str, Any]]]
+    ) -> "PropValue":
         if not labels:
             return PropValue(value)
         offset_and_details = {}
         for offset, offset_in_expr, size, label in labels:
-            expr = label['expr']
+            expr = label["expr"]
             if expr is not None:
                 if offset_in_expr != 0:
                     expr = PropValue.extract_ail_expression(offset_in_expr * 8, size * 8, expr)
@@ -147,20 +149,18 @@ class PropValue:
                     expr = PropValue.extract_ail_expression(0, size * 8, expr)
                 elif size > expr.size:
                     expr = PropValue.extend_ail_expression((size - expr.size) * 8, expr)
-            offset_and_details[offset] = Detail(size, expr, label['def_at'])
+            offset_and_details[offset] = Detail(size, expr, label["def_at"])
         return PropValue(value, offset_and_details=offset_and_details)
 
     @staticmethod
-    def from_value_and_details(value: claripy.ast.Bits,
-                               size: int,
-                               expr: ailment.Expression,
-                               def_at: 'CodeLocation'):
+    def from_value_and_details(value: claripy.ast.Bits, size: int, expr: ailment.Expression, def_at: "CodeLocation"):
         d = Detail(size, expr, def_at)
         return PropValue(value, offset_and_details={0: d})
 
     @staticmethod
-    def extract_ail_expression(start: int, bits: int,
-                               expr: Optional[ailment.Expr.Expression]) -> Optional[ailment.Expr.Expression]:
+    def extract_ail_expression(
+        start: int, bits: int, expr: Optional[ailment.Expr.Expression]
+    ) -> Optional[ailment.Expr.Expression]:
         if expr is None:
             return None
 

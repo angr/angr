@@ -22,8 +22,7 @@ class InvokeBase(SimSootExpr):
     def _translate_args(self):
         args = []
         # for instance method calls, add the 'this' reference
-        if isinstance(self, SimSootExpr_VirtualInvoke) or \
-           isinstance(self, SimSootExpr_SpecialInvoke):
+        if isinstance(self, SimSootExpr_VirtualInvoke) or isinstance(self, SimSootExpr_SpecialInvoke):
             this_ref_base = self._translate_value(self.expr.base)
             this_ref = self.state.memory.load(this_ref_base, none_if_missing=True)
             this_ref_type = this_ref.type if this_ref is not None else None
@@ -38,8 +37,7 @@ class InvokeBase(SimSootExpr):
             else:
                 # argument is a variable
                 # => load value from memory
-                arg_value = self.state.memory.load(self._translate_value(arg),
-                                                   none_if_missing=True)
+                arg_value = self.state.memory.load(self._translate_value(arg), none_if_missing=True)
             args += [SootArgument(arg_value, arg.type)]
 
         return args
@@ -54,6 +52,7 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
     base object (i.e. the object on which the method is invoked) and *not*
     by the type of the variable storing the reference.
     """
+
     def _resolve_invoke_target(self, expr, state):
         # get the type of the base object
         base = translate_expr(self.expr.base, self.state).expr
@@ -67,20 +66,20 @@ class SimSootExpr_VirtualInvoke(InvokeBase):
 
         # based on the class of the base object, we resolve the invoke target
         try:
-            return resolve_method(state=self.state,
-                                  method_name=self.expr.method_name,
-                                  class_name=base_type,
-                                  params=self.expr.method_params,
-                                  ret_type=self.expr.type,
-                                  raise_exception_if_not_found=True)
+            return resolve_method(
+                state=self.state,
+                method_name=self.expr.method_name,
+                class_name=base_type,
+                params=self.expr.method_params,
+                ret_type=self.expr.type,
+                raise_exception_if_not_found=True,
+            )
         except SootMethodNotLoadedException:
             # in case that the method is not loaded, continue with the infos
             # available from the invoke expression
-            return SootMethodDescriptor(self.expr.class_name,
-                                        self.expr.method_name,
-                                        self.expr.method_params,
-                                        ret_type=self.expr.type)
-
+            return SootMethodDescriptor(
+                self.expr.class_name, self.expr.method_name, self.expr.method_params, ret_type=self.expr.type
+            )
 
 
 class SimSootExpr_SpecialInvoke(InvokeBase):
@@ -91,21 +90,27 @@ class SimSootExpr_SpecialInvoke(InvokeBase):
     (@expr.class_name) rather than determined dynamically by the type of the
     base objects.
     """
+
     def _resolve_invoke_target(self, expr, state):
-        return resolve_method(state=self.state,
-                              method_name=self.expr.method_name,
-                              class_name=self.expr.class_name,
-                              params=self.expr.method_params,
-                              ret_type=self.expr.type)
+        return resolve_method(
+            state=self.state,
+            method_name=self.expr.method_name,
+            class_name=self.expr.class_name,
+            params=self.expr.method_params,
+            ret_type=self.expr.type,
+        )
 
 
 class SimSootExpr_StaticInvoke(InvokeBase):
     def _resolve_invoke_target(self, expr, state):
-        return resolve_method(state=self.state,
-                              method_name=self.expr.method_name,
-                              class_name=self.expr.class_name,
-                              params=self.expr.method_params,
-                              ret_type=self.expr.type)
+        return resolve_method(
+            state=self.state,
+            method_name=self.expr.method_name,
+            class_name=self.expr.class_name,
+            params=self.expr.method_params,
+            ret_type=self.expr.type,
+        )
+
 
 class SimSootExpr_InterfaceInvoke(SimSootExpr_VirtualInvoke):
     def _resolve_invoke_target(self, expr, state):

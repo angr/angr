@@ -4,7 +4,6 @@ from angr.engines.light.data import SpOffset
 
 
 class TestSpOffset(TestCase):
-
     def test_difference_between_two_sp_offset_is_concrete(self):
         size = 8
         first_offset = SpOffset(size, 10)

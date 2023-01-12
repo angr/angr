@@ -19,13 +19,14 @@ class DebugVariableContainer:
     """
     Variable tree for variables with same name to lock up which variable is visible at a given program counter address.
     """
+
     def __init__(self):
         """
         It is recommended to use DebugVariableManager.add_variable() instead
         """
         self.less_visible_vars = []
 
-    def _insertvar(self, var: 'DebugVariable'):
+    def _insertvar(self, var: "DebugVariable"):
         for i, v in enumerate(self.less_visible_vars):
             if var.test_unsupported_overlap(v):
                 if var.cle_variable.declaration_only:
@@ -37,8 +38,14 @@ class DebugVariableContainer:
                     var.less_visible_vars = v.less_visible_vars
                     return
                 else:
-                    l.warning("Unsupported variable with overlapping scopes. Have \"%s\" with %d-%d and ignore %d-%d.",
-                              v.cle_variable.name, v.low_pc, v.high_pc, var.low_pc, var.high_pc)
+                    l.warning(
+                        'Unsupported variable with overlapping scopes. Have "%s" with %d-%d and ignore %d-%d.',
+                        v.cle_variable.name,
+                        v.low_pc,
+                        v.high_pc,
+                        var.low_pc,
+                        var.high_pc,
+                    )
                     return
             if var.contains(v):
                 self.less_visible_vars[i] = var
@@ -75,6 +82,7 @@ class DebugVariable(DebugVariableContainer):
     :ivar high_pc:          End of the visibility scope of the variable as program counter address (rebased)
     :ivar cle_variable:     Original variable from cle
     """
+
     def __init__(self, low_pc: int, high_pc: int, cle_variable: Variable):
         """
         It is recommended to use DebugVariableManager.add_variable() instead
@@ -94,10 +102,10 @@ class DebugVariable(DebugVariableContainer):
                 return var.from_pc(pc)
         return self.cle_variable
 
-    def contains(self, dvar: 'DebugVariable') -> bool:
+    def contains(self, dvar: "DebugVariable") -> bool:
         return self.low_pc <= dvar.low_pc and dvar.high_pc <= self.high_pc
 
-    def test_unsupported_overlap(self, dvar: 'DebugVariable') -> bool:
+    def test_unsupported_overlap(self, dvar: "DebugVariable") -> bool:
         """
         Test for an unsupported overlapping
 
@@ -122,9 +130,9 @@ class DebugVariableManager(KnowledgeBasePlugin):
     Structure to manage and access variables with different visibility scopes.
     """
 
-    def __init__(self, kb: 'KnowledgeBase'):
+    def __init__(self, kb: "KnowledgeBase"):
         super().__init__()
-        self._kb: 'KnowledgeBase' = kb
+        self._kb: "KnowledgeBase" = kb
         self._dvar_containers = {}
 
     def from_name_and_pc(self, var_name: str, pc_addr: int) -> Variable:
@@ -211,4 +219,4 @@ class DebugVariableManager(KnowledgeBasePlugin):
                         self.add_variable(cle_var, low_pc, high_pc)
 
 
-KnowledgeBasePlugin.register_default('dvars', DebugVariableManager)
+KnowledgeBasePlugin.register_default("dvars", DebugVariableManager)

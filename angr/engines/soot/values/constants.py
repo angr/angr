@@ -1,8 +1,9 @@
 from .base import SimSootValue
 
+
 class SimSootValue_IntConstant(SimSootValue):
 
-    __slots__ = [ 'value', 'type' ]
+    __slots__ = ["value", "type"]
 
     def __init__(self, value, type_):
         super().__init__()

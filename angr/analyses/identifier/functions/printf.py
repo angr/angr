@@ -19,7 +19,7 @@ class printf(Func):
         self.string_spec_char = None
         self.allows_n = False
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
@@ -27,7 +27,7 @@ class printf(Func):
     def num_args(self):
         return 1
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["str"]
 
     def get_name(self):
@@ -53,7 +53,7 @@ class printf(Func):
             return False
 
         # find interesting characters
-        test_input = [claripy.BVS("input", 10*8)]
+        test_input = [claripy.BVS("input", 10 * 8)]
         test_output = [None]
         test = TestData(test_input, test_output, None, max_steps)
         s = runner.get_base_call_state(func, test)
@@ -69,7 +69,9 @@ class printf(Func):
 
         interesting_chars = {chr(a) for a in interesting_chars if 0 < a < 0x80}
         alphanum = set(string.ascii_letters + string.digits)
-        possible_format_specifiers = [c for c in interesting_chars if c not in alphanum and c in string.printable and c not in string.whitespace]
+        possible_format_specifiers = [
+            c for c in interesting_chars if c not in alphanum and c in string.printable and c not in string.whitespace
+        ]
         possible_formats = [c for c in interesting_chars if c in alphanum]
 
         if len(possible_format_specifiers) > 10:

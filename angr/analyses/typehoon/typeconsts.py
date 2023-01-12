@@ -27,19 +27,16 @@ class TypeConstant:
 
 
 class TopType(TypeConstant):
-
     def __repr__(self):
         return "TOP"
 
 
 class BottomType(TypeConstant):
-
     def __repr__(self):
         return "BOT"
 
 
 class Int(TypeConstant):
-
     def __repr__(self):
         return "intbase"
 
@@ -84,7 +81,6 @@ class Int128(Int):
 
 
 class FloatBase(TypeConstant):
-
     def __repr__(self):
         return "floatbase"
 
@@ -121,6 +117,7 @@ class Pointer32(Pointer, Int32):
     """
     32-bit pointers.
     """
+
     def __init__(self, basetype):
         Pointer.__init__(self, basetype)
 
@@ -132,6 +129,7 @@ class Pointer64(Pointer, Int64):
     """
     64-bit pointers.
     """
+
     def __init__(self, basetype):
         Pointer.__init__(self, basetype)
 
@@ -159,7 +157,7 @@ class Array(TypeConstant):
 
 class Struct(TypeConstant):
     def __init__(self, fields=None):
-        self.fields = { } if fields is None else fields  # offset to type
+        self.fields = {} if fields is None else fields  # offset to type
 
     def _hash_fields(self):
         keys = sorted(self.fields.keys())
@@ -193,6 +191,7 @@ class TypeVariableReference(TypeConstant):
 #
 # Methods
 #
+
 
 def int_type(bits: int) -> Optional[Int]:
     mapping = {

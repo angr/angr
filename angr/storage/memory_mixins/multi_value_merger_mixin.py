@@ -11,23 +11,23 @@ class MultiValueMergerMixin(MemoryMixin):
 
         super().__init__(*args, **kwargs)
 
-    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int, **kwargs):
+    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, **kwargs):
         values_set = {v for v, _ in values}
         if self._phi_maker is not None:
             phi_var = self._phi_maker(values_set)
             if phi_var is not None:
-                return { phi_var }
+                return {phi_var}
 
         # try to merge it in the traditional way
         if len(values_set) > self._element_limit:
             top_val = self._top_func(merged_size * self.state.arch.byte_width)
             # migrate annotations
-            annotations = [ ]
+            annotations = []
             for v in values_set:
                 annotations += list(v.annotations)
             if annotations:
                 top_val = top_val.annotate(*annotations)
-            merged_val = { top_val }
+            merged_val = {top_val}
         else:
             merged_val = values_set
         return merged_val

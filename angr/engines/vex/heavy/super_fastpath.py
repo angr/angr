@@ -10,6 +10,7 @@ class SuperFastpathMixin(VEXSlicingMixin):
     """
     This mixin implements the superfastpath execution mode, which skips all but the last four instructions.
     """
+
     def handle_vex_block(self, irsb):
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in self.state.options:
@@ -31,4 +32,3 @@ class SuperFastpathMixin(VEXSlicingMixin):
                 return claripy.BVV(0, pyvex.get_type_size(self.irsb.tyenv.lookup(tmp)))
             else:
                 raise
-

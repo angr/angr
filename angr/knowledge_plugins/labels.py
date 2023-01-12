@@ -5,7 +5,6 @@ from .plugin import KnowledgeBasePlugin
 
 
 class Labels(KnowledgeBasePlugin):
-
     def __init__(self, kb):
         self._kb = kb
         self._labels = {}
@@ -16,7 +15,14 @@ class Labels(KnowledgeBasePlugin):
             for v in obj.symbols:
                 if is_arm and v.name in {"$d", "$t", "$a"}:
                     continue
-                if v.name and not v.is_import and v.type not in {cle.SymbolType.TYPE_OTHER, }:
+                if (
+                    v.name
+                    and not v.is_import
+                    and v.type
+                    not in {
+                        cle.SymbolType.TYPE_OTHER,
+                    }
+                ):
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr
             try:
@@ -100,4 +106,4 @@ class Labels(KnowledgeBasePlugin):
             i += 1
 
 
-KnowledgeBasePlugin.register_default('labels', Labels)
+KnowledgeBasePlugin.register_default("labels", Labels)

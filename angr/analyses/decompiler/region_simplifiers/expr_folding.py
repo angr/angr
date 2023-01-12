@@ -22,7 +22,11 @@ class LocationBase:
 
 class StatementLocation(LocationBase):
 
-    __slots__ = ('block_addr', 'block_idx', 'stmt_idx', )
+    __slots__ = (
+        "block_addr",
+        "block_idx",
+        "stmt_idx",
+    )
 
     def __init__(self, block_addr, block_idx, stmt_idx):
         self.block_addr = block_addr
@@ -36,10 +40,12 @@ class StatementLocation(LocationBase):
         return hash((StatementLocation, self.block_addr, self.block_idx, self.stmt_idx))
 
     def __eq__(self, other):
-        return isinstance(other, StatementLocation) and \
-            self.block_addr == other.block_addr and \
-            self.block_idx == other.block_idx and \
-            self.stmt_idx == other.stmt_idx
+        return (
+            isinstance(other, StatementLocation)
+            and self.block_addr == other.block_addr
+            and self.block_idx == other.block_idx
+            and self.stmt_idx == other.stmt_idx
+        )
 
     def copy(self):
         return StatementLocation(self.block_addr, self.block_idx, self.stmt_idx)
@@ -47,7 +53,12 @@ class StatementLocation(LocationBase):
 
 class ExpressionLocation(LocationBase):
 
-    __slots__ = ('block_addr', 'block_idx', 'stmt_idx', 'expr_idx', )
+    __slots__ = (
+        "block_addr",
+        "block_idx",
+        "stmt_idx",
+        "expr_idx",
+    )
 
     def __init__(self, block_addr, block_idx, stmt_idx, expr_idx):
         self.block_addr = block_addr
@@ -65,18 +76,23 @@ class ExpressionLocation(LocationBase):
         return hash((ExpressionLocation, self.block_addr, self.block_idx, self.stmt_idx, self.expr_idx))
 
     def __eq__(self, other):
-        return isinstance(other, ExpressionLocation) and \
-                self.block_addr == other.block_addr and \
-                self.block_idx == other.block_idx and \
-                self.stmt_idx == other.stmt_idx and \
-                self.expr_idx == other.expr_idx
+        return (
+            isinstance(other, ExpressionLocation)
+            and self.block_addr == other.block_addr
+            and self.block_idx == other.block_idx
+            and self.stmt_idx == other.stmt_idx
+            and self.expr_idx == other.expr_idx
+        )
 
 
 class ConditionLocation(LocationBase):
 
-    __slots__ = ('node_addr', 'case_idx', )
+    __slots__ = (
+        "node_addr",
+        "case_idx",
+    )
 
-    def __init__(self, cond_node_addr, case_idx: Optional[int]=None):
+    def __init__(self, cond_node_addr, case_idx: Optional[int] = None):
         self.node_addr = cond_node_addr
         self.case_idx = case_idx
 
@@ -87,14 +103,16 @@ class ConditionLocation(LocationBase):
         return hash((ConditionLocation, self.node_addr, self.case_idx))
 
     def __eq__(self, other):
-        return isinstance(other, ConditionLocation) and \
-                self.node_addr == other.node_addr and \
-                self.case_idx == other.case_idx
+        return (
+            isinstance(other, ConditionLocation)
+            and self.node_addr == other.node_addr
+            and self.case_idx == other.case_idx
+        )
 
 
 class ConditionalBreakLocation(LocationBase):
 
-    __slots__ = ('node_addr', )
+    __slots__ = ("node_addr",)
 
     def __init__(self, node_addr):
         self.node_addr = node_addr
@@ -106,8 +124,7 @@ class ConditionalBreakLocation(LocationBase):
         return hash((ConditionalBreakLocation, self.node_addr))
 
     def __eq__(self, other):
-        return isinstance(other, ConditionalBreakLocation) and \
-                self.node_addr == other.node_addr
+        return isinstance(other, ConditionalBreakLocation) and self.node_addr == other.node_addr
 
 
 class ExpressionUseFinder(AILBlockWalker):
@@ -131,15 +148,19 @@ class ExpressionUseFinder(AILBlockWalker):
     the second statement.
     """
 
-    __slots__ = ('uses', 'has_load', )
+    __slots__ = (
+        "uses",
+        "has_load",
+    )
 
     def __init__(self):
         super().__init__()
         self.uses = defaultdict(set)
         self.has_load = False
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
-                     block: Optional[Block]) -> Any:
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
+    ) -> Any:
         if isinstance(expr, ailment.Register) and expr.variable is not None:
             if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst is expr):
                 if block is not None:
@@ -149,8 +170,9 @@ class ExpressionUseFinder(AILBlockWalker):
             return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Load(self, expr_idx: int, expr: ailment.Expr.Load, stmt_idx: int, stmt: Statement,
-                     block: Optional[Block]):
+    def _handle_Load(
+        self, expr_idx: int, expr: ailment.Expr.Load, stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
         self.has_load = True
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -159,6 +181,7 @@ class ExpressionCounter(SequenceWalker):
     """
     Find all expressions that are assigned once and only used once.
     """
+
     def __init__(self, node, variable_manager):
         handlers = {
             ConditionalBreakNode: self._handle_ConditionalBreak,
@@ -170,14 +193,14 @@ class ExpressionCounter(SequenceWalker):
         # each element in the set is a tuple of (source of the assignment statement, a tuple of unified variables that
         # the current assignment depends on, StatementLocation of the assignment statement, a Boolean variable that
         # indicates if ExpressionUseFinder has succeeded or not)
-        self.assignments: DefaultDict[Any,Set[Tuple]] = defaultdict(set)
-        self.uses = { }
-        self._variable_manager: 'VariableManagerInternal' = variable_manager
+        self.assignments: DefaultDict[Any, Set[Tuple]] = defaultdict(set)
+        self.uses = {}
+        self._variable_manager: "VariableManagerInternal" = variable_manager
 
         super().__init__(handlers)
         self.walk(node)
 
-    def _u(self, v) -> Optional['SimVariable']:
+    def _u(self, v) -> Optional["SimVariable"]:
         """
         Get unified variable for a given variable.
         """
@@ -195,22 +218,27 @@ class ExpressionCounter(SequenceWalker):
                         dependency_finder = ExpressionUseFinder()
                         dependency_finder.walk_expression(stmt.src)
                         dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                        self.assignments[u].add((stmt.src,
-                                                 dependencies,
-                                                 StatementLocation(node.addr, node.idx, idx),
-                                                 dependency_finder.has_load))
-            if (isinstance(stmt, ailment.Stmt.Call)
-                    and isinstance(stmt.ret_expr, ailment.Expr.Register)
-                    and stmt.ret_expr.variable is not None):
+                        self.assignments[u].add(
+                            (
+                                stmt.src,
+                                dependencies,
+                                StatementLocation(node.addr, node.idx, idx),
+                                dependency_finder.has_load,
+                            )
+                        )
+            if (
+                isinstance(stmt, ailment.Stmt.Call)
+                and isinstance(stmt.ret_expr, ailment.Expr.Register)
+                and stmt.ret_expr.variable is not None
+            ):
                 u = self._u(stmt.ret_expr.variable)
                 if u is not None:
                     dependency_finder = ExpressionUseFinder()
                     dependency_finder.walk_expression(stmt)
                     dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                    self.assignments[u].add((stmt,
-                                             dependencies,
-                                             StatementLocation(node.addr, node.idx, idx),
-                                             dependency_finder.has_load))
+                    self.assignments[u].add(
+                        (stmt, dependencies, StatementLocation(node.addr, node.idx, idx), dependency_finder.has_load)
+                    )
 
         # walk the block and find uses of variables
         use_finder = ExpressionUseFinder()
@@ -267,9 +295,9 @@ class ExpressionReplacer(AILBlockWalker):
         super().__init__()
         self._assignments = assignments
         self._uses = uses
-        self._variable_manager: 'VariableManagerInternal' = variable_manager
+        self._variable_manager: "VariableManagerInternal" = variable_manager
 
-    def _u(self, v) -> Optional['SimVariable']:
+    def _u(self, v) -> Optional["SimVariable"]:
         """
         Get unified variable for a given variable.
         """
@@ -296,8 +324,9 @@ class ExpressionReplacer(AILBlockWalker):
             new_stmt = Assignment(stmt.idx, dst, src, **stmt.tags)
             block.statements[stmt_idx] = new_stmt
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
-                     block: Optional[Block]) -> Any:
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
+    ) -> Any:
         if isinstance(expr, ailment.Register) and expr.variable is not None:
             unified_var = self._u(expr.variable)
             if unified_var in self._uses:
@@ -321,7 +350,7 @@ class ExpressionFolder(SequenceWalker):
         self._variable_manager = variable_manager
         self.walk(node)
 
-    def _u(self, v) -> Optional['SimVariable']:
+    def _u(self, v) -> Optional["SimVariable"]:
         """
         Get unified variable for a given variable.
         """
@@ -329,16 +358,18 @@ class ExpressionFolder(SequenceWalker):
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         # Walk the block to remove each assignment and replace uses of each variable
-        new_stmts = [ ]
+        new_stmts = []
         for stmt in node.statements:
             if isinstance(stmt, ailment.Stmt.Assignment):
                 if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
                     if stmt.dst.variable in self._assignments:
                         # remove this statement
                         continue
-            if (isinstance(stmt, ailment.Stmt.Call)
-                    and isinstance(stmt.ret_expr, ailment.Expr.Register)
-                    and stmt.ret_expr.variable is not None):
+            if (
+                isinstance(stmt, ailment.Stmt.Call)
+                and isinstance(stmt.ret_expr, ailment.Expr.Register)
+                and stmt.ret_expr.variable is not None
+            ):
                 unified_var = self._u(stmt.ret_expr.variable)
                 if unified_var in self._assignments:
                     # remove this statement
@@ -403,7 +434,8 @@ class StoreStatementFinder(SequenceWalker):
 
     This class overrides _handle_Sequence() and _handle_MultiNode() to ensure they traverse nodes from top to bottom.
     """
-    def __init__(self, node, intervals: Iterable[Tuple[StatementLocation,LocationBase]]):
+
+    def __init__(self, node, intervals: Iterable[Tuple[StatementLocation, LocationBase]]):
         handlers = {
             ConditionNode: self._handle_Condition,
             CascadingConditionNode: self._handle_CascadingCondition,
@@ -413,9 +445,9 @@ class StoreStatementFinder(SequenceWalker):
 
         self._intervals = intervals
 
-        self._start_to_ends: DefaultDict[StatementLocation,Set[LocationBase]] = defaultdict(set)
-        self._end_to_starts: DefaultDict[LocationBase,Set[StatementLocation]] = defaultdict(set)
-        self.interval_to_hasstore: Dict[Tuple[StatementLocation,StatementLocation],bool] = { }
+        self._start_to_ends: DefaultDict[StatementLocation, Set[LocationBase]] = defaultdict(set)
+        self._end_to_starts: DefaultDict[LocationBase, Set[StatementLocation]] = defaultdict(set)
+        self.interval_to_hasstore: Dict[Tuple[StatementLocation, StatementLocation], bool] = {}
         for start, end in intervals:
             self._start_to_ends[start].add(end)
             self._end_to_starts[end].add(start)

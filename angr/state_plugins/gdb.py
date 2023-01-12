@@ -9,7 +9,8 @@ from ..errors import SimStateError
 
 l = logging.getLogger(name=__name__)
 
-#global heap_location
+# global heap_location
+
 
 class GDB(SimStatePlugin):
     """
@@ -43,9 +44,9 @@ class GDB(SimStatePlugin):
         """
         data = self._read_data(stack_dump)
         self.real_stack_top = stack_top
-        addr = stack_top - len(data) # Address of the bottom of the stack
+        addr = stack_top - len(data)  # Address of the bottom of the stack
         l.info("Setting stack from 0x%x up to %#x", addr, stack_top)
-        #FIXME: we should probably make we don't overwrite other stuff loaded there
+        # FIXME: we should probably make we don't overwrite other stuff loaded there
         self._write(addr, data)
 
     def set_heap(self, heap_dump, heap_base):
@@ -62,8 +63,8 @@ class GDB(SimStatePlugin):
         data = self._read_data(heap_dump)
         self.state.heap.heap_location = heap_base + len(data)
         addr = heap_base
-        l.info("Set heap from 0x%x to %#x", addr, addr+len(data))
-        #FIXME: we should probably make we don't overwrite other stuff loaded there
+        l.info("Set heap from 0x%x to %#x", addr, addr + len(data))
+        # FIXME: we should probably make we don't overwrite other stuff loaded there
         self._write(addr, data)
 
     def set_data(self, addr, data_dump):
@@ -71,7 +72,7 @@ class GDB(SimStatePlugin):
         Update any data range (most likely use is the data segments of loaded objects)
         """
         data = self._read_data(data_dump)
-        l.info("Set data from 0x%x to %#x", addr, addr+len(data))
+        l.info("Set data from 0x%x to %#x", addr, addr + len(data))
         self._write(addr, data)
 
     def set_regs(self, regs_dump):
@@ -82,8 +83,10 @@ class GDB(SimStatePlugin):
         """
 
         if self.real_stack_top == 0 and self.adjust_stack is True:
-            raise SimStateError("You need to set the stack first, or set"
-                    "adjust_stack to False. Beware that in this case, sp and bp won't be updated")
+            raise SimStateError(
+                "You need to set the stack first, or set"
+                "adjust_stack to False. Beware that in this case, sp and bp won't be updated"
+            )
 
         data = self._read_data(regs_dump)
         rdata = re.split(b"\n", data)
@@ -91,7 +94,7 @@ class GDB(SimStatePlugin):
             if r == b"":
                 continue
             reg = re.split(b" +", r)[0].decode()
-            val = int(re.split(b" +", r)[1],16)
+            val = int(re.split(b" +", r)[1], 16)
             try:
                 self.state.registers.store(reg, claripy.BVV(val, self.state.arch.bits))
             # Some registers such as cs, ds, eflags etc. aren't supported in angr
@@ -134,9 +137,10 @@ class GDB(SimStatePlugin):
         return claripy.BVV(num, sz)
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         return GDB()
 
 
 from angr.sim_state import SimState
-SimState.register_default('gdb', GDB)
+
+SimState.register_default("gdb", GDB)

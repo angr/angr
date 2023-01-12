@@ -8,6 +8,7 @@ from ..misc.ux import once
 
 l = logging.getLogger(__name__)
 
+
 class Threading(ExplorationTechnique):
     """
     Enable multithreading.
@@ -15,7 +16,8 @@ class Threading(ExplorationTechnique):
     This is only useful in paths where a lot of time is taken inside z3, doing constraint solving.
     This is because of python's GIL, which says that only one thread at a time may be executing python code.
     """
-    def __init__(self, threads=8, local_stash='thread_local'):
+
+    def __init__(self, threads=8, local_stash="thread_local"):
         super().__init__()
         self.threads = threads
         self.queued = set()
@@ -23,7 +25,7 @@ class Threading(ExplorationTechnique):
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=threads)
         self.local_stash = local_stash
 
-    def step(self, simgr, stash='active', error_list=None, target_stash=None, **kwargs):
+    def step(self, simgr, stash="active", error_list=None, target_stash=None, **kwargs):
         target_stash = target_stash or stash
         if error_list is not None:
             raise ValueError("Can't pass error_list to step with threading enabled. Did you install threading twice?")
@@ -46,9 +48,7 @@ class Threading(ExplorationTechnique):
         timeout = None
         while True:
             done, self.tasks = concurrent.futures.wait(
-                self.tasks,
-                timeout=timeout,
-                return_when=concurrent.futures.FIRST_COMPLETED
+                self.tasks, timeout=timeout, return_when=concurrent.futures.FIRST_COMPLETED
             )
             if not done:
                 break

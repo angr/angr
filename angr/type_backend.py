@@ -2,29 +2,31 @@ import claripy
 
 from .sim_type import SimTypePointer as Ptr, SimTypeTop as Top
 
+
 class TypedValue(claripy.BackendObject):
     def __init__(self, ty, value):
         self.ty = ty
         self.value = value
 
     def __repr__(self):
-        return f'TypedValue({repr(self.ty)}, {repr(self.value)})'
+        return f"TypedValue({repr(self.ty)}, {repr(self.value)})"
+
 
 class TypeBackend(claripy.Backend):
     def __init__(self):
         super().__init__(solver_required=False)
 
-        self._op_expr['BVS'] = self._make_top
-        self._op_expr['BVV'] = self._make_top
+        self._op_expr["BVS"] = self._make_top
+        self._op_expr["BVV"] = self._make_top
 
-        self._op_raw['__add__'] = self._do_add
-        self._op_raw['__sub__'] = self._do_sub
-        self._op_raw['__and__'] = self._do_and
-        self._op_raw['__or__'] = self._do_or
-        self._op_raw['__xor__'] = self._do_xor
+        self._op_raw["__add__"] = self._do_add
+        self._op_raw["__sub__"] = self._do_sub
+        self._op_raw["__and__"] = self._do_and
+        self._op_raw["__or__"] = self._do_or
+        self._op_raw["__xor__"] = self._do_xor
 
     @staticmethod
-    def _make_top(ast, **kwargs):   # pylint: disable=unused-argument
+    def _make_top(ast, **kwargs):  # pylint: disable=unused-argument
         return TypedValue(Top(label=[]), ast)
 
     def _do_add(self, *args):
@@ -138,14 +140,15 @@ class TypeBackend(claripy.Backend):
     def default_op(expr):
         return TypedValue(Top(label=[]), expr)
 
+
 class TypeAnnotation(claripy.Annotation):
     def __init__(self, ty):
         self.ty = ty
 
     @property
-    def eliminatable(self): #pylint:disable=no-self-use
+    def eliminatable(self):  # pylint:disable=no-self-use
         return False
 
     @property
-    def relocatable(self): #pylint:disable=no-self-use
+    def relocatable(self):  # pylint:disable=no-self-use
         return False

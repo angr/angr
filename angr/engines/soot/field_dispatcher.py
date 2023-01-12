@@ -5,11 +5,10 @@ from archinfo.arch_soot import SootFieldDescriptor
 from .exceptions import SootFieldNotLoadedException
 
 
-l = logging.getLogger('angr.engines.soot.field_dispatcher')
+l = logging.getLogger("angr.engines.soot.field_dispatcher")
 
 
-def resolve_field(state, field_class, field_name, field_type,
-                  raise_exception_if_not_found=False):
+def resolve_field(state, field_class, field_name, field_type, raise_exception_if_not_found=False):
 
     # In Java, fields are not polymorphic and the class declaring the field is
     # determined statically by the declaring variable. Also fields are uniquely
@@ -35,6 +34,7 @@ def resolve_field(state, field_class, field_name, field_type,
         raise SootFieldNotLoadedException()
     else:
         return SootFieldDescriptor(field_class, field_name, field_type)
+
 
 def _class_contains_field(field_class, field_name, field_type):
     # check if field is loaded in CLE

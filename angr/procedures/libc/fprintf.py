@@ -10,11 +10,11 @@ l = logging.getLogger(name=__name__)
 # fprintf
 ######################################
 
-class fprintf(FormatParser):
 
+class fprintf(FormatParser):
     def run(self, file_ptr, fmt):  # pylint:disable=unused-argument
-        fd_offset = io_file_data_for_arch(self.state.arch)['fd']
-        fileno = self.state.mem[file_ptr + fd_offset:].int.resolved
+        fd_offset = io_file_data_for_arch(self.state.arch)["fd"]
+        fileno = self.state.mem[file_ptr + fd_offset :].int.resolved
         simfd = self.state.posix.get_fd(fileno)
         if simfd is None:
             return -1

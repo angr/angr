@@ -8,17 +8,21 @@ from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeCh
 from angr.engines.successors import SimSuccessors
 from angr.calling_conventions import SimCCStdcall, SimStackArg
 
-binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', "tests")
+binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 def test_stub_procedure_args():
     # stub procedures should have the right number of arguments
 
-    lib.set_prototype("____a_random_stdcall_function__",
-                      SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=False)],
-                                      SimTypePointer(SimTypeChar(), offset=0),
-                                      arg_names=["_random_arg_0", "_random_arg_1", "_random_arg_2"]))
-    stub = lib.get_stub('____a_random_stdcall_function__', archinfo.ArchX86())
+    lib.set_prototype(
+        "____a_random_stdcall_function__",
+        SimTypeFunction(
+            [SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=False)],
+            SimTypePointer(SimTypeChar(), offset=0),
+            arg_names=["_random_arg_0", "_random_arg_1", "_random_arg_2"],
+        ),
+    )
+    stub = lib.get_stub("____a_random_stdcall_function__", archinfo.ArchX86())
     stub.cc = SimCCStdcall(archinfo.ArchX86())
     lib._apply_metadata(stub, archinfo.ArchX86())
     assert len(stub.prototype.args) == 3

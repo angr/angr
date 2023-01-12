@@ -55,16 +55,12 @@ class VtableFinder(Analysis):
             if sec.name in [".data.rel.ro", ".rodata", ".data.rel.ro.local"]:
                 for offset in range(0, sec.memsize, self.project.arch.bytes):
                     cur_addr = sec.vaddr + offset
-                    possible_func_addr = self.project.loader.memory.unpack_word(
-                        cur_addr
-                    )
+                    possible_func_addr = self.project.loader.memory.unpack_word(cur_addr)
                     # check if this address is referenced in the code segment
                     if self.is_cross_referenced(cur_addr):
                         # check if it is also a function, if so then it is possibly a vtable start
                         if self.is_function(possible_func_addr):
-                            new_vtable = self.create_extract_vtable(
-                                cur_addr, sec.memsize
-                            )
+                            new_vtable = self.create_extract_vtable(cur_addr, sec.memsize)
                             if new_vtable is not None:
                                 list_vtables.append(new_vtable)
 
@@ -84,14 +80,10 @@ class VtableFinder(Analysis):
             self.project.arch.bytes,
         ):
             possible_func_addr = self.project.loader.memory.unpack_word(cur_addr)
-            if self.is_function(possible_func_addr) and not self.is_cross_referenced(
-                cur_addr
-            ):
+            if self.is_function(possible_func_addr) and not self.is_cross_referenced(cur_addr):
                 cur_vtable.func_addrs.append(possible_func_addr)
                 cur_vtable.size += self.project.arch.bytes
-            elif not self.is_function(possible_func_addr) or self.is_cross_referenced(
-                cur_addr
-            ):
+            elif not self.is_function(possible_func_addr) or self.is_cross_referenced(cur_addr):
                 return cur_vtable
 
         return None

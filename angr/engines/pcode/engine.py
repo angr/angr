@@ -14,6 +14,7 @@ l = logging.getLogger(__name__)
 
 # pylint:disable=abstract-method
 
+
 class HeavyPcodeMixin(
     SuccessorsMixin,
     PcodeLifterEngineMixin,
@@ -54,31 +55,28 @@ class HeavyPcodeMixin(
         size: Optional[int] = None,
         num_inst: Optional[int] = None,
         extra_stop_points: Optional[Iterable[int]] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         # pylint:disable=arguments-differ
         if type(successors.addr) is not int:
-            return super().process_successors(successors,
-                                              extra_stop_points=extra_stop_points,
-                                              num_inst=num_inst,
-                                              size=size,
-                                              insn_text=insn_text,
-                                              insn_bytes=insn_bytes,
-                                              **kwargs)
+            return super().process_successors(
+                successors,
+                extra_stop_points=extra_stop_points,
+                num_inst=num_inst,
+                size=size,
+                insn_text=insn_text,
+                insn_bytes=insn_bytes,
+                **kwargs,
+            )
 
         if insn_text is not None:
             if insn_bytes is not None:
-                raise errors.SimEngineError(
-                    "You cannot provide both 'insn_bytes' and 'insn_text'!"
-                )
+                raise errors.SimEngineError("You cannot provide both 'insn_bytes' and 'insn_text'!")
 
-            insn_bytes = self.project.arch.asm(
-                insn_text, addr=successors.addr, thumb=thumb
-            )
+            insn_bytes = self.project.arch.asm(insn_text, addr=successors.addr, thumb=thumb)
             if insn_bytes is None:
                 raise errors.AngrAssemblyError(
-                    "Assembling failed. Please make sure keystone is installed, and the"
-                    " assembly string is correct."
+                    "Assembling failed. Please make sure keystone is installed, and the" " assembly string is correct."
                 )
 
         successors.sort = "IRSB"
@@ -121,15 +119,11 @@ class HeavyPcodeMixin(
                 extra_stop_points=self._extra_stop_points,
             )
         if irsb.size == 0:
-            if (
-                irsb.jumpkind == "Ijk_NoDecode"
-                and not self.state.project.is_hooked(irsb.addr)
-            ):
+            if irsb.jumpkind == "Ijk_NoDecode" and not self.state.project.is_hooked(irsb.addr):
                 raise errors.SimIRSBNoDecodeError(
                     "IR decoding error at %#x. You can hook this instruction with "
                     "a python replacement using project.hook"
-                    "(%#x, your_function, length=length_of_instruction)."
-                    % (self._addr, self._addr)
+                    "(%#x, your_function, length=length_of_instruction)." % (self._addr, self._addr)
                 )
             raise errors.SimIRSBError("Empty IRSB passed to HeavyPcodeMixin.")
         self.state.scratch.irsb = irsb
@@ -171,9 +165,7 @@ class HeavyPcodeMixin(
         except errors.SimReliftException as e:
             self.state = e.state
             if self._insn_bytes is not None:
-                raise errors.SimEngineError(
-                    "You cannot pass self-modifying code as insn_bytes!!!"
-                )
+                raise errors.SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
             new_ip = self.state.scratch.ins_addr
             if self._size is not None:
                 self._size -= new_ip - self._addr
@@ -192,7 +184,6 @@ class HeavyPcodeMixin(
         #     break
         return False
 
-
     def _process_successor_exits(self, successors: SimSuccessors) -> None:
         """
         Do return emulation and call-less stuff.
@@ -205,9 +196,7 @@ class HeavyPcodeMixin(
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
                 exit_state.registers.store(
                     exit_state.arch.ret_offset,
-                    exit_state.solver.Unconstrained(
-                        "fake_ret_value", exit_state.arch.bits
-                    ),
+                    exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits),
                 )
                 exit_state.scratch.target = exit_state.solver.BVV(
                     successors.addr + self.state.scratch.irsb.size, exit_state.arch.bits
@@ -228,12 +217,8 @@ class HeavyPcodeMixin(
                     if o.TRUE_RET_EMULATION_GUARD in self.state.options
                     else ret_state.solver.false
                 )
-                ret_target = ret_state.solver.BVV(
-                    successors.addr + self.state.scratch.irsb.size, ret_state.arch.bits
-                )
-                if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith(
-                    "Ijk_Sys"
-                ):
+                ret_target = ret_state.solver.BVV(successors.addr + self.state.scratch.irsb.size, ret_state.arch.bits)
+                if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith("Ijk_Sys"):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(
                     ret_state,

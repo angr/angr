@@ -15,9 +15,17 @@ class LoopSeer(ExplorationTechnique):
     free to add something else).
     """
 
-    def __init__(self, cfg=None, functions=None, loops=None, use_header=False,
-                 bound=None, bound_reached=None, discard_stash='spinning',
-                 limit_concrete_loops=True):
+    def __init__(
+        self,
+        cfg=None,
+        functions=None,
+        loops=None,
+        use_header=False,
+        bound=None,
+        bound_reached=None,
+        discard_stash="spinning",
+        limit_concrete_loops=True,
+    ):
         """
         :param cfg:                   Normalized CFG is required.
         :param functions:             Function(s) containing the loop(s) to be analyzed.
@@ -94,9 +102,8 @@ class LoopSeer(ExplorationTechnique):
     def successors(self, simgr, state, **kwargs):
         node = self.cfg.model.get_any_node(state.addr)
         if node is not None:
-            kwargs['num_inst'] = min(kwargs.get('num_inst', float('inf')), len(node.instruction_addrs))
+            kwargs["num_inst"] = min(kwargs.get("num_inst", float("inf")), len(node.instruction_addrs))
         succs = simgr.successors(state, **kwargs)
-
 
         # Edge case: When limiting concrete loops, we may not want to do so
         # via the header.  If there is a way out of the loop, and we can
@@ -105,8 +112,11 @@ class LoopSeer(ExplorationTechnique):
         for succ_state in succs.successors:
             if succ_state.loop_data.current_loop:
                 if succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
-                    l.debug("One of the successors: %s is at the exit of the current loop %s", hex(succ_state.addr),
-                                                                                               succ_state.loop_data.current_loop[-1][0])
+                    l.debug(
+                        "One of the successors: %s is at the exit of the current loop %s",
+                        hex(succ_state.addr),
+                        succ_state.loop_data.current_loop[-1][0],
+                    )
                     at_loop_exit = True
 
         for succ_state in succs.successors:
@@ -127,11 +137,17 @@ class LoopSeer(ExplorationTechnique):
                         # If the previous state contains an address inside the continue_addrs, a.k.a "we have
                         # traversed the continue edge" we did an iteration over the back edge.
                         if succ_state.history.addr in continue_addrs:
-                            l.debug("Continue edge traversed, incrementing back_edge_trip_counts for addr at %s", hex(succ_state.addr))
+                            l.debug(
+                                "Continue edge traversed, incrementing back_edge_trip_counts for addr at %s",
+                                hex(succ_state.addr),
+                            )
                             # This is an iteration on the back edge.
                             succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1] += 1
 
-                        l.debug("Continue edge traversed, incrementing header_trip_counts for addr at %s", hex(succ_state.addr))
+                        l.debug(
+                            "Continue edge traversed, incrementing header_trip_counts for addr at %s",
+                            hex(succ_state.addr),
+                        )
                         # This is also an iteration over the loop's header
                         succ_state.loop_data.header_trip_counts[succ_state.addr][-1] += 1
 
@@ -217,5 +233,6 @@ class LoopSeer(ExplorationTechnique):
             f = func
 
         return f
+
 
 from ..analyses.loopfinder import Loop

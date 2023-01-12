@@ -11,7 +11,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Dereference constant references"
-    expr_classes = (Load, )
+    expr_classes = (Load,)
 
     def optimize(self, expr: Load):
 

@@ -1,14 +1,16 @@
 import angr
 
 import logging
+
 l = logging.getLogger(name=__name__)
 
 ######################################
 # memset
 ######################################
 
+
 class memset(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ
 
     @staticmethod
     def _repeat_bytes(byt, rep):
@@ -38,13 +40,13 @@ class memset(angr.SimProcedure):
         return r
 
     def run(self, dst_addr, char, num):
-        if char.size() != self.state.arch.byte_width: # sizeof(char)
+        if char.size() != self.state.arch.byte_width:  # sizeof(char)
             char = self.state.solver.Extract(self.state.arch.byte_width - 1, 0, char)
 
         if self.state.solver.symbolic(num):
             l.debug("symbolic length")
             max_size = self.state.solver.min_int(num) + self.state.libc.max_buffer_size
-            write_bytes = self.state.solver.Concat(*([ char ] * max_size))
+            write_bytes = self.state.solver.Concat(*([char] * max_size))
             self.state.memory.store(dst_addr, write_bytes, size=num)
         else:
             max_size = self.state.solver.eval(num)

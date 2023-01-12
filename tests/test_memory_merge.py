@@ -18,6 +18,7 @@ from angr.storage.memory_mixins import (
 from angr import SimState
 from angr.storage.memory_mixins import UltraPage
 
+
 class UltraPageMemory(
     DataNormalizationMixin,
     SizeNormalizationMixin,
@@ -28,6 +29,7 @@ class UltraPageMemory(
     PagedMemoryMixin,
 ):
     pass
+
 
 class ListPageMemory(
     DataNormalizationMixin,
@@ -45,10 +47,10 @@ class TestMemoryMerge(TestCase):
     def test_merge_memory_object_endness(self):
 
         for memcls in [UltraPageMemory, ListPageMemory]:
-            state0 = SimState(arch='AMD64', mode='symbolic', plugins={'memory': memcls()})
+            state0 = SimState(arch="AMD64", mode="symbolic", plugins={"memory": memcls()})
             state0.memory.store(0x20000, claripy.BVS("x", 64), endness="Iend_LE")
 
-            state1 = SimState(arch="AMD64", mode="symbolic", plugins={'memory': memcls()})
+            state1 = SimState(arch="AMD64", mode="symbolic", plugins={"memory": memcls()})
             state1.memory.store(0x20000, claripy.BVS("y", 64), endness="Iend_LE")
 
             state, _, _ = state0.merge(state1)
@@ -58,8 +60,8 @@ class TestMemoryMerge(TestCase):
             assert obj.op == "If"
 
     def test_merge_seq(self):
-        state1 = SimState(arch='AMD64', mode='symbolic', plugins={'memory': UltraPageMemory()})
-        state2 = SimState(arch='AMD64', mode='symbolic', plugins={'memory': UltraPageMemory()})
+        state1 = SimState(arch="AMD64", mode="symbolic", plugins={"memory": UltraPageMemory()})
+        state2 = SimState(arch="AMD64", mode="symbolic", plugins={"memory": UltraPageMemory()})
 
         state1.regs.rsp = 0x80000000
         state2.regs.rsp = 0x80000000
@@ -71,10 +73,10 @@ class TestMemoryMerge(TestCase):
 
         state3, _, __ = state1.merge(state2)
         vals = (v for v in state3.solver.eval_upto(state3.memory.load(state3.regs.rsp, 2), 10))
-        assert {0x1122, 0xaabb} == set(vals)
+        assert {0x1122, 0xAABB} == set(vals)
 
     def test_history_tracking(self):
-        state = SimState(arch="AMD64", mode="symbolic", plugins={'memory': UltraPageMemory()})
+        state = SimState(arch="AMD64", mode="symbolic", plugins={"memory": UltraPageMemory()})
 
         states = [state]
 
@@ -90,7 +92,7 @@ class TestMemoryMerge(TestCase):
         assert len(parents) == 24
 
     def test_history_tracking_collapse(self):
-        state = SimState(arch="AMD64", mode="symbolic", plugins={'memory': UltraPageMemory()})
+        state = SimState(arch="AMD64", mode="symbolic", plugins={"memory": UltraPageMemory()})
         state.memory.store(1000, claripy.BVV(1, 8))
 
         states = [state]
@@ -108,5 +110,5 @@ class TestMemoryMerge(TestCase):
         assert len(parents) == 3
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ from collections import defaultdict
 import importlib
 
 import logging
+
 l = logging.getLogger(name=__name__)
 
 from ..func import Func
@@ -11,11 +12,11 @@ from ..func import Func
 # lib names.
 Functions = {}
 path = os.path.dirname(os.path.abspath(__file__))
-skip_dirs = ['__init__.py']
-skip_procs = ['__init__', 'func']
+skip_dirs = ["__init__.py"]
+skip_procs = ["__init__", "func"]
 
 for proc_file_name in os.listdir(path):
-    if not proc_file_name.endswith('.py'):
+    if not proc_file_name.endswith(".py"):
         continue
     proc_module_name = proc_file_name[:-3]
     if proc_file_name.startswith("skip"):
@@ -24,7 +25,7 @@ for proc_file_name in os.listdir(path):
         continue
 
     try:
-        proc_module = importlib.import_module(".%s" % proc_module_name, 'angr.analyses.identifier.functions')
+        proc_module = importlib.import_module(".%s" % proc_module_name, "angr.analyses.identifier.functions")
     except ImportError:
         l.warning("Unable to import procedure %s", proc_module_name)
         continue

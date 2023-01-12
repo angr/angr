@@ -33,6 +33,7 @@ _all_optimization_passes = [
     (ExprOpSwapper, True),
 ]
 
+
 def get_optimization_passes(arch, platform):
 
     if isinstance(arch, Arch):
@@ -41,16 +42,17 @@ def get_optimization_passes(arch, platform):
     if platform is not None:
         platform = platform.lower()
 
-    passes = [ ]
+    passes = []
     for pass_, _ in _all_optimization_passes:
-        if (pass_.ARCHES is None or arch in pass_.ARCHES) \
-                and (pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS):
+        if (pass_.ARCHES is None or arch in pass_.ARCHES) and (
+            pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS
+        ):
             passes.append(pass_)
 
     return passes
 
 
-def get_default_optimization_passes(arch: Union[Arch,str], platform: Optional[str]):
+def get_default_optimization_passes(arch: Union[Arch, str], platform: Optional[str]):
 
     if isinstance(arch, Arch):
         arch = arch.name
@@ -58,12 +60,13 @@ def get_default_optimization_passes(arch: Union[Arch,str], platform: Optional[st
     if platform is not None:
         platform = platform.lower()
 
-    passes = [ ]
+    passes = []
     for pass_, default in _all_optimization_passes:
         if not default:
             continue
-        if (pass_.ARCHES is None or arch in pass_.ARCHES) \
-                and (pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS):
+        if (pass_.ARCHES is None or arch in pass_.ARCHES) and (
+            pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS
+        ):
             passes.append(pass_)
 
     return passes

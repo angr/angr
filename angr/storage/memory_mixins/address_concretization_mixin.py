@@ -10,28 +10,35 @@ from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
 from ...storage import DUMMY_SYMBOLIC_READ_VALUE
 
+
 class MultiwriteAnnotation(claripy.Annotation):
     @property
     def eliminatable(self):
         return False
+
     @property
     def relocateable(self):
         return True
 
-def _multiwrite_filter(mem, ast): #pylint:disable=unused-argument
+
+def _multiwrite_filter(mem, ast):  # pylint:disable=unused-argument
     # this is a huge hack, but so is the whole multiwrite crap
     return any(isinstance(a, MultiwriteAnnotation) for a in ast._uneliminatable_annotations)
 
-SimStateOptions.register_option("symbolic_ip_max_targets", int,
-                                default=256,
-                                description="The maximum number of concrete addresses a symbolic instruction pointer "
-                                            "can be concretized to."
-                                )
-SimStateOptions.register_option("jumptable_symbolic_ip_max_targets", int,
-                                default=16384,
-                                description="The maximum number of concrete addresses a symbolic instruction pointer "
-                                            "can be concretized to if it is part of a jump table."
-                                )
+
+SimStateOptions.register_option(
+    "symbolic_ip_max_targets",
+    int,
+    default=256,
+    description="The maximum number of concrete addresses a symbolic instruction pointer " "can be concretized to.",
+)
+SimStateOptions.register_option(
+    "jumptable_symbolic_ip_max_targets",
+    int,
+    default=16384,
+    description="The maximum number of concrete addresses a symbolic instruction pointer "
+    "can be concretized to if it is part of a jump table.",
+)
 
 
 class AddressConcretizationMixin(MemoryMixin):
@@ -40,6 +47,7 @@ class AddressConcretizationMixin(MemoryMixin):
     a number of conditional concrete reads/writes. It provides a "concretization strategies" interface allowing the
     process of serializing symbolic addresses into concrete ones to be specified.
     """
+
     def __init__(self, read_strategies=None, write_strategies=None, **kwargs):
         super().__init__(**kwargs)
 
@@ -64,12 +72,8 @@ class AddressConcretizationMixin(MemoryMixin):
 
     def merge(self, others, merge_conditions, common_ancestor=None) -> bool:
         r = super().merge(others, merge_conditions, common_ancestor=common_ancestor)
-        self.read_strategies = self._merge_strategies(self.read_strategies, *[
-            o.read_strategies for o in others
-        ])
-        self.write_strategies = self._merge_strategies(self.write_strategies, *[
-            o.write_strategies for o in others
-        ])
+        self.read_strategies = self._merge_strategies(self.read_strategies, *[o.read_strategies for o in others])
+        self.write_strategies = self._merge_strategies(self.write_strategies, *[o.write_strategies for o in others])
         return r
 
     def _create_default_read_strategies(self):
@@ -77,7 +81,7 @@ class AddressConcretizationMixin(MemoryMixin):
         This function is used to populate `self.read_strategies` if by set-state time none have been provided
         It uses state options to pick defaults.
         """
-        self.read_strategies = [ ]
+        self.read_strategies = []
         if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
             # first, we try to resolve the read address by approximation
             self.read_strategies.append(
@@ -85,9 +89,7 @@ class AddressConcretizationMixin(MemoryMixin):
             )
 
         # then, we try symbolic reads, with a maximum width of a kilobyte
-        self.read_strategies.append(
-            concretization_strategies.SimConcretizationStrategyRange(1024)
-        )
+        self.read_strategies.append(concretization_strategies.SimConcretizationStrategyRange(1024))
 
         if options.CONSERVATIVE_READ_STRATEGY not in self.state.options:
             # finally, we concretize to any one solution
@@ -100,7 +102,7 @@ class AddressConcretizationMixin(MemoryMixin):
         This function is used to populate `self.write_strategies` if by set-state time none have been provided.
         It uses state options to pick defaults.
         """
-        self.write_strategies = [ ]
+        self.write_strategies = []
         if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
             if options.SYMBOLIC_WRITE_ADDRESSES not in self.state.options:
                 # we try to resolve a unique solution by approximation
@@ -109,27 +111,20 @@ class AddressConcretizationMixin(MemoryMixin):
                 )
             else:
                 # we try a solution range by approximation
-                self.write_strategies.append(
-                    concretization_strategies.SimConcretizationStrategyRange(128, exact=False)
-                )
+                self.write_strategies.append(concretization_strategies.SimConcretizationStrategyRange(128, exact=False))
 
         if options.SYMBOLIC_WRITE_ADDRESSES in self.state.options:
             # we try to find a range of values
-            self.write_strategies.append(
-                concretization_strategies.SimConcretizationStrategyRange(128)
-            )
+            self.write_strategies.append(concretization_strategies.SimConcretizationStrategyRange(128))
         else:
             # we try to find a range of values, but only for ASTs annotated with the multiwrite annotation
-            self.write_strategies.append(concretization_strategies.SimConcretizationStrategyRange(
-                128,
-                filter=_multiwrite_filter
-            ))
+            self.write_strategies.append(
+                concretization_strategies.SimConcretizationStrategyRange(128, filter=_multiwrite_filter)
+            )
 
         # finally, we just grab the maximum solution
         if options.CONSERVATIVE_WRITE_STRATEGY not in self.state.options:
-            self.write_strategies.append(
-                concretization_strategies.SimConcretizationStrategyMax()
-            )
+            self.write_strategies.append(concretization_strategies.SimConcretizationStrategyMax())
 
     @staticmethod
     def _merge_strategies(*strategy_lists):
@@ -139,7 +134,7 @@ class AddressConcretizationMixin(MemoryMixin):
         if len({len(sl) for sl in strategy_lists}) != 1:
             raise SimMergeError("unable to merge memories with amounts of strategies")
 
-        merged_strategies = [ ]
+        merged_strategies = []
         for strategies in zip(*strategy_lists):
             if len({s.__class__ for s in strategies}) != 1:
                 raise SimMergeError("unable to merge memories with different types of strategies")
@@ -160,12 +155,16 @@ class AddressConcretizationMixin(MemoryMixin):
             # first, we trigger the SimInspect breakpoint and give it a chance to intervene
             e = addr
             self.state._inspect(
-                'address_concretization', BP_BEFORE, address_concretization_strategy=s,
-                address_concretization_action=action, address_concretization_memory=self,
-                address_concretization_expr=e, address_concretization_add_constraints=True
+                "address_concretization",
+                BP_BEFORE,
+                address_concretization_strategy=s,
+                address_concretization_action=action,
+                address_concretization_memory=self,
+                address_concretization_expr=e,
+                address_concretization_add_constraints=True,
             )
-            s = self.state._inspect_getattr('address_concretization_strategy', s)
-            e = self.state._inspect_getattr('address_concretization_expr', addr)
+            s = self.state._inspect_getattr("address_concretization_strategy", s)
+            e = self.state._inspect_getattr("address_concretization_expr", addr)
 
             # if the breakpoint None'd out the strategy, we skip it
             if s is None:
@@ -178,20 +177,15 @@ class AddressConcretizationMixin(MemoryMixin):
                 a = None
 
             # trigger the AFTER breakpoint and give it a chance to intervene
-            self.state._inspect(
-                'address_concretization', BP_AFTER,
-                address_concretization_result=a
-            )
-            a = self.state._inspect_getattr('address_concretization_result', a)
+            self.state._inspect("address_concretization", BP_AFTER, address_concretization_result=a)
+            a = self.state._inspect_getattr("address_concretization_result", a)
 
             # return the result if not None!
             if a is not None:
                 return a
 
         # well, we tried
-        raise SimMemoryAddressError(
-            "Unable to concretize address for %s with the provided strategies." % action
-        )
+        raise SimMemoryAddressError("Unable to concretize address for %s with the provided strategies." % action)
 
     def concretize_write_addr(self, addr, strategies=None, condition=None):
         """
@@ -204,12 +198,12 @@ class AddressConcretizationMixin(MemoryMixin):
         """
 
         if isinstance(addr, int):
-            return [ addr ]
+            return [addr]
         elif not self.state.solver.symbolic(addr):
-            return [ self.state.solver.eval(addr) ]
+            return [self.state.solver.eval(addr)]
 
         strategies = self.write_strategies if strategies is None else strategies
-        return self._apply_concretization_strategies(addr, strategies, 'store', condition)
+        return self._apply_concretization_strategies(addr, strategies, "store", condition)
 
     def concretize_read_addr(self, addr, strategies=None, condition=None):
         """
@@ -221,12 +215,12 @@ class AddressConcretizationMixin(MemoryMixin):
         """
 
         if isinstance(addr, int):
-            return [ addr ]
+            return [addr]
         elif not self.state.solver.symbolic(addr):
-            return [ self.state.solver.eval(addr) ]
+            return [self.state.solver.eval(addr)]
 
         strategies = self.read_strategies if strategies is None else strategies
-        return self._apply_concretization_strategies(addr, strategies, 'load', condition)
+        return self._apply_concretization_strategies(addr, strategies, "load", condition)
 
     #
     # Real shit
@@ -273,17 +267,18 @@ class AddressConcretizationMixin(MemoryMixin):
         if type(addr) is int:
             return self._load_one_addr(addr, True, addr, condition, size, read_value=None, **kwargs)
         elif not self.state.solver.symbolic(addr):
-            return self._load_one_addr(self.state.solver.eval(addr), True, addr, condition, size, read_value=None,
-                                       **kwargs)
+            return self._load_one_addr(
+                self.state.solver.eval(addr), True, addr, condition, size, read_value=None, **kwargs
+            )
 
         if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
+            return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
 
         try:
             concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
-                return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
+                return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
             else:
                 raise
 
@@ -304,8 +299,9 @@ class AddressConcretizationMixin(MemoryMixin):
         for concrete_addr in concrete_addrs:
             # perform each of the loads
             # the implementation of the "fallback" value ought to be implemented above this in the stack!!
-            read_value = self._load_one_addr(concrete_addr, trivial, addr, condition, size, read_value=read_value,
-                                             **kwargs)
+            read_value = self._load_one_addr(
+                concrete_addr, trivial, addr, condition, size, read_value=read_value, **kwargs
+            )
 
         return read_value
 
@@ -361,7 +357,7 @@ class AddressConcretizationMixin(MemoryMixin):
     def permissions(self, addr, permissions=None, **kwargs):
         if type(addr) is int:
             pass
-        elif getattr(addr, 'op', None) == 'BVV':
+        elif getattr(addr, "op", None) == "BVV":
             addr = addr.args[0]
         else:
             raise SimMemoryAddressError("Cannot get/set permissions for a symbolic address")
@@ -370,7 +366,7 @@ class AddressConcretizationMixin(MemoryMixin):
     def map_region(self, addr, length, permissions, **kwargs):
         if type(addr) is int:
             pass
-        elif getattr(addr, 'op', None) == 'BVV':
+        elif getattr(addr, "op", None) == "BVV":
             addr = addr.args[0]
         else:
             raise SimMemoryAddressError("Cannot map a region for a symbolic address")
@@ -379,7 +375,7 @@ class AddressConcretizationMixin(MemoryMixin):
     def unmap_region(self, addr, length, **kwargs):
         if type(addr) is int:
             pass
-        elif getattr(addr, 'op', None) == 'BVV':
+        elif getattr(addr, "op", None) == "BVV":
             addr = addr.args[0]
         else:
             raise SimMemoryAddressError("Cannot unmap a region for a symbolic address")
@@ -388,7 +384,7 @@ class AddressConcretizationMixin(MemoryMixin):
     def concrete_load(self, addr, size, *args, **kwargs):
         if type(addr) is int:
             pass
-        elif getattr(addr, 'op', None) == 'BVV':
+        elif getattr(addr, "op", None) == "BVV":
             addr = addr.args[0]
         else:
             raise SimMemoryAddressError("Cannot unmap a region for a symbolic address")

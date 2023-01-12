@@ -10,7 +10,7 @@ from ....sim_variable import SimVariable
 
 class PositionMappingElement:
 
-    __slots__ = ('start', 'length', 'obj')
+    __slots__ = ("start", "length", "obj")
 
     def __init__(self, start, length, obj):
         self.start: int = start
@@ -26,12 +26,12 @@ class PositionMappingElement:
 
 class PositionMapping:
 
-    __slots__ = ('_posmap', )
+    __slots__ = ("_posmap",)
 
     DUPLICATION_CHECK = True
 
     def __init__(self):
-        self._posmap: Union[SortedDict, Dict[int,PositionMappingElement]] = SortedDict()
+        self._posmap: Union[SortedDict, Dict[int, PositionMappingElement]] = SortedDict()
 
     def items(self):
         return self._posmap.items()
@@ -72,7 +72,7 @@ class PositionMapping:
 
 class InstructionMappingElement:
 
-    __slots__ = ('ins_addr', 'posmap_pos')
+    __slots__ = ("ins_addr", "posmap_pos")
 
     def __init__(self, ins_addr, posmap_pos):
         self.ins_addr: int = ins_addr
@@ -87,10 +87,10 @@ class InstructionMappingElement:
 
 class InstructionMapping:
 
-    __slots__ = ('_insmap', )
+    __slots__ = ("_insmap",)
 
     def __init__(self):
-        self._insmap: Union[SortedDict, Dict[int,InstructionMappingElement]] = SortedDict()
+        self._insmap: Union[SortedDict, Dict[int, InstructionMappingElement]] = SortedDict()
 
     def items(self):
         return self._insmap.items()
@@ -116,6 +116,7 @@ class InstructionMapping:
             return e1.posmap_pos
         else:
             return e2.posmap_pos
+
 
 class BaseStructuredCodeGenerator:
     def __init__(self, flavor=None):

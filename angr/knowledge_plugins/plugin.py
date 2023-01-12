@@ -2,7 +2,6 @@ default_plugins = {}
 
 
 class KnowledgeBasePlugin:
-
     def copy(self):
         raise NotImplementedError
 

@@ -19,8 +19,17 @@ class IdentifierCallable:
     Otherwise, you can get the resulting path group (immutable) at callable.result_path_group.
     """
 
-    def __init__(self, project, addr, concrete_only=False, perform_merge=False, base_state=None, toc=None, cc=None,
-                 max_steps=None):
+    def __init__(
+        self,
+        project,
+        addr,
+        concrete_only=False,
+        perform_merge=False,
+        base_state=None,
+        toc=None,
+        cc=None,
+        max_steps=None,
+    ):
         """
         :param project:         The project to operate on
         :param addr:            The address of the function to use
@@ -60,30 +69,38 @@ class IdentifierCallable:
         self.perform_call(*args, prototype=prototype)
         if self.result_state is not None:
             loc = self._cc.return_val(prototype.returnty)
-            return self.result_state.solver.simplify(loc.get_value(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
+            return self.result_state.solver.simplify(
+                loc.get_value(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF)
+            )
         return None
 
     def get_base_state(self, *args):
         prototype = self._cc.guess_prototype(args)
         self._base_state.ip = self._addr
-        state = self._project.factory.call_state(self._addr, *args,
-                    prototype=prototype,
-                    cc=self._cc,
-                    base_state=self._base_state,
-                    ret_addr=self._deadend_addr,
-                    toc=self._toc)
+        state = self._project.factory.call_state(
+            self._addr,
+            *args,
+            prototype=prototype,
+            cc=self._cc,
+            base_state=self._base_state,
+            ret_addr=self._deadend_addr,
+            toc=self._toc,
+        )
         return state
 
     def perform_call(self, *args, prototype=None):
         if prototype is None:
             prototype = self._cc.guess_prototype(args)
         self._base_state.ip = self._addr
-        state = self._project.factory.call_state(self._addr, *args,
-                    cc=self._cc,
-                    prototype=prototype,
-                    base_state=self._base_state,
-                    ret_addr=self._deadend_addr,
-                    toc=self._toc)
+        state = self._project.factory.call_state(
+            self._addr,
+            *args,
+            cc=self._cc,
+            prototype=prototype,
+            base_state=self._base_state,
+            ret_addr=self._deadend_addr,
+            toc=self._toc,
+        )
 
         def step_func(pg):
             pg2 = pg.prune()
@@ -102,7 +119,7 @@ class IdentifierCallable:
         if len(caller.active) > 0:
             raise AngrCallableError("didn't make it to the end of the function")
 
-        caller.unstash(from_stash='deadended')
+        caller.unstash(from_stash="deadended")
         caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
         if len(caller.active) == 0:

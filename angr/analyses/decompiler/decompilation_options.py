@@ -9,9 +9,21 @@ class DecompilationOption:
     """
     Describes a decompilation option.
     """
-    def __init__(self, name, description, value_type, cls, param, value_range=None, category="General",
-                 default_value=None, clears_cache=True, candidate_values: Optional[List]=None,
-                 convert: Optional[Callable]=None):
+
+    def __init__(
+        self,
+        name,
+        description,
+        value_type,
+        cls,
+        param,
+        value_range=None,
+        category="General",
+        default_value=None,
+        clears_cache=True,
+        candidate_values: Optional[List] = None,
+        convert: Optional[Callable] = None,
+    ):
         self.NAME = name
         self.DESCRIPTION = description
         self.value_type = value_type
@@ -83,7 +95,7 @@ options = [
     ),
     O(
         "Braces on own lines",
-        "Highly controversial. Disable this to see \"} else {\".",
+        'Highly controversial. Disable this to see "} else {".',
         bool,
         "codegen",
         "braces_on_own_lines",
@@ -156,6 +168,7 @@ for o in options:
 #
 # Option Helpers
 #
+
 
 def get_structurer_option() -> Optional[DecompilationOption]:
     for opt in options:

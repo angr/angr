@@ -26,6 +26,7 @@ class CallSiteMaker(Analysis):
     """
     Add calling convention, declaration, and args to a call site.
     """
+
     def __init__(self, block, reaching_definitions=None, stack_pointer_tracker=None, ail_manager=None):
         self.block = block
 
@@ -34,7 +35,7 @@ class CallSiteMaker(Analysis):
         self._ail_manager = ail_manager
 
         self.result_block = None
-        self.stack_arg_offsets: Optional[Set[Tuple[int,int]]] = None  # ins_addr, stack_offset
+        self.stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None  # ins_addr, stack_offset
 
         self._analyze()
 
@@ -52,7 +53,7 @@ class CallSiteMaker(Analysis):
         cc = None
         prototype = None
         func = None
-        stack_arg_locs: List[SimStackArg] = [ ]
+        stack_arg_locs: List[SimStackArg] = []
         stackarg_sp_diff = 0
 
         # priority:
@@ -84,10 +85,10 @@ class CallSiteMaker(Analysis):
             cc = self.kb.callsite_prototypes.get_cc(self.block.addr)
             prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
 
-        args = [ ]
+        args = []
         arg_locs = None
         if cc is None:
-            l.warning('Call site %#x (callee %s) has an unknown calling convention.', self.block.addr, repr(func))
+            l.warning("Call site %#x (callee %s) has an unknown calling convention.", self.block.addr, repr(func))
         else:
             stackarg_sp_diff = cc.STACKARG_SP_DIFF
             if prototype is not None:
@@ -108,8 +109,7 @@ class CallSiteMaker(Analysis):
                 if type(arg_loc) is SimRegArg:
                     size = arg_loc.size
                     offset = arg_loc.check_offset(cc.arch)
-                    args.append(Expr.Register(self._atom_idx(), None, offset, size * 8,
-                                              reg_name=arg_loc.reg_name))
+                    args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
                 elif type(arg_loc) is SimStackArg:
 
                     stack_arg_locs.append(arg_loc)
@@ -121,7 +121,7 @@ class CallSiteMaker(Analysis):
                         args.append(None)
 
                 else:
-                    raise NotImplementedError('Not implemented yet.')
+                    raise NotImplementedError("Not implemented yet.")
 
         # Remove the old call statement
         new_stmts = self.block.statements[:-1]
@@ -132,24 +132,27 @@ class CallSiteMaker(Analysis):
             if len(new_stmts) >= 1:
                 the_stmt = new_stmts[-1]
                 if isinstance(the_stmt, Stmt.Store) and isinstance(the_stmt.data, Expr.Const):
-                    if isinstance(the_stmt.addr, Expr.StackBaseOffset) and \
-                            the_stmt.data.value == self.block.addr + self.block.original_size:
+                    if (
+                        isinstance(the_stmt.addr, Expr.StackBaseOffset)
+                        and the_stmt.data.value == self.block.addr + self.block.original_size
+                    ):
                         # yes it is!
                         new_stmts = new_stmts[:-1]
         else:
             # if there is an lr register...
             lr_offset = None
-            if archinfo.arch_arm.is_arm_arch(self.project.arch) or self.project.arch.name in {'PPC32', 'PPC64'}:
-                lr_offset = self.project.arch.registers['lr'][0]
-            elif self.project.arch.name in {'MIPS32', 'MIPS64'}:
-                lr_offset = self.project.arch.registers['ra'][0]
+            if archinfo.arch_arm.is_arm_arch(self.project.arch) or self.project.arch.name in {"PPC32", "PPC64"}:
+                lr_offset = self.project.arch.registers["lr"][0]
+            elif self.project.arch.name in {"MIPS32", "MIPS64"}:
+                lr_offset = self.project.arch.registers["ra"][0]
             if lr_offset is not None:
                 # remove the assignment to the lr register
                 if len(new_stmts) >= 1:
                     the_stmt = new_stmts[-1]
-                    if (isinstance(the_stmt, Stmt.Assignment)
-                            and isinstance(the_stmt.dst, Expr.Register)
-                            and the_stmt.dst.reg_offset == lr_offset
+                    if (
+                        isinstance(the_stmt, Stmt.Assignment)
+                        and isinstance(the_stmt.dst, Expr.Register)
+                        and the_stmt.dst.reg_offset == lr_offset
                     ):
                         # found it
                         new_stmts = new_stmts[:-1]
@@ -159,8 +162,11 @@ class CallSiteMaker(Analysis):
         if stack_arg_locs:
             sp_offset = self._stack_pointer_tracker.offset_before(last_stmt.ins_addr, self.project.arch.sp_offset)
             if sp_offset is None:
-                l.warning("Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store "
-                          "statements.", last_stmt.ins_addr)
+                l.warning(
+                    "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store "
+                    "statements.",
+                    last_stmt.ins_addr,
+                )
                 self.stack_arg_offsets = None
             else:
                 self.stack_arg_offsets = {
@@ -171,23 +177,29 @@ class CallSiteMaker(Analysis):
         # if ret_expr is None, it means in previous steps (such as during AIL simplification) we have deemed the return
         # value of this call statement as useless and is removed.
 
-        if ret_expr is not None \
-                and prototype is not None \
-                and prototype.returnty is not None \
-                and not isinstance(prototype.returnty, SimTypeBottom):
+        if (
+            ret_expr is not None
+            and prototype is not None
+            and prototype.returnty is not None
+            and not isinstance(prototype.returnty, SimTypeBottom)
+        ):
             # try to narrow the return expression if needed
             ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
             if ret_expr.bits > ret_type_bits:
                 ret_expr = ret_expr.copy()
                 ret_expr.bits = ret_type_bits
 
-        new_stmts.append(Stmt.Call(last_stmt.idx, last_stmt.target,
-                                   calling_convention=cc,
-                                   prototype=prototype,
-                                   args=args,
-                                   ret_expr=ret_expr,
-                                   **last_stmt.tags,
-                                   ))
+        new_stmts.append(
+            Stmt.Call(
+                last_stmt.idx,
+                last_stmt.target,
+                calling_convention=cc,
+                prototype=prototype,
+                args=args,
+                ret_expr=ret_expr,
+                **last_stmt.tags,
+            )
+        )
 
         new_block = self.block.copy()
         new_block.statements = new_stmts
@@ -221,14 +233,14 @@ class CallSiteMaker(Analysis):
 
         if self._reaching_definitions is not None:
             # Find its definition
-            ins_addr = call_stmt.tags['ins_addr']
+            ins_addr = call_stmt.tags["ins_addr"]
             try:
-                rd: 'LiveDefinitions' = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
+                rd: "LiveDefinitions" = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
             except KeyError:
                 return None, None
 
             try:
-                vs: 'MultiValues' = rd.register_definitions.load(offset, size=size)
+                vs: "MultiValues" = rd.register_definitions.load(offset, size=size)
             except SimMemoryMissingError:
                 return None, None
             values_and_defs_ = set()
@@ -242,11 +254,9 @@ class CallSiteMaker(Analysis):
                         values_and_defs_.add((concrete_value, def_))
 
             if not values_and_defs_:
-                l.warning("Did not find any reaching definition for register %s at instruction %x.",
-                          arg_loc, ins_addr)
+                l.warning("Did not find any reaching definition for register %s at instruction %x.", arg_loc, ins_addr)
             elif len(values_and_defs_) > 1:
-                l.warning("TODO: More than one reaching definition are found at instruction %x.",
-                          ins_addr)
+                l.warning("TODO: More than one reaching definition are found at instruction %x.", ins_addr)
             else:
                 # Find the definition
                 # FIXME: Multiple definitions - we need phi nodes
@@ -256,7 +266,7 @@ class CallSiteMaker(Analysis):
 
         return None, None
 
-    def _resolve_stack_argument(self, call_stmt, arg_loc) -> Tuple[Any,Any]:  # pylint:disable=unused-argument
+    def _resolve_stack_argument(self, call_stmt, arg_loc) -> Tuple[Any, Any]:  # pylint:disable=unused-argument
 
         size = arg_loc.size
         offset = arg_loc.stack_offset
@@ -268,8 +278,8 @@ class CallSiteMaker(Analysis):
 
         return None, Expr.Load(
             self._atom_idx(),
-            Expr.Register(self._atom_idx(), None, self.project.arch.sp_offset, self.project.arch.bits) +
-            Expr.Const(self._atom_idx(), None, offset, self.project.arch.bits),
+            Expr.Register(self._atom_idx(), None, self.project.arch.sp_offset, self.project.arch.bits)
+            + Expr.Const(self._atom_idx(), None, offset, self.project.arch.bits),
             size,
             self.project.arch.memory_endness,
             func_arg=True,
@@ -300,7 +310,7 @@ class CallSiteMaker(Analysis):
 
             if b"\x00" in chunk:
                 # found a null byte
-                s += chunk[:chunk.index(b"\x00")]
+                s += chunk[: chunk.index(b"\x00")]
                 return s
             s += chunk
             if len(s) > 2048:
@@ -308,7 +318,7 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Optional['Function'], cc: SimCC, call_stmt) -> Optional[int]:
+    def _determine_variadic_arguments(self, func: Optional["Function"], cc: SimCC, call_stmt) -> Optional[int]:
         if func is not None and "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None
@@ -323,7 +333,7 @@ class CallSiteMaker(Analysis):
         # get the format string
         #
 
-        potential_fmt_args: List[int] = [ ]
+        potential_fmt_args: List[int] = []
         for idx, arg in enumerate(proto.args):
             if isinstance(arg, SimTypePointer) and isinstance(arg.pts_to, SimTypeChar):
                 # find a char*
@@ -334,8 +344,8 @@ class CallSiteMaker(Analysis):
             return None
 
         fmt_str = None
-        min_arg_count = (max(potential_fmt_args) + 1)
-        arg_locs = cc.arg_locs(SimCC.guess_prototype([0]*min_arg_count, proto))
+        min_arg_count = max(potential_fmt_args) + 1
+        arg_locs = cc.arg_locs(SimCC.guess_prototype([0] * min_arg_count, proto))
 
         for fmt_arg_idx in potential_fmt_args:
             arg_loc = arg_locs[fmt_arg_idx]
@@ -362,7 +372,7 @@ class CallSiteMaker(Analysis):
         #
 
         parser = FormatParser(project=self.project)
-        fmt_str_list = [ bytes([b]) for b in fmt_str ]
+        fmt_str_list = [bytes([b]) for b in fmt_str]
         components = parser.extract_components(fmt_str_list)
 
         specifiers = [component for component in components if isinstance(component, FormatSpecifier)]
@@ -374,4 +384,4 @@ class CallSiteMaker(Analysis):
         return self._ail_manager.next_atom() if self._ail_manager is not None else None
 
 
-register_analysis(CallSiteMaker, 'AILCallSiteMaker')
+register_analysis(CallSiteMaker, "AILCallSiteMaker")

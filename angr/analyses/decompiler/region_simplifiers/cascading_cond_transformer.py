@@ -13,6 +13,7 @@ class CascadingConditionTransformer(SequenceWalker):
     Identifies and transforms `if { ... } else { if { ... } else { ... } }` to
     `if { ... } else if { ... } else if { ... }`.
     """
+
     def __init__(self, node):
         handlers = {
             ConditionNode: self._handle_Condition,
@@ -23,22 +24,26 @@ class CascadingConditionTransformer(SequenceWalker):
         self.walk(node)
 
     def _negate_ailexpr(self, expr: ailment.Expression) -> ailment.Expression:
-        return ailment.UnaryOp(None, 'Not', expr, **expr.tags)
+        return ailment.UnaryOp(None, "Not", expr, **expr.tags)
 
     def _handle_Condition(self, cond_node: ConditionNode, **kwargs):
-        if cond_node.false_node is not None \
-                and isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode)) \
-                and not isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode)) \
-                and cond_node.true_node is not None:
+        if (
+            cond_node.false_node is not None
+            and isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode))
+            and not isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode))
+            and cond_node.true_node is not None
+        ):
 
             cond_0 = cond_node.condition
             node_0 = cond_node.true_node
             remaining_node = cond_node.false_node
 
-        elif cond_node.true_node is not None \
-                and isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode)) \
-                and not isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode)) \
-                and cond_node.false_node is not None:
+        elif (
+            cond_node.true_node is not None
+            and isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode))
+            and not isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode))
+            and cond_node.false_node is not None
+        ):
             if isinstance(cond_node.condition, claripy.ast.Base):
                 cond_0 = claripy.Not(cond_node.condition)
             else:
@@ -83,9 +88,7 @@ class CascadingConditionTransformer(SequenceWalker):
 
         elif isinstance(structured, CascadingConditionNode):
             # merge two nodes
-            cond_and_nodes = [
-                                 (cond_0, node_0)
-                             ] + structured.condition_and_nodes
+            cond_and_nodes = [(cond_0, node_0)] + structured.condition_and_nodes
             else_node = structured.else_node
 
         else:

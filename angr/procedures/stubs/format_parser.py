@@ -48,12 +48,12 @@ class FormatString:
         if max_length is None:
             strlen = self.parser._sim_strlen(str_addr)
 
-            #TODO: we probably could do something more fine-grained here.
+            # TODO: we probably could do something more fine-grained here.
 
             # throw away strings which are just the NULL terminator
             max_length = self.parser.state.solver.max_int(strlen)
             if max_length == 0:
-                return claripy.BVV(b'')
+                return claripy.BVV(b"")
 
         return self.parser.state.memory.load(str_addr, max_length)
 
@@ -79,33 +79,33 @@ class FormatString:
                 # okay now for the interesting stuff
                 # what type of format specifier is it?
                 fmt_spec = component
-                if fmt_spec.spec_type == b's':
+                if fmt_spec.spec_type == b"s":
                     if fmt_spec.length_spec == b".*":
-                        str_length = va_arg('size_t')
+                        str_length = va_arg("size_t")
                     else:
                         str_length = None
-                    str_ptr = va_arg('char*')
+                    str_ptr = va_arg("char*")
                     string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
                 else:
                     # ummmmmmm this is a cheap translation but I think it should work
-                    i_val = va_arg('void*')
+                    i_val = va_arg("void*")
                     c_val = int(self.parser.state.solver.eval(i_val))
                     c_val &= (1 << (fmt_spec.size * 8)) - 1
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
-                        c_val -= (1 << fmt_spec.size * 8)
+                        c_val -= 1 << fmt_spec.size * 8
 
-                    if fmt_spec.spec_type in (b'd', b'i'):
+                    if fmt_spec.spec_type in (b"d", b"i"):
                         s_val = str(c_val)
-                    elif fmt_spec.spec_type == b'u':
+                    elif fmt_spec.spec_type == b"u":
                         s_val = str(c_val)
-                    elif fmt_spec.spec_type == b'c':
-                        s_val = chr(c_val & 0xff)
-                    elif fmt_spec.spec_type == b'x':
+                    elif fmt_spec.spec_type == b"c":
+                        s_val = chr(c_val & 0xFF)
+                    elif fmt_spec.spec_type == b"x":
                         s_val = hex(c_val)[2:]
-                    elif fmt_spec.spec_type == b'o':
+                    elif fmt_spec.spec_type == b"o":
                         s_val = oct(c_val)[2:]
-                    elif fmt_spec.spec_type == b'p':
+                    elif fmt_spec.spec_type == b"p":
                         s_val = hex(c_val)
                     else:
                         raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
@@ -136,33 +136,34 @@ class FormatString:
                 elif isinstance(component, claripy.Bits):
                     sdata, _ = simfd.read_data(len(component) // 8, short_reads=False)
                     self.state.add_constraints(sdata == component)
-                elif component.spec_type == b's':
+                elif component.spec_type == b"s":
                     if component.length_spec is None:
                         sdata, slen = simfd.read_data(self.state.libc.buf_symbolic_bytes)
                     else:
                         sdata, slen = simfd.read_data(component.length_spec)
                     for byte in sdata.chop(8):
                         self.state.add_constraints(claripy.And(*[byte != char for char in self.SCANF_DELIMITERS]))
-                    ptr = va_arg('char*')
+                    ptr = va_arg("char*")
                     self.state.memory.store(ptr, sdata, size=slen)
                     self.state.memory.store(ptr + slen, claripy.BVV(0, 8))
                     num_args += 1
-                elif component.spec_type == b'c':
+                elif component.spec_type == b"c":
                     sdata, _ = simfd.read_data(1, short_reads=False)
-                    self.state.memory.store(va_arg('char*'), sdata)
+                    self.state.memory.store(va_arg("char*"), sdata)
                     num_args += 1
                 else:
                     bits = component.size * 8
-                    if component.spec_type == b'x':
+                    if component.spec_type == b"x":
                         base = 16
-                    elif component.spec_type == b'o':
+                    elif component.spec_type == b"o":
                         base = 8
                     else:
                         base = 10
 
                     # here's the variable representing the result of the parsing
-                    target_variable = self.state.solver.BVS('scanf_' + component.string.decode(), bits,
-                            key=('api', 'scanf', num_args, component.string))
+                    target_variable = self.state.solver.BVS(
+                        "scanf_" + component.string.decode(), bits, key=("api", "scanf", num_args, component.string)
+                    )
                     negative = claripy.SLT(target_variable, 0)
 
                     # how many digits does it take to represent this variable fully?
@@ -172,7 +173,7 @@ class FormatString:
                     spec_digits = component.length_spec
 
                     # how many bits can we specify as input?
-                    available_bits = float('inf') if spec_digits is None else spec_digits * math.log(base, 2)
+                    available_bits = float("inf") if spec_digits is None else spec_digits * math.log(base, 2)
                     not_enough_bits = available_bits < bits
 
                     # how many digits will we model this input as?
@@ -180,9 +181,12 @@ class FormatString:
 
                     # constrain target variable range explicitly if it can't take on all possible values
                     if not_enough_bits:
-                        self.state.add_constraints(self.state.solver.And(
-                            self.state.solver.SLE(target_variable, (base**digits) - 1),
-                            self.state.solver.SGE(target_variable, -(base**(digits - 1) - 1))))
+                        self.state.add_constraints(
+                            self.state.solver.And(
+                                self.state.solver.SLE(target_variable, (base**digits) - 1),
+                                self.state.solver.SGE(target_variable, -(base ** (digits - 1) - 1)),
+                            )
+                        )
 
                     # perform the parsing in reverse - constrain the input digits to be the string version of the input
                     # this only works because we're reading from a packet stream and therefore nobody has the ability
@@ -191,34 +195,36 @@ class FormatString:
                     sdata, _ = simfd.read_data(digits, short_reads=False)
                     for i, digit in enumerate(reversed(sdata.chop(8))):
                         digit_value = (target_variable // (base**i)) % base
-                        digit_ascii = digit_value + ord('0')
+                        digit_ascii = digit_value + ord("0")
                         if base > 10:
-                            digit_ascii = claripy.If(digit_value >= 10, digit_value + (-10 + ord('a')), digit_ascii)
+                            digit_ascii = claripy.If(digit_value >= 10, digit_value + (-10 + ord("a")), digit_ascii)
 
                         # if there aren't enough bits, we can increase the range by accounting for the possibility that
                         # the first digit is a minus sign
                         if not_enough_bits:
                             if i == digits - 1:
-                                neg_digit_ascii = ord('-')
+                                neg_digit_ascii = ord("-")
                             else:
                                 neg_digit_value = (-target_variable // (base**i)) % base
-                                neg_digit_ascii = neg_digit_value + ord('0')
+                                neg_digit_ascii = neg_digit_value + ord("0")
                                 if base > 10:
-                                    neg_digit_ascii = claripy.If(neg_digit_value >= 10, neg_digit_value + (-10 + ord('a')), neg_digit_ascii)
+                                    neg_digit_ascii = claripy.If(
+                                        neg_digit_value >= 10, neg_digit_value + (-10 + ord("a")), neg_digit_ascii
+                                    )
 
                             digit_ascii = claripy.If(negative, neg_digit_ascii, digit_ascii)
 
                         self.state.add_constraints(digit == digit_ascii[7:0])
 
                     # again, a cheap hack
-                    self.state.memory.store(va_arg('void*'), target_variable, endness=self.state.arch.memory_endness)
+                    self.state.memory.store(va_arg("void*"), target_variable, endness=self.state.arch.memory_endness)
                     num_args += 1
 
             return num_args
 
         if simfd is not None:
             region = simfd.read_storage
-            addr = simfd._pos if hasattr(simfd, '_pos') else simfd._read_pos # XXX THIS IS BAD
+            addr = simfd._pos if hasattr(simfd, "_pos") else simfd._read_pos  # XXX THIS IS BAD
         else:
             region = self.parser.state.memory
 
@@ -233,10 +239,10 @@ class FormatString:
             else:
                 fmt_spec = component
                 try:
-                    dest = va_arg('void*')
+                    dest = va_arg("void*")
                 except SimProcedureArgumentError:
                     dest = None
-                if fmt_spec.spec_type == b's':
+                if fmt_spec.spec_type == b"s":
                     # set some limits for the find
                     max_str_len = self.parser.state.libc.max_str_len
                     max_sym_bytes = self.parser.state.libc.buf_symbolic_bytes
@@ -247,8 +253,9 @@ class FormatString:
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    _, _, match_indices = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len,
-                                            max_symbolic_bytes=max_sym_bytes)
+                    _, _, match_indices = region.find(
+                        position, self.parser.state.solver.BVV(b"\n"), max_str_len, max_symbolic_bytes=max_sym_bytes
+                    )
 
                     if not match_indices:
                         # if no newline is found, mm is position + max_strlen
@@ -277,21 +284,25 @@ class FormatString:
                 else:
 
                     # XXX: atoi only supports strings of one byte
-                    if fmt_spec.spec_type in [b'd', b'i', b'u', b'x']:
-                        base = 16 if fmt_spec.spec_type == b'x' else 10
-                        status, i, num_bytes = self.parser._sim_atoi_inner(position, region, base=base, read_length=fmt_spec.length_spec)
+                    if fmt_spec.spec_type in [b"d", b"i", b"u", b"x"]:
+                        base = 16 if fmt_spec.spec_type == b"x" else 10
+                        status, i, num_bytes = self.parser._sim_atoi_inner(
+                            position, region, base=base, read_length=fmt_spec.length_spec
+                        )
                         # increase failed count if we were unable to parse it
                         failed = self.parser.state.solver.If(status, failed, failed + 1)
                         position += num_bytes
-                    elif fmt_spec.spec_type == b'c':
+                    elif fmt_spec.spec_type == b"c":
                         i = region.load(position, 1)
                         i = i.zero_extend(bits - 8)
                         position += 1
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
 
-                    i = self.parser.state.solver.Extract(fmt_spec.size*8-1, 0, i)
-                    self.parser.state.memory.store(dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness)
+                    i = self.parser.state.solver.Extract(fmt_spec.size * 8 - 1, 0, i)
+                    self.parser.state.memory.store(
+                        dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness
+                    )
 
                 num_args += 1
 
@@ -307,7 +318,7 @@ class FormatString:
             if isinstance(comp, bytes):
                 outstr += comp.decode("ascii")
             else:
-                outstr += (str(comp))
+                outstr += str(comp)
 
         return outstr
 
@@ -317,7 +328,13 @@ class FormatSpecifier:
     Describes a format specifier within a format string.
     """
 
-    __slots__ = ('string', 'size', 'signed', 'length_spec', 'pad_chr', )
+    __slots__ = (
+        "string",
+        "size",
+        "signed",
+        "length_spec",
+        "pad_chr",
+    )
 
     def __init__(self, string, length_spec, pad_chr, size, signed):
         self.string = string
@@ -348,56 +365,52 @@ class FormatParser(SimProcedure):
     # TODO: support for C and S that are deprecated.
     # TODO: We only consider POSIX locales here.
     basic_spec = {
-        b'd': sim_type.SimTypeInt(),  # 'int',
-        b'i': sim_type.SimTypeInt(),  # 'int',
-        b'o': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
-        b'u': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
-        b'x': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
-        b'X': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
-        b'e': sim_type.SimTypeDouble(),  # 'double',
-        b'E': sim_type.SimTypeDouble(),  # 'double',
-        b'f': sim_type.SimTypeDouble(),  # 'double',
-        b'F': sim_type.SimTypeDouble(),  # 'double',
-        b'g': sim_type.SimTypeDouble(),  # 'double',
-        b'G': sim_type.SimTypeDouble(),  # 'double',
-        b'a': sim_type.SimTypeDouble(),  # 'double',
-        b'A': sim_type.SimTypeDouble(),  # 'double',
-        b'c': sim_type.SimTypeChar(),  # 'char',
-        b's': sim_type.SimTypePointer(sim_type.SimTypeChar()),  # 'char*',
-        b'p': sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t',
-        b'n': sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t', # pointer to num bytes written so far
-        #b'm': None, # Those don't expect any argument
-        #b'%': None, # Those don't expect any argument
+        b"d": sim_type.SimTypeInt(),  # 'int',
+        b"i": sim_type.SimTypeInt(),  # 'int',
+        b"o": sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b"u": sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b"x": sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b"X": sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b"e": sim_type.SimTypeDouble(),  # 'double',
+        b"E": sim_type.SimTypeDouble(),  # 'double',
+        b"f": sim_type.SimTypeDouble(),  # 'double',
+        b"F": sim_type.SimTypeDouble(),  # 'double',
+        b"g": sim_type.SimTypeDouble(),  # 'double',
+        b"G": sim_type.SimTypeDouble(),  # 'double',
+        b"a": sim_type.SimTypeDouble(),  # 'double',
+        b"A": sim_type.SimTypeDouble(),  # 'double',
+        b"c": sim_type.SimTypeChar(),  # 'char',
+        b"s": sim_type.SimTypePointer(sim_type.SimTypeChar()),  # 'char*',
+        b"p": sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t',
+        b"n": sim_type.SimTypePointer(
+            sim_type.SimTypeInt(signed=False)
+        ),  # 'uintptr_t', # pointer to num bytes written so far
+        # b'm': None, # Those don't expect any argument
+        # b'%': None, # Those don't expect any argument
     }
 
     # Signedness of integers
-    int_sign = {
-        'signed': [b'd', b'i'],
-        'unsigned' : [b'o', b'u', b'x', b'X']
-    }
+    int_sign = {"signed": [b"d", b"i"], "unsigned": [b"o", b"u", b"x", b"X"]}
 
     # Length modifiers and how they apply to integer conversion (signed / unsigned).
     int_len_mod = {
-        b'hh': (sim_type.SimTypeChar(), sim_type.SimTypeChar(signed=False)),  # ('char', 'uint8_t'),
-        b'h' : (sim_type.SimTypeShort(), sim_type.SimTypeShort(signed=False)),  # ('int16_t', 'uint16_t'),
-        b'l' : (sim_type.SimTypeLong(), sim_type.SimTypeLong(signed=False)),  # ('long', 'unsigned long'),
+        b"hh": (sim_type.SimTypeChar(), sim_type.SimTypeChar(signed=False)),  # ('char', 'uint8_t'),
+        b"h": (sim_type.SimTypeShort(), sim_type.SimTypeShort(signed=False)),  # ('int16_t', 'uint16_t'),
+        b"l": (sim_type.SimTypeLong(), sim_type.SimTypeLong(signed=False)),  # ('long', 'unsigned long'),
         # FIXME: long long is 64bit according to stdint.h on Linux,  but that might not always be the case
-        b'll' : (sim_type.SimTypeLongLong(), sim_type.SimTypeLongLong(signed=False)),  # ('int64_t', 'uint64_t'),
-
+        b"ll": (sim_type.SimTypeLongLong(), sim_type.SimTypeLongLong(signed=False)),  # ('int64_t', 'uint64_t'),
         # FIXME: intmax_t seems to be always 64 bit, but not too sure
-        b'j' : (sim_type.SimTypeLongLong(), sim_type.SimTypeLongLong(signed=False)),  # ('int64_t', 'uint64_t'),
-        b'z' : (sim_type.SimTypeLength(signed=True), sim_type.SimTypeLength(signed=False)),  # ('ssize', 'size_t'),
-        b't' : (sim_type.SimTypeLong(), sim_type.SimTypeLong()),  # ('ptrdiff_t', 'ptrdiff_t'),
+        b"j": (sim_type.SimTypeLongLong(), sim_type.SimTypeLongLong(signed=False)),  # ('int64_t', 'uint64_t'),
+        b"z": (sim_type.SimTypeLength(signed=True), sim_type.SimTypeLength(signed=False)),  # ('ssize', 'size_t'),
+        b"t": (sim_type.SimTypeLong(), sim_type.SimTypeLong()),  # ('ptrdiff_t', 'ptrdiff_t'),
     }
 
     # Types that are not known by sim_types
     # Maps to (size, signedness)
-    other_types = {
-        ('string',): lambda _:(0, True) # special value for strings, we need to count
-    }
+    other_types = {("string",): lambda _: (0, True)}  # special value for strings, we need to count
 
     # Those flags affect the formatting the output string
-    flags = ['#', '0', r'\-', r' ', r'\+', r'\'', 'I']
+    flags = ["#", "0", r"\-", r" ", r"\+", r"\'", "I"]
 
     _MOD_SPEC = None
     _ALL_SPEC = None
@@ -409,12 +422,12 @@ class FormatParser(SimProcedure):
         possibilities, i.e. hhd, etc.
         """
         if FormatParser._MOD_SPEC is None:
-            mod_spec = { }
+            mod_spec = {}
 
             for mod, sizes in self.int_len_mod.items():
-                for conv in self.int_sign['signed']:
+                for conv in self.int_sign["signed"]:
                     mod_spec[mod + conv] = sizes[0]
-                for conv in self.int_sign['unsigned']:
+                for conv in self.int_sign["unsigned"]:
                     mod_spec[mod + conv] = sizes[1]
 
             FormatParser._MOD_SPEC = mod_spec
@@ -422,7 +435,7 @@ class FormatParser(SimProcedure):
         return FormatParser._MOD_SPEC
 
     @property
-    def _all_spec(self) -> Dict[bytes,'SimType']:
+    def _all_spec(self) -> Dict[bytes, "SimType"]:
         """
         All specifiers and their lengths.
         """
@@ -451,7 +464,7 @@ class FormatParser(SimProcedure):
         # TODO store this in a size variable
 
         original_nugget = nugget
-        length_str = [ ]
+        length_str = []
         length_spec = None
         length_spec_str_len = 0
         pad_chr = " "
@@ -483,9 +496,9 @@ class FormatParser(SimProcedure):
         for spec in all_spec:
             if nugget.startswith(spec):
                 # this is gross coz sim_type is gross..
-                nugget = nugget[:len(spec)]
-                original_nugget = original_nugget[:(length_spec_str_len + len(spec))]
-                nugtype: 'SimType' = all_spec[nugget]
+                nugget = nugget[: len(spec)]
+                original_nugget = original_nugget[: (length_spec_str_len + len(spec))]
+                nugtype: "SimType" = all_spec[nugget]
                 try:
                     typeobj = nugtype.with_arch(self.state.arch if self.state is not None else self.project.arch)
                 except Exception:
@@ -503,7 +516,7 @@ class FormatParser(SimProcedure):
         """
 
         # iterate over the format string looking for format specifiers
-        components = [ ]
+        components = []
         i = 0
         while i < len(fmt):
             if type(fmt[i]) is bytes and fmt[i] == b"%":
@@ -511,7 +524,7 @@ class FormatParser(SimProcedure):
                 # grab the specifier
                 # go to the space
                 specifier = b""
-                for c in fmt[i+1:]:
+                for c in fmt[i + 1 :]:
                     if type(c) is bytes:
                         specifier += c
                     else:
@@ -525,7 +538,7 @@ class FormatParser(SimProcedure):
                     # if we get here we didn't match any specs, the first char will be thrown away
                     # and we'll add the percent
                     i += 1
-                    components.append(b'%')
+                    components.append(b"%")
             else:
                 # claripy ASTs, which are usually symbolic variables
                 # They will be kept as they are - even if those chars can be evaluated to "%"
@@ -550,10 +563,10 @@ class FormatParser(SimProcedure):
         """
 
         from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
-        strtol = SIM_PROCEDURES['libc']['strtol']
+
+        strtol = SIM_PROCEDURES["libc"]["strtol"]
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
-
 
     def _sim_strlen(self, str_addr):
         """
@@ -561,7 +574,8 @@ class FormatParser(SimProcedure):
         """
 
         from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
-        strlen = SIM_PROCEDURES['libc']['strlen']
+
+        strlen = SIM_PROCEDURES["libc"]["strlen"]
 
         return self.inline_call(strlen, str_addr).ret_expr
 
@@ -589,7 +603,7 @@ class FormatParser(SimProcedure):
 
         fmt_xpr = self.state.memory.load(fmtstr_ptr, length)
 
-        fmt = [ ]
+        fmt = []
         for i in range(fmt_xpr.size(), 0, -8):
             char = fmt_xpr[i - 1 : i - 8]
             try:
@@ -615,33 +629,33 @@ class ScanfFormatParser(FormatParser):
     """
 
     basic_spec = {
-        b'd': sim_type.SimTypeInt(),  # 'int',
-        b'i': sim_type.SimTypeInt(),  # 'int',
-        b'o': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
-        b'u': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
-        b'x': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
-        b'X': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
-        b'e': sim_type.SimTypeFloat(),  # 'float',
-        b'E': sim_type.SimTypeFloat(),  # 'float',
-        b'f': sim_type.SimTypeFloat(),  # 'float',
-        b'F': sim_type.SimTypeFloat(),  # 'float',
-        b'g': sim_type.SimTypeFloat(),  # 'float',
-        b'G': sim_type.SimTypeFloat(),  # 'float',
-        b'a': sim_type.SimTypeFloat(),  # 'float',
-        b'A': sim_type.SimTypeFloat(),  # 'float',
-        b'c': sim_type.SimTypeChar(),  # 'char',
-        b's': sim_type.SimTypePointer(sim_type.SimTypeChar()),  # 'char*',
-        b'p': sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t',
-        b'n': sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),
+        b"d": sim_type.SimTypeInt(),  # 'int',
+        b"i": sim_type.SimTypeInt(),  # 'int',
+        b"o": sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b"u": sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b"x": sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b"X": sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b"e": sim_type.SimTypeFloat(),  # 'float',
+        b"E": sim_type.SimTypeFloat(),  # 'float',
+        b"f": sim_type.SimTypeFloat(),  # 'float',
+        b"F": sim_type.SimTypeFloat(),  # 'float',
+        b"g": sim_type.SimTypeFloat(),  # 'float',
+        b"G": sim_type.SimTypeFloat(),  # 'float',
+        b"a": sim_type.SimTypeFloat(),  # 'float',
+        b"A": sim_type.SimTypeFloat(),  # 'float',
+        b"c": sim_type.SimTypeChar(),  # 'char',
+        b"s": sim_type.SimTypePointer(sim_type.SimTypeChar()),  # 'char*',
+        b"p": sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t',
+        b"n": sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),
     }
 
     # All float conversion specifiers
-    float_spec = [b'e', b'E', b'f', b'F', b'g', b'G', b'a', b'A']
+    float_spec = [b"e", b"E", b"f", b"F", b"g", b"G", b"a", b"A"]
 
     # Length modifiers and how they apply to float conversion.
     float_len_mod = {
-        b'l': sim_type.SimTypeDouble,  # 'double',
-        b'll': sim_type.SimTypeDouble,  # 'long double',
+        b"l": sim_type.SimTypeDouble,  # 'double',
+        b"ll": sim_type.SimTypeDouble,  # 'long double',
     }
 
     @property

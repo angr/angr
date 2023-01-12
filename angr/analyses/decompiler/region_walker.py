@@ -5,6 +5,7 @@ class RegionWalker:
     """
     A simple traverser class that walks GraphRegion instances.
     """
+
     def __init__(self):
         self._parent_region = None
         self._current_region = None

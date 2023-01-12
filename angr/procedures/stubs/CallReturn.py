@@ -3,6 +3,7 @@ import logging
 
 l = logging.getLogger(name=__name__)
 
+
 class CallReturn(angr.SimProcedure):
     NO_RET = True
 

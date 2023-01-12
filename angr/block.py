@@ -26,7 +26,7 @@ class DisassemblerBlock:
     instructions
     """
 
-    __slots__ = [ 'addr', 'insns', 'thumb', 'arch' ]
+    __slots__ = ["addr", "insns", "thumb", "arch"]
 
     def __init__(self, addr, insns, thumb, arch):
         self.addr = addr
@@ -38,10 +38,10 @@ class DisassemblerBlock:
         print(str(self))
 
     def __str__(self):
-        return '\n'.join(map(str, self.insns))
+        return "\n".join(map(str, self.insns))
 
     def __repr__(self):
-        return '<DisassemblerBlock for %#x>' % self.addr
+        return "<DisassemblerBlock for %#x>" % self.addr
 
 
 class DisassemblerInsn:
@@ -88,7 +88,7 @@ class CapstoneInsn(DisassemblerInsn):
     Represents a capstone instruction.
     """
 
-    __slots__ = ("insn", )
+    __slots__ = ("insn",)
 
     def __init__(self, capstone_insn):
         self.insn = capstone_insn
@@ -110,7 +110,7 @@ class CapstoneInsn(DisassemblerInsn):
         return self.insn.op_str
 
     def __getattr__(self, item):
-        if item in ('__str__', '__repr__'):
+        if item in ("__str__", "__repr__"):
             return self.__getattribute__(item)
         if hasattr(self.insn, item):
             return getattr(self.insn, item)
@@ -124,16 +124,47 @@ class Block(Serializable):
 
     BLOCK_MAX_SIZE = 4096
 
-    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_disassembly', '_capstone',
-                 'addr', 'size', 'arch', '_instructions', '_instruction_addrs',
-                 '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
-                 '_cross_insn_opt', '_load_from_ro_regions', '_initial_regs',
-                 ]
+    __slots__ = [
+        "_project",
+        "_bytes",
+        "_vex",
+        "thumb",
+        "_disassembly",
+        "_capstone",
+        "addr",
+        "size",
+        "arch",
+        "_instructions",
+        "_instruction_addrs",
+        "_opt_level",
+        "_vex_nostmt",
+        "_collect_data_refs",
+        "_strict_block_end",
+        "_cross_insn_opt",
+        "_load_from_ro_regions",
+        "_initial_regs",
+    ]
 
-    def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False,
-                 backup_state=None, extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
-                 strict_block_end=None, collect_data_refs=False, cross_insn_opt=True, load_from_ro_regions=False,
-                 initial_regs=None):
+    def __init__(
+        self,
+        addr,
+        project=None,
+        arch=None,
+        size=None,
+        byte_string=None,
+        vex=None,
+        thumb=False,
+        backup_state=None,
+        extra_stop_points=None,
+        opt_level=None,
+        num_inst=None,
+        traceflags=0,
+        strict_block_end=None,
+        collect_data_refs=False,
+        cross_insn_opt=True,
+        load_from_ro_regions=False,
+        initial_regs=None,
+    ):
 
         # set up arch
         if project is not None:
@@ -156,7 +187,7 @@ class Block(Serializable):
         self.thumb = thumb
         self.addr = addr
         self._opt_level = opt_level
-        self._initial_regs: Optional[List[Tuple[int,int,int]]] = initial_regs if collect_data_refs else None
+        self._initial_regs: Optional[List[Tuple[int, int, int]]] = initial_regs if collect_data_refs else None
 
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
@@ -170,19 +201,19 @@ class Block(Serializable):
                 if self._initial_regs:
                     self.set_initial_regs()
                 vex = self._vex_engine.lift_vex(
-                        clemory=project.loader.memory,
-                        state=backup_state,
-                        insn_bytes=byte_string,
-                        addr=addr,
-                        thumb=thumb,
-                        extra_stop_points=extra_stop_points,
-                        opt_level=opt_level,
-                        num_inst=num_inst,
-                        traceflags=traceflags,
-                        strict_block_end=strict_block_end,
-                        collect_data_refs=collect_data_refs,
-                        load_from_ro_regions=load_from_ro_regions,
-                        cross_insn_opt=cross_insn_opt,
+                    clemory=project.loader.memory,
+                    state=backup_state,
+                    insn_bytes=byte_string,
+                    addr=addr,
+                    thumb=thumb,
+                    extra_stop_points=extra_stop_points,
+                    opt_level=opt_level,
+                    num_inst=num_inst,
+                    traceflags=traceflags,
+                    strict_block_end=strict_block_end,
+                    collect_data_refs=collect_data_refs,
+                    load_from_ro_regions=load_from_ro_regions,
+                    cross_insn_opt=cross_insn_opt,
                 )
                 if self._initial_regs:
                     self.reset_initial_regs()
@@ -215,7 +246,7 @@ class Block(Serializable):
                 self._bytes = None
         elif type(byte_string) is bytes:
             if self.size is not None:
-                self._bytes = byte_string[:self.size]
+                self._bytes = byte_string[: self.size]
             else:
                 self._bytes = byte_string
         else:
@@ -230,11 +261,10 @@ class Block(Serializable):
             self.size = vex_block.size
 
     def __repr__(self):
-        return '<Block for %#x, %d bytes>' % (self.addr, self.size)
+        return "<Block for %#x, %d bytes>" % (self.addr, self.size)
 
     def __getstate__(self):
-        return {k: getattr(self, k) for k in self.__slots__
-                    if k not in {'_capstone', '_disassembly', '_project'}}
+        return {k: getattr(self, k) for k in self.__slots__ if k not in {"_capstone", "_disassembly", "_project"}}
 
     def __setstate__(self, data):
         for k, v in data.items():
@@ -247,9 +277,7 @@ class Block(Serializable):
         return hash((type(self), self.addr, self.bytes))
 
     def __eq__(self, other):
-        return type(self) is type(other) and \
-               self.addr == other.addr and \
-               self.bytes == other.bytes
+        return type(self) is type(other) and self.addr == other.addr and self.bytes == other.bytes
 
     def __ne__(self, other):
         return not self == other
@@ -257,11 +285,13 @@ class Block(Serializable):
     def pp(self, **kwargs):
         if self._project is not None:
             addr = self.addr - 1 if self.thumb else self.addr
-            print(self._project.analyses.Disassembly(
-                ranges=[(addr, addr + self.size)],
-                thumb=self.thumb,
-                block_bytes=self.bytes,
-            ).render(**kwargs))
+            print(
+                self._project.analyses.Disassembly(
+                    ranges=[(addr, addr + self.size)],
+                    thumb=self.thumb,
+                    block_bytes=self.bytes,
+                ).render(**kwargs)
+            )
         else:
             self.disassembly.pp()
 
@@ -288,18 +318,18 @@ class Block(Serializable):
             if self._initial_regs:
                 self.set_initial_regs()
             self._vex = self._vex_engine.lift_vex(
-                    clemory=self._project.loader.memory if self._project is not None else None,
-                    insn_bytes=self._bytes,
-                    addr=self.addr,
-                    thumb=self.thumb,
-                    size=self.size,
-                    num_inst=self._instructions,
-                    opt_level=self._opt_level,
-                    arch=self.arch,
-                    collect_data_refs=self._collect_data_refs,
-                    strict_block_end=self._strict_block_end,
-                    cross_insn_opt=self._cross_insn_opt,
-                    load_from_ro_regions=self._load_from_ro_regions,
+                clemory=self._project.loader.memory if self._project is not None else None,
+                insn_bytes=self._bytes,
+                addr=self.addr,
+                thumb=self.thumb,
+                size=self.size,
+                num_inst=self._instructions,
+                opt_level=self._opt_level,
+                arch=self.arch,
+                collect_data_refs=self._collect_data_refs,
+                strict_block_end=self._strict_block_end,
+                cross_insn_opt=self._cross_insn_opt,
+                load_from_ro_regions=self._load_from_ro_regions,
             )
             if self._initial_regs:
                 self.reset_initial_regs()
@@ -364,7 +394,7 @@ class Block(Serializable):
 
         block_bytes = self.bytes
         if self.size is not None:
-            block_bytes = block_bytes[:self.size]
+            block_bytes = block_bytes[: self.size]
         for cs_insn in cs.disasm(block_bytes, self.addr):
             insns.append(CapstoneInsn(cs_insn))
         block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
@@ -415,10 +445,11 @@ class Block(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg):
-        obj = cls(cmsg.ea,
-                  size=cmsg.size,
-                  byte_string=cmsg.bytes,
-                  )
+        obj = cls(
+            cmsg.ea,
+            size=cmsg.size,
+            byte_string=cmsg.bytes,
+        )
         return obj
 
 
@@ -437,7 +468,7 @@ class SootBlock:
     @property
     def _soot_engine(self):
         if self._project is None:
-            raise Exception('SHIIIIIIIT')
+            raise Exception("SHIIIIIIIT")
         return self._project.factory.default_engine
 
     @property

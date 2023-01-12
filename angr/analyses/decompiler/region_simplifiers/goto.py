@@ -5,8 +5,14 @@ import logging
 import ailment
 
 from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, \
-    CascadingConditionNode
+from ..structuring.structurer_nodes import (
+    SequenceNode,
+    CodeNode,
+    MultiNode,
+    LoopNode,
+    ConditionNode,
+    CascadingConditionNode,
+)
 from .node_address_finder import NodeAddressFinder
 from ....knowledge_plugins.gotos import Goto
 
@@ -25,6 +31,7 @@ class GotoSimplifier(SequenceWalker):
     TODO:
     Move the recording of Gotos outside this function
     """
+
     def __init__(self, node, function=None, kb=None):
         handlers = {
             SequenceNode: self._handle_sequencenode,
@@ -90,9 +97,10 @@ class GotoSimplifier(SequenceWalker):
         :return:
         """
 
-        self._handle(node.sequence_node,
-                     successor=node,  # the end of a loop always jumps to the beginning of its body
-                     )
+        self._handle(
+            node.sequence_node,
+            successor=node,  # the end of a loop always jumps to the beginning of its body
+        )
 
     def _handle_multinode(self, node, successor=None, **kwargs):
         """
@@ -136,6 +144,4 @@ class GotoSimplifier(SequenceWalker):
 
         goto = Goto(addr=goto_stmt.ins_addr or block.addr, target_addr=goto_stmt.target.value)
         l.debug("Storing %r in kb.gotos", goto)
-        self._kb.gotos.locations[self._function.addr].add(
-            goto
-        )
+        self._kb.gotos.locations[self._function.addr].add(goto)

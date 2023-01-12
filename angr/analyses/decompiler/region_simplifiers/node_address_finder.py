@@ -10,6 +10,7 @@ class NodeAddressFinder(SequenceWalker):
     """
     Walk the entire node and collect all addresses of nodes.
     """
+
     def __init__(self, node):
         handlers = {
             ailment.Block: self._handle_Block,

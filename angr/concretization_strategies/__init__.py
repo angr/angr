@@ -9,7 +9,7 @@ class SimConcretizationStrategy:
     memory index concretization behavior can be modified.
     """
 
-    def __init__(self, filter=None, exact=True): #pylint:disable=redefined-builtin
+    def __init__(self, filter=None, exact=True):  # pylint:disable=redefined-builtin
         """
         Initializes the base SimConcretizationStrategy.
 
@@ -25,19 +25,19 @@ class SimConcretizationStrategy:
         """
         Gets the minimum solution of an address.
         """
-        return memory.state.solver.min(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.solver.min(addr, exact=kwargs.pop("exact", self._exact), **kwargs)
 
     def _max(self, memory, addr, **kwargs):
         """
         Gets the maximum solution of an address.
         """
-        return memory.state.solver.max(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.solver.max(addr, exact=kwargs.pop("exact", self._exact), **kwargs)
 
     def _any(self, memory, addr, **kwargs):
         """
         Gets any solution of an address.
         """
-        return memory.state.solver.eval(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.solver.eval(addr, exact=kwargs.pop("exact", self._exact), **kwargs)
 
     def _eval(self, memory, addr, n, **kwargs):
         """
@@ -45,7 +45,7 @@ class SimConcretizationStrategy:
         """
         if isinstance(addr, claripy.vsa.StridedInterval):
             return addr.eval(n)
-        return memory.state.solver.eval_upto(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.solver.eval_upto(addr, n, exact=kwargs.pop("exact", self._exact), **kwargs)
 
     def _range(self, memory, addr, **kwargs):
         """
@@ -81,6 +81,7 @@ class SimConcretizationStrategy:
         states. If not, is a no-op.
         """
         pass
+
 
 from .any import SimConcretizationStrategyAny
 from .controlled_data import SimConcretizationStrategyControlledData

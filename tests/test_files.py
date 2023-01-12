@@ -27,15 +27,13 @@ class TestFile(unittest.TestCase):
         length = s.posix.get_fd(fd).read(0xC00000, 100)
 
         data = s.memory.load(0xC00000, length, endness="Iend_BE")
-        assert (
-                data.op != "Reverse"
-        ), "Byte strings read directly out of a file should not have Reverse operators."
+        assert data.op != "Reverse", "Byte strings read directly out of a file should not have Reverse operators."
         assert data.op == "BVS"
         assert len(data.variables) == 1
         assert "oops" in next(iter(data.variables))
 
     def test_concrete_fs_resolution(self):
-        bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
+        bin_path = os.path.join(test_location, "binaries", "tests", "i386", "fauxware")
         proj = angr.Project(bin_path, auto_load_libs=False)
         state = proj.factory.entry_state(concrete_fs=True)
         fd = state.posix.open(bin_path, Flags.O_RDONLY)
@@ -48,7 +46,7 @@ class TestFile(unittest.TestCase):
         assert not state.solver.symbolic(size)
 
     def test_sim_fs_resolution(self):
-        bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
+        bin_path = os.path.join(test_location, "binaries", "tests", "i386", "fauxware")
         proj = angr.Project(bin_path, auto_load_libs=False)
         state = proj.factory.entry_state()
         fd = state.posix.open(bin_path, Flags.O_RDONLY)

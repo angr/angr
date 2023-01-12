@@ -11,7 +11,7 @@ class Caller(angr.SimProcedure):
     """
 
     def run(self, target_addr=None, target_cc=None):
-        self.call(target_addr, [ ], 'after_call', cc=target_cc, prototype='void x()')
+        self.call(target_addr, [], "after_call", cc=target_cc, prototype="void x()")
 
     def after_call(self, target_addr=None, target_cc=None):
         pass

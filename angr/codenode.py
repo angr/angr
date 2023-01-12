@@ -12,7 +12,7 @@ def repr_addr(addr):
 
 class CodeNode:
 
-    __slots__ = ['addr', 'size', '_graph', 'thumb', '_hash']
+    __slots__ = ["addr", "size", "_graph", "thumb", "_hash"]
 
     def __init__(self, addr, size, graph=None, thumb=False):
         self.addr = addr
@@ -28,11 +28,13 @@ class CodeNode:
     def __eq__(self, other):
         if type(other) is Block:  # pylint: disable=unidiomatic-typecheck
             raise TypeError("You do not want to be comparing a CodeNode to a Block")
-        return type(self) is type(other) and \
-            self.addr == other.addr and \
-            self.size == other.size and \
-            self.is_hook == other.is_hook and \
-            self.thumb == other.thumb
+        return (
+            type(self) is type(other)
+            and self.addr == other.addr
+            and self.size == other.size
+            and self.is_hook == other.is_hook
+            and self.thumb == other.thumb
+        )
 
     def __ne__(self, other):
         return not self == other
@@ -66,15 +68,16 @@ class CodeNode:
 
 class BlockNode(CodeNode):
 
-    __slots__ = ['bytestr']
+    __slots__ = ["bytestr"]
 
     is_hook = False
+
     def __init__(self, addr, size, bytestr=None, **kwargs):
         super().__init__(addr, size, **kwargs)
         self.bytestr = bytestr
 
     def __repr__(self):
-        return '<BlockNode at %s (size %d)>' % (repr_addr(self.addr), self.size)
+        return "<BlockNode at %s (size %d)>" % (repr_addr(self.addr), self.size)
 
     def __getstate__(self):
         return (self.addr, self.size, self.bytestr, self.thumb)
@@ -85,7 +88,7 @@ class BlockNode(CodeNode):
 
 class SootBlockNode(BlockNode):
 
-    __slots__ = ['stmts']
+    __slots__ = ["stmts"]
 
     def __init__(self, addr, size, stmts, **kwargs):
         super().__init__(addr, size, **kwargs)
@@ -94,7 +97,7 @@ class SootBlockNode(BlockNode):
         assert (stmts is None and size == 0) or (size == len(stmts))
 
     def __repr__(self):
-        return '<SootBlockNode at %s (%d statements)>' % (repr_addr(self.addr), self.size)
+        return "<SootBlockNode at %s (%d statements)>" % (repr_addr(self.addr), self.size)
 
     def __getstate__(self):
         return self.addr, self.size, self.stmts
@@ -105,9 +108,10 @@ class SootBlockNode(BlockNode):
 
 class HookNode(CodeNode):
 
-    __slots__ = ['sim_procedure']
+    __slots__ = ["sim_procedure"]
 
     is_hook = True
+
     def __init__(self, addr, size, sim_procedure, **kwargs):
         """
         :param type sim_procedure: the the sim_procedure class
@@ -116,14 +120,13 @@ class HookNode(CodeNode):
         self.sim_procedure = sim_procedure
 
     def __repr__(self):
-        return f'<HookNode {self.sim_procedure!r} at {repr_addr(self.addr)} (size {self.size})>'
+        return f"<HookNode {self.sim_procedure!r} at {repr_addr(self.addr)} (size {self.size})>"
 
     def __hash__(self):
         return hash((self.addr, self.size, self.sim_procedure))
 
     def __eq__(self, other):
-        return super().__eq__(other) and \
-            self.sim_procedure == other.sim_procedure
+        return super().__eq__(other) and self.sim_procedure == other.sim_procedure
 
     def __getstate__(self):
         return (self.addr, self.size, self.sim_procedure)
@@ -131,9 +134,12 @@ class HookNode(CodeNode):
     def __setstate__(self, dat):
         self.__init__(*dat)
 
+
 class SyscallNode(HookNode):
     is_hook = False
+
     def __repr__(self):
-        return f'<SyscallNode {self.sim_procedure!r} at {self.addr:#x} (size {self.size})>'
+        return f"<SyscallNode {self.sim_procedure!r} at {self.addr:#x} (size {self.size})>"
+
 
 from .block import Block

@@ -10,11 +10,13 @@ from .knowledge_plugins.cfg import CFGNode
 
 l = logging.getLogger(name=__name__)
 
+
 class AnnotatedCFG:
     """
     AnnotatedCFG is a control flow graph with statement whitelists and exit whitelists to describe a slice of the
     program.
     """
+
     def __init__(self, project, cfg=None, detect_loops=False):
         """
         Constructor.
@@ -28,12 +30,12 @@ class AnnotatedCFG:
         self._cfg = None
         self._target = None
 
-        self._run_statement_whitelist: Dict[int,Union[List[int],bool]] = defaultdict(list)
+        self._run_statement_whitelist: Dict[int, Union[List[int], bool]] = defaultdict(list)
         self._exit_taken = defaultdict(list)
         self._addr_to_run = {}
         self._addr_to_last_stmt_id = {}
         self._loops = []
-        self._path_merge_points = [ ]
+        self._path_merge_points = []
 
         if cfg is not None:
             self._cfg = cfg
@@ -94,8 +96,9 @@ class AnnotatedCFG:
             self._run_statement_whitelist[addr] = True
         else:
             self._run_statement_whitelist[addr].extend(stmt_ids)
-            self._run_statement_whitelist[addr] = \
-                sorted(set(self._run_statement_whitelist[addr]), key=lambda v: v if type(v) is int else float('inf'))
+            self._run_statement_whitelist[addr] = sorted(
+                set(self._run_statement_whitelist[addr]), key=lambda v: v if type(v) is int else float("inf")
+            )
 
     def add_exit_to_whitelist(self, run_from, run_to):
         addr_from = self.get_addr(run_from)
@@ -140,9 +143,9 @@ class AnnotatedCFG:
         """
         if addr in self._run_statement_whitelist:
             if self._run_statement_whitelist[addr] is True:
-                return None # This is the default value used to say
-                            # we execute all statements in this basic block. A
-                            # little weird...
+                return None  # This is the default value used to say
+                # we execute all statements in this basic block. A
+                # little weird...
 
             else:
                 return self._run_statement_whitelist[addr]
@@ -167,12 +170,12 @@ class AnnotatedCFG:
             return self._addr_to_last_stmt_id[addr]
         elif addr in self._run_statement_whitelist:
             # is the default exit there? it equals to a negative number (-2 by default) so `max()` won't work.
-            if self._run_statement_whitelist[addr] is True or \
-                    (isinstance(self._run_statement_whitelist[addr], list)
-                     and DEFAULT_STATEMENT in self._run_statement_whitelist[addr]
-                    ):
+            if self._run_statement_whitelist[addr] is True or (
+                isinstance(self._run_statement_whitelist[addr], list)
+                and DEFAULT_STATEMENT in self._run_statement_whitelist[addr]
+            ):
                 return DEFAULT_STATEMENT
-            return max(self._run_statement_whitelist[addr], key=lambda v: v if type(v) is int else float('inf'))
+            return max(self._run_statement_whitelist[addr], key=lambda v: v if type(v) is int else float("inf"))
         return None
 
     def get_loops(self):
@@ -219,8 +222,7 @@ class AnnotatedCFG:
             project = self._project
 
         if project is None:
-            raise Exception("Dict addr_to_run is empty. " + \
-                            "Give me a project, and I'll recreate the IRSBs for you.")
+            raise Exception("Dict addr_to_run is empty. " + "Give me a project, and I'll recreate the IRSBs for you.")
 
         vex_block = project.factory.block(irsb_addr).vex
         statements = vex_block.statements
@@ -232,7 +234,7 @@ class AnnotatedCFG:
                 line = "-"
             line += "[% 3d] " % i
             # We cannot get data returned by pp(). WTF?
-            print(line, end='')
+            print(line, end="")
             statements[i].pp()
 
     #
@@ -268,13 +270,10 @@ class AnnotatedCFG:
         last_stmt = self.get_last_statement_index(path.addr)
 
         # pass in those arguments
-        successors = path.step(
-            stmt_whitelist=whitelist,
-            last_stmt=None
-        )
+        successors = path.step(stmt_whitelist=whitelist, last_stmt=None)
 
         # further filter successors based on the annotated CFG
-        taken_successors = [ ]
+        taken_successors = []
         for suc in successors:
             try:
                 taken = self.should_take_exit(path.addr, suc.addr)
@@ -293,15 +292,15 @@ class AnnotatedCFG:
 
     def __getstate__(self):
         state = {}
-        state['_run_statement_whitelist'] = self._run_statement_whitelist
-        state['_exit_taken'] = self._exit_taken
+        state["_run_statement_whitelist"] = self._run_statement_whitelist
+        state["_exit_taken"] = self._exit_taken
         # state['_addr_to_run'] = self._addr_to_run
-        state['_addr_to_last_stmt_id'] = self._addr_to_last_stmt_id
-        state['_loops'] = self._loops
-        state['_path_merge_points'] = self._path_merge_points
-        state['_cfg'] = None
-        state['_project'] = None
-        state['_addr_to_run'] = None
+        state["_addr_to_last_stmt_id"] = self._addr_to_last_stmt_id
+        state["_loops"] = self._loops
+        state["_path_merge_points"] = self._path_merge_points
+        state["_cfg"] = None
+        state["_project"] = None
+        state["_addr_to_run"] = None
         return state
 
     #
@@ -317,6 +316,6 @@ class AnnotatedCFG:
         for loop_lst in networkx.simple_cycles(temp_graph):
             l.debug("A loop is found. %d", ctr)
             ctr += 1
-            loop = (tuple(x[-1] for x in loop_lst))
+            loop = tuple(x[-1] for x in loop_lst)
             print(" => ".join(["0x%08x" % x for x in loop]))
             self.add_loop(loop)

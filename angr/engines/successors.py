@@ -3,7 +3,9 @@ import claripy
 from archinfo.arch_soot import ArchSoot
 
 import logging
+
 l = logging.getLogger(name=__name__)
+
 
 class SimSuccessors:
     """
@@ -36,16 +38,16 @@ class SimSuccessors:
         self.addr = addr
         self.initial_state = initial_state
 
-        self.successors = [ ]
-        self.all_successors = [ ]
-        self.flat_successors = [ ]
-        self.unsat_successors = [ ]
-        self.unconstrained_successors = [ ]
+        self.successors = []
+        self.all_successors = []
+        self.flat_successors = []
+        self.unsat_successors = []
+        self.unconstrained_successors = []
 
         # the engine that should process or did process this request
         self.engine = None
         self.processed = False
-        self.description = 'SimSuccessors'
+        self.description = "SimSuccessors"
         self.sort = None
         self.artifacts = {}
 
@@ -55,7 +57,7 @@ class SimSuccessors:
 
     def __repr__(self):
         if self.processed:
-            successor_strings = [ ]
+            successor_strings = []
             if len(self.flat_successors) != 0:
                 successor_strings.append(f"{len(self.flat_successors)} sat")
             if len(self.unsat_successors) != 0:
@@ -64,21 +66,25 @@ class SimSuccessors:
                 successor_strings.append(f"{len(self.unconstrained_successors)} unconstrained")
 
             if len(successor_strings) == 0:
-                result = 'empty'
+                result = "empty"
             else:
-                result = ' '.join(successor_strings)
+                result = " ".join(successor_strings)
         else:
-            result = 'failure'
+            result = "failure"
 
         if isinstance(self.addr, int):
-            return f'<{self.description} from {self.addr:#x}: {result}>'
+            return f"<{self.description} from {self.addr:#x}: {result}>"
         else:
-            return f'<{self.description} from {self.addr}: {result}>'
+            return f"<{self.description} from {self.addr}: {result}>"
 
     @property
     def is_empty(self):
-        return not self.all_successors and not self.flat_successors and not self.unsat_successors and \
-               not self.unconstrained_successors
+        return (
+            not self.all_successors
+            and not self.flat_successors
+            and not self.unsat_successors
+            and not self.unconstrained_successors
+        )
 
     def __getitem__(self, k):
         return self.flat_successors[k]
@@ -86,8 +92,9 @@ class SimSuccessors:
     def __iter__(self):
         return iter(self.flat_successors)
 
-    def add_successor(self, state, target, guard, jumpkind, add_guard=True, exit_stmt_idx=None, exit_ins_addr=None,
-                      source=None):
+    def add_successor(
+        self, state, target, guard, jumpkind, add_guard=True, exit_stmt_idx=None, exit_ins_addr=None, source=None
+    ):
         """
         Add a successor state of the SimRun.
         This procedure stores method parameters into state.scratch, does some housekeeping,
@@ -107,7 +114,7 @@ class SimSuccessors:
         """
 
         # First, trigger the SimInspect breakpoint
-        state._inspect('exit', BP_BEFORE, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
+        state._inspect("exit", BP_BEFORE, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
         state.scratch.target = state._inspect_getattr("exit_target", target)
         state.scratch.guard = state._inspect_getattr("exit_guard", guard)
         state.history.jumpkind = state._inspect_getattr("exit_jumpkind", jumpkind)
@@ -122,11 +129,11 @@ class SimSuccessors:
 
         self._preprocess_successor(state, add_guard=add_guard)
 
-        if state.history.jumpkind == 'Ijk_SigFPE_IntDiv' and o.PRODUCE_ZERODIV_SUCCESSORS not in state.options:
+        if state.history.jumpkind == "Ijk_SigFPE_IntDiv" and o.PRODUCE_ZERODIV_SUCCESSORS not in state.options:
             return
 
         self._categorize_successor(state)
-        state._inspect('exit', BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
+        state._inspect("exit", BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
         if state.supports_inspect:
             state.inspect.downsize()
 
@@ -134,7 +141,7 @@ class SimSuccessors:
     # Successor management
     #
 
-    def _preprocess_successor(self, state, add_guard=True): #pylint:disable=unused-argument
+    def _preprocess_successor(self, state, add_guard=True):  # pylint:disable=unused-argument
         """
         Preprocesses the successor state.
 
@@ -166,7 +173,7 @@ class SimSuccessors:
 
         if len(self.successors) != 0:
             # This is a fork!
-            state._inspect('fork', BP_AFTER)
+            state._inspect("fork", BP_AFTER)
 
         # clean up the state
         state.options.discard(o.AST_DEPS)
@@ -176,9 +183,9 @@ class SimSuccessors:
     def _manage_callstack(state):
         # condition for call = Ijk_Call
         # condition for ret = stack pointer drops below call point
-        if state.history.jumpkind == 'Ijk_Call':
-            state._inspect('call', BP_BEFORE, function_address=state.regs._ip)
-            new_func_addr = state._inspect_getattr('function_address', None)
+        if state.history.jumpkind == "Ijk_Call":
+            state._inspect("call", BP_BEFORE, function_address=state.regs._ip)
+            new_func_addr = state._inspect_getattr("function_address", None)
             if new_func_addr is not None and not claripy.is_true(new_func_addr == state.regs._ip):
                 state.regs._ip = new_func_addr
 
@@ -202,35 +209,37 @@ class SimSuccessors:
                 stack_ptr = 0
 
             new_frame = CallStack(
-                    call_site_addr=state.history.recent_bbl_addrs[-1],
-                    func_addr=state_addr,
-                    stack_ptr=stack_ptr,
-                    ret_addr=ret_addr,
-                    jumpkind='Ijk_Call')
+                call_site_addr=state.history.recent_bbl_addrs[-1],
+                func_addr=state_addr,
+                stack_ptr=stack_ptr,
+                ret_addr=ret_addr,
+                jumpkind="Ijk_Call",
+            )
             state.callstack.push(new_frame)
 
-            state._inspect('call', BP_AFTER)
+            state._inspect("call", BP_AFTER)
         else:
             while True:
-                cur_sp = state.solver.max(state.regs._sp) if state.has_plugin('symbolizer') else state.regs._sp
+                cur_sp = state.solver.max(state.regs._sp) if state.has_plugin("symbolizer") else state.regs._sp
                 if not state.solver.is_true(cur_sp > state.callstack.top.stack_ptr):
                     break
-                state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
+                state._inspect("return", BP_BEFORE, function_address=state.callstack.top.func_addr)
                 state.callstack.pop()
-                state._inspect('return', BP_AFTER)
+                state._inspect("return", BP_AFTER)
 
-            if not state.arch.call_pushes_ret and \
-                    claripy.is_true(state.regs._ip == state.callstack.ret_addr) and \
-                    claripy.is_true(state.regs._sp == state.callstack.stack_ptr):
+            if (
+                not state.arch.call_pushes_ret
+                and claripy.is_true(state.regs._ip == state.callstack.ret_addr)
+                and claripy.is_true(state.regs._sp == state.callstack.stack_ptr)
+            ):
                 # very weird edge case that's not actually weird or on the edge at all:
                 # if we use a link register for the return address, the stack pointer will be the same
                 # before and after the call. therefore we have to check for equality with the marker
                 # along with this other check with the instruction pointer to guess whether it's time
                 # to pop a callframe. Still better than relying on Ijk_Ret.
-                state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
+                state._inspect("return", BP_BEFORE, function_address=state.callstack.top.func_addr)
                 state.callstack.pop()
-                state._inspect('return', BP_AFTER)
-
+                state._inspect("return", BP_AFTER)
 
     def _categorize_successor(self, state):
         """
@@ -248,12 +257,12 @@ class SimSuccessors:
         if o.APPROXIMATE_GUARDS in state.options and state.solver.is_false(state.scratch.guard, exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options:
                 if state.satisfiable():
-                    raise Exception('WTF')
+                    raise Exception("WTF")
             self.unsat_successors.append(state)
         elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.solver.satisfiable(exact=False):
             if o.VALIDATE_APPROXIMATIONS in state.options:
                 if state.solver.satisfiable():
-                    raise Exception('WTF')
+                    raise Exception("WTF")
             self.unsat_successors.append(state)
         elif not state.scratch.guard.symbolic and state.solver.is_false(state.scratch.guard):
             self.unsat_successors.append(state)
@@ -302,7 +311,7 @@ class SimSuccessors:
                 skip_max_targets_warning = False
                 if o.NO_IP_CONCRETIZATION in state.options:
                     # Don't try to concretize the IP
-                    cond_and_targets = [ (claripy.true, target) ]
+                    cond_and_targets = [(claripy.true, target)]
                     max_targets = 0
                     skip_max_targets_warning = True  # don't warn
                 elif o.KEEP_IP_SYMBOLIC in state.options:
@@ -313,7 +322,7 @@ class SimSuccessors:
                         l.debug("It is not a Library")
                         addrs = state.solver.eval_upto(target, _max_targets + 1)
                         l.debug("addrs :%s", addrs)
-                    cond_and_targets = [ (target == addr, addr) for addr in addrs ]
+                    cond_and_targets = [(target == addr, addr) for addr in addrs]
                     max_targets = _max_targets
                 else:
                     cond_and_targets = self._eval_target_jumptable(state, target, _max_jumptable_targets + 1)
@@ -329,7 +338,7 @@ class SimSuccessors:
                         l.warning(
                             "Exit state has over %d possible solutions. Likely unconstrained; skipping. %s",
                             max_targets,
-                            target.shallow_repr()
+                            target.shallow_repr(),
                         )
                     self.unconstrained_successors.append(state)
                 else:
@@ -349,7 +358,6 @@ class SimSuccessors:
 
         return state
 
-
     # misc stuff
     @staticmethod
     def _resolve_syscall(state):
@@ -357,7 +365,7 @@ class SimSuccessors:
             cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
         else:
             # Use the default syscall calling convention - it may bring problems
-            cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
+            cc = SYSCALL_CC[state.arch.name]["default"](state.arch)
 
         syscall_num = cc.syscall_num(state)
 
@@ -389,8 +397,8 @@ class SimSuccessors:
         """
 
         stub = state.project.simos.syscall(state, allow_unsupported=True)
-        if stub: # can be None if simos is not a subclass of SimUserspace
-            state.ip = stub.addr # fix the IP
+        if stub:  # can be None if simos is not a subclass of SimUserspace
+            state.ip = stub.addr  # fix the IP
 
     def _finalize(self):
         """
@@ -423,10 +431,10 @@ class SimSuccessors:
         """
 
         if ip.symbolic is False:
-            return [ (claripy.ast.bool.true, ip) ]  # concrete
+            return [(claripy.ast.bool.true, ip)]  # concrete
 
         # Detect whether ip is in the form of "if a == 1 then addr_0 else if a == 2 then addr_1 else ..."
-        cond_and_targets = [ ]  # tuple of (condition, target)
+        cond_and_targets = []  # tuple of (condition, target)
 
         ip_ = ip
         # Handle the outer Reverse
@@ -496,7 +504,7 @@ class SimSuccessors:
         if fallback:
             return None
         else:
-            return cond_and_targets[ : limit]
+            return cond_and_targets[:limit]
 
     @staticmethod
     def _eval_target_brutal(state, ip, limit):
@@ -512,7 +520,7 @@ class SimSuccessors:
 
         addrs = state.solver.eval_upto(ip, limit)
 
-        return [ (ip == addr, addr) for addr in addrs ]
+        return [(ip == addr, addr) for addr in addrs]
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

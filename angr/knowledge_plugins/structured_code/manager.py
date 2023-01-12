@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class StructuredCodeManager(KnowledgeBasePlugin):
     def __init__(self, kb):
         self._kb: KnowledgeBase = kb
-        self.cached: Dict[Any, 'DecompilationCache'] = {}
+        self.cached: Dict[Any, "DecompilationCache"] = {}
 
     def _normalize_key(self, item):
         if type(item) is not tuple:
@@ -21,10 +21,10 @@ class StructuredCodeManager(KnowledgeBasePlugin):
             item = (self._kb.labels.lookup(item[0]), *item[1:])
         return item
 
-    def __getitem__(self, item) -> 'DecompilationCache':
+    def __getitem__(self, item) -> "DecompilationCache":
         return self.cached[self._normalize_key(item)]
 
-    def __setitem__(self, key, value: Union['DecompilationCache','BaseStructuredCodeGenerator']):
+    def __setitem__(self, key, value: Union["DecompilationCache", "BaseStructuredCodeGenerator"]):
         from ...analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
         from ...analyses.decompiler.decompilation_cache import DecompilationCache
 
@@ -57,4 +57,4 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         raise NotImplementedError
 
 
-KnowledgeBasePlugin.register_default('structured_code', StructuredCodeManager)
+KnowledgeBasePlugin.register_default("structured_code", StructuredCodeManager)

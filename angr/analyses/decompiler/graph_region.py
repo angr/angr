@@ -20,10 +20,24 @@ class GraphRegion:
     :ivar graph_with_successors:    The region graph that includes successor nodes.
     """
 
-    __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', 'full_graph', )
+    __slots__ = (
+        "head",
+        "graph",
+        "successors",
+        "graph_with_successors",
+        "cyclic",
+        "full_graph",
+    )
 
-    def __init__(self, head, graph, successors: Optional[Set], graph_with_successors: Optional[networkx.DiGraph],
-                 cyclic, full_graph: Optional[networkx.DiGraph]):
+    def __init__(
+        self,
+        head,
+        graph,
+        successors: Optional[Set],
+        graph_with_successors: Optional[networkx.DiGraph],
+        cyclic,
+        full_graph: Optional[networkx.DiGraph],
+    ):
         self.head = head
         self.graph = graph
         self.successors = set(successors) if successors is not None else None
@@ -37,21 +51,21 @@ class GraphRegion:
         self.cyclic = cyclic
 
     def __repr__(self):
-        addrs: List[int] = [ ]
+        addrs: List[int] = []
         s = ""
         if self.graph is None:
             # only head is available
             return "<GraphRegion %r>" % self.head
 
         for node in self.graph.nodes():
-            if hasattr(node, 'addr'):
+            if hasattr(node, "addr"):
                 addrs.append(node.addr)
         if addrs:
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 
         return "<GraphRegion %r of %d nodes%s>" % (self.head, self.graph.number_of_nodes(), s)
 
-    def copy(self) -> 'GraphRegion':
+    def copy(self) -> "GraphRegion":
         return GraphRegion(
             self.head,
             networkx.DiGraph(self.graph) if self.graph is not None else None,
@@ -64,7 +78,7 @@ class GraphRegion:
     def recursive_copy(self, nodes_map=None):
 
         if nodes_map is None:
-            nodes_map = { }
+            nodes_map = {}
         new_graph = self._recursive_copy(self.graph, nodes_map)
 
         if self.graph_with_successors is not None:
@@ -87,8 +101,9 @@ class GraphRegion:
         else:
             new_full_graph = None
 
-        return GraphRegion(nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic,
-                           new_full_graph)
+        return GraphRegion(
+            nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic, new_full_graph
+        )
 
     @staticmethod
     def _recursive_copy(old_graph, nodes_map, ignored_nodes=None) -> networkx.DiGraph:
@@ -142,12 +157,20 @@ class GraphRegion:
         successors = list(self.graph.successors(self.head))
         if len(successors) == 2:
             left_kid, right_kid = successors
-            s += " " * ident + "if (...) {\n" + \
-                 self.dbg_get_repr(left_kid, ident=ident + 2) + "\n" + \
-                 " " * ident + "}\n" + \
-                 " " * ident + "else if (...) {\n" + \
-                 self.dbg_get_repr(right_kid, ident=ident + 2) + "\n" + \
-                 " " * ident + "}"
+            s += (
+                " " * ident
+                + "if (...) {\n"
+                + self.dbg_get_repr(left_kid, ident=ident + 2)
+                + "\n"
+                + " " * ident
+                + "}\n"
+                + " " * ident
+                + "else if (...) {\n"
+                + self.dbg_get_repr(right_kid, ident=ident + 2)
+                + "\n"
+                + " " * ident
+                + "}"
+            )
             # TODO: other nodes
         elif len(successors) == 1:
             s += self.dbg_get_repr(successors[0], ident=ident)
@@ -167,7 +190,7 @@ class GraphRegion:
         if self.graph_with_successors is not None:
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with)
 
-    def replace_region_with_region(self, sub_region: 'GraphRegion', replace_with: 'GraphRegion'):
+    def replace_region_with_region(self, sub_region: "GraphRegion", replace_with: "GraphRegion"):
 
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
@@ -198,11 +221,23 @@ class GraphRegion:
         else:
             replace_with_graph_with_successors = replace_with.graph_with_successors
 
-        self._replace_node_in_graph_with_subgraph(self.graph, self.successors, self.full_graph, sub_region,
-                                                  replace_with_graph_with_successors, replace_with.head)
+        self._replace_node_in_graph_with_subgraph(
+            self.graph,
+            self.successors,
+            self.full_graph,
+            sub_region,
+            replace_with_graph_with_successors,
+            replace_with.head,
+        )
         if self.graph_with_successors is not None:
-            self._replace_node_in_graph_with_subgraph(self.graph_with_successors, None, self.full_graph, sub_region,
-                                                      replace_with_graph_with_successors, replace_with.head)
+            self._replace_node_in_graph_with_subgraph(
+                self.graph_with_successors,
+                None,
+                self.full_graph,
+                sub_region,
+                replace_with_graph_with_successors,
+                replace_with.head,
+            )
 
     @staticmethod
     def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with):
@@ -228,9 +263,14 @@ class GraphRegion:
         assert node not in graph
 
     @staticmethod
-    def _replace_node_in_graph_with_subgraph(graph: networkx.DiGraph, known_successors: Optional[List],
-                                             reference_full_graph: Optional[networkx.DiGraph],
-                                             node, sub_graph: networkx.DiGraph, sub_graph_head):
+    def _replace_node_in_graph_with_subgraph(
+        graph: networkx.DiGraph,
+        known_successors: Optional[List],
+        reference_full_graph: Optional[networkx.DiGraph],
+        node,
+        sub_graph: networkx.DiGraph,
+        sub_graph_head,
+    ):
 
         in_edges = list(graph.in_edges(node))
         out_edges = list(graph.out_edges(node))

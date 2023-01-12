@@ -8,12 +8,10 @@ log = logging.getLogger(name=__name__)
 
 class CharacterIsDigit(JavaSimProcedure):
 
-    __provides__ = (
-        ('java.lang.Character', 'isDigit(char)'),
-    )
+    __provides__ = (("java.lang.Character", "isDigit(char)"),)
 
     def run(self, char_ref):
-        log.debug(f'Called SimProcedure java.lang.Character.isDigit with args: {char_ref}')
+        log.debug(f"Called SimProcedure java.lang.Character.isDigit with args: {char_ref}")
         char_str = self.state.memory.load(char_ref)
 
         constraint = claripy.StrIsDigit(char_str)
@@ -23,16 +21,13 @@ class CharacterIsDigit(JavaSimProcedure):
 
 class CharacterIsSpaceChar(JavaSimProcedure):
 
-    __provides__ = (
-        ('java.lang.Character', 'isSpaceChar(char)'),
-    )
+    __provides__ = (("java.lang.Character", "isSpaceChar(char)"),)
 
     def run(self, char_ref):
-        log.debug(f'Called SimProcedure java.lang.Character.isSpaceChar with args: {char_ref}')
+        log.debug(f"Called SimProcedure java.lang.Character.isSpaceChar with args: {char_ref}")
         char_str = self.state.memory.load(char_ref)
 
         # Should we add other unicode SPACE_SEPARATOR?
-        constraint = claripy.If(char_str == ' ', claripy.BVV(1, 32), claripy.BVV(0, 32))
+        constraint = claripy.If(char_str == " ", claripy.BVV(1, 32), claripy.BVV(0, 32))
 
         return constraint
-

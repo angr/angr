@@ -4,6 +4,7 @@ from . import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 
+
 class ManualMergepoint(ExplorationTechnique):
     def __init__(self, address, wait_counter=10, prune=True):
         super().__init__()
@@ -11,8 +12,8 @@ class ManualMergepoint(ExplorationTechnique):
         self.wait_counter_limit = wait_counter
         self.prune = prune
         self.wait_counter = 0
-        self.stash = f'merge_waiting_{self.address:#x}_{id(self):x}'
-        self.filter_marker = 'skip_next_filter_%#x' % self.address
+        self.stash = f"merge_waiting_{self.address:#x}_{id(self):x}"
+        self.filter_marker = "skip_next_filter_%#x" % self.address
 
     def setup(self, simgr):
         simgr.stashes[self.stash] = []
@@ -25,16 +26,16 @@ class ManualMergepoint(ExplorationTechnique):
         for state in simgr.stashes[stash]:
             state.globals.pop(self.filter_marker)
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         # ha ha, very funny, if this is being run on a single-step basis our filter probably misfired
         if len(simgr.stashes[self.stash]) == 1 and len(simgr.stashes[stash]) == 0:
             simgr = simgr.move(self.stash, stash)
 
         # perform all our analysis as a post-mortem on a given step
-        stop_points = kwargs.pop('extra_stop_points', set())
+        stop_points = kwargs.pop("extra_stop_points", set())
         stop_points.add(self.address)
         simgr = simgr.step(stash=stash, extra_stop_points=stop_points, **kwargs)
-        #self.mark_okfilter(simgr, stash)
+        # self.mark_okfilter(simgr, stash)
 
         # do filtering
         new_stash = []
@@ -57,7 +58,7 @@ class ManualMergepoint(ExplorationTechnique):
         if len(simgr.stashes[stash]) != 0 and self.wait_counter < self.wait_counter_limit:
             return simgr
 
-        #self.mark_nofilter(simgr, self.stash)
+        # self.mark_nofilter(simgr, self.stash)
 
         # only both merging if, you know, there's actually states to merge
         if len(simgr.stashes[self.stash]) == 1:
@@ -70,10 +71,10 @@ class ManualMergepoint(ExplorationTechnique):
         while len(simgr.stashes[self.stash]):
             num_unique += 1
             exemplar_callstack = simgr.stashes[self.stash][0].callstack
-            simgr.move(self.stash, 'merge_tmp', lambda s: s.callstack == exemplar_callstack)
+            simgr.move(self.stash, "merge_tmp", lambda s: s.callstack == exemplar_callstack)
             l.debug("...%d with unique callstack #%d", len(simgr.merge_tmp), num_unique)
             if len(simgr.merge_tmp) > 1:
-                simgr = simgr.merge(stash='merge_tmp', prune=self.prune)
-            simgr = simgr.move('merge_tmp', stash)
+                simgr = simgr.merge(stash="merge_tmp", prune=self.prune)
+            simgr = simgr.move("merge_tmp", stash)
 
         return simgr

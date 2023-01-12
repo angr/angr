@@ -2,11 +2,13 @@ import claripy
 
 from angr.storage.memory_mixins import MemoryMixin
 
+
 class PermissionsMixin(MemoryMixin):
     """
     This mixin adds a permissions field and properties for extracting the read/write/exec permissions. It does NOT add
     permissions checking.
     """
+
     def __init__(self, permissions=None, **kwargs):
         super().__init__(**kwargs)
         if type(permissions) is int:

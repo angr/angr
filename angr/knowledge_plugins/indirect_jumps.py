@@ -4,7 +4,6 @@ from .plugin import KnowledgeBasePlugin
 
 
 class IndirectJumps(KnowledgeBasePlugin, dict):
-
     def __init__(self, kb):
         super().__init__()
         self._kb = kb
@@ -31,4 +30,4 @@ class IndirectJumps(KnowledgeBasePlugin, dict):
             self.resolved[indirect_address] = list(resolved_addresses)
 
 
-KnowledgeBasePlugin.register_default('indirect_jumps', IndirectJumps)
+KnowledgeBasePlugin.register_default("indirect_jumps", IndirectJumps)

@@ -1,8 +1,12 @@
 import logging
 
-from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
-                                SootAddressTerminator, SootArgument,
-                                SootMethodDescriptor)
+from archinfo.arch_soot import (
+    ArchSoot,
+    SootAddressDescriptor,
+    SootAddressTerminator,
+    SootArgument,
+    SootMethodDescriptor,
+)
 
 from ... import sim_options as o
 from ...errors import SimEngineError, SimTranslationError
@@ -12,20 +16,20 @@ from ...sim_type import SimTypeNum, SimTypeFunction, parse_type
 from ..engine import SuccessorsMixin
 from ..procedure import ProcedureMixin
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
-from .statements import (SimSootStmt_Return, SimSootStmt_ReturnVoid,
-                         translate_stmt)
+from .statements import SimSootStmt_Return, SimSootStmt_ReturnVoid, translate_stmt
 from .values import SimSootValue_Local, SimSootValue_ParamRef
 
-l = logging.getLogger('angr.engines.soot.engine')
+l = logging.getLogger("angr.engines.soot.engine")
 
 # pylint: disable=arguments-differ
+
 
 class SootMixin(SuccessorsMixin, ProcedureMixin):
     """
     Execution engine based on Soot.
     """
 
-    def lift_soot(self, addr=None, the_binary=None, **kwargs): # pylint: disable=unused-argument, no-self-use
+    def lift_soot(self, addr=None, the_binary=None, **kwargs):  # pylint: disable=unused-argument, no-self-use
         assert isinstance(addr, SootAddressDescriptor)
 
         method, stmt_idx = addr.method, addr.stmt_idx
@@ -38,11 +42,11 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         if stmt_idx is None:
             return method.blocks[0] if method.blocks else None
         else:
-            #try:
+            # try:
             #    _, block = method.block_by_label.floor_item(stmt_idx)
-            #except KeyError:
+            # except KeyError:
             #    return None
-            #return block
+            # return block
             # TODO: Re-enable the above code once bintrees are used
 
             # FIXME: stmt_idx does not index from the start of the method but from the start
@@ -78,7 +82,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         method = binary.get_soot_method(addr.method, none_if_missing=True)
 
         # TODO make the skipping of code in "android.*" classes optional
-        if addr.method.class_name.startswith('android.') or not method:
+        if addr.method.class_name.startswith("android.") or not method:
             # This means we are executing code that is not in CLE, typically library code.
             # We may want soot -> pysoot -> cle to export at least the method names of the libraries
             # (soot has a way to deal with this), as of now we just "simulate" a return.
@@ -117,9 +121,9 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         stmt = stmt_idx = None
         for tindex, stmt in enumerate(block.statements[starting_stmt_idx:]):
             stmt_idx = starting_stmt_idx + tindex
-            state._inspect('statement', BP_BEFORE, statement=stmt_idx)
+            state._inspect("statement", BP_BEFORE, statement=stmt_idx)
             terminate = self._handle_soot_stmt(state, successors, stmt_idx, stmt)
-            state._inspect('statement', BP_AFTER)
+            state._inspect("statement", BP_AFTER)
             if terminate:
                 break
         else:
@@ -130,7 +134,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
                 next_addr = self._get_next_linear_instruction(state, stmt_idx)
                 l.debug("Advancing execution linearly to %s", next_addr)
                 if next_addr is not None:
-                    successors.add_successor(state.copy(), next_addr, state.solver.true, 'Ijk_Boring')
+                    successors.add_successor(state.copy(), next_addr, state.solver.true, "Ijk_Boring")
 
     def _handle_soot_stmt(self, state, successors, stmt_idx, stmt):
         # execute statement
@@ -148,10 +152,10 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             invoke_expr = s_stmt.invoke_expr
             method = invoke_expr.method
             args = invoke_expr.args
-            ret_var = invoke_expr.ret_var if hasattr(invoke_expr, 'ret_var') else None
+            ret_var = invoke_expr.ret_var if hasattr(invoke_expr, "ret_var") else None
             # setup callsite
             ret_addr = self._get_next_linear_instruction(state, stmt_idx)
-            if 'NATIVE' in method.attrs:
+            if "NATIVE" in method.attrs:
                 # the target of the call is a native function
                 # => we need to setup a native call-site
                 l.debug("Native invoke: %r", method)
@@ -168,7 +172,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             # add invoke state as the successor and terminate execution
             # prematurely, since Soot does not guarantee that an invoke stmt
             # terminates a block
-            successors.add_successor(invoke_state, addr, state.solver.true, 'Ijk_Call')
+            successors.add_successor(invoke_state, addr, state.solver.true, "Ijk_Call")
             return True
 
         # add jmp exit
@@ -177,7 +181,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
                 if not target:
                     target = self._get_next_linear_instruction(state, stmt_idx)
                 l.debug("Possible jump: %s -> %s", state._ip, target)
-                successors.add_successor(state.copy(), target, condition, 'Ijk_Boring')
+                successors.add_successor(state.copy(), target, condition, "Ijk_Boring")
             return True
 
         # add return exit
@@ -194,7 +198,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
     def _add_return_exit(cls, state, successors, return_val=None):
         ret_state = state.copy()
         cls.prepare_return_state(ret_state, return_val)
-        successors.add_successor(ret_state, state.callstack.ret_addr, ret_state.solver.true, 'Ijk_Ret')
+        successors.add_successor(ret_state, state.callstack.ret_addr, ret_state.solver.true, "Ijk_Ret")
         successors.processed = True
 
     def _get_sim_procedure(self, addr):
@@ -209,8 +213,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         class_name = method.class_name
         method_prototype = "{}({})".format(method.name, ",".join(method.params))
 
-        if class_name in SIM_PROCEDURES and \
-                method_prototype in SIM_PROCEDURES[class_name]:
+        if class_name in SIM_PROCEDURES and method_prototype in SIM_PROCEDURES[class_name]:
             procedure_cls = SIM_PROCEDURES[class_name][method_prototype]
         else:
             return None
@@ -233,8 +236,6 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
 
         return proc
 
-
-
     @staticmethod
     def _is_method_beginning(addr):
         return addr.block_idx == 0 and addr.stmt_idx == 0
@@ -253,8 +254,11 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             if new_bb_idx < len(method.blocks):
                 return SootAddressDescriptor(addr.method, new_bb_idx, 0)
             else:
-                l.warning("falling into a non existing bb: %d in %s",
-                          new_bb_idx, SootMethodDescriptor.from_soot_method(method))
+                l.warning(
+                    "falling into a non existing bb: %d in %s",
+                    new_bb_idx,
+                    SootMethodDescriptor.from_soot_method(method),
+                )
                 raise IncorrectLocationException()
 
     @classmethod
@@ -274,7 +278,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         # if available, store the 'this' reference
         if len(args) > 0 and args[0].is_this_ref:
             this_ref = args.pop(0)
-            local = SimSootValue_Local('this', this_ref.type)
+            local = SimSootValue_Local("this", this_ref.type)
             state.javavm_memory.store(local, this_ref.value)
         # store all function arguments in memory
         for idx, arg in enumerate(args):
@@ -319,8 +323,8 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
             exit_code = statement.return_value
             # TODO symbolic exit code?
             exit_code = state.solver.BVV(exit_code, state.arch.bits)
-        state.history.add_event('terminate', exit_code=exit_code)
-        successors.add_successor(state, state.regs.ip, state.solver.true, 'Ijk_Exit')
+        state.history.add_event("terminate", exit_code=exit_code)
+        successors.add_successor(state, state.regs.ip, state.solver.true, "Ijk_Exit")
         successors.processed = True
         raise BlockTerminationNotice()
 
@@ -343,23 +347,22 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         # set successor flags
         ret_state.regs._ip = ret_state.callstack.ret_addr
         ret_state.scratch.guard = ret_state.solver.true
-        ret_state.history.jumpkind = 'Ijk_Ret'
+        ret_state.history.jumpkind = "Ijk_Ret"
 
         # if available, lookup the return value in native memory
         ret_var = ret_state.callstack.invoke_return_variable
         if ret_var is not None:
             # get return symbol from native state
             native_cc = javavm_simos.get_native_cc()
-            ret_symbol = native_cc.return_val(
-                javavm_simos.get_native_type(ret_var.type)
-            ).get_value(native_state).to_claripy()
+            ret_symbol = (
+                native_cc.return_val(javavm_simos.get_native_type(ret_var.type)).get_value(native_state).to_claripy()
+            )
             # convert value to java type
             if ret_var.type in ArchSoot.primitive_types:
                 # return value has a primitive type
                 # => we need to manually cast the return value to the correct size, as this
                 #    would be usually done by the java callee
-                ret_value = javavm_simos.cast_primitive(ret_state, ret_symbol,
-                                                        to_type=ret_var.type)
+                ret_value = javavm_simos.cast_primitive(ret_state, ret_symbol, to_type=ret_var.type)
             else:
                 # return value has a reference type
                 # => ret_symbol is a opaque ref
@@ -402,13 +405,12 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         final_args = [jni_env, ref] + args
 
         # Step 3: generate C prototype from java_method
-        voidp = parse_type('void*')
+        voidp = parse_type("void*")
         arg_types = [voidp, voidp] + [state.project.simos.get_native_type(ty) for ty in java_method.params]
         ret_type = state.project.simos.get_native_type(java_method.ret)
         prototype = SimTypeFunction(args=arg_types, returnty=ret_type)
 
         # Step 3: create native invoke state
-        return state.project.simos.state_call(native_addr, *final_args,
-                                              base_state=state,
-                                              prototype=prototype,
-                                              ret_type=java_method.ret)
+        return state.project.simos.state_call(
+            native_addr, *final_args, base_state=state, prototype=prototype, ret_type=java_method.ret
+        )

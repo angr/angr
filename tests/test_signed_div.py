@@ -4,7 +4,7 @@ import sys
 
 import logging
 
-l = logging.getLogger('angr.tests.test_signed_div')
+l = logging.getLogger("angr.tests.test_signed_div")
 
 from unittest import skipUnless
 
@@ -13,7 +13,7 @@ import os
 test_location = os.path.dirname(os.path.realpath(__file__))
 
 
-@skipUnless(sys.platform.startswith('linux'), "linux only")
+@skipUnless(sys.platform.startswith("linux"), "linux only")
 def test_signed_div():
     test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "test_signed_div")
     b = angr.Project(test_bin, auto_load_libs=False)

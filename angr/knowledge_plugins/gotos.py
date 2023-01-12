@@ -8,6 +8,7 @@ class Goto:
     """
     Describe the existence of a goto (jump) statement.
     """
+
     def __init__(self, addr=None, target_addr=None):
         """
         addr: block_addr of the goto
@@ -33,6 +34,7 @@ class Gotos(KnowledgeBasePlugin, dict):
     """
     Stores all goto (jump) statements of a project.
     """
+
     def __init__(self, kb):
         super().__init__()
         self._kb = kb
@@ -52,4 +54,4 @@ class Gotos(KnowledgeBasePlugin, dict):
         return self.__str__()
 
 
-KnowledgeBasePlugin.register_default('gotos', Gotos)
+KnowledgeBasePlugin.register_default("gotos", Gotos)

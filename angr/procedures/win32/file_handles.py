@@ -2,9 +2,10 @@ import angr
 
 # pylint: disable=unused-argument,arguments-differ
 
+
 class GetStdHandle(angr.SimProcedure):
     def run(self, handle):
-        if handle.op != 'BVV':
+        if handle.op != "BVV":
             raise angr.errors.SimProcedureArgumentError("Can't deal with symbolic std handle")
 
         # for now, return file descriptors + 1000 as handles

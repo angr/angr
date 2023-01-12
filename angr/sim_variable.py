@@ -11,9 +11,17 @@ if TYPE_CHECKING:
 
 class SimVariable(Serializable):
 
-    __slots__ = ['ident', 'name', 'region', 'category', 'renamed', 'candidate_names', 'size', ]
+    __slots__ = [
+        "ident",
+        "name",
+        "region",
+        "category",
+        "renamed",
+        "candidate_names",
+        "size",
+    ]
 
-    def __init__(self, ident=None, name=None, region: Optional[int]=None, category=None, size: Optional[int]=None):
+    def __init__(self, ident=None, name=None, region: Optional[int] = None, category=None, size: Optional[int] = None):
         """
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
@@ -29,7 +37,7 @@ class SimVariable(Serializable):
     def copy(self):
         raise NotImplementedError()
 
-    def loc_repr(self, arch: 'archinfo.Arch'):
+    def loc_repr(self, arch: "archinfo.Arch"):
         """
         The representation that shows up in a GUI
         """
@@ -77,7 +85,7 @@ class SimVariable(Serializable):
 
 class SimConstantVariable(SimVariable):
 
-    __slots__ = ['value', '_hash']
+    __slots__ = ["value", "_hash"]
 
     def __init__(self, ident=None, value=None, region=None, size=None):
         super().__init__(ident=ident, region=region, size=size)
@@ -90,7 +98,7 @@ class SimConstantVariable(SimVariable):
         return s
 
     def loc_repr(self, arch):
-        return f'const {self.value}'
+        return f"const {self.value}"
 
     def __eq__(self, other):
         if not isinstance(other, SimConstantVariable):
@@ -104,10 +112,10 @@ class SimConstantVariable(SimVariable):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(('const', self.value, self.ident, self.region, self.ident))
+            self._hash = hash(("const", self.value, self.ident, self.region, self.ident))
         return self._hash
 
-    def copy(self) -> 'SimConstantVariable':
+    def copy(self) -> "SimConstantVariable":
         r = SimConstantVariable(ident=self.ident, value=self.value, region=self.region, size=self.size)
         r._hash = self._hash
         return r
@@ -115,7 +123,7 @@ class SimConstantVariable(SimVariable):
 
 class SimTemporaryVariable(SimVariable):
 
-    __slots__ = ['tmp_id', '_hash']
+    __slots__ = ["tmp_id", "_hash"]
 
     def __init__(self, tmp_id, size=None):
         SimVariable.__init__(self, size=size)
@@ -128,11 +136,11 @@ class SimTemporaryVariable(SimVariable):
         return s
 
     def loc_repr(self, arch):
-        return f'tmp #{self.tmp_id}'
+        return f"tmp #{self.tmp_id}"
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash('tmp_%d' % (self.tmp_id))
+            self._hash = hash("tmp_%d" % (self.tmp_id))
         return self._hash
 
     def __eq__(self, other):
@@ -141,7 +149,7 @@ class SimTemporaryVariable(SimVariable):
 
         return False
 
-    def copy(self) -> 'SimTemporaryVariable':
+    def copy(self) -> "SimTemporaryVariable":
         r = SimTemporaryVariable(self.tmp_id, size=self.size)
         r._hash = self._hash
         return r
@@ -165,7 +173,7 @@ class SimTemporaryVariable(SimVariable):
 
 class SimRegisterVariable(SimVariable):
 
-    __slots__ = ['reg', '_hash']
+    __slots__ = ["reg", "_hash"]
 
     def __init__(self, reg_offset, size, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -191,21 +199,24 @@ class SimRegisterVariable(SimVariable):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(('reg', self.region, self.reg, self.size, self.ident))
+            self._hash = hash(("reg", self.region, self.reg, self.size, self.ident))
         return self._hash
 
     def __eq__(self, other):
         if isinstance(other, SimRegisterVariable):
-            return self.ident == other.ident and \
-                   self.reg == other.reg and \
-                   self.size == other.size and \
-                   self.region == other.region
+            return (
+                self.ident == other.ident
+                and self.reg == other.reg
+                and self.size == other.size
+                and self.region == other.region
+            )
 
         return False
 
-    def copy(self) -> 'SimRegisterVariable':
-        s = SimRegisterVariable(self.reg, self.size, ident=self.ident, name=self.name, region=self.region,
-                                category=self.category)
+    def copy(self) -> "SimRegisterVariable":
+        s = SimRegisterVariable(
+            self.reg, self.size, ident=self.ident, name=self.name, region=self.region, category=self.category
+        )
         s._hash = self._hash
         return s
 
@@ -222,16 +233,17 @@ class SimRegisterVariable(SimVariable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        obj = cls(cmsg.reg,
-                  cmsg.size,
-                  )
+        obj = cls(
+            cmsg.reg,
+            cmsg.size,
+        )
         obj._from_base(cmsg)
         return obj
 
 
 class SimMemoryVariable(SimVariable):
 
-    __slots__ = ['addr', '_hash']
+    __slots__ = ["addr", "_hash"]
 
     def __init__(self, addr, size, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -247,9 +259,9 @@ class SimMemoryVariable(SimVariable):
 
     def __repr__(self):
         if type(self.size) is int:
-            size = '%d' % self.size
+            size = "%d" % self.size
         else:
-            size = '%s' % self.size
+            size = "%s" % self.size
 
         if type(self.addr) is int:
             s = f"<{self.name}: {self.region}-Mem {self.addr:#x} {size}>"
@@ -259,7 +271,7 @@ class SimMemoryVariable(SimVariable):
         return s
 
     def loc_repr(self, arch):
-        return f'[{self.addr:#x}]'
+        return f"[{self.addr:#x}]"
 
     def __hash__(self):
         if self._hash is not None:
@@ -283,9 +295,7 @@ class SimMemoryVariable(SimVariable):
 
     def __eq__(self, other):
         if isinstance(other, SimMemoryVariable):
-            return self.ident == other.ident and \
-                   self.addr == other.addr and \
-                   self.size == other.size
+            return self.ident == other.ident and self.addr == other.addr and self.size == other.size
 
         return False
 
@@ -293,9 +303,10 @@ class SimMemoryVariable(SimVariable):
     def bits(self):
         return self.size * 8
 
-    def copy(self) -> 'SimMemoryVariable':
-        r = SimMemoryVariable(self.addr, self.size, ident=self.ident, name=self.name, region=self.region,
-                              category=self.category)
+    def copy(self) -> "SimMemoryVariable":
+        r = SimMemoryVariable(
+            self.addr, self.size, ident=self.ident, name=self.name, region=self.region, category=self.category
+        )
         r._hash = self._hash
         return r
 
@@ -312,23 +323,28 @@ class SimMemoryVariable(SimVariable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        obj = cls(cmsg.addr,
-                  cmsg.size,
-                  )
+        obj = cls(
+            cmsg.addr,
+            cmsg.size,
+        )
         obj._from_base(cmsg)
         return obj
 
 
 class SimStackVariable(SimMemoryVariable):
 
-    __slots__ = ('base', 'offset', 'base_addr',)
+    __slots__ = (
+        "base",
+        "offset",
+        "base_addr",
+    )
 
-    def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None, category=None):
+    def __init__(self, offset, size, base="sp", base_addr=None, ident=None, name=None, region=None, category=None):
         if isinstance(offset, int) and offset > 0x1000000:
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
             mask = (1 << offset.bit_length()) - 1
-            offset = - ((0 - offset) & mask)
+            offset = -((0 - offset) & mask)
 
         if base_addr is not None:
             addr = offset + base_addr
@@ -344,9 +360,9 @@ class SimStackVariable(SimMemoryVariable):
 
     def __repr__(self):
         if type(self.size) is int:
-            size = '%d' % self.size
+            size = "%d" % self.size
         else:
-            size = '%s' % self.size
+            size = "%s" % self.size
 
         prefix = "%s(stack)" % self.name if self.name is not None else "Stack"
         ident = "[%s]" % self.ident if self.ident else ""
@@ -367,23 +383,33 @@ class SimStackVariable(SimMemoryVariable):
         return s
 
     def loc_repr(self, arch):
-        return f'[{self.base}{self.offset:+#x}]'
+        return f"[{self.base}{self.offset:+#x}]"
 
     def __eq__(self, other):
         if type(other) is not SimStackVariable:
             return False
 
-        return self.ident == other.ident and \
-               self.base == other.base and \
-               self.offset == other.offset and \
-               self.size == other.size
+        return (
+            self.ident == other.ident
+            and self.base == other.base
+            and self.offset == other.offset
+            and self.size == other.size
+        )
 
     def __hash__(self):
         return hash((self.ident, self.base, self.offset, self.size))
 
-    def copy(self) -> 'SimStackVariable':
-        s = SimStackVariable(self.offset, self.size, base=self.base, base_addr=self.base_addr,
-                             ident=self.ident, name=self.name, region=self.region, category=self.category)
+    def copy(self) -> "SimStackVariable":
+        s = SimStackVariable(
+            self.offset,
+            self.size,
+            base=self.base,
+            base_addr=self.base_addr,
+            ident=self.ident,
+            name=self.name,
+            region=self.region,
+            category=self.category,
+        )
         s._hash = self._hash
         return s
 
@@ -401,10 +427,11 @@ class SimStackVariable(SimMemoryVariable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        obj = cls(cmsg.offset,
-                  cmsg.size,
-                  base='sp' if cmsg.sp_base else "bp",
-                  )
+        obj = cls(
+            cmsg.offset,
+            cmsg.size,
+            base="sp" if cmsg.sp_base else "bp",
+        )
         obj._from_base(cmsg)
         return obj
 
@@ -438,7 +465,7 @@ class SimVariableSet(collections.abc.MutableSet):
                 self.add_memory_variable(item)
         else:
             # TODO:
-            raise Exception('WTF')
+            raise Exception("WTF")
 
     def add_register_variable(self, reg_var):
         self.register_variables.add(reg_var)
@@ -446,7 +473,7 @@ class SimVariableSet(collections.abc.MutableSet):
 
     def add_memory_variable(self, mem_var):
         self.memory_variables.add(mem_var)
-        base_address = mem_var.addr.address # Dealing with AddressWrapper
+        base_address = mem_var.addr.address  # Dealing with AddressWrapper
         for i in range(mem_var.size):
             self.memory_variable_addresses.add(base_address + i)
 
@@ -459,7 +486,7 @@ class SimVariableSet(collections.abc.MutableSet):
                 self.discard_memory_variable(item)
         else:
             # TODO:
-            raise Exception('')
+            raise Exception("")
 
     def discard_register_variable(self, reg_var):
         self.register_variables.remove(reg_var)
@@ -515,7 +542,8 @@ class SimVariableSet(collections.abc.MutableSet):
 
     def contains_memory_variable(self, mem_var):
         a = mem_var.addr
-        if type(a) in (tuple, list): a = a[-1]
+        if type(a) in (tuple, list):
+            a = a[-1]
 
         return a in self.memory_variable_addresses
 
@@ -536,7 +564,7 @@ class SimVariableSet(collections.abc.MutableSet):
             return self.contains_memory_variable(item)
 
         else:
-            __import__('ipdb').set_trace()
+            __import__("ipdb").set_trace()
             raise Exception("WTF is this variable?")
 
 

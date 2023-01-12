@@ -4,8 +4,9 @@ import angr
 # __getmainargs
 ######################################
 
+
 class __getmainargs(angr.SimProcedure):
-    #pylint:disable=arguments-differ,unused-argument
+    # pylint:disable=arguments-differ,unused-argument
 
     def run(self, argc_p, argv_ppp, env_ppp, dowildcard, startupinfo_p):
         if any(map(self.state.solver.symbolic, [argc_p, argv_ppp, env_ppp])):

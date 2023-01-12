@@ -2,7 +2,6 @@ from .plugin import KnowledgeBasePlugin
 
 
 class Propagations(KnowledgeBasePlugin):
-
     def __init__(self, kb):
         self._kb = kb
         self._propagations = {}
@@ -52,4 +51,4 @@ class Propagations(KnowledgeBasePlugin):
             o._propagations[k] = v
 
 
-KnowledgeBasePlugin.register_default('propagations', Propagations)
+KnowledgeBasePlugin.register_default("propagations", Propagations)

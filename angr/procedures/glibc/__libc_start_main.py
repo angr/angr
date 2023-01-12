@@ -10,11 +10,11 @@ l = logging.getLogger(name=__name__)
 # __libc_start_main
 ######################################
 class __libc_start_main(angr.SimProcedure):
-    #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init,missing-class-docstring
+    # pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init,missing-class-docstring
 
     ADDS_EXITS = True
     NO_RET = True
-    local_vars = ('main', 'argc', 'argv', 'init', 'fini', 'initializers')
+    local_vars = ("main", "argc", "argv", "init", "fini", "initializers")
 
     def _initialize_b_loc_table(self):
         """
@@ -22,27 +22,29 @@ class __libc_start_main(angr.SimProcedure):
 
         See __ctype_b_loc.c in libc implementation
         """
-        malloc = angr.SIM_PROCEDURES['libc']['malloc']
+        malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
         table = self.inline_call(malloc, 768).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
             # Each entry is 2 bytes
-            self.state.memory.store(table + (pos*2),
-                                    self.state.solver.BVV(c, 16),
-                                    inspect=False,
-                                    disable_actions=True,
-                                    )
+            self.state.memory.store(
+                table + (pos * 2),
+                self.state.solver.BVV(c, 16),
+                inspect=False,
+                disable_actions=True,
+            )
         # Offset for negative chars
         # 256 because 2 bytes each, -128 * 2
         table += 256
-        self.state.memory.store(table_ptr,
-                                table,
-                                size=self.state.arch.bytes,
-                                endness=self.state.arch.memory_endness,
-                                inspect=False,
-                                disable_actions=True,
-                                )
+        self.state.memory.store(
+            table_ptr,
+            table,
+            size=self.state.arch.bytes,
+            endness=self.state.arch.memory_endness,
+            inspect=False,
+            disable_actions=True,
+        )
 
         self.state.libc.ctype_b_loc_table_ptr = table_ptr
 
@@ -52,28 +54,30 @@ class __libc_start_main(angr.SimProcedure):
 
         See __ctype_tolower_loc.c in libc implementation
         """
-        malloc = angr.SIM_PROCEDURES['libc']['malloc']
+        malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
         # 384 entries, 4 bytes each
-        table = self.inline_call(malloc, 384*4).ret_expr
+        table = self.inline_call(malloc, 384 * 4).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
-            self.state.memory.store(table + (pos * 4),
-                                    self.state.solver.BVV(c, 32),
-                                    endness=self.state.arch.memory_endness,
-                                    inspect=False,
-                                    disable_actions=True,
-                                    )
+            self.state.memory.store(
+                table + (pos * 4),
+                self.state.solver.BVV(c, 32),
+                endness=self.state.arch.memory_endness,
+                inspect=False,
+                disable_actions=True,
+            )
 
         # Offset for negative chars: -128 index (4 bytes per index)
-        table += (128 * 4)
-        self.state.memory.store(table_ptr,
-                                table,
-                                size=self.state.arch.bytes,
-                                endness=self.state.arch.memory_endness,
-                                inspect=False,
-                                disable_actions=True,
-                                )
+        table += 128 * 4
+        self.state.memory.store(
+            table_ptr,
+            table,
+            size=self.state.arch.bytes,
+            endness=self.state.arch.memory_endness,
+            inspect=False,
+            disable_actions=True,
+        )
 
         self.state.libc.ctype_tolower_loc_table_ptr = table_ptr
 
@@ -83,28 +87,30 @@ class __libc_start_main(angr.SimProcedure):
 
         See __ctype_toupper_loc.c in libc implementation
         """
-        malloc = angr.SIM_PROCEDURES['libc']['malloc']
+        malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
         # 384 entries, 4 bytes each
-        table = self.inline_call(malloc, 384*4).ret_expr
+        table = self.inline_call(malloc, 384 * 4).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
-            self.state.memory.store(table + (pos * 4),
-                                    self.state.solver.BVV(c, 32),
-                                    endness=self.state.arch.memory_endness,
-                                    inspect=False,
-                                    disable_actions=True,
-                                    )
+            self.state.memory.store(
+                table + (pos * 4),
+                self.state.solver.BVV(c, 32),
+                endness=self.state.arch.memory_endness,
+                inspect=False,
+                disable_actions=True,
+            )
 
         # Offset for negative chars: -128 index (4 bytes per index)
-        table += (128 * 4)
-        self.state.memory.store(table_ptr,
-                                table,
-                                size=self.state.arch.bytes,
-                                endness=self.state.arch.memory_endness,
-                                inspect=False,
-                                disable_actions=True,
-                                )
+        table += 128 * 4
+        self.state.memory.store(
+            table_ptr,
+            table,
+            size=self.state.arch.bytes,
+            endness=self.state.arch.memory_endness,
+            inspect=False,
+            disable_actions=True,
+        )
 
         self.state.libc.ctype_toupper_loc_table_ptr = table_ptr
 
@@ -114,7 +120,7 @@ class __libc_start_main(angr.SimProcedure):
         self._initialize_toupper_loc_table()
 
     def _initialize_errno(self):
-        malloc = angr.SIM_PROCEDURES['libc']['malloc']
+        malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
         errno_loc = self.inline_call(malloc, self.state.arch.bytes).ret_expr
 
         self.state.libc.errno_location = errno_loc
@@ -122,7 +128,7 @@ class __libc_start_main(angr.SimProcedure):
 
     @property
     def envp(self):
-        return self.argv + (self.argc+1)*self.state.arch.bytes
+        return self.argv + (self.argc + 1) * self.state.arch.bytes
 
     def run(self, main, argc, argv, init, fini):
         # TODO: handle symbolic and static modes
@@ -130,19 +136,24 @@ class __libc_start_main(angr.SimProcedure):
         self._initialize_ctype_table()
         self._initialize_errno()
 
-        self.main, self.argc, self.argv, self.init, self.fini = self._extract_args(self.state, main, argc, argv, init,
-                                                                                   fini)
+        self.main, self.argc, self.argv, self.init, self.fini = self._extract_args(
+            self.state, main, argc, argv, init, fini
+        )
 
         # TODO: __cxa_atexit calls for various at-exit needs
 
         if not self.state.solver.is_true(self.init == 0):
             self.initializers = None
-            self.call(self.init, (self.argc[31:0], self.argv, self.envp), 'after_init',
-                prototype = 'int main(int argc, char **argv, char **envp)')
+            self.call(
+                self.init,
+                (self.argc[31:0], self.argv, self.envp),
+                "after_init",
+                prototype="int main(int argc, char **argv, char **envp)",
+            )
         else:
             obj = self.project.loader.main_object
-            init_func = getattr(obj, '_init_func', None)
-            init_arr = getattr(obj, '_init_arr', None)
+            init_func = getattr(obj, "_init_func", None)
+            init_arr = getattr(obj, "_init_arr", None)
             init_func = [init_func] if init_func else []
             self.initializers = init_func + list(init_arr)
             for i, x in enumerate(self.initializers):
@@ -154,23 +165,37 @@ class __libc_start_main(angr.SimProcedure):
             self.after_init(main, argc, argv, init, fini)
         else:
             addr = self.initializers.pop(0)
-            self.call(addr, (self.argc[31:0], self.argv, self.envp), 'inside_init',
-                  prototype='int main(int argc, char **argv, char **envp)')
+            self.call(
+                addr,
+                (self.argc[31:0], self.argv, self.envp),
+                "inside_init",
+                prototype="int main(int argc, char **argv, char **envp)",
+            )
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
-        self.call(self.main, (self.argc[31:0], self.argv, self.envp), 'after_main',
-            prototype='int main(int argc, char **argv, char **envp)')
+        self.call(
+            self.main,
+            (self.argc[31:0], self.argv, self.envp),
+            "after_main",
+            prototype="int main(int argc, char **argv, char **envp)",
+        )
 
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
         self.exit(0)
 
     def static_exits(self, blocks, cfg=None, **kwargs):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(project=self.project, mode="fastpath", cle_memory_backer=self.project.loader.memory,
-                                    add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
-                                                 angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+        blank_state = angr.SimState(
+            project=self.project,
+            mode="fastpath",
+            cle_memory_backer=self.project.loader.memory,
+            add_options={
+                angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+                angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
+            },
+        )
         # set up the stack pointer
-        blank_state.regs.sp = 0x7ffffff0
+        blank_state.regs.sp = 0x7FFFFFF0
 
         # special handling for x86 PIE GCC binaries
         #
@@ -201,13 +226,13 @@ class __libc_start_main(angr.SimProcedure):
                 if len(caller_nodes) == 1:
                     caller_node = caller_nodes[0]
                     succ_and_jks = caller_node.successors_and_jumpkinds()
-                    if len(succ_and_jks) == 1 and succ_and_jks[0][1] == 'Ijk_Call':
+                    if len(succ_and_jks) == 1 and succ_and_jks[0][1] == "Ijk_Call":
                         # get_pc
                         getpc_func = cfg.functions.get_by_addr(succ_and_jks[0][0].addr)
-                        if getpc_func is not None and 'get_pc' in getpc_func.info:
+                        if getpc_func is not None and "get_pc" in getpc_func.info:
                             # GCC-generated x86-pie binary confirmed.
                             # initialize the specified register with the block address
-                            get_pc_reg = getpc_func.info['get_pc']
+                            get_pc_reg = getpc_func.info["get_pc"]
                             setattr(blank_state.regs, "_" + get_pc_reg, first_block.addr)
 
         # Execute each block
@@ -220,14 +245,14 @@ class __libc_start_main(angr.SimProcedure):
                 break
 
         cc = angr.DEFAULT_CC[self.arch.name](self.arch)
-        ty = angr.sim_type.parse_signature('void x(void*, void*, void*, void*, void*)').with_arch(self.arch)
+        ty = angr.sim_type.parse_signature("void x(void*, void*, void*, void*, void*)").with_arch(self.arch)
         args = cc.get_args(state, ty)
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
         all_exits = [
-            {'address': init, 'jumpkind': 'Ijk_Call', 'namehint': 'init'},
-            {'address': main, 'jumpkind': 'Ijk_Call', 'namehint': 'main'},
-            {'address': fini, 'jumpkind': 'Ijk_Call', 'namehint': 'fini'},
+            {"address": init, "jumpkind": "Ijk_Call", "namehint": "init"},
+            {"address": main, "jumpkind": "Ijk_Call", "namehint": "main"},
+            {"address": fini, "jumpkind": "Ijk_Call", "namehint": "fini"},
         ]
 
         return all_exits
@@ -257,13 +282,13 @@ class __libc_start_main(angr.SimProcedure):
             # for some dumb reason, PPC passes arguments to libc_start_main in some completely absurd way
             argv_ = argc_
             argc_ = main_
-            main_ = state.mem[state.regs.r8 + 4:].int.resolved
-            init_ = state.mem[state.regs.r8 + 8:].int.resolved
-            fini_ = state.mem[state.regs.r8 + 12:].int.resolved
+            main_ = state.mem[state.regs.r8 + 4 :].int.resolved
+            init_ = state.mem[state.regs.r8 + 8 :].int.resolved
+            fini_ = state.mem[state.regs.r8 + 12 :].int.resolved
 
         elif state.arch.name == "PPC64":
-            main_ = state.mem[state.regs.r8 + 8:].long.resolved
-            init_ = state.mem[state.regs.r8 + 16:].long.resolved
-            fini_ = state.mem[state.regs.r8 + 24:].long.resolved
+            main_ = state.mem[state.regs.r8 + 8 :].long.resolved
+            init_ = state.mem[state.regs.r8 + 16 :].long.resolved
+            fini_ = state.mem[state.regs.r8 + 24 :].long.resolved
 
         return main_, argc_, argv_, init_, fini_

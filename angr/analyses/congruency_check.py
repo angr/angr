@@ -5,7 +5,7 @@ import claripy
 from . import Analysis
 
 l = logging.getLogger(name=__name__)
-#l.setLevel(logging.DEBUG)
+# l.setLevel(logging.DEBUG)
 
 
 class CongruencyCheck(Analysis):
@@ -23,16 +23,20 @@ class CongruencyCheck(Analysis):
         self.simgr = None
         self.prev_pg = None
 
-    def set_state_options(self, left_add_options=None, left_remove_options=None, right_add_options=None, right_remove_options=None):
+    def set_state_options(
+        self, left_add_options=None, left_remove_options=None, right_add_options=None, right_remove_options=None
+    ):
         """
         Checks that the specified state options result in the same states over the next `depth` states.
         """
         s_right = self.project.factory.full_init_state(
-            add_options=right_add_options, remove_options=right_remove_options,
+            add_options=right_add_options,
+            remove_options=right_remove_options,
             args=[],
         )
         s_left = self.project.factory.full_init_state(
-            add_options=left_add_options, remove_options=left_remove_options,
+            add_options=left_add_options,
+            remove_options=left_remove_options,
             args=[],
         )
 
@@ -44,11 +48,11 @@ class CongruencyCheck(Analysis):
         """
 
         simgr = self.project.factory.simulation_manager(right_state)
-        simgr.stash(to_stash='right')
+        simgr.stash(to_stash="right")
         simgr.active.append(left_state)
-        simgr.stash(to_stash='left')
-        simgr.stash(to_stash='stashed_left')
-        simgr.stash(to_stash='stashed_right')
+        simgr.stash(to_stash="left")
+        simgr.stash(to_stash="stashed_left")
+        simgr.stash(to_stash="stashed_right")
 
         return self.set_simgr(simgr)
 
@@ -70,10 +74,10 @@ class CongruencyCheck(Analysis):
             return simgr
         if len(simgr.left) == 0 and len(simgr.right) != 0:
             l.debug("... left is deadended; stepping right %s times", max_steps)
-            npg = simgr.run(stash='right', n=max_steps)
+            npg = simgr.run(stash="right", n=max_steps)
         elif len(simgr.right) == 0 and len(simgr.left) != 0:
             l.debug("... right is deadended; stepping left %s times", max_steps)
-            npg = simgr.run(stash='left', n=max_steps)
+            npg = simgr.run(stash="left", n=max_steps)
         elif len(simgr.right) == 0 and len(simgr.left) == 0:
             l.debug("... both deadended.")
             return simgr
@@ -81,20 +85,24 @@ class CongruencyCheck(Analysis):
             l.debug("... synced")
             return simgr
         elif simgr.left[0].history.block_count < simgr.right[0].history.block_count:
-            l.debug("... right is ahead; stepping left %s times",
-                    simgr.right[0].history.block_count - simgr.left[0].history.block_count)
+            l.debug(
+                "... right is ahead; stepping left %s times",
+                simgr.right[0].history.block_count - simgr.left[0].history.block_count,
+            )
             npg = simgr.run(
-                stash='left',
+                stash="left",
                 until=lambda lpg: lpg.left[0].history.block_count >= simgr.right[0].history.block_count,
-                n=max_steps
+                n=max_steps,
             )
         elif simgr.right[0].history.block_count < simgr.left[0].history.block_count:
-            l.debug("... left is ahead; stepping right %s times",
-                    simgr.left[0].history.block_count - simgr.right[0].history.block_count)
+            l.debug(
+                "... left is ahead; stepping right %s times",
+                simgr.left[0].history.block_count - simgr.right[0].history.block_count,
+            )
             npg = simgr.run(
-                stash='right',
+                stash="right",
                 until=lambda lpg: lpg.right[0].history.block_count >= simgr.left[0].history.block_count,
-                n=max_steps
+                n=max_steps,
             )
 
         return CongruencyCheck._sync_steps(npg)
@@ -113,11 +121,11 @@ class CongruencyCheck(Analysis):
 
             if ("UNICORN" in self.simgr.right[0].options) ^ ("UNICORN" in self.simgr.left[0].options):
                 if "UNICORN" in self.simgr.right[0].options:
-                    unicorn_stash = 'right'
-                    normal_stash = 'left'
+                    unicorn_stash = "right"
+                    normal_stash = "left"
                 else:
-                    unicorn_stash = 'left'
-                    normal_stash = 'right'
+                    unicorn_stash = "left"
+                    normal_stash = "right"
 
                 unicorn_path = self.simgr.stashes[unicorn_stash][0]
                 normal_path = self.simgr.stashes[normal_stash][0]
@@ -191,7 +199,7 @@ class CongruencyCheck(Analysis):
         The path group should have a "left" and a "right" stash, each with a single
         path.
         """
-        #pg_history = [ ]
+        # pg_history = [ ]
         if len(self.simgr.right) != 1 or len(self.simgr.left) != 1:
             self._report_incongruency("Single path in pg.left and pg.right required.")
             return False
@@ -209,7 +217,7 @@ class CongruencyCheck(Analysis):
 
         while len(self.simgr.left) > 0 and len(self.simgr.right) > 0:
             if depth is not None:
-                self._update_progress(100. * float(self.simgr.one_left.history.block_count) / depth)
+                self._update_progress(100.0 * float(self.simgr.one_left.history.block_count) / depth)
 
             if len(self.simgr.deadended) != 0:
                 self._report_incongruency("Unexpected deadended paths before step.")
@@ -222,13 +230,9 @@ class CongruencyCheck(Analysis):
                 return False
 
             # do a step
-            l.debug(
-                "Stepping right path with weighted length %d/%d",
-                self.simgr.right[0].history.block_count,
-                depth
-            )
-            self.prev_pg = self.simgr.copy() #pylint:disable=unused-variable
-            self.simgr.step(stash='right')
+            l.debug("Stepping right path with weighted length %d/%d", self.simgr.right[0].history.block_count, depth)
+            self.prev_pg = self.simgr.copy()  # pylint:disable=unused-variable
+            self.simgr.step(stash="right")
             CongruencyCheck._sync_steps(self.simgr)
 
             if len(self.simgr.errored) != 0:
@@ -244,19 +248,19 @@ class CongruencyCheck(Analysis):
                     raise
 
             if depth is not None:
-                self.simgr.drop(stash='left', filter_func=lambda p: p.history.block_count >= depth)
-                self.simgr.drop(stash='right', filter_func=lambda p: p.history.block_count >= depth)
+                self.simgr.drop(stash="left", filter_func=lambda p: p.history.block_count >= depth)
+                self.simgr.drop(stash="right", filter_func=lambda p: p.history.block_count >= depth)
 
             self.simgr.right.sort(key=lambda p: p.addr)
             self.simgr.left.sort(key=lambda p: p.addr)
             self.simgr.stashed_right[:] = self.simgr.stashed_right[::-1]
             self.simgr.stashed_left[:] = self.simgr.stashed_left[::-1]
-            self.simgr.move('stashed_right', 'right')
-            self.simgr.move('stashed_left', 'left')
+            self.simgr.move("stashed_right", "right")
+            self.simgr.move("stashed_left", "left")
 
             if len(self.simgr.left) > 1:
-                self.simgr.split(from_stash='left', limit=1, to_stash='stashed_left')
-                self.simgr.split(from_stash='right', limit=1, to_stash='stashed_right')
+                self.simgr.split(from_stash="left", limit=1, to_stash="stashed_left")
+                self.simgr.split(from_stash="right", limit=1, to_stash="stashed_right")
 
     def compare_path_group(self, pg):
         if len(pg.left) != len(pg.right):
@@ -265,13 +269,13 @@ class CongruencyCheck(Analysis):
         if len(pg.deadended) % 2 != 0:
             self._report_incongruency("Odd number of deadended paths after step.")
             return False
-        pg.drop(stash='deadended')
+        pg.drop(stash="deadended")
 
         if len(pg.left) == 0 and len(pg.right) == 0:
             return True
 
         # make sure the paths are the same
-        for pl,pr in zip(sorted(pg.left, key=lambda p: p.addr), sorted(pg.right, key=lambda p: p.addr)):
+        for pl, pr in zip(sorted(pg.left, key=lambda p: p.addr), sorted(pg.right, key=lambda p: p.addr)):
             if not self.compare_paths(pl, pr):
                 self._report_incongruency("Differing paths.")
                 return False
@@ -285,8 +289,12 @@ class CongruencyCheck(Analysis):
         joint_solver = claripy.Solver()
 
         # make sure the canonicalized constraints are the same
-        n_map, n_counter, n_canon_constraint = claripy.And(*sr.solver.constraints).canonicalize() #pylint:disable=no-member
-        u_map, u_counter, u_canon_constraint = claripy.And(*sl.solver.constraints).canonicalize() #pylint:disable=no-member
+        n_map, n_counter, n_canon_constraint = claripy.And(
+            *sr.solver.constraints
+        ).canonicalize()  # pylint:disable=no-member
+        u_map, u_counter, u_canon_constraint = claripy.And(
+            *sl.solver.constraints
+        ).canonicalize()  # pylint:disable=no-member
         if n_canon_constraint is not u_canon_constraint:
             # https://github.com/Z3Prover/z3/issues/2359
             # don't try to simplify unless we really need to, as it can introduce serious nondeterminism
@@ -312,15 +320,15 @@ class CongruencyCheck(Analysis):
         # this is only for unicorn
         if "UNICORN" in sl.options or "UNICORN" in sr.options:
             if sl.arch.name == "X86":
-                reg_diff -= set(range(40, 52)) #ignore cc psuedoregisters
-                reg_diff -= set(range(320, 324)) #some other VEX weirdness
-                reg_diff -= set(range(340, 344)) #ip_at_syscall
+                reg_diff -= set(range(40, 52))  # ignore cc psuedoregisters
+                reg_diff -= set(range(320, 324))  # some other VEX weirdness
+                reg_diff -= set(range(340, 344))  # ip_at_syscall
             elif sl.arch.name == "AMD64":
-                reg_diff -= set(range(144, 168)) #ignore cc psuedoregisters
+                reg_diff -= set(range(144, 168))  # ignore cc psuedoregisters
 
         # make sure the differences in registers and memory are actually just renamed
         # versions of the same ASTs
-        for diffs,(um,nm) in (
+        for diffs, (um, nm) in (
             (reg_diff, (sl.registers, sr.registers)),
             (mem_diff, (sl.memory, sr.memory)),
         ):
@@ -340,7 +348,7 @@ class CongruencyCheck(Analysis):
             # pylint: disable=unused-variable
             n_bkp = sr.regs.cc_op, sr.regs.cc_dep1, sr.regs.cc_dep2, sr.regs.cc_ndep
             u_bkp = sl.regs.cc_op, sl.regs.cc_dep1, sl.regs.cc_dep2, sl.regs.cc_ndep
-            if sl.arch.name in ('AMD64', 'X86'):
+            if sl.arch.name in ("AMD64", "X86"):
                 n_flags = sr.regs.eflags.canonicalize(var_map=n_map, counter=n_counter)[-1]
                 u_flags = sl.regs.eflags.canonicalize(var_map=u_map, counter=u_counter)[-1]
             else:
@@ -368,6 +376,8 @@ class CongruencyCheck(Analysis):
 
         return True
 
+
 from ..errors import AngrIncongruencyError
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('CongruencyCheck', CongruencyCheck)
+
+AnalysesHub.register_default("CongruencyCheck", CongruencyCheck)

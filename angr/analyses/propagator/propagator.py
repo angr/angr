@@ -30,13 +30,32 @@ class PropagatorState:
     Describes the base state used in Propagator.
     """
 
-    __slots__ = ('arch', 'gpr_size', '_prop_count', '_only_consts', '_replacements', '_equivalence', 'project',
-                 '_store_tops', '_gp', '__weakref__', )
+    __slots__ = (
+        "arch",
+        "gpr_size",
+        "_prop_count",
+        "_only_consts",
+        "_replacements",
+        "_equivalence",
+        "project",
+        "_store_tops",
+        "_gp",
+        "__weakref__",
+    )
 
     _tops = {}
 
-    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
-                 store_tops=True, gp=None):
+    def __init__(
+        self,
+        arch,
+        project=None,
+        replacements=None,
+        only_consts=False,
+        prop_count=None,
+        equivalence=None,
+        store_tops=True,
+        gp=None,
+    ):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
@@ -71,9 +90,12 @@ class PropagatorState:
         return False
 
     @staticmethod
-    def _mo_cmp(mo_self: Union['SimMemoryObject','SimLabeledMemoryObject'],
-                mo_other: Union['SimMemoryObject','SimLabeledMemoryObject'],
-                addr: int, size: int):  # pylint:disable=unused-argument
+    def _mo_cmp(
+        mo_self: Union["SimMemoryObject", "SimLabeledMemoryObject"],
+        mo_other: Union["SimMemoryObject", "SimLabeledMemoryObject"],
+        addr: int,
+        size: int,
+    ):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
@@ -116,7 +138,7 @@ class PropagatorState:
                 return True
         return False
 
-    def copy(self) -> 'PropagatorState':
+    def copy(self) -> "PropagatorState":
         raise NotImplementedError()
 
     def merge(self, *others):
@@ -175,28 +197,51 @@ class PropagatorState:
 
 # VEX state
 
+
 class PropagatorVEXState(PropagatorState):
     """
     Describes the state used in the VEX engine of Propagator.
     """
 
-    __slots__ = ('_registers', '_stack_variables', 'do_binops', )
+    __slots__ = (
+        "_registers",
+        "_stack_variables",
+        "do_binops",
+    )
 
-    def __init__(self, arch, project=None, registers=None, local_variables=None, replacements=None, only_consts=False,
-                 prop_count=None, do_binops=True, store_tops=True, gp=None):
-        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
-                         prop_count=prop_count, store_tops=store_tops, gp=gp)
+    def __init__(
+        self,
+        arch,
+        project=None,
+        registers=None,
+        local_variables=None,
+        replacements=None,
+        only_consts=False,
+        prop_count=None,
+        do_binops=True,
+        store_tops=True,
+        gp=None,
+    ):
+        super().__init__(
+            arch,
+            project=project,
+            replacements=replacements,
+            only_consts=only_consts,
+            prop_count=prop_count,
+            store_tops=store_tops,
+            gp=gp,
+        )
         self.do_binops = do_binops
-        self._registers = LabeledMemory(
-            memory_id='reg',
-            top_func=self.top,
-            page_kwargs={'mo_cmp': self._mo_cmp}) \
-            if registers is None else registers
-        self._stack_variables = LabeledMemory(
-            memory_id='mem',
-            top_func=self.top,
-            page_kwargs={'mo_cmp': self._mo_cmp}) \
-            if local_variables is None else local_variables
+        self._registers = (
+            LabeledMemory(memory_id="reg", top_func=self.top, page_kwargs={"mo_cmp": self._mo_cmp})
+            if registers is None
+            else registers
+        )
+        self._stack_variables = (
+            LabeledMemory(memory_id="mem", top_func=self.top, page_kwargs={"mo_cmp": self._mo_cmp})
+            if local_variables is None
+            else local_variables
+        )
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
@@ -204,7 +249,7 @@ class PropagatorVEXState(PropagatorState):
     def __repr__(self):
         return "<PropagatorVEXState>"
 
-    def copy(self) -> 'PropagatorVEXState':
+    def copy(self) -> "PropagatorVEXState":
         cp = PropagatorVEXState(
             self.arch,
             project=self.project,
@@ -220,7 +265,7 @@ class PropagatorVEXState(PropagatorState):
 
         return cp
 
-    def merge(self, *others: 'PropagatorVEXState') -> Tuple['PropagatorVEXState',bool]:
+    def merge(self, *others: "PropagatorVEXState") -> Tuple["PropagatorVEXState", bool]:
         state = self.copy()
         merge_occurred = state._registers.merge([o._registers for o in others], None)
         merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
@@ -260,7 +305,11 @@ class Equivalence:
     Describes an equivalence relationship between two atoms.
     """
 
-    __slots__ = ('codeloc', 'atom0', 'atom1',)
+    __slots__ = (
+        "codeloc",
+        "atom0",
+        "atom1",
+    )
 
     def __init__(self, codeloc, atom0, atom1):
         self.codeloc = codeloc
@@ -271,10 +320,12 @@ class Equivalence:
         return f"<Eq@{self.codeloc!r}: {self.atom0!r}=={self.atom1!r}>"
 
     def __eq__(self, other):
-        return type(other) is Equivalence \
-               and other.codeloc == self.codeloc \
-               and other.atom0 == self.atom0 \
-               and other.atom1 == self.atom1
+        return (
+            type(other) is Equivalence
+            and other.codeloc == self.codeloc
+            and other.atom0 == self.atom0
+            and other.atom1 == self.atom1
+        )
 
     def __hash__(self):
         return hash((Equivalence, self.codeloc, self.atom0, self.atom1))
@@ -285,38 +336,69 @@ class PropagatorAILState(PropagatorState):
     Describes the state used in the AIL engine of Propagator.
     """
 
-    __slots__ = ('_registers', '_stack_variables', '_tmps', 'temp_expressions', 'register_expressions',
-                 'last_stack_store', 'global_stores', 'block_initial_reg_values', )
+    __slots__ = (
+        "_registers",
+        "_stack_variables",
+        "_tmps",
+        "temp_expressions",
+        "register_expressions",
+        "last_stack_store",
+        "global_stores",
+        "block_initial_reg_values",
+    )
 
-    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
-                 stack_variables=None, registers=None, gp=None, block_initial_reg_values=None):
-        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
-                         prop_count=prop_count, equivalence=equivalence, gp=gp)
+    def __init__(
+        self,
+        arch,
+        project=None,
+        replacements=None,
+        only_consts=False,
+        prop_count=None,
+        equivalence=None,
+        stack_variables=None,
+        registers=None,
+        gp=None,
+        block_initial_reg_values=None,
+    ):
+        super().__init__(
+            arch,
+            project=project,
+            replacements=replacements,
+            only_consts=only_consts,
+            prop_count=prop_count,
+            equivalence=equivalence,
+            gp=gp,
+        )
 
-        self._stack_variables = LabeledMemory(memory_id='mem',
-                                              top_func=self.top,
-                                              page_kwargs={'mo_cmp': self._mo_cmp}) \
-            if stack_variables is None else stack_variables
-        self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
-            if registers is None else registers
+        self._stack_variables = (
+            LabeledMemory(memory_id="mem", top_func=self.top, page_kwargs={"mo_cmp": self._mo_cmp})
+            if stack_variables is None
+            else stack_variables
+        )
+        self._registers = (
+            LabeledMemory(memory_id="reg", top_func=self.top, page_kwargs={"mo_cmp": self._mo_cmp})
+            if registers is None
+            else registers
+        )
         self._tmps = {}
-        self.temp_expressions = { }
-        self.register_expressions = { }
-        self.block_initial_reg_values: DefaultDict[Tuple[int,int],List[Tuple[ailment.Expr.Register,ailment.Expr.Const]]] = \
-            defaultdict(list) if block_initial_reg_values is None else block_initial_reg_values
+        self.temp_expressions = {}
+        self.register_expressions = {}
+        self.block_initial_reg_values: DefaultDict[
+            Tuple[int, int], List[Tuple[ailment.Expr.Register, ailment.Expr.Const]]
+        ] = (defaultdict(list) if block_initial_reg_values is None else block_initial_reg_values)
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
         # last_stack_store stores the most recent stack store statement with a non-concrete or unresolvable address. we
         # use this information to determine if stack reads after this store can be safely resolved to definitions prior
         # to the stack read.
-        self.last_stack_store: Optional[Tuple[int,int,ailment.Stmt.Store]] = None
-        self.global_stores: List[Tuple[int,int,Any,ailment.Stmt.Store]] = [ ]
+        self.last_stack_store: Optional[Tuple[int, int, ailment.Stmt.Store]] = None
+        self.global_stores: List[Tuple[int, int, Any, ailment.Stmt.Store]] = []
 
     def __repr__(self):
         return "<PropagatorAILState>"
 
-    def copy(self) -> 'PropagatorAILState':
+    def copy(self) -> "PropagatorAILState":
         rd = PropagatorAILState(
             self.arch,
             project=self.project,
@@ -334,7 +416,7 @@ class PropagatorAILState(PropagatorState):
         return rd
 
     @staticmethod
-    def is_const_or_register(value: Optional[Union[ailment.Expr.Expression,claripy.ast.Bits]]) -> bool:
+    def is_const_or_register(value: Optional[Union[ailment.Expr.Expression, claripy.ast.Bits]]) -> bool:
         if value is None:
             return False
         if isinstance(value, claripy.ast.BV):
@@ -352,9 +434,9 @@ class PropagatorAILState(PropagatorState):
             return True
         return False
 
-    def merge(self, *others) -> Tuple['PropagatorAILState',bool]:
+    def merge(self, *others) -> Tuple["PropagatorAILState", bool]:
         state, merge_occurred = super().merge(*others)
-        state: 'PropagatorAILState'
+        state: "PropagatorAILState"
 
         merge_occurred |= state._registers.merge([o._registers for o in others], None)
         merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
@@ -372,10 +454,17 @@ class PropagatorAILState(PropagatorState):
             return
 
         for offset, chopped_value, size, label in value.value_and_labels():
-            self._registers.store(reg.reg_offset + offset, chopped_value, size=size, label=label,
-                                  endness=self.project.arch.register_endness)
+            self._registers.store(
+                reg.reg_offset + offset,
+                chopped_value,
+                size=size,
+                label=label,
+                endness=self.project.arch.register_endness,
+            )
 
-    def store_stack_variable(self, sp_offset: int, new: PropValue, endness=None) -> None:  # pylint:disable=unused-argument
+    def store_stack_variable(
+        self, sp_offset: int, new: PropValue, endness=None
+    ) -> None:  # pylint:disable=unused-argument
         # normalize sp_offset to handle negative offsets
         sp_offset += 0x65536
         sp_offset &= (1 << self.arch.bits) - 1
@@ -385,8 +474,9 @@ class PropagatorAILState(PropagatorState):
 
     def load_register(self, reg: ailment.Expr.Register) -> Optional[PropValue]:
         try:
-            value, labels = self._registers.load_with_labels(reg.reg_offset, size=reg.size,
-                                                             endness=self.project.arch.register_endness)
+            value, labels = self._registers.load_with_labels(
+                reg.reg_offset, size=reg.size, endness=self.project.arch.register_endness
+            )
         except SimMemoryMissingError:
             # value does not exist
             return None
@@ -405,9 +495,9 @@ class PropagatorAILState(PropagatorState):
             if ex.missing_addr > sp_offset:
                 # some data exist. load again
                 try:
-                    value, labels = self._stack_variables.load_with_labels(sp_offset,
-                                                                           size=ex.missing_addr - sp_offset,
-                                                                           endness=endness)
+                    value, labels = self._stack_variables.load_with_labels(
+                        sp_offset, size=ex.missing_addr - sp_offset, endness=endness
+                    )
                     # then we zero-extend both the value and labels
                     if value is not None and len(labels) == 1 and labels[0][0] == 0:
                         value = claripy.ZeroExt(ex.missing_size * self.arch.byte_width, value)
@@ -448,13 +538,19 @@ class PropagatorAILState(PropagatorState):
             return
 
         prop_count = 0
-        if not isinstance(old, ailment.Expr.Tmp) and isinstance(new, ailment.Expr.Expression) \
-                and not isinstance(new, ailment.Expr.Const):
+        if (
+            not isinstance(old, ailment.Expr.Tmp)
+            and isinstance(new, ailment.Expr.Expression)
+            and not isinstance(new, ailment.Expr.Const)
+        ):
             self._prop_count[new] += 1
             prop_count = self._prop_count[new]
 
-        if prop_count <= 1 or isinstance(new, ailment.Expr.StackBaseOffset) or (
-                isinstance(old, ailment.Expr.Register) and self.arch.is_artificial_register(old.reg_offset, old.size)):
+        if (
+            prop_count <= 1
+            or isinstance(new, ailment.Expr.StackBaseOffset)
+            or (isinstance(old, ailment.Expr.Register) and self.arch.is_artificial_register(old.reg_offset, old.size))
+        ):
             # we can propagate this expression
             super().add_replacement(codeloc, old, new)
         else:
@@ -503,10 +599,23 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     - Writing values to a stack variable
     """
 
-    def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None, only_consts=False, completed_funcs=None,
-                 do_binops=True, store_tops=True, vex_cross_insn_opt=False, func_addr: Optional[int]=None,
-                 gp: Optional[int]=None):
+    def __init__(
+        self,
+        func=None,
+        block=None,
+        func_graph=None,
+        base_state=None,
+        max_iterations=3,
+        load_callback=None,
+        stack_pointer_tracker=None,
+        only_consts=False,
+        completed_funcs=None,
+        do_binops=True,
+        store_tops=True,
+        vex_cross_insn_opt=False,
+        func_addr: Optional[int] = None,
+        gp: Optional[int] = None,
+    ):
         if block is None and func is not None:
             # only func is specified. traversing a function
             graph_visitor = FunctionGraphVisitor(func, func_graph)
@@ -515,10 +624,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             # value for register t9 for MIPS32/64 binaries)
             graph_visitor = SingleNodeGraphVisitor(block)
         else:
-            raise ValueError('Unsupported analysis target.')
+            raise ValueError("Unsupported analysis target.")
 
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
-                                 graph_visitor=graph_visitor)
+        ForwardAnalysis.__init__(
+            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
+        )
 
         self._base_state = base_state
         self._function = func
@@ -556,7 +666,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     # Main analysis routines
     #
 
-    def _node_key(self, node: Union[ailment.Block,pyvex.IRSB]) -> Any:
+    def _node_key(self, node: Union[ailment.Block, pyvex.IRSB]) -> Any:
         if type(node) is ailment.Block:
             return node.addr, node.idx
         elif type(node) is pyvex.IRSB:
@@ -573,65 +683,83 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
-            state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts,
-                                       gp=self._gp)
+            state = PropagatorAILState(
+                self.project.arch, project=self.project, only_consts=self._only_consts, gp=self._gp
+            )
             ail = True
         else:
             # VEX
-            state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts,
-                                       do_binops=self._do_binops, store_tops=self._store_tops,
-                                       gp=self._gp)
+            state = PropagatorVEXState(
+                self.project.arch,
+                project=self.project,
+                only_consts=self._only_consts,
+                do_binops=self._do_binops,
+                store_tops=self._store_tops,
+                gp=self._gp,
+            )
             spoffset_var = self._engine_vex.sp_offset(0)
             ail = False
-            state.store_register(self.project.arch.sp_offset,
-                                 self.project.arch.bytes,
-                                 spoffset_var,
-                                 )
+            state.store_register(
+                self.project.arch.sp_offset,
+                self.project.arch.bytes,
+                spoffset_var,
+            )
 
         if self.project.arch.name == "MIPS64":
             if self._func_addr is not None:
                 if ail:
-                    reg_expr = ailment.Expr.Register(None, None, self.project.arch.registers['t9'][0],
-                                                     self.project.arch.registers['t9'][1])
+                    reg_expr = ailment.Expr.Register(
+                        None, None, self.project.arch.registers["t9"][0], self.project.arch.registers["t9"][1]
+                    )
                     reg_value = ailment.Expr.Const(None, None, self._func_addr, 64)
-                    state.store_register(reg_expr,
-                                         PropValue(claripy.BVV(self._func_addr, 64),
-                                                   offset_and_details={0: Detail(8, reg_value, CodeLocation(0, 0))}),
-                                         )
+                    state.store_register(
+                        reg_expr,
+                        PropValue(
+                            claripy.BVV(self._func_addr, 64),
+                            offset_and_details={0: Detail(8, reg_value, CodeLocation(0, 0))},
+                        ),
+                    )
                 else:
-                    state.store_register(self.project.arch.registers['t9'][0],  # pylint:disable=too-many-function-args
-                                         self.project.arch.registers['t9'][1],
-                                         claripy.BVV(self._func_addr, 64),
-                                         )
+                    state.store_register(
+                        self.project.arch.registers["t9"][0],  # pylint:disable=too-many-function-args
+                        self.project.arch.registers["t9"][1],
+                        claripy.BVV(self._func_addr, 64),
+                    )
         elif self.project.arch.name == "MIPS32":
             if self._func_addr is not None:
                 if ail:
-                    reg_expr = ailment.Expr.Register(None, None, self.project.arch.registers['t9'][0],
-                                                                 self.project.arch.registers['t9'][1])
+                    reg_expr = ailment.Expr.Register(
+                        None, None, self.project.arch.registers["t9"][0], self.project.arch.registers["t9"][1]
+                    )
                     reg_value = ailment.Expr.Const(None, None, self._func_addr, 32)
-                    state.store_register(reg_expr,
-                                         PropValue(claripy.BVV(self._func_addr, 32),
-                                                   offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))}),
-                                         )
+                    state.store_register(
+                        reg_expr,
+                        PropValue(
+                            claripy.BVV(self._func_addr, 32),
+                            offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))},
+                        ),
+                    )
                 else:
-                    state.store_register(self.project.arch.registers['t9'][0],  # pylint:disable=too-many-function-args
-                                         self.project.arch.registers['t9'][1],
-                                         claripy.BVV(self._func_addr, 32),
-                                         )
+                    state.store_register(
+                        self.project.arch.registers["t9"][0],  # pylint:disable=too-many-function-args
+                        self.project.arch.registers["t9"][1],
+                        claripy.BVV(self._func_addr, 32),
+                    )
         elif is_arm_arch(self.project.arch):
             if ail:
                 # clear fpscr
-                reg_expr = ailment.Expr.Register(None, None, *self.project.arch.registers['fpscr'])
+                reg_expr = ailment.Expr.Register(None, None, *self.project.arch.registers["fpscr"])
                 reg_value = ailment.Expr.Const(None, None, 0, 32)
-                state.store_register(reg_expr,
-                                     PropValue(claripy.BVV(0, 32),
-                                               offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))})
-                                     )
+                state.store_register(
+                    reg_expr,
+                    PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))}),
+                )
             else:
-                state.store_register(self.project.arch.registers['fpscr'][0],  # pylint:disable=too-many-function-args
-                                     self.project.arch.registers['fpscr'][1],
-                                     claripy.BVV(0, 32),
-                                     )
+                state.store_register(
+                    self.project.arch.registers["fpscr"][0],  # pylint:disable=too-many-function-args
+                    self.project.arch.registers["fpscr"][1],
+                    claripy.BVV(0, 32),
+                )
 
         self._initial_state = state
         return state
@@ -647,8 +775,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             block_key = (node.addr, node.idx)
             engine = self._engine_ail
         else:
-            block = self.project.factory.block(node.addr, node.size, opt_level=1,
-                                               cross_insn_opt=self._vex_cross_insn_opt)
+            block = self.project.factory.block(
+                node.addr, node.size, opt_level=1, cross_insn_opt=self._vex_cross_insn_opt
+            )
             block_key = node.addr
             engine = self._engine_vex
             if block.size == 0:
@@ -666,8 +795,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if self._base_state is not None:
             self._base_state.options.add(sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
             self._base_state.options.add(sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
-        state = engine.process(state, block=block, project=self.project, base_state=self._base_state,
-                               load_callback=self._load_callback, fail_fast=self._fail_fast)
+        state = engine.process(
+            state,
+            block=block,
+            project=self.project,
+            base_state=self._base_state,
+            load_callback=self._load_callback,
+            fail_fast=self._fail_fast,
+        )
         state.filter_replacements()
 
         self._node_iterations[block_key] += 1
@@ -689,8 +824,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             return False, state
 
-    def _process_input_state_for_successor(self, node, successor,
-                                           input_state: Union[PropagatorAILState,PropagatorVEXState]):
+    def _process_input_state_for_successor(
+        self, node, successor, input_state: Union[PropagatorAILState, PropagatorVEXState]
+    ):
         if self._only_consts and isinstance(input_state, PropagatorAILState):
             key = node.addr, successor.addr
             if key in self._block_initial_reg_values:
@@ -698,8 +834,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 for reg_atom, reg_value in self._block_initial_reg_values[key]:
                     input_state.store_register(
                         reg_atom,
-                        PropValue(claripy.BVV(reg_value.value, reg_value.bits),
-                                  offset_and_details={0: Detail(reg_atom.size, reg_value, None)})
+                        PropValue(
+                            claripy.BVV(reg_value.value, reg_value.bits),
+                            offset_and_details={0: Detail(reg_atom.size, reg_value, None)},
+                        ),
                     )
                 return input_state
         return input_state

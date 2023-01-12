@@ -8,15 +8,16 @@ from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 # fgets
 ######################################
 
+
 class fgets(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ
 
     def run(self, dst, size, file_ptr):
-        size = size.zero_extend(self.arch.bits - self.arch.sizeof['int'])
+        size = size.zero_extend(self.arch.bits - self.arch.sizeof["int"])
 
         # let's get the memory back for the file we're interested in and find the newline
-        fd_offset = io_file_data_for_arch(self.state.arch)['fd']
-        fd = self.state.mem[file_ptr + fd_offset:].int.resolved
+        fd_offset = io_file_data_for_arch(self.state.arch)["fd"]
+        fd = self.state.mem[file_ptr + fd_offset :].int.resolved
         simfd = self.state.posix.get_fd(fd)
         if simfd is None:
             return -1
@@ -36,9 +37,9 @@ class fgets(angr.SimProcedure):
                     break
                 self.state.memory.store(dst + count, data)
                 count += 1
-                if self.state.solver.is_true(data == b'\n'):
+                if self.state.solver.is_true(data == b"\n"):
                     break
-            self.state.memory.store(dst + count, b'\0')
+            self.state.memory.store(dst + count, b"\0")
             return count
 
         # case 2: the data is symbolic, the newline could be anywhere. Read the maximum number of bytes
@@ -46,21 +47,26 @@ class fgets(angr.SimProcedure):
         # newline nonsense.
         # caveat: there could also be no newline and the file could EOF.
         else:
-            data, real_size = simfd.read_data(size-1)
+            data, real_size = simfd.read_data(size - 1)
 
             for i, byte in enumerate(data.chop(8)):
-                self.state.add_constraints(self.state.solver.If(
-                    i+1 != real_size, byte != b'\n', # if not last byte returned, not newline
-                    self.state.solver.Or(            # otherwise one of the following must be true:
-                        i+2 == size,                 # - we ran out of space, or
-                        simfd.eof(),                 # - the file is at EOF, or
-                        byte == b'\n'                # - it is a newline
-                    )))
+                self.state.add_constraints(
+                    self.state.solver.If(
+                        i + 1 != real_size,
+                        byte != b"\n",  # if not last byte returned, not newline
+                        self.state.solver.Or(  # otherwise one of the following must be true:
+                            i + 2 == size,  # - we ran out of space, or
+                            simfd.eof(),  # - the file is at EOF, or
+                            byte == b"\n",  # - it is a newline
+                        ),
+                    )
+                )
             self.state.memory.store(dst, data, size=real_size)
             end_address = dst + real_size
             end_address = end_address.annotate(MultiwriteAnnotation())
-            self.state.memory.store(end_address, b'\0')
+            self.state.memory.store(end_address, b"\0")
 
             return real_size
+
 
 fgets_unlocked = fgets

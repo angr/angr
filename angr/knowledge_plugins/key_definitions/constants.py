@@ -13,6 +13,7 @@ class ObservationPointType(enum.IntEnum):
     This makes it possible to annotate where they are expected by typing something as ObservationPointType
     instead of Literal[0,1]
     """
+
     OP_BEFORE = 0
     OP_AFTER = 1
 

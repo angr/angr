@@ -1,6 +1,7 @@
 from .light import VEXMixin
 from ....utils.constants import DEFAULT_STATEMENT
 
+
 class VEXSlicingMixin(VEXMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -10,7 +11,7 @@ class VEXSlicingMixin(VEXMixin):
         self._last_stmt = None
         self._whitelist = None
 
-    __tls = ('__no_exit_sliced', '_skip_stmts', '_last_stmt', '_whitelist')
+    __tls = ("__no_exit_sliced", "_skip_stmts", "_last_stmt", "_whitelist")
 
     def process(self, *args, skip_stmts=0, last_stmt=None, whitelist=None, **kwargs):
         self._skip_stmts = skip_stmts
@@ -19,10 +20,9 @@ class VEXSlicingMixin(VEXMixin):
         return super().process(*args, **kwargs)
 
     def handle_vex_block(self, irsb):
-        self.__no_exit_sliced = not self._check_vex_slice(DEFAULT_STATEMENT) and \
-                                not any(self._check_vex_slice(stmt_idx) \
-                                        for stmt_idx, stmt in enumerate(irsb.statements) \
-                                        if stmt.tag == 'Ist_Exit')
+        self.__no_exit_sliced = not self._check_vex_slice(DEFAULT_STATEMENT) and not any(
+            self._check_vex_slice(stmt_idx) for stmt_idx, stmt in enumerate(irsb.statements) if stmt.tag == "Ist_Exit"
+        )
         super().handle_vex_block(irsb)
 
     def _handle_vex_stmt(self, stmt):
@@ -31,7 +31,7 @@ class VEXSlicingMixin(VEXMixin):
 
     def _handle_vex_defaultexit(self, expr, jumpkind):
         if self.__no_exit_sliced:
-            super()._handle_vex_defaultexit(None, 'Ijk_Boring')
+            super()._handle_vex_defaultexit(None, "Ijk_Boring")
         elif self._check_vex_slice(DEFAULT_STATEMENT):
             super()._handle_vex_defaultexit(expr, jumpkind)
 
@@ -49,5 +49,3 @@ class VEXSlicingMixin(VEXMixin):
             if self._whitelist is not None and stmt_idx not in self._whitelist:
                 return False
         return True
-
-

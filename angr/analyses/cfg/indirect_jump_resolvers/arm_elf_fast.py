@@ -17,7 +17,7 @@ class ArmElfFastResolver(IndirectJumpResolver):
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         if not isinstance(self.project.arch, archinfo.ArchARM):
             return False
-        if jumpkind not in ('Ijk_Boring', 'Ijk_Call'):
+        if jumpkind not in ("Ijk_Boring", "Ijk_Call"):
             return False
         return True
 
@@ -42,12 +42,12 @@ class ArmElfFastResolver(IndirectJumpResolver):
         # the logic will be vastly different if the IRSB is not optimized (opt_level == 0)
 
         b = Blade(cfg.graph, addr, -1, cfg=cfg, project=self.project, ignore_sp=True, ignore_bp=True, max_level=2)
-        sources = [ n for n in b.slice.nodes() if b.slice.in_degree(n) == 0 ]
+        sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
         if not sources:
-            return False, [ ]
+            return False, []
 
         if len(sources) != 1:
-            return False, [ ]
+            return False, []
 
         source = sources[0]
         block_addr, stmt_idx = source
@@ -55,27 +55,27 @@ class ArmElfFastResolver(IndirectJumpResolver):
         if block_addr != block.addr:
             # TODO: We should be able to support this case very easily
             # TODO: Fix it when we see such a case
-            return False, [ ]
+            return False, []
 
         stmt = block.statements[stmt_idx]
         if not isinstance(stmt, pyvex.IRStmt.WrTmp):
-            return False, [ ]
+            return False, []
         if not isinstance(stmt.data, pyvex.IRExpr.Load):
-            return False, [ ]
+            return False, []
         if not isinstance(stmt.data.addr, pyvex.IRExpr.Const):
-            return False, [ ]
+            return False, []
         load_addr = stmt.data.addr.con.value
         load_size = stmt.data.result_size(block.tyenv) // 8
-        endness = archinfo.Endness.BE if stmt.data.endness == 'Iend_BE' else archinfo.Endness.LE
+        endness = archinfo.Endness.BE if stmt.data.endness == "Iend_BE" else archinfo.Endness.LE
 
         # the next statement should be the default exit
         next_target = next(iter(b.slice.successors(source)))
 
         if not (next_target[0] == block.addr and next_target[1] == DEFAULT_STATEMENT):
-            return False, [ ]
+            return False, []
         next_tmp = block.next
         if next_tmp.tmp != stmt.tmp:
-            return False, [ ]
+            return False, []
 
         # load the address to jump to
         try:
@@ -83,6 +83,6 @@ class ArmElfFastResolver(IndirectJumpResolver):
             if cfg.tag == "CFGFast":
                 cfg._seg_list.occupy(load_addr, load_size, "pointer-array")
         except KeyError:
-            return False, [ ]
+            return False, []
 
-        return True, [ target_addr ]
+        return True, [target_addr]

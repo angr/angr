@@ -1,11 +1,12 @@
 from typing import cast
 
-import angr # For type annotations; pylint: disable=unused-import
+import angr  # For type annotations; pylint: disable=unused-import
 import logging
 
 from ..misc.ux import once
 
 l = logging.getLogger(name=__name__)
+
 
 class SimStatePlugin:
     """
@@ -30,7 +31,7 @@ class SimStatePlugin:
 
     def __getstate__(self):
         d = dict(self.__dict__)
-        d['state'] = None
+        d["state"] = None
         return d
 
     def copy(self, _memo):
@@ -56,6 +57,7 @@ class SimStatePlugin:
         """
         A decorator function you should apply to ``copy``
         """
+
         def inner(self, memo=None, **kwargs):
             if memo is None:
                 memo = {}
@@ -65,9 +67,10 @@ class SimStatePlugin:
                 c = f(self, memo, **kwargs)
                 memo[id(self)] = c
                 return c
+
         return inner
 
-    def merge(self, others, merge_conditions, common_ancestor=None): #pylint:disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         """
         Should merge the state plugin with the provided others. This will be called by ``state.merge()`` after copying
         the target state, so this should mutate the current instance to merge with the others.
@@ -96,7 +99,7 @@ class SimStatePlugin:
         """
         raise NotImplementedError("merge() not implement for %s" % self.__class__.__name__)
 
-    def widen(self, others): #pylint:disable=unused-argument
+    def widen(self, others):  # pylint:disable=unused-argument
         """
         The widening operation for plugins. Widening is a special kind of merging that produces a more general state
         from several more specific states. It is used only during intensive static analysis. The same behavior
@@ -107,25 +110,31 @@ class SimStatePlugin:
         :returns: True if the state plugin is actually widened.
         :rtype: bool
         """
-        raise NotImplementedError('widen() not implemented for %s' % self.__class__.__name__)
+        raise NotImplementedError("widen() not implemented for %s" % self.__class__.__name__)
 
     @classmethod
     def register_default(cls, name, xtr=None):
         if cls is SimStatePlugin:
-            if once('simstateplugin_register_default deprecation'):
-                l.critical("SimStatePlugin.register_default(name, cls) is deprecated, please use SimState.register_default(name)")
+            if once("simstateplugin_register_default deprecation"):
+                l.critical(
+                    "SimStatePlugin.register_default(name, cls) is deprecated, please use SimState.register_default(name)"
+                )
 
             from angr.sim_state import SimState
+
             SimState.register_default(name, xtr)
 
         else:
             if xtr is cls:
-                if once('simstateplugin_register_default deprecation case 2'):
-                    l.critical("SimStatePlugin.register_default(name, cls) is deprecated, please use cls.register_default(name)")
+                if once("simstateplugin_register_default deprecation case 2"):
+                    l.critical(
+                        "SimStatePlugin.register_default(name, cls) is deprecated, please use cls.register_default(name)"
+                    )
                 xtr = None
 
             from angr.sim_state import SimState
-            SimState.register_default(name, cls, xtr if xtr is not None else 'default')
+
+            SimState.register_default(name, cls, xtr if xtr is not None else "default")
 
     def init_state(self):
         """

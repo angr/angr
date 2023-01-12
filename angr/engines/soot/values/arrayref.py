@@ -7,19 +7,19 @@ from ....errors import SimEngineError
 from .base import SimSootValue
 from .constants import SimSootValue_IntConstant
 
-l = logging.getLogger('angr.engines.soot.values.arrayref')
+l = logging.getLogger("angr.engines.soot.values.arrayref")
 
 
 class SimSootValue_ArrayBaseRef(SimSootValue):
 
-    __slots__ = [ 'id', 'element_type', 'size', '_default_value_generator', 'type' ]
+    __slots__ = ["id", "element_type", "size", "_default_value_generator", "type"]
 
     def __init__(self, heap_alloc_id, element_type, size, default_value_generator=None):
         self.id = f"{heap_alloc_id}.array_{element_type}"
         self.element_type = element_type
         self.size = size
         self._default_value_generator = default_value_generator
-        self.type = element_type + '[]'
+        self.type = element_type + "[]"
 
     def __repr__(self):
         return self.id
@@ -50,7 +50,7 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
 
 class SimSootValue_ArrayRef(SimSootValue):
 
-    __slots__ = [ 'id', 'base', 'index' ]
+    __slots__ = ["id", "base", "index"]
 
     def __init__(self, base, index):
         self.id = f"{base.id}[{index}]"
@@ -77,7 +77,7 @@ class SimSootValue_ArrayRef(SimSootValue):
         else:
             # idx is a variable
             # => load value from memory
-             return state.memory.load(idx_value)
+            return state.memory.load(idx_value)
 
     @staticmethod
     def check_array_bounds(idx, array, state):
@@ -86,7 +86,8 @@ class SimSootValue_ArrayRef(SimSootValue):
         zero = state.solver.BVV(0, 32)
         length = array.size
         bound_constraint = state.solver.And(
-            length.SGT(idx), zero.SLE(idx),
+            length.SGT(idx),
+            zero.SLE(idx),
         )
 
         # evaluate the constraint
@@ -107,12 +108,19 @@ class SimSootValue_ArrayRef(SimSootValue):
 
         # raise exception, if index is *always* invalid
         if not True in idx_stays_within_bounds:
-            raise SimEngineError("Access of %s[%s] (length %s) is always invalid. "
-                                 "Cannot continue w/o raising java.lang.ArrayIndexOutOfBoundsException."
-                                 "" % (array.id, idx, length))
+            raise SimEngineError(
+                "Access of %s[%s] (length %s) is always invalid. "
+                "Cannot continue w/o raising java.lang.ArrayIndexOutOfBoundsException."
+                "" % (array.id, idx, length)
+            )
 
         # bound index and/or length, if there are *some* invalid values
         if False in idx_stays_within_bounds:
-            l.warning("Possible out-of-bounds access! Index and/or length gets constraint to "
-                      "valid values. (%s[%s], length %s)", array.id, idx, length)
+            l.warning(
+                "Possible out-of-bounds access! Index and/or length gets constraint to "
+                "valid values. (%s[%s], length %s)",
+                array.id,
+                idx,
+                length,
+            )
             state.solver.add(And(length.SGT(idx), zero.SLE(idx)))

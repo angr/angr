@@ -9,7 +9,6 @@ StackVariable = None
 StackOffsetType = None
 
 
-
 from ... import knowledge_plugins
 from ...knowledge_plugins.plugin import KnowledgeBasePlugin
 from ...sim_variable import SimStackVariable
@@ -22,6 +21,7 @@ def import_binsync():
         import binsync
         from binsync.client import Client
         from binsync.data.stack_variable import StackVariable, StackOffsetType
+
         binsync_available = True
     except ImportError:
         binsync_available = False
@@ -35,16 +35,16 @@ def make_state(f):
 
     @wraps(f)
     def state_check(self, *args, **kwargs):
-        state = kwargs.pop('state', None)
-        user = kwargs.pop('user', None)
+        state = kwargs.pop("state", None)
+        user = kwargs.pop("user", None)
         if state is None:
             state = self.client.get_state(user=user)
-            kwargs['state'] = state
+            kwargs["state"] = state
             r = f(self, *args, **kwargs)
             state.save()
             return r
         else:
-            kwargs['state'] = state
+            kwargs["state"] = state
             r = f(self, *args, **kwargs)
             return r
 
@@ -59,12 +59,12 @@ def make_ro_state(f):
 
     @wraps(f)
     def state_check(self, *args, **kwargs):
-        state = kwargs.pop('state', None)
-        user = kwargs.pop('user', None)
+        state = kwargs.pop("state", None)
+        user = kwargs.pop("user", None)
         if state is None:
             state = self.client.get_state(user=user)
-        kwargs['state'] = state
-        kwargs['user'] = user
+        kwargs["state"] = state
+        kwargs["user"] = user
         return f(self, *args, **kwargs)
 
     return state_check
@@ -76,6 +76,7 @@ def init_checker(f):
         if self.client is None:
             raise ValueError("Please initialize SyncController by calling initialize(client).")
         return f(self, *args, **kwargs)
+
     return initcheck
 
 
@@ -85,6 +86,7 @@ class SyncController(KnowledgeBasePlugin):
 
     :ivar binsync.Client client:   The binsync client.
     """
+
     def __init__(self, kb):
 
         # import binsync upon the first use of this class
@@ -93,19 +95,24 @@ class SyncController(KnowledgeBasePlugin):
         super().__init__()
 
         self._kb: KnowledgeBasePlugin = kb
-        self.client: Optional['binsync.client.Client'] = None
+        self.client: Optional["binsync.client.Client"] = None
 
     #
     # Public methods
     #
 
-    def connect(self, user, path,
-                bin_hash="", init_repo=False, ssh_agent_pid=None, ssh_auth_sock=None, remote_url=None):
-        self.client = Client(user, path, bin_hash,
-                             init_repo=init_repo,
-                             ssh_agent_pid=ssh_agent_pid,
-                             ssh_auth_sock=ssh_auth_sock,
-                             remote_url=remote_url)
+    def connect(
+        self, user, path, bin_hash="", init_repo=False, ssh_agent_pid=None, ssh_auth_sock=None, remote_url=None
+    ):
+        self.client = Client(
+            user,
+            path,
+            bin_hash,
+            init_repo=init_repo,
+            ssh_agent_pid=ssh_agent_pid,
+            ssh_auth_sock=ssh_auth_sock,
+            remote_url=remote_url,
+        )
 
     @property
     def connected(self):
@@ -169,7 +176,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     # pylint:disable=unused-argument,no-self-use
-    def push_comments(self, comments: List['binsync.data.Comment'], user=None, state=None):
+    def push_comments(self, comments: List["binsync.data.Comment"], user=None, state=None):
         """
         Push a bunch of comments upwards.
 
@@ -185,8 +192,9 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     # pylint:disable=unused-argument,no-self-use
-    def push_stack_variables(self, stack_variables: List[SimStackVariable], var_manager: VariableManagerInternal,
-                             user=None, state=None):
+    def push_stack_variables(
+        self, stack_variables: List[SimStackVariable], var_manager: VariableManagerInternal, user=None, state=None
+    ):
         """
 
         :param stack_variables:
@@ -199,8 +207,9 @@ class SyncController(KnowledgeBasePlugin):
             var_type = guessed_var_type if guessed_var_type else "BOT"
 
             # construct a StackVariable for each SimStackVariable
-            sync_stack_var = StackVariable(var.offset, StackOffsetType.ANGR, var.name,
-                                           var_type, var.size, var_manager.func_addr)
+            sync_stack_var = StackVariable(
+                var.offset, StackOffsetType.ANGR, var.name, var_type, var.size, var_manager.func_addr
+            )
 
             r &= state.set_stack_variable(sync_stack_var, var.offset, var_manager.func_addr)
 
@@ -221,7 +230,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_ro_state
     # pylint:disable=unused-argument
-    def pull_function(self, addr, user=None, state=None) -> Optional['binsync.data.Function']:
+    def pull_function(self, addr, user=None, state=None) -> Optional["binsync.data.Function"]:
         """
         Pull a function downwards.
 
@@ -240,7 +249,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_ro_state
     # pylint:disable=unused-argument
-    def pull_comment(self, addr, user=None, state=None) -> Optional['binsync.data.Comment']:
+    def pull_comment(self, addr, user=None, state=None) -> Optional["binsync.data.Comment"]:
         """
         Pull a comment downwards.
 

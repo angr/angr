@@ -12,9 +12,7 @@ from angr.state_plugins.history import HistoryIter
 
 
 l = logging.getLogger("angr.tests")
-test_location = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
-)
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 target_addrs = {
     "i386": [0x080485C9],
@@ -51,21 +49,16 @@ divergences = {
     "mips": 0x40075C,
 }
 
+
 class TestFauxware(unittest.TestCase):
     def _run_fauxware(self, arch):
-        p = angr.Project(
-            os.path.join(test_location, arch, "fauxware"), auto_load_libs=False
-        )
-        results = p.factory.simulation_manager().explore(
-            find=target_addrs[arch], avoid=avoid_addrs[arch]
-        )
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
+        results = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
         stdin = results.found[0].posix.dumps(0)
         assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
 
         # test the divergence detection
-        ancestor = results.found[0].history.closest_common_ancestor(
-            (results.avoid + results.active)[0].history
-        )
+        ancestor = results.found[0].history.closest_common_ancestor((results.avoid + results.active)[0].history)
         divergent_point = list(HistoryIter(results.found[0].history, end=ancestor))[0]
         # p.factory.block(divergent_point.addr).pp()
         assert divergent_point.recent_bbl_addrs[0] == divergences[arch]
@@ -94,9 +87,7 @@ class TestFauxware(unittest.TestCase):
         # screw up the instructions and make sure the test fails with nodecode
         for i, c in enumerate(corrupt_addrs[arch][1]):
             p.loader.memory[corrupt_addrs[arch][0] + i] = c
-        boned = p.factory.simulation_manager().explore(
-            find=target_addrs[arch], avoid=avoid_addrs[arch]
-        )
+        boned = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
         assert len(boned.errored) >= 1
         assert isinstance(boned.errored[0].error, angr.SimIRSBNoDecodeError)
         assert boned.errored[0].state.addr == corrupt_addrs[arch][0]
@@ -107,9 +98,7 @@ class TestFauxware(unittest.TestCase):
             corrupt_addrs[arch][2],
             length=len(corrupt_addrs[arch][1]),
         )
-        results = p.factory.simulation_manager().explore(
-            find=target_addrs[arch], avoid=avoid_addrs[arch]
-        )
+        results = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
         stdin = results.found[0].posix.dumps(0)
         assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
 
@@ -126,26 +115,16 @@ class TestFauxware(unittest.TestCase):
 
         pg.merge(stash="deadended", merge_key=lambda s: s.addr)
 
-        path = pg.deadended[
-            [b"Welcome" in s for s in pg.mp_deadended.posix.dumps(1).mp_items].index(True)
-        ]
+        path = pg.deadended[[b"Welcome" in s for s in pg.mp_deadended.posix.dumps(1).mp_items].index(True)]
         yes, no = path.history.merge_conditions
         inp = path.posix.stdin.content[2][0]  # content of second packet
         try:
-            assert b"SOSNEAKY" in path.solver.eval(
-                inp, cast_to=bytes, extra_constraints=(yes,)
-            )
-            assert b"SOSNEAKY" not in path.solver.eval(
-                inp, cast_to=bytes, extra_constraints=(no,)
-            )
+            assert b"SOSNEAKY" in path.solver.eval(inp, cast_to=bytes, extra_constraints=(yes,))
+            assert b"SOSNEAKY" not in path.solver.eval(inp, cast_to=bytes, extra_constraints=(no,))
         except AssertionError:
             yes, no = no, yes
-            assert b"SOSNEAKY" in path.solver.eval(
-                inp, cast_to=bytes, extra_constraints=(yes,)
-            )
-            assert b"SOSNEAKY" not in path.solver.eval(
-                inp, cast_to=bytes, extra_constraints=(no,)
-            )
+            assert b"SOSNEAKY" in path.solver.eval(inp, cast_to=bytes, extra_constraints=(yes,))
+            assert b"SOSNEAKY" not in path.solver.eval(inp, cast_to=bytes, extra_constraints=(no,))
 
     def test_merge_i386(self):
         self._run_merge("i386")

@@ -16,6 +16,7 @@ class SubjectType(Enum):
 
 class Subject:
     _visitor: Union[FunctionGraphVisitor, SingleNodeGraphVisitor]
+
     def __init__(self, content, func_graph=None, cc=None):
         """
         The thing being analysed, and the way (visitor) to analyse it.
@@ -37,12 +38,12 @@ class Subject:
             self._type = SubjectType.Block
             self._visitor = SingleNodeGraphVisitor(content)
         else:
-            raise TypeError('Unsupported analysis target.')
+            raise TypeError("Unsupported analysis target.")
 
     @property
     def cc(self):
         if self.type not in (SubjectType.Function, SubjectType.CallTrace):
-            raise TypeError('There are no `cc` attribute for <%s>.' % self.type)
+            raise TypeError("There are no `cc` attribute for <%s>." % self.type)
         return self._cc
 
     @property
@@ -52,7 +53,7 @@ class Subject:
     @property
     def func_graph(self):
         if self.type is not SubjectType.Function:
-            raise TypeError('There are no `func_graph` attribute for <%s>.' % self.type)
+            raise TypeError("There are no `func_graph` attribute for <%s>." % self.type)
         return self._func_graph
 
     @property

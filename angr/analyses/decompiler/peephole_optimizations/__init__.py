@@ -41,16 +41,10 @@ EXPR_OPTS: List[Type[PeepholeOptimizationExprBase]] = []
 
 _g = globals().copy()
 for v in _g.values():
-    if (isinstance(v, type)
-        and issubclass(v, PeepholeOptimizationExprBase)
-        and v is not PeepholeOptimizationExprBase
-    ):
+    if isinstance(v, type) and issubclass(v, PeepholeOptimizationExprBase) and v is not PeepholeOptimizationExprBase:
         EXPR_OPTS.append(v)
 
-    if (isinstance(v, type)
-        and issubclass(v, PeepholeOptimizationStmtBase)
-        and v is not PeepholeOptimizationStmtBase
-    ):
+    if isinstance(v, type) and issubclass(v, PeepholeOptimizationStmtBase) and v is not PeepholeOptimizationStmtBase:
         STMT_OPTS.append(v)
 
 _g = None

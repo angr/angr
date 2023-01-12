@@ -24,22 +24,23 @@ class CallTracingFilter:
     Filter to apply during CFG creation on a given state and jumpkind to determine if it should be skipped at a certain
     depth
     """
+
     whitelist = {
-        SIM_PROCEDURES['cgc']['receive'],
-        SIM_PROCEDURES['cgc']['transmit'],
-        SIM_PROCEDURES['posix']['read'],
-        SIM_PROCEDURES['libc']['fgetc'],
+        SIM_PROCEDURES["cgc"]["receive"],
+        SIM_PROCEDURES["cgc"]["transmit"],
+        SIM_PROCEDURES["posix"]["read"],
+        SIM_PROCEDURES["libc"]["fgetc"],
         SIM_PROCEDURES["glibc"]["__ctype_b_loc"],
         SIM_PROCEDURES["libc"]["strlen"],
         SIM_PROCEDURES["libc"]["strcmp"],
         SIM_PROCEDURES["libc"]["atoi"],
     }
 
-    cfg_cache = { }
+    cfg_cache = {}
 
     def __init__(self, project, depth, blacklist=None):
         self.project = project
-        self.blacklist = [ ] if blacklist is None else blacklist
+        self.blacklist = [] if blacklist is None else blacklist
         self._skipped_targets = set()
         self.depth = depth
 
@@ -55,7 +56,7 @@ class CallTracingFilter:
         ACCEPT = False
         REJECT = True
 
-        l.debug('Filtering calling target %s', call_target_state.ip)
+        l.debug("Filtering calling target %s", call_target_state.ip)
 
         # Currently we always skip the call, unless the target function satisfies one of the following conditions:
         # 1) It's a SimProcedure that are in the whitelist
@@ -67,59 +68,60 @@ class CallTracingFilter:
         ip = call_target_state.ip
 
         if self.depth >= 5:
-            l.debug('Rejecting target %s - too deep, depth is %d', ip, self.depth)
+            l.debug("Rejecting target %s - too deep, depth is %d", ip, self.depth)
             return REJECT
 
         try:
             addr = call_target_state.solver.eval_one(ip)
         except (SimValueError, SimSolverModeError):
             self._skipped_targets.add(-1)
-            l.debug('Rejecting target %s - cannot be concretized', ip)
+            l.debug("Rejecting target %s - cannot be concretized", ip)
             return REJECT
 
         # Is it in our blacklist?
         if addr in self.blacklist:
             self._skipped_targets.add(addr)
-            l.debug('Rejecting target 0x%x - blacklisted', addr)
+            l.debug("Rejecting target 0x%x - blacklisted", addr)
             return REJECT
 
         # If the target is a SimProcedure, is it on our whitelist?
         if self.project.is_hooked(addr) and type(self.project._sim_procedures[addr][0]) in CallTracingFilter.whitelist:
             # accept!
-            l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
+            l.debug("Accepting target 0x%x, jumpkind %s", addr, jumpkind)
             return ACCEPT
 
         # If it's a syscall, let's see if the real syscall is inside our whitelist
-        if jumpkind.startswith('Ijk_Sys'):
+        if jumpkind.startswith("Ijk_Sys"):
             call_target_state.history.jumpkind = jumpkind
             successors_ = self.project.factory.successors(call_target_state)
             try:
-                next_run = successors_.artifacts['procedure']
+                next_run = successors_.artifacts["procedure"]
             except KeyError:
-                l.warning('CallTracingFilter.filter(): except artifacts[\'procedure\'] in %s. Reject.', successors_)
+                l.warning("CallTracingFilter.filter(): except artifacts['procedure'] in %s. Reject.", successors_)
                 return REJECT
 
             if type(next_run) in CallTracingFilter.whitelist:
                 # accept!
-                l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
+                l.debug("Accepting target 0x%x, jumpkind %s", addr, jumpkind)
                 return ACCEPT
             else:
                 # reject
-                l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, type(next_run))
+                l.debug("Rejecting target 0x%x - syscall %s not in whitelist", addr, type(next_run))
                 return REJECT
 
         cfg_key = (addr, jumpkind, self.project.filename)
         if cfg_key not in self.cfg_cache:
-            new_blacklist = self.blacklist[ :: ]
+            new_blacklist = self.blacklist[::]
             new_blacklist.append(addr)
             tracing_filter = CallTracingFilter(self.project, depth=self.depth + 1, blacklist=new_blacklist)
-            cfg = self.project.analyses[CFGEmulated].prep(kb=KnowledgeBase(self.project))(starts=((addr, jumpkind),),
-                                                    initial_state=call_target_state,
-                                                    context_sensitivity_level=0,
-                                                    call_depth=1,
-                                                    call_tracing_filter=tracing_filter.filter,
-                                                    normalize=True
-                                                    )
+            cfg = self.project.analyses[CFGEmulated].prep(kb=KnowledgeBase(self.project))(
+                starts=((addr, jumpkind),),
+                initial_state=call_target_state,
+                context_sensitivity_level=0,
+                call_depth=1,
+                call_tracing_filter=tracing_filter.filter,
+                normalize=True,
+            )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
 
             try:
@@ -127,20 +129,20 @@ class CallTracingFilter:
             except AngrCFGError:
                 # Exceptions occurred during loop unrolling
                 # reject
-                l.debug('Rejecting target %#x - loop unrolling failed', addr)
+                l.debug("Rejecting target %#x - loop unrolling failed", addr)
                 return REJECT
 
         else:
-            l.debug('Loading CFG from CFG cache')
+            l.debug("Loading CFG from CFG cache")
             cfg, tracing_filter = self.cfg_cache[cfg_key]
 
         if cfg._loop_back_edges:
             # It has loops!
             self._skipped_targets.add(addr)
-            l.debug('Rejecting target 0x%x - it has loops', addr)
+            l.debug("Rejecting target 0x%x - it has loops", addr)
             return REJECT
 
-        sim_procedures = [ n for n in cfg.graph.nodes() if n.simprocedure_name is not None ]
+        sim_procedures = [n for n in cfg.graph.nodes() if n.simprocedure_name is not None]
         for sp_node in sim_procedures:
             if not self.project.is_hooked(sp_node.addr):
                 # This is probably a PathTerminator
@@ -149,17 +151,17 @@ class CallTracingFilter:
 
             if self.project._sim_procedures[sp_node.addr].procedure not in CallTracingFilter.whitelist:
                 self._skipped_targets.add(addr)
-                l.debug('Rejecting target 0x%x - contains SimProcedures outside whitelist', addr)
+                l.debug("Rejecting target 0x%x - contains SimProcedures outside whitelist", addr)
                 return REJECT
 
         if len(tracing_filter._skipped_targets):
             # Bummer
             self._skipped_targets.add(addr)
-            l.debug('Rejecting target 0x%x - should be skipped', addr)
+            l.debug("Rejecting target 0x%x - should be skipped", addr)
             return REJECT
 
         # accept!
-        l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
+        l.debug("Accepting target 0x%x, jumpkind %s", addr, jumpkind)
         return ACCEPT
 
 
@@ -168,15 +170,21 @@ class Veritesting(Analysis):
     An exploration technique made for condensing chunks of code to single (nested) if-then-else constraints via CFG
     accurate to conduct Static Symbolic Execution SSE (conversion to single constraint)
     """
+
     # A cache for CFG we generated before
-    cfg_cache = { }
+    cfg_cache = {}
     # Names of all stashes we will return from Veritesting
-    all_stashes = ('successful', 'errored', 'deadended', 'deviated', 'unconstrained')
+    all_stashes = ("successful", "errored", "deadended", "deviated", "unconstrained")
 
     def __init__(
-        self, input_state, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False,
-        terminator=None, deviation_filter=None
-        ):
+        self,
+        input_state,
+        boundaries=None,
+        loop_unrolling_limit=10,
+        enable_function_inlining=False,
+        terminator=None,
+        deviation_filter=None,
+    ):
         """
         SSE stands for Static Symbolic Execution, and we also implemented an extended version of Veritesting (Avgerinos,
         Thanassis, et al, ICSE 2014).
@@ -194,14 +202,14 @@ class Veritesting(Analysis):
         branches = block.vex.constant_jump_targets_and_jumpkinds
 
         # if we are not at a conditional jump, just do a normal step
-        if list(branches.values()) != ['Ijk_Boring', 'Ijk_Boring']:
+        if list(branches.values()) != ["Ijk_Boring", "Ijk_Boring"]:
             self.result, self.final_manager = False, None
             return
 
         # otherwise do a veritesting step
 
         self._input_state = input_state.copy()
-        self._boundaries = boundaries if boundaries is not None else [ ]
+        self._boundaries = boundaries if boundaries is not None else []
         self._loop_unrolling_limit = loop_unrolling_limit
         self._enable_function_inlining = enable_function_inlining
         self._terminator = terminator
@@ -215,7 +223,7 @@ class Veritesting(Analysis):
         l.info("Static symbolic execution starts at %#x", self._input_state.addr)
         l.debug(
             "The execution will terminate at the following addresses: [ %s ]",
-            ", ".join([ hex(i) for i in self._boundaries ])
+            ", ".join([hex(i) for i in self._boundaries]),
         )
 
         l.debug("A loop will be unrolled by a maximum of %d times.", self._loop_unrolling_limit)
@@ -242,16 +250,18 @@ class Veritesting(Analysis):
             if not BYPASS_VERITESTING_EXCEPTIONS in s.options:
                 raise
             l.warning("Veritesting caught an exception.", exc_info=True)
-            return False, SimulationManager(self.project, stashes={'deviated': [s]})
+            return False, SimulationManager(self.project, stashes={"deviated": [s]})
 
         except VeritestingError as ex:
             l.warning("Exception occurred: %s", str(ex))
-            return False, SimulationManager(self.project, stashes={'deviated': [s]})
+            return False, SimulationManager(self.project, stashes={"deviated": [s]})
 
         l.info(
-            'Returning new paths: (successful: %s, deadended: %s, errored: %s, deviated: %s)',
-            len(new_manager.successful), len(new_manager.deadended),
-            len(new_manager.errored), len(new_manager.deviated)
+            "Returning new paths: (successful: %s, deadended: %s, errored: %s, deviated: %s)",
+            len(new_manager.successful),
+            len(new_manager.deadended),
+            len(new_manager.errored),
+            len(new_manager.deviated),
         )
 
         return True, new_manager
@@ -272,7 +282,7 @@ class Veritesting(Analysis):
 
         # Find all merge points
         merge_points = self._get_all_merge_points(self._cfg, self._loop_graph)
-        l.debug('Merge points: %s', [ hex(i[0]) for i in merge_points ])
+        l.debug("Merge points: %s", [hex(i[0]) for i in merge_points])
 
         #
         # Controlled symbolic exploration
@@ -280,35 +290,29 @@ class Veritesting(Analysis):
 
         # Initialize the beginning state
         initial_state = state
-        initial_state.globals['loop_ctrs'] = defaultdict(int)
+        initial_state.globals["loop_ctrs"] = defaultdict(int)
 
         manager = SimulationManager(
             self.project,
-            active_states=[ initial_state ],
-            resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_state.options
+            active_states=[initial_state],
+            resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_state.options,
         )
 
         # Initialize all stashes
         for stash in self.all_stashes:
-            manager.stashes[stash] = [ ]
+            manager.stashes[stash] = []
         # immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
         while manager.active:
             # Step one step forward
-            l.debug('Steps %s with %d active states: [ %s ]',
-                    manager,
-                    len(manager.active),
-                    manager.active)
+            l.debug("Steps %s with %d active states: [ %s ]", manager, len(manager.active), manager.active)
 
             # Apply self.deviation_func on every single active state, and move them to deviated stash if needed
             if self._deviation_filter is not None:
-                manager.stash(filter_func=self._deviation_filter, from_stash='active', to_stash='deviated')
+                manager.stash(filter_func=self._deviation_filter, from_stash="active", to_stash="deviated")
 
             # Mark all those paths that are out of boundaries as successful
-            manager.stash(
-                filter_func=self.is_overbound,
-                from_stash='active', to_stash='successful'
-            )
+            manager.stash(filter_func=self.is_overbound, from_stash="active", to_stash="successful")
 
             manager.step(successor_func=self._get_successors)
 
@@ -318,29 +322,25 @@ class Veritesting(Analysis):
                 break
 
             # Stash all paths that we do not see in our CFG
-            manager.stash(
-                filter_func=self.is_not_in_cfg,
-                to_stash="deviated"
-            )
+            manager.stash(filter_func=self.is_not_in_cfg, to_stash="deviated")
 
             # Stash all paths that we do not care about
             manager.stash(
-                filter_func= lambda state: (
-                    state.history.jumpkind not in
-                    ('Ijk_Boring', 'Ijk_Call', 'Ijk_Ret', 'Ijk_NoHook')
-                    and not state.history.jumpkind.startswith('Ijk_Sys')
+                filter_func=lambda state: (
+                    state.history.jumpkind not in ("Ijk_Boring", "Ijk_Call", "Ijk_Ret", "Ijk_NoHook")
+                    and not state.history.jumpkind.startswith("Ijk_Sys")
                 ),
-                to_stash="deadended"
+                to_stash="deadended",
             )
 
             if manager.deadended:
-                l.debug('Now we have some deadended paths: %s', manager.deadended)
+                l.debug("Now we have some deadended paths: %s", manager.deadended)
 
             # Stash all possible states that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
                 manager.stash(
                     lambda s: s.addr == merge_point_addr,  # pylint:disable=cell-var-from-loop
-                    to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
+                    to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times),
                 )
 
             # Try to merge a set of previously stashed paths, and then unstash them
@@ -380,25 +380,24 @@ class Veritesting(Analysis):
                 continue
             if stash_size == 1:
                 l.info("Skipping merge of 1 state in stash %s.", stash_size)
-                manager.move(stash_name, 'active')
+                manager.move(stash_name, "active")
                 continue
 
             # let everyone know of the impending disaster
             l.info("Merging %d states in stash %s", stash_size, stash_name)
 
             # Try to prune the stash, so unsatisfiable states will be thrown away
-            manager.prune(from_stash=stash_name, to_stash='pruned')
-            if 'pruned' in manager.stashes and len(manager.pruned):
-                l.debug('... pruned %d paths from stash %s', len(manager.pruned), stash_name)
+            manager.prune(from_stash=stash_name, to_stash="pruned")
+            if "pruned" in manager.stashes and len(manager.pruned):
+                l.debug("... pruned %d paths from stash %s", len(manager.pruned), stash_name)
             # Remove the pruned stash to save memory
-            manager.drop(stash='pruned')
+            manager.drop(stash="pruned")
 
             # merge things callstack by callstack
             while len(manager.stashes[stash_name]):
                 r = manager.stashes[stash_name][0]
                 manager.move(
-                    stash_name, 'merge_tmp',
-                    lambda p: p.callstack == r.callstack #pylint:disable=cell-var-from-loop
+                    stash_name, "merge_tmp", lambda p: p.callstack == r.callstack  # pylint:disable=cell-var-from-loop
                 )
 
                 old_count = len(manager.merge_tmp)
@@ -407,33 +406,30 @@ class Veritesting(Analysis):
                 # merge the loop_ctrs
                 new_loop_ctrs = defaultdict(int)
                 for m in manager.merge_tmp:
-                    for head_addr, looping_times in m.globals['loop_ctrs'].items():
-                        new_loop_ctrs[head_addr] = max(
-                            looping_times,
-                            m.globals['loop_ctrs'][head_addr]
-                        )
+                    for head_addr, looping_times in m.globals["loop_ctrs"].items():
+                        new_loop_ctrs[head_addr] = max(looping_times, m.globals["loop_ctrs"][head_addr])
 
-                manager.merge(stash='merge_tmp')
+                manager.merge(stash="merge_tmp")
                 for m in manager.merge_tmp:
-                    m.globals['loop_ctrs'] = new_loop_ctrs
+                    m.globals["loop_ctrs"] = new_loop_ctrs
 
-                new_count = len(manager.stashes['merge_tmp'])
+                new_count = len(manager.stashes["merge_tmp"])
                 l.debug("... after merge: %d states.", new_count)
 
                 merged_anything |= new_count != old_count
 
                 if len(manager.merge_tmp) > 1:
                     l.warning("More than 1 state after Veritesting merge.")
-                    manager.move('merge_tmp', 'active')
+                    manager.move("merge_tmp", "active")
                 elif any(
-                    loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
-                    manager.one_merge_tmp.globals['loop_ctrs'].values()
+                    loop_ctr >= self._loop_unrolling_limit + 1
+                    for loop_ctr in manager.one_merge_tmp.globals["loop_ctrs"].values()
                 ):
                     l.debug("... merged state is overlooping")
-                    manager.move('merge_tmp', 'deadended')
+                    manager.move("merge_tmp", "deadended")
                 else:
-                    l.debug('... merged state going to active stash')
-                    manager.move('merge_tmp', 'active')
+                    l.debug("... merged state going to active stash")
+                    manager.move("merge_tmp", "active")
 
         return manager
 
@@ -449,11 +445,11 @@ class Veritesting(Analysis):
         :returns bool: False if our CFG contains p.addr, True otherwise.
         """
 
-        n = self._cfg.model.get_any_node(s.addr, is_syscall=s.history.jumpkind.startswith('Ijk_Sys'))
+        n = self._cfg.model.get_any_node(s.addr, is_syscall=s.history.jumpkind.startswith("Ijk_Sys"))
         if n is None:
             return True
 
-        if n.simprocedure_name == 'PathTerminator':
+        if n.simprocedure_name == "PathTerminator":
             return True
 
         return False
@@ -494,15 +490,15 @@ class Veritesting(Analysis):
             pass
 
         if (
-            ip in self._loop_heads # This is the beginning of the loop
-            or state.history.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
-            ):
-            state.globals['loop_ctrs'][ip] += 1
-            if state.globals['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
-                l.debug('... terminating Veritesting due to overlooping')
+            ip in self._loop_heads  # This is the beginning of the loop
+            or state.history.jumpkind == "Ijk_Call"  # We also wanna catch recursive function calls
+        ):
+            state.globals["loop_ctrs"][ip] += 1
+            if state.globals["loop_ctrs"][ip] >= self._loop_unrolling_limit + 1:
+                l.debug("... terminating Veritesting due to overlooping")
                 return True
 
-        l.debug('... accepted')
+        l.debug("... accepted")
         return False
 
     @staticmethod
@@ -513,7 +509,7 @@ class Veritesting(Analysis):
         :param SimState s: SimState instance to update
         :returns SimState: same SimState with deleted loop counter
         """
-        del s.globals['loop_ctrs']
+        del s.globals["loop_ctrs"]
         return s
 
     #
@@ -539,19 +535,19 @@ class Veritesting(Analysis):
 
         if self._enable_function_inlining:
             call_tracing_filter = CallTracingFilter(self.project, depth=0)
-            filter = call_tracing_filter.filter #pylint:disable=redefined-builtin
+            filter = call_tracing_filter.filter  # pylint:disable=redefined-builtin
         else:
             filter = None
 
         # To better handle syscalls, we make a copy of all registers if they are not symbolic
-        cfg_initial_state = self.project.factory.blank_state(mode='fastpath')
+        cfg_initial_state = self.project.factory.blank_state(mode="fastpath")
 
         # FIXME: This is very hackish
         # FIXME: And now only Linux-like syscalls are supported
-        if self.project.arch.name == 'X86':
+        if self.project.arch.name == "X86":
             if not state.solver.symbolic(state.regs.eax):
                 cfg_initial_state.regs.eax = state.regs.eax
-        elif self.project.arch.name == 'AMD64':
+        elif self.project.arch.name == "AMD64":
             if not state.solver.symbolic(state.regs.rax):
                 cfg_initial_state.regs.rax = state.regs.rax
 
@@ -562,7 +558,7 @@ class Veritesting(Analysis):
             call_depth=1,
             call_tracing_filter=filter,
             initial_state=cfg_initial_state,
-            normalize=True
+            normalize=True,
         )
         cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
         cfg.force_unroll_loops(self._loop_unrolling_limit)
@@ -599,33 +595,41 @@ class Veritesting(Analysis):
 
         # Remove all "FakeRet" edges
         fakeret_edges = [
-            (src, dst) for src, dst, data in graph.edges(data=True)
-            if data['jumpkind'] in ('Ijk_FakeRet', 'Ijk_Exit')
+            (src, dst) for src, dst, data in graph.edges(data=True) if data["jumpkind"] in ("Ijk_FakeRet", "Ijk_Exit")
         ]
         graph.remove_edges_from(fakeret_edges)
 
         # Remove all "FakeRet" edges from cyclic_graph as well
         fakeret_edges = [
-            (src, dst) for src, dst, data in reversed_cyclic_graph.edges(data=True)
-            if data['jumpkind'] in ('Ijk_FakeRet', 'Ijk_Exit')
+            (src, dst)
+            for src, dst, data in reversed_cyclic_graph.edges(data=True)
+            if data["jumpkind"] in ("Ijk_FakeRet", "Ijk_Exit")
         ]
         reversed_cyclic_graph.remove_edges_from(fakeret_edges)
 
         # Perform a topological sort
         sorted_nodes = networkx.topological_sort(graph)
 
-        nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 and n.looping_times == 0 ]
+        nodes = [n for n in sorted_nodes if graph.in_degree(n) > 1 and n.looping_times == 0]
 
         # Reorder nodes based on post-dominance relations
-        nodes = sorted(nodes, key=cmp_to_key(lambda n1, n2: (
-            1 if self._post_dominate(reversed_cyclic_graph, n1, n2)
-            else (-1 if self._post_dominate(reversed_cyclic_graph, n2, n1) else 0)
-        )))
+        nodes = sorted(
+            nodes,
+            key=cmp_to_key(
+                lambda n1, n2: (
+                    1
+                    if self._post_dominate(reversed_cyclic_graph, n1, n2)
+                    else (-1 if self._post_dominate(reversed_cyclic_graph, n2, n1) else 0)
+                )
+            ),
+        )
 
-        return [ (n.addr, n.looping_times) for n in nodes ]
+        return [(n.addr, n.looping_times) for n in nodes]
+
 
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('Veritesting', Veritesting)
+
+AnalysesHub.register_default("Veritesting", Veritesting)
 
 from ..errors import SimValueError, SimSolverModeError, SimError
 from ..sim_options import BYPASS_VERITESTING_EXCEPTIONS

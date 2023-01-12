@@ -7,21 +7,19 @@ class GetProcessHeap(angr.SimProcedure):
 
 
 class HeapCreate(angr.SimProcedure):
-    def run(self, flOptions, dwInitialSize, dwMaximumSize): #pylint:disable=arguments-differ, unused-argument
+    def run(self, flOptions, dwInitialSize, dwMaximumSize):  # pylint:disable=arguments-differ, unused-argument
         return 1  # still a fake heap handle
 
 
 class HeapAlloc(angr.SimProcedure):
-    def run(self, HeapHandle, Flags, Size): #pylint:disable=arguments-differ, unused-argument
+    def run(self, HeapHandle, Flags, Size):  # pylint:disable=arguments-differ, unused-argument
         addr = self.state.heap._malloc(Size)
 
         # conditionally zero the allocated memory
         if self.state.solver.solution(Flags & 8, 8):
             if isinstance(self.state.heap, angr.SimHeapPTMalloc):
                 # allocated size might be greater than requested
-                data_size = self.state.solver.eval_one(
-                    self.state.heap.chunk_from_mem(addr).get_data_size()
-                )
+                data_size = self.state.solver.eval_one(self.state.heap.chunk_from_mem(addr).get_data_size())
             else:
                 data_size = self.state.heap._conc_alloc_size(Size)
             data = self.state.solver.BVV(0, data_size * 8)
@@ -30,7 +28,7 @@ class HeapAlloc(angr.SimProcedure):
 
 
 class HeapReAlloc(angr.SimProcedure):
-    def run(self, hHeap, dwFlags, lpMem, dwBytes): #pylint:disable=arguments-differ, unused-argument
+    def run(self, hHeap, dwFlags, lpMem, dwBytes):  # pylint:disable=arguments-differ, unused-argument
         return self.state.heap._realloc(lpMem, dwBytes)
 
 
@@ -40,5 +38,5 @@ class GlobalAlloc(HeapAlloc):
 
 
 class HeapFree(angr.SimProcedure):
-    def run(self, HeapHandle, Flags, lpMem): #pylint:disable=arguments-differ, unused-argument
+    def run(self, HeapHandle, Flags, lpMem):  # pylint:disable=arguments-differ, unused-argument
         return 1

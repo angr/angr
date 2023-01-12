@@ -9,7 +9,13 @@ class StateOption:
     Describes a state option.
     """
 
-    __slots__ = ('name', 'types', 'default', 'description', '_one_type', )
+    __slots__ = (
+        "name",
+        "types",
+        "default",
+        "description",
+        "_one_type",
+    )
 
     def __init__(self, name, types, default=_NO_DEFAULT_VALUE, description=None):
         self.name = name
@@ -19,8 +25,9 @@ class StateOption:
 
         # Sanity check
         if not isinstance(self.default, tuple(self.types)):
-            raise SimStateOptionsError("The type of the default value does not match the expected types of this state "
-                                       "option.")
+            raise SimStateOptionsError(
+                "The type of the default value does not match the expected types of this state " "option."
+            )
 
         # Speed optimization
         if len(self.types) == 1:
@@ -39,9 +46,7 @@ class StateOption:
         return hash(self.name)
 
     def __eq__(self, other):
-        return isinstance(other, StateOption) \
-               and self.name == other.name \
-               and self.types == other.types
+        return isinstance(other, StateOption) and self.name == other.name and self.types == other.types
 
     def __repr__(self):
         if self.description is not None:
@@ -76,16 +81,16 @@ class SimStateOptions:
     seen as a key-valued entry whose value can only be either True or False).
     """
 
-    __slots__ = ('_options', )
+    __slots__ = ("_options",)
 
-    OPTIONS = { }
+    OPTIONS = {}
 
     def __init__(self, thing):
         """
         :param thing:    Either a set of Boolean switches to enable, or an existing SimStateOptions instance.
         """
 
-        self._options = { }
+        self._options = {}
         if thing is None:
             pass
         elif isinstance(thing, (set, list)):
@@ -160,10 +165,10 @@ class SimStateOptions:
         o = self._get_option_desc(key)
 
         if type(value) not in o.types:
-            raise SimStateOptionsError("The value '%s' does not have an acceptable type for state option '%s'. "
-                                       "Accepted types are: %s." %
-                                       (value, key, str(o.types))
-                                       )
+            raise SimStateOptionsError(
+                "The value '%s' does not have an acceptable type for state option '%s'. "
+                "Accepted types are: %s." % (value, key, str(o.types))
+            )
 
         self._options[o.name] = value
 
@@ -238,14 +243,14 @@ class SimStateOptions:
         return ops
 
     def __getattr__(self, key):
-        if key in { 'OPTIONS', '_options' }:
+        if key in {"OPTIONS", "_options"}:
             return self.__getattribute__(key)
         if key.startswith("__") and key.endswith("__"):
             return self.__getattribute__(key)
         return self[key]
 
     def __setattr__(self, key, value):
-        if key in { 'OPTIONS', '_options' }:
+        if key in {"OPTIONS", "_options"}:
             super().__setattr__(key, value)
             return
         self[key] = value
@@ -349,7 +354,7 @@ class SimStateOptions:
         :rtype:                     str
         """
 
-        total = [ ]
+        total = []
 
         for o in sorted(self.OPTIONS.values(), key=lambda x: x.name):
             try:
@@ -385,7 +390,7 @@ class SimStateOptions:
             raise SimStateOptionsError("A state option with the same name has been registered.")
 
         if isinstance(types, type):
-            types = { types }
+            types = {types}
 
         o = StateOption(name, types, default=default, description=description)
         cls.OPTIONS[name] = o
@@ -401,4 +406,4 @@ class SimStateOptions:
         :return:                None
         """
 
-        cls.register_option(name, { bool }, default=False, description=description)
+        cls.register_option(name, {bool}, default=False, description=description)

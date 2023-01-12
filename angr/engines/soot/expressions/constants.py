@@ -1,5 +1,5 @@
 from archinfo.arch_soot import SootClassDescriptor, SootNullConstant
-from claripy import  FSORT_DOUBLE, FSORT_FLOAT
+from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from ..values import SimSootValue_StringRef
 from .base import SimSootExpr
@@ -28,7 +28,7 @@ class SimSootExpr_DoubleConstant(SimSootExpr):
 class SimSootExpr_StringConstant(SimSootExpr):
     def _execute(self):
         # strip away quotes introduced by soot
-        str_val = self.state.solver.StringV(self.expr.value.strip("\""))
+        str_val = self.state.solver.StringV(self.expr.value.strip('"'))
         str_ref = SimSootValue_StringRef(self.state.memory.get_new_uuid())
         self.state.memory.store(str_ref, str_val)
         self.expr = str_ref

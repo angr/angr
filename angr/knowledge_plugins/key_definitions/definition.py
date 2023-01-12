@@ -18,9 +18,16 @@ class Definition:
     :ivar tags:     A set of tags containing information about the definition gathered during analyses.
     """
 
-    __slots__ = ('atom', 'codeloc', 'data', 'dummy', 'tags', '_hash', )
+    __slots__ = (
+        "atom",
+        "codeloc",
+        "data",
+        "dummy",
+        "tags",
+        "_hash",
+    )
 
-    def __init__(self, atom: Atom, codeloc: CodeLocation, dummy: bool=False, tags: Set[Tag]=None):
+    def __init__(self, atom: Atom, codeloc: CodeLocation, dummy: bool = False, tags: Set[Tag] = None):
 
         self.atom: Atom = atom
         self.codeloc: CodeLocation = codeloc
@@ -33,17 +40,17 @@ class Definition:
 
     def __repr__(self):
         if not self.tags:
-            return '<Definition {{Atom:{}, Codeloc:{}}}{}>'.format(self.atom, self.codeloc, "" if not self.dummy else "dummy")
+            return "<Definition {{Atom:{}, Codeloc:{}}}{}>".format(
+                self.atom, self.codeloc, "" if not self.dummy else "dummy"
+            )
         else:
-            return '<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>'.format(repr(self.tags), self.atom, self.codeloc,
-                                                                    "" if not self.dummy else " dummy")
+            return "<Definition {{Tags:{}, Atom:{}, Codeloc:{}}}{}>".format(
+                repr(self.tags), self.atom, self.codeloc, "" if not self.dummy else " dummy"
+            )
 
     def __str__(self):
         pretty_tags = "\n".join([str(tag) for tag in self.tags])
-        return f"Definition:\n" \
-               f"Atom: {self.atom}\n" \
-               f"CodeLoc: {self.codeloc}\n" \
-               f"Tags: {pretty_tags}"
+        return f"Definition:\n" f"Atom: {self.atom}\n" f"CodeLoc: {self.codeloc}\n" f"Tags: {pretty_tags}"
 
     def __hash__(self):
         if self._hash is None:
@@ -60,7 +67,7 @@ class Definition:
             else:
                 return self.atom.addr
         else:
-            raise ValueError('Unsupported operation offset on %s.' % type(self.atom))
+            raise ValueError("Unsupported operation offset on %s." % type(self.atom))
 
     @property
     def size(self) -> int:
@@ -69,4 +76,4 @@ class Definition:
         elif isinstance(self.atom, MemoryLocation):
             return self.atom.bits // 8
         else:
-            raise ValueError('Unsupported operation size on %s.' % type(self.atom))
+            raise ValueError("Unsupported operation size on %s." % type(self.atom))

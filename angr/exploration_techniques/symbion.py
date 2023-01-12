@@ -20,7 +20,7 @@ class Symbion(ExplorationTechnique):
 
     """
 
-    def __init__(self, find=None, memory_concretize=None, register_concretize=None, timeout=0, find_stash='found'):
+    def __init__(self, find=None, memory_concretize=None, register_concretize=None, timeout=0, find_stash="found"):
         super().__init__()
 
         # need to keep the raw list of addresses to
@@ -35,7 +35,7 @@ class Symbion(ExplorationTechnique):
         # adding the 'found' stash during the setup
         simgr.stashes[self.find_stash] = []
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         # safe guard
         if not len(simgr.stashes[stash]):
             l.warning("No stashes to step, aborting.")
@@ -46,25 +46,31 @@ class Symbion(ExplorationTechnique):
         # This because for now we support only one concrete execution, in future we can think about
         # a snapshot engine and give to each SimState an instance of a concrete process.
         if len(simgr.stashes[stash]) > 1:
-            l.warning("You are trying to use the Symbion exploration technique on multiple state, "
-                      "this is not supported now.")
+            l.warning(
+                "You are trying to use the Symbion exploration technique on multiple state, "
+                "this is not supported now."
+            )
 
         return simgr.step(stash=stash, **kwargs)
 
-    def step_state(self, simgr, *args, **kwargs): #pylint:disable=arguments-differ
+    def step_state(self, simgr, *args, **kwargs):  # pylint:disable=arguments-differ
         state = args[0]
-        ss = self.successors(state=state, simgr=simgr, engine=self.project.factory.concrete_engine,
-                                          extra_stop_points=self.breakpoints,
-                                          memory_concretize=self.memory_concretize,
-                                          register_concretize=self.register_concretize,
-                                          timeout=self.timeout)
+        ss = self.successors(
+            state=state,
+            simgr=simgr,
+            engine=self.project.factory.concrete_engine,
+            extra_stop_points=self.breakpoints,
+            memory_concretize=self.memory_concretize,
+            register_concretize=self.register_concretize,
+            timeout=self.timeout,
+        )
 
         new_state = ss.successors
 
         if new_state[0].globals.get("symbion_timeout", None):
-            return {'timeout': new_state}
+            return {"timeout": new_state}
 
-        return {'found': new_state}
+        return {"found": new_state}
 
     def complete(self, simgr):
         # We are done if we have hit at least one breakpoint in

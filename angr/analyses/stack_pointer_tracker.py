@@ -26,6 +26,7 @@ class BottomType:
     """
     The bottom value for register values.
     """
+
     def __repr__(self):
         return "<Bottom>"
 
@@ -39,7 +40,7 @@ class Constant:
     Represents a constant value.
     """
 
-    __slots__ = ( 'val', )
+    __slots__ = ("val",)
 
     def __init__(self, val):
         self.val = val
@@ -73,7 +74,7 @@ class Register:
     Represent a register.
     """
 
-    __slots__ = ( 'offset', 'bitlen' )
+    __slots__ = ("offset", "bitlen")
 
     def __init__(self, offset, bitlen):
         self.offset = offset
@@ -96,7 +97,10 @@ class OffsetVal:
     Represent a value with an offset added.
     """
 
-    __slots__ = ( '_reg', '_offset', )
+    __slots__ = (
+        "_reg",
+        "_offset",
+    )
 
     def __init__(self, reg, offset):
         self._reg = reg
@@ -137,7 +141,7 @@ class OffsetVal:
         return hash((type(self), self._reg, self._offset))
 
     def __repr__(self):
-        return f'reg({self.reg}){(self.offset - 2**self.reg.bitlen) if self.offset != 0 else 0:+}'
+        return f"reg({self.reg}){(self.offset - 2**self.reg.bitlen) if self.offset != 0 else 0:+}"
 
 
 class FrozenStackPointerTrackerState:
@@ -145,7 +149,7 @@ class FrozenStackPointerTrackerState:
     Abstract state for StackPointerTracker analysis with registers and memory values being in frozensets.
     """
 
-    __slots__ = 'regs', 'memory', 'is_tracking_memory'
+    __slots__ = "regs", "memory", "is_tracking_memory"
 
     def __init__(self, regs, memory, is_tracking_memory):
         self.regs = regs
@@ -178,7 +182,7 @@ class StackPointerTrackerState:
     Abstract state for StackPointerTracker analysis.
     """
 
-    __slots__ = 'regs', 'memory', 'is_tracking_memory'
+    __slots__ = "regs", "memory", "is_tracking_memory"
 
     def __init__(self, regs, memory, is_tracking_memory):
         self.regs = regs
@@ -228,9 +232,9 @@ class StackPointerTrackerState:
         return StackPointerTrackerState(self.regs.copy(), self.memory.copy(), self.is_tracking_memory)
 
     def freeze(self):
-        return FrozenStackPointerTrackerState(frozenset(self.regs.items()),
-                                              frozenset(self.memory.items()),
-                                              self.is_tracking_memory)
+        return FrozenStackPointerTrackerState(
+            frozenset(self.regs.items()), frozenset(self.memory.items()), self.is_tracking_memory
+        )
 
     def __eq__(self, other):
         if type(other) is StackPointerTrackerState or isinstance(other, StackPointerTrackerState):
@@ -247,9 +251,11 @@ class StackPointerTrackerState:
             return hash((StackPointerTrackerState, self.regs, self.is_tracking_memory))
 
     def merge(self, other):
-        return StackPointerTrackerState(regs=_dict_merge(self.regs, other.regs),
-                                        memory=_dict_merge(self.memory, other.memory),
-                                        is_tracking_memory=self.is_tracking_memory and other.is_tracking_memory)
+        return StackPointerTrackerState(
+            regs=_dict_merge(self.regs, other.regs),
+            memory=_dict_merge(self.memory, other.memory),
+            is_tracking_memory=self.is_tracking_memory and other.is_tracking_memory,
+        )
 
 
 def _dict_merge(d1, d2):
@@ -266,7 +272,7 @@ def _dict_merge(d1, d2):
             merged[k] = d1[k]
         elif d1[k] == d2[k]:
             merged[k] = d1[k]
-        else: # d1[k] != d2[k]
+        else:  # d1[k] != d2[k]
             merged[k] = TOP
     return merged
 
@@ -290,19 +296,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             func.normalize()
 
         super().__init__(
-            order_jobs=False,
-            allow_merging=True,
-            allow_widening=track_memory,
-            graph_visitor=FunctionGraphVisitor(func)
+            order_jobs=False, allow_merging=True, allow_widening=track_memory, graph_visitor=FunctionGraphVisitor(func)
         )
 
         self.track_mem = track_memory
         self._func = func
         self.reg_offsets = reg_offsets
-        self.states = { }
-        self._blocks = { }
+        self.states = {}
+        self._blocks = {}
 
-        _l.debug('Running on function %r', self._func)
+        _l.debug("Running on function %r", self._func)
         self._analyze()
 
     def _state_for(self, addr, pre_or_post):
@@ -332,10 +335,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             return regval.offset
 
     def offset_after(self, addr, reg):
-        return self._offset_for(addr, 'post', reg)
+        return self._offset_for(addr, "post", reg)
 
     def offset_before(self, addr, reg):
-        return self._offset_for(addr, 'pre', reg)
+        return self._offset_for(addr, "pre", reg)
 
     def offset_after_block(self, block_addr, reg):
         if block_addr not in self._blocks:
@@ -395,23 +398,21 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             # blocks happen.
             initial_regs = {r: BOTTOM for r in self.reg_offsets}
 
-        return StackPointerTrackerState(regs=initial_regs,
-                                        memory={},
-                                        is_tracking_memory=self.track_mem).freeze()
+        return StackPointerTrackerState(regs=initial_regs, memory={}, is_tracking_memory=self.track_mem).freeze()
 
     def _set_state(self, addr, new_val, pre_or_post):
         previous_val = self._state_for(addr, pre_or_post)
         if previous_val is not None:
             new_val = previous_val.merge(new_val)
         if addr not in self.states:
-            self.states[addr] = { }
+            self.states[addr] = {}
         self.states[addr][pre_or_post] = new_val
 
     def _set_post_state(self, addr, new_val):
-        self._set_state(addr, new_val, 'post')
+        self._set_state(addr, new_val, "post")
 
     def _set_pre_state(self, addr, new_val):
-        self._set_state(addr, new_val, 'pre')
+        self._set_state(addr, new_val, "pre")
 
     def _run_on_node(self, node: BlockNode, state):
 
@@ -419,9 +420,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._blocks[node.addr] = block
 
         state = state.unfreeze()
-        _l.debug('START:       Running on block at %x', node.addr)
-        _l.debug('Regs: %s', state.regs)
-        _l.debug('Mem: %s', state.memory)
+        _l.debug("START:       Running on block at %x", node.addr)
+        _l.debug("Regs: %s", state.regs)
+        _l.debug("Mem: %s", state.memory)
         curr_stmt_start_addr = None
 
         vex_block = None
@@ -438,26 +439,25 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             else:
                 raise NotImplementedError(f"Unsupported block type {type(vex_block)}")
 
-
         if curr_stmt_start_addr is not None:
             self._set_post_state(curr_stmt_start_addr, state.freeze())
 
-        _l.debug('FINISH:      After running on block at %x', node.addr)
-        _l.debug('Regs: %s', state.regs)
-        _l.debug('Mem: %s', state.memory)
+        _l.debug("FINISH:      After running on block at %x", node.addr)
+        _l.debug("Regs: %s", state.regs)
+        _l.debug("Mem: %s", state.memory)
 
         output_state = state.freeze()
         return None, output_state
 
     def _process_vex_irsb(self, node, vex_block: pyvex.IRSB, state: StackPointerTrackerState) -> int:
 
-        tmps = { }
+        tmps = {}
         curr_stmt_start_addr = None
 
         def _resolve_expr(expr):
             if type(expr) is pyvex.IRExpr.Binop:
                 arg0, arg1 = expr.args
-                if expr.op.startswith('Iop_Add'):
+                if expr.op.startswith("Iop_Add"):
                     arg0_expr = _resolve_expr(arg0)
                     if arg0_expr is None:
                         raise CouldNotResolveException()
@@ -469,7 +469,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     if arg1_expr is BOTTOM:
                         return BOTTOM
                     return arg0_expr + arg1_expr
-                elif expr.op.startswith('Iop_Sub'):
+                elif expr.op.startswith("Iop_Sub"):
                     arg0_expr = _resolve_expr(arg0)
                     if arg0_expr is None:
                         raise CouldNotResolveException()
@@ -485,11 +485,17 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     # handle stack pointer alignments
                     arg0_expr = _resolve_expr(arg0)
                     arg1_expr = _resolve_expr(arg1)
-                    if isinstance(arg1_expr, (Register, OffsetVal)) \
-                            and isinstance(arg0_expr, Constant) and is_alignment_mask(arg0_expr.val):
+                    if (
+                        isinstance(arg1_expr, (Register, OffsetVal))
+                        and isinstance(arg0_expr, Constant)
+                        and is_alignment_mask(arg0_expr.val)
+                    ):
                         return arg1_expr
-                    if isinstance(arg0_expr, (Register, OffsetVal)) \
-                            and isinstance(arg1_expr, Constant) and is_alignment_mask(arg1_expr.val):
+                    if (
+                        isinstance(arg0_expr, (Register, OffsetVal))
+                        and isinstance(arg1_expr, Constant)
+                        and is_alignment_mask(arg1_expr.val)
+                    ):
                         return arg0_expr
                     raise CouldNotResolveException()
             elif type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
@@ -532,7 +538,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     pass
 
         # stack pointer adjustment
-        if self.project.arch.sp_offset in self.reg_offsets and vex_block.jumpkind == 'Ijk_Call':
+        if self.project.arch.sp_offset in self.reg_offsets and vex_block.jumpkind == "Ijk_Call":
             if self.project.arch.call_pushes_ret:
                 # pop the return address on the stack
                 try:
@@ -547,8 +553,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             # who are we calling?
             callees = self._find_callees(node)
             if callees:
-                callee_cleanups = [callee for callee in callees if callee.calling_convention is not None and
-                                   callee.calling_convention.CALLEE_CLEANUP]
+                callee_cleanups = [
+                    callee
+                    for callee in callees
+                    if callee.calling_convention is not None and callee.calling_convention.CALLEE_CLEANUP
+                ]
                 if callee_cleanups:
                     # found callee clean-up cases...
                     try:
@@ -564,12 +573,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         return curr_stmt_start_addr
 
-    def _process_pcode_irsb(self, node, pcode_irsb: 'pcode.lifter.IRSB', state: StackPointerTrackerState) -> int:
+    def _process_pcode_irsb(self, node, pcode_irsb: "pcode.lifter.IRSB", state: StackPointerTrackerState) -> int:
 
-        unique = { }
+        unique = {}
         curr_stmt_start_addr = None
 
-        def _resolve_expr(varnode: 'pypcode.Varnode'):
+        def _resolve_expr(varnode: "pypcode.Varnode"):
             if varnode.space.name == "register":
                 return state.get(varnode.offset)
             elif varnode.space.name == "unique":
@@ -582,19 +591,18 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             else:
                 raise CouldNotResolveException()
 
-        def resolve_expr(varnode: 'pypcode.Varnode'):
+        def resolve_expr(varnode: "pypcode.Varnode"):
             try:
                 return _resolve_expr(varnode)
             except CouldNotResolveException:
                 return TOP
 
-        def resolve_op(op: 'pypcode.PcodeOp'):
+        def resolve_op(op: "pypcode.PcodeOp"):
             if op.opcode == pypcode.OpCode.INT_ADD and len(op.inputs) == 2:
                 input0, input1 = op.inputs
                 input0_v = resolve_expr(input0)
                 input1_v = resolve_expr(input1)
-                if isinstance(input0_v, (Register, OffsetVal)) \
-                        and isinstance(input1_v, Constant):
+                if isinstance(input0_v, (Register, OffsetVal)) and isinstance(input1_v, Constant):
                     v = input0_v + input1_v
                 else:
                     raise CouldNotResolveException()
@@ -621,7 +629,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             self._set_pre_state(curr_stmt_start_addr, state.freeze())
 
             for op in instr.ops:
-                op: 'pypcode.PcodeOp'
+                op: "pypcode.PcodeOp"
                 try:
                     resolve_op(op)
                 except CouldNotResolveException:
@@ -652,8 +660,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             # who are we calling?
             callees = self._find_callees(node)
             if callees:
-                callee_cleanups = [callee for callee in callees if callee.calling_convention is not None and
-                                   callee.calling_convention.CALLEE_CLEANUP]
+                callee_cleanups = [
+                    callee
+                    for callee in callees
+                    if callee.calling_convention is not None and callee.calling_convention.CALLEE_CLEANUP
+                ]
                 if callee_cleanups:
                     # found callee clean-up cases...
                     try:
@@ -673,7 +684,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         assert len(states) == 2
         merged, _ = self._merge_states(None, *states)
         if len(merged.memory) > 5:
-            _l.info('Encountered too many memory writes in stack pointer tracking. Abandoning memory tracking.')
+            _l.info("Encountered too many memory writes in stack pointer tracking. Abandoning memory tracking.")
             merged = merged.unfreeze().give_up_on_memory_tracking().freeze()
         return merged
 
@@ -685,12 +696,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return merged_state, merged_state == states[0]
 
     def _find_callees(self, node) -> List[Function]:
-        callees: List[Function] = [ ]
+        callees: List[Function] = []
         for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
-            if data.get('type') == 'call':
+            if data.get("type") == "call":
                 if isinstance(dst, Function):
                     callees.append(dst)
         return callees
 
 
-AnalysesHub.register_default('StackPointerTracker', StackPointerTracker)
+AnalysesHub.register_default("StackPointerTracker", StackPointerTracker)

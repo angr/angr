@@ -4,7 +4,7 @@ from ..field_dispatcher import resolve_field
 
 class SimSootValue_StaticFieldRef(SimSootValue):
 
-    __slots__ = [ 'id', 'class_name', 'field_name', 'type' ]
+    __slots__ = ["id", "class_name", "field_name", "type"]
 
     def __init__(self, class_name, field_name, type_):
         self.id = f"{class_name}.{field_name}"

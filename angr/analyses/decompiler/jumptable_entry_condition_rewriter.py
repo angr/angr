@@ -8,6 +8,7 @@ class JumpTableEntryConditionRewriter(SequenceWalker):
     """
     Remove artificial jump table entry conditions that ConditionProcessor introduced when dealing with jump tables.
     """
+
     def __init__(self, jumptable_entry_conds):
         super().__init__()
         self._jumptable_entry_conds = jumptable_entry_conds
@@ -16,7 +17,7 @@ class JumpTableEntryConditionRewriter(SequenceWalker):
         if expr in self._jumptable_entry_conds:
             return claripy.true
 
-        new_args = [ ]
+        new_args = []
         replaced = False
         if expr.op in {"Or", "And", "Not"}:
             for arg in expr.args:
@@ -56,8 +57,9 @@ class JumpTableEntryConditionRewriter(SequenceWalker):
 
         new_cond = self._process_expr(new_node.condition)
         if new_cond is not None:
-            return ConditionNode(new_node.addr, node.reaching_condition, new_cond, new_node.true_node,
-                                 false_node=new_node.false_node)
+            return ConditionNode(
+                new_node.addr, node.reaching_condition, new_cond, new_node.true_node, false_node=new_node.false_node
+            )
 
         if changed:
             return new_node

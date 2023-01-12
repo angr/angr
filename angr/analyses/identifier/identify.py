@@ -76,7 +76,9 @@ class Identifier(Analysis):
 
         self.base_symbolic_state = self.make_symbolic_state(self.project, self._reg_list)
         self.base_symbolic_state.options.discard(options.SUPPORT_FLOATING_POINT)
-        self.base_symbolic_state.regs.bp = self.base_symbolic_state.solver.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
+        self.base_symbolic_state.regs.bp = self.base_symbolic_state.solver.BVS(
+            "sreg_" + "ebp" + "-", self.project.arch.bits
+        )
 
         for f in self._cfg.functions.values():
             if f.is_syscall:
@@ -153,8 +155,7 @@ class Identifier(Analysis):
                 try:
                     result = func.try_match(f, self, self._runner)
                 except IdentifierException as e:
-                    l.warning('Encountered IdentifierException trying to analyze %#x, reason: %s',
-                            f.addr, e)
+                    l.warning("Encountered IdentifierException trying to analyze %#x, reason: %s", f.addr, e)
                     continue
                 except SimSegfaultError:
                     continue
@@ -252,7 +253,9 @@ class Identifier(Analysis):
 
         if len(func_info.stack_args) == 2 and func_info.var_args and len(function.graph.nodes()) < 5:
             match = Functions["fdprintf"]()
-            l.warning("%#x assuming fd printf for var_args func with 2 args although we don't really know", function.addr)
+            l.warning(
+                "%#x assuming fd printf for var_args func with 2 args although we don't really know", function.addr
+            )
             return match
 
         return None
@@ -295,7 +298,7 @@ class Identifier(Analysis):
             for b in f.graph.nodes():
                 self.block_to_func[b.addr] = f
 
-    def do_trace(self, addr_trace, reverse_accesses, func_info): #pylint: disable=unused-argument
+    def do_trace(self, addr_trace, reverse_accesses, func_info):  # pylint: disable=unused-argument
         # get to the callsite
 
         s = self.make_symbolic_state(self.project, self._reg_list, stack_length=200)
@@ -305,7 +308,7 @@ class Identifier(Analysis):
         s.options.discard(options.LAZY_SOLVES)
 
         func_info = self.func_info[self.block_to_func[addr_trace[0]]]
-        for i in range(func_info.frame_size//self.project.arch.bytes+5):
+        for i in range(func_info.frame_size // self.project.arch.bytes + 5):
             s.stack_push(s.solver.BVS("var_" + hex(i), self.project.arch.bits))
 
         if func_info.bp_based:
@@ -314,7 +317,7 @@ class Identifier(Analysis):
         addr_trace = addr_trace[1:]
         simgr = self.project.factory.simulation_manager(s, save_unconstrained=True)
         while len(addr_trace) > 0:
-            simgr.stashes['unconstrained'] = []
+            simgr.stashes["unconstrained"] = []
             simgr.step()
             stepped = False
             for ss in simgr.active:
@@ -324,7 +327,7 @@ class Identifier(Analysis):
                     ss.regs.ip = ss.stack_pop()
                     ss.history.jumpkind = "Ijk_Ret"
                 if ss.addr == addr_trace[0]:
-                    simgr.stashes['active'] = [ss]
+                    simgr.stashes["active"] = [ss]
                     stepped = True
                     break
             if not stepped:
@@ -335,7 +338,7 @@ class Identifier(Analysis):
                         s.regs.ip = s.stack_pop()
                         s.history.jumpkind = "Ijk_Ret"
                     s.regs.ip = addr_trace[0]
-                    simgr.stashes['active'] = [s]
+                    simgr.stashes["active"] = [s]
                     stepped = True
             if not stepped:
                 raise IdentifierException("could not get call args")
@@ -392,7 +395,7 @@ class Identifier(Analysis):
         args_as_stack_vars = []
         for a in args:
             if not a.symbolic:
-                sp_off = succ_state.solver.eval(a-succ_state.regs.sp-arch_bytes)
+                sp_off = succ_state.solver.eval(a - succ_state.regs.sp - arch_bytes)
                 if calling_func_info.bp_based:
                     bp_off = sp_off - calling_func_info.bp_sp_diff
                 else:
@@ -442,7 +445,7 @@ class Identifier(Analysis):
         state.regs.bp = input_state.regs.bp
         return state
 
-    def _prefilter_floats(self, func): #pylint: disable=no-self-use
+    def _prefilter_floats(self, func):  # pylint: disable=no-self-use
 
         # calling _get_block() from `func` respects the size of the basic block
         # in extreme cases (like at the end of a section where VEX cannot disassemble the instruction beyond the
@@ -493,7 +496,7 @@ class Identifier(Analysis):
             # find the sub sp
             for i, insn in enumerate(bl.capstone.insns):
                 if str(insn.mnemonic) == "sub" and str(insn.op_str).startswith("esp"):
-                    succ = self.project.factory.successors(initial_state, num_inst=i+1).all_successors[0]
+                    succ = self.project.factory.successors(initial_state, num_inst=i + 1).all_successors[0]
                     goal_sp = succ.solver.eval(succ.regs.sp)
 
         elif succ.history.jumpkind == "Ijk_Ret":
@@ -528,7 +531,9 @@ class Identifier(Analysis):
         if num_preamble_inst == 0:
             end_addr = func.startpoint.addr
         else:
-            end_addr = func.startpoint.addr + self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst).size
+            end_addr = (
+                func.startpoint.addr + self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst).size
+            )
         if self._sets_ebp_from_esp(initial_state, end_addr):
             num_preamble_inst += 1
             succ = self.project.factory.successors(initial_state, num_inst=num_preamble_inst).all_successors[0]
@@ -579,11 +584,11 @@ class Identifier(Analysis):
                 cur_addr = None
                 found_end = False
                 for stmt in irsb.statements:
-                    if stmt.tag == 'Ist_Imark':
+                    if stmt.tag == "Ist_Imark":
                         cur_addr = stmt.addr
                         if found_end:
                             all_end_addrs.add(cur_addr)
-                    elif not found_end and stmt.tag == 'Ist_Put':
+                    elif not found_end and stmt.tag == "Ist_Put":
                         if stmt.offset == self.project.arch.sp_offset:
                             found_end = True
                             ends.add(cur_addr)
@@ -653,13 +658,13 @@ class Identifier(Analysis):
                     is_buffer = False
                 sp_off = succ.solver.eval(simplified)
                 if sp_off > 2 ** (self.project.arch.bits - 1):
-                    sp_off = 2 ** self.project.arch.bits - sp_off
+                    sp_off = 2**self.project.arch.bits - sp_off
 
                 # get the offsets
                 if bp_based:
                     bp_off = sp_off - bp_sp_diff
                 else:
-                    bp_off = sp_off - (initial_sp-min_sp) + self.project.arch.bytes
+                    bp_off = sp_off - (initial_sp - min_sp) + self.project.arch.bytes
 
                 stack_var_accesses[bp_off].add((addr, action))
                 stack_vars.add(bp_off)
@@ -675,7 +680,7 @@ class Identifier(Analysis):
                     is_buffer = False
                 bp_off = succ.solver.eval(simplified)
                 if bp_off > 2 ** (self.project.arch.bits - 1):
-                    bp_off = -(2 ** self.project.arch.bits - bp_off)
+                    bp_off = -(2**self.project.arch.bits - bp_off)
                 stack_var_accesses[bp_off].add((addr, action))
                 stack_vars.add(bp_off)
                 if is_buffer:
@@ -786,7 +791,7 @@ class Identifier(Analysis):
     @staticmethod
     def _non_normal_args(stack_args):
         for i, arg in enumerate(stack_args):
-            if arg != i*4:
+            if arg != i * 4:
                 return True
             return False
 
@@ -796,13 +801,25 @@ class Identifier(Analysis):
         :return: an initial state with a symbolic stack and good options for rop
         """
         initial_state = project.factory.blank_state(
-            add_options={options.AVOID_MULTIVALUED_READS, options.AVOID_MULTIVALUED_WRITES,
-                         options.NO_SYMBOLIC_JUMP_RESOLUTION, options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH,
-                         options.NO_SYMBOLIC_SYSCALL_RESOLUTION, options.TRACK_ACTION_HISTORY},
-            remove_options=options.resilience | options.simplification)
+            add_options={
+                options.AVOID_MULTIVALUED_READS,
+                options.AVOID_MULTIVALUED_WRITES,
+                options.NO_SYMBOLIC_JUMP_RESOLUTION,
+                options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH,
+                options.NO_SYMBOLIC_SYSCALL_RESOLUTION,
+                options.TRACK_ACTION_HISTORY,
+            },
+            remove_options=options.resilience | options.simplification,
+        )
         initial_state.options.discard(options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-        initial_state.options.update({options.TRACK_REGISTER_ACTIONS, options.TRACK_MEMORY_ACTIONS,
-                                      options.TRACK_JMP_ACTIONS, options.TRACK_CONSTRAINT_ACTIONS})
+        initial_state.options.update(
+            {
+                options.TRACK_REGISTER_ACTIONS,
+                options.TRACK_MEMORY_ACTIONS,
+                options.TRACK_JMP_ACTIONS,
+                options.TRACK_CONSTRAINT_ACTIONS,
+            }
+        )
         symbolic_stack = initial_state.solver.BVS("symbolic_stack", project.arch.bits * stack_length)
         initial_state.memory.store(initial_state.regs.sp, symbolic_stack)
         if initial_state.arch.bp_offset != initial_state.arch.sp_offset:
@@ -829,4 +846,5 @@ class Identifier(Analysis):
 
 
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('Identifier', Identifier)
+
+AnalysesHub.register_default("Identifier", Identifier)

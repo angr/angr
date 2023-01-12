@@ -21,12 +21,18 @@ class SimEngineXRefsVEX(
         super().__init__()
         self.project = project
         self.xref_manager = xref_manager
-        self.replacements = replacements if replacements is not None else { }
+        self.replacements = replacements if replacements is not None else {}
 
     def add_xref(self, xref_type, from_loc, to_loc):
-        self.xref_manager.add_xref(XRef(ins_addr=from_loc.ins_addr, block_addr=from_loc.block_addr,
-                                        stmt_idx=from_loc.stmt_idx, dst=to_loc, xref_type=xref_type)
-                                   )
+        self.xref_manager.add_xref(
+            XRef(
+                ins_addr=from_loc.ins_addr,
+                block_addr=from_loc.block_addr,
+                stmt_idx=from_loc.stmt_idx,
+                dst=to_loc,
+                xref_type=xref_type,
+            )
+        )
 
     @staticmethod
     def extract_value_if_concrete(expr) -> Optional[int]:
@@ -149,7 +155,7 @@ class SimEngineXRefsVEX(
 
     def _handle_function(self, func):
         # pylint: disable=unused-argument,no-self-use
-        return None # TODO: Maybe add an execute-type XRef?
+        return None  # TODO: Maybe add an execute-type XRef?
 
 
 class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
@@ -174,6 +180,7 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         23ca - read access
         23ce - write access
     """
+
     def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None):
 
         if func is not None:
@@ -191,10 +198,11 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
                 prop = self.project.analyses[PropagatorAnalysis].prep()(block=block)
                 replacements = prop.replacements
         else:
-            raise ValueError('Unsupported analysis target.')
+            raise ValueError("Unsupported analysis target.")
 
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
-                                 graph_visitor=graph_visitor)
+        ForwardAnalysis.__init__(
+            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
+        )
 
         self._function = func
         self._max_iterations = max_iterations

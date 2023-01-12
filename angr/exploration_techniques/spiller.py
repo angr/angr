@@ -43,8 +43,9 @@ class PickledStatesList(PickledStatesBase):
     """
     List-backed pickled state storage.
     """
+
     def __init__(self):
-        self._picked_states = [ ]
+        self._picked_states = []
 
     def sort(self):
         self._picked_states.sort()
@@ -54,7 +55,7 @@ class PickledStatesList(PickledStatesBase):
 
     def pop_n(self, n):
         ss = self._picked_states[:n]
-        self._picked_states[:n] = [ ]
+        self._picked_states[:n] = []
         return ss
 
 
@@ -62,13 +63,15 @@ class PickledStatesDb(PickledStatesBase):
     """
     Database-backed pickled state storage.
     """
+
     def __init__(self, db_str="sqlite:///:memory:"):
 
         from .spiller_db import sqlalchemy, create_engine, Base, OperationalError, sessionmaker
 
         if sqlalchemy is None:
-            raise ImportError(f"Cannot import SQLAlchemy. Please install SQLAlchemy before using "
-                              f"{self.__class__.__name__}.")
+            raise ImportError(
+                f"Cannot import SQLAlchemy. Please install SQLAlchemy before using " f"{self.__class__.__name__}."
+            )
 
         # ORM declarations
         engine = create_engine(db_str)
@@ -100,14 +103,16 @@ class PickledStatesDb(PickledStatesBase):
         from .spiller_db import PickledState
 
         session = self.Session()
-        q = session.query(PickledState)\
-            .filter_by(taken=False)\
-            .filter_by(stash=stash)\
-            .order_by(PickledState.priority)\
-            .limit(n)\
+        q = (
+            session.query(PickledState)
+            .filter_by(taken=False)
+            .filter_by(stash=stash)
+            .order_by(PickledState.priority)
+            .limit(n)
             .all()
+        )
 
-        ss = [ ]
+        ss = []
         for r in q:
             r.taken = True
             ss.append((r.priority, r.id))
@@ -120,11 +125,7 @@ class PickledStatesDb(PickledStatesBase):
         from .spiller_db import PickledState
 
         session = self.Session()
-        q = session.query(PickledState) \
-            .filter_by(stash=stash) \
-            .order_by(PickledState.timestamp.desc()) \
-            .limit(n) \
-            .all()
+        q = session.query(PickledState).filter_by(stash=stash).order_by(PickledState.timestamp.desc()).limit(n).all()
 
         ss = []
         for r in q:
@@ -150,10 +151,18 @@ class Spiller(ExplorationTechnique):
 
     def __init__(
         self,
-        src_stash="active", min=5, max=10,  # pylint:disable=redefined-builtin
-        staging_stash="spill_stage", staging_min=10, staging_max=20,
-        pickle_callback=None, unpickle_callback=None, post_pickle_callback=None,
-        priority_key=None, vault=None, states_collection=None,
+        src_stash="active",
+        min=5,
+        max=10,  # pylint:disable=redefined-builtin
+        staging_stash="spill_stage",
+        staging_min=10,
+        staging_max=20,
+        pickle_callback=None,
+        unpickle_callback=None,
+        post_pickle_callback=None,
+        priority_key=None,
+        vault=None,
+        states_collection=None,
     ):
         """
         Initializes the spiller.
@@ -191,12 +200,12 @@ class Spiller(ExplorationTechnique):
 
     def _unpickle(self, n):
         self._pickled_states.sort()
-        unpickled = [ (sid, self._load_state(sid)) for _,sid in self._pickled_states.pop_n(n) ]
+        unpickled = [(sid, self._load_state(sid)) for _, sid in self._pickled_states.pop_n(n)]
         self._ever_unpickled += len(unpickled)
         if self.unpickle_callback:
-            for sid,u in unpickled:
+            for sid, u in unpickled:
                 self.unpickle_callback(sid, u)
-        return [ u for _, u in unpickled ]
+        return [u for _, u in unpickled]
 
     def _get_priority(self, state):
         return (self.priority_key or self.state_priority)(state)
@@ -210,8 +219,10 @@ class Spiller(ExplorationTechnique):
             try:
                 state_oid = self._store_state(state)
             except RecursionError:
-                l.warning("Couldn't store the state because of a recursion error. This is most likely to be pickle's "
-                          "fault. You may try to increase the recursion limit using sys.setrecursionlimit().")
+                l.warning(
+                    "Couldn't store the state because of a recursion error. This is most likely to be pickle's "
+                    "fault. You may try to increase the recursion limit using sys.setrecursionlimit()."
+                )
                 continue
             prio = self._get_priority(state)
             if self.post_pickle_callback:
@@ -224,14 +235,17 @@ class Spiller(ExplorationTechnique):
     def _load_state(self, sid):
         return self._vault.load(sid)
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
 
-        l.debug("STASH STATUS: active: %d, staging: %d",
-                len(simgr.stashes[self.src_stash]),len(simgr.stashes[self.staging_stash]))
+        l.debug(
+            "STASH STATUS: active: %d, staging: %d",
+            len(simgr.stashes[self.src_stash]),
+            len(simgr.stashes[self.staging_stash]),
+        )
 
         states = simgr.stashes[self.src_stash]
-        staged_states = simgr.stashes.setdefault(self.staging_stash, [ ]) if self.staging_stash else [ ]
+        staged_states = simgr.stashes.setdefault(self.staging_stash, []) if self.staging_stash else []
 
         if len(states) < self.min:
             missing = (self.max + self.min) // 2 - len(states)
@@ -240,7 +254,7 @@ class Spiller(ExplorationTechnique):
                 l.debug("... retrieving states from staging stash (%s)", self.staging_stash)
                 staged_states.sort(key=self.priority_key or self.state_priority)
                 states += staged_states[:missing]
-                staged_states[:missing] = [ ]
+                staged_states[:missing] = []
             else:
                 l.debug("... staging stash disabled; unpickling states")
                 states += self._unpickle(missing)
@@ -248,8 +262,8 @@ class Spiller(ExplorationTechnique):
         if len(states) > self.max:
             l.debug("Too many states (%d/%d) in stash %s", len(states), self.max, self.src_stash)
             states.sort(key=self.priority_key or self.state_priority)
-            staged_states += states[self.max:]
-            states[self.max:] = [ ]
+            staged_states += states[self.max :]
+            states[self.max :] = []
 
         # if we have too few staged states, unpickle up to halfway between max and min
         if len(staged_states) < self.staging_min:
@@ -258,8 +272,8 @@ class Spiller(ExplorationTechnique):
 
         if len(staged_states) > self.staging_max:
             l.debug("Too many states in staging stash (%s)", self.staging_stash)
-            self._pickle(staged_states[self.staging_max:])
-            staged_states[self.staging_max:] = [ ]
+            self._pickle(staged_states[self.staging_max :])
+            staged_states[self.staging_max :] = []
 
         simgr.stashes[self.src_stash] = states
         simgr.stashes[self.staging_stash] = staged_states

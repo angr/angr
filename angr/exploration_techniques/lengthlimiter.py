@@ -1,5 +1,6 @@
 from . import ExplorationTechnique
 
+
 class LengthLimiter(ExplorationTechnique):
     """
     Length limiter on paths.
@@ -13,7 +14,7 @@ class LengthLimiter(ExplorationTechnique):
     def _filter(self, s):
         return s.history.block_count > self._max_length
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
-        simgr.move('active', '_DROP' if self._drop else 'cut', self._filter)
+        simgr.move("active", "_DROP" if self._drop else "cut", self._filter)
         return simgr

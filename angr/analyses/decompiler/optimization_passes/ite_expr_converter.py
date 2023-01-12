@@ -24,6 +24,7 @@ class NodeFoundNotification(Exception):
     """
     A notification that the target node has been found.
     """
+
     pass
 
 
@@ -33,6 +34,7 @@ class BlockLocator(RegionWalker):
 
     It might be reasonable to move this class into its own file.
     """
+
     def __init__(self, block):
         super().__init__()
 
@@ -49,14 +51,16 @@ class ExpressionReplacer(AILBlockWalker):
     """
     Replace expressions.
     """
+
     def __init__(self, block_addr, target_expr, callback):
         super().__init__()
         self._block_addr = block_addr
         self._target_expr = target_expr
         self._callback = callback
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
-                     block: Optional['AILBlock']) -> Any:
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional["AILBlock"]
+    ) -> Any:
         if expr == self._target_expr:
             new_expr = self._callback(self._block_addr, stmt_idx, stmt.ins_addr, expr)
             return new_expr
@@ -97,7 +101,7 @@ class ITEExprConverter(OptimizationPass):
         rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(subject=self._func, func_graph=self._graph)
 
         # find the corresponding definition
-        defs = [ ]
+        defs = []
         loc = CodeLocation(block_addr, stmt_idx, ins_addr=ins_addr)
         for def_, expr in rda.all_uses.get_uses_by_location(loc, exprs=True):
             if expr == atom:
@@ -107,8 +111,8 @@ class ITEExprConverter(OptimizationPass):
             return None
 
         # go through all blocks in the graph to find the corresponding blocks
-        def_block_addrs = { defs[0].codeloc.block_addr, defs[1].codeloc.block_addr }
-        blocks = [ ]
+        def_block_addrs = {defs[0].codeloc.block_addr, defs[1].codeloc.block_addr}
+        blocks = []
         for node in self._graph.nodes():
             if node.addr in def_block_addrs:
                 blocks.append(node)
@@ -164,7 +168,7 @@ class ITEExprConverter(OptimizationPass):
         elif last_stmt.true_target.value == block_1.addr and last_stmt.false_target.value == block_0.addr:
             # swap the blocks and defs
             block_0, block_1 = block_1, block_0
-            defs = [ defs[1], defs[0] ]
+            defs = [defs[1], defs[0]]
         else:
             return None
 
@@ -193,19 +197,23 @@ class ITEExprConverter(OptimizationPass):
         if len(uses_1) != 1:
             return None
 
-        new_expr = ITE(None, cond, expr_1, expr_0,
-                       ins_addr=expr_0.ins_addr,
-                       vex_block_addr=expr_0.vex_block_addr,
-                       vex_stmt_idx=expr_0.vex_stmt_idx,
-                       )
+        new_expr = ITE(
+            None,
+            cond,
+            expr_1,
+            expr_0,
+            ins_addr=expr_0.ins_addr,
+            vex_block_addr=expr_0.vex_block_addr,
+            vex_stmt_idx=expr_0.vex_stmt_idx,
+        )
 
         # remove the two assignments
-        block_0.statements = block_0.statements[0 : block_0_stmt_idx] + block_0.statements[block_0_stmt_idx + 1:]
-        block_1.statements = block_1.statements[0 : block_1_stmt_idx] + block_1.statements[block_1_stmt_idx + 1:]
+        block_0.statements = block_0.statements[0:block_0_stmt_idx] + block_0.statements[block_0_stmt_idx + 1 :]
+        block_1.statements = block_1.statements[0:block_1_stmt_idx] + block_1.statements[block_1_stmt_idx + 1 :]
 
         return new_expr
 
-    def _locate_block(self, block: 'AILBlock'):
+    def _locate_block(self, block: "AILBlock"):
         locator = BlockLocator(block)
         try:
             locator.walk(self._ri.region)

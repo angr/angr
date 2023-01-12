@@ -5,13 +5,14 @@ from .heavy import HeavyVEXMixin
 from angr.state_plugins.sim_action import SimActionObject, SimActionData, SimActionExit, SimActionOperation
 from angr import sim_options as o
 
+
 class TrackActionsMixin(HeavyVEXMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.__tmp_deps = {}
 
-    __tls = ('__tmp_deps',)
+    __tls = ("__tmp_deps",)
 
     def _is_true(self, v):
         return super()._is_true(v[0])
@@ -81,7 +82,14 @@ class TrackActionsMixin(HeavyVEXMixin):
 
         # finish it and save the tmp reference
         if o.TRACK_TMP_ACTIONS in self.state.options:
-            r = SimActionData(self.state, SimActionData.TMP, SimActionData.READ, tmp=tmp, size=self.irsb.tyenv.sizeof(tmp), data=result)
+            r = SimActionData(
+                self.state,
+                SimActionData.TMP,
+                SimActionData.READ,
+                tmp=tmp,
+                size=self.irsb.tyenv.sizeof(tmp),
+                data=result,
+            )
             self.state.history.add_action(r)
             a = frozenset((r,))
         else:
@@ -94,9 +102,14 @@ class TrackActionsMixin(HeavyVEXMixin):
 
         if o.TRACK_REGISTER_ACTIONS in self.state.options:
             offset_ao = SimActionObject(offset, deps=offset_deps, state=self.state)
-            r = SimActionData(self.state, self.state.registers.id, SimActionData.READ, addr=offset_ao,
-                              size=pyvex.get_type_size(ty), data=result
-                              )
+            r = SimActionData(
+                self.state,
+                self.state.registers.id,
+                SimActionData.READ,
+                addr=offset_ao,
+                size=pyvex.get_type_size(ty),
+                data=result,
+            )
             self.state.history.add_action(r)
             a = frozenset((r,))
         else:
@@ -115,10 +128,18 @@ class TrackActionsMixin(HeavyVEXMixin):
 
         if o.TRACK_MEMORY_ACTIONS in self.state.options:
             addr_ao = SimActionObject(addr, deps=addr_deps, state=self.state)
-            condition_ao = SimActionObject(condition, deps=condition_deps, state=self.state) \
-                if condition is not None else None
-            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao,
-                              size=pyvex.get_type_size(ty), data=result, condition=condition_ao)
+            condition_ao = (
+                SimActionObject(condition, deps=condition_deps, state=self.state) if condition is not None else None
+            )
+            r = SimActionData(
+                self.state,
+                self.state.memory.id,
+                SimActionData.READ,
+                addr=addr_ao,
+                size=pyvex.get_type_size(ty),
+                data=result,
+                condition=condition_ao,
+            )
             self.state.history.add_action(r)
             a = frozenset((r,))
         else:
@@ -147,7 +168,9 @@ class TrackActionsMixin(HeavyVEXMixin):
         if o.TRACK_REGISTER_ACTIONS in self.state.options:
             data_ao = SimActionObject(data, deps=data_deps, state=self.state)
             size_ao = SimActionObject(len(data))
-            a = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, addr=offset, data=data_ao, size=size_ao)
+            a = SimActionData(
+                self.state, SimActionData.REG, SimActionData.WRITE, addr=offset, data=data_ao, size=size_ao
+            )
             self.state.history.add_action(a)
         else:
             a = None
@@ -168,8 +191,20 @@ class TrackActionsMixin(HeavyVEXMixin):
             data_ao = SimActionObject(data, deps=data_deps, state=self.state)
             addr_ao = SimActionObject(addr, deps=addr_deps, state=self.state)
             size_ao = SimActionObject(len(data))
-            cond_ao = SimActionObject(condition, deps=condition_deps, state=self.state) if condition_deps is not None else None
-            a = SimActionData(self.state, SimActionData.MEM, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao, condition=cond_ao)
+            cond_ao = (
+                SimActionObject(condition, deps=condition_deps, state=self.state)
+                if condition_deps is not None
+                else None
+            )
+            a = SimActionData(
+                self.state,
+                SimActionData.MEM,
+                SimActionData.WRITE,
+                data=data_ao,
+                size=size_ao,
+                addr=addr_ao,
+                condition=cond_ao,
+            )
             self.state.history.add_action(a)
         else:
             a = None
@@ -183,7 +218,9 @@ class TrackActionsMixin(HeavyVEXMixin):
         if o.TRACK_JMP_ACTIONS in self.state.options:
             guard_ao = SimActionObject(guard, deps=guard_deps, state=self.state)
             target_ao = SimActionObject(target, deps=target_deps, state=self.state)
-            self.state.history.add_action(SimActionExit(self.state, target=target_ao, condition=guard_ao, exit_type=SimActionExit.CONDITIONAL))
+            self.state.history.add_action(
+                SimActionExit(self.state, target=target_ao, condition=guard_ao, exit_type=SimActionExit.CONDITIONAL)
+            )
 
         super()._perform_vex_stmt_Exit(guard, target, jumpkind)
 
@@ -198,5 +235,3 @@ class TrackActionsMixin(HeavyVEXMixin):
             target = None
 
         super()._perform_vex_defaultexit(target, jumpkind)
-
-

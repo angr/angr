@@ -1,6 +1,7 @@
 # This module contains data structures for handling memory, code, and register references.
 
 import logging
+
 l = logging.getLogger(name=__name__)
 
 _noneset = frozenset()
@@ -12,11 +13,12 @@ class SimAction(SimEvent):
     """
     A SimAction represents a semantic action that an analyzed program performs.
     """
-    #__slots__ = [ 'bbl_addr', 'inst_addr', 'stmt_idx' ]
 
-    TMP = 'tmp'
-    REG = 'reg'
-    MEM = 'mem'
+    # __slots__ = [ 'bbl_addr', 'inst_addr', 'stmt_idx' ]
+
+    TMP = "tmp"
+    REG = "reg"
+    MEM = "mem"
     _MAX_ACTION_ID = -1
 
     def __init__(self, state, region_type):
@@ -25,7 +27,7 @@ class SimAction(SimEvent):
 
         :param state: the state that's the SimAction is taking place in.
         """
-        SimEvent.__init__(self, state, 'action')
+        SimEvent.__init__(self, state, "action")
         self.type = region_type
         SimAction._MAX_ACTION_ID += 1
         self._action_id = SimAction._MAX_ACTION_ID
@@ -43,9 +45,9 @@ class SimAction(SimEvent):
     def _desc(self):
         raise NotImplementedError()
 
-    #def __getstate__(self):
+    # def __getstate__(self):
     #   return { k: getattr(self, k) for k in sum([ c.__slots__ for c in self.__class__.mro() if hasattr(c, '__slots__')], []) } #pylint:disable=no-member
-    #def __setstate__(self, s):
+    # def __setstate__(self, s):
     #   for k,v in s.items():
     #       setattr(self, k, v)
 
@@ -102,8 +104,8 @@ class SimActionExit(SimAction):
     An Exit action represents a (possibly conditional) jump.
     """
 
-    CONDITIONAL = 'conditional'
-    DEFAULT = 'default'
+    CONDITIONAL = "conditional"
+    DEFAULT = "default"
 
     def __init__(self, state, target, condition=None, exit_type=None):
         super().__init__(state, "exit")
@@ -122,7 +124,7 @@ class SimActionExit(SimAction):
 
     @property
     def all_objects(self):
-        return [ a for a in ( self.target, self.condition ) if a is not None ]
+        return [a for a in (self.target, self.condition) if a is not None]
 
     @property
     def is_symbolic(self):
@@ -147,7 +149,7 @@ class SimActionConstraint(SimAction):
 
     @property
     def all_objects(self):
-        return [ a for a in ( self.constraint, self.condition ) if a is not None ]
+        return [a for a in (self.constraint, self.condition) if a is not None]
 
     @property
     def is_symbolic(self):
@@ -158,9 +160,9 @@ class SimActionConstraint(SimAction):
         c.condition = self._copy_object(self.condition)
 
     def _desc(self):
-        s = '%s' % str(self.constraint)
+        s = "%s" % str(self.constraint)
         if self.condition is not None:
-            s += ' (cond)'
+            s += " (cond)"
         return s
 
 
@@ -170,7 +172,7 @@ class SimActionOperation(SimAction):
     """
 
     def __init__(self, state, op, exprs, result):
-        super().__init__(state, 'operation')
+        super().__init__(state, "operation")
 
         self.op = op
         self.exprs = exprs
@@ -179,7 +181,7 @@ class SimActionOperation(SimAction):
 
     @property
     def all_objects(self):
-        return [ ex for ex in self.exprs if isinstance(ex, SimActionObject) ]
+        return [ex for ex in self.exprs if isinstance(ex, SimActionObject)]
 
     @property
     def is_symbolic(self):
@@ -198,29 +200,45 @@ class SimActionData(SimAction):
     """
     A Data action represents a read or a write from memory, registers or a file.
     """
-    #__slots__ = [ 'objects' ]
 
-    READ = 'read'
-    WRITE = 'write'
-    OPERATE = 'operate'
+    # __slots__ = [ 'objects' ]
 
-    def __init__(self, state, region_type, action, tmp=None, addr=None, size=None, data=None, condition=None,
-                 fallback=None, fd=None):
+    READ = "read"
+    WRITE = "write"
+    OPERATE = "operate"
+
+    def __init__(
+        self,
+        state,
+        region_type,
+        action,
+        tmp=None,
+        addr=None,
+        size=None,
+        data=None,
+        condition=None,
+        fallback=None,
+        fd=None,
+    ):
         super().__init__(state, region_type)
         self.action = action
 
-        self._reg_dep = _noneset if addr is None or action != SimActionData.READ or not isinstance(addr, int) else frozenset((addr,))
+        self._reg_dep = (
+            _noneset
+            if addr is None or action != SimActionData.READ or not isinstance(addr, int)
+            else frozenset((addr,))
+        )
         self._tmp_dep = _noneset if tmp is None or action != SimActionData.READ else frozenset((tmp,))
 
         self.tmp = tmp
         self.offset = None
-        if region_type == 'reg':
+        if region_type == "reg":
             if isinstance(addr, int):
                 self.offset = addr
             else:
                 if addr.symbolic:
                     # FIXME: we should fix it by allowing .offset taking ASTs instead of concretizing it right away
-                    l.warning('Concretizing a symbolic register offset in SimActionData.')
+                    l.warning("Concretizing a symbolic register offset in SimActionData.")
                     self.offset = state.solver.eval(addr)
                 else:
                     # it's not symbolic
@@ -247,11 +265,11 @@ class SimActionData(SimAction):
 
     @property
     def all_objects(self):
-        return [ a for a in [ self.addr, self.size, self.data, self.condition, self.fallback, self.fd ] if a is not None ]
+        return [a for a in [self.addr, self.size, self.data, self.condition, self.fallback, self.fd] if a is not None]
 
     @property
     def is_symbolic(self):
-        return any(getattr(a, "symbolic", False) for a in [ self.addr, self.size, self.data ] if a is not None)
+        return any(getattr(a, "symbolic", False) for a in [self.addr, self.size, self.data] if a is not None)
 
     @property
     def tmp_deps(self):
@@ -273,12 +291,13 @@ class SimActionData(SimAction):
             if type(o) in {bytes, str, int}:
                 return o
             return o.shallow_repr()
-        if self.type == 'reg':
+
+        if self.type == "reg":
             _size = self.size.ast if isinstance(self.size, SimActionObject) else self.size
             assert isinstance(_size, int)
             storage = self.arch.register_size_names[(self.offset, _size // self.arch.byte_width)]
-        elif self.type == 'tmp':
-            storage = f'tmp_{self.tmp}'
+        elif self.type == "tmp":
+            storage = f"tmp_{self.tmp}"
         else:
             storage = self.addr
 
@@ -295,6 +314,7 @@ class SimActionData(SimAction):
             if type(o) in {bytes, str, int}:
                 return o
             return o.shallow_repr()
+
         # if self.type == 'reg':
         #     _size = self.size.ast if isinstance(self.size, SimActionObject) else self.size
         #     assert isinstance(_size, int)
@@ -303,9 +323,8 @@ class SimActionData(SimAction):
         #     storage = f'tmp_{self.tmp}'
         # else:
         #     storage = self.addr
-        direction = '<<----' if self.action == 'write' else '---->>'
+        direction = "<<----" if self.action == "write" else "---->>"
         return f"{self.type}/{self.action}: {self.storage}  {direction}  {_repr(self.data)}"
-
 
     def _copy_objects(self, c):
         c.action = self.action
@@ -316,5 +335,6 @@ class SimActionData(SimAction):
         c.condition = self._copy_object(self.condition)
         c.fallback = self._copy_object(self.fallback)
         c.fd = self._copy_object(self.fd)
+
 
 from .sim_action_object import SimActionObject

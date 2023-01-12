@@ -6,6 +6,7 @@ import logging
 
 l = logging.getLogger(__name__)
 
+
 class SimHeapBrk(SimHeapBase):
     """
     SimHeapBrk represents a trivial heap implementation based on the Unix `brk` system call. This type of heap stores
@@ -66,11 +67,11 @@ class SimHeapBrk(SimHeapBase):
     def _malloc(self, sim_size):
         return self.allocate(sim_size)
 
-    def _free(self, ptr):  #pylint:disable=unused-argument
-        return self.state.solver.Unconstrained('free', self.state.arch.bits)
+    def _free(self, ptr):  # pylint:disable=unused-argument
+        return self.state.solver.Unconstrained("free", self.state.arch.bits)
 
     def _calloc(self, sim_nmemb, sim_size):
-        plugin = self.state.get_plugin('libc')
+        plugin = self.state.get_plugin("libc")
 
         if self.state.solver.symbolic(sim_nmemb):
             # TODO: find a better way
@@ -121,11 +122,13 @@ class SimHeapBrk(SimHeapBase):
         else:
             return False
 
-    def merge(self, others, merge_conditions, common_ancestor=None):  #pylint:disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         return self._combine(others)
 
     def widen(self, others):
         return self._combine(others)
 
+
 from angr.sim_state import SimState
-SimState.register_default('heap', SimHeapBrk)
+
+SimState.register_default("heap", SimHeapBrk)

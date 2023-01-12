@@ -15,18 +15,19 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 
 
 def test_find_exits():
-    slicing_test = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_1'),
-                                use_sim_procedures=True,
-                                default_analysis_mode='symbolic',
-                                auto_load_libs=False,
-                                )
+    slicing_test = angr.Project(
+        os.path.join(test_location, "x86_64", "cfg_1"),
+        use_sim_procedures=True,
+        default_analysis_mode="symbolic",
+        auto_load_libs=False,
+    )
 
     l.info("Unit test for BackwardSlice._find_exits()")
     cfg = slicing_test.analyses.CFGEmulated(context_sensitivity_level=2, keep_state=True)
     cdg = slicing_test.analyses.CDG(cfg)
     ddg = slicing_test.analyses.DDG(cfg)
 
-    source = cfg.get_any_node(0x40059e)
+    source = cfg.get_any_node(0x40059E)
 
     # Test the conditional exit
     target = cfg.get_any_node(0x400594)
@@ -36,19 +37,20 @@ def test_find_exits():
     assert all_exits == {18: [0x400594], DEFAULT_STATEMENT: None}
 
     # Test the default exit
-    target = cfg.get_any_node(0x4005a4)
+    target = cfg.get_any_node(0x4005A4)
     bs_2 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[(target, -1)], no_construct=True)
     all_exits = bs_2._find_exits(source, target)
 
-    assert all_exits == {18: [0x400594], DEFAULT_STATEMENT: [0x4005a4]}
+    assert all_exits == {18: [0x400594], DEFAULT_STATEMENT: [0x4005A4]}
 
 
 def test_control_flow_slicing():
-    slicing_test = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_1'),
-                                use_sim_procedures=True,
-                                default_analysis_mode='symbolic',
-                                auto_load_libs=False,
-                                )
+    slicing_test = angr.Project(
+        os.path.join(test_location, "x86_64", "cfg_1"),
+        use_sim_procedures=True,
+        default_analysis_mode="symbolic",
+        auto_load_libs=False,
+    )
     l.info("Control Flow Slicing")
     start = time.time()
     cfg = slicing_test.analyses.CFGEmulated(context_sensitivity_level=2)
@@ -59,43 +61,45 @@ def test_control_flow_slicing():
     target = cfg.get_any_node(0x400594)
     bs = slicing_test.analyses.BackwardSlice(cfg, None, None, targets=[(target, -1)], control_flow_slice=True)
     anno_cfg = bs.annotated_cfg()
-    assert anno_cfg.get_whitelisted_statements(0x40057c) == None
+    assert anno_cfg.get_whitelisted_statements(0x40057C) == None
     assert anno_cfg.get_whitelisted_statements(0x400594) == None
-    assert anno_cfg.get_whitelisted_statements(0x4005a4) == []
+    assert anno_cfg.get_whitelisted_statements(0x4005A4) == []
 
 
 def broken_backward_slice():
     # TODO: Fix this test case
 
-    slicing_test = angr.Project(os.path.join(test_location, "x86_64", "cfg_1"),
-                                use_sim_procedures=True,
-                                default_analysis_mode='symbolic',
-                                auto_load_libs=False,
-                                )
+    slicing_test = angr.Project(
+        os.path.join(test_location, "x86_64", "cfg_1"),
+        use_sim_procedures=True,
+        default_analysis_mode="symbolic",
+        auto_load_libs=False,
+    )
 
     l.info("Control Flow Slicing")
 
-    cfg = slicing_test.analyses.CFGEmulated(context_sensitivity_level=2,
-                                            keep_state=True,
-                                            state_add_options=angr.sim_options.refs)
+    cfg = slicing_test.analyses.CFGEmulated(
+        context_sensitivity_level=2, keep_state=True, state_add_options=angr.sim_options.refs
+    )
     cdg = slicing_test.analyses.CDG(cfg=cfg)
     ddg = slicing_test.analyses.DDG(cfg=cfg)
 
-    target = cfg.get_any_node(0x4005d3)
+    target = cfg.get_any_node(0x4005D3)
     bs = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[(target, -1)], control_flow_slice=False)
     anno_cfg = bs.annotated_cfg()
-    assert anno_cfg.get_whitelisted_statements(0x40057c) == [2, 3, 7, 20, 21]
+    assert anno_cfg.get_whitelisted_statements(0x40057C) == [2, 3, 7, 20, 21]
     assert anno_cfg.get_whitelisted_statements(0x400594) == [1, 17, 18, 19, 20]
-    assert anno_cfg.get_whitelisted_statements(0x4005a4) == []
-    assert anno_cfg.get_whitelisted_statements(0x4005cd) == [1, 2, 3, 5, 6, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    assert anno_cfg.get_whitelisted_statements(0x4005A4) == []
+    assert anno_cfg.get_whitelisted_statements(0x4005CD) == [1, 2, 3, 5, 6, 11, 12, 13, 14, 15, 16, 17, 18, 19]
 
 
 def test_last_branching_statement():
-    slicing_test = angr.Project(os.path.join(test_location, 'armel', 'fauxware'),
-                                use_sim_procedures=True,
-                                auto_load_libs=False,
-                                )
-    l.info('Testing _search_for_last_branching_statement.')
+    slicing_test = angr.Project(
+        os.path.join(test_location, "armel", "fauxware"),
+        use_sim_procedures=True,
+        auto_load_libs=False,
+    )
+    l.info("Testing _search_for_last_branching_statement.")
 
     # The IRSB:
 
@@ -123,12 +127,12 @@ def test_last_branching_statement():
     # t27 = 32to1(t25)
     # if (t27) { PUT(68) = 0x86f8; Ijk_Boring }
 
-    target_state = slicing_test.factory.blank_state(addr=0x86dc)
+    target_state = slicing_test.factory.blank_state(addr=0x86DC)
     simgr = slicing_test.factory.simgr(target_state)
     simgr.step()
     target = simgr.active[0]
     l.debug("IRSB:")
-    for line in target.scratch.irsb._pp_str().split('\n'):
+    for line in target.scratch.irsb._pp_str().split("\n"):
         l.debug(line)
 
     bs = slicing_test.analyses.BackwardSlice(None, None, None, targets=[(target, -1)], no_construct=True)
@@ -140,10 +144,8 @@ def test_last_branching_statement():
 
 
 def test_fauxware():
-    b = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)
-    cfg = b.analyses.CFGEmulated(keep_state=True,
-                                 state_add_options=angr.sim_options.refs,
-                                 context_sensitivity_level=2)
+    b = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+    cfg = b.analyses.CFGEmulated(keep_state=True, state_add_options=angr.sim_options.refs, context_sensitivity_level=2)
     cdg = b.analyses.CDG(cfg)
     ddg = b.analyses.DDG(cfg)
     target_func = cfg.kb.functions.function(name="exit")

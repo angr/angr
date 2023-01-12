@@ -1,12 +1,13 @@
 from ...sim_type import SimType, SimTypeChar, SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypePointer
 from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64
 
+
 class TypeLifter:
     """
     Lift SimTypes to type constants.
     """
 
-    __slots__ = ('bits', )
+    __slots__ = ("bits",)
 
     def __init__(self, bits: int):
         if bits not in (32, 64):

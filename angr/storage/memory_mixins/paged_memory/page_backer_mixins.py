@@ -9,8 +9,8 @@ from .paged_memory_mixin import PagedMemoryMixin
 
 l = logging.getLogger(__name__)
 
-BackerType = Union[bytes,bytearray,List[int]]
-BackerIterType = Generator[Tuple[int,BackerType],None,None]
+BackerType = Union[bytes, bytearray, List[int]]
+BackerIterType = Generator[Tuple[int, BackerType], None, None]
 
 
 # since memoryview isn't pickleable, we make do...
@@ -21,10 +21,10 @@ class NotMemoryview:
         self.size = size
 
     def __getitem__(self, k):
-        return memoryview(self.obj)[self.offset:self.offset+self.size][k]
+        return memoryview(self.obj)[self.offset : self.offset + self.size][k]
 
     def __setitem__(self, k, v):
-        memoryview(self.obj)[self.offset:self.offset+self.size][k] = v
+        memoryview(self.obj)[self.offset : self.offset + self.size][k] = v
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):
@@ -69,7 +69,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         if permissions is None:
             # There is no segment mapped at the start of the page.
             # Maybe the end of the page is mapped instead?
-            permissions = self._cle_permissions_lookup (addr + self.page_size - 1)
+            permissions = self._cle_permissions_lookup(addr + self.page_size - 1)
 
         # see if this page supports creating without copying
         if type(data) is NotMemoryview:
@@ -81,12 +81,14 @@ class ClemoryBackerMixin(PagedMemoryMixin):
                 return new_from_shared(data, **self._page_kwargs(pageno, permissions))
 
         new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=permissions, **kwargs)
-        new_page.store(0, data, size=self.page_size, page_addr=pageno*self.page_size, endness='Iend_BE', memory=self,
-                       **kwargs)
+        new_page.store(
+            0, data, size=self.page_size, page_addr=pageno * self.page_size, endness="Iend_BE", memory=self, **kwargs
+        )
         return new_page
 
-    def _data_from_backer(self, addr: int, backer: BackerType, backer_start: int,
-                          backer_iter: BackerIterType) -> claripy.ast.BV:
+    def _data_from_backer(
+        self, addr: int, backer: BackerType, backer_start: int, backer_iter: BackerIterType
+    ) -> claripy.ast.BV:
         # initialize the page
         if isinstance(backer, (bytes, bytearray, mmap)):
             return self._data_from_bytes_backer(addr, backer, backer_start, backer_iter)
@@ -94,7 +96,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             return self._data_from_lists_backer(addr, backer, backer_start, backer_iter)
         raise TypeError("Unsupported backer type %s." % type(backer))
 
-    def _calc_page_starts(self, addr: int, backer_start: int, backer_length: int) -> Tuple[int,int,int]:
+    def _calc_page_starts(self, addr: int, backer_start: int, backer_length: int) -> Tuple[int, int, int]:
         # lord help me. why do I keep having to write code that looks like this
         # why have I found myself entangled in a briar patch of address spaces embedded in other address spaces
         if addr >= backer_start:
@@ -110,19 +112,27 @@ class ClemoryBackerMixin(PagedMemoryMixin):
 
         return backer_first_relevant_byte, page_first_relevant_byte, transfer_size
 
-    def _data_from_bytes_backer(self, addr: int, backer: Union[bytes,bytearray], backer_start: int,
-                                backer_iter: Generator[Tuple[int,Union[bytes,bytearray]],None,None]) -> claripy.ast.BV:
+    def _data_from_bytes_backer(
+        self,
+        addr: int,
+        backer: Union[bytes, bytearray],
+        backer_start: int,
+        backer_iter: Generator[Tuple[int, Union[bytes, bytearray]], None, None],
+    ) -> claripy.ast.BV:
         if backer_start <= addr and backer_start + len(backer) >= addr + self.page_size:
             # fast case
-            data = NotMemoryview(backer, addr-backer_start, self.page_size)
+            data = NotMemoryview(backer, addr - backer_start, self.page_size)
         else:
             page_data = bytearray(self.page_size)
             while backer_start < addr + self.page_size:
-                backer_first_relevant_byte, page_first_relevant_byte, transfer_size = \
-                    self._calc_page_starts(addr, backer_start, len(backer))
+                backer_first_relevant_byte, page_first_relevant_byte, transfer_size = self._calc_page_starts(
+                    addr, backer_start, len(backer)
+                )
 
-                backer_relevant_data = memoryview(backer)[backer_first_relevant_byte:backer_first_relevant_byte+transfer_size]
-                page_data[page_first_relevant_byte:page_first_relevant_byte+transfer_size] = backer_relevant_data
+                backer_relevant_data = memoryview(backer)[
+                    backer_first_relevant_byte : backer_first_relevant_byte + transfer_size
+                ]
+                page_data[page_first_relevant_byte : page_first_relevant_byte + transfer_size] = backer_relevant_data
 
                 try:
                     backer_start, backer = next(backer_iter)
@@ -133,15 +143,17 @@ class ClemoryBackerMixin(PagedMemoryMixin):
 
         return data
 
-    def _data_from_lists_backer(self, addr: int, backer: List[int], backer_start: int,
-                                backer_iter: Generator[Tuple[int,List[int]],None,None]) -> claripy.ast.BV:
+    def _data_from_lists_backer(
+        self, addr: int, backer: List[int], backer_start: int, backer_iter: Generator[Tuple[int, List[int]], None, None]
+    ) -> claripy.ast.BV:
         page_data = [0] * self.page_size
         while backer_start < addr + self.page_size:
-            backer_first_relevant_byte, page_first_relevant_byte, transfer_size = \
-                self._calc_page_starts(addr, backer_start, len(backer))
+            backer_first_relevant_byte, page_first_relevant_byte, transfer_size = self._calc_page_starts(
+                addr, backer_start, len(backer)
+            )
 
-            backer_relevant_data = backer[backer_first_relevant_byte:backer_first_relevant_byte + transfer_size]
-            page_data[page_first_relevant_byte:page_first_relevant_byte + transfer_size] = backer_relevant_data
+            backer_relevant_data = backer[backer_first_relevant_byte : backer_first_relevant_byte + transfer_size]
+            page_data[page_first_relevant_byte : page_first_relevant_byte + transfer_size] = backer_relevant_data
 
             try:
                 backer_start, backer = next(backer_iter)
@@ -160,11 +172,15 @@ class ClemoryBackerMixin(PagedMemoryMixin):
             return None
 
         out = 0
-        if seg.is_readable: out |= 1
-        if seg.is_writable: out |= 2
-        if seg.is_executable: out |= 4
+        if seg.is_readable:
+            out |= 1
+        if seg.is_writable:
+            out |= 2
+        if seg.is_executable:
+            out |= 4
 
         return out
+
 
 class ConcreteBackerMixin(ClemoryBackerMixin):
     def _initialize_page(self, pageno, force_default=False, **kwargs):
@@ -185,8 +201,10 @@ class ConcreteBackerMixin(ClemoryBackerMixin):
 
         if self.state.project.concrete_target:
             l.debug("Fetching data from concrete target")
-            data = claripy.BVV(bytearray(
-              self.state.project.concrete_target.read_memory(pageno*self.page_size, self.page_size)),self.page_size*8)
+            data = claripy.BVV(
+                bytearray(self.state.project.concrete_target.read_memory(pageno * self.page_size, self.page_size)),
+                self.page_size * 8,
+            )
         else:
             # the concrete backer only is here to support concrete loading, defer back to the CleMemoryBacker
             return super()._initialize_page(pageno, **kwargs)
@@ -203,9 +221,11 @@ class ConcreteBackerMixin(ClemoryBackerMixin):
                 return new_from_shared(data, **self._page_kwargs(pageno, permissions))
 
         new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=permissions, **kwargs)
-        new_page.store(0, data, size=self.page_size, page_addr=pageno*self.page_size, endness='Iend_BE', memory=self,
-                       **kwargs)
+        new_page.store(
+            0, data, size=self.page_size, page_addr=pageno * self.page_size, endness="Iend_BE", memory=self, **kwargs
+        )
         return new_page
+
 
 class DictBackerMixin(PagedMemoryMixin):
     def __init__(self, dict_memory_backer=None, **kwargs):
@@ -228,11 +248,17 @@ class DictBackerMixin(PagedMemoryMixin):
         for addr, byte in self._dict_memory_backer.items():
             if page_addr <= addr < page_addr + self.page_size:
                 if new_page is None:
-                    kwargs['allow_default'] = True
+                    kwargs["allow_default"] = True
                     new_page = PagedMemoryMixin._initialize_default_page(self, pageno, **kwargs)
-                new_page.store(addr % self.page_size,
-                               claripy.BVV(byte[0] if type(byte) is bytes else byte, self.state.arch.byte_width),
-                               size=1, endness='Iend_BE', page_addr=page_addr, memory=self, **kwargs)
+                new_page.store(
+                    addr % self.page_size,
+                    claripy.BVV(byte[0] if type(byte) is bytes else byte, self.state.arch.byte_width),
+                    size=1,
+                    endness="Iend_BE",
+                    page_addr=page_addr,
+                    memory=self,
+                    **kwargs,
+                )
 
         if new_page is None:
             return super()._initialize_page(pageno, **kwargs)

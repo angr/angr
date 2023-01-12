@@ -11,15 +11,19 @@ class MultiValues:
     claripy AST when this MultiValues object represents only one value at offset 0.
     """
 
-    __slots__ = ('_values', '_single_value',)
+    __slots__ = (
+        "_values",
+        "_single_value",
+    )
 
-    def __init__(self, v: Optional[claripy.ast.Base]=None, offset_to_values=None):
+    def __init__(self, v: Optional[claripy.ast.Base] = None, offset_to_values=None):
         if v is not None and offset_to_values is not None:
             raise TypeError("You cannot specify v and offset_to_values at the same time!")
 
         self._single_value = v if v is not None else None
-        self._values: Optional[Dict[int, Set[claripy.ast.Base]]] = \
+        self._values: Optional[Dict[int, Set[claripy.ast.Base]]] = (
             offset_to_values if offset_to_values is not None else None
+        )
 
         # if only one value is passed in, assign it to self._single_value
         if self._values:
@@ -39,7 +43,7 @@ class MultiValues:
             self._single_value = None
 
         if self._values is None:
-            self._values = { }
+            self._values = {}
 
         if offset not in self._values:
             self._values[offset] = set()
@@ -54,7 +58,7 @@ class MultiValues:
                 mid_value_size = succ_offset - offset
                 remaining_value = value[value.length - mid_value_size * 8 - 1 : 0]
                 # update value
-                value = value[value.length - 1: value.length - mid_value_size * 8]
+                value = value[value.length - 1 : value.length - mid_value_size * 8]
                 self.add_value(succ_offset, remaining_value)
 
         if self._values[offset]:
@@ -110,7 +114,7 @@ class MultiValues:
         max_len = max(x.size() for x in self._values[max_offset])
         return max_offset * 8 + max_len  # FIXME: we are assuming byte_width of 8
 
-    def merge(self, mv: 'MultiValues') -> 'MultiValues':
+    def merge(self, mv: "MultiValues") -> "MultiValues":
         new_values = {k: set(v) for k, v in self.items()}
         for off, vs in mv.items():
             if off not in new_values:
@@ -148,7 +152,7 @@ class MultiValues:
     def __getitem__(self, offset: int) -> Set[claripy.ast.Base]:
         if self._single_value is not None:
             if offset == 0:
-                return { self._single_value }
+                return {self._single_value}
             raise KeyError()
         elif not self._values:
             raise KeyError()
@@ -156,20 +160,20 @@ class MultiValues:
 
     def keys(self) -> Set[int]:
         if self._single_value is not None:
-            return { 0 }
+            return {0}
         return set() if not self._values else set(self._values.keys())
 
-    def values(self) -> Generator[Set[claripy.ast.Base],None,None]:
+    def values(self) -> Generator[Set[claripy.ast.Base], None, None]:
         if self._single_value is not None:
-            yield { self._single_value }
+            yield {self._single_value}
         else:
             if self._values is None:
                 return
             yield from self._values.values()
 
-    def items(self) -> Generator[Tuple[int,Set[claripy.ast.Base]],None,None]:
+    def items(self) -> Generator[Tuple[int, Set[claripy.ast.Base]], None, None]:
         if self._single_value is not None:
-            yield 0, { self._single_value }
+            yield 0, {self._single_value}
         else:
             if self._values is None:
                 yield 0, set()
@@ -187,7 +191,7 @@ class MultiValues:
     # Private methods
     #
 
-    def _adjacent_offset(self, offset: int, before: bool=True) -> Optional[int]:
+    def _adjacent_offset(self, offset: int, before: bool = True) -> Optional[int]:
         """
         Find the offset that is right before or after the given offset.
 

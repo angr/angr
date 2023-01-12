@@ -10,23 +10,27 @@ if TYPE_CHECKING:
 
 # Type variables and constraints
 
+
 class TypeConstraint:
 
     __slots__ = ()
 
-    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
         raise NotImplementedError()
 
 
 class Equivalence(TypeConstraint):
 
-    __slots__ = ('type_a', 'type_b', )
+    __slots__ = (
+        "type_a",
+        "type_b",
+    )
 
     def __init__(self, type_a, type_b):
         self.type_a = type_a
         self.type_b = type_b
 
-    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
         return f"{self.type_a.pp_str(mapping)} == {self.type_b.pp_str(mapping)}"
 
     def __repr__(self):
@@ -34,24 +38,24 @@ class Equivalence(TypeConstraint):
 
     def __eq__(self, other):
         return type(other) is Equivalence and (
-                self.type_a == other.type_a and self.type_b == other.type_b or
-                self.type_b == other.type_a and self.type_a == other.type_b)
+            self.type_a == other.type_a
+            and self.type_b == other.type_b
+            or self.type_b == other.type_a
+            and self.type_a == other.type_b
+        )
 
     def __hash__(self):
-        return hash((Equivalence, tuple(sorted(
-            (hash(self.type_a), hash(self.type_b)
-             ))
-        )))
+        return hash((Equivalence, tuple(sorted((hash(self.type_a), hash(self.type_b))))))
 
 
 class Existence(TypeConstraint):
 
-    __slots__ = ('type_', )
+    __slots__ = ("type_",)
 
     def __init__(self, type_):
         self.type_ = type_
 
-    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
         return f"V {self.type_.pp_str(mapping)}"
 
     def __repr__(self):
@@ -77,13 +81,16 @@ class Existence(TypeConstraint):
 
 class Subtype(TypeConstraint):
 
-    __slots__ = ('super_type', 'sub_type', )
+    __slots__ = (
+        "super_type",
+        "sub_type",
+    )
 
     def __init__(self, sub_type, super_type):
         self.super_type = super_type
         self.sub_type = sub_type
 
-    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
         return f"{self.sub_type.pp_str(mapping)} <: {self.super_type.pp_str(mapping)}"
 
     def __repr__(self):
@@ -117,8 +124,10 @@ class Subtype(TypeConstraint):
 
         if subtype is not None or supertype is not None:
             # replacement has happened
-            return True, Subtype(subtype if subtype is not None else self.sub_type,
-                                 supertype if supertype is not None else self.super_type)
+            return True, Subtype(
+                subtype if subtype is not None else self.sub_type,
+                supertype if supertype is not None else self.super_type,
+            )
         else:
             return False, self
 
@@ -128,14 +137,18 @@ class Add(TypeConstraint):
     Describes the constraint that type_r == type0 + type1
     """
 
-    __slots__ = ('type_0', 'type_1', 'type_r', )
+    __slots__ = (
+        "type_0",
+        "type_1",
+        "type_r",
+    )
 
     def __init__(self, type_0, type_1, type_r):
         self.type_0 = type_0
         self.type_1 = type_1
         self.type_r = type_r
 
-    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
         return "{} == {} + {}".format(
             self.type_r.pp_str(mapping),
             self.type_0.pp_str(mapping),
@@ -146,10 +159,12 @@ class Add(TypeConstraint):
         return f"{self.type_r!r} == {self.type_0!r} + {self.type_1!r}"
 
     def __eq__(self, other):
-        return type(other) is Add \
-               and self.type_0 == other.type_0 \
-               and self.type_1 == other.type_1 \
-               and self.type_r == other.type_r
+        return (
+            type(other) is Add
+            and self.type_0 == other.type_0
+            and self.type_1 == other.type_1
+            and self.type_r == other.type_r
+        )
 
     def __hash__(self):
         return hash((Add, self.type_0, self.type_1, self.type_r))
@@ -181,9 +196,11 @@ class Add(TypeConstraint):
 
         if t0 is not None or t1 is not None or tr is not None:
             # replacement has happened
-            return True, Add(t0 if t0 is not None else self.type_0,
-                             t1 if t1 is not None else self.type_1,
-                             tr if tr is not None else self.type_r)
+            return True, Add(
+                t0 if t0 is not None else self.type_0,
+                t1 if t1 is not None else self.type_1,
+                tr if tr is not None else self.type_r,
+            )
         else:
             return False, self
 
@@ -193,14 +210,18 @@ class Sub(TypeConstraint):
     Describes the constraint that type_r == type0 - type1
     """
 
-    __slots__ = ('type_0', 'type_1', 'type_r',)
+    __slots__ = (
+        "type_0",
+        "type_1",
+        "type_r",
+    )
 
     def __init__(self, type_0, type_1, type_r):
         self.type_0 = type_0
         self.type_1 = type_1
         self.type_r = type_r
 
-    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
         return "{} == {} - {}".format(
             self.type_r.pp_str(mapping),
             self.type_0.pp_str(mapping),
@@ -211,10 +232,12 @@ class Sub(TypeConstraint):
         return f"{self.type_r!r} == {self.type_0!r} - {self.type_1!r}"
 
     def __eq__(self, other):
-        return type(other) is Sub \
-               and self.type_0 == other.type_0 \
-               and self.type_1 == other.type_1 \
-               and self.type_r == other.type_r
+        return (
+            type(other) is Sub
+            and self.type_0 == other.type_0
+            and self.type_1 == other.type_1
+            and self.type_r == other.type_r
+        )
 
     def __hash__(self):
         return hash((Sub, self.type_0, self.type_1, self.type_r))
@@ -245,9 +268,11 @@ class Sub(TypeConstraint):
 
         if t0 is not None or t1 is not None or tr is not None:
             # replacement has happened
-            return True, Sub(t0 if t0 is not None else self.type_0,
-                             t1 if t1 is not None else self.type_1,
-                             tr if tr is not None else self.type_r)
+            return True, Sub(
+                t0 if t0 is not None else self.type_0,
+                t1 if t1 is not None else self.type_1,
+                tr if tr is not None else self.type_r,
+            )
         else:
             return False, self
 
@@ -257,15 +282,15 @@ _typevariable_counter = count()
 
 class TypeVariable:
 
-    __slots__ = ('idx', )
+    __slots__ = ("idx",)
 
-    def __init__(self, idx: Optional[int]=None):
+    def __init__(self, idx: Optional[int] = None):
         if idx is None:
             self.idx: int = next(_typevariable_counter)
         else:
             self.idx: int = idx
 
-    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
         varname = mapping.get(self, None)
         if varname is None:
             return repr(self)
@@ -283,20 +308,21 @@ class TypeVariable:
 
 class DerivedTypeVariable(TypeVariable):
 
-    __slots__ = ('type_var', 'label', )
+    __slots__ = (
+        "type_var",
+        "label",
+    )
 
     def __init__(self, type_var, label, idx=None):
         super().__init__(idx=idx)
         self.type_var = type_var
         self.label = label
 
-    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+    def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
         return f"{self.type_var.pp_str(mapping)}.{self.label}"
 
     def __eq__(self, other):
-        return isinstance(other, DerivedTypeVariable) and \
-            self.type_var == other.type_var and \
-            self.label == other.label
+        return isinstance(other, DerivedTypeVariable) and self.type_var == other.type_var and self.label == other.label
 
     def __hash__(self):
         return hash((DerivedTypeVariable, self.type_var, self.label))
@@ -325,10 +351,10 @@ class DerivedTypeVariable(TypeVariable):
 
 class TypeVariables:
 
-    __slots__ = ('_typevars', )
+    __slots__ = ("_typevars",)
 
     def __init__(self):
-        self._typevars: Dict['SimVariable',TypeVariable] = ChainMapCOW(collapse_threshold=25)
+        self._typevars: Dict["SimVariable", TypeVariable] = ChainMapCOW(collapse_threshold=25)
 
     def merge(self, tvs):
         merged = TypeVariables()
@@ -347,15 +373,15 @@ class TypeVariables:
         return copied
 
     def __repr__(self):
-        #return "{TypeVars: %d items for %d variables}" % (
+        # return "{TypeVars: %d items for %d variables}" % (
         #    sum(len(v) for v in self._typevars.items()),
         #    len(self._typevars),
-        #)
+        # )
         return "{TypeVars: %d items}" % len(self._typevars)
 
-    def add_type_variable(self, var: 'SimVariable', codeloc, typevar: TypeVariable):  # pylint:disable=unused-argument
+    def add_type_variable(self, var: "SimVariable", codeloc, typevar: TypeVariable):  # pylint:disable=unused-argument
 
-        #if var not in self._typevars:
+        # if var not in self._typevars:
         #    self._typevars[var] = { }
 
         # assert codeloc not in self._typevars[var]
@@ -365,9 +391,9 @@ class TypeVariables:
 
     def get_type_variable(self, var, codeloc):  # pylint:disable=unused-argument
 
-        return self._typevars[var] #[codeloc]
+        return self._typevars[var]  # [codeloc]
 
-    def has_type_variable_for(self, var: 'SimVariable', codeloc):  # pylint:disable=unused-argument
+    def has_type_variable_for(self, var: "SimVariable", codeloc):  # pylint:disable=unused-argument
         if var not in self._typevars:
             return False
         return True
@@ -400,7 +426,7 @@ class BaseLabel:
 
 class FuncIn(BaseLabel):
 
-    __slots__ = ('loc',)
+    __slots__ = ("loc",)
 
     def __init__(self, loc):
         self.loc = loc
@@ -411,7 +437,7 @@ class FuncIn(BaseLabel):
 
 class FuncOut(BaseLabel):
 
-    __slots__ = ('loc',)
+    __slots__ = ("loc",)
 
     def __init__(self, loc):
         self.loc = loc
@@ -438,7 +464,7 @@ class Store(BaseLabel):
 
 class AddN(BaseLabel):
 
-    __slots__ = ('n',)
+    __slots__ = ("n",)
 
     def __init__(self, n):
         self.n = n
@@ -449,7 +475,7 @@ class AddN(BaseLabel):
 
 class SubN(BaseLabel):
 
-    __slots__ = ('n',)
+    __slots__ = ("n",)
 
     def __init__(self, n):
         self.n = n
@@ -460,7 +486,7 @@ class SubN(BaseLabel):
 
 class ConvertTo(BaseLabel):
 
-    __slots__ = ('to_bits', )
+    __slots__ = ("to_bits",)
 
     def __init__(self, to_bits):
         self.to_bits = to_bits
@@ -471,7 +497,10 @@ class ConvertTo(BaseLabel):
 
 class ReinterpretAs(BaseLabel):
 
-    __slots__ = ('to_type', 'to_bits', )
+    __slots__ = (
+        "to_type",
+        "to_bits",
+    )
 
     def __init__(self, to_type, to_bits):
         self.to_type = to_type
@@ -483,7 +512,10 @@ class ReinterpretAs(BaseLabel):
 
 class HasField(BaseLabel):
 
-    __slots__ = ('bits', 'offset', )
+    __slots__ = (
+        "bits",
+        "offset",
+    )
 
     def __init__(self, bits, offset):
         self.bits = bits
@@ -494,6 +526,5 @@ class HasField(BaseLabel):
 
 
 class IsArray(BaseLabel):
-
     def __repr__(self):
         return "is_array"

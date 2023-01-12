@@ -9,6 +9,7 @@ from ..state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(__name__)
 
+
 def ast_weight(ast, memo=None):
     if isinstance(ast, SimActionObject):
         ast = ast.ast
@@ -32,15 +33,16 @@ class Suggestions(ExplorationTechnique):
     An exploration technique which analyzes failure cases and logs suggestions for how to mitigate them in future
     analyses.
     """
+
     def __init__(self):
         super().__init__()
         self.suggested = set()
         self.lock = PicklableLock()
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         simgr.step(stash=stash, **kwargs)
 
-        for state in simgr.stashes.get('interrupted', []):
+        for state in simgr.stashes.get("interrupted", []):
             if id(state) in self.suggested:
                 continue
             self.suggested.add(id(state))
@@ -49,7 +51,7 @@ class Suggestions(ExplorationTechnique):
                 event = state.history.events[-1]
             except IndexError:
                 continue
-            if event.type != 'insufficient_resources':
+            if event.type != "insufficient_resources":
                 continue
 
             with self.lock:  # do not interleave logs
@@ -59,24 +61,24 @@ class Suggestions(ExplorationTechnique):
 
     @staticmethod
     def report(state, event):
-        if once('suggestion_technique'):
+        if once("suggestion_technique"):
             l.warning("Some of your states hit a resource limit. set logger %s to INFO for suggestions.", __name__)
             l.info("Create your simulation manager with `suggestions=False` to disable this.")
 
-        if event.objects['type'] is claripy.errors.ClaripySolverInterruptError:
-            if event.objects['reason'][0] == 'timeout':
+        if event.objects["type"] is claripy.errors.ClaripySolverInterruptError:
+            if event.objects["reason"][0] == "timeout":
                 limit_number = state.solver._solver.timeout
-                limit_kind = 'hit a solver timeout of %s ms.' % limit_number
+                limit_kind = "hit a solver timeout of %s ms." % limit_number
                 limit_minimum = 60 * 1000
-            elif event.objects['reason'][0] == 'max. memory exceeded':
+            elif event.objects["reason"][0] == "max. memory exceeded":
                 limit_number = state.solver._solver.max_memory
-                limit_kind = 'hit a solver memory limit of %s MB.' % limit_number
+                limit_kind = "hit a solver memory limit of %s MB." % limit_number
                 limit_minimum = 1024
             else:
                 limit_number = None
-                limit_kind = 'hit an unknown resource limit. are you manually mucking with the z3 backend?'
+                limit_kind = "hit an unknown resource limit. are you manually mucking with the z3 backend?"
                 limit_minimum = None
-            l.info('%s %s', state, limit_kind)
+            l.info("%s %s", state, limit_kind)
             if limit_number is not None and limit_minimum is not None and limit_number < limit_minimum:
                 l.info("The minimum recommended limit is %s. Consider turning it up?", limit_minimum)
 
@@ -88,7 +90,7 @@ class Suggestions(ExplorationTechnique):
                         if constraint is history.jump_guard:
                             src_addr = history.jump_source
                             dst_addr = history.jump_target
-                            transition_type = 'jumping'
+                            transition_type = "jumping"
                         else:
                             if constraint_event.sim_procedure is None:
                                 src_addr = constraint_event.ins_addr
@@ -99,7 +101,7 @@ class Suggestions(ExplorationTechnique):
                                 dst_addr = block.instruction_addrs[1]
                             except IndexError:
                                 dst_addr = history.jump_target
-                            transition_type = 'stepping'
+                            transition_type = "stepping"
                         if type(dst_addr) is int:
                             dst_addr = claripy.BVV(dst_addr, state.arch.bits)
                         log.append((constraint, ast_weight(constraint), src_addr, dst_addr, transition_type, len(log)))
@@ -118,38 +120,35 @@ class Suggestions(ExplorationTechnique):
                         break
             if max_delta_idx is not None:
                 l.info(
-                    "%d constraint%s abnormally complex.",
-                    max_delta_idx + 1,
-                    's are' if max_delta_idx > 0 else ' is'
+                    "%d constraint%s abnormally complex.", max_delta_idx + 1, "s are" if max_delta_idx > 0 else " is"
                 )
                 descriptions = []
-                for t in sorted(log[:max_delta_idx+1], key=lambda t: t[5]):
+                for t in sorted(log[: max_delta_idx + 1], key=lambda t: t[5]):
                     if max_delta_idx < 10:
                         l.info(
                             "...generated %s from %s to %s",
                             t[4],
                             state.project.loader.describe_addr(t[2]),
-                            state.project.loader.describe_addr(t[3].args[0])
-                            if t[3].op == 'BVV' else '<symbol>'
+                            state.project.loader.describe_addr(t[3].args[0]) if t[3].op == "BVV" else "<symbol>",
                         )
                     descriptions.extend(state.solver.describe_variables(t[0]))
                 descriptions = set(descriptions)
                 seen_apis = set()
                 for description in descriptions:
-                    if description[0] == 'api':
+                    if description[0] == "api":
                         if description[1] not in seen_apis:
                             seen_apis.add(description[1])
                             l.info("...using variables originating in %s (hook it?)", description[1])
-                    elif description[0] == 'mem':
-                        if '##mem' not in seen_apis:
-                            seen_apis.add('##mem')
+                    elif description[0] == "mem":
+                        if "##mem" not in seen_apis:
+                            seen_apis.add("##mem")
                             l.info("...using unconstrained memory (add ZERO_FILL_UNCONSTRAINED_MEMORY?)")
-                    elif description[0] == 'reg':
-                        if '##reg' not in seen_apis:
-                            seen_apis.add('##reg')
+                    elif description[0] == "reg":
+                        if "##reg" not in seen_apis:
+                            seen_apis.add("##reg")
                             l.info("...using unconstrained registers (add ZERO_FILL_UNCONSTRAINED_REGISTERS?)")
-                    elif description[0] == 'file':
-                        api = 'file##' + description[1]
+                    elif description[0] == "file":
+                        api = "file##" + description[1]
                         if api not in seen_apis:
                             seen_apis.add(api)
                             l.info("...using variables from file %s", description[1])

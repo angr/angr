@@ -4,8 +4,9 @@ from angr.procedures.stubs.format_parser import ScanfFormatParser
 
 l = logging.getLogger(name=__name__)
 
+
 class scanf(ScanfFormatParser):
-    #pylint:disable=arguments-differ,unused-argument
+    # pylint:disable=arguments-differ,unused-argument
 
     def run(self, fmt):
         fmt_str = self._parse(fmt)

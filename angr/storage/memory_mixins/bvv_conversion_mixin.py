@@ -10,13 +10,14 @@ class DataNormalizationMixin(MemoryMixin):
     """
     Normalizes the data field for a store and the fallback field for a load to be BVs.
     """
+
     def store(self, addr, data, size=None, **kwargs):
         data_bv = self._convert_to_ast(data, size, self.state.arch.byte_width)
 
         # zero extend if size is greater than len(data_e)
         # TODO move this to the register resolver
-        #bit_width = size*self.state.arch.byte_width if isinstance(size, int) else self.state.arch.bits
-        #if size is not None and self.category == 'reg' and len(data_bv) < bit_width:
+        # bit_width = size*self.state.arch.byte_width if isinstance(size, int) else self.state.arch.bits
+        # if size is not None and self.category == 'reg' and len(data_bv) < bit_width:
         #    data_bv = data_bv.zero_extend(bit_width - len(data_bv))
 
         if len(data_bv) % self.state.arch.byte_width != 0:
@@ -39,14 +40,14 @@ class DataNormalizationMixin(MemoryMixin):
 
         if type(size) is int:
             bits = size * byte_width
-        elif getattr(size, 'op', None) == 'BVV':
+        elif getattr(size, "op", None) == "BVV":
             bits = size.args[0] * byte_width
         else:
             bits = None
 
         if isinstance(thing, str):
             l.warning("Encoding unicode string for memory as utf-8. Did you mean to use a bytestring?")
-            thing = thing.encode('utf-8')
+            thing = thing.encode("utf-8")
         if type(thing) in (bytes, bytearray, memoryview):
             return claripy.BVV(thing)
         elif type(thing) is int:
@@ -68,5 +69,6 @@ class DataNormalizationMixin(MemoryMixin):
                 raise TypeError("Bad value passed to memory", thing) from None
             else:
                 return raw_to_bv()
+
 
 from ...errors import SimMemoryError

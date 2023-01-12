@@ -16,8 +16,8 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         super().__init__()
         self._kb = kb
 
-        self.xrefs_by_ins_addr: Dict[int,Set[XRef]] = defaultdict(set)
-        self.xrefs_by_dst: Dict[int,Set[XRef]] = defaultdict(set)
+        self.xrefs_by_ins_addr: Dict[int, Set[XRef]] = defaultdict(set)
+        self.xrefs_by_dst: Dict[int, Set[XRef]] = defaultdict(set)
 
     def copy(self):
         xm = XRefManager(self._kb)
@@ -116,4 +116,4 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         return model
 
 
-KnowledgeBasePlugin.register_default('xrefs', XRefManager)
+KnowledgeBasePlugin.register_default("xrefs", XRefManager)

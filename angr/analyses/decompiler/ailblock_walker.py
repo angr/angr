@@ -5,10 +5,12 @@ from ailment import Block
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
 from ailment.expression import Load, Expression, BinaryOp, UnaryOp, Convert, ITE, DirtyExpression, VEXCCallExpression
 
+
 class AILBlockWalkerBase:
     """
     Walks all statements and expressions of an AIL node and do nothing.
     """
+
     def __init__(self, stmt_handlers=None, expr_handlers=None):
 
         _default_stmt_handlers = {
@@ -43,8 +45,13 @@ class AILBlockWalkerBase:
     def walk_statement(self, stmt: Statement):
         return self._handle_stmt(0, stmt, None)
 
-    def walk_expression(self, expr: Expression, stmt_idx: Optional[int]=None, stmt: Optional[int]=None,
-                        block: Optional[Block]=None):
+    def walk_expression(
+        self,
+        expr: Expression,
+        stmt_idx: Optional[int] = None,
+        stmt: Optional[int] = None,
+        block: Optional[Block] = None,
+    ):
         return self._handle_expr(0, expr, stmt_idx, stmt, block)
 
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Optional[Block]) -> Any:
@@ -57,8 +64,9 @@ class AILBlockWalkerBase:
             return handler(stmt_idx, stmt, block)
         return None
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
-                     block: Optional[Block]) -> Any:
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
+    ) -> Any:
         try:
             handler = self.expr_handlers[type(expr)]
         except KeyError:
@@ -118,12 +126,14 @@ class AILBlockWalkerBase:
         self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
         self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
 
-    def _handle_DirtyExpression(self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement,
-                                block: Optional[Block]):
+    def _handle_DirtyExpression(
+        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
         self._handle_expr(0, expr.dirty_expr, stmt_idx, stmt, block)
 
-    def _handle_VEXCCallExpression(self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement,
-                                   block: Optional[Block]):
+    def _handle_VEXCCallExpression(
+        self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
         for idx, operand in enumerate(expr.operands):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
 
@@ -134,6 +144,7 @@ class AILBlockWalker(AILBlockWalkerBase):
 
     If you need a pure walker without rebuilding, use AILBlockWalkerBase instead.
     """
+
     def __init__(self, stmt_handlers=None, expr_handlers=None):
         super().__init__(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
 
@@ -147,8 +158,9 @@ class AILBlockWalker(AILBlockWalkerBase):
             return handler(stmt_idx, stmt, block)
         return None
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
-                     block: Optional[Block]) -> Any:
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
+    ) -> Any:
         try:
             handler = self.expr_handlers[type(expr)]
         except KeyError:
@@ -188,7 +200,7 @@ class AILBlockWalker(AILBlockWalkerBase):
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Optional[Block]):
         if stmt.args:
             changed = False
-            new_args = [ ]
+            new_args = []
 
             i = 0
             while i < len(stmt.args):
@@ -206,9 +218,15 @@ class AILBlockWalker(AILBlockWalkerBase):
                 i += 1
 
             if changed:
-                new_stmt = Call(stmt.idx, stmt.target, calling_convention=stmt.calling_convention,
-                                prototype=stmt.prototype, args=new_args, ret_expr=stmt.ret_expr,
-                                **stmt.tags)
+                new_stmt = Call(
+                    stmt.idx,
+                    stmt.target,
+                    calling_convention=stmt.calling_convention,
+                    prototype=stmt.prototype,
+                    args=new_args,
+                    ret_expr=stmt.ret_expr,
+                    **stmt.tags,
+                )
                 block.statements[stmt_idx] = new_stmt
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Optional[Block]):
@@ -229,8 +247,17 @@ class AILBlockWalker(AILBlockWalkerBase):
 
         if changed:
             # update the statement directly in the block
-            new_stmt = Store(stmt.idx, addr, data, stmt.size, stmt.endness, guard=stmt.guard, variable=stmt.variable,
-                             offset=stmt.offset, **stmt.tags)
+            new_stmt = Store(
+                stmt.idx,
+                addr,
+                data,
+                stmt.size,
+                stmt.endness,
+                guard=stmt.guard,
+                variable=stmt.variable,
+                offset=stmt.offset,
+                **stmt.tags,
+            )
             block.statements[stmt_idx] = new_stmt
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Optional[Block]):
@@ -292,7 +319,7 @@ class AILBlockWalker(AILBlockWalkerBase):
 
         if expr.args:
             i = 0
-            new_args = [ ]
+            new_args = []
             while i < len(expr.args):
                 arg = expr.args[i]
                 new_arg = self._handle_expr(i, arg, stmt_idx, stmt, block)
@@ -379,8 +406,9 @@ class AILBlockWalker(AILBlockWalkerBase):
             return new_expr
         return None
 
-    def _handle_DirtyExpression(self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement,
-                                block: Optional[Block]):
+    def _handle_DirtyExpression(
+        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
         new_dirty_expr = self._handle_expr(0, expr.dirty_expr, stmt_idx, stmt, block)
         if new_dirty_expr is not None and new_dirty_expr is not expr.dirty_expr:
             new_expr = expr.copy()
@@ -388,10 +416,11 @@ class AILBlockWalker(AILBlockWalkerBase):
             return new_expr
         return None
 
-    def _handle_VEXCCallExpression(self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement,
-                                   block: Optional[Block]):
+    def _handle_VEXCCallExpression(
+        self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
         changed = False
-        new_operands = [ ]
+        new_operands = []
         for idx, operand in enumerate(expr.operands):
             new_operand = self._handle_expr(idx, operand, stmt_idx, stmt, block)
             if new_operand is not None and new_operand is not operand:

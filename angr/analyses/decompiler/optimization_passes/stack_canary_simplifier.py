@@ -21,7 +21,10 @@ class StackCanarySimplifier(OptimizationPass):
     Removes stack canary checks from decompilation results.
     """
 
-    ARCHES = ["X86", "AMD64", ] # TODO: fs is x86 only. Figure out how stack canary is loaded in other architectures
+    ARCHES = [
+        "X86",
+        "AMD64",
+    ]  # TODO: fs is x86 only. Figure out how stack canary is loaded in other architectures
     PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify stack canaries"
@@ -37,13 +40,13 @@ class StackCanarySimplifier(OptimizationPass):
         # Check the first block and see if there is any statement reading data from fs:0x28h
         init_stmt = self._find_canary_init_stmt()
 
-        return init_stmt is not None, {'init_stmt': init_stmt}
+        return init_stmt is not None, {"init_stmt": init_stmt}
 
     def _analyze(self, cache=None):
 
         init_stmt = None
         if cache is not None:
-            init_stmt = cache.get('init_stmt', None)
+            init_stmt = cache.get("init_stmt", None)
 
         if init_stmt is None:
             init_stmt = self._find_canary_init_stmt()
@@ -56,8 +59,10 @@ class StackCanarySimplifier(OptimizationPass):
         canary_init_stmt = first_block.statements[stmt_idx]
         # where is the stack canary stored?
         if not isinstance(canary_init_stmt.addr, ailment.Expr.StackBaseOffset):
-            _l.debug("Unsupported canary storing location %s. Expects an ailment.Expr.StackBaseOffset.",
-                     canary_init_stmt.addr)
+            _l.debug(
+                "Unsupported canary storing location %s. Expects an ailment.Expr.StackBaseOffset.",
+                canary_init_stmt.addr,
+            )
             return
 
         store_offset = canary_init_stmt.addr.offset
@@ -71,7 +76,7 @@ class StackCanarySimplifier(OptimizationPass):
         # Before node duplication, each pair of canary-check-success and canary-check-failure nodes have a common
         # predecessor.
         # map endpoint addrs to their common predecessors
-        pred_addr_to_endpoint_addrs: Dict[int,Set[int]] = defaultdict(set)
+        pred_addr_to_endpoint_addrs: Dict[int, Set[int]] = defaultdict(set)
         for node_addr in all_endpoint_addrs:
             preds = self._func.graph.predecessors(self._func.get_node(node_addr))
             for pred in preds:
@@ -98,7 +103,7 @@ class StackCanarySimplifier(OptimizationPass):
 
             # One of the end nodes calls __stack_chk_fail
             stack_chk_fail_callers = None
-            for endnodes in [ endnodes_0, endnodes_1 ]:
+            for endnodes in [endnodes_0, endnodes_1]:
                 if self._calls_stack_chk_fail(endnodes[0]):
                     stack_chk_fail_callers = endnodes
                     break
@@ -107,7 +112,7 @@ class StackCanarySimplifier(OptimizationPass):
                 continue
 
             # Match stack_chk_fail_caller, ret_node, and predecessor
-            nodes_to_process = [ ]
+            nodes_to_process = []
             for stack_chk_fail_caller in stack_chk_fail_callers:
                 preds = list(self._graph.predecessors(stack_chk_fail_caller))
                 if len(preds) != 1:
@@ -145,11 +150,11 @@ class StackCanarySimplifier(OptimizationPass):
             for pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node in nodes_to_process:
                 # Patch the pred so that it jumps to the one that is not stack_chk_fail_caller
                 pred_copy = pred.copy()
-                pred_copy.statements[-1] = ailment.Stmt.Jump(len(pred_copy.statements) - 1,
-                                                             ailment.Expr.Const(None, None, ret_node.addr,
-                                                                                self.project.arch.bits),
-                                                             ins_addr=pred_copy.statements[-1].ins_addr,
-                                                             )
+                pred_copy.statements[-1] = ailment.Stmt.Jump(
+                    len(pred_copy.statements) - 1,
+                    ailment.Expr.Const(None, None, ret_node.addr, self.project.arch.bits),
+                    ins_addr=pred_copy.statements[-1].ins_addr,
+                )
 
                 self._update_block(pred, pred_copy)
 
@@ -173,16 +178,18 @@ class StackCanarySimplifier(OptimizationPass):
             return None
 
         for idx, stmt in enumerate(first_block.statements):
-            if isinstance(stmt, ailment.Stmt.Store) \
-                    and isinstance(stmt.addr, ailment.Expr.StackBaseOffset) \
-                    and isinstance(stmt.data, ailment.Expr.Load) \
-                    and self._is_add(stmt.data.addr):
+            if (
+                isinstance(stmt, ailment.Stmt.Store)
+                and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                and isinstance(stmt.data, ailment.Expr.Load)
+                and self._is_add(stmt.data.addr)
+            ):
                 # Check addr: must be fs+0x28
                 op0, op1 = stmt.data.addr.operands
                 if isinstance(op1, ailment.Expr.Register):
                     op0, op1 = op1, op0
                 if isinstance(op0, ailment.Expr.Register) and isinstance(op1, ailment.Expr.Const):
-                    if op0.reg_offset == self.project.arch.get_register_offset('fs') and op1.value == 0x28:
+                    if op0.reg_offset == self.project.arch.get_register_offset("fs") and op1.value == 0x28:
                         return first_block, idx
 
         return None
@@ -199,8 +206,7 @@ class StackCanarySimplifier(OptimizationPass):
                     negated = False
                     condition = stmt.condition
                 if isinstance(condition, ailment.Expr.BinaryOp) and (
-                        not negated and condition.op == "CmpEQ" or
-                        negated and condition.op == "CmpNE"
+                    not negated and condition.op == "CmpEQ" or negated and condition.op == "CmpNE"
                 ):
                     pass
                 else:
@@ -210,21 +216,29 @@ class StackCanarySimplifier(OptimizationPass):
                 if isinstance(expr0, ailment.Expr.BinaryOp) and expr0.op == "Xor":
                     # a ^ b
                     op0, op1 = expr0.operands
-                    if not (self._is_stack_canary_load_expr(op0, self.project.arch.bits, canary_value_stack_offset)
-                            and self._is_random_number_load_expr(op1, self.project.arch.get_register_offset('fs')) or
-                            (
-                               self._is_stack_canary_load_expr(op1, self.project.arch.bits, canary_value_stack_offset)
-                               and self._is_random_number_load_expr(op0, self.project.arch.get_register_offset('fs'))
-                            )):
+                    if not (
+                        self._is_stack_canary_load_expr(op0, self.project.arch.bits, canary_value_stack_offset)
+                        and self._is_random_number_load_expr(op1, self.project.arch.get_register_offset("fs"))
+                        or (
+                            self._is_stack_canary_load_expr(op1, self.project.arch.bits, canary_value_stack_offset)
+                            and self._is_random_number_load_expr(op0, self.project.arch.get_register_offset("fs"))
+                        )
+                    ):
                         continue
-                elif isinstance(expr0, ailment.Expr.Load) and isinstance(expr1, ailment.Expr.Load) and \
-                        condition.op == "CmpEQ":
+                elif (
+                    isinstance(expr0, ailment.Expr.Load)
+                    and isinstance(expr1, ailment.Expr.Load)
+                    and condition.op == "CmpEQ"
+                ):
                     # a == b
-                    if not (self._is_stack_canary_load_expr(expr0, self.project.arch.bits, canary_value_stack_offset)
-                            and self._is_random_number_load_expr(expr1, self.project.arch.get_register_offset('fs')) or
-                            (self._is_stack_canary_load_expr(expr1, self.project.arch.bits, canary_value_stack_offset)
-                             and self._is_random_number_load_expr(expr0, self.project.arch.get_register_offset('fs'))
-                            )):
+                    if not (
+                        self._is_stack_canary_load_expr(expr0, self.project.arch.bits, canary_value_stack_offset)
+                        and self._is_random_number_load_expr(expr1, self.project.arch.get_register_offset("fs"))
+                        or (
+                            self._is_stack_canary_load_expr(expr1, self.project.arch.bits, canary_value_stack_offset)
+                            and self._is_random_number_load_expr(expr0, self.project.arch.get_register_offset("fs"))
+                        )
+                    ):
                         continue
 
                 # Found it
@@ -254,10 +268,12 @@ class StackCanarySimplifier(OptimizationPass):
 
     @staticmethod
     def _is_random_number_load_expr(expr, fs_reg_offset: int) -> bool:
-        return (isinstance(expr, ailment.Expr.Load)
-                and isinstance(expr.addr, ailment.Expr.BinaryOp)
-                and expr.addr.op == "Add"
-                and isinstance(expr.addr.operands[0], ailment.Expr.Const)
-                and expr.addr.operands[0].value == 0x28
-                and isinstance(expr.addr.operands[1], ailment.Expr.Register)
-                and expr.addr.operands[1].reg_offset == fs_reg_offset)
+        return (
+            isinstance(expr, ailment.Expr.Load)
+            and isinstance(expr.addr, ailment.Expr.BinaryOp)
+            and expr.addr.op == "Add"
+            and isinstance(expr.addr.operands[0], ailment.Expr.Const)
+            and expr.addr.operands[0].value == 0x28
+            and isinstance(expr.addr.operands[1], ailment.Expr.Register)
+            and expr.addr.operands[1].reg_offset == fs_reg_offset
+        )

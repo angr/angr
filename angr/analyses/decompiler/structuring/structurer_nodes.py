@@ -14,14 +14,18 @@ class EmptyBlockNotice(Exception):
 
 class MultiNode:
 
-    __slots__ = ('nodes', 'addr', 'idx', )
+    __slots__ = (
+        "nodes",
+        "addr",
+        "idx",
+    )
 
     def __init__(self, nodes, addr=None, idx=None):
 
         # delayed import
         from ..graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
 
-        self.nodes = [ ]
+        self.nodes = []
 
         for node in nodes:
             if type(node) is MultiNode:
@@ -39,10 +43,10 @@ class MultiNode:
 
     def __repr__(self):
 
-        addrs = [ ]
+        addrs = []
         s = ""
         for node in self.nodes:
-            if hasattr(node, 'addr'):
+            if hasattr(node, "addr"):
                 addrs.append(node.addr)
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 
@@ -76,7 +80,7 @@ class BaseNode:
     @staticmethod
     def test_empty_condition_node(cond_node):
 
-        for node in [ cond_node.true_node, cond_node.false_node ]:
+        for node in [cond_node.true_node, cond_node.false_node]:
             if node is None:
                 continue
             if type(node) is CodeNode and BaseNode.test_empty_node(node.node):
@@ -94,11 +98,14 @@ class BaseNode:
 
 class SequenceNode(BaseNode):
 
-    __slots__ = ('addr', 'nodes',)
+    __slots__ = (
+        "addr",
+        "nodes",
+    )
 
     def __init__(self, addr: Optional[int], nodes=None):
         self.addr = addr
-        self.nodes = nodes if nodes is not None else [ ]
+        self.nodes = nodes if nodes is not None else []
 
     def __repr__(self):
         if self.addr is None:
@@ -124,7 +131,7 @@ class SequenceNode(BaseNode):
     def dbg_repr(self, indent=0):
         s = ""
         for node in self.nodes:
-            s += (node.dbg_repr(indent=indent + INDENT_DELTA))
+            s += node.dbg_repr(indent=indent + INDENT_DELTA)
             s += "\n"
 
         return s
@@ -132,7 +139,10 @@ class SequenceNode(BaseNode):
 
 class CodeNode(BaseNode):
 
-    __slots__ = ('node', 'reaching_condition', )
+    __slots__ = (
+        "node",
+        "reaching_condition",
+    )
 
     def __init__(self, node, reaching_condition):
         self.node = node
@@ -148,7 +158,7 @@ class CodeNode(BaseNode):
 
     @property
     def addr(self):
-        if hasattr(self.node, 'addr'):
+        if hasattr(self.node, "addr"):
             return self.node.addr
         else:
             return None
@@ -163,11 +173,16 @@ class CodeNode(BaseNode):
         indent_str = indent * " "
         s = ""
         if self.reaching_condition is not None and not claripy.is_true(self.reaching_condition):
-            s += (indent_str + "if (<block-missing>; %s)\n" +
-                 indent_str + "{\n" +
-                 indent_str + "  %s\n" +
-                 indent_str + "}") % \
-                              (self.reaching_condition, self.node)
+            s += (
+                indent_str
+                + "if (<block-missing>; %s)\n"
+                + indent_str
+                + "{\n"
+                + indent_str
+                + "  %s\n"
+                + indent_str
+                + "}"
+            ) % (self.reaching_condition, self.node)
         else:
             s += indent_str + str(self.node)
 
@@ -179,7 +194,14 @@ class CodeNode(BaseNode):
 
 class ConditionNode(BaseNode):
 
-    __slots__ = ('addr', 'node', 'reaching_condition', 'condition', 'true_node', 'false_node', )
+    __slots__ = (
+        "addr",
+        "node",
+        "reaching_condition",
+        "condition",
+        "true_node",
+        "false_node",
+    )
 
     def __init__(self, addr, reaching_condition, condition, true_node, false_node=None):
         self.addr = addr
@@ -191,18 +213,16 @@ class ConditionNode(BaseNode):
     def dbg_repr(self, indent=0):
         indent_str = indent * " "
         s = ""
-        s += (indent_str + "if (<block-missing>; %s)\n" +
-              indent_str + "{\n" +
-              indent_str + "%s\n" +
-              indent_str + "}\n") % (
-            self.condition, self.true_node.dbg_repr(indent+2),
+        s += (
+            indent_str + "if (<block-missing>; %s)\n" + indent_str + "{\n" + indent_str + "%s\n" + indent_str + "}\n"
+        ) % (
+            self.condition,
+            self.true_node.dbg_repr(indent + 2),
         )
         if self.false_node is not None:
-            s += (indent_str + "else\n" +
-              indent_str + "{\n" +
-              indent_str + "%s\n" +
-              indent_str + "}") % \
-             self.false_node.dbg_repr(indent+2)
+            s += (
+                indent_str + "else\n" + indent_str + "{\n" + indent_str + "%s\n" + indent_str + "}"
+            ) % self.false_node.dbg_repr(indent + 2)
 
         return s
 
@@ -215,9 +235,13 @@ class ConditionNode(BaseNode):
 
 class CascadingConditionNode(BaseNode):
 
-    __slots__ = ('addr', 'condition_and_nodes', 'else_node', )
+    __slots__ = (
+        "addr",
+        "condition_and_nodes",
+        "else_node",
+    )
 
-    def __init__(self, addr, condition_and_nodes: List[Tuple[Any,BaseNode]], else_node: BaseNode=None):
+    def __init__(self, addr, condition_and_nodes: List[Tuple[Any, BaseNode]], else_node: BaseNode = None):
         self.addr = addr
         self.condition_and_nodes = condition_and_nodes
         self.else_node = else_node
@@ -225,7 +249,15 @@ class CascadingConditionNode(BaseNode):
 
 class LoopNode(BaseNode):
 
-    __slots__ = ('sort', 'condition', 'sequence_node', 'initializer', 'iterator', '_addr', '_continue_addr', )
+    __slots__ = (
+        "sort",
+        "condition",
+        "sequence_node",
+        "initializer",
+        "iterator",
+        "_addr",
+        "_continue_addr",
+    )
 
     def __init__(self, sort, condition, sequence_node, addr=None, continue_addr=None, initializer=None, iterator=None):
         self.sort = sort
@@ -243,7 +275,7 @@ class LoopNode(BaseNode):
             self.sequence_node,
             addr=self._addr,
             initializer=self.initializer,
-            iterator=self.iterator
+            iterator=self.iterator,
         )
 
     @property
@@ -270,7 +302,10 @@ class LoopNode(BaseNode):
 
 class BreakNode(BaseNode):
 
-    __slots__ = ('addr', 'target',)
+    __slots__ = (
+        "addr",
+        "target",
+    )
 
     def __init__(self, addr, target):
         self.addr = addr
@@ -279,7 +314,10 @@ class BreakNode(BaseNode):
 
 class ContinueNode(BaseNode):
 
-    __slots__ = ('addr', 'target',)
+    __slots__ = (
+        "addr",
+        "target",
+    )
 
     def __init__(self, addr, target):
         self.addr = addr
@@ -288,7 +326,7 @@ class ContinueNode(BaseNode):
 
 class ConditionalBreakNode(BreakNode):
 
-    __slots__ = ('condition',)
+    __slots__ = ("condition",)
 
     def __init__(self, addr, condition, target):
         super().__init__(addr, target)
@@ -300,11 +338,16 @@ class ConditionalBreakNode(BreakNode):
 
 class SwitchCaseNode(BaseNode):
 
-    __slots__ = ('switch_expr', 'cases', 'default_node', 'addr', )
+    __slots__ = (
+        "switch_expr",
+        "cases",
+        "default_node",
+        "addr",
+    )
 
     def __init__(self, switch_expr, cases, default_node, addr=None):
         self.switch_expr = switch_expr
-        self.cases: Dict[Union[int,Tuple[int]],SequenceNode] = cases
+        self.cases: Dict[Union[int, Tuple[int]], SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr
 
@@ -315,7 +358,7 @@ class IncompleteSwitchCaseNode(BaseNode):
     into a SwitchCaseNode by the end of structuring. Only used in Phoenix structurer.
     """
 
-    __slots__ = ('addr', 'head', 'cases')
+    __slots__ = ("addr", "head", "cases")
 
     def __init__(self, addr, head, cases):
         self.addr = addr

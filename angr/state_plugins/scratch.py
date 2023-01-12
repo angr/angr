@@ -1,4 +1,5 @@
 import logging
+
 l = logging.getLogger(name=__name__)
 
 import claripy
@@ -10,6 +11,7 @@ class SimStateScratch(SimStatePlugin):
     """
     Implements the scratch state plugin.
     """
+
     def __init__(self, scratch=None):
         super().__init__()
 
@@ -31,9 +33,9 @@ class SimStateScratch(SimStatePlugin):
         self.source = None
         self.exit_stmt_idx = None
         self.exit_ins_addr = None
-        self.executed_block_count = 0 # the number of blocks that was executed here
-        self.executed_syscall_count = 0 # the number of system calls that was executed here
-        self.executed_instruction_count = -1 # the number of instructions that was executed
+        self.executed_block_count = 0  # the number of blocks that was executed here
+        self.executed_syscall_count = 0  # the number of system calls that was executed here
+        self.executed_instruction_count = -1  # the number of instructions that was executed
         self.avoidable = True
 
         # information on VEX temps of this IRSB
@@ -84,7 +86,7 @@ class SimStateScratch(SimStatePlugin):
 
     def set_tyenv(self, tyenv):
         self.tyenv = tyenv
-        self.temps = [None]*len(tyenv.types)
+        self.temps = [None] * len(tyenv.types)
 
     def tmp_expr(self, tmp):
         """
@@ -94,15 +96,16 @@ class SimStateScratch(SimStatePlugin):
         :param simplify: simplify the tmp before returning it
         :returns: a Claripy expression of the tmp
         """
-        self.state._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
+        self.state._inspect("tmp_read", BP_BEFORE, tmp_read_num=tmp)
         try:
             v = self.temps[tmp]
             if v is None:
-                raise SimMissingTempError('VEX temp variable %d does not exist. This is usually the result of an '
-                                          'incorrect slicing.' % tmp)
+                raise SimMissingTempError(
+                    "VEX temp variable %d does not exist. This is usually the result of an " "incorrect slicing." % tmp
+                )
         except IndexError:
             raise SimMissingTempError("Accessing a temp that is illegal in this tyenv")
-        self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
+        self.state._inspect("tmp_read", BP_AFTER, tmp_read_expr=v)
         return v
 
     def store_tmp(self, tmp, content, reg_deps=None, tmp_deps=None, deps=None, **kwargs):
@@ -115,9 +118,9 @@ class SimStateScratch(SimStatePlugin):
         :param reg_deps: the register dependencies of the content
         :param tmp_deps: the temporary value dependencies of the content
         """
-        self.state._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
-        tmp = self.state._inspect_getattr('tmp_write_num', tmp)
-        content = self.state._inspect_getattr('tmp_write_expr', content)
+        self.state._inspect("tmp_write", BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
+        tmp = self.state._inspect_getattr("tmp_write_num", tmp)
+        content = self.state._inspect_getattr("tmp_write_expr", content)
 
         if o.SYMBOLIC_TEMPS not in self.state.options:
             # Non-symbolic
@@ -129,19 +132,21 @@ class SimStateScratch(SimStatePlugin):
         # get the size, and record the write
         if o.TRACK_TMP_ACTIONS in self.state.options:
             data_ao = SimActionObject(content, reg_deps=reg_deps, tmp_deps=tmp_deps, deps=deps, state=self.state)
-            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=content.length)
+            r = SimActionData(
+                self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=content.length
+            )
             self.state.history.add_action(r)
 
-        self.state._inspect('tmp_write', BP_AFTER)
+        self.state._inspect("tmp_write", BP_AFTER)
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         return SimStateScratch(scratch=self)
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return False
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         return False
 
     def clear(self):
@@ -149,7 +154,8 @@ class SimStateScratch(SimStatePlugin):
         j = self.jumpkind
         self.__init__()
         self.state = s
-        self.jumpkind = j # preserve jumpkind - "what is the previous jumpkind" is an important question sometimes
+        self.jumpkind = j  # preserve jumpkind - "what is the previous jumpkind" is an important question sometimes
+
 
 from .sim_action import SimActionObject, SimActionData
 from ..errors import SimValueError, SimMissingTempError
@@ -157,4 +163,5 @@ from .. import sim_options as o
 from .inspect import BP_AFTER, BP_BEFORE
 
 from angr.sim_state import SimState
-SimState.register_default('scratch', SimStateScratch)
+
+SimState.register_default("scratch", SimStateScratch)

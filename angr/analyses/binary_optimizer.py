@@ -24,9 +24,7 @@ class ConstantPropagation:
 
     def __repr__(self):
         s = "<Constant {:#x} propagates from {:#x} to {:#x}>".format(
-            self.constant,
-            self.constant_assignment_loc.ins_addr,
-            self.constant_consuming_loc.ins_addr
+            self.constant, self.constant_assignment_loc.ins_addr, self.constant_consuming_loc.ins_addr
         )
 
         return s
@@ -51,8 +49,17 @@ class RedundantStackVariable:
 
 
 class RegisterReallocation:
-    def __init__(self, stack_variable, register_variable, stack_variable_sources, stack_variable_consumers,
-                 prologue_addr, prologue_size, epilogue_addr, epilogue_size):
+    def __init__(
+        self,
+        stack_variable,
+        register_variable,
+        stack_variable_sources,
+        stack_variable_consumers,
+        prologue_addr,
+        prologue_size,
+        epilogue_addr,
+        epilogue_size,
+    ):
         """
         Constructor.
 
@@ -118,24 +125,24 @@ class BinaryOptimizer(Analysis):
         self.cfg = cfg
 
         if techniques is None:
-            raise Exception('At least one optimization technique must be specified.')
+            raise Exception("At least one optimization technique must be specified.")
 
         supported_techniques = {
-            'constant_propagation',
-            'redundant_stack_variable_removal',
-            'register_reallocation',
-            'dead_assignment_elimination',
+            "constant_propagation",
+            "redundant_stack_variable_removal",
+            "register_reallocation",
+            "dead_assignment_elimination",
         }
 
         if techniques - supported_techniques:
-            raise Exception('At least one optimization technique specified is not supported.')
+            raise Exception("At least one optimization technique specified is not supported.")
 
         self._techniques = techniques.copy()
 
-        self.constant_propagations = [ ]
-        self.redundant_stack_variables = [ ]
-        self.register_reallocations = [ ]
-        self.dead_assignments = [ ]
+        self.constant_propagations = []
+        self.redundant_stack_variables = []
+        self.register_reallocations = []
+        self.dead_assignments = []
 
         self.optimize()
 
@@ -143,10 +150,11 @@ class BinaryOptimizer(Analysis):
         f: Function
         for f in self.kb.functions.values():
             # if there are unresolved targets in this function, we do not try to optimize it
-            unresolvable_targets = (SIM_PROCEDURES['stubs']['UnresolvableJumpTarget'],
-                                    SIM_PROCEDURES['stubs']['UnresolvableCallTarget'])
-            if any([ n.sim_procedure in unresolvable_targets for n in f.graph.nodes()
-                     if isinstance(n, HookNode) ]):
+            unresolvable_targets = (
+                SIM_PROCEDURES["stubs"]["UnresolvableJumpTarget"],
+                SIM_PROCEDURES["stubs"]["UnresolvableCallTarget"],
+            )
+            if any([n.sim_procedure in unresolvable_targets for n in f.graph.nodes() if isinstance(n, HookNode)]):
                 continue
 
             if len(f.block_addrs_set) > self.BLOCKS_THRESHOLD:
@@ -161,7 +169,7 @@ class BinaryOptimizer(Analysis):
         :return:
         """
 
-        #if function.addr != 0x8048250:
+        # if function.addr != 0x8048250:
         #    return
 
         func_kb = KnowledgeBase(self.project)
@@ -183,25 +191,25 @@ class BinaryOptimizer(Analysis):
         # there is no write to or read from eax
 
         cfg = self.project.analyses[CFGEmulated].prep(kb=func_kb)(
-                                                call_depth=1,
-                                                base_graph=function.graph,
-                                                keep_state=True,
-                                                starts=(function.addr,),
-                                                iropt_level=0,
-                                                )
+            call_depth=1,
+            base_graph=function.graph,
+            keep_state=True,
+            starts=(function.addr,),
+            iropt_level=0,
+        )
 
         ddg = self.project.analyses[DDG].prep(kb=func_kb)(cfg=cfg)
 
-        if 'constant_propagation' in self._techniques:
+        if "constant_propagation" in self._techniques:
             self._constant_propagation(function, ddg.simplified_data_graph)
-        if 'redundant_stack_variable_removal' in self._techniques:
+        if "redundant_stack_variable_removal" in self._techniques:
             self._redundant_stack_variable_removal(function, ddg.simplified_data_graph)
-        if 'register_reallocation' in self._techniques:
+        if "register_reallocation" in self._techniques:
             self._register_reallocation(function, ddg.simplified_data_graph)
-        if 'dead_assignment_elimination' in self._techniques:
+        if "dead_assignment_elimination" in self._techniques:
             self._dead_assignment_elimination(function, ddg.simplified_data_graph)
 
-    def _constant_propagation(self, function, data_graph):  #pylint:disable=unused-argument
+    def _constant_propagation(self, function, data_graph):  # pylint:disable=unused-argument
         """
 
         :param function:
@@ -233,7 +241,7 @@ class BinaryOptimizer(Analysis):
             if not isinstance(n2.variable, SimMemoryVariable):
                 continue
             n2_inedges = data_graph.in_edges(n2, data=True)
-            if len([ 0 for _, _, data in n2_inedges if 'type' in data and data['type'] == 'mem_data' ]) != 1:
+            if len([0 for _, _, data in n2_inedges if "type" in data and data["type"] == "mem_data"]) != 1:
                 continue
 
             cp = ConstantPropagation(n0.variable.value, n0.location, n2.location)
@@ -255,9 +263,9 @@ class BinaryOptimizer(Analysis):
 
         # check if there is any stack pointer being stored into any register other than esp
         # basically check all consumers of stack pointers
-        stack_ptrs = [ ]
-        sp_offset = self.project.arch.registers['esp'][0]
-        bp_offset = self.project.arch.registers['ebp'][0]
+        stack_ptrs = []
+        sp_offset = self.project.arch.registers["esp"][0]
+        bp_offset = self.project.arch.registers["ebp"][0]
         for n in data_graph.nodes():
             if isinstance(n.variable, SimRegisterVariable) and n.variable.reg in (sp_offset, bp_offset):
                 stack_ptrs.append(n)
@@ -266,30 +274,33 @@ class BinaryOptimizer(Analysis):
         for stack_ptr in stack_ptrs:
             out_edges = data_graph.out_edges(stack_ptr, data=True)
             for _, dst, data in out_edges:
-                if 'type' in data and data['type'] == 'kill':
+                if "type" in data and data["type"] == "kill":
                     # we don't care about killing edges
                     continue
-                if isinstance(dst.variable, SimRegisterVariable) and dst.variable.reg < 40 and \
-                        dst.variable.reg not in (sp_offset, bp_offset):
+                if (
+                    isinstance(dst.variable, SimRegisterVariable)
+                    and dst.variable.reg < 40
+                    and dst.variable.reg not in (sp_offset, bp_offset)
+                ):
                     # oops
-                    l.debug('Function %s does not satisfy requirements of redundant stack variable removal.',
-                            repr(function)
-                            )
+                    l.debug(
+                        "Function %s does not satisfy requirements of redundant stack variable removal.", repr(function)
+                    )
                     return
 
-        argument_variables = [ ]
+        argument_variables = []
 
         for n in data_graph.nodes():
-            if isinstance(n.variable, SimStackVariable) and n.variable.base == 'bp' and n.variable.offset >= 0:
+            if isinstance(n.variable, SimStackVariable) and n.variable.base == "bp" and n.variable.offset >= 0:
                 argument_variables.append(n)
 
         if not argument_variables:
             return
 
-        #print function
-        #print argument_variables
+        # print function
+        # print argument_variables
 
-        argument_to_local = { }
+        argument_to_local = {}
         argument_register_as_retval = set()
 
         # for each argument, find its correspondence on the local stack frame
@@ -307,41 +318,42 @@ class BinaryOptimizer(Analysis):
             if isinstance(successors0[0].variable, SimRegisterVariable):
                 # argument -> register -> stack
                 out_edges = data_graph.out_edges(successors0[0], data=True)
-                successors1 = [ s for _, s, data in out_edges if 'type' not in data or data['type'] != 'kill' ]
+                successors1 = [s for _, s, data in out_edges if "type" not in data or data["type"] != "kill"]
                 if len(successors1) == 1:
                     successor1 = successors1[0]
                     if isinstance(successor1.variable, SimStackVariable):
-                        if (successor1.variable.base == 'sp' and successor1.variable.offset > 0) or \
-                                (successor1.variable.base == 'bp' and successor1.variable.offset < 0):
+                        if (successor1.variable.base == "sp" and successor1.variable.offset > 0) or (
+                            successor1.variable.base == "bp" and successor1.variable.offset < 0
+                        ):
                             # yes it's copied onto the stack!
                             argument_to_local[argument_variable] = successor1
 
                 # if the register is eax, and it's not killed later, it might be the return value of this function
                 # in that case, we cannot eliminate the instruction that moves stack argument to that register
-                if successors0[0].variable.reg == self.project.arch.registers['eax'][0]:
-                    killers = [ s for _, s, data in out_edges if 'type' in data and data['type'] == 'kill']
+                if successors0[0].variable.reg == self.project.arch.registers["eax"][0]:
+                    killers = [s for _, s, data in out_edges if "type" in data and data["type"] == "kill"]
                     if not killers:
                         # it might be the return value
                         argument_register_as_retval.add(argument_variable)
 
             else:
-                raise NotImplementedError() # TODO:
+                raise NotImplementedError()  # TODO:
 
-        #import pprint
-        #pprint.pprint(argument_to_local, width=160)
+        # import pprint
+        # pprint.pprint(argument_to_local, width=160)
 
         # find local correspondence that are not modified throughout this function
-        redundant_stack_variables = [ ]
+        redundant_stack_variables = []
 
         for argument, local_var in argument_to_local.items():
             # local_var cannot be killed anywhere
             out_edges = data_graph.out_edges(local_var, data=True)
 
-            consuming_locs = [ ]
+            consuming_locs = []
 
             for _, consumer, data in out_edges:
                 consuming_locs.append(consumer.location)
-                if 'type' in data and data['type'] == 'kill':
+                if "type" in data and data["type"] == "kill":
                     break
             else:
                 # no killing edges. the value is not changed!
@@ -393,14 +405,14 @@ class BinaryOptimizer(Analysis):
 
         insn0, insn1, insn2 = startpoint_insns[:3]
 
-        if not (insn0.mnemonic == 'push' and insn0.op_str == 'ebp'):
+        if not (insn0.mnemonic == "push" and insn0.op_str == "ebp"):
             return
-        if not (insn1.mnemonic == 'mov' and insn1.op_str == 'ebp, esp'):
+        if not (insn1.mnemonic == "mov" and insn1.op_str == "ebp, esp"):
             return
-        if not (insn2.mnemonic == 'sub' and re.match(r"esp, [0-9a-fx]+", insn2.op_str)) and \
-                not (insn2.mnemonic == 'push' and insn2.op_str == 'eax'):
+        if not (insn2.mnemonic == "sub" and re.match(r"esp, [0-9a-fx]+", insn2.op_str)) and not (
+            insn2.mnemonic == "push" and insn2.op_str == "eax"
+        ):
             return
-
 
         endpoint_block = self.project.factory.block(function.endpoints[0].addr).capstone
         endpoint_insns = endpoint_block.insns
@@ -416,17 +428,17 @@ class BinaryOptimizer(Analysis):
 
         insn3, insn4, insn5 = endpoint_insns[-3:]
 
-        if not (insn3.mnemonic == 'add' and re.match(r"esp, [0-9a-fx]+", insn3.op_str)):
+        if not (insn3.mnemonic == "add" and re.match(r"esp, [0-9a-fx]+", insn3.op_str)):
             return
-        if not (insn4.mnemonic == 'pop' and insn4.op_str == 'ebp'):
+        if not (insn4.mnemonic == "pop" and insn4.op_str == "ebp"):
             return
-        if not insn5.mnemonic == 'ret':
+        if not insn5.mnemonic == "ret":
             return
 
         # make sure esp is not used anywhere else - all stack variables must be indexed using ebp
-        esp_offset = self.project.arch.registers['esp'][0]
-        ebp_offset = self.project.arch.registers['ebp'][0]
-        esp_variables = [ ]
+        esp_offset = self.project.arch.registers["esp"][0]
+        ebp_offset = self.project.arch.registers["ebp"][0]
+        esp_variables = []
         for n in data_graph.nodes():
             if isinstance(n.variable, SimRegisterVariable) and n.variable.reg == esp_offset:
                 esp_variables.append(n)
@@ -434,7 +446,7 @@ class BinaryOptimizer(Analysis):
         # find out all call instructions
         call_insns = set()
         for src, dst, data in function.transition_graph.edges(data=True):
-            if 'type' in data and data['type'] == 'call':
+            if "type" in data and data["type"] == "call":
                 src_block = function._get_block(src.addr)
                 call_insns.add(src_block.instruction_addrs[-1])
 
@@ -442,8 +454,8 @@ class BinaryOptimizer(Analysis):
         # push ebp (insn0 - read, insn0 - write) ; sub esp, 0xXX (insn2) ;
         # add esp, 0xXX (insn3) ; pop ebp (insn4) ; ret (insn5)
 
-        esp_insns = { n.location.ins_addr for n in esp_variables }
-        if esp_insns != { insn0.address, insn2.address, insn3.address, insn4.address, insn5.address } | call_insns:
+        esp_insns = {n.location.ins_addr for n in esp_variables}
+        if esp_insns != {insn0.address, insn2.address, insn3.address, insn4.address, insn5.address} | call_insns:
             return
 
         prologue_addr = insn0.address
@@ -464,27 +476,31 @@ class BinaryOptimizer(Analysis):
         # say, lea edx, [ebp-0x4] is forbidden
         # check all edges in data graph
         for src, dst, data in data_graph.edges(data=True):
-            if isinstance(dst.variable, SimRegisterVariable) and \
-                    dst.variable.reg != ebp_offset and \
-                    dst.variable.reg < 40:
-                #to a register other than ebp
-                if isinstance(src.variable, SimRegisterVariable) and \
-                        src.variable.reg == ebp_offset:
+            if (
+                isinstance(dst.variable, SimRegisterVariable)
+                and dst.variable.reg != ebp_offset
+                and dst.variable.reg < 40
+            ):
+                # to a register other than ebp
+                if isinstance(src.variable, SimRegisterVariable) and src.variable.reg == ebp_offset:
                     # from ebp
-                    l.debug("Found a lea operation from ebp at %#x. Function %s cannot be optimized.",
-                            dst.location.ins_addr,
-                            repr(function),
-                            )
+                    l.debug(
+                        "Found a lea operation from ebp at %#x. Function %s cannot be optimized.",
+                        dst.location.ins_addr,
+                        repr(function),
+                    )
                     return
 
         # we definitely don't want to mess with fp or sse operations
         for node in data_graph.nodes():
-            if isinstance(node.variable, SimRegisterVariable) and \
-                    72 <= node.variable.reg < 288:  # offset(mm0) <= node.variable.reg < offset(cs)
-                l.debug('Found a float-point/SSE register access at %#x. Function %s cannot be optimized.',
-                        node.location.ins_addr,
-                        repr(function)
-                        )
+            if (
+                isinstance(node.variable, SimRegisterVariable) and 72 <= node.variable.reg < 288
+            ):  # offset(mm0) <= node.variable.reg < offset(cs)
+                l.debug(
+                    "Found a float-point/SSE register access at %#x. Function %s cannot be optimized.",
+                    node.location.ins_addr,
+                    repr(function),
+                )
                 return
 
         l.debug("RegisterReallocation: function %s satisfies the criteria.", repr(function))
@@ -498,28 +514,34 @@ class BinaryOptimizer(Analysis):
                 if n.variable.reg < 40:  # this is a hardcoded limit - we only care about general registers
                     used_general_registers.add(n.variable.reg)
         registers = self.project.arch.registers
-        all_general_registers = { #registers['eax'][0], registers['ecx'][0], registers['edx'][0],
-                                  registers['ebx'][0], registers['edi'][0], registers['esi'][0],
-                                  registers['esp'][0], registers['ebp'][0]
-                                  }
+        all_general_registers = {  # registers['eax'][0], registers['ecx'][0], registers['edx'][0],
+            registers["ebx"][0],
+            registers["edi"][0],
+            registers["esi"][0],
+            registers["esp"][0],
+            registers["ebp"][0],
+        }
         unused_general_registers = all_general_registers - used_general_registers
 
         if not unused_general_registers:
             l.debug("RegisterReallocation: function %s does not have any free register.", repr(function))
             return
-        l.debug("RegisterReallocation: function %s has %d free register(s): %s",
-                repr(function),
-                len(unused_general_registers),
-                ", ".join([self.project.arch.register_names[u] for u in unused_general_registers ])
-                )
+        l.debug(
+            "RegisterReallocation: function %s has %d free register(s): %s",
+            repr(function),
+            len(unused_general_registers),
+            ", ".join([self.project.arch.register_names[u] for u in unused_general_registers]),
+        )
 
         # find local stack variables of size 4
         stack_variables = set()
         for n in data_graph.nodes():
-            if isinstance(n.variable, SimStackVariable) and \
-                    n.variable.base == 'bp' and \
-                    n.variable.size == 4 and \
-                    n.variable.offset < 0:
+            if (
+                isinstance(n.variable, SimStackVariable)
+                and n.variable.base == "bp"
+                and n.variable.size == 4
+                and n.variable.offset < 0
+            ):
                 stack_variables.add(n)
 
         # alright, now we need to make sure that stack variables are never accessed by indexes
@@ -538,7 +560,7 @@ class BinaryOptimizer(Analysis):
             # check how they are accessed
             in_edges = data_graph.in_edges(stack_variable, data=True)
             for src, _, data in in_edges:
-                if 'type' in data and data['type'] == 'mem_addr':
+                if "type" in data and data["type"] == "mem_addr":
                     if isinstance(src.variable, SimRegisterVariable) and src.variable.reg == ebp_offset:
                         # ebp
                         pass
@@ -561,7 +583,7 @@ class BinaryOptimizer(Analysis):
             # check consumers
             out_edges = data_graph.out_edges(stack_variable, data=True)
             for _, dst, data in out_edges:
-                if 'type' in data and data['type'] == 'kill':
+                if "type" in data and data["type"] == "kill":
                     continue
                 if isinstance(dst.variable, SimRegisterVariable) and dst.variable.reg >= 72:
                     # an FP register is the consumer
@@ -581,10 +603,9 @@ class BinaryOptimizer(Analysis):
             stack_variable_to_degree[sv.variable] += data_graph.out_degree(sv)
             stack_variable_sources[sv.variable].append(sv)
 
-        sorted_stack_variables = sorted(stack_variable_to_degree.keys(),
-                                       key=lambda sv: stack_variable_to_degree[sv],
-                                       reverse=True
-                                       )
+        sorted_stack_variables = sorted(
+            stack_variable_to_degree.keys(), key=lambda sv: stack_variable_to_degree[sv], reverse=True
+        )
 
         # aha these are the ones that we can replace!
         for reg, sv in zip(unused_general_registers, sorted_stack_variables):
@@ -601,21 +622,29 @@ class BinaryOptimizer(Analysis):
             for src in stack_variable_sources[sv]:
                 out_edges = data_graph.out_edges(src, data=True)
                 for _, dst, data in out_edges:
-                    if 'type' not in data or data['type'] != 'kill':
+                    if "type" not in data or data["type"] != "kill":
                         consumers.add(dst)
 
-            rr = RegisterReallocation(sv, SimRegisterVariable(reg, 4), non_initial_sources,
-                                      list(consumers), prologue_addr, prologue_size, epilogue_addr, epilogue_size
-                                      )
+            rr = RegisterReallocation(
+                sv,
+                SimRegisterVariable(reg, 4),
+                non_initial_sources,
+                list(consumers),
+                prologue_addr,
+                prologue_size,
+                epilogue_addr,
+                epilogue_size,
+            )
             self.register_reallocations.append(rr)
 
-            l.debug("RegisterReallocation: %s will replace %s in function %s.",
-                    rr.register_variable,
-                    rr.stack_variable,
-                    repr(function)
-                    )
+            l.debug(
+                "RegisterReallocation: %s will replace %s in function %s.",
+                rr.register_variable,
+                rr.stack_variable,
+                repr(function),
+            )
 
-    def _dead_assignment_elimination(self, function, data_graph):  #pylint:disable=unused-argument
+    def _dead_assignment_elimination(self, function, data_graph):  # pylint:disable=unused-argument
         """
         Remove assignments to registers that has no consumers, but immediately killed.
 
@@ -628,18 +657,20 @@ class BinaryOptimizer(Analysis):
 
         register_pvs = set()
         for node in data_graph.nodes():
-            if isinstance(node.variable, SimRegisterVariable) and \
-                    node.variable.reg is not None and \
-                    node.variable.reg < 40:
+            if (
+                isinstance(node.variable, SimRegisterVariable)
+                and node.variable.reg is not None
+                and node.variable.reg < 40
+            ):
                 register_pvs.add(node)
 
         for reg in register_pvs:
             # does it have a consumer?
             out_edges = data_graph.out_edges(reg, data=True)
-            consumers = [ ]
-            killers = [ ]
+            consumers = []
+            killers = []
             for _, _, data in out_edges:
-                if 'type' in data and data['type'] == 'kill':
+                if "type" in data and data["type"] == "kill":
                     killers.append(data)
                 else:
                     consumers.append(data)
@@ -649,5 +680,7 @@ class BinaryOptimizer(Analysis):
                 da = DeadAssignment(reg)
                 self.dead_assignments.append(da)
 
+
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('BinaryOptimizer', BinaryOptimizer)
+
+AnalysesHub.register_default("BinaryOptimizer", BinaryOptimizer)

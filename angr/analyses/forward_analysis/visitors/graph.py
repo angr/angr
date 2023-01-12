@@ -13,18 +13,25 @@ class GraphVisitor(Generic[NodeType]):
     returns successors of a CFGNode each time. This is the base class of all graph visitors.
     """
 
-    __slots__ = ('_sorted_nodes', '_nodes_set', '_node_to_index', '_reached_fixedpoint', '_back_edges_by_src',
-                 '_back_edges_by_dst', '_pending_nodes', )
+    __slots__ = (
+        "_sorted_nodes",
+        "_nodes_set",
+        "_node_to_index",
+        "_reached_fixedpoint",
+        "_back_edges_by_src",
+        "_back_edges_by_dst",
+        "_pending_nodes",
+    )
 
     def __init__(self):
-        self._sorted_nodes: List[NodeType] = [ ]
+        self._sorted_nodes: List[NodeType] = []
         self._nodes_set: Set[NodeType] = set()
-        self._node_to_index: Dict[NodeType, int] = { }
+        self._node_to_index: Dict[NodeType, int] = {}
         self._reached_fixedpoint: Set[NodeType] = set()
-        self._back_edges_by_src: Optional[Dict[NodeType,Set[NodeType]]] = None
-        self._back_edges_by_dst: Optional[Dict[NodeType,Set[NodeType]]] = None
+        self._back_edges_by_src: Optional[Dict[NodeType, Set[NodeType]]] = None
+        self._back_edges_by_dst: Optional[Dict[NodeType, Set[NodeType]]] = None
 
-        self._pending_nodes: Dict[NodeType,Set[NodeType]] = defaultdict(set)
+        self._pending_nodes: Dict[NodeType, Set[NodeType]] = defaultdict(set)
 
     #
     # Interfaces
@@ -61,7 +68,7 @@ class GraphVisitor(Generic[NodeType]):
 
         raise NotImplementedError()
 
-    def back_edges(self) -> List[Tuple[NodeType,NodeType]]:
+    def back_edges(self) -> List[Tuple[NodeType, NodeType]]:
         """
         Get a list of back edges. This function is optional. If not overriden, the traverser cannot achieve an optimal
         graph traversal order.
@@ -81,11 +88,9 @@ class GraphVisitor(Generic[NodeType]):
         :return:
         """
 
-        return iter(
-            self.sort_nodes()
-        )
+        return iter(self.sort_nodes())
 
-    @deprecated(replacement='nodes')
+    @deprecated(replacement="nodes")
     def nodes_iter(self):
         """
         (Deprecated) Return an iterator of nodes following an optimal traversal order. Will be removed in the future.
@@ -169,14 +174,15 @@ class GraphVisitor(Generic[NodeType]):
 
         successors = set()
 
-        stack = [ node ]
+        stack = [node]
         while stack:
             n = stack.pop()
             successors.add(n)
-            stack.extend(succ for succ in self.successors(n) if
-                         succ not in successors and
-                            (not skip_reached_fixedpoint or succ not in self._reached_fixedpoint)
-                         )
+            stack.extend(
+                succ
+                for succ in self.successors(n)
+                if succ not in successors and (not skip_reached_fixedpoint or succ not in self._reached_fixedpoint)
+            )
 
         return successors
 
@@ -188,7 +194,7 @@ class GraphVisitor(Generic[NodeType]):
         :return:     None
         """
 
-        successors = self.successors(node) #, skip_reached_fixedpoint=True)
+        successors = self.successors(node)  # , skip_reached_fixedpoint=True)
 
         if include_self:
             if node not in self._nodes_set:

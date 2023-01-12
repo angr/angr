@@ -38,6 +38,7 @@ class CDG(Analysis):
                 # This leads to import cycles otherwise
                 # pylint: disable=import-outside-toplevel
                 from angr.analyses.cfg.cfg_emulated import CFGEmulated
+
                 self._cfg = self.project.analyses[CFGEmulated].prep()()
 
             # FIXME: We should not use get_any_irsb in such a real setting...
@@ -93,13 +94,13 @@ class CDG(Analysis):
         Form by Ron Cytron, etc.
         """
 
-        if not self._cfg._model.ident.startswith('CFGEmulated'):
+        if not self._cfg._model.ident.startswith("CFGEmulated"):
             raise ValueError("CDG is only supported by CFGEmulated.")
 
         self._acyclic_cfg = self._cfg.copy()
         # TODO: Cycle-removing is not needed - confirm it later
         # The CFG we use should be acyclic!
-        #self._acyclic_cfg.remove_cycles()
+        # self._acyclic_cfg.remove_cycles()
 
         # Pre-process the acyclic CFG
         self._pre_process_cfg()
@@ -107,7 +108,7 @@ class CDG(Analysis):
         # Construct post-dominator tree
         self._pd_construct()
 
-        self._graph: networkx.DiGraph  = networkx.DiGraph()
+        self._graph: networkx.DiGraph = networkx.DiGraph()
 
         # Construct the reversed dominance frontier mapping
         rdf = compute_dominance_frontier(self._normalized_cfg, self._post_dom)
@@ -126,13 +127,13 @@ class CDG(Analysis):
         - Change all FakeRet edges to normal edges when necessary (e.g. the normal/expected return edge does not exist)
         """
         for _, dst, data in self._acyclic_cfg.graph.edges(data=True):
-            if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
-                all_edges_to_dst = self._acyclic_cfg.graph.in_edges([ dst ], data=True)
-                if not any((s, d) for s, d, da in all_edges_to_dst if da['jumpkind'] != 'Ijk_FakeRet' ):
+            if "jumpkind" in data and data["jumpkind"] == "Ijk_FakeRet":
+                all_edges_to_dst = self._acyclic_cfg.graph.in_edges([dst], data=True)
+                if not any((s, d) for s, d, da in all_edges_to_dst if da["jumpkind"] != "Ijk_FakeRet"):
                     # All in edges are FakeRets
                     # Change them to a normal edge
                     for _, _, data_ in all_edges_to_dst:
-                        data_['jumpkind'] = 'Ijk_Boring'
+                        data_["jumpkind"] = "Ijk_Boring"
 
     def _post_process(self):
         """
@@ -194,5 +195,7 @@ class CDG(Analysis):
                 else:
                     _l.debug("%s is not in post dominator dict.", b2)
 
+
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('CDG', CDG)
+
+AnalysesHub.register_default("CDG", CDG)

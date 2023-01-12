@@ -7,8 +7,8 @@ l = logging.getLogger(name=__name__)
 
 # note: this does not handle skipping white space
 
-class strtol(angr.SimProcedure):
 
+class strtol(angr.SimProcedure):
     @staticmethod
     def strtol_inner(s, state, region, base, signed, read_length=None):
         """
@@ -41,7 +41,9 @@ class strtol(angr.SimProcedure):
         for prefix in prefixes:
             if read_length and read_length < len(prefix):
                 continue
-            condition, value, num_bytes = strtol._load_num_with_prefix(prefix, s, region, state, base, signed, read_length)
+            condition, value, num_bytes = strtol._load_num_with_prefix(
+                prefix, s, region, state, base, signed, read_length
+            )
             conditions.append(condition)
             cases.append((condition, value))
             possible_num_bytes.append(num_bytes)
@@ -58,8 +60,8 @@ class strtol(angr.SimProcedure):
         loads a number from addr, and returns a condition that addr must start with the prefix
         """
         length = len(prefix)
-        read_length = (read_length-length) if read_length else None
-        condition, value, num_bytes = strtol._string_to_int(addr+length, state, region, base, signed, read_length)
+        read_length = (read_length - length) if read_length else None
+        condition, value, num_bytes = strtol._string_to_int(addr + length, state, region, base, signed, read_length)
 
         # the prefix must match
         if len(prefix) > 0:
@@ -89,7 +91,7 @@ class strtol(angr.SimProcedure):
         cases = []
 
         # to detect overflows we keep it in a larger bv and extract it at the end
-        num_bits = min(state.arch.bits*2, 128)
+        num_bits = min(state.arch.bits * 2, 128)
         current_val = state.solver.BVV(0, num_bits)
         num_bytes = state.solver.BVS("num_bytes", state.arch.bits)
         # constarints_num_bytes: a series of constraints of the form:
@@ -122,7 +124,7 @@ class strtol(angr.SimProcedure):
                 break
 
             # add the value and the condition
-            current_val = current_val*base + value.zero_extend(num_bits-8)
+            current_val = current_val * base + value.zero_extend(num_bits - 8)
             conditions.append(condition)
 
         # if we ran out of bytes, we still need to add the case that every single byte was a digit
@@ -141,7 +143,11 @@ class strtol(angr.SimProcedure):
         # since the constraints look like (num_bytes == 2 and the first 2 chars are valid, and the 3rd isn't)
 
         final_constraint = state.solver.Or(*constraints_num_bytes)
-        if final_constraint.op == '__eq__' and final_constraint.args[0] is num_bytes and not final_constraint.args[1].symbolic:
+        if (
+            final_constraint.op == "__eq__"
+            and final_constraint.args[0] is num_bytes
+            and not final_constraint.args[1].symbolic
+        ):
             # CONCRETE CASE
             result = cases[state.solver.eval(final_constraint.args[1])][1]
             num_bytes = final_constraint.args[1]
@@ -151,10 +157,13 @@ class strtol(angr.SimProcedure):
             result = state.solver.ite_cases(cases, 0)
 
         # overflow check
-        max_bits = state.arch.bits-1 if signed else state.arch.bits
+        max_bits = state.arch.bits - 1 if signed else state.arch.bits
         max_val = 2**max_bits - 1
-        result = state.solver.If(result < max_val, state.solver.Extract(state.arch.bits-1, 0, result),
-                             state.solver.BVV(max_val, state.arch.bits))
+        result = state.solver.If(
+            result < max_val,
+            state.solver.Extract(state.arch.bits - 1, 0, result),
+            state.solver.BVV(max_val, state.arch.bits),
+        )
 
         return expression, result, num_bytes
 
@@ -178,8 +187,8 @@ class strtol(angr.SimProcedure):
             return is_digit, char - min_digit
 
         # handle alphabetic chars
-        max_char_lower = claripy.BVV(ord("a") + base-10 - 1, 8)
-        max_char_upper = claripy.BVV(ord("A") + base-10 - 1, 8)
+        max_char_lower = claripy.BVV(ord("a") + base - 10 - 1, 8)
+        max_char_upper = claripy.BVV(ord("A") + base - 10 - 1, 8)
         min_char_lower = claripy.BVV(ord("a"), 8)
         min_char_upper = claripy.BVV(ord("A"), 8)
 
@@ -209,16 +218,18 @@ class strtol(angr.SimProcedure):
             base_16_pred = self.state.solver.Or(
                 self.state.memory.load(nptr, 2) == self.state.solver.BVV(b"0x"),
                 self.state.memory.load(nptr, 3) == self.state.solver.BVV(b"+0x"),
-                self.state.memory.load(nptr, 3) == self.state.solver.BVV(b"-0x"))
+                self.state.memory.load(nptr, 3) == self.state.solver.BVV(b"-0x"),
+            )
             base_8_pred = self.state.solver.And(
                 self.state.solver.Or(
                     self.state.memory.load(nptr, 1) == self.state.solver.BVV(b"0"),
                     self.state.memory.load(nptr, 2) == self.state.solver.BVV(b"+0"),
-                    self.state.memory.load(nptr, 2) == self.state.solver.BVV(b"-0")),
-                self.state.solver.Not(base_16_pred))
-            base_10_pred = self.state.solver.And(
+                    self.state.memory.load(nptr, 2) == self.state.solver.BVV(b"-0"),
+                ),
                 self.state.solver.Not(base_16_pred),
-                self.state.solver.Not(base_8_pred)
+            )
+            base_10_pred = self.state.solver.And(
+                self.state.solver.Not(base_16_pred), self.state.solver.Not(base_8_pred)
             )
             expressions = []
             values = []
@@ -238,12 +249,15 @@ class strtol(angr.SimProcedure):
             value = self.state.solver.ite_cases(zip(expressions, values), 0)
             num_bytes = self.state.solver.ite_cases(zip(expressions, num_bytes_arr), 0)
 
-            self.state.memory.store(endptr, nptr+num_bytes,
-                                    condition=(endptr != 0), endness=self.state.arch.memory_endness)
+            self.state.memory.store(
+                endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
+            )
 
             return value
 
         else:
             expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, base, True)
-            self.state.memory.store(endptr, nptr+num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness)
+            self.state.memory.store(
+                endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
+            )
             return self.state.solver.If(expression, value, 0)

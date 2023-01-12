@@ -3,7 +3,10 @@ from .. import MemoryMixin
 
 class TypedVariable:
 
-    __slots__ = ('type', 'value', )
+    __slots__ = (
+        "type",
+        "value",
+    )
 
     def __init__(self, type_, value):
         self.type = type_
@@ -14,7 +17,7 @@ class KeyValueMemoryMixin(MemoryMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._store = { }
+        self._store = {}
 
     def load(self, key, none_if_missing=False, **kwargs):
         if none_if_missing and key not in self._store:
@@ -26,9 +29,9 @@ class KeyValueMemoryMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        o: 'KeyValueMemoryMixin' = super().copy(memo)
+        o: "KeyValueMemoryMixin" = super().copy(memo)
         o._store = self._store.copy()
         return o
 
     def __str__(self):
-        return "\n".join([f"{k}: {v.value} ({v.type})" for k,v in self._store.items()])
+        return "\n".join([f"{k}: {v.value} ({v.type})" for k, v in self._store.items()])

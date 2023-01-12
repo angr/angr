@@ -15,12 +15,19 @@ class FlirtSignature:
     """
     This class describes a FLIRT signature.
     """
-    def __init__(self, arch: str, platform: str, sig_name: str, sig_path: str,
-                 unique_strings: Optional[Set[str]]=None,
-                 compiler: Optional[str]=None,
-                 compiler_version: Optional[str]=None,
-                 os_name: Optional[str]=None,
-                 os_version: Optional[str]=None):
+
+    def __init__(
+        self,
+        arch: str,
+        platform: str,
+        sig_name: str,
+        sig_path: str,
+        unique_strings: Optional[Set[str]] = None,
+        compiler: Optional[str] = None,
+        compiler_version: Optional[str] = None,
+        os_name: Optional[str] = None,
+        os_version: Optional[str] = None,
+    ):
         self.arch = arch
         self.platform = platform
         self.sig_name = sig_name
@@ -42,9 +49,9 @@ class FlirtSignature:
 FS = FlirtSignature
 
 # A dict from architecture names to FLIRT signatures under that architecture. Arch names are always in lower case.
-FLIRT_SIGNATURES_BY_ARCH: Dict[str,List[FlirtSignature]] = defaultdict(list)
-LIBRARY_TO_SIGNATURES: Dict[str,List[FlirtSignature]] = defaultdict(list)
-STRING_TO_LIBRARIES: Dict[str,Set[str]] = defaultdict(set)
+FLIRT_SIGNATURES_BY_ARCH: Dict[str, List[FlirtSignature]] = defaultdict(list)
+LIBRARY_TO_SIGNATURES: Dict[str, List[FlirtSignature]] = defaultdict(list)
+STRING_TO_LIBRARIES: Dict[str, Set[str]] = defaultdict(set)
 
 
 def load_signatures(path: str) -> None:

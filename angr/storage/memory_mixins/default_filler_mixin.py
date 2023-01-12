@@ -9,13 +9,14 @@ l = logging.getLogger(__name__)
 
 
 class DefaultFillerMixin(MemoryMixin):
-    def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, fill_missing: bool=True,
-                       **kwargs):
+    def _default_value(
+        self, addr, size, name=None, inspect=True, events=True, key=None, fill_missing: bool = True, **kwargs
+    ):
         if self.state.project and self.state.project.concrete_target:
             mem = self.state.project.concrete_target.read_memory(addr, size)
             endness = kwargs["endness"]
             bvv = self.state.solver.BVV(mem)
-            return bvv if endness == 'Iend_BE' else bvv.reversed
+            return bvv if endness == "Iend_BE" else bvv.reversed
 
         if fill_missing is False:
             raise SimMemoryMissingError(addr, size)
@@ -23,33 +24,45 @@ class DefaultFillerMixin(MemoryMixin):
         bits = size * self.state.arch.byte_width
 
         if type(addr) is int:
-            if self.category == 'mem' and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
+            if self.category == "mem" and options.ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options:
                 return self.state.solver.BVV(0, bits)
-            elif self.category == 'reg' and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
+            elif self.category == "reg" and options.ZERO_FILL_UNCONSTRAINED_REGISTERS in self.state.options:
                 return self.state.solver.BVV(0, bits)
 
-        if self.category == 'reg' and type(addr) is int and addr == self.state.arch.ip_offset:
+        if self.category == "reg" and type(addr) is int and addr == self.state.arch.ip_offset:
             # short-circuit this pathological case
             return self.state.solver.BVV(0, self.state.arch.bits)
 
-        is_mem = self.category == 'mem' and \
-                 options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options and \
-                 options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options
-        is_reg = self.category == 'reg' and \
-                 options.ZERO_FILL_UNCONSTRAINED_REGISTERS not in self.state.options and \
-                 options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options
+        is_mem = (
+            self.category == "mem"
+            and options.ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options
+            and options.SYMBOL_FILL_UNCONSTRAINED_MEMORY not in self.state.options
+        )
+        is_reg = (
+            self.category == "reg"
+            and options.ZERO_FILL_UNCONSTRAINED_REGISTERS not in self.state.options
+            and options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options
+        )
         if type(addr) is int and (is_mem or is_reg):
-            if once('mem_fill_warning'):
+            if once("mem_fill_warning"):
                 what = "memory" if is_mem else "register"
-                l.warning("The program is accessing %s with an unspecified value. "
-                          "This could indicate unwanted behavior.", what)
-                l.warning("angr will cope with this by generating an unconstrained symbolic variable and continuing. "
-                          "You can resolve this by:")
+                l.warning(
+                    "The program is accessing %s with an unspecified value. " "This could indicate unwanted behavior.",
+                    what,
+                )
+                l.warning(
+                    "angr will cope with this by generating an unconstrained symbolic variable and continuing. "
+                    "You can resolve this by:"
+                )
                 l.warning("1) setting a value to the initial state")
-                l.warning("2) adding the state option ZERO_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
-                          "to make unknown regions hold null")
-                l.warning("3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
-                          "to suppress these messages.")
+                l.warning(
+                    "2) adding the state option ZERO_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
+                    "to make unknown regions hold null"
+                )
+                l.warning(
+                    "3) adding the state option SYMBOL_FILL_UNCONSTRAINED_{MEMORY,REGISTERS}, "
+                    "to suppress these messages."
+                )
 
             if is_mem:
                 refplace_int = self.state.solver.eval(self.state._ip)
@@ -57,7 +70,13 @@ class DefaultFillerMixin(MemoryMixin):
                     refplace_str = self.state.project.loader.describe_addr(refplace_int)
                 else:
                     refplace_str = "unknown"
-                l.warning("Filling memory at %#x with %d unconstrained bytes referenced from %#x (%s)", addr, size, refplace_int, refplace_str)
+                l.warning(
+                    "Filling memory at %#x with %d unconstrained bytes referenced from %#x (%s)",
+                    addr,
+                    size,
+                    refplace_int,
+                    refplace_str,
+                )
             else:
                 if addr == self.state.arch.ip_offset:
                     refplace_int = 0
@@ -69,13 +88,19 @@ class DefaultFillerMixin(MemoryMixin):
                     else:
                         refplace_str = "unknown"
                 reg_str = self.state.arch.translate_register_name(addr, size=size)
-                l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, size, refplace_int, refplace_str)
+                l.warning(
+                    "Filling register %s with %d unconstrained bytes referenced from %#x (%s)",
+                    reg_str,
+                    size,
+                    refplace_int,
+                    refplace_str,
+                )
                 if name is None and not reg_str.isdigit():
-                    name = 'reg_' + reg_str
+                    name = "reg_" + reg_str
 
         if name is None:
             if type(addr) is int:
-                name = f'{self.id}_{addr:x}'
+                name = f"{self.id}_{addr:x}"
             else:
                 name = self.category
 
@@ -90,8 +115,12 @@ class SpecialFillerMixin(MemoryMixin):
         self._special_memory_filler = special_memory_filler
 
     def _default_value(self, addr, size, name=None, **kwargs):
-        if options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None and type(addr) is int:
-            return self.state._special_memory_filler(name, size*self.state.arch.byte_width, self.state)
+        if (
+            options.SPECIAL_MEMORY_FILL in self.state.options
+            and self.state._special_memory_filler is not None
+            and type(addr) is int
+        ):
+            return self.state._special_memory_filler(name, size * self.state.arch.byte_width, self.state)
         return super()._default_value(addr, size, name=name, **kwargs)
 
     def copy(self, memo):

@@ -11,6 +11,7 @@ class CooperationBase:
     Any given subclass of this class which is not a subclass of MemoryMixin should have the property that any subclass
     it which *is* a subclass of MemoryMixin should all work with the same datatypes
     """
+
     @classmethod
     def _compose_objects(cls, objects, size, endness, **kwargs):
         """
@@ -18,7 +19,7 @@ class CooperationBase:
         """
 
     @classmethod
-    def _decompose_objects(cls, addr, data, endness, **kwargs) -> Tuple[Any,int,int]:
+    def _decompose_objects(cls, addr, data, endness, **kwargs) -> Tuple[Any, int, int]:
         """
         A bidirectional generator. No idea if this is overengineered. Usage is that you send it a size to use
         and it yields a tuple of three elements: the object to store for the next n bytes, the base address of the
@@ -53,9 +54,17 @@ class MemoryObjectMixin(CooperationBase):
     Uses SimMemoryObjects in region storage.
     With this, load will return a list of tuple (address, MO) and store will take a MO.
     """
+
     @classmethod
-    def _compose_objects(cls, objects: List[List[Tuple[int, SimMemoryObject]]], size, endness=None,
-                         memory=None, labels: Optional[List]=None, **kwargs):
+    def _compose_objects(
+        cls,
+        objects: List[List[Tuple[int, SimMemoryObject]]],
+        size,
+        endness=None,
+        memory=None,
+        labels: Optional[List] = None,
+        **kwargs,
+    ):
         c_objects = []
         for objlist in objects:
             for element in objlist:
@@ -65,17 +74,26 @@ class MemoryObjectMixin(CooperationBase):
         mask = (1 << memory.state.arch.bits) - 1
         if labels is None:
             # fast path - ignore labels
-            elements = [o.bytes_at(
+            elements = [
+                o.bytes_at(
                     a,
-                    ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
-                    endness=endness)
-                for i, (a, o) in enumerate(c_objects)]
+                    ((c_objects[i + 1][0] - a) & mask)
+                    if i != len(c_objects) - 1
+                    else ((c_objects[0][0] + size - a) & mask),
+                    endness=endness,
+                )
+                for i, (a, o) in enumerate(c_objects)
+            ]
         else:
             # we need to extract labels for SimLabeledMemoryObjects
-            elements = [ ]
+            elements = []
             offset = 0
             for i, (a, o) in enumerate(c_objects):
-                length: int = ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask)
+                length: int = (
+                    ((c_objects[i + 1][0] - a) & mask)
+                    if i != len(c_objects) - 1
+                    else ((c_objects[0][0] + size - a) & mask)
+                )
                 byts = o.bytes_at(a, length, endness=endness)
                 elements.append(byts)
                 if isinstance(o, SimLabeledMemoryObject):
@@ -87,7 +105,7 @@ class MemoryObjectMixin(CooperationBase):
         if len(elements) == 1:
             return elements[0]
 
-        if endness == 'Iend_LE':
+        if endness == "Iend_LE":
             elements = list(reversed(elements))
 
         return elements[0].concat(*elements[1:])
@@ -96,19 +114,19 @@ class MemoryObjectMixin(CooperationBase):
     def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, label=None, **kwargs):
         # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
         cur_addr = addr + page_addr
-        byte_width=memory.state.arch.byte_width if memory is not None else 8
+        byte_width = memory.state.arch.byte_width if memory is not None else 8
         if label is None:
             memory_object = SimMemoryObject(data, cur_addr, endness, byte_width=byte_width)
         else:
             memory_object = SimLabeledMemoryObject(data, cur_addr, endness, byte_width=byte_width, label=label)
 
-        if data.symbolic and data.op == 'Concat':
+        if data.symbolic and data.op == "Concat":
             next_elem_size_left = data.args[0].size() // 8
             next_elem_index = 0
 
         size = yield
         while True:
-            if data.symbolic and data.op == 'Concat' and data.size() > size * 8:
+            if data.symbolic and data.op == "Concat" and data.size() > size * 8:
                 # Generate new memory object with only size bytes to speed up extracting bytes
                 cur_data_size = 0
                 cur_data = []
@@ -127,42 +145,47 @@ class MemoryObjectMixin(CooperationBase):
                 if label is None:
                     memory_object = SimMemoryObject(cur_data, cur_addr, endness, byte_width=byte_width)
                 else:
-                    memory_object = SimLabeledMemoryObject(cur_data, cur_addr, endness, byte_width=byte_width,
-                                                           label=label)
+                    memory_object = SimLabeledMemoryObject(
+                        cur_data, cur_addr, endness, byte_width=byte_width, label=label
+                    )
             cur_addr += size
             size = yield memory_object, memory_object.base, memory_object.length
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):
-        data = claripy.BVV(0, size*memory.state.arch.byte_width if memory is not None else 8)
-        return cls._decompose_objects(addr, data, 'Iend_BE', memory=memory, **kwargs)
+        data = claripy.BVV(0, size * memory.state.arch.byte_width if memory is not None else 8)
+        return cls._decompose_objects(addr, data, "Iend_BE", memory=memory, **kwargs)
 
 
 class MemoryObjectSetMixin(CooperationBase):
     """
     Uses sets of SimMemoryObjects in region storage.
     """
+
     @classmethod
-    def _compose_objects(cls, objects: List[List[Tuple[int, Set[SimMemoryObject]]]], size, endness=None,
-                         memory=None, **kwargs):
-        c_objects: List[Tuple[int, Union[SimMemoryObject,Set[SimMemoryObject]]]] = [ ]
+    def _compose_objects(
+        cls, objects: List[List[Tuple[int, Set[SimMemoryObject]]]], size, endness=None, memory=None, **kwargs
+    ):
+        c_objects: List[Tuple[int, Union[SimMemoryObject, Set[SimMemoryObject]]]] = []
         for objlist in objects:
             for element in objlist:
                 if not c_objects or element[1] is not c_objects[-1][1]:
                     c_objects.append(element)
 
         mask = (1 << memory.state.arch.bits) - 1
-        elements: List[Set[claripy.ast.Base]] = [ ]
+        elements: List[Set[claripy.ast.Base]] = []
         for i, (a, objs) in enumerate(c_objects):
             chopped_set = set()
             if not type(objs) is set:
-                objs = { objs }
+                objs = {objs}
             for o in objs:
                 if o.includes(a):
                     chopped = o.bytes_at(
                         a,
-                        ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
-                        endness=endness
+                        ((c_objects[i + 1][0] - a) & mask)
+                        if i != len(c_objects) - 1
+                        else ((c_objects[0][0] + size - a) & mask),
+                        endness=endness,
                     )
                     chopped_set.add(chopped)
             if chopped_set:
@@ -175,9 +198,9 @@ class MemoryObjectSetMixin(CooperationBase):
         if len(elements) == 1:
             if len(elements[0]) == 1:
                 return MultiValues(next(iter(elements[0])))
-            return MultiValues(offset_to_values={0 : elements[0]})
+            return MultiValues(offset_to_values={0: elements[0]})
 
-        if endness == 'Iend_LE':
+        if endness == "Iend_LE":
             elements = list(reversed(elements))
 
         mv = MultiValues()
@@ -216,13 +239,17 @@ class MemoryObjectSetMixin(CooperationBase):
             assert label is None  # TODO: Support labels
 
             size = yield
-            offset_to_mos: Dict[int,Set[SimMemoryObject]] = {}
+            offset_to_mos: Dict[int, Set[SimMemoryObject]] = {}
             for offset, vs in data.items():
                 offset_to_mos[offset] = set()
                 for v in vs:
-                    offset_to_mos[offset].add(SimMemoryObject(
-                        v, cur_addr + offset, endness,
-                        byte_width=memory.state.arch.byte_width if memory is not None else 0)
+                    offset_to_mos[offset].add(
+                        SimMemoryObject(
+                            v,
+                            cur_addr + offset,
+                            endness,
+                            byte_width=memory.state.arch.byte_width if memory is not None else 0,
+                        )
                     )
 
             sorted_offsets = list(sorted(offset_to_mos.keys()))
@@ -239,20 +266,25 @@ class MemoryObjectSetMixin(CooperationBase):
 
         else:
             if label is None:
-                obj = SimMemoryObject(data, cur_addr, endness,
-                                      byte_width=memory.state.arch.byte_width if memory is not None else 8)
+                obj = SimMemoryObject(
+                    data, cur_addr, endness, byte_width=memory.state.arch.byte_width if memory is not None else 8
+                )
             else:
-                obj = SimLabeledMemoryObject(data, cur_addr, endness,
-                                             byte_width=memory.state.arch.byte_width if memory is not None else 8,
-                                             label=label)
+                obj = SimLabeledMemoryObject(
+                    data,
+                    cur_addr,
+                    endness,
+                    byte_width=memory.state.arch.byte_width if memory is not None else 8,
+                    label=label,
+                )
             _ = yield
             while True:
-                _ = yield { obj }, obj.base, obj.length
+                _ = yield {obj}, obj.base, obj.length
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):
-        data = claripy.BVV(0, size*memory.state.arch.byte_width if memory is not None else 8)
-        return cls._decompose_objects(addr, data, 'Iend_BE', memory=memory, **kwargs)
+        data = claripy.BVV(0, size * memory.state.arch.byte_width if memory is not None else 8)
+        return cls._decompose_objects(addr, data, "Iend_BE", memory=memory, **kwargs)
 
 
 class BasicClaripyCooperation(CooperationBase):
@@ -260,16 +292,17 @@ class BasicClaripyCooperation(CooperationBase):
     Mix this (along with PageBase) into a storage class which supports loading and storing claripy bitvectors and it
     will be able to work as a page in the paged memory model.
     """
+
     @classmethod
     def _compose_objects(cls, objects, size, endness, **kwargs):
-        if endness == 'Iend_LE':
+        if endness == "Iend_LE":
             objects = reversed(objects)
 
         return claripy.Concat(*objects)
 
     @classmethod
     def _decompose_objects(cls, addr, data, endness, memory=None, **kwargs):
-        if endness == 'Iend_BE':
+        if endness == "Iend_BE":
             size = yield
             offset = 0
             while True:
@@ -287,5 +320,5 @@ class BasicClaripyCooperation(CooperationBase):
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):
-        data = claripy.BVV(0, size*memory.state.arch.byte_width if memory is not None else 8)
-        return cls._decompose_objects(addr, data, 'Iend_BE', memory=memory, **kwargs)
+        data = claripy.BVV(0, size * memory.state.arch.byte_width if memory is not None else 8)
+        return cls._decompose_objects(addr, data, "Iend_BE", memory=memory, **kwargs)

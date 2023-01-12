@@ -2,7 +2,9 @@ from . import Analysis
 from .. import SIM_PROCEDURES
 
 import logging
+
 l = logging.getLogger(name=__name__)
+
 
 class CalleeCleanupFinder(Analysis):
     def __init__(self, starts=None, hook_all=False):
@@ -28,13 +30,18 @@ class CalleeCleanupFinder(Analysis):
                     continue
                 args = size // self.project.arch.bytes
                 cc = self.project.factory.cc()
-                prototype = cc.guess_prototype([0]*args)
+                prototype = cc.guess_prototype([0] * args)
                 cc.CALLEE_CLEANUP = True
                 sym = self.project.loader.find_symbol(addr)
                 name = sym.name if sym is not None else None
                 lib = self.project.loader.find_object_containing(addr)
                 libname = lib.provides if lib is not None else None
-                self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=cc, prototype=prototype, display_name=name, library_name=libname, is_stub=True))
+                self.project.hook(
+                    addr,
+                    SIM_PROCEDURES["stubs"]["ReturnUnconstrained"](
+                        cc=cc, prototype=prototype, display_name=name, library_name=libname, is_stub=True
+                    ),
+                )
 
     def analyze(self, addr):
         seen = set()
@@ -44,17 +51,17 @@ class CalleeCleanupFinder(Analysis):
             addr = todo.pop(0)
             seen.add(addr)
             irsb = self.project.factory.block(addr, opt_level=0).vex
-            if irsb.jumpkind == 'Ijk_Ret':
+            if irsb.jumpkind == "Ijk_Ret":
                 # got it!
                 for stmt in reversed(irsb.statements):
-                    if stmt.tag == 'Ist_IMark':
+                    if stmt.tag == "Ist_IMark":
                         l.error("VERY strange return instruction at %#x...", addr)
                         break
-                    if stmt.tag == 'Ist_WrTmp':
-                        if stmt.data.tag == 'Iex_Binop':
-                            if stmt.data.op.startswith('Iop_Add'):
+                    if stmt.tag == "Ist_WrTmp":
+                        if stmt.data.tag == "Iex_Binop":
+                            if stmt.data.op.startswith("Iop_Add"):
                                 return stmt.data.args[1].con.value - self.project.arch.bytes
-            elif irsb.jumpkind == 'Ijk_Call':
+            elif irsb.jumpkind == "Ijk_Call":
                 if addr + irsb.size not in seen:
                     todo.append(addr + irsb.size)
             else:
@@ -62,5 +69,7 @@ class CalleeCleanupFinder(Analysis):
 
         return None
 
+
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('CalleeCleanupFinder', CalleeCleanupFinder)
+
+AnalysesHub.register_default("CalleeCleanupFinder", CalleeCleanupFinder)

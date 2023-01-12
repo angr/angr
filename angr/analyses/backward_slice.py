@@ -22,13 +22,18 @@ class BackwardSlice(Analysis):
     # FIXME: BackwardSlice does not work with the engines refactoring. It will be brought back to life after the
     # FIXME: DDG refactoring, which will happen shortly.
 
-    def __init__(self, cfg, cdg, ddg,
-                 targets=None,
-                 cfg_node=None,
-                 stmt_id=None,
-                 control_flow_slice=False,
-                 same_function=False,
-                 no_construct=False):
+    def __init__(
+        self,
+        cfg,
+        cdg,
+        ddg,
+        targets=None,
+        cfg_node=None,
+        stmt_id=None,
+        control_flow_slice=False,
+        same_function=False,
+        no_construct=False,
+    ):
         """
         Create a backward slice from a specific statement based on provided control flow graph (CFG), control
         dependence graph (CDG), and data dependence graph (DDG).
@@ -57,12 +62,12 @@ class BackwardSlice(Analysis):
         self._same_function = same_function
 
         # All targets
-        self._targets = [ ]
+        self._targets = []
 
         if cfg_node is not None or stmt_id is not None:
             l.warning('"cfg_node" and "stmt_id" are deprecated. Please use "targets" to pass in one or more targets.')
 
-            self._targets = [ (cfg_node, stmt_id) ]
+            self._targets = [(cfg_node, stmt_id)]
 
         if targets is not None:
             for t in targets:
@@ -72,7 +77,7 @@ class BackwardSlice(Analysis):
                 elif type(t) is tuple:
                     self._targets.append(t)
                 else:
-                    raise AngrBackwardSlicingError('Unsupported type of target %s' % t)
+                    raise AngrBackwardSlicingError("Unsupported type of target %s" % t)
 
         # Save a list of taints to begin with at the beginning of each SimRun
         self.initial_taints_per_run = None
@@ -116,7 +121,7 @@ class BackwardSlice(Analysis):
 
         else:
             # Only output the first "max_display" ones
-            run_addrs = sorted(self.chosen_statements.keys())[ : max_display]
+            run_addrs = sorted(self.chosen_statements.keys())[:max_display]
 
         for run_addr in run_addrs:
             s += self.dbg_repr_run(run_addr) + "\n"
@@ -154,7 +159,7 @@ class BackwardSlice(Analysis):
 
             # exits
             targets = self.chosen_exits[run_addr]
-            addr_strs = [ ]
+            addr_strs = []
             for exit_stmt_id, target_addr in targets:
                 if target_addr is None:
                     addr_strs.append("default")
@@ -172,7 +177,7 @@ class BackwardSlice(Analysis):
 
         # TODO: Support context-sensitivity
 
-        targets = [ ]
+        targets = []
 
         for simrun, stmt_idx in self._targets:
             targets.append((simrun.addr, stmt_idx))
@@ -227,7 +232,7 @@ class BackwardSlice(Analysis):
                 break
 
         if taint is None:
-            raise AngrBackwardSlicingError('The specific taint is not found')
+            raise AngrBackwardSlicingError("The specific taint is not found")
 
         bfs_tree = networkx.bfs_tree(self.taint_graph, taint)
 
@@ -236,10 +241,10 @@ class BackwardSlice(Analysis):
         # - a descendant register is the IP itself
 
         for descendant in bfs_tree.nodes():
-            if descendant.type == 'exit':
+            if descendant.type == "exit":
                 if descendant.addr not in simrun_whitelist:
                     return True
-            elif descendant.type == 'reg' and descendant.reg == self.project.arch.ip_offset:
+            elif descendant.type == "reg" and descendant.reg == self.project.arch.ip_offset:
                 return True
 
         return False
@@ -269,7 +274,7 @@ class BackwardSlice(Analysis):
                 break
 
         if taint is None:
-            raise AngrBackwardSlicingError('The specific taint is not found')
+            raise AngrBackwardSlicingError("The specific taint is not found")
 
         bfs_tree = networkx.bfs_tree(self.taint_graph, taint)
 
@@ -277,8 +282,8 @@ class BackwardSlice(Analysis):
         # - a descendant register is the sp/bp itself
 
         for descendant in bfs_tree.nodes():
-            if descendant.type == 'reg' and (
-                        descendant.reg in (self.project.arch.sp_offset, self.project.arch.bp_offset)
+            if descendant.type == "reg" and (
+                descendant.reg in (self.project.arch.sp_offset, self.project.arch.bp_offset)
             ):
                 return True
 
@@ -297,7 +302,7 @@ class BackwardSlice(Analysis):
         """
 
         if control_flow_slice:
-            simruns = [ r for r, _ in targets ]
+            simruns = [r for r, _ in targets]
             self._construct_control_flow_slice(simruns)
 
         else:
@@ -315,21 +320,21 @@ class BackwardSlice(Analysis):
         # TODO: Support context-sensitivity!
 
         if self._cfg is None:
-            l.error('Please build CFG first.')
+            l.error("Please build CFG first.")
 
         cfg = self._cfg.graph
         for simrun in simruns:
             if simrun not in cfg:
-                l.error('SimRun instance %s is not in the CFG.', simrun)
+                l.error("SimRun instance %s is not in the CFG.", simrun)
 
-        stack = [ ]
+        stack = []
         for simrun in simruns:
             stack.append(simrun)
 
         self.runs_in_slice = networkx.DiGraph()
         self.cfg_nodes_in_slice = networkx.DiGraph()
 
-        self.chosen_statements = { }
+        self.chosen_statements = {}
         while stack:
             # Pop one out
             block = stack.pop()
@@ -366,7 +371,7 @@ class BackwardSlice(Analysis):
 
         for cfg_node, stmt_idx in targets:
             if cfg_node not in self._cfg.graph:
-                raise AngrBackwardSlicingError('Target CFGNode %s is not in the CFG.' % cfg_node)
+                raise AngrBackwardSlicingError("Target CFGNode %s is not in the CFG." % cfg_node)
 
             if stmt_idx == -1:
                 new_taints = self._handle_control_dependence(cfg_node)
@@ -444,12 +449,12 @@ class BackwardSlice(Analysis):
 
         if self.project.is_hooked(src_block.addr):
             # Just return all exits for now
-            return { -1: [ target_block.addr ] }
+            return {-1: [target_block.addr]}
 
         block = self.project.factory.block(src_block.addr)
         vex_block = block.vex
 
-        exit_stmt_ids = { }
+        exit_stmt_ids = {}
 
         for stmt_idx, stmt in enumerate(vex_block.statements):
             if isinstance(stmt, pyvex.IRStmt.Exit):
@@ -471,9 +476,9 @@ class BackwardSlice(Analysis):
             if self._same_function:
                 # Examine this path and make sure it does not have call or return edge
                 for i in range(len(simple_path) - 1):
-                    jumpkind = self._cfg.graph[simple_path[i]][simple_path[i + 1]]['jumpkind']
-                    if jumpkind in ('Ijk_Call', 'Ijk_Ret'):
-                        return {  }
+                    jumpkind = self._cfg.graph[simple_path[i]][simple_path[i + 1]]["jumpkind"]
+                    if jumpkind in ("Ijk_Call", "Ijk_Ret"):
+                        return {}
 
             # Get the first two nodes
             a, b = simple_path[0], simple_path[1]
@@ -484,7 +489,7 @@ class BackwardSlice(Analysis):
 
             # Mark it!
             if exit_stmt_ids[exit_stmt_id] is None:
-                exit_stmt_ids[exit_stmt_id] = [ b.addr ]
+                exit_stmt_ids[exit_stmt_id] = [b.addr]
             else:
                 exit_stmt_ids[exit_stmt_id].append(b.addr)
 
@@ -514,29 +519,27 @@ class BackwardSlice(Analysis):
                 for stmt_idx, target_addresses in exits.items():
                     if stmt_idx is not None:
                         # If it's an exit statement, mark it as picked
-                        self._pick_statement(predecessor.addr,
-                                             self._normalize_stmt_idx(predecessor.addr, stmt_idx)
-                                             )
+                        self._pick_statement(predecessor.addr, self._normalize_stmt_idx(predecessor.addr, stmt_idx))
                         # If it's the default statement, we should also pick other conditional exit statements
                         if stmt_idx == DEFAULT_STATEMENT:
                             conditional_exits = self._conditional_exits(predecessor.addr)
                             for conditional_exit_stmt_id in conditional_exits:
-                                cl = CodeLocation(predecessor.addr,
-                                                  self._normalize_stmt_idx(predecessor.addr, conditional_exit_stmt_id)
-                                                  )
+                                cl = CodeLocation(
+                                    predecessor.addr,
+                                    self._normalize_stmt_idx(predecessor.addr, conditional_exit_stmt_id),
+                                )
                                 new_taints.add(cl)
 
-                                self._pick_statement(predecessor.addr,
-                                                     self._normalize_stmt_idx(predecessor.addr, conditional_exit_stmt_id)
-                                                     )
+                                self._pick_statement(
+                                    predecessor.addr,
+                                    self._normalize_stmt_idx(predecessor.addr, conditional_exit_stmt_id),
+                                )
 
                     if target_addresses is not None:
 
                         if stmt_idx is not None:
                             # If it's an exit statement, we create a new tainted code location
-                            cl = CodeLocation(predecessor.addr,
-                                              self._normalize_stmt_idx(predecessor.addr, stmt_idx)
-                                              )
+                            cl = CodeLocation(predecessor.addr, self._normalize_stmt_idx(predecessor.addr, stmt_idx))
                             new_taints.add(cl)
 
                         # Mark those exits as picked
@@ -546,13 +549,14 @@ class BackwardSlice(Analysis):
                     # On CFG, pick default exits of all nodes between predecessor and our target node
                     # Usually this is not required if basic blocks strictly end at control flow transitions. But this is
                     # not always the case for some architectures
-                    all_simple_paths = list(networkx.all_simple_paths(self._cfg.graph, predecessor, target_node, cutoff=3))
+                    all_simple_paths = list(
+                        networkx.all_simple_paths(self._cfg.graph, predecessor, target_node, cutoff=3)
+                    )
 
                     previous_node = None
                     for path in all_simple_paths:
                         for node in path:
-                            self._pick_statement(node.addr,
-                                                 self._normalize_stmt_idx(node.addr, DEFAULT_STATEMENT))
+                            self._pick_statement(node.addr, self._normalize_stmt_idx(node.addr, DEFAULT_STATEMENT))
                             if previous_node is not None:
                                 self._pick_exit(previous_node.addr, DEFAULT_STATEMENT, node.addr)
 
@@ -637,7 +641,7 @@ class BackwardSlice(Analysis):
         """
 
         vex_block = self.project.factory.block(block_addr).vex
-        lst = [ ]
+        lst = []
 
         for i, stmt in enumerate(vex_block.statements):
             if isinstance(stmt, pyvex.IRStmt.Exit):
@@ -684,4 +688,5 @@ class BackwardSlice(Analysis):
 
 
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('BackwardSlice', BackwardSlice)
+
+AnalysesHub.register_default("BackwardSlice", BackwardSlice)

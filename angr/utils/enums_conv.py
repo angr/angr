@@ -8,42 +8,42 @@ from ..protos.primitives_pb2 import Edge
 
 _CFG_JUMPKINDS = {
     None: Edge.UnknownJumpkind,
-    'Ijk_Boring': Edge.Boring,
-    'Ijk_Call': Edge.Call,
-    'Ijk_Ret': Edge.Return,
-    'Ijk_FakeRet': Edge.FakeReturn,
-    'Ijk_Syscall': Edge.Syscall,
-    'Ijk_Sys_syscall': Edge.Sys_syscall,
-    'Ijk_Sys_int128': Edge.Sys_int128,
-    'Ijk_NoDecode': Edge.NoDecode,
-    'Ijk_EmWarn': Edge.EmWarn,
-    'Ijk_SigFPE_IntDiv': Edge.SigFPE_IntDiv,
-    'Ijk_SigTRAP': Edge.SigTRAP,
-    'Ijk_SigSEGV': Edge.SigSEGV,
-    'Ijk_MapFail': Edge.MapFail,
-    'Ijk_NoRedir': Edge.NoRedir,
-    'Ijk_ClientReq': Edge.ClientReq,
-    'Ijk_Exception': Edge.Exception,
+    "Ijk_Boring": Edge.Boring,
+    "Ijk_Call": Edge.Call,
+    "Ijk_Ret": Edge.Return,
+    "Ijk_FakeRet": Edge.FakeReturn,
+    "Ijk_Syscall": Edge.Syscall,
+    "Ijk_Sys_syscall": Edge.Sys_syscall,
+    "Ijk_Sys_int128": Edge.Sys_int128,
+    "Ijk_NoDecode": Edge.NoDecode,
+    "Ijk_EmWarn": Edge.EmWarn,
+    "Ijk_SigFPE_IntDiv": Edge.SigFPE_IntDiv,
+    "Ijk_SigTRAP": Edge.SigTRAP,
+    "Ijk_SigSEGV": Edge.SigSEGV,
+    "Ijk_MapFail": Edge.MapFail,
+    "Ijk_NoRedir": Edge.NoRedir,
+    "Ijk_ClientReq": Edge.ClientReq,
+    "Ijk_Exception": Edge.Exception,
 }
 
 
-_PB_TO_CFG_JUMPKINDS = { }
+_PB_TO_CFG_JUMPKINDS = {}
 for k, v in _CFG_JUMPKINDS.items():
     _PB_TO_CFG_JUMPKINDS[v] = k
 
 
 _FUNCTION_EDGETYPES = {
     None: Edge.UnknownJumpkind,
-    'transition': Edge.Boring,
-    'call': Edge.Call,
-    'return': Edge.Return,
-    'fake_return': Edge.FakeReturn,
-    'syscall': Edge.Syscall,
-    'exception': Edge.Exception,
+    "transition": Edge.Boring,
+    "call": Edge.Call,
+    "return": Edge.Return,
+    "fake_return": Edge.FakeReturn,
+    "syscall": Edge.Syscall,
+    "exception": Edge.Exception,
 }
 
 
-_PB_TO_FUNCTION_EDGETYPES = { }
+_PB_TO_FUNCTION_EDGETYPES = {}
 for k, v in _FUNCTION_EDGETYPES.items():
     _PB_TO_FUNCTION_EDGETYPES[v] = k
 

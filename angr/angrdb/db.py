@@ -21,7 +21,9 @@ class AngrDB:
     designed to use an SQL-based database as the storage backend.
     """
 
-    ALL_TABLES = ['objects', ]
+    ALL_TABLES = [
+        "objects",
+    ]
 
     VERSION = 1
 
@@ -88,7 +90,7 @@ class AngrDB:
             return None
         return db_info.value
 
-    def update_dbinfo(self, session, extra_info: Optional[Dict[str,str]]=None):
+    def update_dbinfo(self, session, extra_info: Optional[Dict[str, str]] = None):
         """
         Update the information in database.
 
@@ -103,7 +105,7 @@ class AngrDB:
             for key, value in extra_info.items():
                 self.save_info(session, str(key), str(value))
 
-    def get_dbinfo(self, session, extra_info: Optional[Dict[str,str]]=None):
+    def get_dbinfo(self, session, extra_info: Optional[Dict[str, str]] = None):
         """
         Get database information.
 
@@ -111,19 +113,19 @@ class AngrDB:
         :return:        A dict of information entries.
         """
 
-        d = { }
+        d = {}
 
         # version
         version = self.get_info(session, "version")
         if version is not None:
             version = int(version)
-        d['version'] = version
+        d["version"] = version
 
         # saved_at
         saved_at = self.get_info(session, "saved_at")
         if saved_at is not None:
             saved_at = int(saved_at)
-        d['saved_at'] = saved_at
+        d["saved_at"] = saved_at
 
         if extra_info is not None:
             # store *everything* into the dict
@@ -143,7 +145,7 @@ class AngrDB:
 
         return version == self.VERSION
 
-    def dump(self, db_path, kbs: Optional[List['KnowledgeBase']]=None, extra_info: Optional[Dict[str,Any]]=None):
+    def dump(self, db_path, kbs: Optional[List["KnowledgeBase"]] = None, extra_info: Optional[Dict[str, Any]] = None):
 
         db_str = "sqlite:///%s" % db_path
 
@@ -162,11 +164,13 @@ class AngrDB:
                 # Update the information
                 self.update_dbinfo(session, extra_info=extra_info)
 
-    def load(self,
-             db_path: str,
-             kb_names: Optional[List[str]]=None,
-             other_kbs: Optional[Dict[str,'KnowledgeBase']]=None,
-             extra_info: Optional[Dict[str,Any]]=None):
+    def load(
+        self,
+        db_path: str,
+        kb_names: Optional[List[str]] = None,
+        other_kbs: Optional[Dict[str, "KnowledgeBase"]] = None,
+        extra_info: Optional[Dict[str, Any]] = None,
+    ):
 
         db_str = "sqlite:///%s" % db_path
 
@@ -174,9 +178,10 @@ class AngrDB:
             with self.session_scope(Session) as session:
                 # Compatibility check
                 dbinfo = self.get_dbinfo(session, extra_info=extra_info)
-                if not self.db_compatible(dbinfo.get('version', None)):
-                    raise AngrIncompatibleDBError("Version %s is incompatible with the current version of angr." %
-                                                   dbinfo.get('version', None))
+                if not self.db_compatible(dbinfo.get("version", None)):
+                    raise AngrIncompatibleDBError(
+                        "Version %s is incompatible with the current version of angr." % dbinfo.get("version", None)
+                    )
 
                 # Load the loader
                 loader = LoaderSerializer.load(session)
@@ -188,8 +193,10 @@ class AngrDB:
 
                 if len(kb_names) != 1 or kb_names[0] != "global":
                     if other_kbs is None:
-                        raise ValueError("You must provide a dict via \"other_kbs\" to collect angr KnowledgeBases "
-                                         "that are not the global one.")
+                        raise ValueError(
+                            'You must provide a dict via "other_kbs" to collect angr KnowledgeBases '
+                            "that are not the global one."
+                        )
 
                 # Load knowledgebases
                 for kb_name in kb_names:

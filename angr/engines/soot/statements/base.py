@@ -6,12 +6,14 @@ from ..exceptions import IncorrectLocationException
 from ..expressions import translate_expr
 from ..values import translate_value
 
-l = logging.getLogger('angr.engines.soot.statements.if')
+l = logging.getLogger("angr.engines.soot.statements.if")
+
 
 class SimSootStmt:
     """
     The base class of all Soot statements.
     """
+
     def __init__(self, stmt, state):
         self.stmt = stmt
         self.state = state
@@ -49,8 +51,7 @@ class SimSootStmt:
         try:
             bb = current_method.block_by_label[instr]
         except KeyError:
-            l.error("Possible jump to a non-existing bb %s --> %d",
-                    self.state.addr, instr)
+            l.error("Possible jump to a non-existing bb %s --> %d", self.state.addr, instr)
             raise IncorrectLocationException()
 
         return SootAddressDescriptor(current_method, bb.idx, 0)
@@ -60,7 +61,7 @@ class SimSootStmt:
     #
 
     def _add_jmp_target(self, target, condition):
-        self.jmp_targets_with_conditions += [ (target, condition) ]
+        self.jmp_targets_with_conditions += [(target, condition)]
 
     @property
     def has_jump_targets(self):

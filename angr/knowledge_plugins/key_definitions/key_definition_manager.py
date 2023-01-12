@@ -15,13 +15,13 @@ class RDAObserverControl:
         self.call_site_ins_addrs = set(call_site_ins_addrs)
 
     def rda_observe_callback(self, ob_type, **kwargs):
-        if ob_type == 'node':
-            block_addr = kwargs.pop('addr', None)
-            op_type = kwargs.pop('op_type', None)
+        if ob_type == "node":
+            block_addr = kwargs.pop("addr", None)
+            op_type = kwargs.pop("op_type", None)
             return block_addr in self.call_site_block_addrs and op_type == OP_AFTER
-        elif ob_type == 'insn':
-            ins_addr = kwargs.pop('addr', None)
-            op_type = kwargs.pop('op_type', None)
+        elif ob_type == "insn":
+            ins_addr = kwargs.pop("addr", None)
+            op_type = kwargs.pop("op_type", None)
             return ins_addr in self.call_site_ins_addrs and op_type == OP_BEFORE
 
         return False
@@ -36,7 +36,8 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
     - Before each call instruction: ('insn', address of the call instruction, OP_BEFORE)
     - After returning from each call: ('node', address of the block that ends with a call, OP_AFTER)
     """
-    def __init__(self, kb: 'KnowledgeBase'):
+
+    def __init__(self, kb: "KnowledgeBase"):
         self.kb = kb
         self.model_by_funcaddr: Dict[int, ReachingDefinitionsModel] = {}
 
@@ -63,16 +64,17 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
                 call_insn_addr = block.instruction_addrs[-1]
                 call_insn_addrs.add(call_insn_addr)
             observer = RDAObserverControl(func_addr, callsites, call_insn_addrs)
-            rda = self.kb._project.analyses.ReachingDefinitions(subject=self.kb.functions[func_addr],
-                                                                observe_callback=observer.rda_observe_callback)
+            rda = self.kb._project.analyses.ReachingDefinitions(
+                subject=self.kb.functions[func_addr], observe_callback=observer.rda_observe_callback
+            )
             self.model_by_funcaddr[func_addr] = rda.model
 
         return self.model_by_funcaddr[func_addr]
 
-    def copy(self) -> 'KeyDefinitionManager':
+    def copy(self) -> "KeyDefinitionManager":
         dm = KeyDefinitionManager(self.kb)
-        dm.model_by_funcaddr = dict(map(lambda x: (x[0], x[1].copy()),self.model_by_funcaddr.items()))
+        dm.model_by_funcaddr = dict(map(lambda x: (x[0], x[1].copy()), self.model_by_funcaddr.items()))
         return dm
 
 
-KnowledgeBasePlugin.register_default('defs', KeyDefinitionManager)
+KnowledgeBasePlugin.register_default("defs", KeyDefinitionManager)

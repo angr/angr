@@ -13,7 +13,7 @@ class SimStateGlobals(SimStatePlugin):
     def set_state(self, state):
         pass
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
 
         for other in others:
             for k in other.keys():
@@ -22,7 +22,7 @@ class SimStateGlobals(SimStatePlugin):
 
         return True
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         l.warning("Widening is unimplemented for globals")
         return False
 
@@ -54,9 +54,10 @@ class SimStateGlobals(SimStatePlugin):
         return self._backer.pop(k, alt)
 
     @SimStatePlugin.memo
-    def copy(self, memo):   # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         return SimStateGlobals(dict(self._backer))
 
 
 from angr.sim_state import SimState
-SimState.register_default('globals', SimStateGlobals)
+
+SimState.register_default("globals", SimStateGlobals)

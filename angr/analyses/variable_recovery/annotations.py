@@ -16,7 +16,7 @@ class StackLocationAnnotation(Annotation):
         return False
 
     def __hash__(self):
-        return hash(('stack_location', self.offset))
+        return hash(("stack_location", self.offset))
 
     def __eq__(self, other):
         if not isinstance(other, StackLocationAnnotation):
@@ -48,9 +48,9 @@ class VariableSourceAnnotation(Annotation):
         if not isinstance(other, VariableSourceAnnotation):
             return False
 
-        return self.block_addr == other.block_addr and \
-               self.stmt_idx == other.stmt_idx and \
-               self.ins_addr == other.ins_addr
+        return (
+            self.block_addr == other.block_addr and self.stmt_idx == other.stmt_idx and self.ins_addr == other.ins_addr
+        )
 
     @staticmethod
     def from_state(state):

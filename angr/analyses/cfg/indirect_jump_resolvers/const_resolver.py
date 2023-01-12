@@ -35,7 +35,7 @@ class ConstantResolver(IndirectJumpResolver):
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         # we support both an indirect call and jump since the value can be resolved
-        if jumpkind in ('Ijk_Boring', 'Ijk_Call'):
+        if jumpkind in ("Ijk_Boring", "Ijk_Call"):
             return True
 
         return False
@@ -59,11 +59,13 @@ class ConstantResolver(IndirectJumpResolver):
             # check if function is completed
             if func_addr in cfg._completed_functions:
                 func = cfg.functions[func_addr]
-                prop = self.project.analyses.Propagator(func=func, only_consts=True,
-                                                        completed_funcs=cfg._completed_functions)
+                prop = self.project.analyses.Propagator(
+                    func=func, only_consts=True, completed_funcs=cfg._completed_functions
+                )
             else:
-                prop = self.project.analyses.Propagator(block=block, do_binops=False, store_tops=False,
-                                                        vex_cross_insn_opt=True)
+                prop = self.project.analyses.Propagator(
+                    block=block, do_binops=False, store_tops=False, vex_cross_insn_opt=True
+                )
 
             replacements = prop.replacements
             if replacements:
@@ -73,8 +75,11 @@ class ConstantResolver(IndirectJumpResolver):
                 if exists_in_replacements(replacements, block_loc, tmp_var):
                     resolved_tmp = replacements[block_loc][tmp_var]
 
-                    if isinstance(resolved_tmp, claripy.ast.Base) and resolved_tmp.op == "BVV" \
-                            and self._is_target_valid(cfg, resolved_tmp.args[0]):
+                    if (
+                        isinstance(resolved_tmp, claripy.ast.Base)
+                        and resolved_tmp.op == "BVV"
+                        and self._is_target_valid(cfg, resolved_tmp.args[0])
+                    ):
                         return True, [resolved_tmp.args[0]]
 
-        return False, [ ]
+        return False, []

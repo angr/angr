@@ -12,9 +12,7 @@ from common import slow_test
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
-test_location = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
-)
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestCfgfast(unittest.TestCase):
@@ -85,14 +83,14 @@ class TestCfgfast(unittest.TestCase):
 
     def test_cfg_0(self):
         functions = {
-                0x400410,
-                0x400420,
-                0x400430,
-                0x400440,
-                0x400470,
-                0x40052C,
-                0x40053C,
-            }
+            0x400410,
+            0x400420,
+            0x400430,
+            0x400440,
+            0x400470,
+            0x40052C,
+            0x40053C,
+        }
 
         function_features = {}
 
@@ -100,10 +98,10 @@ class TestCfgfast(unittest.TestCase):
 
     def test_cfg_0_pe(self):
         functions = {
-                # 0x40150a,  # currently angr identifies 0x40150e due to the way _func_addrs_from_prologues() is
-                # implemented. this issue can be resolved with a properly implemented approach like Byte-Weight
-                0x4014F0,
-            }
+            # 0x40150a,  # currently angr identifies 0x40150e due to the way _func_addrs_from_prologues() is
+            # implemented. this issue can be resolved with a properly implemented approach like Byte-Weight
+            0x4014F0,
+        }
 
         function_features = {}
 
@@ -112,18 +110,18 @@ class TestCfgfast(unittest.TestCase):
     @slow_test
     def test_busybox(self):
         edges = {
-                (0x4091EC, 0x408DE0),
-                # call to putenv. address of putenv may change in the future
-                (
-                    0x449ACC,
-                    0x5003B8,
-                ),
-                # call to free. address of free may change in the future
-                (
-                    0x467CFC,
-                    0x500014,
-                ),
-            }
+            (0x4091EC, 0x408DE0),
+            # call to putenv. address of putenv may change in the future
+            (
+                0x449ACC,
+                0x5003B8,
+            ),
+            # call to free. address of free may change in the future
+            (
+                0x467CFC,
+                0x500014,
+            ),
+        }
 
         self.cfg_fast_edges_check("mipsel", "busybox", edges)
 
@@ -142,224 +140,226 @@ class TestCfgfast(unittest.TestCase):
 
     def test_fauxware_function_feauters_x86_64(self):
         functions = {
-                0x4004E0,
-                0x400510,
-                0x400520,
-                0x400530,
-                0x400540,
-                0x400550,
-                0x400560,
-                0x400570,  # .plt._exit
-                0x400580,  # _start
-                0x4005AC,
-                0x4005D0,
-                0x400640,
-                0x400664,
-                0x4006ED,
-                0x4006FD,
-                0x40071D,  # main
-                0x4007E0,
-                0x400870,
-                0x400880,
-                0x4008B8,
-            }
+            0x4004E0,
+            0x400510,
+            0x400520,
+            0x400530,
+            0x400540,
+            0x400550,
+            0x400560,
+            0x400570,  # .plt._exit
+            0x400580,  # _start
+            0x4005AC,
+            0x4005D0,
+            0x400640,
+            0x400664,
+            0x4006ED,
+            0x4006FD,
+            0x40071D,  # main
+            0x4007E0,
+            0x400870,
+            0x400880,
+            0x4008B8,
+        }
 
         function_features = {
-                0x400570: {"returning": False},  # plt.exit
-                0x4006FD: {"returning": False},  # rejected
-            }
+            0x400570: {"returning": False},  # plt.exit
+            0x4006FD: {"returning": False},  # rejected
+        }
 
-        return_edges = {(0x4006FB, 0x4007C7),}  # return from accepted to main
+        return_edges = {
+            (0x4006FB, 0x4007C7),
+        }  # return from accepted to main
 
         self.cfg_fast_functions_check("x86_64", "fauxware", functions, function_features)
         self.cfg_fast_edges_check("x86_64", "fauxware", return_edges)
 
     def test_fauxware_function_features_mips(self):
         functions = {
-                0x400534,  # _init
-                0x400574,
-                0x400598,
-                0x4005D0,  # _ftext
-                0x4005DC,
-                0x400630,  # __do_global_dtors_aux
-                0x4006D4,  # frame_dummy
-                0x400708,
-                0x400710,  # authenticate
-                0x400814,  # accepted
-                0x400868,  # rejected
-                0x4008C0,  # main
-                0x400A34,
-                0x400A48,  # __libc_csu_init
-                0x400AF8,
-                0x400B00,  # __do_global_ctors_aux
-                0x400B58,
-                ### plt entries
-                0x400B60,  # strcmp
-                0x400B70,  # read
-                0x400B80,  # printf
-                0x400B90,  # puts
-                0x400BA0,  # exit
-                0x400BB0,  # open
-                0x400BC0,  # __libc_start_main
-            }
+            0x400534,  # _init
+            0x400574,
+            0x400598,
+            0x4005D0,  # _ftext
+            0x4005DC,
+            0x400630,  # __do_global_dtors_aux
+            0x4006D4,  # frame_dummy
+            0x400708,
+            0x400710,  # authenticate
+            0x400814,  # accepted
+            0x400868,  # rejected
+            0x4008C0,  # main
+            0x400A34,
+            0x400A48,  # __libc_csu_init
+            0x400AF8,
+            0x400B00,  # __do_global_ctors_aux
+            0x400B58,
+            ### plt entries
+            0x400B60,  # strcmp
+            0x400B70,  # read
+            0x400B80,  # printf
+            0x400B90,  # puts
+            0x400BA0,  # exit
+            0x400BB0,  # open
+            0x400BC0,  # __libc_start_main
+        }
 
         function_features = {
-                0x400868: {  # rejected
-                    "returning": False,
-                }
+            0x400868: {  # rejected
+                "returning": False,
             }
+        }
 
-        return_edges = {(0x40084C, 0x400A04),  }# returning edge from accepted to main
+        return_edges = {
+            (0x40084C, 0x400A04),
+        }  # returning edge from accepted to main
 
         self.cfg_fast_functions_check("mips", "fauxware", functions, function_features)
         self.cfg_fast_edges_check("mips", "fauxware", return_edges)
 
     def test_cfg_loop_unrolling(self):
         edges = {
-                (0x400658, 0x400636),
-                (0x400658, 0x400661),
-                (0x400651, 0x400636),
-                (0x400651, 0x400661),
-            }
+            (0x400658, 0x400636),
+            (0x400658, 0x400661),
+            (0x400651, 0x400636),
+            (0x400651, 0x400661),
+        }
 
         self.cfg_fast_edges_check("x86_64", "cfg_loop_unrolling", edges)
 
     def test_cfg_switches_x86_64(self):
         edges = {
-                # jump table 0 in func_0
-                (0x40053A, 0x400547),
-                (0x40053A, 0x400552),
-                (0x40053A, 0x40055D),
-                (0x40053A, 0x400568),
-                (0x40053A, 0x400573),
-                (0x40053A, 0x400580),
-                (0x40053A, 0x40058D),
-                # jump table 0 in func_1
-                (0x4005BC, 0x4005C9),
-                (0x4005BC, 0x4005D8),
-                (0x4005BC, 0x4005E7),
-                (0x4005BC, 0x4005F6),
-                (0x4005BC, 0x400605),
-                (0x4005BC, 0x400614),
-                (0x4005BC, 0x400623),
-                (0x4005BC, 0x400632),
-                (0x4005BC, 0x40063E),
-                (0x4005BC, 0x40064A),
-                (0x4005BC, 0x4006B0),
-                # jump table 1 in func_1
-                (0x40065A, 0x400667),
-                (0x40065A, 0x400673),
-                (0x40065A, 0x40067F),
-                (0x40065A, 0x40068B),
-                (0x40065A, 0x400697),
-                (0x40065A, 0x4006A3),
-                # jump table 0 in main
-                (0x4006E1, 0x4006EE),
-                (0x4006E1, 0x4006FA),
-                (0x4006E1, 0x40070B),
-                (0x4006E1, 0x40071C),
-                (0x4006E1, 0x40072D),
-                (0x4006E1, 0x40073E),
-                (0x4006E1, 0x40074F),
-                (0x4006E1, 0x40075B),
+            # jump table 0 in func_0
+            (0x40053A, 0x400547),
+            (0x40053A, 0x400552),
+            (0x40053A, 0x40055D),
+            (0x40053A, 0x400568),
+            (0x40053A, 0x400573),
+            (0x40053A, 0x400580),
+            (0x40053A, 0x40058D),
+            # jump table 0 in func_1
+            (0x4005BC, 0x4005C9),
+            (0x4005BC, 0x4005D8),
+            (0x4005BC, 0x4005E7),
+            (0x4005BC, 0x4005F6),
+            (0x4005BC, 0x400605),
+            (0x4005BC, 0x400614),
+            (0x4005BC, 0x400623),
+            (0x4005BC, 0x400632),
+            (0x4005BC, 0x40063E),
+            (0x4005BC, 0x40064A),
+            (0x4005BC, 0x4006B0),
+            # jump table 1 in func_1
+            (0x40065A, 0x400667),
+            (0x40065A, 0x400673),
+            (0x40065A, 0x40067F),
+            (0x40065A, 0x40068B),
+            (0x40065A, 0x400697),
+            (0x40065A, 0x4006A3),
+            # jump table 0 in main
+            (0x4006E1, 0x4006EE),
+            (0x4006E1, 0x4006FA),
+            (0x4006E1, 0x40070B),
+            (0x4006E1, 0x40071C),
+            (0x4006E1, 0x40072D),
+            (0x4006E1, 0x40073E),
+            (0x4006E1, 0x40074F),
+            (0x4006E1, 0x40075B),
         }
 
         self.cfg_fast_edges_check("x86_64", "cfg_switches", edges)
 
     def test_cfg_switches_armel(self):
         edges = {
-                # jump table 0 in func_0
-                (0x10434, 0x10488),
-                (0x10434, 0x104E8),
-                (0x10434, 0x10498),
-                (0x10434, 0x104A8),
-                (0x10434, 0x104B8),
-                (0x10434, 0x104C8),
-                (0x10434, 0x104D8),
-                (0x10454, 0x104E8),  # default case
-                # jump table 0 in func_1
-                (0x10524, 0x105CC),
-                (0x10524, 0x106B4),
-                (0x10524, 0x105D8),
-                (0x10524, 0x105E4),
-                (0x10524, 0x105F0),
-                (0x10524, 0x105FC),
-                (0x10524, 0x10608),
-                (0x10524, 0x10614),
-                (0x10524, 0x10620),
-                (0x10524, 0x1062C),
-                (0x10524, 0x10638),
-                (0x10534, 0x106B4),  # default case
-                # jump table 1 in func_1
-                (0x10650, 0x106A4),  # default case
-                (0x10640, 0x10668),
-                (0x10640, 0x10674),
-                (0x10640, 0x10680),
-                (0x10640, 0x1068C),
-                (0x10640, 0x10698),
-                # jump table 0 in main
-                (0x10734, 0x107FC),
-                (0x10734, 0x10808),
-                (0x10734, 0x10818),
-                (0x10734, 0x10828),
-                (0x10734, 0x10838),
-                (0x10734, 0x10848),
-                (0x10734, 0x10858),
-                (0x10734, 0x10864),
-                (0x10744, 0x10864),  # default case
-            }
+            # jump table 0 in func_0
+            (0x10434, 0x10488),
+            (0x10434, 0x104E8),
+            (0x10434, 0x10498),
+            (0x10434, 0x104A8),
+            (0x10434, 0x104B8),
+            (0x10434, 0x104C8),
+            (0x10434, 0x104D8),
+            (0x10454, 0x104E8),  # default case
+            # jump table 0 in func_1
+            (0x10524, 0x105CC),
+            (0x10524, 0x106B4),
+            (0x10524, 0x105D8),
+            (0x10524, 0x105E4),
+            (0x10524, 0x105F0),
+            (0x10524, 0x105FC),
+            (0x10524, 0x10608),
+            (0x10524, 0x10614),
+            (0x10524, 0x10620),
+            (0x10524, 0x1062C),
+            (0x10524, 0x10638),
+            (0x10534, 0x106B4),  # default case
+            # jump table 1 in func_1
+            (0x10650, 0x106A4),  # default case
+            (0x10640, 0x10668),
+            (0x10640, 0x10674),
+            (0x10640, 0x10680),
+            (0x10640, 0x1068C),
+            (0x10640, 0x10698),
+            # jump table 0 in main
+            (0x10734, 0x107FC),
+            (0x10734, 0x10808),
+            (0x10734, 0x10818),
+            (0x10734, 0x10828),
+            (0x10734, 0x10838),
+            (0x10734, 0x10848),
+            (0x10734, 0x10858),
+            (0x10734, 0x10864),
+            (0x10744, 0x10864),  # default case
+        }
 
         self.cfg_fast_edges_check("armel", "cfg_switches", edges)
 
     def test_cfg_switches_s390x(self):
         edges = {
-                # jump table 0 in func_0
-                (0x4007D4, 0x4007EA),  # case 1
-                (0x4007D4, 0x4007F4),  # case 3
-                (0x4007D4, 0x4007FE),  # case 5
-                (0x4007D4, 0x400808),  # case 7
-                (0x4007D4, 0x400812),  # case 9
-                (0x4007D4, 0x40081C),  # case 12
-                (0x4007C0, 0x4007CA),  # default case
-                # jump table 0 in func_1
-                (0x400872, 0x4008AE),  # case 2
-                (0x400872, 0x4008BE),  # case 10
-                (0x400872, 0x4008CE),  # case 12
-                (0x400872, 0x4008DE),  # case 14
-                (0x400872, 0x4008EE),  # case 15
-                (0x400872, 0x4008FE),  # case 16
-                (0x400872, 0x40090E),  # case 22
-                (0x400872, 0x40091E),  # case 24
-                (0x400872, 0x40092E),  # case 28
-                (0x400872, 0x400888),  # case 38
-                (0x400848, 0x400854),  # default case (1)
-                (0x400872, 0x400854),  # default case (2)
-                # jump table 1 in func_1
-                (0x40093E, 0x400984),  # case 1
-                (0x40093E, 0x400974),  # case 2
-                (0x40093E, 0x400964),  # case 3
-                (0x40093E, 0x400954),  # case 4
-                (0x40093E, 0x400994),  # case 5
-                (0x400898, 0x40089E),  # default case (1)
-                # jump table 0 in main
-                # case 1, 3, 5, 7, 9: optimized out
-                (0x400638, 0x40064E),  # case 2
-                (0x400638, 0x400692),  # case 4
-                (0x400638, 0x4006A4),  # case 6
-                (0x400638, 0x40066E),  # case 8
-                (0x400638, 0x400680),  # case 10
-                # case 45: optimized out
-                (0x40062C, 0x40065C),  # default case
-            }
+            # jump table 0 in func_0
+            (0x4007D4, 0x4007EA),  # case 1
+            (0x4007D4, 0x4007F4),  # case 3
+            (0x4007D4, 0x4007FE),  # case 5
+            (0x4007D4, 0x400808),  # case 7
+            (0x4007D4, 0x400812),  # case 9
+            (0x4007D4, 0x40081C),  # case 12
+            (0x4007C0, 0x4007CA),  # default case
+            # jump table 0 in func_1
+            (0x400872, 0x4008AE),  # case 2
+            (0x400872, 0x4008BE),  # case 10
+            (0x400872, 0x4008CE),  # case 12
+            (0x400872, 0x4008DE),  # case 14
+            (0x400872, 0x4008EE),  # case 15
+            (0x400872, 0x4008FE),  # case 16
+            (0x400872, 0x40090E),  # case 22
+            (0x400872, 0x40091E),  # case 24
+            (0x400872, 0x40092E),  # case 28
+            (0x400872, 0x400888),  # case 38
+            (0x400848, 0x400854),  # default case (1)
+            (0x400872, 0x400854),  # default case (2)
+            # jump table 1 in func_1
+            (0x40093E, 0x400984),  # case 1
+            (0x40093E, 0x400974),  # case 2
+            (0x40093E, 0x400964),  # case 3
+            (0x40093E, 0x400954),  # case 4
+            (0x40093E, 0x400994),  # case 5
+            (0x400898, 0x40089E),  # default case (1)
+            # jump table 0 in main
+            # case 1, 3, 5, 7, 9: optimized out
+            (0x400638, 0x40064E),  # case 2
+            (0x400638, 0x400692),  # case 4
+            (0x400638, 0x4006A4),  # case 6
+            (0x400638, 0x40066E),  # case 8
+            (0x400638, 0x400680),  # case 10
+            # case 45: optimized out
+            (0x40062C, 0x40065C),  # default case
+        }
 
         self.cfg_fast_edges_check("s390x", "cfg_switches", edges)
 
     def test_cfg_about_time(self):
 
         # This is to test the correctness of the PLT stub removal in CFGBase
-        proj = angr.Project(
-            os.path.join(test_location, "x86_64", "about_time"), auto_load_libs=False
-        )
+        proj = angr.Project(os.path.join(test_location, "x86_64", "about_time"), auto_load_libs=False)
         cfg = proj.analyses.CFG()
 
         # a PLT stub that should be removed
@@ -536,9 +536,7 @@ class TestCfgfast(unittest.TestCase):
 
     def test_cfg_0_pe_msvc_debug_nocc(self):
         filename = os.path.join("windows", "msvc_cfg_0_debug.exe")
-        proj = angr.Project(
-            os.path.join(test_location, "x86_64", filename), auto_load_libs=False
-        )
+        proj = angr.Project(os.path.join(test_location, "x86_64", filename), auto_load_libs=False)
         cfg = proj.analyses.CFGFast()
 
         # make sure 0x140015683 is marked as alignments
@@ -584,9 +582,7 @@ class TestCfgfast(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast()
 
-        function_names = [
-            f.name if not f.is_plt else "plt_" + f.name for f in cfg.functions.values()
-        ]
+        function_names = [f.name if not f.is_plt else "plt_" + f.name for f in cfg.functions.values()]
 
         assert "plt_puts" in function_names
         assert "plt_read" in function_names
@@ -630,18 +626,17 @@ class TestCfgfast(unittest.TestCase):
 
         # GitHub issue #1286
 
-        path = os.path.join(
-            test_location, "armel", "Nucleo_read_hyperterminal-stripped.elf"
-        )
+        path = os.path.join(test_location, "armel", "Nucleo_read_hyperterminal-stripped.elf")
         proj = angr.Project(path, auto_load_libs=False)
 
-        cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True,
-                                    force_complete_scan=False,
-                                    normalize=True,
-                                    symbols=False,
-                                    detect_tail_calls=True,
-                                    data_references=True,
-                                    )
+        cfg = proj.analyses.CFGFast(
+            resolve_indirect_jumps=True,
+            force_complete_scan=False,
+            normalize=True,
+            symbols=False,
+            detect_tail_calls=True,
+            data_references=True,
+        )
 
         all_func_addrs = set(cfg.functions.keys())
         assert 0x80010B5 not in all_func_addrs
@@ -699,9 +694,7 @@ class TestCfgfast(unittest.TestCase):
         # check all expected return addrs are present
         for returning_block_addr, expected_return_addrs in tail_call_return_addrs.items():
             returning_block = cfg.model.get_any_node(returning_block_addr)
-            return_block_addrs = [
-                rb.addr for rb in cfg.model.get_successors(returning_block)
-            ]
+            return_block_addrs = [rb.addr for rb in cfg.model.get_successors(returning_block)]
             msg = "%x: unequal sizes of expected_addrs [%d] and return_block_addrs [%d]" % (
                 returning_block_addr,
                 len(expected_return_addrs),
@@ -723,9 +716,7 @@ class TestCfgfast(unittest.TestCase):
 
         # GitHub issue #1312
 
-        path = os.path.join(
-            test_location, "armel", "Nucleo_read_hyperterminal-stripped.elf"
-        )
+        path = os.path.join(test_location, "armel", "Nucleo_read_hyperterminal-stripped.elf")
         proj = angr.Project(path, arch=archinfo.ArchARMCortexM(), auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(
@@ -740,12 +731,7 @@ class TestCfgfast(unittest.TestCase):
         assert 0x800079B not in cfg.kb.functions
         assert 0x800079B not in cfg.kb.functions[0x8000799].block_addrs_set
         assert 0x8000799 in cfg.kb.functions[0x8000799].block_addrs_set
-        assert (
-                next(
-                    iter(b for b in cfg.kb.functions[0x8000799].blocks if b.addr == 0x8000799)
-                ).size
-                == 6
-        )
+        assert next(iter(b for b in cfg.kb.functions[0x8000799].blocks if b.addr == 0x8000799)).size == 6
 
     #
     # Blanket
@@ -792,9 +778,7 @@ class TestCfgfast(unittest.TestCase):
 
         # let's try to patch the second instruction of that function to ret
         kb = angr.KnowledgeBase(proj)
-        kb.patches.add_patch(
-            auth_func._get_block(auth_func_addr).instruction_addrs[1], b"\xc3"
-        )
+        kb.patches.add_patch(auth_func._get_block(auth_func_addr).instruction_addrs[1], b"\xc3")
 
         # with this patch, there should only be one block with two instructions in authenticate()
         _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
@@ -811,7 +795,7 @@ class TestCfgfast(unittest.TestCase):
         assert len(not_patched_func.block_addrs_set) == 10
 
     def test_unresolvable_targets(self):
-        path = os.path.join(test_location, 'cgc', 'CADET_00002')
+        path = os.path.join(test_location, "cgc", "CADET_00002")
         proj = angr.Project(path, auto_load_libs=False)
 
         proj.analyses.CFGFast(normalize=True)
@@ -897,20 +881,14 @@ class TestCfgfast(unittest.TestCase):
         cfg = proj.analyses.CFGFast()
 
         error_not_returning = [
-            0x4030d4,
+            0x4030D4,
             0x403100,
-            0x40313c,
-            0x4031f5,
-            0x40348a,
+            0x40313C,
+            0x4031F5,
+            0x40348A,
         ]
 
-        error_returning = [
-            0x403179,
-            0x4031a2,
-            0x403981,
-            0x403e30,
-            0x40403b
-        ]
+        error_returning = [0x403179, 0x4031A2, 0x403981, 0x403E30, 0x40403B]
 
         for error_site in error_not_returning:
             node = cfg.model.get_any_node(error_site)
@@ -928,14 +906,14 @@ class TestCfgfast(unittest.TestCase):
         func_main = cfg.kb.functions[0x10329]
         assert func_main.returning is False
 
-        func_0 = cfg.kb.functions[0x15ee9]
+        func_0 = cfg.kb.functions[0x15EE9]
         assert func_0.returning is False
         assert len(func_0.block_addrs_set) == 1
 
-        func_1 = cfg.kb.functions[0x15d2d]
+        func_1 = cfg.kb.functions[0x15D2D]
         assert func_1.returning is False
 
-        func_2 = cfg.kb.functions[0x228c5]
+        func_2 = cfg.kb.functions[0x228C5]
         assert func_2.returning is False
 
         func_3 = cfg.kb.functions[0x12631]
@@ -944,35 +922,43 @@ class TestCfgfast(unittest.TestCase):
     def test_func_in_added_segment_by_patcherex_arm(self):
         path = os.path.join(test_location, "armel", "patcherex", "replace_function_patch_with_function_reference")
         proj = angr.Project(path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True,
-                                    function_starts={0xa00081},
-                                    regions=[(4195232, 4195244),
-                                             (4195244, 4195324),
-                                             (4195324, 4196016),
-                                             (4196016, 4196024),
-                                             (10485888, 10485950)])
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            function_starts={0xA00081},
+            regions=[
+                (4195232, 4195244),
+                (4195244, 4195324),
+                (4195324, 4196016),
+                (4196016, 4196024),
+                (10485888, 10485950),
+            ],
+        )
 
         # Check whether the target function is in the functions list
-        assert 0xa00081 in cfg.kb.functions
+        assert 0xA00081 in cfg.kb.functions
         # Check the number of basic blocks
-        assert len(list(cfg.functions[0xa00081].blocks)) == 8
+        assert len(list(cfg.functions[0xA00081].blocks)) == 8
 
     def test_func_in_added_segment_by_patcherex_x64(self):
         path = os.path.join(test_location, "x86_64", "patchrex", "replace_function_patch_with_function_reference")
         proj = angr.Project(path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True,
-                                    function_starts={0xa0013d},
-                                    regions=[(4195568, 4195591),
-                                             (4195600, 4195632),
-                                             (4195632, 4195640),
-                                             (4195648, 4196418),
-                                             (4196420, 4196429),
-                                             (10486064, 10486213)])
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            function_starts={0xA0013D},
+            regions=[
+                (4195568, 4195591),
+                (4195600, 4195632),
+                (4195632, 4195640),
+                (4195648, 4196418),
+                (4196420, 4196429),
+                (10486064, 10486213),
+            ],
+        )
 
         # Check whether the target function is in the functions list
-        assert 0xa0013d in cfg.kb.functions
+        assert 0xA0013D in cfg.kb.functions
         # Check the number of basic blocks
-        assert len(list(cfg.functions[0xa0013d].blocks)) == 7
+        assert len(list(cfg.functions[0xA0013D].blocks)) == 7
 
 
 class TestCfgfastDataReferences(unittest.TestCase):
@@ -985,15 +971,11 @@ class TestCfgfastDataReferences(unittest.TestCase):
 
         memory_data = cfg.memory_data
         # There is no code reference
-        code_ref_count = len(
-            [d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference]
-        )
+        code_ref_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference])
         assert code_ref_count >= 0, "There should be no code reference."
 
         # There are at least 2 pointer arrays
-        ptr_array_count = len(
-            [d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray]
-        )
+        ptr_array_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray])
         assert ptr_array_count > 2, "Missing some pointer arrays."
 
         assert 0x4008D0 in memory_data
@@ -1010,15 +992,11 @@ class TestCfgfastDataReferences(unittest.TestCase):
 
         memory_data = cfg.memory_data
         # There is no code reference
-        code_ref_count = len(
-            [d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference]
-        )
+        code_ref_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference])
         assert code_ref_count >= 0, "There should be no code reference."
 
         # There are at least 2 pointer arrays
-        ptr_array_count = len(
-            [d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray]
-        )
+        ptr_array_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray])
         assert ptr_array_count >= 1, "Missing some pointer arrays."
 
         assert 0x400C00 in memory_data
@@ -1054,14 +1032,14 @@ class TestCfgfastDataReferences(unittest.TestCase):
         cfg = proj.analyses.CFGFast(data_references=True, cross_references=True)
         memory_data = cfg.memory_data
 
-        assert 0x120007dd8 in memory_data
-        assert memory_data[0x120007dd8].sort == "string"
-        assert memory_data[0x120007dd8].content == b"coreutils"
+        assert 0x120007DD8 in memory_data
+        assert memory_data[0x120007DD8].sort == "string"
+        assert memory_data[0x120007DD8].content == b"coreutils"
 
         xrefs = proj.kb.xrefs
-        refs = list(xrefs.get_xrefs_by_dst(0x120007dd8))
+        refs = list(xrefs.get_xrefs_by_dst(0x120007DD8))
         assert len(refs) == 2
-        assert {x.ins_addr for x in refs} == {0x1200020e8, 0x120002108}
+        assert {x.ins_addr for x in refs} == {0x1200020E8, 0x120002108}
 
     def test_data_references_i386_gcc_pie(self):
 
@@ -1071,24 +1049,24 @@ class TestCfgfastDataReferences(unittest.TestCase):
         cfg = proj.analyses.CFGFast(data_references=True, cross_references=True)
         memory_data = cfg.memory_data
 
-        assert 0x405bb0 in memory_data
-        assert memory_data[0x405bb0].sort == "string"
-        assert memory_data[0x405bb0].content == b"/usr/local/share/locale"
+        assert 0x405BB0 in memory_data
+        assert memory_data[0x405BB0].sort == "string"
+        assert memory_data[0x405BB0].content == b"/usr/local/share/locale"
 
         xrefs = proj.kb.xrefs
-        refs = list(xrefs.get_xrefs_by_dst(0x405bb0))
+        refs = list(xrefs.get_xrefs_by_dst(0x405BB0))
         assert len(refs) == 1
-        assert {x.ins_addr for x in refs} == {0x4011dd}
+        assert {x.ins_addr for x in refs} == {0x4011DD}
 
     def test_data_references_wide_string(self):
-        path = os.path.join(test_location, 'x86_64', 'windows', 'fauxware-wide.exe')
+        path = os.path.join(test_location, "x86_64", "windows", "fauxware-wide.exe")
         proj = angr.Project(path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(data_references=True)
         recovered_strings = [d.content for d in cfg.memory_data.values() if d.sort == MemoryDataSort.UnicodeString]
 
-        for testme in ('SOSNEAKY', 'Welcome to the admin console, trusted user!\n', 'Go away!\n', 'Username: \n'):
-            assert testme.encode('utf-16-le') in recovered_strings
+        for testme in ("SOSNEAKY", "Welcome to the admin console, trusted user!\n", "Go away!\n", "Username: \n"):
+            assert testme.encode("utf-16-le") in recovered_strings
 
 
 if __name__ == "__main__":

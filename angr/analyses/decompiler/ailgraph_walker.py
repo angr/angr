@@ -9,7 +9,8 @@ class AILGraphWalker:
     """
     Walks an AIL graph and optionally replaces each node with a new node.
     """
-    def __init__(self, graph, handler, replace_nodes: bool=False):
+
+    def __init__(self, graph, handler, replace_nodes: bool = False):
 
         self.graph: networkx.DiGraph = graph
         self.handler = handler

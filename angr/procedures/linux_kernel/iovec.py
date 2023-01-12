@@ -3,12 +3,17 @@ from ..posix.read import read
 from ..posix.write import write
 from ...sim_type import register_types, parse_types
 
-register_types(parse_types("""
+register_types(
+    parse_types(
+        """
 struct iovec {
     void  *iov_base;    /* Starting address */
     size_t iov_len;     /* Number of bytes to transfer */
 };
-"""))
+"""
+    )
+)
+
 
 class readv(angr.SimProcedure):
     def run(self, fd, iovec, iovcnt):

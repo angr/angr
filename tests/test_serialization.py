@@ -4,9 +4,23 @@ import shutil
 import angr
 import os
 
-internaltest_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
-internaltest_files = [ 'argc_decide', 'argc_symbol', 'argv_test', 'counter', 'fauxware', 'fauxware.idb', 'manysum', 'pw', 'strlen', 'test_arrays', 'test_division', 'test_loops' ]
-internaltest_arch = [ 'i386', 'armel' ]
+internaltest_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
+internaltest_files = [
+    "argc_decide",
+    "argc_symbol",
+    "argv_test",
+    "counter",
+    "fauxware",
+    "fauxware.idb",
+    "manysum",
+    "pw",
+    "strlen",
+    "test_arrays",
+    "test_division",
+    "test_loops",
+]
+internaltest_arch = ["i386", "armel"]
+
 
 def internaltest_vfg(p, cfg):
     vfg = p.analyses.VFG(cfg=cfg)
@@ -15,6 +29,7 @@ def internaltest_vfg(p, cfg):
     vfg2 = v.loads(state)
     assert vfg.final_states == vfg2.final_states
     assert set(vfg.graph.nodes()) == set(vfg2.graph.nodes())
+
 
 def internaltest_cfg(p):
     state = tempfile.TemporaryFile()
@@ -30,13 +45,14 @@ def internaltest_cfg(p):
 
     return cfg
 
+
 def internaltest_cfgfast(p):
     state = tempfile.TemporaryFile()
 
     cfg = p.analyses.CFGFast()
 
     # generate capstone blocks
-    main_function = cfg.functions.function(name='main')
+    main_function = cfg.functions.function(name="main")
     for b in main_function.blocks:
         c = b.capstone  # pylint:disable=unused-variable
 
@@ -45,6 +61,7 @@ def internaltest_cfgfast(p):
     state.seek(0)
     cfg2 = pickle.load(state)
     assert set(cfg.model.nodes()) == set(cfg2.model.nodes())
+
 
 def internaltest_project(fpath):
     tpath = tempfile.mktemp()
@@ -64,23 +81,24 @@ def internaltest_project(fpath):
 
 
 def test_analyses():
-    p = angr.Project(os.path.join(internaltest_location, 'i386', 'fauxware'), load_options={'auto_load_libs': False})
+    p = angr.Project(os.path.join(internaltest_location, "i386", "fauxware"), load_options={"auto_load_libs": False})
     cfg = p.analyses.CFG()
     cfb = p.analyses.CFB(kb=cfg.kb)
-    vrf = p.analyses.VariableRecoveryFast(p.kb.functions['main'])
+    vrf = p.analyses.VariableRecoveryFast(p.kb.functions["main"])
 
     assert len(p.kb.functions) > 0
     assert len(pickle.loads(pickle.dumps(p.kb, -1)).functions) > 0
 
-    state = pickle.dumps((p,cfg,cfb,vrf), -1)
+    state = pickle.dumps((p, cfg, cfb, vrf), -1)
     del p
     del cfg
     del cfb
     del vrf
     import gc
+
     gc.collect()
 
-    p,cfg,cfb,vrf = pickle.loads(state)
+    p, cfg, cfb, vrf = pickle.loads(state)
     assert p.kb is not None
     assert p.kb.functions is not None
     assert cfg.kb is not None
@@ -90,16 +108,17 @@ def test_analyses():
 def test_serialization():
     for d in internaltest_arch:
         for f in internaltest_files:
-            fpath = os.path.join(internaltest_location, d,f)
+            fpath = os.path.join(internaltest_location, d, f)
             if os.path.isfile(fpath) and os.access(fpath, os.X_OK):
                 internaltest_project(fpath)
 
-    p = angr.Project(os.path.join(internaltest_location, 'i386', 'fauxware'), load_options={'auto_load_libs': False})
+    p = angr.Project(os.path.join(internaltest_location, "i386", "fauxware"), load_options={"auto_load_libs": False})
     internaltest_cfgfast(p)
 
     cfg = internaltest_cfg(p)
     internaltest_vfg(p, cfg)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_analyses()
     test_serialization()

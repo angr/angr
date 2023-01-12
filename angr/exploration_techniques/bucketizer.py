@@ -28,10 +28,10 @@ class Bucketizer(ExplorationTechnique):
         if len(successors.successors) <= 1:
             return successors
 
-        new_successors = [ ]
+        new_successors = []
 
         for succ in successors.successors:
-            if succ.history.jumpkind != 'Ijk_Boring':
+            if succ.history.jumpkind != "Ijk_Boring":
                 new_successors.append(succ)
                 continue
             # transition = (succ.callstack.func_addr, succ.history.addr, succ.addr)
@@ -42,9 +42,11 @@ class Bucketizer(ExplorationTechnique):
                 new_successors.append(succ)
 
         if len(new_successors) != len(successors.successors):
-            _l.debug("Bucketizer: Dropped %d states out of %d.",
-                     len(successors.successors) - len(new_successors),
-                     len(successors.successors))
+            _l.debug(
+                "Bucketizer: Dropped %d states out of %d.",
+                len(successors.successors) - len(new_successors),
+                len(successors.successors),
+            )
 
         successors.successors = new_successors
         return successors
@@ -57,10 +59,10 @@ class Bucketizer(ExplorationTechnique):
         """
 
         try:
-            t = state.globals['transition']
+            t = state.globals["transition"]
         except KeyError:
             t = defaultdict(int)
-            state.globals['transition'] = t
+            state.globals["transition"] = t
         return t
 
     def _record_transition(self, state, transition):
@@ -74,7 +76,7 @@ class Bucketizer(ExplorationTechnique):
         t = self._get_transition_dict(state).copy()
         t[transition] += 1
 
-        state.globals['transition'] = t
+        state.globals["transition"] = t
 
     def _accept_transition(self, state, transition):
         """

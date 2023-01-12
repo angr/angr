@@ -1,7 +1,14 @@
 from typing import List, Tuple, Optional, TYPE_CHECKING
 
-from ..sim_type import parse_file, parse_cpp_file, normalize_cpp_function_name, SimTypeCppFunction, SimTypeFd, \
-    register_types, parse_types
+from ..sim_type import (
+    parse_file,
+    parse_cpp_file,
+    normalize_cpp_function_name,
+    SimTypeCppFunction,
+    SimTypeFd,
+    register_types,
+    parse_types,
+)
 
 if TYPE_CHECKING:
     from ..sim_type import SimTypeFunction
@@ -20,28 +27,33 @@ def get_function_name(s):
     if s.startswith("__attribute__"):
         # Remove "__attribute__ ((foobar))"
         if "))" not in s:
-            raise ValueError("__attribute__ is present, but I cannot find double-right parenthesis in the function "
-                             "declaration string.")
+            raise ValueError(
+                "__attribute__ is present, but I cannot find double-right parenthesis in the function "
+                "declaration string."
+            )
 
-        s = s[s.index("))") + 2 : ].strip()
+        s = s[s.index("))") + 2 :].strip()
 
-    if '(' not in s:
+    if "(" not in s:
         raise ValueError("Cannot find any left parenthesis in the function declaration string.")
 
-    func_name = s[:s.index('(')].strip()
+    func_name = s[: s.index("(")].strip()
 
     for i, ch in enumerate(reversed(func_name)):
-        if ch == ' ':
+        if ch == " ":
             pos = len(func_name) - 1 - i
             break
     else:
-        raise ValueError('Cannot find any space in the function declaration string.')
+        raise ValueError("Cannot find any space in the function declaration string.")
 
-    func_name = func_name[pos + 1 : ]
+    func_name = func_name[pos + 1 :]
     return func_name
 
+
 def register_kernel_types():
-    register_types(parse_types("""
+    register_types(
+        parse_types(
+            """
     typedef int mode_t;
     typedef unsigned int umode_t;
     typedef int clockid_t;
@@ -55,10 +67,12 @@ def register_kernel_types():
     typedef uint64_t u64;
     typedef int32_t __s32;
     typedef int64_t loff_t;
-    """))
+    """
+        )
+    )
 
 
-def convert_cproto_to_py(c_decl) -> Tuple[str,'SimTypeFunction',str]:
+def convert_cproto_to_py(c_decl) -> Tuple[str, "SimTypeFunction", str]:
     """
     Convert a C-style function declaration string to its corresponding SimTypes-based Python representation.
 
@@ -67,15 +81,15 @@ def convert_cproto_to_py(c_decl) -> Tuple[str,'SimTypeFunction',str]:
                                     SimType-based Python representation.
     """
 
-    s = [ ]
+    s = []
 
     try:
-        s.append('# %s' % c_decl)  # comment string
+        s.append("# %s" % c_decl)  # comment string
 
         parsed = parse_file(c_decl)
         parsed_decl = parsed[0]
         if not parsed_decl:
-            raise ValueError('Cannot parse the function prototype.')
+            raise ValueError("Cannot parse the function prototype.")
 
         func_name, func_proto = next(iter(parsed_decl.items()))
 
@@ -94,8 +108,9 @@ def convert_cproto_to_py(c_decl) -> Tuple[str,'SimTypeFunction',str]:
     return func_name, func_proto, "\n".join(s)
 
 
-def convert_cppproto_to_py(cpp_decl: str,
-                           with_param_names: bool=False) -> Tuple[Optional[str],Optional[SimTypeCppFunction],Optional[str]]:
+def convert_cppproto_to_py(
+    cpp_decl: str, with_param_names: bool = False
+) -> Tuple[Optional[str], Optional[SimTypeCppFunction], Optional[str]]:
     """
     Pre-process a C++-style function declaration string to its corresponding SimTypes-based Python representation.
 
@@ -104,7 +119,7 @@ def convert_cppproto_to_py(cpp_decl: str,
                         representation.
     """
 
-    s = [ ]
+    s = []
     try:
         s.append("# %s" % cpp_decl)
 
@@ -129,9 +144,9 @@ def convert_cppproto_to_py(cpp_decl: str,
     return func_name, func_proto, "\n".join(s)
 
 
-def parsedcprotos2py(parsed_cprotos: List[Tuple[str,'SimTypeFunction',str]],
-                      fd_spots=frozenset(),
-                      remove_sys_prefix=False) -> str:
+def parsedcprotos2py(
+    parsed_cprotos: List[Tuple[str, "SimTypeFunction", str]], fd_spots=frozenset(), remove_sys_prefix=False
+) -> str:
     """
     Parse a list of C function declarations and output to Python code that can be embedded into
     angr.procedures.definitions.
@@ -146,8 +161,8 @@ def parsedcprotos2py(parsed_cprotos: List[Tuple[str,'SimTypeFunction',str]],
     """
     s = ""
     for func_name, proto_, decl in parsed_cprotos:
-        if remove_sys_prefix and func_name.startswith('sys'):
-            func_name = '_'.join(func_name.split('_')[1:])
+        if remove_sys_prefix and func_name.startswith("sys"):
+            func_name = "_".join(func_name.split("_")[1:])
         if proto_ is not None:
             if (func_name, -1) in fd_spots:
                 proto_.returnty = SimTypeFd(label=proto_.returnty.label)
@@ -155,8 +170,8 @@ def parsedcprotos2py(parsed_cprotos: List[Tuple[str,'SimTypeFunction',str]],
                 if (func_name, i) in fd_spots:
                     proto_.args[i] = SimTypeFd(label=arg.label)
 
-        line1 = ' '*8 + '# ' + decl + '\n'
-        line2 = ' '*8 + repr(func_name) + ": " + (proto_._init_str() if proto_ is not None else "None") + ',' + '\n'
+        line1 = " " * 8 + "# " + decl + "\n"
+        line2 = " " * 8 + repr(func_name) + ": " + (proto_._init_str() if proto_ is not None else "None") + "," + "\n"
         s += line1 + line2
     return s
 
@@ -173,7 +188,7 @@ def cprotos2py(cprotos: List[str], fd_spots=frozenset(), remove_sys_prefix=False
     :param cprotos:         A list of C prototype strings.
     :return:                A Python string.
     """
-    parsed_cprotos = [ ]
+    parsed_cprotos = []
     for decl in cprotos:
         func_name, proto_, _ = convert_cproto_to_py(decl)  # pylint:disable=unused-variable
         parsed_cprotos.append((func_name, proto_, decl))

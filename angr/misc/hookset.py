@@ -3,10 +3,12 @@ These classes perform some python magic that we use to implement the nesting of 
 This process is formalized as a "hooking" of a python method - each exploration technique's methods "hooks" a method of the same name on the simulation manager class.
 """
 
+
 class HookSet:
     """
     A HookSet is a static class that provides the capability to apply many hooks to an object.
     """
+
     @staticmethod
     def install_hooks(target, **hooks):
         """
@@ -80,8 +82,11 @@ class HookedMethod:
         self.pending = []
 
     def __repr__(self):
-        return "<HookedMethod(%s.%s, %d pending)>" % \
-                (self.func.__self__.__class__.__name__, self.func.__name__, len(self.pending))
+        return "<HookedMethod(%s.%s, %d pending)>" % (
+            self.func.__self__.__class__.__name__,
+            self.func.__name__,
+            len(self.pending),
+        )
 
     def __call__(self, *args, **kwargs):
         if self.pending:

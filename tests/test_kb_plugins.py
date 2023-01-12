@@ -3,11 +3,11 @@ import networkx
 
 import os
 
-location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 def test_kb_plugins():
-    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), auto_load_libs=False)
+    p = angr.Project(os.path.join(location, "x86_64", "fauxware"), auto_load_libs=False)
 
     assert isinstance(p.kb.data, angr.knowledge_plugins.Data)
     assert isinstance(p.kb.functions, angr.knowledge_plugins.FunctionManager)
@@ -20,33 +20,48 @@ def test_kb_plugins():
     assert isinstance(p.kb.unresolved_indirect_jumps, set)
 
     assert dir(p.kb) is not None
-    for plugin in ['data', 'functions', 'variables', 'labels', 'comments', 'callgraph', 'resolved_indirect_jumps', 'unresolved_indirect_jumps']:
+    for plugin in [
+        "data",
+        "functions",
+        "variables",
+        "labels",
+        "comments",
+        "callgraph",
+        "resolved_indirect_jumps",
+        "unresolved_indirect_jumps",
+    ]:
         assert plugin in dir(p.kb)
 
 
 def test_kb_plugins_typed():
-    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), auto_load_libs=False)
+    p = angr.Project(os.path.join(location, "x86_64", "fauxware"), auto_load_libs=False)
 
-    for plugin in [angr.knowledge_plugins.Data,
-                   angr.knowledge_plugins.FunctionManager,
-                   angr.knowledge_plugins.VariableManager,
-                   angr.knowledge_plugins.Labels,
-                   angr.knowledge_plugins.Comments]:
+    for plugin in [
+        angr.knowledge_plugins.Data,
+        angr.knowledge_plugins.FunctionManager,
+        angr.knowledge_plugins.VariableManager,
+        angr.knowledge_plugins.Labels,
+        angr.knowledge_plugins.Comments,
+    ]:
         assert p.kb.get_knowledge(plugin) is None
 
-    for plugin in [angr.knowledge_plugins.Data,
-                   angr.knowledge_plugins.FunctionManager,
-                   angr.knowledge_plugins.VariableManager,
-                   angr.knowledge_plugins.Labels,
-                   angr.knowledge_plugins.Comments]:
+    for plugin in [
+        angr.knowledge_plugins.Data,
+        angr.knowledge_plugins.FunctionManager,
+        angr.knowledge_plugins.VariableManager,
+        angr.knowledge_plugins.Labels,
+        angr.knowledge_plugins.Comments,
+    ]:
         assert isinstance(p.kb.request_knowledge(plugin), plugin)
 
     # The default plugins should have been instantiated by `request_knowledge`, and should now be available
-    for plugin in [angr.knowledge_plugins.Data,
-              angr.knowledge_plugins.FunctionManager,
-              angr.knowledge_plugins.VariableManager,
-              angr.knowledge_plugins.Labels,
-              angr.knowledge_plugins.Comments]:
+    for plugin in [
+        angr.knowledge_plugins.Data,
+        angr.knowledge_plugins.FunctionManager,
+        angr.knowledge_plugins.VariableManager,
+        angr.knowledge_plugins.Labels,
+        angr.knowledge_plugins.Comments,
+    ]:
         assert isinstance(p.kb.request_knowledge(plugin), plugin)
 
     # Check that explicitly creating and registering new kind of plugin also works
@@ -63,5 +78,5 @@ def test_kb_plugins_typed():
     assert p.kb.get_knowledge(TestPlugin) == t
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_kb_plugins()

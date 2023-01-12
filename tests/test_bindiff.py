@@ -6,7 +6,7 @@ import angr
 
 l = logging.getLogger("angr.tests.test_bindiff")
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 # todo make a better test
@@ -14,8 +14,8 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 # pylint: disable=no-self-use
 class TestBindiff(unittest.TestCase):
     def test_bindiff_x86_64(self):
-        binary_path_1 = os.path.join(test_location, 'x86_64', 'bindiff_a')
-        binary_path_2 = os.path.join(test_location, 'x86_64', 'bindiff_b')
+        binary_path_1 = os.path.join(test_location, "x86_64", "bindiff_a")
+        binary_path_2 = os.path.join(test_location, "x86_64", "bindiff_b")
         b = angr.Project(binary_path_1, load_options={"auto_load_libs": False})
         b2 = angr.Project(binary_path_2, load_options={"auto_load_libs": False})
         bindiff = b.analyses.BinDiff(b2)
@@ -24,7 +24,7 @@ class TestBindiff(unittest.TestCase):
         differing_functions = bindiff.differing_functions
         unmatched_functions = bindiff.unmatched_functions
         # check identical functions
-        assert (0x40064c, 0x40066a) in identical_functions
+        assert (0x40064C, 0x40066A) in identical_functions
         # check differing functions
         assert (0x400616, 0x400616) in differing_functions
         # check unmatched functions
@@ -37,9 +37,9 @@ class TestBindiff(unittest.TestCase):
         # check a function diff
         fdiff = bindiff.get_function_diff(0x400616, 0x400616)
         block_matches = {(a.addr, b.addr) for a, b in fdiff.block_matches}
-        assert (0x40064a, 0x400668) in block_matches
+        assert (0x40064A, 0x400668) in block_matches
         assert (0x400616, 0x400616) in block_matches
-        assert (0x40061e, 0x40061e) in block_matches
+        assert (0x40061E, 0x40061E) in block_matches
 
 
 if __name__ == "__main__":

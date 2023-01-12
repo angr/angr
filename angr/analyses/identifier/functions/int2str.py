@@ -60,7 +60,7 @@ class int2str(Func):
         super().__init__()
         self.is_signed = False
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
@@ -68,7 +68,7 @@ class int2str(Func):
     def num_args(self):
         return 3
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["buf", "len", "val"]
 
     def get_name(self):
@@ -77,11 +77,11 @@ class int2str(Func):
         return "uint2str"
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         if not self.is_signed:
             num = abs(num)
         s = str(num)
-        test_input = ["A"*15, 15, num]
+        test_input = ["A" * 15, 15, num]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
@@ -89,10 +89,10 @@ class int2str(Func):
         return test
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         num = abs(num)
         s = str(num)
-        test_input = ["A"*15, 15, num]
+        test_input = ["A" * 15, 15, num]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
@@ -100,10 +100,10 @@ class int2str(Func):
         if not runner.test(func, test):
             return False
 
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         num = -abs(num)
         s = str(num)
-        test_input = ["A"*15, 15, num]
+        test_input = ["A" * 15, 15, num]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
@@ -113,7 +113,6 @@ class int2str(Func):
         else:
             self.is_signed = True
 
-
         return True
 
 
@@ -122,7 +121,7 @@ class int2str_v2(Func):
         super().__init__()
         self.is_signed = False
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
@@ -130,7 +129,7 @@ class int2str_v2(Func):
     def num_args(self):
         return TwoOrThree()
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["val", "buf", "max"]
 
     def get_name(self):
@@ -139,11 +138,11 @@ class int2str_v2(Func):
         return "uint2str_v2"
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         if not self.is_signed:
             num = abs(num)
         s = str(num)
-        test_input = [num, "A"*15, 12]
+        test_input = [num, "A" * 15, 12]
         test_output = [None, s, None]
         return_val = None
         max_steps = 10
@@ -151,10 +150,10 @@ class int2str_v2(Func):
         return test
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         num = abs(num)
         s = str(num)
-        test_input = [num, "A"*15, 12]
+        test_input = [num, "A" * 15, 12]
         test_output = [None, s, None]
         return_val = None
         max_steps = 10
@@ -162,10 +161,10 @@ class int2str_v2(Func):
         if not runner.test(func, test):
             return False
 
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         num = -abs(num)
         s = str(num)
-        test_input = [num, "A"*15, 12]
+        test_input = [num, "A" * 15, 12]
         test_output = [None, s, None]
         return_val = None
         max_steps = 10
@@ -183,7 +182,7 @@ class int2str_v3(Func):
         super().__init__()
         self.is_signed = False
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
@@ -191,7 +190,7 @@ class int2str_v3(Func):
     def num_args(self):
         return TwoOrThree()
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["buf", "val", "max"]
 
     def get_name(self):
@@ -200,11 +199,11 @@ class int2str_v3(Func):
         return "uint2str_v3"
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         if not self.is_signed:
             num = abs(num)
         s = str(num)
-        test_input = ["A"*15, num, 12]
+        test_input = ["A" * 15, num, 12]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
@@ -212,10 +211,10 @@ class int2str_v3(Func):
         return test
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         num = abs(num)
         s = str(num)
-        test_input = ["A"*15, num, 12]
+        test_input = ["A" * 15, num, 12]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
@@ -223,10 +222,10 @@ class int2str_v3(Func):
         if not runner.test(func, test):
             return False
 
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         num = -abs(num)
         s = str(num)
-        test_input = [num, "A"*15, 12]
+        test_input = [num, "A" * 15, 12]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
@@ -244,7 +243,7 @@ class int2str_v4(Func):
         super().__init__()
         self.is_signed = False
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
@@ -252,7 +251,7 @@ class int2str_v4(Func):
     def num_args(self):
         return ThreeOrFour()
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["buf", "val", "base"]
 
     def get_name(self):
@@ -261,11 +260,11 @@ class int2str_v4(Func):
         return "uint2str_v4"
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         if not self.is_signed:
             num = abs(num)
         s = str(num)
-        test_input = ["A"*15, num, 10]
+        test_input = ["A" * 15, num, 10]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
@@ -273,11 +272,11 @@ class int2str_v4(Func):
         return test
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         num = abs(num)
         s = hex(num).replace("0x", "").replace("L", "").lower()
         s2 = hex(num).replace("0x", "").replace("L", "").upper()
-        test_input = ["A"*15, num, 16]
+        test_input = ["A" * 15, num, 16]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10
@@ -287,10 +286,10 @@ class int2str_v4(Func):
         if not runner.test(func, test) and not runner.test(func, test2):
             return False
 
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
         num = -abs(num)
         s = str(num)
-        test_input = [num, "A"*15, 10]
+        test_input = [num, "A" * 15, 10]
         test_output = [s, None, None]
         return_val = None
         max_steps = 10

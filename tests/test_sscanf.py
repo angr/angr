@@ -6,7 +6,7 @@ import unittest
 
 import logging
 
-l = logging.getLogger('angr.tests.sscanf')
+l = logging.getLogger("angr.tests.sscanf")
 
 import os
 
@@ -14,17 +14,28 @@ test_location = os.path.dirname(os.path.realpath(__file__))
 
 
 class TestSscanf(unittest.TestCase):
-    @unittest.skipUnless(sys.platform.startswith('linux'), "linux only")
+    @unittest.skipUnless(sys.platform.startswith("linux"), "linux only")
     def test_sscanf(self):
         test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "sscanf_test")
         b = angr.Project(test_bin, auto_load_libs=False)
         pg = b.factory.simulation_manager()
         # find the end of main
         expected_outputs = {
-            b"0x worked\n", b"+0x worked\n", b"base +16 worked\n", b"base 16 worked\n",
-            b"-0x worked\n", b"base -16 worked\n", b"base 16 length 2 worked\n", b"Nope x\n",
-            b"base 8 worked\n", b"base +8 worked\n", b"base +10 worked\n", b"base 10 worked\n",
-            b"base -8 worked\n", b"base -10 worked\n", b"Nope u\n",
+            b"0x worked\n",
+            b"+0x worked\n",
+            b"base +16 worked\n",
+            b"base 16 worked\n",
+            b"-0x worked\n",
+            b"base -16 worked\n",
+            b"base 16 length 2 worked\n",
+            b"Nope x\n",
+            b"base 8 worked\n",
+            b"base +8 worked\n",
+            b"base +10 worked\n",
+            b"base 10 worked\n",
+            b"base -8 worked\n",
+            b"base -10 worked\n",
+            b"Nope u\n",
             b"No switch\n",
         }
         pg.run()

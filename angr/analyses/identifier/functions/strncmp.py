@@ -13,7 +13,7 @@ class strncmp(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super().__init__() #pylint disable=useless-super-delegation
+        super().__init__()  # pylint disable=useless-super-delegation
 
     def get_name(self):
         return "strncmp"
@@ -21,13 +21,13 @@ class strncmp(Func):
     def num_args(self):
         return 3
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["buf1", "buf2", "len"]
 
     def gen_input_output_pair(self):
         l = 5
         s = rand_str(l, strncmp.non_null)
-        #pylint disable=unused-variable
+        # pylint disable=unused-variable
         return None
 
     def can_call_other_funcs(self):
@@ -89,7 +89,6 @@ class strncmp(Func):
         if s is None:
             return False
         outval4 = s.solver.eval(s.regs.eax)
-
 
         # should distinguish strncmp and strcmp
         bufa = "abc5555"

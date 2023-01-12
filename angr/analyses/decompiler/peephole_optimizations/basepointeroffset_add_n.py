@@ -7,13 +7,14 @@ class BasePointerOffsetAddN(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "(Ptr - M) + N => Ptr - (M - N)"
-    expr_classes = (BinaryOp, )  # all expressions are allowed
+    expr_classes = (BinaryOp,)  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
 
-        if (expr.op in ("Add", "Sub")
-                and isinstance(expr.operands[0], BasePointerOffset)
-                and isinstance(expr.operands[1], Const)
+        if (
+            expr.op in ("Add", "Sub")
+            and isinstance(expr.operands[0], BasePointerOffset)
+            and isinstance(expr.operands[1], Const)
         ):
             offset = expr.operands[0].offset
             if expr.op == "Add":

@@ -14,24 +14,24 @@ class CFGArchOptions:
     # option name: (option value type, default option value)
 
     OPTIONS = {
-        'ARMEL': {
+        "ARMEL": {
             # Whether to perform some simple heuristics to detect returns that are incorrectly labeled as boring
             # branches by VEX
-            'ret_jumpkind_heuristics': (bool, True),
+            "ret_jumpkind_heuristics": (bool, True),
             # Whether to switch between ARM mode and THUMB mode when VEX fails to decode a block
-            'switch_mode_on_nodecode': (bool, True),
+            "switch_mode_on_nodecode": (bool, True),
             # Whether we should use byte-based pattern-matching to identify ifuncs
-            'pattern_match_ifuncs': (bool, True),
+            "pattern_match_ifuncs": (bool, True),
         },
-        'ARMHF': {
-            'ret_jumpkind_heuristics': (bool, True),
-            'switch_mode_on_nodecode': (bool, True),
-            'pattern_match_ifuncs': (bool, True),
+        "ARMHF": {
+            "ret_jumpkind_heuristics": (bool, True),
+            "switch_mode_on_nodecode": (bool, True),
+            "pattern_match_ifuncs": (bool, True),
         },
-        'ARMCortexM': {
-            'ret_jumpkind_heuristics': (bool, True),
-            'switch_mode_on_nodecode': (bool, False),
-            'pattern_match_ifuncs': (bool, True),
+        "ARMCortexM": {
+            "ret_jumpkind_heuristics": (bool, True),
+            "switch_mode_on_nodecode": (bool, False),
+            "pattern_match_ifuncs": (bool, True),
         },
     }
 
@@ -80,4 +80,4 @@ class CFGArchOptions:
                 raise ValueError(f'Value for option "{option_name}" must be of type {sort}')
 
         else:
-            super().__setattr__(option_name, option_value )
+            super().__setattr__(option_name, option_value)

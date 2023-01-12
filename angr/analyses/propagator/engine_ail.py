@@ -26,14 +26,14 @@ class SimEnginePropagatorAIL(
     The AIl engine for Propagator.
     """
 
-    state: 'PropagatorAILState'
+    state: "PropagatorAILState"
 
-    def _is_top(self, expr: Union[claripy.ast.Base,Expr.StackBaseOffset]) -> bool:
+    def _is_top(self, expr: Union[claripy.ast.Base, Expr.StackBaseOffset]) -> bool:
         if isinstance(expr, Expr.StackBaseOffset):
             return False
         return super()._is_top(expr)
 
-    def extract_offset_to_sp(self, expr: Union[claripy.ast.Base,Expr.StackBaseOffset]) -> Optional[int]:
+    def extract_offset_to_sp(self, expr: Union[claripy.ast.Base, Expr.StackBaseOffset]) -> Optional[int]:
         if isinstance(expr, Expr.StackBaseOffset):
             return expr.offset
         elif isinstance(expr, Expr.Expression):
@@ -77,11 +77,11 @@ class SimEnginePropagatorAIL(
             else:
                 self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
         else:
-            l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
+            l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
     def _ail_handle_Store(self, stmt: Stmt.Store):
 
-        self.state: 'PropagatorAILState'
+        self.state: "PropagatorAILState"
 
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
@@ -102,8 +102,9 @@ class SimEnginePropagatorAIL(
                 to_store = PropValue.from_value_and_details(data_v, size, expr, self._codeloc())
             else:
                 size = stmt.size
-                to_store = data.with_details(stmt.size, data.one_expr if data.one_expr is not None else stmt.data,
-                                             self._codeloc())
+                to_store = data.with_details(
+                    stmt.size, data.one_expr if data.one_expr is not None else stmt.data, self._codeloc()
+                )
 
             # Storing data to a stack variable
             self.state.store_stack_variable(sp_offset, to_store, endness=stmt.endness)
@@ -132,10 +133,11 @@ class SimEnginePropagatorAIL(
         target_oneexpr = target.one_expr
         if target_oneexpr is not None and isinstance(target_oneexpr, Expr.Const):
             new_jump_stmt = Stmt.Jump(stmt.idx, target.one_expr, **stmt.tags)
-            self.state.add_replacement(self._codeloc(),
-                                       stmt,
-                                       new_jump_stmt,
-                                       )
+            self.state.add_replacement(
+                self._codeloc(),
+                stmt,
+                new_jump_stmt,
+            )
 
     def _ail_handle_Call(self, expr_stmt: Stmt.Call):
         if isinstance(expr_stmt.target, Expr.Expression):
@@ -157,15 +159,23 @@ class SimEnginePropagatorAIL(
                         self.state.top(self.arch.bits), self.arch.bytes, expr_stmt.ret_expr, self._codeloc()
                     )
                     self.state.store_register(
-                        Expr.Register(None, expr_stmt.ret_expr.variable, expr_stmt.ret_expr.reg_offset, self.arch.bits,
-                                      reg_name=self.arch.translate_register_name(expr_stmt.ret_expr.reg_offset,
-                                                                                 size=self.arch.bits)),
-                        v
+                        Expr.Register(
+                            None,
+                            expr_stmt.ret_expr.variable,
+                            expr_stmt.ret_expr.reg_offset,
+                            self.arch.bits,
+                            reg_name=self.arch.translate_register_name(
+                                expr_stmt.ret_expr.reg_offset, size=self.arch.bits
+                            ),
+                        ),
+                        v,
                     )
                 else:
                     v = PropValue.from_value_and_details(
                         self.state.top(expr_stmt.ret_expr.size * self.arch.byte_width),
-                        expr_stmt.ret_expr.size, expr_stmt.ret_expr, self._codeloc()
+                        expr_stmt.ret_expr.size,
+                        expr_stmt.ret_expr,
+                        self._codeloc(),
                     )
                     self.state.store_register(expr_stmt.ret_expr, v)
                 # set equivalence
@@ -194,11 +204,12 @@ class SimEnginePropagatorAIL(
                         if cond_expr.operands[0] == reg_expr:
                             # found it!
                             key = self.block.addr, true_target.one_expr.value
-                            self.state.block_initial_reg_values[key].append((
-                                reg_atom,
-                                cond_expr.operands[1],
-                            ))
-
+                            self.state.block_initial_reg_values[key].append(
+                                (
+                                    reg_atom,
+                                    cond_expr.operands[1],
+                                )
+                            )
 
     def _ail_handle_Return(self, stmt: Stmt.Return):
         if stmt.ret_exprs:
@@ -270,7 +281,7 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_Register(self, expr: Expr.Register) -> Optional[PropValue]:
 
-        self.state: 'PropagatorAILState'
+        self.state: "PropagatorAILState"
 
         # Special handling for SP and BP
         if self._stack_pointer_tracker is not None:
@@ -356,7 +367,7 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_Load(self, expr: Expr.Load) -> Optional[PropValue]:
 
-        self.state: 'PropagatorAILState'
+        self.state: "PropagatorAILState"
 
         addr = self._expr(expr.addr)
 
@@ -377,11 +388,12 @@ class SimEnginePropagatorAIL(
                     # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
                     # replacing stack variables, unless this is the parameter of a call (indicated by expr.func_arg is
                     # True).
-                    if getattr(expr, "func_arg", False) is True \
-                            or (self.state._gp is not None
-                                and not self.state.is_top(var.value)
-                                and var.value.concrete
-                                and var.value._model_concrete.value == self.state._gp):
+                    if getattr(expr, "func_arg", False) is True or (
+                        self.state._gp is not None
+                        and not self.state.is_top(var.value)
+                        and var.value.concrete
+                        and var.value._model_concrete.value == self.state._gp
+                    ):
                         if var.one_expr is not None:
                             if not self.is_using_outdated_def(var.one_expr, var.one_defat, avoid=expr.addr):
                                 l.debug("Add a replacement: %s with %s", expr, var.one_expr)
@@ -398,8 +410,10 @@ class SimEnginePropagatorAIL(
         else:
             new_expr = expr
         prop_value = PropValue.from_value_and_details(
-            self.state.top(expr.size * self.arch.byte_width), expr.size, new_expr,
-            self._codeloc() if var_defat is None else var_defat
+            self.state.top(expr.size * self.arch.byte_width),
+            expr.size,
+            new_expr,
+            self._codeloc() if var_defat is None else var_defat,
         )
         return prop_value
 
@@ -432,14 +446,18 @@ class SimEnginePropagatorAIL(
             elif type(o_expr) is Expr.Const:
                 # do the conversion right away
                 value = o_expr.value
-                mask = (2 ** expr.to_bits) - 1
+                mask = (2**expr.to_bits) - 1
                 value &= mask
                 new_expr = Expr.Const(expr.idx, o_expr.variable, value, expr.to_bits)
             else:
                 new_expr = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, o_expr, **expr.tags)
 
-            if isinstance(new_expr, Expr.Convert) and not new_expr.is_signed \
-                    and new_expr.to_bits > new_expr.from_bits and new_expr.from_bits % self.arch.byte_width == 0:
+            if (
+                isinstance(new_expr, Expr.Convert)
+                and not new_expr.is_signed
+                and new_expr.to_bits > new_expr.from_bits
+                and new_expr.from_bits % self.arch.byte_width == 0
+            ):
                 # special handling for zero-extension: it simplifies the code if we explicitly model zeros
                 new_size = new_expr.from_bits // self.arch.byte_width
                 offset_and_details = {
@@ -447,7 +465,8 @@ class SimEnginePropagatorAIL(
                     new_size: Detail(
                         new_expr.size - new_size,
                         Expr.Const(expr.idx, None, 0, new_expr.to_bits - new_expr.from_bits),
-                        self._codeloc()),
+                        self._codeloc(),
+                    ),
                 }
             else:
                 offset_and_details = {0: Detail(expr.size, new_expr, self._codeloc())}
@@ -466,9 +485,7 @@ class SimEnginePropagatorAIL(
                     off = 0
                     siz = min(end_offset, offset_ + detail_.size) - start_offset
                     expr_ = PropValue.extract_ail_expression(
-                        (start_offset - offset_) * self.arch.byte_width,
-                        siz * self.arch.byte_width,
-                        detail_.expr
+                        (start_offset - offset_) * self.arch.byte_width, siz * self.arch.byte_width, detail_.expr
                     )
                     offset_and_details[off] = Detail(siz, expr_, detail_.def_at)
                 elif offset_ >= start_offset and offset_ + detail_.size <= end_offset:
@@ -478,8 +495,7 @@ class SimEnginePropagatorAIL(
                     if off == max_offset and off + siz < end_offset:
                         # extend the expr
                         expr_ = PropValue.extend_ail_expression(
-                            (end_offset - (off + siz)) * self.arch.byte_width,
-                            detail_.expr
+                            (end_offset - (off + siz)) * self.arch.byte_width, detail_.expr
                         )
                         siz = end_offset - off
                     else:
@@ -496,10 +512,7 @@ class SimEnginePropagatorAIL(
                     expr_ = PropValue.extract_ail_expression(0, siz * self.arch.byte_width, detail_.expr)
                     offset_and_details[off] = Detail(siz, expr_, detail_.def_at)
 
-            return PropValue(
-                new_value,
-                offset_and_details=offset_and_details
-            )
+            return PropValue(new_value, offset_and_details=offset_and_details)
         else:
             # it's empty... no expression is available for whatever reason
             return PropValue.from_value_and_details(new_value, expr.size, expr, self._codeloc())
@@ -511,15 +524,15 @@ class SimEnginePropagatorAIL(
             v = claripy.BVV(expr.value, expr.bits)
         return PropValue.from_value_and_details(v, expr.size, expr, self._codeloc())
 
-    def _ail_handle_DirtyExpression(self, expr: Expr.DirtyExpression) -> Optional[PropValue]:  # pylint:disable=no-self-use
+    def _ail_handle_DirtyExpression(
+        self, expr: Expr.DirtyExpression
+    ) -> Optional[PropValue]:  # pylint:disable=no-self-use
 
         if isinstance(expr.dirty_expr, Expr.VEXCCallExpression):
             for operand in expr.dirty_expr.operands:
                 _ = self._expr(operand)
 
-        return PropValue.from_value_and_details(
-            self.state.top(expr.bits), expr.size, expr, self._codeloc()
-        )
+        return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
     def _ail_handle_ITE(self, expr: Expr.ITE) -> Optional[PropValue]:
         # pylint:disable=unused-variable
@@ -527,10 +540,7 @@ class SimEnginePropagatorAIL(
         iftrue = self._expr(expr.iftrue)
         iffalse = self._expr(expr.iffalse)
 
-        return PropValue.from_value_and_details(
-            self.state.top(expr.bits),
-            expr.size, expr, self._codeloc()
-        )
+        return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
     def _ail_handle_Reinterpret(self, expr: Expr.Reinterpret) -> Optional[PropValue]:
         arg = self._expr(expr.operand)
@@ -538,13 +548,11 @@ class SimEnginePropagatorAIL(
         if self.state.is_top(arg.value):
             one_expr = arg.one_expr
             if one_expr is not None:
-                expr = Expr.Reinterpret(expr.idx, expr.from_bits, expr.from_type, expr.to_bits, expr.to_type, one_expr,
-                                        **expr.tags)
+                expr = Expr.Reinterpret(
+                    expr.idx, expr.from_bits, expr.from_type, expr.to_bits, expr.to_type, one_expr, **expr.tags
+                )
 
-        return PropValue.from_value_and_details(
-            arg.value,
-            expr.size, expr, self._codeloc()
-        )
+        return PropValue.from_value_and_details(arg.value, expr.size, expr, self._codeloc())
 
     def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call) -> Optional[PropValue]:
         if isinstance(expr_stmt.target, Expr.Expression):
@@ -556,8 +564,7 @@ class SimEnginePropagatorAIL(
 
         # ignore ret_expr
         return PropValue.from_value_and_details(
-            self.state.top(expr_stmt.bits),
-            expr_stmt.size, expr_stmt, self._codeloc()
+            self.state.top(expr_stmt.bits), expr_stmt.size, expr_stmt, self._codeloc()
         )
 
     def _ail_handle_Not(self, expr):
@@ -568,10 +575,7 @@ class SimEnginePropagatorAIL(
             new_expr = expr
         else:
             o_expr = o_value.one_expr
-            new_expr = Expr.UnaryOp(expr.idx,
-                                    'Not',
-                                     o_expr if o_expr is not None else expr.operands[0],
-                                     **expr.tags)
+            new_expr = Expr.UnaryOp(expr.idx, "Not", o_expr if o_expr is not None else expr.operands[0], **expr.tags)
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Neg(self, expr):
@@ -582,10 +586,7 @@ class SimEnginePropagatorAIL(
             new_expr = expr
         else:
             o_expr = o_value.one_expr
-            new_expr = Expr.UnaryOp(expr.idx,
-                                    'Neg',
-                                     o_expr if o_expr is not None else expr.operands[0],
-                                     **expr.tags)
+            new_expr = Expr.UnaryOp(expr.idx, "Neg", o_expr if o_expr is not None else expr.operands[0], **expr.tags)
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Cmp(self, expr: Expr.BinaryOp) -> PropValue:
@@ -606,10 +607,7 @@ class SimEnginePropagatorAIL(
         else:
             new_expr = expr
 
-        return PropValue.from_value_and_details(
-            self.state.top(expr.bits),
-            expr.size, new_expr, self._codeloc()
-        )
+        return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, new_expr, self._codeloc())
 
     _ail_handle_CmpF = _ail_handle_Cmp
     _ail_handle_CmpLE = _ail_handle_Cmp
@@ -642,14 +640,18 @@ class SimEnginePropagatorAIL(
                 new_expr = o0_value.one_expr.copy()
                 new_expr.offset += o1_expr.value
             else:
-                new_expr = Expr.BinaryOp(expr.idx,
-                                         'Add',
-                                         [o0_expr if o0_expr is not None else expr.operands[0],
-                                          o1_expr if o1_expr is not None else expr.operands[1],],
-                                         expr.signed,
-                                         floating_point=expr.floating_point,
-                                         rounding_mode=expr.rounding_mode,
-                                         **expr.tags)
+                new_expr = Expr.BinaryOp(
+                    expr.idx,
+                    "Add",
+                    [
+                        o0_expr if o0_expr is not None else expr.operands[0],
+                        o1_expr if o1_expr is not None else expr.operands[1],
+                    ],
+                    expr.signed,
+                    floating_point=expr.floating_point,
+                    rounding_mode=expr.rounding_mode,
+                    **expr.tags,
+                )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Sub(self, expr: Expr.BinaryOp) -> PropValue:
@@ -671,14 +673,18 @@ class SimEnginePropagatorAIL(
                 new_expr = o0_value.one_expr.copy()
                 new_expr.offset -= o1_expr.value
             else:
-                new_expr = Expr.BinaryOp(expr.idx,
-                                         'Sub',
-                                         [o0_expr if o0_expr is not None else expr.operands[0],
-                                          o1_expr if o1_expr is not None else expr.operands[1],],
-                                         expr.signed,
-                                         floating_point=expr.floating_point,
-                                         rounding_mode=expr.rounding_mode,
-                                         **expr.tags)
+                new_expr = Expr.BinaryOp(
+                    expr.idx,
+                    "Sub",
+                    [
+                        o0_expr if o0_expr is not None else expr.operands[0],
+                        o1_expr if o1_expr is not None else expr.operands[1],
+                    ],
+                    expr.signed,
+                    floating_point=expr.floating_point,
+                    rounding_mode=expr.rounding_mode,
+                    **expr.tags,
+                )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset) -> PropValue:  # pylint:disable=no-self-use
@@ -701,20 +707,27 @@ class SimEnginePropagatorAIL(
             if sp_offset is not None and type(o1_expr) is Expr.Const and is_alignment_mask(o1_expr.value):
                 value = o0_value.value
                 new_expr = o0_expr
-            elif isinstance(o0_expr, Expr.StackBaseOffset) and type(o1_expr) is Expr.Const \
-                    and is_alignment_mask(o1_expr.value):
+            elif (
+                isinstance(o0_expr, Expr.StackBaseOffset)
+                and type(o1_expr) is Expr.Const
+                and is_alignment_mask(o1_expr.value)
+            ):
                 value = o0_value.value
                 new_expr = o0_expr
             else:
                 value = self.state.top(expr.bits)
-                new_expr = Expr.BinaryOp(expr.idx,
-                                         'And',
-                                         [o0_expr if o0_expr is not None else expr.operands[0],
-                                          o1_expr if o1_expr is not None else expr.operands[1],],
-                                         expr.signed,
-                                         floating_point=expr.floating_point,
-                                         rounding_mode=expr.rounding_mode,
-                                         **expr.tags)
+                new_expr = Expr.BinaryOp(
+                    expr.idx,
+                    "And",
+                    [
+                        o0_expr if o0_expr is not None else expr.operands[0],
+                        o1_expr if o1_expr is not None else expr.operands[1],
+                    ],
+                    expr.signed,
+                    floating_point=expr.floating_point,
+                    rounding_mode=expr.rounding_mode,
+                    **expr.tags,
+                )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Or(self, expr: Expr.BinaryOp):
@@ -727,14 +740,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Or',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Or",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Xor(self, expr: Expr.BinaryOp):
@@ -747,14 +764,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Xor',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Xor",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Shl(self, expr: Expr.BinaryOp):
@@ -767,14 +788,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Shl',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1], ],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Shl",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Shr(self, expr: Expr.BinaryOp):
@@ -787,14 +812,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Shr',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Shr",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Sar(self, expr: Expr.BinaryOp):
@@ -807,14 +836,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Sar',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Sar",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Mul(self, expr):
@@ -827,14 +860,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Mul',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Mul",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Mull(self, expr):
@@ -847,14 +884,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Mull',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Mull",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Div(self, expr):
@@ -867,14 +908,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Div',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Div",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_DivMod(self, expr):
@@ -887,14 +932,18 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'DivMod',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     floating_point=expr.floating_point,
-                                     rounding_mode=expr.rounding_mode,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "DivMod",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_LogicalAnd(self, expr: Expr.BinaryOp):
@@ -910,12 +959,16 @@ class SimEnginePropagatorAIL(
             o1_expr = o1_value.one_expr
 
             value = self.state.top(expr.bits)
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'LogicalAnd',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1],],
-                                     expr.signed,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "LogicalAnd",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_TernaryOp(self, expr: Expr.TernaryOp):
@@ -932,11 +985,13 @@ class SimEnginePropagatorAIL(
             new_expr = Expr.TernaryOp(
                 expr.idx,
                 expr.op,
-                [o0_expr if o0_expr is not None else expr.operands[0],
-                 o1_expr if o1_expr is not None else expr.operands[1],
-                 o2_expr if o2_expr is not None else expr.operands[2]],
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                    o2_expr if o2_expr is not None else expr.operands[2],
+                ],
                 bits=expr.bits,
-                **expr.tags
+                **expr.tags,
             )
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, new_expr, self._codeloc())
@@ -951,25 +1006,30 @@ class SimEnginePropagatorAIL(
         else:
             o0_expr = o0_value.one_expr
             o1_expr = o1_value.one_expr
-            new_expr = Expr.BinaryOp(expr.idx,
-                                     'Concat',
-                                     [o0_expr if o0_expr is not None else expr.operands[0],
-                                      o1_expr if o1_expr is not None else expr.operands[1], ],
-                                     expr.signed,
-                                     **expr.tags)
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Concat",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                **expr.tags,
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     #
     # Util methods
     #
 
-    def is_using_outdated_def(self, expr: Expr.Expression, expr_defat: 'CodeLocation',
-                              avoid: Optional[Expr.Expression]=None) -> bool:
+    def is_using_outdated_def(
+        self, expr: Expr.Expression, expr_defat: "CodeLocation", avoid: Optional[Expr.Expression] = None
+    ) -> bool:
 
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
-        walker = OutdatedDefinitionWalker(expr, expr_defat, self.state,
-                                          avoid=avoid,
-                                          extract_offset_to_sp=self.extract_offset_to_sp)
+        walker = OutdatedDefinitionWalker(
+            expr, expr_defat, self.state, avoid=avoid, extract_offset_to_sp=self.extract_offset_to_sp
+        )
         walker.walk_expression(expr)
         return walker.out_dated

@@ -1,16 +1,16 @@
-#pylint:disable=arguments-differ,unused-argument,missing-class-docstring
+# pylint:disable=arguments-differ,unused-argument,missing-class-docstring
 import angr
 
 ######################################
 # access
 ######################################
 
-class access(angr.SimProcedure):
 
+class access(angr.SimProcedure):
     def run(self, pathname, mode):
-        strlen = angr.SIM_PROCEDURES['libc']['strlen']
+        strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
         p_strlen = self.inline_call(strlen, pathname)
-        p_expr = self.state.memory.load(pathname, p_strlen.max_null_index, endness='Iend_BE')
+        p_expr = self.state.memory.load(pathname, p_strlen.max_null_index, endness="Iend_BE")
         path = self.state.solver.eval(p_expr, cast_to=bytes)
 
         simfile = self.state.fs.get(path)

@@ -26,8 +26,20 @@ class CFGModel(Serializable):
     This class describes a Control Flow Graph for a specific range of code.
     """
 
-    __slots__ = ('ident', 'graph', 'jump_tables', 'memory_data', 'insn_addr_to_memory_data', '_nodes_by_addr',
-                 '_nodes', '_cfg_manager', '_iropt_level', '_node_addrs', 'is_arm', 'normalized')
+    __slots__ = (
+        "ident",
+        "graph",
+        "jump_tables",
+        "memory_data",
+        "insn_addr_to_memory_data",
+        "_nodes_by_addr",
+        "_nodes",
+        "_cfg_manager",
+        "_iropt_level",
+        "_node_addrs",
+        "is_arm",
+        "normalized",
+    )
 
     def __init__(self, ident, cfg_manager=None, is_arm=False):
 
@@ -74,10 +86,7 @@ class CFGModel(Serializable):
     #
 
     def __getstate__(self):
-        state = dict(map(
-            lambda x: (x, self.__getattribute__(x)),
-            self.__slots__
-        ))
+        state = dict(map(lambda x: (x, self.__getattribute__(x)), self.__slots__))
 
         return state
 
@@ -101,23 +110,23 @@ class CFGModel(Serializable):
         cmsg.ident = self.ident
 
         # nodes
-        nodes = [ ]
+        nodes = []
         for n in self.graph.nodes():
             nodes.append(n.serialize_to_cmessage())
         cmsg.nodes.extend(nodes)
 
         # edges
-        edges = [ ]
+        edges = []
         for src, dst, data in self.graph.edges(data=True):
             edge = primitives_pb2.Edge()
             edge.src_ea = src.addr
             edge.dst_ea = dst.addr
             for k, v in data.items():
-                if k == 'jumpkind':
+                if k == "jumpkind":
                     edge.jumpkind = cfg_jumpkind_to_pb(v)
-                elif k == 'ins_addr':
-                    edge.ins_addr = v if v is not None else 0xffff_ffff_ffff_ffff
-                elif k == 'stmt_idx':
+                elif k == "ins_addr":
+                    edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
+                elif k == "stmt_idx":
                     edge.stmt_idx = v if v is not None else -1
                 else:
                     edge.data[k] = pickle.dumps(v)
@@ -125,7 +134,7 @@ class CFGModel(Serializable):
         cmsg.edges.extend(edges)
 
         # memory data
-        memory_data = [ ]
+        memory_data = []
         for data in self.memory_data.values():
             memory_data.append(data.serialize_to_cmessage())
         cmsg.memory_data.extend(memory_data)
@@ -150,8 +159,10 @@ class CFGModel(Serializable):
             model.graph.add_node(node)
             if len(model._nodes_by_addr[node.block_id]) > 1:
                 if once("cfg_model_parse_from_cmessage many nodes at addr"):
-                    l.warning("Importing a CFG with more than one node for a given address is currently unsupported. "
-                              "The resulting graph may be broken.")
+                    l.warning(
+                        "Importing a CFG with more than one node for a given address is currently unsupported. "
+                        "The resulting graph may be broken."
+                    )
 
         model._node_addrs = list(sorted(model._nodes_by_addr.keys()))
 
@@ -160,12 +171,12 @@ class CFGModel(Serializable):
             # more than one node at a given address is unsupported, grab the first one
             src = model._nodes_by_addr[edge_pb2.src_ea][0]
             dst = model._nodes_by_addr[edge_pb2.dst_ea][0]
-            data = { }
+            data = {}
             for k, v in edge_pb2.data.items():
                 data[k] = pickle.loads(v)
-            data['jumpkind'] = cfg_jumpkind_from_pb(edge_pb2.jumpkind)
-            data['ins_addr'] = edge_pb2.ins_addr if edge_pb2.ins_addr != 0xffff_ffff_ffff_ffff else None
-            data['stmt_idx'] = edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None
+            data["jumpkind"] = cfg_jumpkind_from_pb(edge_pb2.jumpkind)
+            data["ins_addr"] = edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None
+            data["stmt_idx"] = edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None
             model.graph.add_edge(src, dst, **data)
 
         # memory data
@@ -247,8 +258,9 @@ class CFGModel(Serializable):
             return self._nodes[block_id]
         return None
 
-    def get_any_node(self, addr: int, is_syscall: bool=None, anyaddr: bool=False,
-                     force_fastpath: bool=False) -> Optional[CFGNode]:
+    def get_any_node(
+        self, addr: int, is_syscall: bool = None, anyaddr: bool = False, force_fastpath: bool = False
+    ) -> Optional[CFGNode]:
         """
         Get an arbitrary CFGNode (without considering their contexts) from our graph.
 
@@ -285,7 +297,7 @@ class CFGModel(Serializable):
 
             while pos < len(self._node_addrs):
                 n = self._nodes_by_addr[self._node_addrs[pos]][0]
-                actual_addr = n.addr if not self.is_arm else n.addr & 0xffff_fffe
+                actual_addr = n.addr if not self.is_arm else n.addr & 0xFFFF_FFFE
                 if actual_addr > addr:
                     break
 
@@ -307,7 +319,7 @@ class CFGModel(Serializable):
 
         return None
 
-    def get_all_nodes(self, addr: int, is_syscall: bool=None, anyaddr: bool=False) -> List[CFGNode]:
+    def get_all_nodes(self, addr: int, is_syscall: bool = None, anyaddr: bool = False) -> List[CFGNode]:
         """
         Get all CFGNodes whose address is the specified one.
 
@@ -315,13 +327,12 @@ class CFGModel(Serializable):
         :param is_syscall: True returns the syscall node, False returns the normal CFGNode, None returns both
         :return:           all CFGNodes
         """
-        results = [ ]
+        results = []
 
         for cfg_node in self.graph.nodes():
-            if cfg_node.addr == addr or (anyaddr and
-                                         cfg_node.size is not None and
-                                         cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)
-                                         ):
+            if cfg_node.addr == addr or (
+                anyaddr and cfg_node.size is not None and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)
+            ):
                 if is_syscall is None or is_syscall == cfg_node.is_syscall:
                     results.append(cfg_node)
 
@@ -337,8 +348,9 @@ class CFGModel(Serializable):
 
         return self.graph.nodes()
 
-    def get_predecessors(self, cfgnode: CFGNode, excluding_fakeret: bool=True,
-                         jumpkind: Optional[str]=None) -> List[CFGNode]:
+    def get_predecessors(
+        self, cfgnode: CFGNode, excluding_fakeret: bool = True, jumpkind: Optional[str] = None
+    ) -> List[CFGNode]:
         """
         Get predecessors of a node in the control flow graph.
 
@@ -350,32 +362,31 @@ class CFGModel(Serializable):
         :return:                    A list of predecessors
         """
 
-        if excluding_fakeret and jumpkind == 'Ijk_FakeRet':
-            return [ ]
+        if excluding_fakeret and jumpkind == "Ijk_FakeRet":
+            return []
 
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if cfgnode in self.graph:
                 return list(self.graph.predecessors(cfgnode))
-            return [ ]
+            return []
 
         predecessors = []
         for pred, _, data in self.graph.in_edges([cfgnode], data=True):
-            jk = data['jumpkind']
+            jk = data["jumpkind"]
             if jumpkind is not None:
                 if jk == jumpkind:
                     predecessors.append(pred)
             elif excluding_fakeret:
-                if jk != 'Ijk_FakeRet':
+                if jk != "Ijk_FakeRet":
                     predecessors.append(pred)
             else:
                 predecessors.append(pred)
         return predecessors
 
-    def get_successors(self, node: CFGNode,
-                       excluding_fakeret: bool = True,
-                       jumpkind: Optional[str] = None
-                       ) -> List[CFGNode]:
+    def get_successors(
+        self, node: CFGNode, excluding_fakeret: bool = True, jumpkind: Optional[str] = None
+    ) -> List[CFGNode]:
         """
         Get successors of a node in the control flow graph.
 
@@ -389,23 +400,23 @@ class CFGModel(Serializable):
         """
 
         if jumpkind is not None:
-            if excluding_fakeret and jumpkind == 'Ijk_FakeRet':
-                return [ ]
+            if excluding_fakeret and jumpkind == "Ijk_FakeRet":
+                return []
 
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if node in self.graph:
                 return list(self.graph.successors(node))
-            return [ ]
+            return []
 
         successors = []
         for _, suc, data in self.graph.out_edges([node], data=True):
-            jk = data['jumpkind']
+            jk = data["jumpkind"]
             if jumpkind is not None:
                 if jumpkind == jk:
                     successors.append(suc)
             elif excluding_fakeret:
-                if jk != 'Ijk_FakeRet':
+                if jk != "Ijk_FakeRet":
                     successors.append(suc)
             else:
                 successors.append(suc)
@@ -424,13 +435,15 @@ class CFGModel(Serializable):
 
         successors = []
         for _, suc, data in self.graph.out_edges([node], data=True):
-            if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
-                successors.append((suc, data['jumpkind']))
+            if not excluding_fakeret or data["jumpkind"] != "Ijk_FakeRet":
+                successors.append((suc, data["jumpkind"]))
         return successors
 
     get_successors_and_jumpkind = get_successors_and_jumpkinds
 
-    def get_predecessors_and_jumpkinds(self, node: CFGNode, excluding_fakeret: bool=True) -> List[Tuple[CFGNode,str]]:
+    def get_predecessors_and_jumpkinds(
+        self, node: CFGNode, excluding_fakeret: bool = True
+    ) -> List[Tuple[CFGNode, str]]:
         """
         Get a list of tuples where the first element is the predecessor of the CFG node and the second element is the
         jumpkind of the predecessor.
@@ -442,8 +455,8 @@ class CFGModel(Serializable):
 
         predecessors = []
         for pred, _, data in self.graph.in_edges([node], data=True):
-            if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
-                predecessors.append((pred, data['jumpkind']))
+            if not excluding_fakeret or data["jumpkind"] != "Ijk_FakeRet":
+                predecessors.append((pred, data["jumpkind"]))
         return predecessors
 
     get_predecessors_and_jumpkind = get_predecessors_and_jumpkinds
@@ -495,6 +508,6 @@ class CFGModel(Serializable):
         """
 
         if not self.graph.has_edge(src_block, dst_block):
-            raise AngrCFGError(f'Edge ({src_block}, {dst_block}) does not exist in CFG')
+            raise AngrCFGError(f"Edge ({src_block}, {dst_block}) does not exist in CFG")
 
-        return self.graph[src_block][dst_block]['stmt_idx']
+        return self.graph[src_block][dst_block]["stmt_idx"]

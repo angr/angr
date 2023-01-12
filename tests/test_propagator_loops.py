@@ -12,32 +12,33 @@ class TestPropagatorLoops(unittest.TestCase):
     @staticmethod
     def _test_loop_variant_common(code):
         def banner(s):
-            print(s + '\n' + '='*40)
-        banner('Input Assembly')
-        print('\n'.join(l.strip() for l in code.splitlines()))
-        print('')
-        p = angr.load_shellcode(code, 'AMD64')
+            print(s + "\n" + "=" * 40)
+
+        banner("Input Assembly")
+        print("\n".join(l.strip() for l in code.splitlines()))
+        print("")
+        p = angr.load_shellcode(code, "AMD64")
         p.analyses.CFGFast(normalize=True)
         f = p.kb.functions[0]
-        banner('Raw AIL Nodes')
+        banner("Raw AIL Nodes")
         nodes = sorted(list(f.nodes), key=lambda n: n.addr)
         am = ailment.Manager(arch=p.arch)
         for n in nodes:
             b = p.factory.block(n.addr, n.size)
             ab = ailment.IRSBConverter.convert(b.vex, am)
             print(ab)
-        print('')
-        banner('Optimized AIL Nodes')
+        print("")
+        banner("Optimized AIL Nodes")
         a = p.analyses.Clinic(f)
         nodes = sorted(list(a.graph.nodes), key=lambda n: n.addr)
         assert len(nodes) == 3
         for n in nodes:
             print(n)
-        print('')
-        banner('Decompilation')
+        print("")
+        banner("Decompilation")
         d = p.analyses.Decompiler(f)
         print(d.codegen.text)
-        print('')
+        print("")
         # cond_node = nodes[1]
         # cond_stmt = None
         # for stmt in cond_node.statements:
@@ -53,12 +54,13 @@ class TestPropagatorLoops(unittest.TestCase):
         snodes = rs.result.nodes
         assert len(snodes) == 3
         assert isinstance(snodes[1], LoopNode)
-        banner('Condition')
+        banner("Condition")
         print(str(snodes[1].condition))
         return snodes[1].condition
 
     def test_loop_counter_reg(self):
-        cond = self._test_loop_variant_common('''
+        cond = self._test_loop_variant_common(
+            """
             push rbp
             push rbx
             mov ebx, 0xa
@@ -68,13 +70,17 @@ class TestPropagatorLoops(unittest.TestCase):
             jnz loop
             pop rbx
             pop rbp
-            ret''')
+            ret"""
+        )
         # TODO: we should only get ir_X != 0 once we implement value numbering
-        assert re.match(r"\(ir_\d+ != 0x0<32>\)", str(cond)) is not None or \
-               re.match(r"\(cc_dep1<4> != 0x0<32>\)", str(cond)) is not None
+        assert (
+            re.match(r"\(ir_\d+ != 0x0<32>\)", str(cond)) is not None
+            or re.match(r"\(cc_dep1<4> != 0x0<32>\)", str(cond)) is not None
+        )
 
     def test_loop_counter_stack(self):
-        cond = self._test_loop_variant_common('''
+        cond = self._test_loop_variant_common(
+            """
             push rbp
             mov rbp, rsp
             sub rsp, 8
@@ -85,9 +91,10 @@ class TestPropagatorLoops(unittest.TestCase):
             cmp dword ptr [rsp], 9
             jle loop
             leave
-            ret''')
+            ret"""
+        )
         assert re.match(r"\(Load\(addr=stack_base-16, size=4, endness=Iend_LE\) <=s 0x9<32>\)", str(cond)) is not None
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

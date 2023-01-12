@@ -16,12 +16,12 @@ from .custom_callable import IdentifierCallable
 
 l = logging.getLogger(name=__name__)
 
-flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../example_flag_page'))
+flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../example_flag_page"))
 try:
     with open(flag_loc, "rb") as f:
         FLAG_DATA = f.read()
 except OSError:
-    FLAG_DATA = b"A"*0x1000
+    FLAG_DATA = b"A" * 0x1000
 
 assert len(FLAG_DATA) == 0x1000
 
@@ -29,7 +29,7 @@ assert len(FLAG_DATA) == 0x1000
 class Runner:
     def __init__(self, project, cfg):
         # this is kind of fucked up
-        project.simos.syscall_library.update(SIM_LIBRARIES['cgcabi_tracer'])
+        project.simos.syscall_library.update(SIM_LIBRARIES["cgcabi_tracer"])
 
         self.project = project
         self.cfg = cfg
@@ -48,15 +48,13 @@ class Runner:
             options.add(so.UNICORN)
             l.info("unicorn tracing enabled")
 
-            remove_options = so.simplification | { so.LAZY_SOLVES } | so.resilience | { so.SUPPORT_FLOATING_POINT }
+            remove_options = so.simplification | {so.LAZY_SOLVES} | so.resilience | {so.SUPPORT_FLOATING_POINT}
             add_options = options
-            entry_state = self.project.factory.entry_state(
-                    add_options=add_options,
-                    remove_options=remove_options)
+            entry_state = self.project.factory.entry_state(add_options=add_options, remove_options=remove_options)
 
             # map the CGC flag page
             fake_flag_data = entry_state.solver.BVV(FLAG_DATA)
-            entry_state.memory.store(0x4347c000, fake_flag_data)
+            entry_state.memory.store(0x4347C000, fake_flag_data)
             # map the place where I put arguments
             entry_state.memory.map_region(0x2000, 0x10000, 7)
 
@@ -111,11 +109,11 @@ class Runner:
         else:
             entry_state = initial_state.copy()
 
-        stdin = SimFile('stdin', content=test_data.preloaded_stdin)
-        stdout = SimFile('stdout')
-        stderr = SimFile('stderr')
+        stdin = SimFile("stdin", content=test_data.preloaded_stdin)
+        stdout = SimFile("stdout")
+        stderr = SimFile("stderr")
         fd = {0: SimFileDescriptor(stdin, 0), 1: SimFileDescriptor(stdout, 0), 2: SimFileDescriptor(stderr, 0)}
-        entry_state.register_plugin('posix', SimSystemPosix(stdin=stdin, stdout=stdout, stderr=stderr, fd=fd))
+        entry_state.register_plugin("posix", SimSystemPosix(stdin=stdin, stdout=stdout, stderr=stderr, fd=fd))
 
         entry_state.options.add(so.STRICT_PAGE_ACCESS)
 
@@ -136,18 +134,10 @@ class Runner:
         entry_state.unicorn.max_steps = 10000
 
         # syscall hook
-        entry_state.inspect.b(
-            'syscall',
-            BP_BEFORE,
-            action=self.syscall_hook
-        )
+        entry_state.inspect.b("syscall", BP_BEFORE, action=self.syscall_hook)
 
         if concrete_rand:
-            entry_state.inspect.b(
-                'syscall',
-                BP_AFTER,
-                action=self.syscall_hook_concrete_rand
-            )
+            entry_state.inspect.b("syscall", BP_AFTER, action=self.syscall_hook_concrete_rand)
 
         # solver timeout
         entry_state.solver._solver.timeout = 500
@@ -187,7 +177,7 @@ class Runner:
             buf = state.solver.eval(state.regs.ebx)
             for i in range(count):
                 a = random.randint(0, 255)
-                state.memory.store(buf+i, state.solver.BVV(a, 8))
+                state.memory.store(buf + i, state.solver.BVV(a, 8))
 
     def get_base_call_state(self, function, test_data, initial_state=None, concrete_rand=False):
         curr_buf_loc = 0x2000
@@ -205,8 +195,14 @@ class Runner:
                 mapped_input.append(i)
 
         cc = self.project.factory.cc()
-        call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
-                        cc=cc, base_state=s, max_steps=test_data.max_steps)
+        call = IdentifierCallable(
+            self.project,
+            function.startpoint.addr,
+            concrete_only=True,
+            cc=cc,
+            base_state=s,
+            max_steps=test_data.max_steps,
+        )
         return call.get_base_state(*mapped_input)
 
     def test(self, function, test_data, concrete_rand=False, custom_offs=None):
@@ -228,7 +224,7 @@ class Runner:
             for i, off in zip(test_data.input_args, custom_offs):
                 if isinstance(i, bytes):
                     s.memory.store(curr_buf_loc, i + b"\x00")
-                    mapped_input.append(curr_buf_loc+off)
+                    mapped_input.append(curr_buf_loc + off)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
@@ -237,8 +233,14 @@ class Runner:
 
         cc = self.project.factory.cc()
         try:
-            call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
-                            cc=cc, base_state=s, max_steps=test_data.max_steps)
+            call = IdentifierCallable(
+                self.project,
+                function.startpoint.addr,
+                concrete_only=True,
+                cc=cc,
+                base_state=s,
+                max_steps=test_data.max_steps,
+            )
             result = call(*mapped_input)
             result_state = call.result_state
         except AngrCallableMultistateError as e:
@@ -279,10 +281,16 @@ class Runner:
             return False
 
         if test_data.expected_return_val is not None and test_data.expected_return_val < 0:
-            test_data.expected_return_val &= (2**self.project.arch.bits - 1)
-        if test_data.expected_return_val is not None and \
-                result_state.solver.eval(result) != test_data.expected_return_val:
-            l.info("return val mismatch got %#x, expected %#x", result_state.solver.eval(result), test_data.expected_return_val)
+            test_data.expected_return_val &= 2**self.project.arch.bits - 1
+        if (
+            test_data.expected_return_val is not None
+            and result_state.solver.eval(result) != test_data.expected_return_val
+        ):
+            l.info(
+                "return val mismatch got %#x, expected %#x",
+                result_state.solver.eval(result),
+                test_data.expected_return_val,
+            )
             return False
 
         if result_state.solver.symbolic(result_state.posix.stdout.size):
@@ -324,7 +332,7 @@ class Runner:
             for i, off in zip(test_data.input_args, custom_offs):
                 if isinstance(i, bytes):
                     s.memory.store(curr_buf_loc, i + b"\x00")
-                    mapped_input.append(curr_buf_loc+off)
+                    mapped_input.append(curr_buf_loc + off)
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, int):
@@ -333,8 +341,14 @@ class Runner:
 
         cc = self.project.factory.cc()
         try:
-            call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
-                            cc=cc, base_state=s, max_steps=test_data.max_steps)
+            call = IdentifierCallable(
+                self.project,
+                function.startpoint.addr,
+                concrete_only=True,
+                cc=cc,
+                base_state=s,
+                max_steps=test_data.max_steps,
+            )
             _ = call(*mapped_input)
             result_state = call.result_state
         except AngrCallableMultistateError as e:

@@ -23,7 +23,7 @@ class SimEngineBase:
         self.project: Optional[angr.Project] = project
         self.state = None
 
-    __tls = ('state',)
+    __tls = ("state",)
 
     def __getstate__(self):
         return (self.project,)
@@ -62,7 +62,7 @@ class TLSMixin:
     MAGIC MAGIC MAGIC
     """
 
-    def __new__(cls, *args, **kwargs): # pylint:disable=unused-argument
+    def __new__(cls, *args, **kwargs):  # pylint:disable=unused-argument
         obj = super().__new__(cls)
         obj.__local = threading.local()
         return obj
@@ -71,9 +71,9 @@ class TLSMixin:
         super().__init_subclass__(**kwargs)
 
         for subcls in cls.mro():
-            for attr in subcls.__dict__.get('_%s__tls' % subcls.__name__, ()):
-                if attr.startswith('__'):
-                    attr = f'_{subcls.__name__}{attr}'
+            for attr in subcls.__dict__.get("_%s__tls" % subcls.__name__, ()):
+                if attr.startswith("__"):
+                    attr = f"_{subcls.__name__}{attr}"
 
                 if hasattr(cls, attr):
                     if type(getattr(cls, attr, None)) is not TLSProperty:
@@ -82,7 +82,7 @@ class TLSMixin:
                     setattr(cls, attr, TLSProperty(attr))
 
 
-class TLSProperty: # pylint:disable=missing-class-docstring
+class TLSProperty:  # pylint:disable=missing-class-docstring
     def __init__(self, name):
         self.name = name
 
@@ -109,7 +109,7 @@ class SuccessorsMixin(SimEngine):
 
         self.successors: Optional[SimSuccessors] = None
 
-    __tls = ('successors',)
+    __tls = ("successors",)
 
     def process(self, state, *args, **kwargs):  # pylint:disable=unused-argument
         """
@@ -124,12 +124,15 @@ class SuccessorsMixin(SimEngine):
         :param force_addr:  Force execution to pretend that we're working at this concrete address
         :returns:           A SimSuccessors object categorizing the execution's successor states
         """
-        inline = kwargs.pop('inline', False)
-        force_addr = kwargs.pop('force_addr', None)
+        inline = kwargs.pop("inline", False)
+        force_addr = kwargs.pop("force_addr", None)
 
         ip = state._ip
-        addr = (ip if isinstance(ip, SootAddressDescriptor) else state.solver.eval(ip)) \
-            if force_addr is None else force_addr
+        addr = (
+            (ip if isinstance(ip, SootAddressDescriptor) else state.solver.eval(ip))
+            if force_addr is None
+            else force_addr
+        )
 
         # make a copy of the initial state for actual processing, if needed
         if not inline and o.COPY_STATES in state.options:
@@ -145,16 +148,17 @@ class SuccessorsMixin(SimEngine):
         # data - move the "present" into the "past" by pushing an entry on the history stack.
         # nuance: make sure to copy from the PREVIOUS state to the CURRENT one
         # to avoid creating a dead link in the history, messing up the statehierarchy
-        new_state.register_plugin('history', old_state.history.make_child())
+        new_state.register_plugin("history", old_state.history.make_child())
         new_state.history.recent_bbl_addrs.append(addr)
         if new_state.arch.unicorn_support:
             new_state.scratch.executed_pages_set = {addr & ~0xFFF}
 
         self.successors = SimSuccessors(addr, old_state)
 
-        new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=self.successors,
-                           address=addr)
-        self.successors = new_state._inspect_getattr('sim_successors', self.successors)
+        new_state._inspect(
+            "engine_process", when=BP_BEFORE, sim_engine=self, sim_successors=self.successors, address=addr
+        )
+        self.successors = new_state._inspect_getattr("sim_successors", self.successors)
         try:
             self.process_successors(self.successors, **kwargs)
         except SimException as e:
@@ -162,8 +166,8 @@ class SuccessorsMixin(SimEngine):
                 raise
             old_state.project.simos.handle_exception(self.successors, self, e)
 
-        new_state._inspect('engine_process', when=BP_AFTER, sim_successors=self.successors, address=addr)
-        self.successors = new_state._inspect_getattr('sim_successors', self.successors)
+        new_state._inspect("engine_process", when=BP_AFTER, sim_successors=self.successors, address=addr)
+        self.successors = new_state._inspect_getattr("sim_successors", self.successors)
 
         # downsizing
         if new_state.supports_inspect:
@@ -200,6 +204,7 @@ class SuccessorsMixin(SimEngine):
         :param kwargs:          Any extra arguments. Do not fail if you are passed unexpected arguments.
         """
         successors.processed = False  # mark failure
+
 
 # pylint:disable=wrong-import-position
 from .. import sim_options as o

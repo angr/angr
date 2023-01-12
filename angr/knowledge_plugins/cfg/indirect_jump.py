@@ -12,14 +12,36 @@ class IndirectJumpType:
 
 class IndirectJump(Serializable):
 
-    __slots__ = ("addr", "ins_addr", "func_addr", "jumpkind", "stmt_idx", "resolved_targets", "jumptable",
-                 "jumptable_addr", "jumptable_size", "jumptable_entry_size", "jumptable_entries", "type", )
+    __slots__ = (
+        "addr",
+        "ins_addr",
+        "func_addr",
+        "jumpkind",
+        "stmt_idx",
+        "resolved_targets",
+        "jumptable",
+        "jumptable_addr",
+        "jumptable_size",
+        "jumptable_entry_size",
+        "jumptable_entries",
+        "type",
+    )
 
-    def __init__(self, addr: int, ins_addr: int, func_addr: int, jumpkind: str, stmt_idx: int,
-                 resolved_targets: Optional[List[int]]=None, jumptable: bool=False,
-                 jumptable_addr: Optional[int]=None, jumptable_size: Optional[int]=None,
-                 jumptable_entry_size: Optional[int]=None, jumptable_entries: Optional[List[int]]=None,
-                 type_: Optional[int]=IndirectJumpType.Unknown):
+    def __init__(
+        self,
+        addr: int,
+        ins_addr: int,
+        func_addr: int,
+        jumpkind: str,
+        stmt_idx: int,
+        resolved_targets: Optional[List[int]] = None,
+        jumptable: bool = False,
+        jumptable_addr: Optional[int] = None,
+        jumptable_size: Optional[int] = None,
+        jumptable_entry_size: Optional[int] = None,
+        jumptable_entries: Optional[List[int]] = None,
+        type_: Optional[int] = IndirectJumpType.Unknown,
+    ):
         self.addr = addr
         self.ins_addr = ins_addr
         self.func_addr = func_addr

@@ -1,5 +1,6 @@
 import angr
 
+
 class GetKeyboardType(angr.SimProcedure):
     def run(self, param):
         # return the values present at time of author's testing

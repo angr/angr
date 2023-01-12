@@ -9,18 +9,19 @@ class CallsitePrototypes(KnowledgeBasePlugin):
     """
     CallsitePrototypes manages callee prototypes at call sites.
     """
+
     def __init__(self, kb):
         super().__init__()
         self._kb = kb
 
-        self._prototypes: Dict[int,Tuple[SimCC,SimTypeFunction,bool]] = {}
+        self._prototypes: Dict[int, Tuple[SimCC, SimTypeFunction, bool]] = {}
 
     def set_prototype(
-            self,
-            callsite_block_addr: int,
-            cc: SimCC,
-            prototype: SimTypeFunction,
-            manual: bool=False,
+        self,
+        callsite_block_addr: int,
+        cc: SimCC,
+        prototype: SimTypeFunction,
+        manual: bool = False,
     ) -> None:
         self._prototypes[callsite_block_addr] = cc, prototype, manual
 
@@ -51,4 +52,4 @@ class CallsitePrototypes(KnowledgeBasePlugin):
         return o
 
 
-KnowledgeBasePlugin.register_default('callsite_prototypes', CallsitePrototypes)
+KnowledgeBasePlugin.register_default("callsite_prototypes", CallsitePrototypes)

@@ -27,19 +27,20 @@ class KnowledgeBase:
 
     Contains things like a CFG, data references, etc.
     """
-    functions: 'FunctionManager'
-    variables: 'VariableManager'
-    structured_code: 'StructuredCodeManager'
-    defs: 'KeyDefinitionManager'
-    cfgs: 'CFGManager'
-    _project: 'Project'
-    types: 'TypesStore'
+
+    functions: "FunctionManager"
+    variables: "VariableManager"
+    structured_code: "StructuredCodeManager"
+    defs: "KeyDefinitionManager"
+    cfgs: "CFGManager"
+    _project: "Project"
+    types: "TypesStore"
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:
             l.warning("The obj parameter in KnowledgeBase.__init__() has been deprecated.")
-        object.__setattr__(self, '_project', project)
-        object.__setattr__(self, '_plugins', {})
+        object.__setattr__(self, "_project", project)
+        object.__setattr__(self, "_plugins", {})
 
         self.name = name if name else ("kb_%d" % next(kb_ctr))
 
@@ -56,13 +57,13 @@ class KnowledgeBase:
         return self.indirect_jumps.resolved
 
     def __setstate__(self, state):
-        object.__setattr__(self, '_project', state['project'])
-        object.__setattr__(self, '_plugins', state['plugins'])
+        object.__setattr__(self, "_project", state["project"])
+        object.__setattr__(self, "_plugins", state["plugins"])
 
     def __getstate__(self):
         s = {
-            'project': self._project,
-            'plugins': self._plugins,
+            "project": self._project,
+            "plugins": self._plugins,
         }
         return s
 
@@ -110,6 +111,7 @@ class KnowledgeBase:
             del self._plugins[name]
 
     K = TypeVar("K", bound=KnowledgeBasePlugin)
+
     def get_knowledge(self, requested_plugin_cls: Type[K]) -> Optional[K]:
         """
         Type inference safe method to request a knowledge base plugin
@@ -126,7 +128,8 @@ class KnowledgeBase:
         # Get first plugin of this type already registered, or default to None
         return next(
             filter(lambda registered_plugin: type(registered_plugin) == requested_plugin_cls, self._plugins.values()),
-            None)
+            None,
+        )
 
     def request_knowledge(self, requested_plugin_cls: Type[K]) -> K:
         existing = self.get_knowledge(requested_plugin_cls)

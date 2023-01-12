@@ -11,14 +11,14 @@ l = logging.getLogger(name=__name__)
 
 
 class VariableTypes:
-    Iterator = 'Iterator'
-    HasNext = 'HasNext'
-    Next = 'Next'
+    Iterator = "Iterator"
+    HasNext = "HasNext"
+    Next = "Next"
 
 
 class AnnotatedVariable:
 
-    __slots__ = ['variable', 'type']
+    __slots__ = ["variable", "type"]
 
     def __init__(self, variable, type_):
         self.variable = variable
@@ -48,10 +48,10 @@ class Condition:
     def from_opstr(cls, opstr):
 
         mapping = {
-            'eq': cls.Equal,
-            '==': cls.Equal,
-            'ne': cls.NotEqual,
-            '!=': cls.NotEqual,
+            "eq": cls.Equal,
+            "==": cls.Equal,
+            "ne": cls.NotEqual,
+            "!=": cls.NotEqual,
         }
 
         return mapping.get(opstr, None)
@@ -126,10 +126,11 @@ class SootBlockProcessor:
         # is it jumping outside the loop?
         if not self._stmt_inside_loop(target):
 
-            cond = Condition(Condition.from_opstr(stmt.condition.op),
-                             self._expr(stmt.condition.value1),
-                             self._expr(stmt.condition.value2),
-                             )
+            cond = Condition(
+                Condition.from_opstr(stmt.condition.op),
+                self._expr(stmt.condition.value1),
+                self._expr(stmt.condition.value2),
+            )
 
             self.state.add_loop_exit_stmt(stmt.label, condition=cond)
 
@@ -165,9 +166,9 @@ class SootBlockProcessor:
         full_method = expr.class_name + "." + expr.method_name
 
         mapping = {
-            'java.util.Set.iterator': VariableTypes.Iterator,
-            'java.util.Iterator.hasNext': VariableTypes.HasNext,
-            'java.util.Iterator.next': VariableTypes.Next,
+            "java.util.Set.iterator": VariableTypes.Iterator,
+            "java.util.Iterator.hasNext": VariableTypes.HasNext,
+            "java.util.Iterator.next": VariableTypes.Next,
         }
 
         base_var = self._expr(expr.base)
@@ -201,8 +202,8 @@ class LoopAnalysisState:
 
         self.block = block
 
-        self.induction_variables = { }
-        self.locals = { }
+        self.induction_variables = {}
+        self.locals = {}
 
         self.loop_exit_stmts = set()
 
@@ -239,11 +240,11 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
     Analyze a loop and recover important information about the loop (e.g., invariants, induction variables) in a static
     manner.
     """
+
     def __init__(self, loop, defuse):
 
         visitor = LoopVisitor(loop)
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
-                                 graph_visitor=visitor)
+        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=visitor)
 
         self.loop = loop
         self.defuse = defuse
@@ -333,15 +334,16 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         """
 
         # Condition 0
-        check_0 = lambda cond: (isinstance(cond, Condition) and
-                                cond.op == Condition.Equal and
-                                cond.val1 == 0 and
-                                isinstance(cond.val0, AnnotatedVariable) and
-                                cond.val0.type == VariableTypes.HasNext
-                                )
+        check_0 = lambda cond: (
+            isinstance(cond, Condition)
+            and cond.op == Condition.Equal
+            and cond.val1 == 0
+            and isinstance(cond.val0, AnnotatedVariable)
+            and cond.val0.type == VariableTypes.HasNext
+        )
 
-        check_0_results = [ (check_0(stmt[0]), stmt[0]) for stmt in self.loop_exit_stmts ]
-        check_0_conds = [ cond for r, cond in check_0_results if r ]  # remove all False ones
+        check_0_results = [(check_0(stmt[0]), stmt[0]) for stmt in self.loop_exit_stmts]
+        check_0_conds = [cond for r, cond in check_0_results if r]  # remove all False ones
 
         if not check_0_conds:
             return None
@@ -349,15 +351,14 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         the_iterator = check_0_conds[0].val0.variable
 
         # Condition 1
-        check_1 = lambda local: (isinstance(local, AnnotatedVariable) and
-                                 local.type == VariableTypes.Next and
-                                 local.variable == the_iterator
-                                 )
+        check_1 = lambda local: (
+            isinstance(local, AnnotatedVariable) and local.type == VariableTypes.Next and local.variable == the_iterator
+        )
 
-        if not any([ check_1(local) for local in self.locals.values() ]):
+        if not any([check_1(local) for local in self.locals.values()]):
             return None
 
         return True
 
 
-register_analysis(LoopAnalysis, 'LoopAnalysis')
+register_analysis(LoopAnalysis, "LoopAnalysis")

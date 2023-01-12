@@ -1,5 +1,6 @@
 from . import SimConcretizationStrategy
 
+
 class SimConcretizationStrategySolutions(SimConcretizationStrategy):
     """
     Concretization strategy that resolves an address into some

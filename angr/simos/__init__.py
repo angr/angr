@@ -23,7 +23,7 @@ def register_simos(name, cls):
 for k, v in _DESCR_EI_OSABI.items():
     register_simos(v, SimLinux)
 
-register_simos('linux', SimLinux)
-register_simos('windows', SimWindows)
-register_simos('cgc', SimCGC)
-register_simos('javavm', SimJavaVM)
+register_simos("linux", SimLinux)
+register_simos("windows", SimWindows)
+register_simos("cgc", SimCGC)
+register_simos("javavm", SimJavaVM)

@@ -1,12 +1,15 @@
 import angr
 
+
 class getuid(angr.SimProcedure):
     def run(self):
         return self.state.posix.uid
 
+
 class getgid(angr.SimProcedure):
     def run(self):
         return self.state.posix.gid
+
 
 class getresgid(angr.SimProcedure):
     def run(self, rgid_addr, egid_addr, sgid_addr):
@@ -15,6 +18,7 @@ class getresgid(angr.SimProcedure):
         self.state.memory.store(egid_addr, gid)
         self.state.memory.store(sgid_addr, gid)
         return 0
+
 
 class getresuid(angr.SimProcedure):
     def run(self, ruid_addr, euid_addr, suid_addr):

@@ -18,18 +18,20 @@ from ...sim_type import SimStruct, SimTypeLong, SimTypeFixedSizeArray, SimTypeSh
 #    unsigned int mem_unit;   /* Memory unit size in bytes */
 # }
 sysinfo_ty = SimStruct(
-    {"uptime": SimTypeLong(signed=True),
-     "loads": SimTypeFixedSizeArray(SimTypeLong(signed=False), 3),
-     "totalram": SimTypeLong(signed=False),
-     "freeram": SimTypeLong(signed=False),
-     "sharedram": SimTypeLong(signed=False),
-     "bufferram": SimTypeLong(signed=False),
-     "totalswap": SimTypeLong(signed=False),
-     "freeswap": SimTypeLong(signed=False),
-     "procs": SimTypeShort(signed=False),
-     "totalhigh": SimTypeLong(signed=False),
-     "freehigh": SimTypeLong(signed=False),
-     "mem_unit": SimTypeInt(signed=False)},
+    {
+        "uptime": SimTypeLong(signed=True),
+        "loads": SimTypeFixedSizeArray(SimTypeLong(signed=False), 3),
+        "totalram": SimTypeLong(signed=False),
+        "freeram": SimTypeLong(signed=False),
+        "sharedram": SimTypeLong(signed=False),
+        "bufferram": SimTypeLong(signed=False),
+        "totalswap": SimTypeLong(signed=False),
+        "freeswap": SimTypeLong(signed=False),
+        "procs": SimTypeShort(signed=False),
+        "totalhigh": SimTypeLong(signed=False),
+        "freehigh": SimTypeLong(signed=False),
+        "mem_unit": SimTypeInt(signed=False),
+    },
     name="sysinfo",
     pack=False,
     align=None,
@@ -37,20 +39,20 @@ sysinfo_ty = SimStruct(
 
 
 class sysinfo(angr.SimProcedure):
-    def run(self, info): # pylint: disable=arguments-differ
+    def run(self, info):  # pylint: disable=arguments-differ
         value = {
-                'uptime': 1234567,
-                'loads': [20100,22000,15000],
-                'totalram': 1024**2,
-                'freeram': 1024**2 // 4,
-                'sharedram': 1024**2 // 4,
-                'bufferram': 1024**2 // 4,
-                'totalswap': 1024**2,
-                'freeswap': 1024**2 // 2,
-                'procs': 533,
-                'totalhigh': 11,
-                'freehigh': 12,
-                'mem_unit': 13
+            "uptime": 1234567,
+            "loads": [20100, 22000, 15000],
+            "totalram": 1024**2,
+            "freeram": 1024**2 // 4,
+            "sharedram": 1024**2 // 4,
+            "bufferram": 1024**2 // 4,
+            "totalswap": 1024**2,
+            "freeswap": 1024**2 // 2,
+            "procs": 533,
+            "totalhigh": 11,
+            "freehigh": 12,
+            "mem_unit": 13,
         }
         sysinfo_ty.with_arch(self.arch).store(self.state, info, value)
         return 0

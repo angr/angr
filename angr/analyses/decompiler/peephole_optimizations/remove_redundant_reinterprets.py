@@ -13,7 +13,7 @@ class RemoveRedundantReinterprets(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Simplifying nested and constant Reinterprets"
-    expr_classes = (Reinterpret, )  # all expressions are allowed
+    expr_classes = (Reinterpret,)  # all expressions are allowed
 
     def optimize(self, expr: Reinterpret):
         if isinstance(expr.operand, Reinterpret):

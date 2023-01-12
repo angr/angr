@@ -2,7 +2,7 @@ import logging
 
 from .base import SimSootExpr
 
-l = logging.getLogger('angr.engines.soot.expressions.phi')
+l = logging.getLogger("angr.engines.soot.expressions.phi")
 
 
 class SimSootExpr_Phi(SimSootExpr):
@@ -10,8 +10,10 @@ class SimSootExpr_Phi(SimSootExpr):
         # One value will be defined, based on the taken path
         # We first try to take the value from the source block, otherwise we iterate to find a define value
         # One case in which the value is NOT in the source block is when the source block is in native code
-        if hasattr(self.state.scratch.source, 'block_idx'):
-            local_values = [self._translate_value(v) for v, idx in self.expr.values if idx == self.state.scratch.source.block_idx]
+        if hasattr(self.state.scratch.source, "block_idx"):
+            local_values = [
+                self._translate_value(v) for v, idx in self.expr.values if idx == self.state.scratch.source.block_idx
+            ]
             if len(local_values) > 0:
                 # fastpath
                 local = local_values[0]

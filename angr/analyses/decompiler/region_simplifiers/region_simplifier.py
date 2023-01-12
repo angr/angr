@@ -18,6 +18,7 @@ class RegionSimplifier(Analysis):
     """
     Simplifies a given region.
     """
+
     def __init__(self, func, region, variable_kb=None):
         self.func = func
         self.region = region
@@ -79,12 +80,10 @@ class RegionSimplifier(Analysis):
         # pre-process and identify folding candidates
         # for variable definitions with loads, we invoke StoreStatementFinder to see if there are any Store statements
         # before the definition site and the use site.
-        var_with_loads = { }
-        single_use_variables = [ ]
+        var_with_loads = {}
+        single_use_variables = []
         for var, uses in expr_counter.uses.items():
-            if len(uses) == 1 \
-                    and var in expr_counter.assignments \
-                    and len(expr_counter.assignments[var]) == 1:
+            if len(uses) == 1 and var in expr_counter.assignments and len(expr_counter.assignments[var]) == 1:
                 definition, deps, loc, has_loads = next(iter(expr_counter.assignments[var]))
                 if has_loads:
                     # the definition has at least one load expression. we need to ensure there are no store statements
@@ -177,4 +176,4 @@ class RegionSimplifier(Analysis):
         return region
 
 
-AnalysesHub.register_default('RegionSimplifier', RegionSimplifier)
+AnalysesHub.register_default("RegionSimplifier", RegionSimplifier)

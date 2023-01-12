@@ -2,6 +2,7 @@ import claripy
 
 from . import MemoryMixin
 
+
 class ConditionalMixin(MemoryMixin):
     def load(self, addr, condition=None, fallback=None, **kwargs):
         res = super().load(addr, condition=condition, **kwargs)

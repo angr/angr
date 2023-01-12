@@ -14,7 +14,7 @@ class FunctionManagerSerializer:
     """
 
     @staticmethod
-    def dump(session, db_kb: 'DbKnowledgeBase', func_manager: FunctionManager):
+    def dump(session, db_kb: "DbKnowledgeBase", func_manager: FunctionManager):
         """
 
         :param session:
@@ -35,7 +35,7 @@ class FunctionManagerSerializer:
             session.add(db_func)
 
     @staticmethod
-    def load(session, db_kb: 'DbKnowledgeBase', kb: 'KnowledgeBase'):
+    def load(session, db_kb: "DbKnowledgeBase", kb: "KnowledgeBase"):
         """
 
         :param session:
@@ -50,8 +50,9 @@ class FunctionManagerSerializer:
         all_func_addrs = set(map(lambda x: x[0], session.query(DbFunction.addr).filter_by(kb=db_kb)))
 
         for db_func in db_funcs:
-            func = Function.parse(db_func.blob, function_manager=funcs, project=kb._project,
-                                  all_func_addrs=all_func_addrs)
+            func = Function.parse(
+                db_func.blob, function_manager=funcs, project=kb._project, all_func_addrs=all_func_addrs
+            )
             funcs[func.addr] = func
 
         funcs.rebuild_callgraph()

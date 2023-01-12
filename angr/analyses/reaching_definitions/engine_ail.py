@@ -34,8 +34,9 @@ class SimEngineRDAIL(
     arch: archinfo.Arch
     state: ReachingDefinitionsState
 
-    def __init__(self, project, call_stack, maximum_local_call_depth,
-                 function_handler: Optional[FunctionHandler] = None):
+    def __init__(
+        self, project, call_stack, maximum_local_call_depth, function_handler: Optional[FunctionHandler] = None
+    ):
         super().__init__()
         self.project = project
         self._call_stack = call_stack
@@ -72,8 +73,8 @@ class SimEngineRDAIL(
         }
 
     def process(self, state, *args, **kwargs):
-        self._dep_graph = kwargs.pop('dep_graph', None)
-        self._visited_blocks = kwargs.pop('visited_blocks', None)
+        self._dep_graph = kwargs.pop("dep_graph", None)
+        self._visited_blocks = kwargs.pop("visited_blocks", None)
 
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
@@ -81,10 +82,10 @@ class SimEngineRDAIL(
             self._process(
                 state,
                 None,
-                block=kwargs.pop('block', None),
+                block=kwargs.pop("block", None),
             )
         except SimEngineError as e:
-            if kwargs.pop('fail_fast', False) is True:
+            if kwargs.pop("fail_fast", False) is True:
                 raise e
         return self.state, self._visited_blocks, self._dep_graph
 
@@ -120,7 +121,7 @@ class SimEngineRDAIL(
             if handler is not ...:
                 handler(stmt)
         else:
-            self.l.warning('Unsupported statement type %s.', type(stmt).__name__)
+            self.l.warning("Unsupported statement type %s.", type(stmt).__name__)
 
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
@@ -130,7 +131,7 @@ class SimEngineRDAIL(
         if handler is not None:
             return handler(expr)
         else:
-            self.l.warning('Unsupported expression type %s.', type(expr).__name__)
+            self.l.warning("Unsupported expression type %s.", type(expr).__name__)
             return None
 
     def _ail_handle_Assignment(self, stmt):
@@ -159,7 +160,7 @@ class SimEngineRDAIL(
                 pass
 
         else:
-            l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
+            l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
     def _ail_handle_Store(self, stmt: ailment.Stmt.Store) -> None:
         data: MultiValues = self._expr(stmt.data)
@@ -185,10 +186,7 @@ class SimEngineRDAIL(
                 memory_location = MemoryLocation(addr_v._model_concrete.value, size, endness=stmt.endness)
 
             if memory_location is not None:
-                self.state.kill_and_add_definition(memory_location,
-                                                   self._codeloc(),
-                                                   data,
-                                                   endness=stmt.endness)
+                self.state.kill_and_add_definition(memory_location, self._codeloc(), data, endness=stmt.endness)
 
     def _ail_handle_Jump(self, stmt):
         _ = self._expr(stmt.target)
@@ -207,7 +205,7 @@ class SimEngineRDAIL(
     def _ail_handle_Call(self, stmt: ailment.Stmt.Call):
         self._handle_Call_base(stmt, is_expr=False)
 
-    def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool=False):
+    def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool = False):
         if isinstance(stmt.target, ailment.Expr.Expression):
             target = self._expr(stmt.target)  # pylint:disable=unused-variable
         else:
@@ -224,13 +222,17 @@ class SimEngineRDAIL(
             used_exprs = stmt.args
         elif stmt.calling_convention is not None and stmt.prototype is not None:
             # getting used expressions from the function prototype, its arguments, and the calling convention
-            used_exprs = [ ]
+            used_exprs = []
             for arg_loc in stmt.calling_convention.arg_locs(stmt.prototype):
                 if isinstance(arg_loc, SimRegArg):
-                    used_exprs.append(ailment.Expr.Register(None, None,
-                                                            self.arch.registers[arg_loc.reg_name][0],
-                                                            self.arch.registers[arg_loc.reg_name][1])
-                                      )
+                    used_exprs.append(
+                        ailment.Expr.Register(
+                            None,
+                            None,
+                            self.arch.registers[arg_loc.reg_name][0],
+                            self.arch.registers[arg_loc.reg_name][1],
+                        )
+                    )
                 elif isinstance(arg_loc, SimStackArg):
                     used_exprs.append(SpOffset(arg_loc.size * 8, arg_loc.stack_offset, is_base=False))
                 else:
@@ -246,22 +248,32 @@ class SimEngineRDAIL(
             l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
             cc = self.project.factory.cc()
 
-        killed_vars = [ ailment.Expr.Register(None, None,
-                                              self.arch.registers[reg_name][0],
-                                              self.arch.registers[reg_name][1] * self.arch.byte_width)
-                        for reg_name in cc.CALLER_SAVED_REGS ]
+        killed_vars = [
+            ailment.Expr.Register(
+                None, None, self.arch.registers[reg_name][0], self.arch.registers[reg_name][1] * self.arch.byte_width
+            )
+            for reg_name in cc.CALLER_SAVED_REGS
+        ]
 
         # Add uses
         if used_exprs is None:
-            used_exprs = [ ailment.Expr.Register(None, None,
-                                                 self.arch.registers[reg_name][0],
-                                                 self.arch.registers[reg_name][1] * self.arch.byte_width)
-                           for reg_name in cc.ARG_REGS ]
+            used_exprs = [
+                ailment.Expr.Register(
+                    None,
+                    None,
+                    self.arch.registers[reg_name][0],
+                    self.arch.registers[reg_name][1] * self.arch.byte_width,
+                )
+                for reg_name in cc.ARG_REGS
+            ]
             if cc.FP_ARG_REGS:
                 used_exprs += [
-                    ailment.Expr.Register(None, None,
-                                          self.arch.registers[reg_name][0],
-                                          self.arch.registers[reg_name][1] * self.arch.byte_width)
+                    ailment.Expr.Register(
+                        None,
+                        None,
+                        self.arch.registers[reg_name][0],
+                        self.arch.registers[reg_name][1] * self.arch.byte_width,
+                    )
                     for reg_name in cc.FP_ARG_REGS[:8]
                 ]
         for expr in used_exprs:
@@ -321,11 +333,11 @@ class SimEngineRDAIL(
             self.state.kill_definitions(Register(var.reg_offset, var.size))
 
         # kill all cc_ops
-        if 'cc_op' in self.arch.registers:
-            self.state.kill_definitions(Register(*self.arch.registers['cc_op']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']))
+        if "cc_op" in self.arch.registers:
+            self.state.kill_definitions(Register(*self.arch.registers["cc_op"]))
+            self.state.kill_definitions(Register(*self.arch.registers["cc_dep1"]))
+            self.state.kill_definitions(Register(*self.arch.registers["cc_dep2"]))
+            self.state.kill_definitions(Register(*self.arch.registers["cc_ndep"]))
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
 
@@ -350,11 +362,17 @@ class SimEngineRDAIL(
         if cc is not None:
             # callee-saved args
             for reg in self.arch.register_list:
-                if (reg.general_purpose
-                        and reg.name not in cc.CALLER_SAVED_REGS
-                        and reg.name not in cc.ARG_REGS
-                        and reg.vex_offset not in {self.arch.sp_offset, self.arch.bp_offset, self.arch.ip_offset, }
-                        and (isinstance(cc.RETURN_VAL, SimRegArg) and reg.name != cc.RETURN_VAL.reg_name)
+                if (
+                    reg.general_purpose
+                    and reg.name not in cc.CALLER_SAVED_REGS
+                    and reg.name not in cc.ARG_REGS
+                    and reg.vex_offset
+                    not in {
+                        self.arch.sp_offset,
+                        self.arch.bp_offset,
+                        self.arch.ip_offset,
+                    }
+                    and (isinstance(cc.RETURN_VAL, SimRegArg) and reg.name != cc.RETURN_VAL.reg_name)
                 ):
                     self.state.add_register_use(reg.vex_offset, reg.size, codeloc)
 
@@ -392,7 +410,7 @@ class SimEngineRDAIL(
         if isinstance(stmt.dirty_stmt, pyvex.stmt.Dirty):
             # TODO: We need dirty helpers for a more complete understanding of clobbered registers
             tmp = stmt.dirty_stmt.tmp
-            if tmp in (-1, 0xffffffff):
+            if tmp in (-1, 0xFFFFFFFF):
                 return
             size = 32  # FIXME: We don't know the size.
             self.state.kill_and_add_definition(Tmp(tmp, size), self._codeloc(), None)
@@ -437,7 +455,7 @@ class SimEngineRDAIL(
             # the full value does not exist, but we handle partial existence, too
             missing_defs = None
             if ex.missing_size != size:
-                existing_values = [ ]
+                existing_values = []
                 i = 0
                 while i < size:
                     try:
@@ -537,7 +555,7 @@ class SimEngineRDAIL(
                     self.state.add_memory_use_by_defs(defs, self._codeloc(), expr=expr)
                     result = result.merge(vs) if result is not None else vs
             else:
-                l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
+                l.debug("Memory address %r undefined or unsupported at pc %#x.", addr, self.ins_addr)
 
         if result is None:
             top = self.state.top(bits)
@@ -566,7 +584,7 @@ class SimEngineRDAIL(
         converted = set()
         for v in values:
             if expr.to_bits < expr.from_bits:
-                conv = v[expr.to_bits - 1:0]
+                conv = v[expr.to_bits - 1 : 0]
             elif expr.to_bits > expr.from_bits:
                 conv = claripy.ZeroExt(expr.to_bits - expr.from_bits, v)
             else:
@@ -780,8 +798,13 @@ class SimEngineRDAIL(
         expr0_v = expr0.one_value()
         expr1_v = expr1.one_value()
 
-        if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete \
-                and expr1_v._model_concrete.value != 0:
+        if (
+            expr0_v is not None
+            and expr1_v is not None
+            and expr0_v.concrete
+            and expr1_v.concrete
+            and expr1_v._model_concrete.value != 0
+        ):
             r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
         else:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -803,15 +826,19 @@ class SimEngineRDAIL(
             # each value in expr0 >> expr1_v
             if expr0.count() == 1 and 0 in expr0:
                 if all(v.concrete for v in expr0[0]):
-                    vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr0[0]}
+                    vs = {
+                        (claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
+                        for v in expr0[0]
+                    }
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if expr1.count() == 1 and 0 in expr1:
                 if all(v.concrete for v in expr1[0]):
-                    vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr1[0]}
+                    vs = {
+                        (claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits))
+                        for v in expr1[0]
+                    }
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -837,15 +864,19 @@ class SimEngineRDAIL(
             # each value in expr0 >> expr1_v
             if expr0.count() == 1 and 0 in expr0:
                 if all(v.concrete for v in expr0[0]):
-                    vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr0[0]}
+                    vs = {
+                        (claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
+                        for v in expr0[0]
+                    }
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if expr1.count() == 1 and 0 in expr1:
                 if all(v.concrete for v in expr1[0]):
-                    vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr1[0]}
+                    vs = {
+                        (claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits))
+                        for v in expr1[0]
+                    }
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -871,15 +902,17 @@ class SimEngineRDAIL(
             # each value in expr0 << expr1_v
             if expr0.count() == 1 and 0 in expr0:
                 if all(v.concrete for v in expr0[0]):
-                    vs = {((v << expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr0[0]}
+                    vs = {
+                        ((v << expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0[0]
+                    }
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if expr1.count() == 1 and 0 in expr1:
                 if all(v.concrete for v in expr1[0]):
-                    vs = {((expr0_v << v._model_concrete.value) if v.concrete else self.state.top(bits))
-                          for v in expr1[0]}
+                    vs = {
+                        ((expr0_v << v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1[0]
+                    }
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -1106,9 +1139,9 @@ class SimEngineRDAIL(
         stack_addr = self.state.stack_address(expr.offset)
         return MultiValues(stack_addr)
 
-    def _ail_handle_DirtyExpression(self,
-                                    expr: ailment.Expr.DirtyExpression
-                                    ) -> MultiValues:  # pylint:disable=no-self-use
+    def _ail_handle_DirtyExpression(
+        self, expr: ailment.Expr.DirtyExpression
+    ) -> MultiValues:  # pylint:disable=no-self-use
 
         if isinstance(expr.dirty_expr, ailment.Expr.VEXCCallExpression):
             for operand in expr.dirty_expr.operands:
@@ -1123,22 +1156,22 @@ class SimEngineRDAIL(
 
     def _handle_function(self):
         if len(self._call_stack) + 1 > self._maximum_local_call_depth:
-            l.warning('The analysis reached its maximum recursion depth.')
+            l.warning("The analysis reached its maximum recursion depth.")
             return None
 
         defs_ip = self.state.register_definitions.get_objects_by_offset(self.arch.ip_offset)
         if len(defs_ip) != 1:
-            l.error('Invalid definition(s) for IP.')
+            l.error("Invalid definition(s) for IP.")
             return None
 
         ip_data = next(iter(defs_ip)).data
         if len(ip_data) != 1:
-            l.error('Invalid number of values for IP.')
+            l.error("Invalid number of values for IP.")
             return None
 
         ip_addr = ip_data.get_first_element()
         if not isinstance(ip_addr, int):
-            l.error('Invalid type %s for IP.', type(ip_addr).__name__)
+            l.error("Invalid type %s for IP.", type(ip_addr).__name__)
             return None
 
         is_internal = False
@@ -1169,5 +1202,5 @@ class SimEngineRDAIL(
                 self._visited_blocks = visited_blocks
                 self._dep_graph = dep_graph
         else:
-            l.warning('Could not find function name for external function at address %#x.', ip_addr)
+            l.warning("Could not find function name for external function at address %#x.", ip_addr)
         return None

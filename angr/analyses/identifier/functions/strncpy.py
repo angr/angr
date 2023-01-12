@@ -24,7 +24,7 @@ class strncpy(Func):
     def num_args(self):
         return 3
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["dst", "src", "len"]
 
     def can_call_other_funcs(self):
@@ -35,9 +35,9 @@ class strncpy(Func):
         strlen = random.randint(1, 20)
         max_len = random.randint(1, 10)
         buf = rand_str(strlen, byte_list=strncpy.non_null) + b"\x00"
-        result_buf = rand_str(strlen+1)
+        result_buf = rand_str(strlen + 1)
         test_input = [result_buf, buf, max_len]
-        outlen = min(max_len, strlen+1)
+        outlen = min(max_len, strlen + 1)
         test_output = [buf[:outlen], buf, None]
         max_steps = 5
         return_val = None
@@ -47,7 +47,7 @@ class strncpy(Func):
     def pre_test(self, func, runner):
 
         # check only copies up to null
-        test_input = ["A"*7, "abc\x00ccc", 7]
+        test_input = ["A" * 7, "abc\x00ccc", 7]
         test_output = ["abc\x00AAA", "abc\x00ccc", None]
         max_steps = 5
         return_val = None

@@ -10,9 +10,10 @@ class JumpTargetCollector:
     """
     Collect all jump targets.
     """
+
     def __init__(self, node):
         self.root = node
-        self.jump_targets: Set[Tuple[int,Optional[int]]] = set()
+        self.jump_targets: Set[Tuple[int, Optional[int]]] = set()
 
         handlers = {
             ailment.Block: self._handle_Block,

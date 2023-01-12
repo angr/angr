@@ -1,18 +1,19 @@
 import angr
 
 import logging
+
 l = logging.getLogger(name=__name__)
 
 
 class pwrite64(angr.SimProcedure):
-    #pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ
     def run(self, fd, buf, nbyte, offset):
 
         SEEK_SET = 0  # Seek from beginning of file.
         SEEK_CUR = 1  # Seek from current position.
 
-        write = angr.SIM_PROCEDURES['posix']['write']
-        lseek = angr.SIM_PROCEDURES['linux_kernel']['lseek']
+        write = angr.SIM_PROCEDURES["posix"]["write"]
+        lseek = angr.SIM_PROCEDURES["linux_kernel"]["lseek"]
 
         if self.state.solver.symbolic(offset):
             err = "Symbolic offset is not supported in pwrite64"
