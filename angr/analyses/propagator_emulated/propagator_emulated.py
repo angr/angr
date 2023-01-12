@@ -65,11 +65,13 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         #symbolize the previously(previous analysis) found non constants and return that
         #if self.project.symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.symbolic_expr_locations_blockwise:
-        if self.project.prev_symbolic_expr_locations_blockwise and self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
+        if not self.state.solver.symbolic(result[0]) and self.project.prev_symbolic_expr_locations_blockwise and self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
             for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
                 for to_repl_expr in expr_list:
                     if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
-                        sym_result = self.state.solver.BVS("pre_constrain_sym_expr_"+str(hex(codeloc.block_id.addr)), result[0].size())
+                        sym_result = self.state.solver.BVS("symbolified_expr_"+str(hex(codeloc.block_id.addr)), result[0].size())
+                        if sym_result.args[0].startswith("symbolified_expr_0x140116a86"):
+                            import ipdb;ipdb.set_trace()
 
                         #sym_result = annotate_with_new_replacements(start_state, sym_result, )
                         #self.state.preconstrainer.preconstrain(self.state.solver.eval(result[0]), sym_result)
@@ -154,7 +156,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
                     save = True
                     var_ast_list.append(ast)
-                if isinstance(ast.args[0], str) and ast.args[0].startswith('pre_constrain_sym_expr_'):
+                if isinstance(ast.args[0], str) and ast.args[0].startswith('symbolified_expr'):
                     save = True
                     var_ast_list.append(ast)
             if not save:
@@ -199,6 +201,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
             conc_addr_and_new_constraints = []
             for conc_addr in conc_addrs:
+                new_ast_constraints = []
                 no_constraints_solver = claripy.solvers.SolverComposite()
                 no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
                 no_constraints_solver.add(simplified_addr == conc_addr)
@@ -210,11 +213,15 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 # solve for the other variables with the above constraint on the addr
                 for var_ast in var_ast_list:
                     conc_input_value = no_constraints_solver.eval(var_ast, 5)
-                    if len(conc_input_value) == 1:
-                        conc_addr_and_new_constraints.append((conc_addr, var_ast == conc_input_value, result[0] == loaded_value))
-                    else:
-                        #dont add a constraint on the ast since there's no single value that satisfies this, because we are going to use this for constant propagation
-                        conc_addr_and_new_constraints.append((conc_addr, None, result[0] == loaded_value))
+                    new_ast_constraints.append(var_ast == conc_input_value[0])
+                    # add this new constraint, and then solve for the rest as well
+                    no_constraints_solver.add(var_ast == conc_input_value[0])
+
+                if len(conc_input_value) == 1:
+                    conc_addr_and_new_constraints.append((conc_addr, new_ast_constraints, result[0] == loaded_value))
+                else:
+                    #dont add a constraint on the ast since there's no single value that satisfies this, because we are going to use this for constant propagation
+                    conc_addr_and_new_constraints.append((conc_addr, None, result[0] == loaded_value))
 
             if len(conc_addrs) == 1 or len(conc_addrs) > 2:
                 print("Hmmmm")
@@ -484,11 +491,11 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return state
 
     def _merge_states(self, node, *states):
-        #return states[-1], True
-        if len(states) == 1:
-            return states[0]
-        merged_abstract_state = reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
-        return merged_abstract_state, True
+        return states[-1], True
+        # if len(states) == 1:
+        #     return states[0]
+        # merged_abstract_state = reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
+        # return merged_abstract_state, True
 
     # def _add_input_state(self, node, input_state):
     #     successors_to_visit = []
@@ -502,6 +509,9 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def _run_on_node(self, node, abstract_state):
         print(node)
+        if str(node) == '<CFGENode 0x4023d0 (NoneNone0x0 0x0 0x402397 0x4023d0 )vm-vpc:4508681 [44]>':
+            import ipdb;ipdb.set_trace()
+
         # if node.addr == 0x449568 and node.block_id.vm_vpc == 4306815:
         #     import ipdb;ipdb.set_trace()
         #
@@ -620,7 +630,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                             if len(conc_addr_and_new_constraints) > 2:
                                 print("More than two possible jumps? is this not a direct jump converted to an indirect jump?")
                                 import ipdb;ipdb.set_trace()
-                            for conc_addr, input_constraint, loaded_value_constraint in conc_addr_and_new_constraints:
+                            for conc_addr, input_constraints, loaded_value_constraint in conc_addr_and_new_constraints:
                                 sym_addr = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][2]
                                 size = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][1]
                                 new_state = sim_successors.unconstrained_successors[0].copy()
@@ -646,14 +656,15 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                     loaded_value_constraint.args[0].args[0]] = "replaced"
 
 
-                                if input_constraint:
-                                    new_state.add_constraints(input_constraint)
-                                    new_state.partial_symbolic_constraint_solver.add(input_constraint)
-                                    #new_state.partial_symbolic_constraint_solver._solver.add_replacement(input_constraint.args[0],
-                                    #                                         input_constraint.args[1],
-                                    #                                         invalidate_cache=False)
-                                    new_state.solver._solver.add_replacement(input_constraint.args[0], input_constraint.args[1], invalidate_cache=False)
-                                    new_state.globals['replaced_asts_str'][input_constraint.args[0].args[0]] = "replaced"
+                                if input_constraints:
+                                    for ast_constraint in input_constraints:
+                                        new_state.add_constraints(ast_constraint)
+                                        new_state.partial_symbolic_constraint_solver.add(ast_constraint)
+                                        #new_state.partial_symbolic_constraint_solver._solver.add_replacement(input_constraint.args[0],
+                                        #                                         input_constraint.args[1],
+                                        #                                         invalidate_cache=False)
+                                        new_state.solver._solver.add_replacement(ast_constraint.args[0], ast_constraint.args[1], invalidate_cache=False)
+                                        new_state.globals['replaced_asts_str'][ast_constraint.args[0].args[0]] = "replaced"
 
                                 # new_state.regs.ip = new_state.solver.simplify(new_state.regs.ip).replace_dict(new_state.solver._solver._replacement_cache)
                                 # new_state.scratch.target = new_state.solver.simplify(new_state.scratch.target).replace_dict(new_state.solver._solver._replacement_cache)
