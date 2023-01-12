@@ -3,12 +3,14 @@ import warnings
 
 once_set = set()
 
+
 def once(key):
     if key in once_set:
         return False
     else:
         once_set.add(key)
         return True
+
 
 already_complained = set()
 
@@ -23,5 +25,7 @@ def deprecated(replacement=None):
                     warnings.warn(f"Use {replacement} instead of {func.__name__}", DeprecationWarning)
                 already_complained.add(func)
             return func(*args, **kwargs)
+
         return inner
+
     return outer

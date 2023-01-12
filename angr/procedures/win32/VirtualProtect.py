@@ -5,6 +5,7 @@ from .VirtualAlloc import convert_prot, deconvert_prot
 
 l = logging.getLogger(name=__name__)
 
+
 class VirtualProtect(angr.SimProcedure):
     def run(self, lpAddress, dwSize, flNewProtect, lpfOldProtect):
         l.debug("VirtualProtect(%s, %s, %s, %s)", lpAddress, dwSize, flNewProtect, lpfOldProtect)
@@ -15,8 +16,12 @@ class VirtualProtect(angr.SimProcedure):
 
         size = self.state.solver.max_int(dwSize)
         if dwSize.symbolic and size > self.state.libc.max_variable_size:
-            l.warning('symbolic VirtuaProtect dwSize %s has maximum %#x, greater than state.libc.max_variable_size %#x',
-                      dwSize, size, self.state.libc.max_variable_size)
+            l.warning(
+                "symbolic VirtuaProtect dwSize %s has maximum %#x, greater than state.libc.max_variable_size %#x",
+                dwSize,
+                size,
+                self.state.libc.max_variable_size,
+            )
             size = self.state.libc.max_variable_size
 
         prots = self.state.solver.eval_upto(flNewProtect, 2)
@@ -32,8 +37,8 @@ class VirtualProtect(angr.SimProcedure):
             l.debug("...failed, bad lpfOldProtect (write-miss)")
             return 0
 
-        page_start = addr & ~0xfff
-        page_end = (addr + size - 1) & ~0xfff
+        page_start = addr & ~0xFFF
+        page_end = (addr + size - 1) & ~0xFFF
         first_prot = None
         try:
             for page in range(page_start, page_end + 0x1000, 0x1000):

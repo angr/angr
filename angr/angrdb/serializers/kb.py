@@ -29,10 +29,10 @@ class KnowledgeBaseSerializer:
             session.add(db_kb)
 
         # dump other stuff
-        if 'CFGFast' in kb.cfgs:
-            cfg_model = kb.cfgs['CFGFast']
+        if "CFGFast" in kb.cfgs:
+            cfg_model = kb.cfgs["CFGFast"]
             if cfg_model is not None:
-                CFGModelSerializer.dump(session, db_kb, 'CFGFast', cfg_model)
+                CFGModelSerializer.dump(session, db_kb, "CFGFast", cfg_model)
 
         FunctionManagerSerializer.dump(session, db_kb, kb.functions)
         XRefsSerializer.dump(session, db_kb, kb.xrefs)
@@ -56,9 +56,9 @@ class KnowledgeBaseSerializer:
         kb = KnowledgeBase(project, name=name)
 
         # Load CFGs
-        cfg_model = CFGModelSerializer.load(session, db_kb, 'CFGFast', kb.cfgs, loader=project.loader)
+        cfg_model = CFGModelSerializer.load(session, db_kb, "CFGFast", kb.cfgs, loader=project.loader)
         if cfg_model is not None:
-            kb.cfgs['CFGFast'] = cfg_model
+            kb.cfgs["CFGFast"] = cfg_model
 
         # Load functions
         funcs = FunctionManagerSerializer.load(session, db_kb, kb)

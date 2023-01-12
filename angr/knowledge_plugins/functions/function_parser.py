@@ -15,6 +15,7 @@ class FunctionParser:
     """
     The implementation of the serialization methods for the <Function> class.
     """
+
     @staticmethod
     def serialize(function):
         """
@@ -42,18 +43,19 @@ class FunctionParser:
             if function.from_signature == "flirt":
                 obj.matched_from = function_pb2.Function.FLIRT
             else:
-                raise ValueError(f"Cannot convert from_signature {function.from_signature} into a SignatureSource "
-                                 f"enum.")
+                raise ValueError(
+                    f"Cannot convert from_signature {function.from_signature} into a SignatureSource " f"enum."
+                )
 
         # blocks
-        blocks_list = [ b.serialize_to_cmessage() for b in function.blocks ]
+        blocks_list = [b.serialize_to_cmessage() for b in function.blocks]
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
         block_addrs_set = function.block_addrs_set
         # graph
         edges = []
         external_addrs = set()
-        TRANSITION_JK = func_edge_type_to_pb('transition')  # default edge type
+        TRANSITION_JK = func_edge_type_to_pb("transition")  # default edge type
         for src, dst, data in function.transition_graph.edges(data=True):
             edge = primitives_pb2.Edge()
             edge.src_ea = src.addr
@@ -126,7 +128,7 @@ class FunctionParser:
                 block = BlockNode(b.ea, b.size, bytestr=b.bytes)
             blocks[block.addr] = block
         external_addrs = set(cmsg.external_functions)  # addresses of referenced blocks or nodes that are not inside
-                                                       # the current function
+        # the current function
 
         # edges
         edges = {}
@@ -150,15 +152,18 @@ class FunctionParser:
             dst = None
             dst_addr = edge_cmsg.dst_ea
             if dst_addr not in blocks:
-                if (edge_type == 'call' # call has to go to either a HookNode or a function
-                    or (all_func_addrs is not None and dst_addr in all_func_addrs)  # jumps to another function
-                ):
+                if edge_type == "call" or (  # call has to go to either a HookNode or a function
+                    all_func_addrs is not None and dst_addr in all_func_addrs
+                ):  # jumps to another function
                     if function_manager is not None:
                         # get a function
                         dst = FunctionParser._get_func(dst_addr, function_manager)
                     else:
-                        l.warning("About to get or create a function at %#x, but function_manager is not provided. "
-                                  "Will create a block instead.", dst_addr)
+                        l.warning(
+                            "About to get or create a function at %#x, but function_manager is not provided. "
+                            "Will create a block instead.",
+                            dst_addr,
+                        )
 
             if dst is None:
                 # create a block instead
@@ -175,10 +180,10 @@ class FunctionParser:
                     raise KeyError("Address of the edge destination %#x is not found." % edge_cmsg.dst_ea)
 
             data = {k: pickle.loads(v) for k, v in edge_cmsg.data.items()}
-            data['outside'] = edge_cmsg.is_outside
-            data['ins_addr'] = edge_cmsg.ins_addr
-            data['stmt_idx'] = edge_cmsg.stmt_idx
-            if edge_type == 'fake_return':
+            data["outside"] = edge_cmsg.is_outside
+            data["ins_addr"] = edge_cmsg.ins_addr
+            data["stmt_idx"] = edge_cmsg.stmt_idx
+            if edge_type == "fake_return":
                 fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
             else:
                 edges[(edge_cmsg.src_ea, dst_addr, edge_type)] = (src, dst, data)
@@ -188,36 +193,52 @@ class FunctionParser:
             src_addr, dst_addr, edge_type = k
             src, dst, data = v
 
-            outside = data.get('outside', False)
-            ins_addr = data.get('ins_addr', None)
-            stmt_idx = data.get('stmt_idx', None)
+            outside = data.get("outside", False)
+            ins_addr = data.get("ins_addr", None)
+            stmt_idx = data.get("stmt_idx", None)
             added_nodes.add(src)
             added_nodes.add(dst)
-            if edge_type in ('transition', 'exception'):
-                obj._transit_to(src, dst, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx,
-                                is_exception=edge_type == 'exception')
-            elif edge_type == 'call':
+            if edge_type in ("transition", "exception"):
+                obj._transit_to(
+                    src,
+                    dst,
+                    outside=outside,
+                    ins_addr=ins_addr,
+                    stmt_idx=stmt_idx,
+                    is_exception=edge_type == "exception",
+                )
+            elif edge_type == "call":
                 # find the corresponding fake_ret edge
-                fake_ret_edge = next(iter(edge_ for edge_ in fake_return_edges[src_addr]
-                                          if edge_[1].addr == src.addr + src.size), None)
+                fake_ret_edge = next(
+                    iter(edge_ for edge_ in fake_return_edges[src_addr] if edge_[1].addr == src.addr + src.size), None
+                )
                 if dst is None:
-                    l.warning("The destination function %#x does not exist, and it cannot be created since function "
-                              "manager is not provided. Please consider passing in a function manager to rebuild this "
-                              "graph.", dst_addr)
+                    l.warning(
+                        "The destination function %#x does not exist, and it cannot be created since function "
+                        "manager is not provided. Please consider passing in a function manager to rebuild this "
+                        "graph.",
+                        dst_addr,
+                    )
                 else:
                     if isinstance(dst, Function):
-                        obj._call_to(src, dst, None if fake_ret_edge is None else fake_ret_edge[1],
-                                     stmt_idx=stmt_idx,
-                                     ins_addr=ins_addr,
-                                     return_to_outside=fake_ret_edge is None,
-                                     )
+                        obj._call_to(
+                            src,
+                            dst,
+                            None if fake_ret_edge is None else fake_ret_edge[1],
+                            stmt_idx=stmt_idx,
+                            ins_addr=ins_addr,
+                            return_to_outside=fake_ret_edge is None,
+                        )
                     if fake_ret_edge is not None:
                         fakeret_src, fakeret_dst, fakeret_data = fake_ret_edge
                         added_nodes.add(fakeret_dst)
-                        obj._fakeret_to(fakeret_src, fakeret_dst,
-                                        confirmed=fakeret_data.get('confirmed'),
-                                        to_outside=fakeret_data.get('outside', None))
-            elif edge_type == 'fake_return':
+                        obj._fakeret_to(
+                            fakeret_src,
+                            fakeret_dst,
+                            confirmed=fakeret_data.get("confirmed"),
+                            to_outside=fakeret_data.get("outside", None),
+                        )
+            elif edge_type == "fake_return":
                 pass
 
         # add leftover blocks
@@ -257,14 +278,17 @@ class FunctionParser:
                     block_size = block.size
                     bytestr = block.bytes
                 else:
-                    l.warning("The Project instance is not specified. Use a dummy block size of 1 byte for block %#x.",
-                              addr)
+                    l.warning(
+                        "The Project instance is not specified. Use a dummy block size of 1 byte for block %#x.", addr
+                    )
                     block_size = 1
                     bytestr = b"\x00"
                 r = BlockNode(addr, block_size, bytestr=bytestr)
                 return r
-        raise ValueError("Unsupported case: The block %#x is not in external_addrs and is not in local blocks. "
-                         "This probably indicates a bug in angrdb generation.")
+        raise ValueError(
+            "Unsupported case: The block %#x is not in external_addrs and is not in local blocks. "
+            "This probably indicates a bug in angrdb generation."
+        )
 
     @staticmethod
     def _get_func(addr, function_manager):

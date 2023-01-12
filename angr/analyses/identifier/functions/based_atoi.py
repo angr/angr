@@ -23,9 +23,9 @@ def int2base(x, base):
         digits.append(digs[x % base])
         x //= base
     if sign < 0:
-        digits.append('-')
+        digits.append("-")
     digits.reverse()
-    return ''.join(digits)
+    return "".join(digits)
 
 
 class OneTwoOrThree:
@@ -54,7 +54,7 @@ class based_atoi(Func):
         self.allows_negative = True
         self.base = None
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
@@ -62,7 +62,7 @@ class based_atoi(Func):
     def num_args(self):
         return OneTwoOrThree()
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["buf", "size", "err"]
 
     def get_name(self):
@@ -73,7 +73,7 @@ class based_atoi(Func):
         return name
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2**26), 2**26-1)
+        num = random.randint(-(2**26), 2**26 - 1)
 
         if not self.allows_negative:
             num = abs(num)
@@ -103,7 +103,7 @@ class based_atoi(Func):
         if self.base is None:
             return False
 
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
 
         num = abs(num)
         s = int2base(num, self.base)

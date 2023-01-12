@@ -17,11 +17,7 @@ class SimCGC(SimUserland):
     """
 
     def __init__(self, project, **kwargs):
-        super().__init__(project,
-                syscall_library=L['cgcabi'],
-                syscall_addr_alignment=1,
-                name="CGC",
-                **kwargs)
+        super().__init__(project, syscall_library=L["cgcabi"], syscall_addr_alignment=1, name="CGC", **kwargs)
 
     # pylint: disable=arguments-differ
     def state_blank(self, flag_page=None, allocate_stack_page_count=0x100, **kwargs):
@@ -30,30 +26,30 @@ class SimCGC(SimUserland):
         :param allocate_stack_page_count:   Number of pages to pre-allocate for stack
         """
         # default stack as specified in the cgc abi
-        if kwargs.get('stack_end', None) is None:
-            kwargs['stack_end'] = 0xbaaab000
-        if kwargs.get('stack_size', None) is None:
-            kwargs['stack_size'] = 1024*1024*8
+        if kwargs.get("stack_end", None) is None:
+            kwargs["stack_end"] = 0xBAAAB000
+        if kwargs.get("stack_size", None) is None:
+            kwargs["stack_size"] = 1024 * 1024 * 8
 
         s = super().state_blank(**kwargs)  # pylint:disable=invalid-name
 
         # pre-grow the stack. unsure if this is strictly required or just a hack around a compiler bug
-        if hasattr(s.memory, 'allocate_stack_pages'):
-            s.memory.allocate_stack_pages(kwargs['stack_end'] - 1, allocate_stack_page_count * 0x1000)
+        if hasattr(s.memory, "allocate_stack_pages"):
+            s.memory.allocate_stack_pages(kwargs["stack_end"] - 1, allocate_stack_page_count * 0x1000)
 
         # Map the flag page
         if o.ABSTRACT_MEMORY not in s.options:
-            s.memory.map_region(0x4347c000, 4096, 1)
+            s.memory.map_region(0x4347C000, 4096, 1)
 
         # Create the CGC plugin
-        s.get_plugin('cgc')
+        s.get_plugin("cgc")
 
         # Set maximum bytes a single receive syscall should read
         s.cgc.max_receive_size = kwargs.get("cgc_max_recv_size", 0)
 
         # Set up the flag page
         if flag_page is None:
-            flag_page = [s.solver.BVS("cgc-flag-byte-%d" % i, 8, key=('flag', i), eternal=True) for i in range(0x1000)]
+            flag_page = [s.solver.BVS("cgc-flag-byte-%d" % i, 8, key=("flag", i), eternal=True) for i in range(0x1000)]
         elif type(flag_page) is bytes:
             flag_page = [s.solver.BVV(c, 8) for c in flag_page]
         elif type(flag_page) is list:
@@ -62,8 +58,8 @@ class SimCGC(SimUserland):
             raise ValueError("Bad flag page: expected None, bytestring, or list, but got %s" % type(flag_page))
 
         s.cgc.flag_bytes = flag_page
-        if s.mode != 'static':
-            s.memory.store(0x4347c000, claripy.Concat(*s.cgc.flag_bytes), priv=True)
+        if s.mode != "static":
+            s.memory.store(0x4347C000, claripy.Concat(*s.cgc.flag_bytes), priv=True)
 
         # set up the address for concrete transmits and receive
         s.unicorn.cgc_transmit_addr = self.syscall_from_number(2).addr
@@ -79,7 +75,7 @@ class SimCGC(SimUserland):
 
     def state_entry(self, add_options=None, **kwargs):
         if isinstance(self.project.loader.main_object, BackedCGC):
-            kwargs['permissions_backer'] = (True, self.project.loader.main_object.permissions_map)
+            kwargs["permissions_backer"] = (True, self.project.loader.main_object.permissions_map)
         if add_options is None:
             add_options = set()
         add_options.add(o.ZERO_FILL_UNCONSTRAINED_MEMORY)
@@ -97,14 +93,10 @@ class SimCGC(SimUserland):
             for size in writes_backer:
                 if size == 0:
                     continue
-                str_to_write = state.solver.BVS('file_write', size*8)
+                str_to_write = state.solver.BVS("file_write", size * 8)
                 a = SimActionData(
-                        state,
-                        'file_1_0',
-                        'write',
-                        addr=claripy.BVV(pos, state.arch.bits),
-                        data=str_to_write,
-                        size=size)
+                    state, "file_1_0", "write", addr=claripy.BVV(pos, state.arch.bits), data=str_to_write, size=size
+                )
                 stdout.write_data(str_to_write)
                 state.history.add_action(a)
                 pos += size
@@ -113,11 +105,11 @@ class SimCGC(SimUserland):
             # Set CGC-specific variables
             state.regs.eax = 0
             state.regs.ebx = 0
-            state.regs.ecx = 0x4347c000
+            state.regs.ecx = 0x4347C000
             state.regs.edx = 0
             state.regs.edi = 0
             state.regs.esi = 0
-            state.regs.esp = 0xbaaaaffc
+            state.regs.esp = 0xBAAAAFFC
             state.regs.ebp = 0
             state.regs.cc_dep1 = 0x202  # default eflags
             state.regs.cc_op = 0  # OP_COPY

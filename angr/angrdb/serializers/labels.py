@@ -20,10 +20,14 @@ class LabelsSerializer:
         """
 
         for addr, name in labels.items():
-            db_label = session.query(DbLabel).filter_by(
-                kb=db_kb,
-                addr=addr,
-            ).scalar()
+            db_label = (
+                session.query(DbLabel)
+                .filter_by(
+                    kb=db_kb,
+                    addr=addr,
+                )
+                .scalar()
+            )
             if db_label is not None:
                 if name == db_label.name:
                     continue

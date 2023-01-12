@@ -13,23 +13,26 @@ from .... import sim_options as o
 l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)
 
-def value(ty, val, size: Optional[int]=None):
-    if ty == 'Ity_F32':
+
+def value(ty, val, size: Optional[int] = None):
+    if ty == "Ity_F32":
         return claripy.FPV(float(val), claripy.FSORT_FLOAT)
-    elif ty == 'Ity_F64':
+    elif ty == "Ity_F64":
         return claripy.FPV(float(val), claripy.FSORT_DOUBLE)
     else:
         if size is not None:
             return claripy.BVV(int(val), size)
         return claripy.BVV(int(val), pyvex.get_type_size(ty))
 
+
 def symbol(ty, name):
-    if ty == 'Ity_F32':
+    if ty == "Ity_F32":
         return claripy.FPS(name, claripy.FSORT_FLOAT)
-    elif ty == 'Ity_F64':
+    elif ty == "Ity_F64":
         return claripy.FPS(name, claripy.FSORT_DOUBLE)
     else:
         return claripy.BVS(name, pyvex.get_type_size(ty))
+
 
 class ClaripyDataMixin(VEXMixin):
     """
@@ -47,8 +50,12 @@ class ClaripyDataMixin(VEXMixin):
     def _optimize_guarded_addr(self, addr, guard):
         # optimization: is the guard the same as the condition inside the address? if so, unpack the address and remove
         # the guarding condition.
-        if isinstance(guard, claripy.ast.Base) and guard.op == 'If' \
-                and isinstance(addr, claripy.ast.Base) and addr.op == 'If':
+        if (
+            isinstance(guard, claripy.ast.Base)
+            and guard.op == "If"
+            and isinstance(addr, claripy.ast.Base)
+            and addr.op == "If"
+        ):
             if guard.args[0] is addr.args[0]:
                 # the address is guarded by the same guard! unpack the addr
                 return addr.args[1]
@@ -83,14 +90,14 @@ class ClaripyDataMixin(VEXMixin):
 
     def _perform_vex_expr_Get(self, offset, ty, **kwargs):
         res = super()._perform_vex_expr_Get(offset, ty, **kwargs)
-        if ty.startswith('Ity_F'):
+        if ty.startswith("Ity_F"):
             return res.raw_to_fp()
         else:
             return res
 
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
         res = super()._perform_vex_expr_Load(addr, ty, endness, **kwargs)
-        if ty.startswith('Ity_F'):
+        if ty.startswith("Ity_F"):
             return res.raw_to_fp()
         else:
             return res
@@ -111,11 +118,9 @@ class ClaripyDataMixin(VEXMixin):
 
     def _perform_vex_expr_Op(self, op, args):
         # TODO: get rid of these hacks (i.e. state options and modes) and move these switches into engine properties
-        options = getattr(self.state, 'options', {o.SUPPORT_FLOATING_POINT})
+        options = getattr(self.state, "options", {o.SUPPORT_FLOATING_POINT})
         simop = irop.vexop_to_simop(
-            op,
-            extended=o.EXTENDED_IROP_SUPPORT in options,
-            fp=o.SUPPORT_FLOATING_POINT in options
+            op, extended=o.EXTENDED_IROP_SUPPORT in options, fp=o.SUPPORT_FLOATING_POINT in options
         )
         return simop.calculate(*args)
 
@@ -138,7 +143,7 @@ class ClaripyDataMixin(VEXMixin):
                     break
             else:
                 raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
-            evaluated_cases = [(case, func(self.state, *args[:i], value_, *args[i+1:])) for case, value_ in cases]
+            evaluated_cases = [(case, func(self.state, *args[:i], value_, *args[i + 1 :])) for case, value_ in cases]
             try:
                 return claripy.ite_cases(evaluated_cases, value(ty, 0))
             except claripy.ClaripyError as ce:

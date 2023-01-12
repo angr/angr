@@ -33,7 +33,7 @@ def _compare_trace(trace, expected):
 
 
 def test_stops():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
     # test STOP_NORMAL, STOP_STOPPOINT
     s_normal = p.factory.entry_state(args=["a"], add_options=so.unicorn)
@@ -56,12 +56,12 @@ def test_stops():
     s_normal_angr = p.factory.entry_state(args=["a"])
     pg_normal_angr = p.factory.simulation_manager(s_normal_angr).run()
     p_normal_angr = pg_normal_angr.one_deadended
-    assert (
-        p_normal_angr.history.bbl_addrs.hardcopy == p_normal.history.bbl_addrs.hardcopy
-    )
+    assert p_normal_angr.history.bbl_addrs.hardcopy == p_normal.history.bbl_addrs.hardcopy
 
     # test STOP_STOPPOINT on an address that is not a basic block start
-    s_stoppoints = p.factory.call_state(p.loader.find_symbol("main").rebased_addr, 1, angr.PointerWrapper([]), add_options=so.unicorn)
+    s_stoppoints = p.factory.call_state(
+        p.loader.find_symbol("main").rebased_addr, 1, angr.PointerWrapper([]), add_options=so.unicorn
+    )
 
     # this address is right before/after the bb for the stop_normal() function ends
     # we should not stop there, since that code is never hit
@@ -70,9 +70,7 @@ def test_stops():
     # this is an address inside main that is not the beginning of a basic block. we should stop here
     stop_in_bb = 0x08048638
     stop_bb = 0x08048633  # basic block of the above address
-    pg_stoppoints = p.factory.simulation_manager(s_stoppoints).run(
-        n=1, extra_stop_points=stop_fake + [stop_in_bb]
-    )
+    pg_stoppoints = p.factory.simulation_manager(s_stoppoints).run(n=1, extra_stop_points=stop_fake + [stop_in_bb])
     assert len(pg_stoppoints.active) == 1
     p_stoppoints = pg_stoppoints.one_active
     assert p_stoppoints.addr == stop_bb
@@ -87,9 +85,7 @@ def test_stops():
         add_options=so.unicorn,
         remove_options={so.UNICORN_SYM_REGS_SUPPORT},
     )
-    pg_symbolic_read_tracking_disabled = p.factory.simulation_manager(
-        s_symbolic_read_tracking_disabled
-    ).run()
+    pg_symbolic_read_tracking_disabled = p.factory.simulation_manager(s_symbolic_read_tracking_disabled).run()
     p_symbolic_read_tracking_disabled = pg_symbolic_read_tracking_disabled.one_deadended
     _compare_trace(
         p_symbolic_read_tracking_disabled.history.descriptions,
@@ -106,12 +102,8 @@ def test_stops():
     )
 
     s_symbolic_read_tracking_disabled_angr = p.factory.entry_state(args=["a", "a"])
-    pg_symbolic_read_tracking_disabled_angr = p.factory.simulation_manager(
-        s_symbolic_read_tracking_disabled_angr
-    ).run()
-    p_symbolic_read_tracking_disabled_angr = (
-        pg_symbolic_read_tracking_disabled_angr.one_deadended
-    )
+    pg_symbolic_read_tracking_disabled_angr = p.factory.simulation_manager(s_symbolic_read_tracking_disabled_angr).run()
+    p_symbolic_read_tracking_disabled_angr = pg_symbolic_read_tracking_disabled_angr.one_deadended
     assert (
         p_symbolic_read_tracking_disabled_angr.history.bbl_addrs.hardcopy
         == p_symbolic_read_tracking_disabled.history.bbl_addrs.hardcopy
@@ -144,10 +136,7 @@ def test_stops():
     )
     pg_segfault_angr = p.factory.simulation_manager(s_segfault_angr).run()
     p_segfault_angr = pg_segfault_angr.errored[0].state
-    assert (
-        p_segfault_angr.history.bbl_addrs.hardcopy
-        == p_segfault.history.bbl_addrs.hardcopy
-    )
+    assert p_segfault_angr.history.bbl_addrs.hardcopy == p_segfault.history.bbl_addrs.hardcopy
     assert pg_segfault_angr.errored[0].error.addr == pg_segfault.errored[0].error.addr
 
     # test STOP_SYMBOLIC_BLOCK_EXIT
@@ -171,14 +160,11 @@ def test_stops():
     s_symbolic_exit_angr = p.factory.entry_state(args=["a"] * 10)
     pg_symbolic_exit_angr = p.factory.simulation_manager(s_symbolic_exit_angr).run()
     p_symbolic_exit_angr = pg_symbolic_exit_angr.one_deadended
-    assert (
-        p_symbolic_exit_angr.history.bbl_addrs.hardcopy
-        == p_symbolic_exit.history.bbl_addrs.hardcopy
-    )
+    assert p_symbolic_exit_angr.history.bbl_addrs.hardcopy == p_symbolic_exit.history.bbl_addrs.hardcopy
 
 
 def run_longinit(arch):
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', arch, 'longinit'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", arch, "longinit"), auto_load_libs=False)
     s_unicorn = p.factory.entry_state(add_options=so.unicorn, remove_options={so.SHORT_READS})
     pg = p.factory.simulation_manager(s_unicorn, save_unconstrained=True, save_unsat=True)
     pg.explore()
@@ -198,13 +184,11 @@ def test_longinit_x86_64():
 
 
 def broken_fauxware_arm():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'armel', 'fauxware'), auto_load_libs=False)
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "armel", "fauxware"), auto_load_libs=False)
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
     pg = p.factory.simulation_manager(s_unicorn)
     pg.explore()
-    assert all(
-        "Unicorn" in "".join(p.history.descriptions.hardcopy) for p in pg.deadended
-    )
+    assert all("Unicorn" in "".join(p.history.descriptions.hardcopy) for p in pg.deadended)
     assert sorted(pg.mp_deadended.posix.dumps(1).mp_items) == sorted(
         (
             b"Username: \nPassword: \nWelcome to the admin console, trusted user!\n",
@@ -215,14 +199,12 @@ def broken_fauxware_arm():
 
 
 def test_fauxware():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'), auto_load_libs=False)
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "fauxware"), auto_load_libs=False)
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
     pg = p.factory.simulation_manager(s_unicorn)
     pg.explore()
 
-    assert all(
-        "Unicorn" in "".join(p.history.descriptions.hardcopy) for p in pg.deadended
-    )
+    assert all("Unicorn" in "".join(p.history.descriptions.hardcopy) for p in pg.deadended)
     assert sorted(pg.mp_deadended.posix.dumps(1).mp_items) == sorted(
         (
             b"Username: \nPassword: \nWelcome to the admin console, trusted user!\n",
@@ -233,7 +215,7 @@ def test_fauxware():
 
 
 def test_fauxware_aggressive():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "fauxware"), auto_load_libs=False)
     s_unicorn = p.factory.entry_state(
         add_options=so.unicorn | {so.UNICORN_AGGRESSIVE_CONCRETIZATION},
         remove_options={so.LAZY_SOLVES},
@@ -254,12 +236,18 @@ def test_partial_reads():
     performed by unicorn. Unicorn triggers memory read hook twice when reading value greater than 8 bytes on x86-64.
     """
 
-    p = angr.Project(os.path.join(test_location, "binaries", "tests", "x86_64",
-                                  "test_partial_reads_handling_in_unicorn"), auto_load_libs=False)
+    p = angr.Project(
+        os.path.join(test_location, "binaries", "tests", "x86_64", "test_partial_reads_handling_in_unicorn"),
+        auto_load_libs=False,
+    )
     # Do not treat as uninitialized memory as symbolic. Prevents introducing undesired symbolic taint
     init_state = p.factory.full_init_state(add_options=so.unicorn | {so.ZERO_FILL_UNCONSTRAINED_MEMORY})
-    global_var_val = [init_state.solver.BVV(0x41414141, 32), init_state.solver.BVV(0x42424242, 32),
-                      init_state.solver.BVS("symb_val_0", 32), init_state.solver.BVS("symb_val_1", 32)]
+    global_var_val = [
+        init_state.solver.BVV(0x41414141, 32),
+        init_state.solver.BVV(0x42424242, 32),
+        init_state.solver.BVS("symb_val_0", 32),
+        init_state.solver.BVS("symb_val_1", 32),
+    ]
     global_var_symb = p.loader.find_symbol("global_var")
     # Store every byte separately so that entire variable is not treated as symbolic
     for count, val in enumerate(global_var_val):
@@ -299,19 +287,22 @@ def test_similarity_fauxware():
         pg.one_left.unicorn.countdown_nonunicorn_blocks = 39
         return pg
 
-    run_similarity(
-        os.path.join("binaries", "tests", "i386", "fauxware"), 1000, prehook=cooldown
-    )
+    run_similarity(os.path.join("binaries", "tests", "i386", "fauxware"), 1000, prehook=cooldown)
 
 
 def test_fp():
-    with open(
-        os.path.join(test_location, "binaries", "tests_src", "manyfloatsum.c")
-    ) as fp:
+    with open(os.path.join(test_location, "binaries", "tests_src", "manyfloatsum.c")) as fp:
         type_cache = angr.sim_type.parse_defns(fp.read())
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'manyfloatsum'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "manyfloatsum"), auto_load_libs=False)
 
-    for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
+    for function in (
+        "sum_floats",
+        "sum_combo",
+        "sum_segregated",
+        "sum_doubles",
+        "sum_combo_doubles",
+        "sum_segregated_doubles",
+    ):
         args = list(range(len(type_cache[function].args)))
         answer = float(sum(args))
         addr = p.loader.find_symbol(function).rebased_addr
@@ -324,7 +315,7 @@ def test_fp():
 
 
 def test_unicorn_pickle():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "fauxware"), auto_load_libs=False)
 
     def _uni_state():
         # try pickling out paths that went through unicorn
@@ -355,7 +346,7 @@ def test_unicorn_pickle():
     )
 
     # test the pickling of SimUnicorn itself
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "fauxware"), auto_load_libs=False)
     pg = p.factory.simulation_manager(_uni_state())
     pg.run(n=2)
     assert p.factory.successors(pg.one_active).sort == "Unicorn"
@@ -376,7 +367,7 @@ def test_unicorn_pickle():
 
 
 def test_concrete_transmits():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'cgc', 'PIZZA_00001'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "cgc", "PIZZA_00001"), auto_load_libs=False)
     inp = bytes.fromhex("320a310a0100000005000000330a330a340a")
 
     s_unicorn = p.factory.entry_state(
@@ -394,7 +385,7 @@ def test_concrete_transmits():
 
 
 def test_inspect():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
@@ -403,16 +394,10 @@ def test_inspect():
 
     # test breaking on specific addresses
     s_break_addr = main_state(1)
-    addr0 = (
-        0x08048479  # at the beginning of a basic block, at end of stop_normal function
-    )
-    addr1 = (
-        0x080485D0  # this is at the beginning of main, in the middle of a basic block
-    )
+    addr0 = 0x08048479  # at the beginning of a basic block, at end of stop_normal function
+    addr1 = 0x080485D0  # this is at the beginning of main, in the middle of a basic block
     addr2 = 0x08048461  # another non-bb address, at the start of stop_normal
-    addr3 = (
-        0x0804847C  # address of a block that should not get hit (stop_symbolc function)
-    )
+    addr3 = 0x0804847C  # address of a block that should not get hit (stop_symbolc function)
     addr4 = 0x08048632  # another address that shouldn't get hit, near end of main
     hits = {addr0: 0, addr1: 0, addr2: 0, addr3: 0, addr4: 0}
 
@@ -423,9 +408,7 @@ def test_inspect():
         return action
 
     for addr in [addr0, addr1, addr2]:
-        s_break_addr.inspect.b(
-            "instruction", instruction=addr, action=create_addr_action(addr)
-        )
+        s_break_addr.inspect.b("instruction", instruction=addr, action=create_addr_action(addr))
 
     pg_instruction = p.factory.simulation_manager(s_break_addr)
     pg_instruction.run()
@@ -451,7 +434,7 @@ def test_inspect():
 
 
 def test_explore():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'), auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
@@ -472,8 +455,7 @@ def test_explore():
 
 
 def test_single_step():
-    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'), auto_load_libs=False)
-
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
@@ -509,9 +491,10 @@ def test_symbolic_flags_preserved_on_stop():
             result = final_state.posix.dumps(0)
             break
 
-    assert result == b'FLAG{l00ps_4r3_t00_34sy_r1gh7??}'
+    assert result == b"FLAG{l00ps_4r3_t00_34sy_r1gh7??}"
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import logging
 
     logging.getLogger("angr.state_plugins.unicorn_engine").setLevel("DEBUG")
@@ -541,5 +524,5 @@ if __name__ == '__main__':
                     for ft in res:
                         fo = ft[0]
                         fa = ft[1:]
-                        print('...', fa)
+                        print("...", fa)
                         fo(*fa)

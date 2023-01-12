@@ -18,6 +18,7 @@ from .errors import AngrNoPluginError
 
 l = logging.getLogger(name=__name__)
 
+
 def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False, **kwargs):
     """
     Load a new project based on a snippet of assembly or bytecode.
@@ -36,15 +37,15 @@ def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False,
         start_offset |= 1
 
     return Project(
-            BytesIO(shellcode),
-            main_opts={
-                'backend': 'blob',
-                'arch': arch,
-                'entry_point': start_offset,
-                'base_addr': load_address,
-            },
-        **kwargs
-        )
+        BytesIO(shellcode),
+        main_opts={
+            "backend": "blob",
+            "arch": arch,
+            "entry_point": start_offset,
+            "base_addr": load_address,
+        },
+        **kwargs,
+    )
 
 
 class Project:
@@ -89,34 +90,41 @@ class Project:
     :ivar storage:      Dictionary of things that should be loaded/stored with the Project.
     :type storage:      defaultdict(list)
     """
+
     analyses: "AnalysesHub"
     arch: archinfo.Arch
-    def __init__(self, thing,
-                 default_analysis_mode=None,
-                 ignore_functions=None,
-                 use_sim_procedures=True,
-                 exclude_sim_procedures_func=None,
-                 exclude_sim_procedures_list=(),
-                 arch=None, simos=None,
-                 engine=None,
-                 load_options: Dict[str, Any]=None,
-                 translation_cache=True,
-                 selfmodifying_code: bool=False,
-                 support_selfmodifying_code: Optional[bool]=None,  # deprecated. use selfmodifying_code instead
-                 store_function=None,
-                 load_function=None,
-                 analyses_preset=None,
-                 concrete_target=None,
-                 eager_ifunc_resolution=None,
-                 **kwargs):
+
+    def __init__(
+        self,
+        thing,
+        default_analysis_mode=None,
+        ignore_functions=None,
+        use_sim_procedures=True,
+        exclude_sim_procedures_func=None,
+        exclude_sim_procedures_list=(),
+        arch=None,
+        simos=None,
+        engine=None,
+        load_options: Dict[str, Any] = None,
+        translation_cache=True,
+        selfmodifying_code: bool = False,
+        support_selfmodifying_code: Optional[bool] = None,  # deprecated. use selfmodifying_code instead
+        store_function=None,
+        load_function=None,
+        analyses_preset=None,
+        concrete_target=None,
+        eager_ifunc_resolution=None,
+        **kwargs,
+    ):
 
         # Step 1: Load the binary
 
-        if load_options is None: load_options = {}
+        if load_options is None:
+            load_options = {}
 
         load_options.update(kwargs)
         if arch is not None:
-            load_options.update({'arch': arch})
+            load_options.update({"arch": arch})
         if isinstance(thing, cle.Loader):
             if load_options:
                 l.warning("You provided CLE options to angr but you also provided a completed cle.Loader object!")
@@ -125,7 +133,7 @@ class Project:
         elif isinstance(thing, cle.Backend):
             self.filename = thing.binary
             self.loader = cle.Loader(thing, **load_options)
-        elif hasattr(thing, 'read') and hasattr(thing, 'seek'):
+        elif hasattr(thing, "read") and hasattr(thing, "seek"):
             l.info("Loading binary from stream")
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
@@ -148,13 +156,15 @@ class Project:
             raise ValueError("Invalid arch specification.")
         # Step 3: Set some defaults and set the public and private properties
         if not default_analysis_mode:
-            default_analysis_mode = 'symbolic'
+            default_analysis_mode = "symbolic"
         if not ignore_functions:
             ignore_functions = []
 
         if isinstance(exclude_sim_procedures_func, types.LambdaType):
-            l.warning("Passing a lambda type as the exclude_sim_procedures_func argument to "
-                      "Project causes the resulting object to be un-serializable.")
+            l.warning(
+                "Passing a lambda type as the exclude_sim_procedures_func argument to "
+                "Project causes the resulting object to be un-serializable."
+            )
 
         self._sim_procedures = {}
 
@@ -162,13 +172,15 @@ class Project:
 
         # It doesn't make any sense to have auto_load_libs
         # if you have the concrete target, let's warn the user about this.
-        if self.concrete_target and load_options.get('auto_load_libs', None):
+        if self.concrete_target and load_options.get("auto_load_libs", None):
 
-            l.critical("Incompatible options selected for this project, please disable auto_load_libs if "
-                       "you want to use a concrete target.")
+            l.critical(
+                "Incompatible options selected for this project, please disable auto_load_libs if "
+                "you want to use a concrete target."
+            )
             raise Exception("Incompatible options for the project")
 
-        if self.concrete_target and self.arch.name not in ['X86', 'AMD64', 'ARMHF', 'MIPS32']:
+        if self.concrete_target and self.arch.name not in ["X86", "AMD64", "ARMHF", "MIPS32"]:
             l.critical("Concrete execution does not support yet the selected architecture. Aborting.")
             raise Exception("Incompatible options for the project")
 
@@ -184,8 +196,10 @@ class Project:
 
         # deprecation warning
         if support_selfmodifying_code is not None:
-            l.warning("Parameter \"support_selfmodifying_code\" is deprecated. Please use \"selfmodifying_code\""
-                      " instead. \"support_selfmodifying_code\" will be removed in the near future.")
+            l.warning(
+                'Parameter "support_selfmodifying_code" is deprecated. Please use "selfmodifying_code"'
+                ' instead. "support_selfmodifying_code" will be removed in the near future.'
+            )
             self.selfmodifying_code = bool(support_selfmodifying_code)
 
         if self.selfmodifying_code:
@@ -212,7 +226,7 @@ class Project:
 
         # Step 5: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
-            self.simos = simos(self) #pylint:disable=invalid-name
+            self.simos = simos(self)  # pylint:disable=invalid-name
         elif isinstance(simos, str):
             self.simos = os_mapping[simos](self)
         elif simos is None:
@@ -242,7 +256,7 @@ class Project:
         Initializes self.analyses using a given preset.
         """
         self.analyses = AnalysesHub(self)
-        self.analyses.use_plugin_preset(self._analyses_preset if self._analyses_preset is not None else 'default')
+        self.analyses.use_plugin_preset(self._analyses_preset if self._analyses_preset is not None else "default")
 
     def _register_object(self, obj, sim_proc_arch):
         """
@@ -288,8 +302,12 @@ class Project:
                 # library names. The backend creates the Relocation objects, but leaves them unresolved so that
                 # we can try to guess them here.
                 if reloc.owner.guess_simprocs:
-                    l.debug("Looking for matching SimProcedure for unresolved %s from %s with hint %s",
-                            func.name, reloc.owner, reloc.owner.guess_simprocs_hint)
+                    l.debug(
+                        "Looking for matching SimProcedure for unresolved %s from %s with hint %s",
+                        func.name,
+                        reloc.owner,
+                        reloc.owner.guess_simprocs_hint,
+                    )
                     self._guess_simprocedure(func, reloc.owner.guess_simprocs_hint)
                 else:
                     l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner)
@@ -303,8 +321,7 @@ class Project:
             # check if we actually can and want to replace it with a SimProcedure.
             # We opt out of this step if it is blacklisted by ignore_functions, which
             # will cause it to be replaced by ReturnUnconstrained later.
-            if export.owner is not self.loader._extern_object and \
-                    export.name not in self._ignore_functions:
+            if export.owner is not self.loader._extern_object and export.name not in self._ignore_functions:
                 if self._check_user_blacklists(export.name):
                     continue
                 owner_name = export.owner.provides
@@ -356,11 +373,14 @@ class Project:
                         the_lib = missing_libs[0]
                         if export.name and export.name.startswith("_Z"):
                             # GNU C++ name. Use a C++ library to create the stub
-                            if 'libstdc++.so' in SIM_LIBRARIES:
-                                the_lib = SIM_LIBRARIES['libstdc++.so']
+                            if "libstdc++.so" in SIM_LIBRARIES:
+                                the_lib = SIM_LIBRARIES["libstdc++.so"]
                             else:
-                                l.critical("Does not find any C++ library in SIM_LIBRARIES. We may not correctly "
-                                           "create the stub or resolve the function prototype for name %s.", export.name)
+                                l.critical(
+                                    "Does not find any C++ library in SIM_LIBRARIES. We may not correctly "
+                                    "create the stub or resolve the function prototype for name %s.",
+                                    export.name,
+                                )
 
                         self.hook_symbol(export.rebased_addr, the_lib.get(export.name, sim_proc_arch))
 
@@ -372,7 +392,10 @@ class Project:
             # use the vanilla ReturnUnconstrained, assuming that this isn't a weak func
             elif not func.is_weak:
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
-                self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
+                self.hook_symbol(
+                    export.rebased_addr,
+                    SIM_PROCEDURES["stubs"]["ReturnUnconstrained"](display_name=export.name, is_stub=True),
+                )
 
     def _guess_simprocedure(self, f, hint):
         """
@@ -404,16 +427,16 @@ class Project:
         Has symbol name `f` been marked for exclusion by any of the user
         parameters?
         """
-        return not self.use_sim_procedures or \
-            f in self._exclude_sim_procedures_list or \
-            f in self._ignore_functions or \
-            (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
-
+        return (
+            not self.use_sim_procedures
+            or f in self._exclude_sim_procedures_list
+            or f in self._ignore_functions
+            or (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
+        )
 
     @staticmethod
     def _addr_to_str(addr):
         return "%s" % repr(addr) if isinstance(addr, SootAddressDescriptor) else "%#x" % addr
-
 
     #
     # Public methods
@@ -453,15 +476,18 @@ class Project:
             # if we haven't been passed a thing to hook with, assume we're being used as a decorator
             return self._hook_decorator(addr, length=length, kwargs=kwargs)
 
-        if kwargs is None: kwargs = {}
+        if kwargs is None:
+            kwargs = {}
 
-        l.debug('hooking %s with %s', self._addr_to_str(addr), str(hook))
+        l.debug("hooking %s with %s", self._addr_to_str(addr), str(hook))
 
         if self.is_hooked(addr):
             if replace is True:
                 pass
             elif replace is False:
-                l.warning("Address is already hooked, during hook(%s, %s). Not re-hooking.", self._addr_to_str(addr), hook)
+                l.warning(
+                    "Address is already hooked, during hook(%s, %s). Not re-hooking.", self._addr_to_str(addr), hook
+                )
                 return
             else:
                 l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", self._addr_to_str(addr), hook)
@@ -470,7 +496,7 @@ class Project:
             raise TypeError("Please instanciate your SimProcedure before hooking with it")
 
         if callable(hook):
-            hook = SIM_PROCEDURES['stubs']['UserHook'](user_func=hook, length=length, **kwargs)
+            hook = SIM_PROCEDURES["stubs"]["UserHook"](user_func=hook, length=length, **kwargs)
 
         self._sim_procedures[addr] = hook
 
@@ -586,8 +612,10 @@ class Project:
             l.warning("Could not find symbol %s", symbol_name)
             return False
         if sym.owner is self.loader._extern_object:
-            l.warning("Refusing to unhook external symbol %s, replace it with another hook if you want to change it",
-                      symbol_name)
+            l.warning(
+                "Refusing to unhook external symbol %s, replace it with another hook if you want to change it",
+                symbol_name,
+            )
             return False
 
         hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
@@ -681,7 +709,14 @@ class Project:
             self.store_function, self.load_function = None, None
             # ignore analyses. we re-initialize analyses when restoring from pickling so that we do not lose any newly
             # added analyses classes
-            d = {k: v for k, v in self.__dict__.items() if k not in {'analyses', }}
+            d = {
+                k: v
+                for k, v in self.__dict__.items()
+                if k
+                not in {
+                    "analyses",
+                }
+            }
             return d
         finally:
             self.store_function, self.load_function = store_func, load_func
@@ -692,30 +727,30 @@ class Project:
             self._initialize_analyses_hub()
         except AngrNoPluginError:
             l.warning("Plugin preset %s does not exist any more. Fall back to the default preset.")
-            self._analyses_preset = 'default'
+            self._analyses_preset = "default"
             self._initialize_analyses_hub()
 
     def _store(self, container):
         # If container is a filename.
         if isinstance(container, str):
-            with open(container, 'wb') as f:
+            with open(container, "wb") as f:
                 try:
                     pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
-                except RuntimeError as e: # maximum recursion depth can be reached here
+                except RuntimeError as e:  # maximum recursion depth can be reached here
                     l.error("Unable to store Project: '%s' during pickling", e)
 
         # If container is an open file.
         elif isinstance(container, IOBase):
             try:
                 pickle.dump(self, container, pickle.HIGHEST_PROTOCOL)
-            except RuntimeError as e: # maximum recursion depth can be reached here
+            except RuntimeError as e:  # maximum recursion depth can be reached here
                 l.error("Unable to store Project: '%s' during pickling", e)
 
         # If container is just a variable.
         else:
             try:
                 container = pickle.dumps(self, pickle.HIGHEST_PROTOCOL)
-            except RuntimeError as e: # maximum recursion depth can be reached here
+            except RuntimeError as e:  # maximum recursion depth can be reached here
                 l.error("Unable to store Project: '%s' during pickling", e)
 
     @staticmethod
@@ -723,7 +758,7 @@ class Project:
         if isinstance(container, str):
             # If container is a filename.
             if all(c in string.printable for c in container) and os.path.exists(container):
-                with open(container, 'rb') as f:
+                with open(container, "rb") as f:
                     return pickle.load(f)
 
             # If container is a pickle string.
@@ -740,14 +775,14 @@ class Project:
             return None
 
     def __repr__(self):
-        return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
+        return "<Project %s>" % (self.filename if self.filename is not None else "loaded from stream")
 
     #
     # Compatibility
     #
 
     @property
-    @deprecated(replacement='simos')
+    @deprecated(replacement="simos")
     def _simos(self):
         return self.simos
 

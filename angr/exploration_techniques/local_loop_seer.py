@@ -12,7 +12,7 @@ class LocalLoopSeer(ExplorationTechnique):
     LocalLoopSeer monitors exploration and maintains all loop-related data without relying on a control flow graph.
     """
 
-    def __init__(self, bound=None, bound_reached=None, discard_stash='spinning'):
+    def __init__(self, bound=None, bound_reached=None, discard_stash="spinning"):
         """
         :param bound:                 Limit the number of iterations a loop may be executed.
         :param bound_reached:         If provided, should be a function that takes the LoopSeer and the succ_state.

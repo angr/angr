@@ -70,20 +70,23 @@ class SimStateLoopData(SimStatePlugin):
         self.header_trip_counts = defaultdict(list) if header_trip_counts is None else header_trip_counts
         self.current_loop = [] if current_loop is None else current_loop
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         l.warning("Merging is not implemented for loop data!")
         return False
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         l.warning("Widening is not implemented for loop data!")
         return False
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
-        return SimStateLoopData(back_edge_trip_counts=copy.deepcopy(self.back_edge_trip_counts),
-                                header_trip_counts=copy.deepcopy(self.header_trip_counts),
-                                current_loop=list(self.current_loop))
+    def copy(self, memo):  # pylint: disable=unused-argument
+        return SimStateLoopData(
+            back_edge_trip_counts=copy.deepcopy(self.back_edge_trip_counts),
+            header_trip_counts=copy.deepcopy(self.header_trip_counts),
+            current_loop=list(self.current_loop),
+        )
 
 
 from angr.sim_state import SimState
-SimState.register_default('loop_data', SimStateLoopData)
+
+SimState.register_default("loop_data", SimStateLoopData)

@@ -11,7 +11,6 @@ class TestHeapAllocator(TestCase):
     def setUp(self):
         self.heap_allocator = HeapAllocator(self.UNKNOWN_SIZE_DEFAULT_CONCRETE_VALUE)
 
-
     def test_allocate_returns_an_entry_address(self):
         address = self.heap_allocator.allocate(0x10)
         self.assertTrue(isinstance(address, HeapAddress))

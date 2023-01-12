@@ -4,8 +4,8 @@ import unittest
 
 import angr
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
-l = logging.getLogger('angr.test_boyscout')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
+l = logging.getLogger("angr.test_boyscout")
 
 entries = [
     ("i386/all", "X86", "Iend_LE"),
@@ -74,18 +74,19 @@ class TestBoyScout(unittest.TestCase):
         f = os.path.join(test_location, file_path)
         l.debug("Processing %s", f)
 
-        p = angr.Project(f,
-                         load_options={
-                             'main_opts': {
-                                 'backend': 'blob',
-                                 'base_addr': 0x10000,
-                                 'entry_point': 0x10000,
-                                 'arch': 'ARM',
-                                 'offset': 0,
-                             }
-                         },
-                         auto_load_libs=False
-                         )
+        p = angr.Project(
+            f,
+            load_options={
+                "main_opts": {
+                    "backend": "blob",
+                    "base_addr": 0x10000,
+                    "entry_point": 0x10000,
+                    "arch": "ARM",
+                    "offset": 0,
+                }
+            },
+            auto_load_libs=False,
+        )
         # Call Scout
         # p.analyses.Scout(start=0x16353c)
         bs = p.analyses.BoyScout()
@@ -95,21 +96,22 @@ class TestBoyScout(unittest.TestCase):
 
 
 class TestMain(unittest.TestCase):
-    def _main(self,file_path, arch, endianness):
+    def _main(self, file_path, arch, endianness):
         f = os.path.join(test_location, file_path)
         l.debug("Processing %s", f)
 
-        p = angr.Project(f,
+        p = angr.Project(
+            f,
             load_options={
-                'main_opts': {
-                    'backend': 'blob',
-                    'base_addr': 0x10000,
-                    'entry_point': 0x10000,
-                    'arch': 'ARM',
-                    'offset': 0,
+                "main_opts": {
+                    "backend": "blob",
+                    "base_addr": 0x10000,
+                    "entry_point": 0x10000,
+                    "arch": "ARM",
+                    "offset": 0,
                 }
             },
-            auto_load_libs=False
+            auto_load_libs=False,
         )
         bs = p.analyses.BoyScout()
 
@@ -154,6 +156,7 @@ class TestMain(unittest.TestCase):
 
     def test_mipsel_fauxware(self):
         self._main("mipsel/fauxware", "MIPS32", "Iend_LE")
+
 
 if __name__ == "__main__":
     unittest.main()

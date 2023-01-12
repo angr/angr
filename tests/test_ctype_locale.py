@@ -7,7 +7,8 @@ import unittest
 from common import skip_if_not_linux
 
 import logging
-l = logging.getLogger('angr.tests.test_ctype_locale')
+
+l = logging.getLogger("angr.tests.test_ctype_locale")
 
 test_location = os.path.dirname(os.path.abspath(__file__))
 
@@ -15,7 +16,7 @@ test_location = os.path.dirname(os.path.abspath(__file__))
 class TestCtypeLocale(unittest.TestCase):
     @skip_if_not_linux
     def test_ctype_b_loc(self):
-        '''
+        """
         test_ctype_locale.test_ctype_b_loc
 
         const unsigned short * * __ctype_b_loc (void);
@@ -31,17 +32,18 @@ class TestCtypeLocale(unittest.TestCase):
 
         This interface is not in the source standard; it is only in the binary
         standard.
-        '''
+        """
 
         # Just load a binary so that we can do the initialization steps from
         # libc_start_main
-        bin_path = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'ctype_b_loc')
+        bin_path = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "ctype_b_loc")
 
-        ctype_b_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_b_loc']().execute(state, arguments=arguments)
+        ctype_b_loc = lambda state, arguments: angr.SIM_PROCEDURES["glibc"]["__ctype_b_loc"]().execute(
+            state, arguments=arguments
+        )
         b = angr.Project(bin_path, auto_load_libs=False)
         p = b.factory.full_init_state()
         pg = b.factory.simulation_manager(p)
-
 
         # Find main located at 0x400596 to let libc_start_main do its thing
         main = pg.explore(find=0x400596)
@@ -50,9 +52,9 @@ class TestCtypeLocale(unittest.TestCase):
         b_loc_array_ptr = ctype_b_loc(state, []).ret_expr
         table_ptr = state.memory.load(b_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-        result = b''
+        result = b""
         for i in range(-128, 256):
-            result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*2].short.unsigned.concrete)
+            result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 2].short.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_b_loc()
         output = subprocess.check_output(bin_path, shell=True)
@@ -60,7 +62,7 @@ class TestCtypeLocale(unittest.TestCase):
 
     @skip_if_not_linux
     def test_ctype_tolower_loc(self):
-        '''
+        """
         test_ctype_locale.test_ctype_tolower_loc
 
         int32_t * * __ctype_tolower_loc(void);
@@ -79,18 +81,18 @@ class TestCtypeLocale(unittest.TestCase):
         Return Value:
         The __ctype_tolower_loc() function shall return a pointer to the array of
         characters to be used for the ctype() family of functions (see <ctype.h>).
-        '''
-
+        """
 
         # Just load a binary so that we can do the initialization steps from
         # libc_start_main
-        bin_path = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'ctype_tolower_loc')
+        bin_path = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "ctype_tolower_loc")
 
-        ctype_tolower_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_tolower_loc']().execute(state, arguments=arguments)
+        ctype_tolower_loc = lambda state, arguments: angr.SIM_PROCEDURES["glibc"]["__ctype_tolower_loc"]().execute(
+            state, arguments=arguments
+        )
         b = angr.Project(bin_path, auto_load_libs=False)
         p = b.factory.full_init_state()
         pg = b.factory.simulation_manager(p)
-
 
         # Find main located at 0x400596 to let libc_start_main do its thing
         main = pg.explore(find=0x400596)
@@ -99,9 +101,9 @@ class TestCtypeLocale(unittest.TestCase):
         tolower_loc_array_ptr = ctype_tolower_loc(state, []).ret_expr
         table_ptr = state.memory.load(tolower_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-        result = b''
+        result = b""
         for i in range(-128, 256):
-            result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*4].int.unsigned.concrete)
+            result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 4].int.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_tolower_loc()
         output = subprocess.check_output(bin_path, shell=True)
@@ -109,7 +111,7 @@ class TestCtypeLocale(unittest.TestCase):
 
     @skip_if_not_linux
     def test_ctype_toupper_loc(self):
-        '''
+        """
         test_ctype_locale.test_ctype_toupper_loc
 
         int32_t * * __ctype_toupper_loc(void);
@@ -128,13 +130,15 @@ class TestCtypeLocale(unittest.TestCase):
         Return Value:
         The __ctype_toupper_loc() function shall return a pointer to the array of
         characters to be used for the ctype() family of functions (see <ctype.h>).
-        '''
+        """
 
         # Just load a binary so that we can do the initialization steps from
         # libc_start_main
-        bin_path = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'ctype_toupper_loc')
+        bin_path = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "ctype_toupper_loc")
 
-        ctype_toupper_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_toupper_loc']().execute(state, arguments=arguments)
+        ctype_toupper_loc = lambda state, arguments: angr.SIM_PROCEDURES["glibc"]["__ctype_toupper_loc"]().execute(
+            state, arguments=arguments
+        )
 
         b = angr.Project(bin_path, auto_load_libs=False)
         p = b.factory.full_init_state()
@@ -147,14 +151,14 @@ class TestCtypeLocale(unittest.TestCase):
         toupper_loc_array_ptr = ctype_toupper_loc(state, []).ret_expr
         table_ptr = state.memory.load(toupper_loc_array_ptr, state.arch.bytes, endness=state.arch.memory_endness)
 
-        result = b''
+        result = b""
         for i in range(-128, 256):
-            result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i*4].int.unsigned.concrete)
+            result += b"%d->0x%x\n" % (i, state.mem[table_ptr + i * 4].int.unsigned.concrete)
 
         # Check output of compiled C program that uses ctype_toupper_loc()
         output = subprocess.check_output(bin_path, shell=True)
         assert result == output
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

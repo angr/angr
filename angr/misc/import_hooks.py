@@ -18,6 +18,7 @@ class FastPkgResources:
             # fallback to the real pkg_resources
             remove_fake_pkg_resources()
             import pkg_resources
+
             return getattr(pkg_resources, name)
 
     @staticmethod
@@ -30,6 +31,7 @@ class FastPkgResources:
             # fallback to the real pkg_resources
             remove_fake_pkg_resources()
             import pkg_resources
+
             return pkg_resources.resource_filename(package, resource_name)
         return r
 
@@ -52,10 +54,10 @@ class FastPkgResources:
 
 
 def import_fake_pkg_resources(force=False):
-    if force or 'pkg_resources' not in sys.modules:
-        sys.modules['pkg_resources'] = FastPkgResources()
+    if force or "pkg_resources" not in sys.modules:
+        sys.modules["pkg_resources"] = FastPkgResources()
 
 
 def remove_fake_pkg_resources():
-    if isinstance(sys.modules.get('pkg_resources', None), FastPkgResources):
-        sys.modules.pop('pkg_resources')
+    if isinstance(sys.modules.get("pkg_resources", None), FastPkgResources):
+        sys.modules.pop("pkg_resources")

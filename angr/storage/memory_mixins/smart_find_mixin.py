@@ -3,20 +3,26 @@ import claripy
 from . import MemoryMixin
 from ...errors import SimSegfaultException
 
+
 class SmartFindMixin(MemoryMixin):
-    def find(self, addr, needle, max_search,
-             default=None,
-             endness=None,
-             chunk_size=None,
-             max_symbolic_bytes=None,
-             condition=None,
-             char_size=1,
-             **kwargs):
+    def find(
+        self,
+        addr,
+        needle,
+        max_search,
+        default=None,
+        endness=None,
+        chunk_size=None,
+        max_symbolic_bytes=None,
+        condition=None,
+        char_size=1,
+        **kwargs,
+    ):
 
         if endness is None:
             endness = self.endness
             if endness is None:
-                endness = 'Iend_BE'
+                endness = "Iend_BE"
 
         char_num = self._calc_char_num(needle, char_size)
 
@@ -29,7 +35,11 @@ class SmartFindMixin(MemoryMixin):
         constraints = []
 
         try:
-            for i, (subaddr, element) in enumerate(self._find_iter_items(addr, char_num, char_size, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs)):
+            for i, (subaddr, element) in enumerate(
+                self._find_iter_items(
+                    addr, char_num, char_size, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs
+                )
+            ):
                 comparison, concrete_comparison = self._find_compare(element, needle, **kwargs)
 
                 if concrete_comparison is False:
@@ -49,13 +59,17 @@ class SmartFindMixin(MemoryMixin):
                     constraints.append(claripy.Or(*(c for c, _ in cases)))
         except SimSegfaultException:
             if chunk_size > 1:
-                return self.find(addr, needle, max_search,
-                                 default=default,
-                                 endness=endness,
-                                 chunk_size=1,
-                                 max_symbolic_bytes=max_symbolic_bytes,
-                                 condition=condition,
-                                 **kwargs)
+                return self.find(
+                    addr,
+                    needle,
+                    max_search,
+                    default=default,
+                    endness=endness,
+                    chunk_size=1,
+                    max_symbolic_bytes=max_symbolic_bytes,
+                    condition=condition,
+                    **kwargs,
+                )
             raise
 
         if len(cases) == 1:
@@ -75,7 +89,9 @@ class SmartFindMixin(MemoryMixin):
             bytelen += char_size - (bytelen % char_size)
         return bytelen // char_size
 
-    def _find_iter_items(self, addr, char_num, char_size, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs):
+    def _find_iter_items(
+        self, addr, char_num, char_size, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs
+    ):
         """
         generate comparison items by iterating through the string
         able to handle wide characters
@@ -88,14 +104,20 @@ class SmartFindMixin(MemoryMixin):
         # iterate through the string by the unit of chars
         for i in range(0, max_search, char_size):
             subaddr = addr + i
-            if chunk_progress == chunk_size :
+            if chunk_progress == chunk_size:
                 # need to prefetch a little bit more chars
-                chunk = self.load(subaddr, size=char_size*(chunk_size+char_num), endness=endness, condition=condition & self._find_condition(addr + i, **kwargs), **kwargs)
+                chunk = self.load(
+                    subaddr,
+                    size=char_size * (chunk_size + char_num),
+                    endness=endness,
+                    condition=condition & self._find_condition(addr + i, **kwargs),
+                    **kwargs,
+                )
                 chunk_progress = 0
 
-            chunk_idx = (chunk_progress if endness == 'Iend_BE' else chunk_size - 1 - chunk_progress)
+            chunk_idx = chunk_progress if endness == "Iend_BE" else chunk_size - 1 - chunk_progress
             chunk_progress += 1
-            substr = chunk.get_bytes(chunk_idx*char_size, char_num*char_size)
+            substr = chunk.get_bytes(chunk_idx * char_size, char_num * char_size)
 
             # only check the first character or each symbolic character will be recorded many times
             # FIXME: this actually keeps track of "max_symbolic_chars"

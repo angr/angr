@@ -15,7 +15,7 @@ class VariableManagerSerializer:
     """
 
     @staticmethod
-    def dump(session, db_kb: 'DbKnowledgeBase', var_manager: VariableManager):
+    def dump(session, db_kb: "DbKnowledgeBase", var_manager: VariableManager):
 
         # Remove all existing variable collections
         session.query(DbVariableCollection).filter_by(kb=db_kb).delete()
@@ -27,21 +27,17 @@ class VariableManagerSerializer:
         VariableManagerSerializer.dump_internal(session, db_kb, var_manager.global_manager, -1, ident=None)
 
     @staticmethod
-    def dump_internal(session, db_kb: 'DbKnowledgeBase', internal_manager: VariableManagerInternal, func_addr: int,
-                      ident=None):
+    def dump_internal(
+        session, db_kb: "DbKnowledgeBase", internal_manager: VariableManagerInternal, func_addr: int, ident=None
+    ):
 
         blob = internal_manager.serialize()
 
-        db_varcoll = DbVariableCollection(
-            kb=db_kb,
-            ident=None if not ident else ident,
-            func_addr=func_addr,
-            blob=blob
-        )
+        db_varcoll = DbVariableCollection(kb=db_kb, ident=None if not ident else ident, func_addr=func_addr, blob=blob)
         session.add(db_varcoll)
 
     @staticmethod
-    def load(session, db_kb: 'DbKnowledgeBase', kb: 'KnowledgeBase', ident=None):
+    def load(session, db_kb: "DbKnowledgeBase", kb: "KnowledgeBase", ident=None):
 
         variable_manager = VariableManager(kb)
 

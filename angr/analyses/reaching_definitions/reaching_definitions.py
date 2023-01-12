@@ -25,13 +25,15 @@ from .function_handler import FunctionHandler
 if TYPE_CHECKING:
     from .dep_graph import DepGraph
     from typing import Literal, Iterable
-    ObservationPoint = Tuple[Literal['insn', 'node'], int, ObservationPointType]
+
+    ObservationPoint = Tuple[Literal["insn", "node"], int, ObservationPointType]
 
 l = logging.getLogger(name=__name__)
 
 
-class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, NodeType],
-                                  Analysis):  # pylint:disable=abstract-method
+class ReachingDefinitionsAnalysis(
+    ForwardAnalysis[ReachingDefinitionsState, NodeType], Analysis
+):  # pylint:disable=abstract-method
     """
     ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a
     function or a block. It supports both VEX and AIL. By registering observers to observation points, users may use
@@ -46,24 +48,24 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
     """
 
     def __init__(
-            self,
-            subject: Union[Subject,ailment.Block,Block,Function]=None,
-            func_graph=None,
-            max_iterations=3,
-            track_tmps=False,
-            track_calls=None,
-            track_consts=False,
-            observation_points: "Iterable[ObservationPoint]" =None,
-            init_state: ReachingDefinitionsState=None,
-            cc=None,
-            function_handler: "Optional[FunctionHandler]" = None,
-            call_stack: Optional[List[int]]=None,
-            maximum_local_call_depth=5,
-            observe_all=False,
-            visited_blocks=None,
-            dep_graph: Optional['DepGraph']=None,
-            observe_callback=None,
-            canonical_size=8
+        self,
+        subject: Union[Subject, ailment.Block, Block, Function] = None,
+        func_graph=None,
+        max_iterations=3,
+        track_tmps=False,
+        track_calls=None,
+        track_consts=False,
+        observation_points: "Iterable[ObservationPoint]" = None,
+        init_state: ReachingDefinitionsState = None,
+        cc=None,
+        function_handler: "Optional[FunctionHandler]" = None,
+        call_stack: Optional[List[int]] = None,
+        maximum_local_call_depth=5,
+        observe_all=False,
+        visited_blocks=None,
+        dep_graph: Optional["DepGraph"] = None,
+        observe_callback=None,
+        canonical_size=8,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -103,8 +105,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
             self._subject = subject
         self._graph_visitor = self._subject.visitor
 
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
-                                 graph_visitor=self._graph_visitor)
+        ForwardAnalysis.__init__(
+            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=self._graph_visitor
+        )
 
         self._track_tmps = track_tmps
         self._track_calls = track_calls
@@ -139,15 +142,21 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
 
         self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
-        self._engine_vex = SimEngineRDVEX(self.project, self._call_stack, self._maximum_local_call_depth,
-                                          functions=self.kb.functions,
-                                          function_handler=self._function_handler)
-        self._engine_ail = SimEngineRDAIL(self.project, self._call_stack, self._maximum_local_call_depth,
-                                          function_handler=self._function_handler)
+        self._engine_vex = SimEngineRDVEX(
+            self.project,
+            self._call_stack,
+            self._maximum_local_call_depth,
+            functions=self.kb.functions,
+            function_handler=self._function_handler,
+        )
+        self._engine_ail = SimEngineRDAIL(
+            self.project, self._call_stack, self._maximum_local_call_depth, function_handler=self._function_handler
+        )
 
         self._visited_blocks: Set[Any] = visited_blocks or set()
         self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
-            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None)
+            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None
+        )
 
         self._analyze()
 
@@ -172,10 +181,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
         elif self._subject.type == SubjectType.CallTrace:
             return call_stack + [self._subject.content.current_function_address()]
         else:
-            raise ValueError('Unexpected subject type %s.' % self._subject.type)
+            raise ValueError("Unexpected subject type %s." % self._subject.type)
 
     @property
-    def observed_results(self) -> Dict[Tuple[str,int,int],LiveDefinitions]:
+    def observed_results(self) -> Dict[Tuple[str, int, int], LiveDefinitions]:
         return self.model.observed_results
 
     @property
@@ -194,7 +203,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
     def one_result(self):
 
         if not self.observed_results:
-            raise ValueError('No result is available.')
+            raise ValueError("No result is available.")
         if len(self.observed_results) != 1:
             raise ValueError("More than one results are available.")
 
@@ -216,18 +225,25 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
         return self.get_reaching_definitions_by_insn(ins_addr, op_type)
 
     def get_reaching_definitions_by_insn(self, ins_addr, op_type):
-        key = 'insn', ins_addr, op_type
+        key = "insn", ins_addr, op_type
         if key not in self.observed_results:
-            raise KeyError(("Reaching definitions are not available at observation point %s. "
-                            "Did you specify that observation point?") % key)
+            raise KeyError(
+                (
+                    "Reaching definitions are not available at observation point %s. "
+                    "Did you specify that observation point?"
+                )
+                % key
+            )
 
         return self.observed_results[key]
 
     def get_reaching_definitions_by_node(self, node_addr, op_type):
-        key = 'node', node_addr, op_type
+        key = "node", node_addr, op_type
         if key not in self.observed_results:
-            raise KeyError("Reaching definitions are not available at observation point %s. "
-                            "Did you specify that observation point?" % str(key))
+            raise KeyError(
+                "Reaching definitions are not available at observation point %s. "
+                "Did you specify that observation point?" % str(key)
+            )
 
         return self.observed_results[key]
 
@@ -244,26 +260,27 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
 
         if self._observe_all:
             observe = True
-            key: ObservationPoint = ('node', node_addr, op_type)
+            key: ObservationPoint = ("node", node_addr, op_type)
         elif self._observation_points is not None:
-            key: ObservationPoint = ('node', node_addr, op_type)
+            key: ObservationPoint = ("node", node_addr, op_type)
             if key in self._observation_points:
                 observe = True
         elif self._observe_callback is not None:
-            observe = self._observe_callback('node', addr=node_addr, state=state, op_type=op_type)
+            observe = self._observe_callback("node", addr=node_addr, state=state, op_type=op_type)
             if observe:
-                key: ObservationPoint = ('node', node_addr, op_type)
+                key: ObservationPoint = ("node", node_addr, op_type)
 
         if observe:
             self.observed_results[key] = state.live_definitions
 
-    def insn_observe(self,
-                     insn_addr: int,
-                     stmt: Union[ailment.Stmt.Statement, pyvex.stmt.IRStmt],
-                     block: Union[Block, ailment.Block],
-                     state: ReachingDefinitionsState,
-                     op_type: ObservationPointType,
-                     ) -> None:
+    def insn_observe(
+        self,
+        insn_addr: int,
+        stmt: Union[ailment.Stmt.Statement, pyvex.stmt.IRStmt],
+        block: Union[Block, ailment.Block],
+        state: ReachingDefinitionsState,
+        op_type: ObservationPointType,
+    ) -> None:
         """
         :param insn_addr:   Address of the instruction.
         :param stmt:        The statement.
@@ -277,16 +294,17 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
 
         if self._observe_all:
             observe = True
-            key: ObservationPoint = ('insn', insn_addr, op_type)
+            key: ObservationPoint = ("insn", insn_addr, op_type)
         elif self._observation_points is not None:
-            key: ObservationPoint = ('insn', insn_addr, op_type)
+            key: ObservationPoint = ("insn", insn_addr, op_type)
             if key in self._observation_points:
                 observe = True
         elif self._observe_callback is not None:
-            observe = self._observe_callback('insn', addr=insn_addr, stmt=stmt, block=block, state=state,
-                                             op_type=op_type)
+            observe = self._observe_callback(
+                "insn", addr=insn_addr, stmt=stmt, block=block, state=state, op_type=op_type
+            )
             if observe:
-                key: ObservationPoint = ('insn', insn_addr, op_type)
+                key: ObservationPoint = ("insn", insn_addr, op_type)
 
         if not observe:
             return
@@ -300,8 +318,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
             # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
             elif op_type == OP_AFTER:
                 idx = vex_block.statements.index(stmt)
-                if idx == len(vex_block.statements) - 1 or type(
-                        vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
+                if idx == len(vex_block.statements) - 1 or type(vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
                     self.observed_results[key] = state.live_definitions.copy()
         elif isinstance(stmt, ailment.Stmt.Statement):
             # it's an AIL block
@@ -323,8 +340,13 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
             return self._init_state
         else:
             return ReachingDefinitionsState(
-                self.project.arch, self.subject, track_tmps=self._track_tmps, track_calls=self._track_calls,
-                track_consts=self._track_consts, analysis=self, canonical_size=self._canonical_size,
+                self.project.arch,
+                self.subject,
+                track_tmps=self._track_tmps,
+                track_calls=self._track_calls,
+                track_consts=self._track_consts,
+                analysis=self,
+                canonical_size=self._canonical_size,
             )
 
     # pylint: disable=no-self-use

@@ -2,6 +2,7 @@ class Undefined:
     """
     A TOP-like value indicating an unknown data source. Should live next to raw integers in DataSets.
     """
+
     def __add__(self, other):
         return self
 
@@ -54,12 +55,13 @@ class Undefined:
         return not (self == other)
 
     def __hash__(self):
-        return hash('undefined')
+        return hash("undefined")
 
     def __str__(self):
-        return '<Undefined>'
+        return "<Undefined>"
 
     def __repr__(self):
         return "<Undefined>"
+
 
 UNDEFINED = Undefined()

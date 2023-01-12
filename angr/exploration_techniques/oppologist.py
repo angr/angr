@@ -4,6 +4,7 @@ import claripy
 import functools
 
 import logging
+
 l = logging.getLogger(name=__name__)
 
 from ..errors import AngrError, SimError, SimUnsupportedError, SimCCallError
@@ -25,8 +26,8 @@ class Oppologist(ExplorationTechnique):
 
     @staticmethod
     def _restore_state(old, new):
-        new.release_plugin('unicorn')
-        new.register_plugin('unicorn', old.unicorn.copy())
+        new.release_plugin("unicorn")
+        new.register_plugin("unicorn", old.unicorn.copy())
         new.options = old.options.copy()
 
     def _oppologize(self, simgr, state, pn, **kwargs):
@@ -54,8 +55,8 @@ class Oppologist(ExplorationTechnique):
         all_results = defaultdict(list)
 
         final = SimSuccessors(results[0].addr, results[0].initial_state)
-        final.description = 'Oppology'
-        final.sort = 'Oppologist'
+        final.description = "Oppology"
+        final.sort = "Oppologist"
 
         for med in results:
             final.processed = True
@@ -69,8 +70,8 @@ class Oppologist(ExplorationTechnique):
 
     def _delayed_oppology(self, simgr, state, e, **kwargs):
         ss = simgr.successors(state, num_inst=e.executed_instruction_count, **kwargs)
-        need_oppologizing = [ s for s in ss.flat_successors if s.addr == e.ins_addr ]
-        ss.flat_successors = [ s for s in ss.flat_successors if s.addr != e.ins_addr ]
+        need_oppologizing = [s for s in ss.flat_successors if s.addr == e.ins_addr]
+        ss.flat_successors = [s for s in ss.flat_successors if s.addr != e.ins_addr]
         results = [ss]
 
         results.extend(map(functools.partial(self._oppologize, simgr, state, **kwargs), need_oppologizing))
@@ -78,7 +79,7 @@ class Oppologist(ExplorationTechnique):
 
     def successors(self, simgr, state, **kwargs):
         try:
-            kwargs.pop('throw', None)
+            kwargs.pop("throw", None)
             return simgr.successors(state, **kwargs)
 
         except (SimUnsupportedError, SimCCallError) as e:
@@ -88,9 +89,9 @@ class Oppologist(ExplorationTechnique):
                     return self._delayed_oppology(simgr, state, e, **kwargs)
                 else:
                     return self._oppologize(simgr, state, state.copy(), **kwargs)
-            except exc_list: #pylint:disable=broad-except
+            except exc_list:  # pylint:disable=broad-except
                 l.error("Oppologizer hit an error while trying to perform repairs", exc_info=True)
                 raise e
-        except Exception: #pylint:disable=broad-except
+        except Exception:  # pylint:disable=broad-except
             l.error("Original block hit an unsupported error", exc_info=True)
             raise

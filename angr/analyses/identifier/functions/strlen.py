@@ -6,7 +6,7 @@ from ..func import Func, TestData
 class strlen(Func):
     non_null = list(range(1, 256))
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return bytes(random.randint(0, 255) for _ in range(length))
         return bytes(random.choice(byte_list) for _ in range(length))

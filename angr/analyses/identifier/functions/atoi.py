@@ -10,7 +10,7 @@ class atoi(Func):
         self.skips_whitespace = False
         self.allows_negative = True
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
@@ -28,7 +28,7 @@ class atoi(Func):
         return "atoi" + suffix
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2**26), 2**26-1)
+        num = random.randint(-(2**26), 2**26 - 1)
 
         if not self.allows_negative:
             num = abs(num)
@@ -41,7 +41,7 @@ class atoi(Func):
         return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
+        num = random.randint(-(2**26), 2**26 - 1)
 
         num = abs(num)
         s = str(num)

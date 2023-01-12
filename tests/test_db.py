@@ -6,7 +6,7 @@ import unittest
 import angr
 from angr.angrdb import AngrDB
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestDb(unittest.TestCase):
@@ -14,8 +14,7 @@ class TestDb(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True,
-                                    normalize=True)
+        cfg: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()
@@ -27,7 +26,7 @@ class TestDb(unittest.TestCase):
         db1 = AngrDB()
         new_proj = db1.load(db_file)
 
-        assert len(new_proj.kb.cfgs['CFGFast'].nodes()) == len(cfg.model.nodes())
+        assert len(new_proj.kb.cfgs["CFGFast"].nodes()) == len(cfg.model.nodes())
         assert len(new_proj.kb.functions) == len(proj.kb.functions)
 
         # compare each function
@@ -38,12 +37,13 @@ class TestDb(unittest.TestCase):
             assert func.normalized == new_func.normalized
 
             assert len(func.transition_graph.nodes()) == len(new_func.transition_graph.nodes())
-            assert set(map(lambda x: x.addr, func.transition_graph.nodes())) == set(map(lambda x: x.addr,
-                                                                                        new_func.transition_graph.nodes()))
+            assert set(map(lambda x: x.addr, func.transition_graph.nodes())) == set(
+                map(lambda x: x.addr, new_func.transition_graph.nodes())
+            )
             assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
         # compare CFG
-        new_cfg = new_proj.kb.cfgs['CFGFast']
+        new_cfg = new_proj.kb.cfgs["CFGFast"]
         for node in cfg.model.nodes():
             new_node = new_cfg.get_any_node(node.addr)
 
@@ -71,8 +71,7 @@ class TestDb(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        _: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True,
-                                  normalize=True)
+        _: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()
@@ -107,15 +106,15 @@ class TestDb(unittest.TestCase):
 
                 assert len(func.transition_graph.nodes()) == len(new_func.transition_graph.nodes())
                 assert set(map(lambda x: x.addr, func.transition_graph.nodes())) == set(
-                    map(lambda x: x.addr, new_func.transition_graph.nodes()))
+                    map(lambda x: x.addr, new_func.transition_graph.nodes())
+                )
                 assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
     def test_angrdb_save_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        _: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True,
-                                  normalize=True)
+        _: angr.analyses.CFGFast = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()

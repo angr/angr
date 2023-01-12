@@ -13,6 +13,7 @@ class VariableAccessSort:
     """
     Provides enums for variable access types.
     """
+
     WRITE = 0
     READ = 1
     REFERENCE = 2
@@ -23,10 +24,16 @@ class VariableAccess(Serializable):
     Describes a variable access.
     """
 
-    __slots__ = ('variable', 'access_type', 'location', 'offset', 'atom_hash', )
+    __slots__ = (
+        "variable",
+        "access_type",
+        "location",
+        "offset",
+        "atom_hash",
+    )
 
     def __init__(self, variable, access_type, location, offset, atom_hash=None):
-        self.variable: 'SimVariable' = variable
+        self.variable: "SimVariable" = variable
         self.access_type: int = access_type
         self.location: CodeLocation = location
         self.offset: Optional[int] = offset
@@ -41,11 +48,13 @@ class VariableAccess(Serializable):
         return f"{access_type} {self.variable} @ {self.location} (offset {self.offset})"
 
     def __eq__(self, other):
-        return type(other) is VariableAccess and \
-            self.variable == other.variable and \
-            self.access_type == other.access_type and \
-            self.location == other.location and \
-            self.offset == other.offset
+        return (
+            type(other) is VariableAccess
+            and self.variable == other.variable
+            and self.access_type == other.access_type
+            and self.location == other.location
+            and self.offset == other.offset
+        )
 
     def __hash__(self):
         return hash((VariableAccess, self.variable, self.access_type, self.location, self.offset))
@@ -79,8 +88,9 @@ class VariableAccess(Serializable):
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, variable_by_ident: Optional[Dict[str,'SimVariable']]=None,
-                            **kwargs) -> 'VariableAccess':
+    def parse_from_cmessage(
+        cls, cmsg, variable_by_ident: Optional[Dict[str, "SimVariable"]] = None, **kwargs
+    ) -> "VariableAccess":
         assert variable_by_ident is not None
 
         variable = variable_by_ident[cmsg.ident]
@@ -93,8 +103,11 @@ class VariableAccess(Serializable):
             access_type = VariableAccessSort.REFERENCE
         else:
             raise NotImplementedError()
-        model = VariableAccess(variable, access_type, location,
-                               cmsg.offset if cmsg.HasField("offset") else None,
-                               atom_hash=cmsg.atom_hash if cmsg.HasField("atom_hash") else None,
-                               )
+        model = VariableAccess(
+            variable,
+            access_type,
+            location,
+            cmsg.offset if cmsg.HasField("offset") else None,
+            atom_hash=cmsg.atom_hash if cmsg.HasField("atom_hash") else None,
+        )
         return model

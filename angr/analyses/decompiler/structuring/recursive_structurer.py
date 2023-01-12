@@ -21,8 +21,15 @@ class RecursiveStructurer(Analysis):
     """
     Recursively structure a region and all of its subregions.
     """
-    def __init__(self, region, cond_proc=None, func: Optional['Function']=None,
-                 structurer_cls: Optional[Type]=None, improve_structurer=True):
+
+    def __init__(
+        self,
+        region,
+        cond_proc=None,
+        func: Optional["Function"] = None,
+        structurer_cls: Optional[Type] = None,
+        improve_structurer=True,
+    ):
         self._region = region
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
@@ -36,18 +43,18 @@ class RecursiveStructurer(Analysis):
     def _analyze(self):
 
         region = self._region.recursive_copy()
-        self._case_entry_to_switch_head: Dict[int,int] = self._get_switch_case_entries()
+        self._case_entry_to_switch_head: Dict[int, int] = self._get_switch_case_entries()
 
         # visit the region in post-order DFS
-        parent_map = { }
-        stack = [ region ]
+        parent_map = {}
+        stack = [region]
 
         while stack:
             current_region = stack[-1]
 
             has_region = False
             for node in networkx.dfs_postorder_nodes(current_region.graph, current_region.head):
-                subnodes = [ ]
+                subnodes = []
                 if type(node) is GraphRegion:
                     if node.cyclic:
                         subnodes.append(node)
@@ -75,7 +82,7 @@ class RecursiveStructurer(Analysis):
                     case_entry_to_switch_head=self._case_entry_to_switch_head,
                     func=self.function,
                     parent_region=parent_region,
-                    improve_structurer=self.improve_structurer
+                    improve_structurer=self.improve_structurer,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
@@ -121,7 +128,7 @@ class RecursiveStructurer(Analysis):
     def _replace_region_with_region(parent_region, sub_region, new_region):
         parent_region.replace_region_with_region(sub_region, new_region)
 
-    def _get_switch_case_entries(self) -> Dict[int,int]:
+    def _get_switch_case_entries(self) -> Dict[int, int]:
 
         if self.function is None:
             return {}
@@ -129,7 +136,7 @@ class RecursiveStructurer(Analysis):
         entries = {}
         func_block_addrs = self.function.block_addrs_set
 
-        jump_tables = self.kb.cfgs['CFGFast'].jump_tables
+        jump_tables = self.kb.cfgs["CFGFast"].jump_tables
         for jump_table_head_addr, jumptable in jump_tables.items():
             if jump_table_head_addr not in func_block_addrs:
                 continue
@@ -139,4 +146,4 @@ class RecursiveStructurer(Analysis):
         return entries
 
 
-register_analysis(RecursiveStructurer, 'RecursiveStructurer')
+register_analysis(RecursiveStructurer, "RecursiveStructurer")

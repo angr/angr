@@ -8,9 +8,10 @@ from ....engines.soot.values import (
     SimSootValue_ArrayRef,
     SimSootValue_ArrayBaseRef,
     SimSootValue_InstanceFieldRef,
-    SimSootValue_Local, SimSootValue_ParamRef,
+    SimSootValue_Local,
+    SimSootValue_ParamRef,
     SimSootValue_StaticFieldRef,
-    SimSootValue_StringRef
+    SimSootValue_StringRef,
 )
 from .. import MemoryMixin
 
@@ -19,13 +20,23 @@ l = logging.getLogger(name=__name__)
 
 
 class JavaVmMemoryMixin(MemoryMixin):
-    def __init__(self, memory_id="mem", stack=None, heap=None, vm_static_table=None, load_strategies=None, store_strategies=None,
-                 max_array_size=1000, **kwargs):
+    def __init__(
+        self,
+        memory_id="mem",
+        stack=None,
+        heap=None,
+        vm_static_table=None,
+        load_strategies=None,
+        store_strategies=None,
+        max_array_size=1000,
+        **kwargs,
+    ):
         super().__init__(memory_id=memory_id, **kwargs)
 
         self._stack = [] if stack is None else stack
         # delayed import
         from .. import KeyValueMemory
+
         self.heap = KeyValueMemory("mem") if heap is None else heap
         self.vm_static_table = KeyValueMemory("mem") if vm_static_table is None else vm_static_table
 
@@ -50,13 +61,13 @@ class JavaVmMemoryMixin(MemoryMixin):
         # return str(self._heap_allocation_id)
         return binascii.hexlify(os.urandom(4))
 
-    def store(self, addr, data, frame=0): # pylint: disable=arguments-differ
+    def store(self, addr, data, frame=0):  # pylint: disable=arguments-differ
         if type(addr) is SimSootValue_Local:
-            cstack = self._stack[-1+(-1*frame)]
+            cstack = self._stack[-1 + (-1 * frame)]
             cstack.store(addr.id, data, type_=addr.type)
 
         elif type(addr) is SimSootValue_ParamRef:
-            cstack = self._stack[-1+(-1*frame)]
+            cstack = self._stack[-1 + (-1 * frame)]
             cstack.store(addr.id, data, type_=addr.type)
 
         elif type(addr) is SimSootValue_ArrayRef:
@@ -74,16 +85,16 @@ class JavaVmMemoryMixin(MemoryMixin):
         else:
             l.error("Unknown addr type %s", addr)
 
-    def load(self, addr, frame=0, none_if_missing=False): # pylint: disable=arguments-differ
+    def load(self, addr, frame=0, none_if_missing=False):  # pylint: disable=arguments-differ
         if type(addr) is SimSootValue_Local:
-            cstack = self._stack[-1+(-1*frame)]
+            cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
         elif type(addr) is SimSootValue_ArrayRef:
             return self.load_array_element(addr.base, addr.index)
 
         elif type(addr) is SimSootValue_ParamRef:
-            cstack = self._stack[-1+(-1*frame)]
+            cstack = self._stack[-1 + (-1 * frame)]
             return cstack.load(addr.id, none_if_missing=none_if_missing)
 
         elif type(addr) is SimSootValue_StaticFieldRef:
@@ -113,6 +124,7 @@ class JavaVmMemoryMixin(MemoryMixin):
 
     def push_stack_frame(self):
         from .. import KeyValueMemory
+
         self._stack.append(KeyValueMemory("mem"))
 
     def pop_stack_frame(self):
@@ -149,10 +161,9 @@ class JavaVmMemoryMixin(MemoryMixin):
             # => concrete store
             concrete_start_idx = concrete_start_idxes[0]
             for i, value in enumerate(data):
-                self._store_array_element_on_heap(array=array,
-                                                  idx=concrete_start_idx+i,
-                                                  value=value,
-                                                  value_type=array.element_type)
+                self._store_array_element_on_heap(
+                    array=array, idx=concrete_start_idx + i, value=value, value_type=array.element_type
+                )
             # if the index was symbolic before concretization, this
             # constraint it to concrete start idx
             self.state.add_constraints(concrete_start_idx == start_idx)
@@ -168,18 +179,20 @@ class JavaVmMemoryMixin(MemoryMixin):
                 #    then store the value
                 #    else keep the current value
                 for i, value in enumerate(data):
-                    self._store_array_element_on_heap(array=array,
-                                                      idx=concrete_start_idx+i,
-                                                      value=value,
-                                                      value_type=array.element_type,
-                                                      store_condition=start_idx_options[-1])
+                    self._store_array_element_on_heap(
+                        array=array,
+                        idx=concrete_start_idx + i,
+                        value=value,
+                        value_type=array.element_type,
+                        store_condition=start_idx_options[-1],
+                    )
 
             # constraint start_idx, s.t. it evals to one of the concretized indexes
             constraint_on_start_idx = self.state.solver.Or(*start_idx_options)
             self.state.add_constraints(constraint_on_start_idx)
 
     def _store_array_element_on_heap(self, array, idx, value, value_type, store_condition=None):
-        heap_elem_id = '%s[%d]' % (array.id, idx)
+        heap_elem_id = "%s[%d]" % (array.id, idx)
         l.debug("Set %s to %s with condition %s", heap_elem_id, value, store_condition)
         if store_condition is not None:
             current_value = self._load_array_element_from_heap(array, idx)
@@ -210,8 +223,10 @@ class JavaVmMemoryMixin(MemoryMixin):
             # only one start index
             # => concrete load
             concrete_start_idx = concrete_start_idxes[0]
-            load_values = [self._load_array_element_from_heap(array, idx)
-                           for idx in range(concrete_start_idx, concrete_start_idx+no_of_elements)]
+            load_values = [
+                self._load_array_element_from_heap(array, idx)
+                for idx in range(concrete_start_idx, concrete_start_idx + no_of_elements)
+            ]
             # if the index was symbolic before concretization, this
             # constraint it to concrete start idx
             self.state.add_constraints(start_idx == concrete_start_idx)
@@ -222,26 +237,26 @@ class JavaVmMemoryMixin(MemoryMixin):
 
             # start with load values for the first concrete index
             concrete_start_idx = concrete_start_idxes[0]
-            load_values = [self._load_array_element_from_heap(array, idx)
-                           for idx in range(concrete_start_idx, concrete_start_idx+no_of_elements)]
+            load_values = [
+                self._load_array_element_from_heap(array, idx)
+                for idx in range(concrete_start_idx, concrete_start_idx + no_of_elements)
+            ]
             start_idx_options = [concrete_start_idx == start_idx]
 
             # update load values with all remaining start indexes
             for concrete_start_idx in concrete_start_idxes[1:]:
                 # load values for this start index
-                values = [self._load_array_element_from_heap(array, idx)
-                          for idx in range(concrete_start_idx, concrete_start_idx+no_of_elements)]
+                values = [
+                    self._load_array_element_from_heap(array, idx)
+                    for idx in range(concrete_start_idx, concrete_start_idx + no_of_elements)
+                ]
                 # update load values with the new ones
                 for i, value in enumerate(values):
                     # condition every value with the start idx
                     # => if concrete_start_idx == start_idx
                     #    then use new value
                     #    else use the current value
-                    load_values[i] = self.state.solver.If(
-                        concrete_start_idx == start_idx,
-                        value,
-                        load_values[i]
-                    )
+                    load_values[i] = self.state.solver.If(concrete_start_idx == start_idx, value, load_values[i])
                 start_idx_options.append(start_idx == concrete_start_idx)
 
             # constraint start_idx, s.t. it evals to one of the concretized indexes
@@ -252,13 +267,13 @@ class JavaVmMemoryMixin(MemoryMixin):
 
     def _load_array_element_from_heap(self, array: SimSootValue_ArrayBaseRef, idx):
         # try to load the element
-        heap_elem_id = '%s[%d]' % (array.id, idx)
+        heap_elem_id = "%s[%d]" % (array.id, idx)
         value = self.heap.load(heap_elem_id, none_if_missing=True)
         # if it's not available, initialize it
         if value is None:
             value = array.get_default_value(self.state)
             l.debug("Init %s with %s", heap_elem_id, value)
-            element_type = array.element_type if hasattr(array, 'element_type') else None
+            element_type = array.element_type if hasattr(array, "element_type") else None
             self.heap.store(heap_elem_id, value, type_=element_type)
         else:
             l.debug("Load %s from %s", heap_elem_id, value)
@@ -268,7 +283,7 @@ class JavaVmMemoryMixin(MemoryMixin):
     # Concretization strategies
     #
 
-    def _apply_concretization_strategies(self, idx, strategies, action): # pylint: disable=unused-argument
+    def _apply_concretization_strategies(self, idx, strategies, action):  # pylint: disable=unused-argument
         """
         Applies concretization strategies on the index, until one of them succeeds.
         """
@@ -300,7 +315,7 @@ class JavaVmMemoryMixin(MemoryMixin):
             return [self.state.solver.eval(idx)]
 
         strategies = self.store_strategies if strategies is None else strategies
-        return self._apply_concretization_strategies(idx, strategies, 'store')
+        return self._apply_concretization_strategies(idx, strategies, "store")
 
     def concretize_load_idx(self, idx, strategies=None):
         """
@@ -318,7 +333,7 @@ class JavaVmMemoryMixin(MemoryMixin):
             return [self.state.solver.eval(idx)]
 
         strategies = self.load_strategies if strategies is None else strategies
-        return self._apply_concretization_strategies(idx, strategies, 'load')
+        return self._apply_concretization_strategies(idx, strategies, "load")
 
     def _create_default_load_strategies(self):
         # reset dict
@@ -357,7 +372,7 @@ class JavaVmMemoryMixin(MemoryMixin):
 
     @MemoryMixin.memo
     def copy(self, memo):
-        o: 'JavaVmMemoryMixin' = super().copy(memo)
+        o: "JavaVmMemoryMixin" = super().copy(memo)
         o._stack = [stack_frame.copy() for stack_frame in self._stack]
         o.heap = self.heap.copy()
         o.vm_static_table = self.vm_static_table.copy()
@@ -366,12 +381,14 @@ class JavaVmMemoryMixin(MemoryMixin):
         o.max_array_size = self.max_array_size
         return o
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         l.warning("Merging is not implemented for JavaVM memory!")
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         l.warning("Widening is not implemented for JavaVM memory!")
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None): # pylint: disable=unused-argument
+    def _find(
+        self, addr, what, max_search=None, max_symbolic_bytes=None, default=None
+    ):  # pylint: disable=unused-argument
         l.warning("Find is not implemented for JavaVM memory!")
         return None

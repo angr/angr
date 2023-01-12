@@ -6,10 +6,12 @@ from angr.sim_type import parse_file, SimStructValue
 from angr import Project, load_shellcode
 
 import logging
+
 l = logging.getLogger("angr.tests.test_simcc")
 
 import os
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestCallingConvention(TestCase):
@@ -47,15 +49,15 @@ class TestCallingConvention(TestCase):
         cc.arg_locs(proto)
 
     def test_struct_ffi(self):
-        with open(os.path.join(test_location, '../tests_src/test_structs.c')) as fp:
+        with open(os.path.join(test_location, "../tests_src/test_structs.c")) as fp:
             decls = parse_file(fp.read())
 
-        p = Project(os.path.join(test_location, 'x86_64/test_structs.o'), auto_load_libs=False)
+        p = Project(os.path.join(test_location, "x86_64/test_structs.o"), auto_load_libs=False)
 
         def make_callable(name):
             return p.factory.callable(p.loader.find_symbol(name).rebased_addr, decls[0][name])
 
-        test_small_struct_return = make_callable('test_small_struct_return')
+        test_small_struct_return = make_callable("test_small_struct_return")
         result = test_small_struct_return()
         self.assertIsInstance(result, SimStructValue)
         self.assertTrue((result.a == 1).is_true())
@@ -63,14 +65,17 @@ class TestCallingConvention(TestCase):
 
     def test_array_ffi(self):
         # NOTE: if this test is failing and you think it is wrong, you might be right :)
-        p = load_shellcode(b'\xc3', arch='amd64')
+        p = load_shellcode(b"\xc3", arch="amd64")
         s = p.factory.blank_state()
         s.regs.rdi = 123
         s.regs.rsi = 456
         s.regs.rdx = 789
-        execve = parse_file('int execve(const char *pathname, char *const argv[], char *const envp[]);')[0]['execve']
+        execve = parse_file("int execve(const char *pathname, char *const argv[], char *const envp[]);")[0]["execve"]
         cc = p.factory.cc()
         assert all((x == y).is_true() for x, y in zip(cc.get_args(s, execve), (123, 456, 789)))
         # however, this is defintely right
-        assert [list(loc.get_footprint()) for loc in cc.arg_locs(execve)] \
-               == [[SimRegArg('rdi', 8)], [SimRegArg('rsi', 8)], [SimRegArg('rdx', 8)]]
+        assert [list(loc.get_footprint()) for loc in cc.arg_locs(execve)] == [
+            [SimRegArg("rdi", 8)],
+            [SimRegArg("rsi", 8)],
+            [SimRegArg("rdx", 8)],
+        ]

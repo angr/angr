@@ -6,10 +6,12 @@ from ....sim_options import STRICT_PAGE_ACCESS
 
 l = logging.getLogger(__name__)
 
+
 class StackAllocationMixin(PagedMemoryMixin):
     """
     This mixin adds automatic allocation for a stack region based on the stack_end and stack_size parameters.
     """
+
     # TODO: multiple stacks. this scheme should scale p well
     # TODO tbh this should be handled by an actual fault handler in simos or something
     def __init__(self, stack_end=None, stack_size=None, stack_perms=None, **kwargs):
@@ -49,7 +51,11 @@ class StackAllocationMixin(PagedMemoryMixin):
                 raise SimSegfaultException(self._red_pageno * self.page_size, "exhausted stack quota")
 
             l.debug("Allocating new stack page at %#x", self._red_pageno * self.page_size)
-            result.append(PagedMemoryMixin._initialize_default_page(self, self._red_pageno, permissions=self._stack_perms, **kwargs))
+            result.append(
+                PagedMemoryMixin._initialize_default_page(
+                    self, self._red_pageno, permissions=self._stack_perms, **kwargs
+                )
+            )
             self._pages[self._red_pageno] = result[-1]
 
             self._red_pageno = new_red_pageno

@@ -15,7 +15,7 @@ class Atom:
     It could either be a Tmp (temporary variable), a Register, a MemoryLocation.
     """
 
-    __slots__ = ('_hash', )
+    __slots__ = ("_hash",)
 
     def __init__(self):
         self._hash = None
@@ -28,7 +28,7 @@ class Atom:
         raise NotImplementedError()
 
     @staticmethod
-    def from_argument(argument: SimFunctionArgument, registers: Dict[str,Tuple[int,int]]):
+    def from_argument(argument: SimFunctionArgument, registers: Dict[str, Tuple[int, int]]):
         """
         Instanciate an `Atom` from a given argument.
 
@@ -55,6 +55,7 @@ class GuardUse(Atom):
     """
     Implements a guard use.
     """
+
     __slots__ = ("target",)
 
     def __init__(self, target):
@@ -62,7 +63,7 @@ class GuardUse(Atom):
         self.target = target
 
     def __repr__(self):
-        return '<Guard %#x>' % self.target
+        return "<Guard %#x>" % self.target
 
     @property
     def size(self) -> int:
@@ -78,7 +79,8 @@ class FunctionCall(Atom):
     """
     Represents a function call.
     """
-    __slots__ = ('target', 'callsite')
+
+    __slots__ = ("target", "callsite")
 
     def __init__(self, target, callsite):
         super().__init__()
@@ -87,15 +89,20 @@ class FunctionCall(Atom):
 
     @property
     def single_target(self):
-        if type(self.target) is MultiValues and len(self.target.values) == 1 and 0 in self.target.values and \
-                len(self.target.values[0]) == 1 and next(iter(self.target.values[0])).op == 'BVV':
+        if (
+            type(self.target) is MultiValues
+            and len(self.target.values) == 1
+            and 0 in self.target.values
+            and len(self.target.values[0]) == 1
+            and next(iter(self.target.values[0])).op == "BVV"
+        ):
             return next(iter(self.target.values[0])).args[0]
         return None
 
     def __repr__(self):
         target = self.single_target
-        target_txt = hex(target) if target is not None else '(indirect)'
-        return '<Call %s>' % target_txt
+        target_txt = hex(target) if target is not None else "(indirect)"
+        return "<Call %s>" % target_txt
 
     def __eq__(self, other):
         return type(other) is FunctionCall and self.callsite == other.callsite
@@ -114,7 +121,8 @@ class ConstantSrc(Atom):
     """
     Represents a constant.
     """
-    __slots__ = ('const',)
+
+    __slots__ = ("const",)
 
     def __init__(self, const):
         super().__init__()
@@ -140,7 +148,11 @@ class Tmp(Atom):
     """
     Represents a variable used by the IR to store intermediate values.
     """
-    __slots__ = ('tmp_idx', '_size', )
+
+    __slots__ = (
+        "tmp_idx",
+        "_size",
+    )
 
     def __init__(self, tmp_idx: int, size: int):
         super().__init__()
@@ -156,7 +168,7 @@ class Tmp(Atom):
     __hash__ = Atom.__hash__
 
     def _core_hash(self):
-        return hash(('tmp', self.tmp_idx))
+        return hash(("tmp", self.tmp_idx))
 
     @property
     def size(self) -> int:
@@ -174,7 +186,11 @@ class Register(Atom):
     :ivar int reg_offset:    The offset from the base to define its place in the memory bloc.
     :ivar int size:          The size, in number of bytes.
     """
-    __slots__ = ('reg_offset', '_size', )
+
+    __slots__ = (
+        "reg_offset",
+        "_size",
+    )
 
     def __init__(self, reg_offset: int, size: int):
         super().__init__()
@@ -186,14 +202,12 @@ class Register(Atom):
         return "<Reg %d<%d>>" % (self.reg_offset, self.size)
 
     def __eq__(self, other):
-        return type(other) is Register and \
-               self.reg_offset == other.reg_offset and \
-               self.size == other.size
+        return type(other) is Register and self.reg_offset == other.reg_offset and self.size == other.size
 
     __hash__ = Atom.__hash__
 
     def _core_hash(self):
-        return hash(('reg', self.reg_offset, self.size))
+        return hash(("reg", self.reg_offset, self.size))
 
     @property
     def bits(self) -> int:
@@ -211,22 +225,26 @@ class MemoryLocation(Atom):
     It is characterized by its address and its size.
     """
 
-    __slots__ = ('addr', '_size', 'endness', )
+    __slots__ = (
+        "addr",
+        "_size",
+        "endness",
+    )
 
-    def __init__(self, addr: Union[SpOffset,HeapAddress,int], size: int, endness: Optional[str]=None):
+    def __init__(self, addr: Union[SpOffset, HeapAddress, int], size: int, endness: Optional[str] = None):
         """
         :param int addr: The address of the beginning memory location slice.
         :param int size: The size of the represented memory location, in bytes.
         """
         super().__init__()
 
-        self.addr: Union[SpOffset,int,claripy.ast.BV] = addr
+        self.addr: Union[SpOffset, int, claripy.ast.BV] = addr
         self._size: int = size
         self.endness = endness
 
     def __repr__(self):
         address_format = hex(self.addr) if type(self.addr) is int else self.addr
-        stack_format = ' (stack)' if self.is_on_stack else ''
+        stack_format = " (stack)" if self.is_on_stack else ""
         size = "%d" % self.size if isinstance(self.size, int) else self.size
 
         return f"<Mem {address_format}<{size}>{stack_format}>"
@@ -256,18 +274,18 @@ class MemoryLocation(Atom):
 
     def __eq__(self, other):
         # pylint:disable=isinstance-second-argument-not-valid-type
-        return (type(other) is MemoryLocation and
-                (
-                    self.addr is other.addr if (
-                            isinstance(self.addr, claripy.ast.BV)
-                            or isinstance(other.addr, claripy.ast.BV)
-                    ) else self.addr == other.addr
-                )
-                and self.size == other.size
-                and self.endness == other.endness
-                )
+        return (
+            type(other) is MemoryLocation
+            and (
+                self.addr is other.addr
+                if (isinstance(self.addr, claripy.ast.BV) or isinstance(other.addr, claripy.ast.BV))
+                else self.addr == other.addr
+            )
+            and self.size == other.size
+            and self.endness == other.endness
+        )
 
     __hash__ = Atom.__hash__
 
     def _core_hash(self):
-        return hash(('mem', self.addr, self.size, self.endness))
+        return hash(("mem", self.addr, self.size, self.endness))

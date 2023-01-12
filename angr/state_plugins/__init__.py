@@ -1,4 +1,4 @@
-#pylint:disable=wildcard-import
+# pylint:disable=wildcard-import
 from .plugin import *
 from .libc import *
 from .inspect import *

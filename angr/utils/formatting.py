@@ -2,7 +2,7 @@ import sys
 from typing import Sequence, Optional, Callable
 
 
-if sys.platform == 'win32':
+if sys.platform == "win32":
     import colorama  # pylint:disable=import-error
 
 
@@ -14,9 +14,10 @@ def setup_terminal():
     Check if we are running in a TTY. If so, make sure the terminal supports ANSI escape sequences. If not, disable
     colorized output. Sets global `ansi_color_enabled` to True if colorized output should be enabled by default.
     """
-    isatty = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
-               and hasattr(sys.stderr, 'isatty') and sys.stderr.isatty())
-    if sys.platform == 'win32' and isatty:
+    isatty = (
+        hasattr(sys.stdout, "isatty") and sys.stdout.isatty() and hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
+    )
+    if sys.platform == "win32" and isatty:
         if not isinstance(sys.stdout, colorama.ansitowin32.StreamWrapper):
             colorama.init()
 
@@ -35,30 +36,36 @@ def ansi_color(s: str, color: Optional[str]) -> str:
         return s
 
     codes = {
-        'black':          '30m',
-        'bright_black':   '90m',
-        'gray':           '90m',  # alias 'bright black'
-        'blue':           '34m',
-        'bright_blue':    '94m',
-        'cyan':           '36m',
-        'bright_cyan':    '96m',
-        'green':          '32m',
-        'bright_green':   '92m',
-        'magenta':        '35m',
-        'bright_magenta': '95m',
-        'red':            '31m',
-        'bright_red':     '91m',
-        'white':          '37m',
-        'bright_white':   '97m',
-        'yellow':         '33m',
-        'bright_yellow':  '93m',
+        "black": "30m",
+        "bright_black": "90m",
+        "gray": "90m",  # alias 'bright black'
+        "blue": "34m",
+        "bright_blue": "94m",
+        "cyan": "36m",
+        "bright_cyan": "96m",
+        "green": "32m",
+        "bright_green": "92m",
+        "magenta": "35m",
+        "bright_magenta": "95m",
+        "red": "31m",
+        "bright_red": "91m",
+        "white": "37m",
+        "bright_white": "97m",
+        "yellow": "33m",
+        "bright_yellow": "93m",
     }
-    return '\u001b[' + codes[color] + s + '\u001b[0m'
+    return "\u001b[" + codes[color] + s + "\u001b[0m"
 
 
-def add_edge_to_buffer(buf: Sequence[str], ref: Sequence[str], start: int, end: int,
-                       formatter: Optional[Callable[[str], str]] = None,
-                       dashed: bool = False, ascii_only: Optional[bool] = None):
+def add_edge_to_buffer(
+    buf: Sequence[str],
+    ref: Sequence[str],
+    start: int,
+    end: int,
+    formatter: Optional[Callable[[str], str]] = None,
+    dashed: bool = False,
+    ascii_only: Optional[bool] = None,
+):
     """
     Draw an edge by adding Unicode box and arrow glyphs to beginning of each line in a list of lines.
 
@@ -71,34 +78,34 @@ def add_edge_to_buffer(buf: Sequence[str], ref: Sequence[str], start: int, end: 
     :param ascii_only: Render edge using ASCII characters only. If unspecified, guess by stdout encoding.
     :return:
     """
-    abs_start  = min(start, end)
-    abs_end    = max(start, end)
-    max_depth  = max(map(len, ref[abs_start:abs_end+1]))
+    abs_start = min(start, end)
+    abs_end = max(start, end)
+    max_depth = max(map(len, ref[abs_start : abs_end + 1]))
     descending = start < end
 
     if ascii_only is None:
         # Guess whether we should only use ASCII characters based on stdout encoding
-        ascii_only = getattr(sys.stdout, 'encoding', None) != 'utf-8'
+        ascii_only = getattr(sys.stdout, "encoding", None) != "utf-8"
 
     if ascii_only:
         chars = {
-            'start_cap'    : '-',
-            'start_corner' : '+',
-            'end_cap'      : '>',
-            'end_corner'   : '+',
-            'horizontal'   : '+' if dashed else '-',
-            'vertical'     : '+' if dashed else '|',
-            'spin'         : '@ ',
+            "start_cap": "-",
+            "start_corner": "+",
+            "end_cap": ">",
+            "end_corner": "+",
+            "horizontal": "+" if dashed else "-",
+            "vertical": "+" if dashed else "|",
+            "spin": "@ ",
         }
     else:
         chars = {
-            'start_cap'    : '╴',
-            'start_corner' : '╭' if descending else '╰',
-            'end_cap'      : '⧽',
-            'end_corner'   : '╰' if descending else '╭',
-            'horizontal'   : '╌' if dashed else '─',
-            'vertical'     : '╎' if dashed else '│',
-            'spin'         : '⟳ ',
+            "start_cap": "╴",
+            "start_corner": "╭" if descending else "╰",
+            "end_cap": "⧽",
+            "end_corner": "╰" if descending else "╭",
+            "horizontal": "╌" if dashed else "─",
+            "vertical": "╎" if dashed else "│",
+            "spin": "⟳ ",
         }
 
     def handle_line(i, edge_str):
@@ -107,13 +114,11 @@ def add_edge_to_buffer(buf: Sequence[str], ref: Sequence[str], start: int, end: 
         buf[i] = edge_str + buf[i]
 
     if start == end:
-        handle_line(start, chars['spin'])
+        handle_line(start, chars["spin"])
     else:
-        handle_line(start, (chars['start_corner']
-                            + chars['horizontal'] * (max_depth - len(ref[start]))
-                            + chars['start_cap']))
-        handle_line(end, (chars['end_corner']
-                          + chars['horizontal'] * (max_depth - len(ref[end]))
-                          + chars['end_cap']))
+        handle_line(
+            start, (chars["start_corner"] + chars["horizontal"] * (max_depth - len(ref[start])) + chars["start_cap"])
+        )
+        handle_line(end, (chars["end_corner"] + chars["horizontal"] * (max_depth - len(ref[end])) + chars["end_cap"]))
         for i in range(abs_start + 1, abs_end):
-            handle_line(i, chars['vertical'] + ' ' * (1 + max_depth - len(ref[i])))
+            handle_line(i, chars["vertical"] + " " * (1 + max_depth - len(ref[i])))

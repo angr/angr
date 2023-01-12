@@ -12,7 +12,15 @@ class DecompilationCache:
     Caches key data structures that can be used later for refining decompilation results, such as retyping variables.
     """
 
-    __slots__ = ('addr', 'type_constraints', 'var_to_typevar', 'codegen', 'clinic', 'ite_exprs', 'binop_operators', )
+    __slots__ = (
+        "addr",
+        "type_constraints",
+        "var_to_typevar",
+        "codegen",
+        "clinic",
+        "ite_exprs",
+        "binop_operators",
+    )
 
     def __init__(self, addr):
         self.addr = addr
@@ -20,8 +28,8 @@ class DecompilationCache:
         self.var_to_typevar: Optional[Dict] = None
         self.codegen: Optional[BaseStructuredCodeGenerator] = None
         self.clinic: Optional[Clinic] = None
-        self.ite_exprs: Optional[Set[Tuple[int,Any]]] = None
-        self.binop_operators: Optional[Dict['OpDescriptor',str]] = None
+        self.ite_exprs: Optional[Set[Tuple[int, Any]]] = None
+        self.binop_operators: Optional[Dict["OpDescriptor", str]] = None
 
     @property
     def local_types(self):

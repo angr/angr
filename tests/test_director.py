@@ -6,12 +6,12 @@ import unittest
 import angr
 from angr.sim_type import SimTypePointer, SimTypeChar
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestDirector(unittest.TestCase):
     def test_execute_address_brancher(self):
-        p = angr.Project(os.path.join(test_location, 'x86_64', 'brancher'), load_options={'auto_load_libs': False})
+        p = angr.Project(os.path.join(test_location, "x86_64", "brancher"), load_options={"auto_load_libs": False})
 
         pg = p.factory.simulation_manager()
 
@@ -21,7 +21,7 @@ class TestDirector(unittest.TestCase):
         dm.add_goal(goal)
         pg.use_technique(dm)
 
-        pg.explore(find=(0x4005b4,))
+        pg.explore(find=(0x4005B4,))
 
         assert len(pg.deprioritized) > 0
 
@@ -34,21 +34,21 @@ class TestDirector(unittest.TestCase):
             NonLocal.the_state = p
             NonLocal.the_goal = goal
 
-        p = angr.Project(os.path.join(test_location, 'x86_64', 'brancher'), load_options={'auto_load_libs': False})
+        p = angr.Project(os.path.join(test_location, "x86_64", "brancher"), load_options={"auto_load_libs": False})
 
         pg = p.factory.simulation_manager()
 
         # initialize the exploration technique
-        dm = angr.exploration_techniques.Director(cfg_keep_states=True, goal_satisfied_callback=goal_reached_callback,
-                                                  num_fallback_states=1
-                                                  )
+        dm = angr.exploration_techniques.Director(
+            cfg_keep_states=True, goal_satisfied_callback=goal_reached_callback, num_fallback_states=1
+        )
         _ = p.analyses.CFG()
-        puts_func = p.kb.functions.function(name='puts')
+        puts_func = p.kb.functions.function(name="puts")
         goal = angr.exploration_techniques.CallFunctionGoal(puts_func, [(SimTypePointer(SimTypeChar()), ">=20")])
         dm.add_goal(goal)
         pg.use_technique(dm)
 
-        pg.explore(find=(0x40059e,))
+        pg.explore(find=(0x40059E,))
 
         assert len(pg.deprioritized) > 0
         assert len(pg.found) > 0
@@ -57,5 +57,5 @@ class TestDirector(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    logging.getLogger('angr.exploration_techniques.director').setLevel(logging.DEBUG)
+    logging.getLogger("angr.exploration_techniques.director").setLevel(logging.DEBUG)
     unittest.main()

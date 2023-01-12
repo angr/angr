@@ -3,7 +3,7 @@ import unittest
 
 import angr
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 # pylint: disable=missing-class-docstring
@@ -21,21 +21,22 @@ class TestCfgThumbFirmware(unittest.TestCase):
 
         # This is the canonical way to carve up a nasty firmware thing.
 
-        cfg = p.analyses.CFGFast(resolve_indirect_jumps=True, force_smart_scan=False, force_complete_scan=False,
-                                 normalize=True)
+        cfg = p.analyses.CFGFast(
+            resolve_indirect_jumps=True, force_smart_scan=False, force_complete_scan=False, normalize=True
+        )
 
         # vfprintf should return; this function has a weird C++ thing that gets compiled as a tail-call.
         # The function itself must return, and _NOT_ contain its callee.
-        vfprintf = cfg.kb.functions[p.loader.find_symbol('vfprintf').rebased_addr]
+        vfprintf = cfg.kb.functions[p.loader.find_symbol("vfprintf").rebased_addr]
         assert vfprintf.returning
         assert len(list(vfprintf.blocks)) == 1
         # The function should have one "transition"
-        block = list(vfprintf.endpoints_with_type['transition'])[0]
+        block = list(vfprintf.endpoints_with_type["transition"])[0]
         assert len(block.successors()) == 1
         succ = list(block.successors())[0]
-        assert succ.addr == 0x080081dd
+        assert succ.addr == 0x080081DD
         f2 = p.kb.functions[succ.addr]
-        assert f2.name == '_vfprintf_r'
+        assert f2.name == "_vfprintf_r"
         assert f2.returning
 
 

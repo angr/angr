@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 AnalysisState = TypeVar("AnalysisState")
 
+
 class ForwardAnalysis(Generic[AnalysisState, NodeType]):
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
@@ -36,9 +37,14 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
     Feel free to discuss with me (Fish) if you have any suggestions or complaints.
     """
 
-    def __init__(self, order_jobs=False, allow_merging=False, allow_widening=False, status_callback=None,
-                 graph_visitor: "Optional[GraphVisitor[NodeType]]" = None
-                 ):
+    def __init__(
+        self,
+        order_jobs=False,
+        allow_merging=False,
+        allow_widening=False,
+        status_callback=None,
+        graph_visitor: "Optional[GraphVisitor[NodeType]]" = None,
+    ):
         """
         Constructor
 
@@ -58,7 +64,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
 
         # sanity checks
         if self._allow_widening and not self._allow_merging:
-            raise AngrForwardAnalysisError('Merging must be allowed if widening is allowed.')
+            raise AngrForwardAnalysisError("Merging must be allowed if widening is allowed.")
 
         # Analysis progress control
         self._should_abort = False
@@ -133,37 +139,38 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
     # Common interfaces
 
     def _pre_analysis(self) -> None:
-        raise NotImplementedError('_pre_analysis() is not implemented.')
+        raise NotImplementedError("_pre_analysis() is not implemented.")
 
     def _intra_analysis(self) -> None:
-        raise NotImplementedError('_intra_analysis() is not implemented.')
+        raise NotImplementedError("_intra_analysis() is not implemented.")
 
     def _post_analysis(self) -> None:
-        raise NotImplementedError('_post_analysis() is not implemented.')
+        raise NotImplementedError("_post_analysis() is not implemented.")
 
     def _job_key(self, job: CFGJobBase) -> BlockID:
-        raise NotImplementedError('_job_key() is not implemented.')
+        raise NotImplementedError("_job_key() is not implemented.")
 
     def _get_successors(self, job: CFGJobBase) -> Union[List[SimState], List[CFGJobBase]]:
-        raise NotImplementedError('_get_successors() is not implemented.')
+        raise NotImplementedError("_get_successors() is not implemented.")
 
     def _pre_job_handling(self, job: CFGJobBase) -> None:
-        raise NotImplementedError('_pre_job_handling() is not implemented.')
+        raise NotImplementedError("_pre_job_handling() is not implemented.")
 
     def _post_job_handling(self, job: CFGJobBase, new_jobs, successors: List[SimState]) -> None:
-        raise NotImplementedError('_post_job_handling() is not implemented.')
+        raise NotImplementedError("_post_job_handling() is not implemented.")
 
     def _handle_successor(self, job: CFGJobBase, successor: SimState, successors: List[SimState]) -> List[CFGJobBase]:
-        raise NotImplementedError('_handle_successor() is not implemented.')
+        raise NotImplementedError("_handle_successor() is not implemented.")
 
     def _job_queue_empty(self) -> None:
-        raise NotImplementedError('_job_queue_empty() is not implemented.')
+        raise NotImplementedError("_job_queue_empty() is not implemented.")
 
     def _initial_abstract_state(self, node: NodeType) -> AnalysisState:
-        raise NotImplementedError('_initial_abstract_state() is not implemented.')
+        raise NotImplementedError("_initial_abstract_state() is not implemented.")
 
-    def _process_input_state_for_successor(self, node: NodeType, successor: NodeType, input_state: AnalysisState) \
-            -> AnalysisState:
+    def _process_input_state_for_successor(
+        self, node: NodeType, successor: NodeType, input_state: AnalysisState
+    ) -> AnalysisState:
         # can be overwritten
         return input_state
 
@@ -189,7 +196,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
         :return:        A tuple: (changed, output abstract state)
         """
 
-        raise NotImplementedError('_run_on_node() is not implemented.')
+        raise NotImplementedError("_run_on_node() is not implemented.")
 
     def _merge_states(self, node: NodeType, *states: AnalysisState) -> Tuple[AnalysisState, bool]:
         """
@@ -201,24 +208,24 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
                        i.e., union(state0, state1) == state0), in which case, its successors will not be revisited.
         """
 
-        raise NotImplementedError('_merge_states() is not implemented.')
+        raise NotImplementedError("_merge_states() is not implemented.")
 
     def _widen_states(self, *states: AnalysisState) -> AnalysisState:
-        raise NotImplementedError('_widen_states() is not implemented.')
+        raise NotImplementedError("_widen_states() is not implemented.")
 
     # Special interfaces for non-graph-traversal mode
 
     def _merge_jobs(self, *jobs: CFGJobBase):
-        raise NotImplementedError('_merge_jobs() is not implemented.')
+        raise NotImplementedError("_merge_jobs() is not implemented.")
 
     def _should_widen_jobs(self, *jobs: CFGJobBase):
-        raise NotImplementedError('_should_widen_jobs() is not implemented.')
+        raise NotImplementedError("_should_widen_jobs() is not implemented.")
 
     def _widen_jobs(self, *jobs: CFGJobBase):
-        raise NotImplementedError('_widen_jobs() is not implemented.')
+        raise NotImplementedError("_widen_jobs() is not implemented.")
 
     def _job_sorting_key(self, job: CFGJobBase) -> int:
-        raise NotImplementedError('_job_sorting_key() is not implemented.')
+        raise NotImplementedError("_job_sorting_key() is not implemented.")
 
     #
     # Private methods
@@ -310,7 +317,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
             # this is an approximation for removing input states for all nodes that `node` dominates
             new_input_state = self._process_input_state_for_successor(node, succ, input_state)
             if sum(1 for _ in self._graph_visitor.predecessors(succ)) == 1:
-                self._input_states[self._node_key(succ)] = [ new_input_state ]
+                self._input_states[self._node_key(succ)] = [new_input_state]
             else:
                 self._input_states[self._node_key(succ)].append(new_input_state)
 
@@ -406,7 +413,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
 
         successors = self._get_successors(job)
 
-        all_new_jobs = [ ]
+        all_new_jobs = []
 
         for successor in successors:
             new_jobs = self._handle_successor(job, successor, successors)
@@ -499,7 +506,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
         :param predicate:   A method that determines if a job should be removed or not.
         """
 
-        to_remove = [ ]
+        to_remove = []
         for job_info in self._job_info_queue:
             if predicate(job_info.job):
                 to_remove.append(job_info)

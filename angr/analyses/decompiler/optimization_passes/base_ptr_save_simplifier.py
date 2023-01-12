@@ -12,8 +12,8 @@ class BasePointerSaveSimplifier(OptimizationPass):
     Removes the effects of base pointer stack storage at function invocation and restoring at function return.
     """
 
-    ARCHES = ['X86', 'AMD64', 'ARMEL', 'ARMHF', "ARMCortexM", "MIPS32", "MIPS64"]
-    PLATFORMS = ["cgc", 'linux']
+    ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM", "MIPS32", "MIPS64"]
+    PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify base pointer saving"
     DESCRIPTION = __doc__.strip()
@@ -29,31 +29,27 @@ class BasePointerSaveSimplifier(OptimizationPass):
         restore_stmts = self._find_baseptr_restore_stmt()
 
         if save_stmt is None:
-            return False, { }
+            return False, {}
 
         save_dst = save_stmt[2]
         if restore_stmts is not None:
-            restore_srcs = [ tpl[2] for tpl in restore_stmts ]
+            restore_srcs = [tpl[2] for tpl in restore_stmts]
 
             if all(src == save_dst for src in restore_srcs):
-                return True, \
-                       {
-                           'save_stmt': save_stmt,
-                           'restore_stmts': restore_stmts,
-                       }
+                return True, {
+                    "save_stmt": save_stmt,
+                    "restore_stmts": restore_stmts,
+                }
 
-        return True, {
-            'save_stmt': save_stmt,
-            'restore_stmts': [ ]
-        }
+        return True, {"save_stmt": save_stmt, "restore_stmts": []}
 
     def _analyze(self, cache=None):
         save_stmt = None
         restore_stmts = None
 
         if cache is not None:
-            save_stmt = cache.get('save_stmt', None)
-            restore_stmts = cache.get('restore_stmts', None)
+            save_stmt = cache.get("save_stmt", None)
+            restore_stmts = cache.get("restore_stmts", None)
 
         if save_stmt is None:
             save_stmt = self._find_baseptr_save_stmt()
@@ -89,17 +85,21 @@ class BasePointerSaveSimplifier(OptimizationPass):
             return None
 
         for idx, stmt in enumerate(first_block.statements):
-            if isinstance(stmt, ailment.Stmt.Store) \
-                    and isinstance(stmt.addr, ailment.Expr.StackBaseOffset) \
-                    and isinstance(stmt.data, ailment.Expr.Register) \
-                    and stmt.data.reg_offset == self.project.arch.bp_offset \
-                    and stmt.addr.offset < 0:
+            if (
+                isinstance(stmt, ailment.Stmt.Store)
+                and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                and isinstance(stmt.data, ailment.Expr.Register)
+                and stmt.data.reg_offset == self.project.arch.bp_offset
+                and stmt.addr.offset < 0
+            ):
                 return first_block, idx, stmt.addr
-            if isinstance(stmt, ailment.Stmt.Store) \
-                    and isinstance(stmt.addr, ailment.Expr.StackBaseOffset) \
-                    and isinstance(stmt.data, ailment.Expr.StackBaseOffset) \
-                    and stmt.data.offset == 0 \
-                    and stmt.addr.offset < 0:
+            if (
+                isinstance(stmt, ailment.Stmt.Store)
+                and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                and isinstance(stmt.data, ailment.Expr.StackBaseOffset)
+                and stmt.data.offset == 0
+                and stmt.addr.offset < 0
+            ):
                 return first_block, idx, stmt.addr
 
         # Not found
@@ -115,18 +115,20 @@ class BasePointerSaveSimplifier(OptimizationPass):
         """
 
         endpoints = self._func.endpoints
-        callouts_and_jumpouts = { n.addr for n in self._func.callout_sites + self._func.jumpout_sites }
+        callouts_and_jumpouts = {n.addr for n in self._func.callout_sites + self._func.jumpout_sites}
 
-        baseptr_restore_stmts = [ ]
+        baseptr_restore_stmts = []
 
         for endpoint in endpoints:
             for endpoint_block in self._get_blocks(endpoint.addr):
                 for idx, stmt in enumerate(endpoint_block.statements):
-                    if isinstance(stmt, ailment.Stmt.Assignment) \
-                            and isinstance(stmt.dst, ailment.Expr.Register) \
-                            and stmt.dst.reg_offset == self.project.arch.bp_offset \
-                            and isinstance(stmt.src, ailment.Expr.Load) \
-                            and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset):
+                    if (
+                        isinstance(stmt, ailment.Stmt.Assignment)
+                        and isinstance(stmt.dst, ailment.Expr.Register)
+                        and stmt.dst.reg_offset == self.project.arch.bp_offset
+                        and isinstance(stmt.src, ailment.Expr.Load)
+                        and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
+                    ):
                         baseptr_restore_stmts.append((endpoint_block, idx, stmt.src.addr))
                         break
                 else:
@@ -134,8 +136,9 @@ class BasePointerSaveSimplifier(OptimizationPass):
                         _l.debug("Could not find baseptr restoring statement in function %#x.", endpoint.addr)
                         return None
                     else:
-                        _l.debug("No baseptr restoring statement is found at callout/jumpout site %#x. Might be expected.",
-                                 endpoint.addr
-                                 )
+                        _l.debug(
+                            "No baseptr restoring statement is found at callout/jumpout site %#x. Might be expected.",
+                            endpoint.addr,
+                        )
 
         return baseptr_restore_stmts

@@ -15,10 +15,10 @@ class memcpy(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super().__init__() #pylint disable=useless-super-delegation
+        super().__init__()  # pylint disable=useless-super-delegation
         self.memmove_safe = False
 
-    def get_name(self): #pylint disable=no-self-use
+    def get_name(self):  # pylint disable=no-self-use
         if self.memmove_safe:
             return "memmove"
         return "memcpy"
@@ -29,14 +29,14 @@ class memcpy(Func):
     def args(self):
         return ["dst", "src", "len"]
 
-    def can_call_other_funcs(self): #pylint disable=no-self-use
+    def can_call_other_funcs(self):  # pylint disable=no-self-use
         return False
 
     def gen_input_output_pair(self):
         # TODO we don't check the return val
-        copy_len = random.randint(1,40)
+        copy_len = random.randint(1, 40)
         buf = rand_str(copy_len)
-        result_buf = rand_str(copy_len+5)
+        result_buf = rand_str(copy_len + 5)
         test_input = [result_buf, buf, copy_len]
         test_output = [buf + result_buf[-5:], buf, None]
         max_steps = 20
@@ -63,19 +63,23 @@ class memcpy(Func):
         inttype = SimTypeInt(runner.project.arch.bits, False)
         prototype = SimTypeFunction([inttype] * 3, inttype)
         cc = runner.project.factory.cc(prototype=prototype)
-        call = IdentifierCallable(runner.project, func.startpoint.addr, concrete_only=True,
-                        cc=cc, base_state=s, max_steps=20)
+        call = IdentifierCallable(
+            runner.project, func.startpoint.addr, concrete_only=True, cc=cc, base_state=s, max_steps=20
+        )
         _ = call(*[0x2003, 0x2000, 5])
         result_state = call.result_state
-        self.memmove_safe = bool(result_state.solver.eval(result_state.memory.load(0x2000, 8), cast_to=bytes) == "ABCABC\x00\x00")
+        self.memmove_safe = bool(
+            result_state.solver.eval(result_state.memory.load(0x2000, 8), cast_to=bytes) == "ABCABC\x00\x00"
+        )
 
         s = runner.get_base_call_state(func, test)
         s.memory.store(0x2000, "\x00\x00\x00\x00\x00CBA")
         inttype = SimTypeInt(runner.project.arch.bits, False)
         prototype = SimTypeFunction([inttype] * 3, inttype)
         cc = runner.project.factory.cc(prototype=prototype)
-        call = IdentifierCallable(runner.project, func.startpoint.addr, concrete_only=True,
-                        cc=cc, base_state=s, max_steps=20)
+        call = IdentifierCallable(
+            runner.project, func.startpoint.addr, concrete_only=True, cc=cc, base_state=s, max_steps=20
+        )
         _ = call(*[0x2000, 0x2003, 5])
         result_state = call.result_state
         if result_state.solver.eval(result_state.memory.load(0x2000, 8), cast_to=bytes) == "\x00\x00CBACBA":

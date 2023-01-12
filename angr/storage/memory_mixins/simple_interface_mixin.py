@@ -3,27 +3,28 @@ import claripy
 from . import MemoryMixin
 from ...errors import SimMemoryError
 
+
 class SimpleInterfaceMixin(MemoryMixin):
     def load(self, addr, size=None, endness=None, condition=None, fallback=None, **kwargs):
-        tsize=self._translate_size(size, None)
+        tsize = self._translate_size(size, None)
         return super().load(
             self._translate_addr(addr),
             size=tsize,
             endness=self._translate_endness(endness),
             condition=self._translate_cond(condition),
             fallback=self._translate_data(fallback, tsize) if fallback is not None else None,
-            **kwargs
+            **kwargs,
         )
 
     def store(self, addr, data, size=None, endness=None, condition=None, **kwargs):
-        tsize=self._translate_size(size, data)
+        tsize = self._translate_size(size, data)
         super().store(
             self._translate_addr(addr),
             self._translate_data(data, tsize),
             size=tsize,
             endness=self._translate_endness(endness),
             condition=self._translate_cond(condition),
-            **kwargs
+            **kwargs,
         )
 
     def _translate_addr(self, a):
@@ -35,7 +36,7 @@ class SimpleInterfaceMixin(MemoryMixin):
         if type(d) in (bytes, bytearray):
             return self.state.solver.BVV(d)
         elif type(d) is int:
-            return self.state.solver.BVV(d, size*self.state.arch.byte_width)
+            return self.state.solver.BVV(d, size * self.state.arch.byte_width)
         elif isinstance(d, claripy.ast.Base):
             return d
         else:

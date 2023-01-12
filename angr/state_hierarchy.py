@@ -18,21 +18,22 @@ class StateHierarchy:
     for queries about a state's ancestry, notably "what is the best ancestor state for a merge among these states" and
     "what is the most recent unsatisfiable state while using LAZY_SOLVES"
     """
+
     def __init__(self):
 
         # The New Order
         self._graph = networkx.DiGraph()
-        self._leaves = set() # nodes with no children
-        self._twigs = set() # nodes with one child
-        self._weakref_cache = {} # map from object id to weakref
-        self._reverse_weakref_cache = {} # map from weakref to object id
+        self._leaves = set()  # nodes with no children
+        self._twigs = set()  # nodes with one child
+        self._weakref_cache = {}  # map from object id to weakref
+        self._reverse_weakref_cache = {}  # map from weakref to object id
         self._pending_cleanup = set()
         self._defer_cleanup = False
         self._lock = PicklableRLock()
 
     def __getstate__(self):
         gc.collect()
-        histories = [ h() for h in networkx.algorithms.dfs_postorder_nodes(self._graph) ]
+        histories = [h() for h in networkx.algorithms.dfs_postorder_nodes(self._graph)]
         return (histories,)
 
     def __setstate__(self, s):
@@ -94,7 +95,7 @@ class StateHierarchy:
                 predecessors = self._graph.predecessors(h)
                 successors = self._graph.successors(h)
 
-                for p,s in itertools.product(predecessors, successors):
+                for p, s in itertools.product(predecessors, successors):
                     self._graph.add_edge(p, s)
 
                 self._graph.remove_node(h)
@@ -144,7 +145,7 @@ class StateHierarchy:
         """
 
         with self.defer_cleanup(), self._lock:
-            lineage = [ ]
+            lineage = []
 
             predecessors = list(self._graph.predecessors(h))
             while len(predecessors):
@@ -162,11 +163,11 @@ class StateHierarchy:
 
     def history_successors(self, h):
         with self.defer_cleanup(), self._lock:
-            return [ ref() for ref in self._graph.successors(self.get_ref(h)) ]
+            return [ref() for ref in self._graph.successors(self.get_ref(h))]
 
     def history_predecessors(self, h):
         with self.defer_cleanup(), self._lock:
-            return [ ref() for ref in self._graph.predecessors(self.get_ref(h)) ]
+            return [ref() for ref in self._graph.predecessors(self.get_ref(h))]
 
     def history_contains(self, h):
         with self.defer_cleanup(), self._lock:
@@ -186,7 +187,7 @@ class StateHierarchy:
 
         while True:
             l.debug("... looking between %d and %d in %d states", good, bad, len(lineage))
-            cur = (bad+good)//2
+            cur = (bad + good) // 2
 
             if cur in (good, bad):
                 if lineage[bad]().reachable():
@@ -253,9 +254,9 @@ class StateHierarchy:
                 intersection = histories.intersection(self.all_successors(n))
                 if len(intersection) > 1:
                     return (
-                        [ s for s in states if self.get_ref(s.history) in intersection ],
+                        [s for s in states if self.get_ref(s.history) in intersection],
                         n(),
-                        [ s for s in states if self.get_ref(s.history) not in intersection ]
+                        [s for s in states if self.get_ref(s.history) not in intersection],
                     )
 
             # didn't find any?

@@ -5,7 +5,9 @@ import string
 import itertools
 from collections import defaultdict
 from typing import Union, Optional, Iterable, Set, Generator
-from typing import Type # For some reasons the linter doesn't recognize the use in apply_definition but PyCharm needs it imported to correctly recognize it # pylint: disable=unused-import
+from typing import (
+    Type,
+)  # For some reasons the linter doesn't recognize the use in apply_definition but PyCharm needs it imported to correctly recognize it # pylint: disable=unused-import
 
 from itanium_demangler import parse
 
@@ -34,19 +36,63 @@ class Function(Serializable):
     A representation of a function and various information about it.
     """
 
-    __slots__ = ('transition_graph', '_local_transition_graph', 'normalized', '_ret_sites', '_jumpout_sites',
-                 '_callout_sites', '_endpoints', '_call_sites', '_retout_sites', 'addr', '_function_manager',
-                 'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'is_default_name',
-                 'from_signature', 'binary_name',
-                 '_argument_registers', '_argument_stack_variables',
-                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
-                 'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
-                 'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed', 'ran_cca',
-                 )
+    __slots__ = (
+        "transition_graph",
+        "_local_transition_graph",
+        "normalized",
+        "_ret_sites",
+        "_jumpout_sites",
+        "_callout_sites",
+        "_endpoints",
+        "_call_sites",
+        "_retout_sites",
+        "addr",
+        "_function_manager",
+        "is_syscall",
+        "_project",
+        "is_plt",
+        "addr",
+        "is_simprocedure",
+        "_name",
+        "is_default_name",
+        "from_signature",
+        "binary_name",
+        "_argument_registers",
+        "_argument_stack_variables",
+        "bp_on_stack",
+        "retaddr_on_stack",
+        "sp_delta",
+        "calling_convention",
+        "prototype",
+        "_returning",
+        "prepared_registers",
+        "prepared_stack_variables",
+        "registers_read_afterwards",
+        "startpoint",
+        "_addr_to_block_node",
+        "_block_sizes",
+        "_block_cache",
+        "_local_blocks",
+        "_local_block_addrs",
+        "info",
+        "tags",
+        "alignment",
+        "is_prototype_guessed",
+        "ran_cca",
+    )
 
-    def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
-                 is_plt=None, returning=None, alignment=False):
+    def __init__(
+        self,
+        function_manager,
+        addr,
+        name=None,
+        syscall=None,
+        is_simprocedure=None,
+        binary_name=None,
+        is_plt=None,
+        returning=None,
+        alignment=False,
+    ):
         """
         Function constructor. If the optional parameters are not provided, they will be automatically determined upon
         the creation of a Function object.
@@ -105,8 +151,8 @@ class Function(Serializable):
         self.registers_read_afterwards = set()
 
         self._addr_to_block_node = {}  # map addresses to nodes. it's a cache of blocks. if a block is removed from the
-                                       # function, it may not be removed from _addr_to_block_node. if you want to list
-                                       # all blocks of a function, access .blocks.
+        # function, it may not be removed from _addr_to_block_node. if you want to list
+        # all blocks of a function, access .blocks.
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
         self._local_blocks = {}  # a dict of all blocks inside the function
@@ -133,8 +179,9 @@ class Function(Serializable):
             self.is_syscall = syscall
         else:
             if self.project is None:
-                raise ValueError("'syscall' must be specified if you do not specify a function manager for this new"
-                                 " function." )
+                raise ValueError(
+                    "'syscall' must be specified if you do not specify a function manager for this new" " function."
+                )
 
             # Determine whether this function is a syscall or not
             self.is_syscall = self.project.simos.is_syscall_addr(addr)
@@ -144,8 +191,10 @@ class Function(Serializable):
             self.is_simprocedure = is_simprocedure
         else:
             if self.project is None:
-                raise ValueError("'is_simprocedure' must be specified if you do not specify a function manager for this"
-                                 " new function.")
+                raise ValueError(
+                    "'is_simprocedure' must be specified if you do not specify a function manager for this"
+                    " new function."
+                )
 
             if self.is_syscall or self.project.is_hooked(addr):
                 self.is_simprocedure = True
@@ -156,8 +205,9 @@ class Function(Serializable):
         else:
             # Whether this function is a PLT entry or not is fully relying on the PLT detection in CLE
             if self.project is None:
-                raise ValueError("'is_plt' must be specified if you do not specify a function manager for this new"
-                                 " function.")
+                raise ValueError(
+                    "'is_plt' must be specified if you do not specify a function manager for this new" " function."
+                )
 
             self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
 
@@ -180,8 +230,9 @@ class Function(Serializable):
             self._returning = returning
         else:
             if self.project is None:
-                raise ValueError("'returning' must be specified if you do not specify a functio nmnager for this new"
-                                 " function.")
+                raise ValueError(
+                    "'returning' must be specified if you do not specify a functio nmnager for this new" " function."
+                )
 
             self._returning = self._get_initial_returning()
 
@@ -213,7 +264,7 @@ class Function(Serializable):
         if self._project is None:
             # try to set it from function manager
             if self._function_manager is not None:
-                self._project = self._function_manager._kb._project #type: Optional[Project]
+                self._project = self._function_manager._kb._project  # type: Optional[Project]
         return self._project
 
     @property
@@ -234,8 +285,9 @@ class Function(Serializable):
 
         for block_addr, block in self._local_blocks.items():
             try:
-                yield self.get_block(block_addr, size=block.size,
-                                      byte_string=block.bytestr if isinstance(block, BlockNode) else None)
+                yield self.get_block(
+                    block_addr, size=block.size, byte_string=block.bytestr if isinstance(block, BlockNode) else None
+                )
             except (SimEngineError, SimMemoryError):
                 pass
 
@@ -260,7 +312,7 @@ class Function(Serializable):
 
         return self._local_block_addrs
 
-    def get_block(self, addr: int, size: Optional[int]=None, byte_string: Optional[bytes]=None):
+    def get_block(self, addr: int, size: Optional[int] = None, byte_string: Optional[bytes] = None):
         """
         Getting a block out of the current function.
 
@@ -295,7 +347,7 @@ class Function(Serializable):
         return self._block_sizes.get(addr, None)
 
     @property
-    def nodes(self) -> Generator[CodeNode,None,None]:
+    def nodes(self) -> Generator[CodeNode, None, None]:
         return self.transition_graph.nodes()
 
     def get_node(self, addr):
@@ -306,7 +358,7 @@ class Function(Serializable):
         for addr in self.block_addrs:
             if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager._kb._project.factory.block(addr)
-                if b.vex.jumpkind == 'Ijk_Boring':
+                if b.vex.jumpkind == "Ijk_Boring":
                     return True
         return False
 
@@ -315,7 +367,7 @@ class Function(Serializable):
         for addr in self.block_addrs:
             if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager._kb._project.factory.block(addr)
-                if b.vex.jumpkind == 'Ijk_Call':
+                if b.vex.jumpkind == "Ijk_Call":
                     return True
         return False
 
@@ -349,7 +401,6 @@ class Function(Serializable):
         :return Function: The function instantiated out of the cmsg data.
         """
         return FunctionParser.parse_from_cmsg(cmsg, **kwargs)
-
 
     def string_references(self, minimum_length=2, vex_only=False):
         """
@@ -439,10 +490,15 @@ class Function(Serializable):
             if not self._project.loader.main_object.contains_addr(state.solver.eval(state.ip)):
                 continue
             # don't trace unreachable blocks
-            if state.history.jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode',
-                                          'Ijk_MapFail', 'Ijk_NoRedir',
-                                          'Ijk_SigTRAP', 'Ijk_SigSEGV',
-                                          'Ijk_ClientReq'}:
+            if state.history.jumpkind in {
+                "Ijk_EmWarn",
+                "Ijk_NoDecode",
+                "Ijk_MapFail",
+                "Ijk_NoRedir",
+                "Ijk_SigTRAP",
+                "Ijk_SigSEGV",
+                "Ijk_ClientReq",
+            }:
                 continue
 
             curr_ip = state.solver.eval(state.ip)
@@ -474,9 +530,9 @@ class Function(Serializable):
             for succ_addr in missing:
                 l.info("Forcing jump to missing successor: %#x", succ_addr)
                 if succ_addr not in analyzed:
-                    all_successors = successors.unconstrained_successors + \
-                                     successors.flat_successors + \
-                                     successors.unsat_successors
+                    all_successors = (
+                        successors.unconstrained_successors + successors.flat_successors + successors.unsat_successors
+                    )
                     if len(all_successors) > 0:
                         # set the ip of a copied successor to the successor address
                         succ = all_successors[0].copy()
@@ -499,24 +555,23 @@ class Function(Serializable):
             return False
 
     def __str__(self):
-        s = f'Function {self.name} [{self.addr}]\n'
-        s += '  Syscall: %s\n' % self.is_syscall
-        s += '  SP difference: %d\n' % self.sp_delta
-        s += '  Has return: %s\n' % self.has_return
-        s += '  Returning: %s\n' % ('Unknown' if self.returning is None else self.returning)
-        s += '  Alignment: %s\n' % (self.alignment)
-        s += '  Arguments: reg: %s, stack: %s\n' % \
-            (self._argument_registers,
-             self._argument_stack_variables)
-        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self.block_addrs])
+        s = f"Function {self.name} [{self.addr}]\n"
+        s += "  Syscall: %s\n" % self.is_syscall
+        s += "  SP difference: %d\n" % self.sp_delta
+        s += "  Has return: %s\n" % self.has_return
+        s += "  Returning: %s\n" % ("Unknown" if self.returning is None else self.returning)
+        s += "  Alignment: %s\n" % (self.alignment)
+        s += "  Arguments: reg: %s, stack: %s\n" % (self._argument_registers, self._argument_stack_variables)
+        s += "  Blocks: [%s]\n" % ", ".join(["%#x" % i for i in self.block_addrs])
         s += "  Calling convention: %s" % self.calling_convention
         return s
 
     def __repr__(self):
         if self.is_syscall:
-            return '<Syscall function {} ({})>'.format(self.name,
-                                                   hex(self.addr) if isinstance(self.addr, int) else self.addr)
-        return f'<Function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>'
+            return "<Syscall function {} ({})>".format(
+                self.name, hex(self.addr) if isinstance(self.addr, int) else self.addr
+            )
+        return f"<Function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>"
 
     def __setstate__(self, state):
         for k, v in state.items():
@@ -525,10 +580,10 @@ class Function(Serializable):
     def __getstate__(self):
         # self._local_transition_graph is a cache. don't pickle it
         d = {k: getattr(self, k) for k in self.__slots__}
-        d['_local_transition_graph'] = None
-        d['_project'] = None
-        d['_function_manager'] = None
-        d['_block_cache'] = { }
+        d["_local_transition_graph"] = None
+        d["_project"] = None
+        d["_function_manager"] = None
+        d["_block_cache"] = {}
         return d
 
     @property
@@ -557,7 +612,7 @@ class Function(Serializable):
 
     @property
     def size(self):
-        return sum([ b.size for b in self.blocks ])
+        return sum([b.size for b in self.blocks])
 
     @property
     def binary(self):
@@ -592,7 +647,7 @@ class Function(Serializable):
 
         self._register_nodes(True, node)
         self._jumpout_sites.add(node)
-        self._add_endpoint(node, 'transition')
+        self._add_endpoint(node, "transition")
 
     def add_retout_site(self, node):
         """
@@ -612,7 +667,7 @@ class Function(Serializable):
 
         self._register_nodes(True, node)
         self._retout_sites.add(node)
-        self._add_endpoint(node, 'return')
+        self._add_endpoint(node, "return")
 
     def _get_initial_name(self):
         """
@@ -644,7 +699,7 @@ class Function(Serializable):
         # generate an IDA-style sub_X name
         if name is None:
             self.is_default_name = True
-            name = 'sub_%x' % addr
+            name = "sub_%x" % addr
 
         return name
 
@@ -684,9 +739,9 @@ class Function(Serializable):
         elif self.is_simprocedure:
             hooker = self.project.hooked_by(self.addr)
         if hooker:
-            if hasattr(hooker, 'DYNAMIC_RET') and hooker.DYNAMIC_RET:
+            if hasattr(hooker, "DYNAMIC_RET") and hooker.DYNAMIC_RET:
                 return True
-            elif hasattr(hooker, 'NO_RET'):
+            elif hasattr(hooker, "NO_RET"):
                 return not hooker.NO_RET
 
         # Cannot determine
@@ -702,18 +757,18 @@ class Function(Serializable):
     def _confirm_fakeret(self, src, dst):
 
         if src not in self.transition_graph or dst not in self.transition_graph[src]:
-            raise AngrValueError(f'FakeRet edge ({src}, {dst}) is not in transition graph.')
+            raise AngrValueError(f"FakeRet edge ({src}, {dst}) is not in transition graph.")
 
         data = self.transition_graph[src][dst]
 
-        if 'type' not in data or data['type'] != 'fake_return':
-            raise AngrValueError(f'Edge ({src}, {dst}) is not a FakeRet edge')
+        if "type" not in data or data["type"] != "fake_return":
+            raise AngrValueError(f"Edge ({src}, {dst}) is not a FakeRet edge")
 
         # it's confirmed. register the node if needed
-        if 'outside' not in data or data['outside'] is False:
+        if "outside" not in data or data["outside"] is False:
             self._register_nodes(True, dst)
 
-        self.transition_graph[src][dst]['confirmed'] = True
+        self.transition_graph[src][dst]["confirmed"] = True
 
     def _transit_to(self, from_node, to_node, outside=False, ins_addr=None, stmt_idx=None, is_exception=False):
         """
@@ -740,11 +795,11 @@ class Function(Serializable):
             else:
                 self._register_nodes(True, from_node)
 
-        type_ = 'transition' if not is_exception else 'exception'
+        type_ = "transition" if not is_exception else "exception"
         if to_node is not None:
-            self.transition_graph.add_edge(from_node, to_node, type=type_, outside=outside, ins_addr=ins_addr,
-                                           stmt_idx=stmt_idx
-                                           )
+            self.transition_graph.add_edge(
+                from_node, to_node, type=type_, outside=outside, ins_addr=ins_addr, stmt_idx=stmt_idx
+            )
 
         if outside:
             # this node is an endpoint of the current function
@@ -773,9 +828,9 @@ class Function(Serializable):
         self._register_nodes(True, from_node)
 
         if to_func.is_syscall:
-            self.transition_graph.add_edge(from_node, to_func, type='syscall', stmt_idx=stmt_idx, ins_addr=ins_addr)
+            self.transition_graph.add_edge(from_node, to_func, type="syscall", stmt_idx=stmt_idx, ins_addr=ins_addr)
         else:
-            self.transition_graph.add_edge(from_node, to_func, type='call', stmt_idx=stmt_idx, ins_addr=ins_addr)
+            self.transition_graph.add_edge(from_node, to_func, type="call", stmt_idx=stmt_idx, ins_addr=ins_addr)
             if ret_node is not None:
                 self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
 
@@ -785,11 +840,11 @@ class Function(Serializable):
         self._register_nodes(True, from_node)
 
         if confirmed is None:
-            self.transition_graph.add_edge(from_node, to_node, type='fake_return', outside=to_outside)
+            self.transition_graph.add_edge(from_node, to_node, type="fake_return", outside=to_outside)
         else:
-            self.transition_graph.add_edge(from_node, to_node, type='fake_return', confirmed=confirmed,
-                                           outside=to_outside
-                                           )
+            self.transition_graph.add_edge(
+                from_node, to_node, type="fake_return", confirmed=confirmed, outside=to_outside
+            )
             if confirmed:
                 self._register_nodes(not to_outside, to_node)
 
@@ -801,10 +856,10 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     def _return_from_call(self, from_func, to_node, to_outside=False):
-        self.transition_graph.add_edge(from_func, to_node, type='return', to_outside=to_outside)
+        self.transition_graph.add_edge(from_func, to_node, type="return", to_outside=to_outside)
         for _, _, data in self.transition_graph.in_edges(to_node, data=True):
-            if 'type' in data and data['type'] == 'fake_return':
-                data['confirmed'] = True
+            if "type" in data and data["type"] == "fake_return":
+                data["confirmed"] = True
 
         self._local_transition_graph = None
 
@@ -838,7 +893,7 @@ class Function(Serializable):
             # add BlockNodes to the addr_to_block_node cache if not already there
             if isinstance(node, BlockNode):
                 self._update_addr_to_block_cache(node)
-                #else:
+                # else:
                 #    # checks that we don't have multiple block nodes at a single address
                 #    assert node == self._addr_to_block_node[node.addr]
 
@@ -853,7 +908,7 @@ class Function(Serializable):
         self._ret_sites.add(return_site)
         # A return site must be an endpoint of the function - you cannot continue execution of the current function
         # after returning
-        self._add_endpoint(return_site, 'return')
+        self._add_endpoint(return_site, "return")
 
     def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
@@ -928,7 +983,7 @@ class Function(Serializable):
         """
 
         for src, dst, data in self.transition_graph.edges(data=True):
-            if 'type' in data and data['type'] == 'call':
+            if "type" in data and data["type"] == "call":
                 func_addr = dst.addr
                 if func_addr in self._function_manager:
                     function = self._function_manager[func_addr]
@@ -936,7 +991,7 @@ class Function(Serializable):
                         # the target function does not return
                         the_node = self.get_node(src.addr)
                         self._callout_sites.add(the_node)
-                        self._add_endpoint(the_node, 'call')
+                        self._add_endpoint(the_node, "call")
 
     def get_call_sites(self) -> Iterable[int]:
         """
@@ -992,11 +1047,10 @@ class Function(Serializable):
         for block in self._local_blocks.values():
             g.add_node(block)
         for src, dst, data in self.transition_graph.edges(data=True):
-            if 'type' in data:
-                if data['type'] in ('transition', 'exception') and ('outside' not in data or data['outside'] is False):
+            if "type" in data:
+                if data["type"] in ("transition", "exception") and ("outside" not in data or data["outside"] is False):
                     g.add_edge(src, dst, **data)
-                elif data['type'] == 'fake_return' and \
-                        ('outside' not in data or data['outside'] is False):
+                elif data["type"] == "fake_return" and ("outside" not in data or data["outside"] is False):
                     g.add_edge(src, dst, **data)
 
         self._local_transition_graph = g
@@ -1028,7 +1082,7 @@ class Function(Serializable):
 
         # BFS on local graph but ignoring certain types of graphs
         g = networkx.DiGraph()
-        queue = [ n for n in graph if n is self.startpoint or graph.in_degree[n] == 0 ]
+        queue = [n for n in graph if n is self.startpoint or graph.in_degree[n] == 0]
         traversed = set(queue)
 
         while queue:
@@ -1036,8 +1090,8 @@ class Function(Serializable):
 
             g.add_node(node)
             for _, dst, edge_data in graph.out_edges(node, data=True):
-                edge_type = edge_data.get('type', None)
-                if not exception_edges and edge_type == 'exception':
+                edge_type = edge_data.get("type", None)
+                if not exception_edges and edge_type == "exception":
                     # ignore this edge
                     continue
                 g.add_edge(node, dst, **edge_data)
@@ -1069,7 +1123,7 @@ class Function(Serializable):
 
         # BFS on local graph but ignoring certain types of graphs
         g = networkx.DiGraph()
-        queue = [ n for n in graph if n is self.startpoint or graph.in_degree[n] == 0 ]
+        queue = [n for n in graph if n is self.startpoint or graph.in_degree[n] == 0]
         traversed = set(queue)
 
         while queue:
@@ -1078,8 +1132,8 @@ class Function(Serializable):
 
             g.add_node(node)
             for _, dst, edge_data in graph.out_edges(node, data=True):
-                edge_type = edge_data.get('type', None)
-                if not exception_edges and edge_type == 'exception':
+                edge_type = edge_data.get("type", None)
+                if not exception_edges and edge_type == "exception":
                     # ignore this edge
                     continue
                 g.add_edge(node, dst, **edge_data)
@@ -1110,7 +1164,7 @@ class Function(Serializable):
                 blocks.append(b)
                 block_addr_to_insns[b.addr] = sorted(common_insns)
 
-        #subgraph = networkx.subgraph(self.graph, blocks)
+        # subgraph = networkx.subgraph(self.graph, blocks)
         subgraph = self.graph.subgraph(blocks).copy()
         g = networkx.DiGraph()
 
@@ -1168,7 +1222,7 @@ class Function(Serializable):
             if b.addr <= addr < b.addr + b.size:
                 # found it
                 for i, instr_addr in enumerate(b.instruction_addrs):
-                    if i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i+1]:
+                    if i < len(b.instruction_addrs) - 1 and instr_addr <= addr < b.instruction_addrs[i + 1]:
                         return instr_addr
                     elif i == len(b.instruction_addrs) - 1 and instr_addr <= addr:
                         return instr_addr
@@ -1180,7 +1234,7 @@ class Function(Serializable):
         """
         Returns a representation of the list of basic blocks in this function.
         """
-        return "[%s]" % (', '.join(('%#08x' % n.addr) for n in self.transition_graph.nodes()))
+        return "[%s]" % (", ".join(("%#08x" % n.addr) for n in self.transition_graph.nodes()))
 
     def dbg_draw(self, filename):
         """
@@ -1198,7 +1252,7 @@ class Function(Serializable):
             if node_a in self._call_sites:
                 node_a += "[Call]"
             tmp_graph.add_edge(node_a, node_b)
-        pos = graphviz_layout(tmp_graph, prog='fdp')   # pylint: disable=no-member
+        pos = graphviz_layout(tmp_graph, prog="fdp")  # pylint: disable=no-member
         networkx.draw(tmp_graph, pos, node_size=1200)
         pyplot.savefig(filename)
 
@@ -1208,8 +1262,7 @@ class Function(Serializable):
 
         :param reg_offset:          The offset of the register to register.
         """
-        if reg_offset in self._function_manager._arg_registers and \
-                    reg_offset not in self._argument_registers:
+        if reg_offset in self._function_manager._arg_registers and reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
     def _add_argument_stack_variable(self, stack_var_offset):
@@ -1246,7 +1299,7 @@ class Function(Serializable):
         # let's put a check here
         if self.startpoint is None:
             # this function is empty
-            l.debug('Unexpected error: %s does not have any blocks. normalize() fails.', repr(self))
+            l.debug("Unexpected error: %s does not have any blocks. normalize() fails.", repr(self))
             return
 
         graph = self.transition_graph
@@ -1258,8 +1311,7 @@ class Function(Serializable):
                 end_addresses[end_addr].append(block)
 
         while any(len(x) > 1 for x in end_addresses.values()):
-            end_addr, all_nodes = \
-                next((end_addr, x) for (end_addr, x) in end_addresses.items() if len(x) > 1)
+            end_addr, all_nodes = next((end_addr, x) for (end_addr, x) in end_addresses.items() if len(x) > 1)
 
             all_nodes = sorted(all_nodes, key=lambda node: node.size)
             smallest_node = all_nodes[0]
@@ -1271,7 +1323,9 @@ class Function(Serializable):
 
             # Break other nodes
             for n in other_nodes:
-                new_size = get_real_address_if_arm(self._project.arch, smallest_node.addr) - get_real_address_if_arm(self._project.arch, n.addr)
+                new_size = get_real_address_if_arm(self._project.arch, smallest_node.addr) - get_real_address_if_arm(
+                    self._project.arch, n.addr
+                )
                 if new_size == 0:
                     # This is the node that has the same size as the smallest one
                     continue
@@ -1299,7 +1353,7 @@ class Function(Serializable):
                 original_successors = list(graph.out_edges([n], data=True))
 
                 for _, d, data in original_successors:
-                    ins_addr = data.get('ins_addr', data.get('pseudo_ins_addr', None))
+                    ins_addr = data.get("ins_addr", data.get("pseudo_ins_addr", None))
                     if ins_addr is not None and ins_addr < d.addr:
                         continue
                     if d not in graph[smallest_node]:
@@ -1318,8 +1372,9 @@ class Function(Serializable):
                     self._local_blocks[n.addr] = new_node
 
                 # update block_cache and block_sizes
-                if (n.addr in self._block_cache and self._block_cache[n.addr].size != new_node.size) or \
-                        (n.addr in self._block_sizes and self._block_sizes[n.addr] != new_node.size):
+                if (n.addr in self._block_cache and self._block_cache[n.addr].size != new_node.size) or (
+                    n.addr in self._block_sizes and self._block_sizes[n.addr] != new_node.size
+                ):
                     # the cache needs updating
                     self._block_cache.pop(n.addr, None)
                     self._block_sizes[n.addr] = new_node.size
@@ -1329,21 +1384,22 @@ class Function(Serializable):
                         graph.add_edge(p, new_node, **data)
 
                 # We should find the correct successor
-                new_successors = [i for i in all_nodes
-                                  if i.addr == smallest_node.addr]
+                new_successors = [i for i in all_nodes if i.addr == smallest_node.addr]
                 if new_successors:
                     new_successor = new_successors[0]
-                    graph.add_edge(new_node, new_successor,
-                                   type="transition",
-                                   outside=is_outside_node,
-                                   # it's named "pseudo_ins_addr" because we have no way to know what the actual last
-                                   # instruction is at this moment (without re-lifting the block, which would be a
-                                   # waste of time).
-                                   pseudo_ins_addr=new_node.addr + new_node.size - 1,
-                                   )
+                    graph.add_edge(
+                        new_node,
+                        new_successor,
+                        type="transition",
+                        outside=is_outside_node,
+                        # it's named "pseudo_ins_addr" because we have no way to know what the actual last
+                        # instruction is at this moment (without re-lifting the block, which would be a
+                        # waste of time).
+                        pseudo_ins_addr=new_node.addr + new_node.size - 1,
+                    )
                 else:
                     # We gotta create a new one
-                    l.error('normalize(): Please report it to Fish/maybe john.')
+                    l.error("normalize(): Please report it to Fish/maybe john.")
 
             end_addresses[end_addr] = [smallest_node]
 
@@ -1356,7 +1412,7 @@ class Function(Serializable):
 
         self.normalized = True
 
-    def find_declaration(self, ignore_binary_name: bool=False, binary_name_hint: str=None) -> bool:
+    def find_declaration(self, ignore_binary_name: bool = False, binary_name_hint: str = None) -> bool:
         """
         Find the most likely function declaration from the embedded collection of prototypes, set it to self.prototype,
         and update self.calling_convention with the declaration.
@@ -1435,8 +1491,10 @@ class Function(Serializable):
                 proto = library.get_prototype(name)
                 if self.project is None:
                     # we need to get arch from self.project
-                    l.warning("Function %s does not have .project set. A possible prototype is found, but we cannot set it "
-                              "without .project.arch.")
+                    l.warning(
+                        "Function %s does not have .project set. A possible prototype is found, but we cannot set it "
+                        "without .project.arch."
+                    )
                     return False
                 self.prototype = proto.with_arch(self.project.arch)
 
@@ -1505,18 +1563,20 @@ class Function(Serializable):
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")
 
-    def functions_called(self) -> Set['Function']:
+    def functions_called(self) -> Set["Function"]:
         """
         :return: The set of all functions that can be reached from the function represented by self.
         """
         called = set()
+
         def _find_called(function_address):
             successors = set(self._function_manager.callgraph.successors(function_address)) - called
             for s in successors:
                 called.add(s)
                 _find_called(s)
+
         _find_called(self.addr)
-        return { self._function_manager.function(a) for a in called }
+        return {self._function_manager.function(a) for a in called}
 
     def copy(self):
         func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)

@@ -4,7 +4,8 @@
 __version__ = "9.2.34.dev0"
 
 if bytes is str:
-    raise Exception("""
+    raise Exception(
+        """
 
 =-=-=-=-=-=-=-=-=-=-=-=-=  WELCOME TO THE FUTURE!  =-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -17,16 +18,20 @@ vaccinations. It hurts a little bit initially but in the end it's worth it.
 For more information, see here: https://docs.angr.io/appendix/migration
 
 Good luck!
-""")
+"""
+    )
 
 from .utils.formatting import setup_terminal
+
 setup_terminal()
 del setup_terminal
 
 # let's set up some bootstrap logging
 import logging
+
 logging.getLogger("angr").addHandler(logging.NullHandler())
 from .misc.loggers import Loggers
+
 loggers = Loggers()
 del Loggers
 del logging
@@ -34,6 +39,7 @@ del logging
 # import hook: pkg_resources is too slow to import, but it is used by some other packages that angr depends on. while
 # we upstream our fixes, we replace it with a light-weight solution.
 from .misc.import_hooks import import_fake_pkg_resources
+
 import_fake_pkg_resources(force=False)
 
 # this must happen first, prior to initializing analyses
@@ -41,6 +47,7 @@ from .sim_procedure import SimProcedure
 from .procedures import SIM_PROCEDURES, SimProcedures, SIM_LIBRARIES
 
 from . import sim_options
+
 options = sim_options  # alias
 
 # enums
@@ -68,7 +75,15 @@ from .state_hierarchy import StateHierarchy
 from .sim_state import SimState
 from . import engines
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
-from .storage.file import SimFileBase, SimFile, SimPackets, SimFileStream, SimPacketsStream, SimFileDescriptor, SimFileDescriptorDuplex
+from .storage.file import (
+    SimFileBase,
+    SimFile,
+    SimPackets,
+    SimFileStream,
+    SimPacketsStream,
+    SimFileDescriptor,
+    SimFileDescriptorDuplex,
+)
 from .state_plugins.filesystem import SimMount, SimHostFilesystem
 from .state_plugins.heap import SimHeapBrk, SimHeapPTMalloc, PTChunk
 from . import concretization_strategies

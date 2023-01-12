@@ -1,7 +1,8 @@
 import angr
 
+
 def test_unsupported_syscall_simos():
-    p = angr.load_shellcode('int 0x80', 'x86')
+    p = angr.load_shellcode("int 0x80", "x86")
     state = p.factory.entry_state()
     state.regs.eax = 4
 
@@ -22,5 +23,6 @@ def test_unsupported_syscall_simos():
     assert len(simgr.active) == 1
     assert len(simgr.errored) == 0
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_unsupported_syscall_simos()

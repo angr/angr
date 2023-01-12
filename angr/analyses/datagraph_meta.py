@@ -4,6 +4,7 @@ from ..sim_procedure import SimProcedure
 
 l = logging.getLogger(name=__name__)
 
+
 class DataGraphMeta:
     def __init__(self):
         self._p = None
@@ -38,13 +39,13 @@ class DataGraphMeta:
         """
         for e in self.graph.edges():
             data = dict(self.graph.get_edge_data(e[0], e[1]))
-            data['label'] = str(data['label']) + " ; " +  self._simproc_info(e[0]) + self._simproc_info(e[1])
+            data["label"] = str(data["label"]) + " ; " + self._simproc_info(e[0]) + self._simproc_info(e[1])
             self._print_edge(e, data, imarks)
 
     def _print_edge(self, e, data, imarks=False):
         pp = []
         for stmt in e:
-            if imarks is False or stmt[1] == -1: # SimProcedure
+            if imarks is False or stmt[1] == -1:  # SimProcedure
                 s = "(0x%x, %d)" % (stmt[0], stmt[1])
             else:
                 s = "[0x%x]" % self._imarks[stmt]
@@ -71,7 +72,7 @@ class DataGraphMeta:
         block = self._make_block(irsb, live_defs)
         self._imarks.update(block._imarks)
         if block.stop == True:
-            #l.debug(" ### Stopping at block 0x%x" % (irsb.addr))
+            # l.debug(" ### Stopping at block 0x%x" % (irsb.addr))
             l.debug(" ### End of path %s" % path)
             return irsb.addr
         succ = self._vfg._graph.successors(node)
@@ -79,7 +80,7 @@ class DataGraphMeta:
         defer = []
         for s in succ:
             # Consider fake returns last
-            if self._vfg._graph.edge[node][s]['jumpkind'] == 'Ijk_FakeRet':
+            if self._vfg._graph.edge[node][s]["jumpkind"] == "Ijk_FakeRet":
                 defer.append(s)
                 continue
             # We need to make a copy of the dict !

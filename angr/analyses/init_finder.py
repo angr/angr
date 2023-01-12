@@ -48,7 +48,9 @@ class SimEngineInitFinderVEX(
                 return True
             section: Section = obj.find_section_containing(addr)
             if section is not None:
-                return section.name in {'.bss', }
+                return section.name in {
+                    ".bss",
+                }
 
             if isinstance(obj, MetaELF):
                 # for ELFs, if p_memsz >= p_filesz, the extra bytes are considered NOBITS
@@ -98,9 +100,7 @@ class SimEngineInitFinderVEX(
                                 data_size = self.tyenv.sizeof(stmt.data.tmp)
                                 data_v = claripy.BVV(data_v, data_size)
                             if not self.pointers_only or self._is_pointer(data_v):
-                                self.overlay.store(addr_v, data_v,
-                                                   endness=self.project.arch.memory_endness
-                                                   )
+                                self.overlay.store(addr_v, data_v, endness=self.project.arch.memory_endness)
 
     def _handle_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
@@ -133,9 +133,7 @@ class SimEngineInitFinderVEX(
                 data_v = claripy.BVV(data_v, data_size)
 
             if not self.pointers_only or self._is_pointer(data_v):
-                self.overlay.store(addr_v, data_v,
-                                   endness=self.project.arch.memory_endness
-                                   )
+                self.overlay.store(addr_v, data_v, endness=self.project.arch.memory_endness)
 
     #
     # Expression handlers
@@ -165,7 +163,16 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
     on.
     """
 
-    def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None, overlay=None, pointers_only=False):
+    def __init__(
+        self,
+        func=None,
+        func_graph=None,
+        block=None,
+        max_iterations=1,
+        replacements=None,
+        overlay=None,
+        pointers_only=False,
+    ):
         self.pointers_only = pointers_only
         if func is not None:
             if block is not None:
@@ -173,21 +180,24 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
             # traversing a function
             graph_visitor = FunctionGraphVisitor(func, func_graph)
             if replacements is None:
-                prop = self.project.analyses[PropagatorAnalysis].prep()(func=func, func_graph=func_graph,
-                                                        base_state=self.project.factory.blank_state())
+                prop = self.project.analyses[PropagatorAnalysis].prep()(
+                    func=func, func_graph=func_graph, base_state=self.project.factory.blank_state()
+                )
                 replacements = prop.replacements
         elif block is not None:
             # traversing a block
             graph_visitor = SingleNodeGraphVisitor(block)
             if replacements is None:
-                prop = self.project.analyses[PropagatorAnalysis].prep()(block=block,
-                                                        base_state=self.project.factory.blank_state())
+                prop = self.project.analyses[PropagatorAnalysis].prep()(
+                    block=block, base_state=self.project.factory.blank_state()
+                )
                 replacements = prop.replacements
         else:
-            raise ValueError('Unsupported analysis target.')
+            raise ValueError("Unsupported analysis target.")
 
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
-                                 graph_visitor=graph_visitor)
+        ForwardAnalysis.__init__(
+            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
+        )
 
         self._function = func
         self._max_iterations = max_iterations
@@ -202,7 +212,9 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
             self.overlay_state = self.project.factory.blank_state()
             self.overlay = self.overlay_state.memory
 
-        self._engine_vex = SimEngineInitFinderVEX(self.project, replacements, self.overlay, pointers_only=self.pointers_only)
+        self._engine_vex = SimEngineInitFinderVEX(
+            self.project, replacements, self.overlay, pointers_only=self.pointers_only
+        )
         self._engine_ail = None
 
         self._analyze()

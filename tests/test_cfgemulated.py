@@ -13,9 +13,7 @@ from angr import options as o
 
 l = logging.getLogger("angr.tests.test_cfgemulated")
 
-test_location = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
-)
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 # pylint: disable=missing-class-docstring
@@ -186,12 +184,8 @@ class TestCfgemulate(unittest.TestCase):
         # Make sure we are properly labeling functions that do not return in function manager
 
         binary_path = os.path.join(test_location, "x86_64", "not_returning")
-        proj = angr.Project(
-            binary_path, use_sim_procedures=True, load_options={"auto_load_libs": False}
-        )
-        cfg = proj.analyses.CFGEmulated(
-            context_sensitivity_level=0, fail_fast=True
-        )  # pylint:disable=unused-variable
+        proj = angr.Project(binary_path, use_sim_procedures=True, load_options={"auto_load_libs": False})
+        cfg = proj.analyses.CFGEmulated(context_sensitivity_level=0, fail_fast=True)  # pylint:disable=unused-variable
 
         # function_a returns
         assert proj.kb.functions.function(name="function_a") is not None
@@ -275,10 +269,7 @@ class TestCfgemulate(unittest.TestCase):
         # We need to add DO_CCALLS to resolve long jmp and support real mode
         o.modes["fastpath"] |= {o.DO_CCALLS}
         binary_path = test_location + "/i386/bios.bin.elf"
-        proj = angr.Project(binary_path,
-                            use_sim_procedures=True,
-                            page_size=1,
-                            auto_load_libs=False)
+        proj = angr.Project(binary_path, use_sim_procedures=True, page_size=1, auto_load_libs=False)
         cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
         assert {f for f in proj.kb.functions} >= set(function_addresses)
         o.modes["fastpath"] ^= {o.DO_CCALLS}
@@ -305,7 +296,7 @@ class TestCfgemulate(unittest.TestCase):
         # In thumb mode, all addresses of instructions and in function manager should be odd numbers, which loyally
         # reflect VEX's trick to encode the THUMB state in the address.
 
-        binary_path = os.path.join(test_location, 'armhf', 'test_arrays')
+        binary_path = os.path.join(test_location, "armhf", "test_arrays")
         p = angr.Project(binary_path, auto_load_libs=False)
         cfg = p.analyses.CFGEmulated(fail_fast=True)
 
@@ -560,9 +551,7 @@ class TestCfgemulate(unittest.TestCase):
                     dst_node,
                 )
 
-    class CFGEmulatedAborted(
-        angr.analyses.cfg.cfg_emulated.CFGEmulated
-    ):  # pylint:disable=abstract-method
+    class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
         """
         Only used in the test_abort_and_resume test case.
         """
@@ -635,7 +624,7 @@ class TestCfgemulate(unittest.TestCase):
         for (node_addr, final_states_number) in final_states_info.items():
             node = target_function_cfg_emulated.get_any_node(node_addr)
             assert final_states_number == len(node.final_states), (
-                    "CFG node 0x%x has incorrect final states." % node_addr
+                "CFG node 0x%x has incorrect final states." % node_addr
             )
 
 

@@ -3,8 +3,8 @@ import unittest
 
 import angr
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
-arches = {'i386', 'x86_64'}
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../binaries/tests"))
+arches = {"i386", "x86_64"}
 
 
 # pylint: disable=missing-class-docstring
@@ -15,7 +15,7 @@ class TestCfgGetAnyNode(unittest.TestCase):
             self.run_cfg_get_any_node(arch)
 
     def run_cfg_get_any_node(self, arch):
-        test_file = os.path.join(test_location, arch, 'hello_world')
+        test_file = os.path.join(test_location, arch, "hello_world")
         proj = angr.Project(test_file, auto_load_libs=False)
         cfg = proj.analyses.CFGFast()
 

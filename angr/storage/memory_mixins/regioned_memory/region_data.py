@@ -4,13 +4,20 @@ from sortedcontainers import SortedDict
 from ....errors import SimRegionMapError
 from ....state_plugins import SimStatePlugin
 
+
 class AddressWrapper:
     """
     AddressWrapper is used in SimAbstractMemory, which provides extra meta information for an address (or a ValueSet
     object) that is normalized from an integer/BVV/StridedInterval.
     """
 
-    __slots__ = ('region', 'region_base_addr', 'address', 'is_on_stack', 'function_address', )
+    __slots__ = (
+        "region",
+        "region_base_addr",
+        "address",
+        "is_on_stack",
+        "function_address",
+    )
 
     def __init__(self, region: str, region_base_addr: int, address, is_on_stack: bool, function_address: Optional[int]):
         """
@@ -52,7 +59,11 @@ class RegionDescriptor:
     Descriptor for a memory region ID.
     """
 
-    __slots__ = ('region_id', 'base_address', 'related_function_address', )
+    __slots__ = (
+        "region_id",
+        "base_address",
+        "related_function_address",
+    )
 
     def __init__(self, region_id, base_address, related_function_address=None):
         self.region_id = region_id
@@ -61,8 +72,7 @@ class RegionDescriptor:
 
     def __repr__(self):
         return "<{} - {:#x}>".format(
-            self.region_id,
-            self.related_function_address if self.related_function_address is not None else 0
+            self.region_id, self.related_function_address if self.related_function_address is not None else 0
         )
 
 
@@ -84,16 +94,14 @@ class RegionMap:
         # A sorted list, which maps stack addresses to region IDs
         self._address_to_region_id = SortedDict()
         # A dict, which maps region IDs to memory address ranges
-        self._region_id_to_address = { }
+        self._region_id_to_address = {}
 
     #
     # Properties
     #
 
     def __repr__(self):
-        return "RegionMap<%s>" % (
-            "S" if self.is_stack else "H"
-        )
+        return "RegionMap<%s>" % ("S" if self.is_stack else "H")
 
     @property
     def is_empty(self):
@@ -115,7 +123,7 @@ class RegionMap:
     #
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         r = RegionMap(is_stack=self.is_stack)
 
         # A shallow copy should be enough, since we never modify any RegionDescriptor object in-place
@@ -136,7 +144,7 @@ class RegionMap:
 
         if self.is_stack:
             # Sanity check
-            if not region_id.startswith('stack_'):
+            if not region_id.startswith("stack_"):
                 raise SimRegionMapError('Received a non-stack memory ID "%d" in a stack region map' % region_id)
 
             # Remove all stack regions that are lower than the one to add
@@ -159,11 +167,7 @@ class RegionMap:
                 del self._region_id_to_address[descriptor.region_id]
 
         # Add this new region mapping
-        desc = RegionDescriptor(
-            region_id,
-            absolute_address,
-            related_function_address=related_function_address
-        )
+        desc = RegionDescriptor(region_id, absolute_address, related_function_address=related_function_address)
 
         self._address_to_region_id[absolute_address] = desc
         self._region_id_to_address[region_id] = desc
@@ -189,7 +193,7 @@ class RegionMap:
                                     exist.
         """
 
-        if region_id == 'global':
+        if region_id == "global":
             # The global region always bases 0
             return relative_address
 
@@ -224,14 +228,14 @@ class RegionMap:
 
                 except StopIteration:
                     # Not found. It belongs to the global region then.
-                    return 'global', absolute_address, None
+                    return "global", absolute_address, None
 
             descriptor = self._address_to_region_id[base_address]
 
         else:
-            if target_region_id == 'global':
+            if target_region_id == "global":
                 # Just return the absolute address
-                return 'global', absolute_address, None
+                return "global", absolute_address, None
 
             if target_region_id not in self._region_id_to_address:
                 raise SimRegionMapError('Trying to relativize to a non-existent region "%s"' % target_region_id)

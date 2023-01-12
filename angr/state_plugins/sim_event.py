@@ -1,6 +1,8 @@
 import traceback
 import itertools
+
 event_id_count = itertools.count()
+
 
 class SimEvent:
     """
@@ -9,7 +11,8 @@ class SimEvent:
 
     You may also be interested in SimAction, which is a specialization of SimEvent for CPU events.
     """
-    #def __init__(self, address=None, stmt_idx=None, message=None, exception=None, traceback=None):
+
+    # def __init__(self, address=None, stmt_idx=None, message=None, exception=None, traceback=None):
     def __init__(self, state, event_type, **kwargs):
         self.id = next(event_id_count)
         self.type = event_type
@@ -21,7 +24,7 @@ class SimEvent:
         self.arch = state.arch
 
     def __repr__(self):
-        return "<SimEvent %s %d, with fields %s>" % (self.type, self.id, ', '.join(self.objects.keys()))
+        return "<SimEvent %s %d, with fields %s>" % (self.type, self.id, ", ".join(self.objects.keys()))
 
     def _copy_event(self):
         c = self.__class__.__new__(self.__class__)
@@ -34,12 +37,15 @@ class SimEvent:
 
         return c
 
+
 def resource_event(state, exception):
     for frame, lineno in reversed(list(traceback.walk_tb(exception.__traceback__))):
-        module = frame.f_globals.get('__name__', '').split('.')
+        module = frame.f_globals.get("__name__", "").split(".")
         function = frame.f_code.co_name
-        if module[0] == 'claripy' or \
-                module in (['angr', 'state_plugins', 'solver'], ['angr', 'state_plugins', 'sim_action_object']):
+        if module[0] == "claripy" or module in (
+            ["angr", "state_plugins", "solver"],
+            ["angr", "state_plugins", "sim_action_object"],
+        ):
             continue
         state.history.add_event(
             "insufficient_resources",
@@ -47,6 +53,6 @@ def resource_event(state, exception):
             function=function,
             lineno=lineno,
             type=type(exception),
-            reason=exception.args
+            reason=exception.args,
         )
         break

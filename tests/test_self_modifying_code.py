@@ -7,12 +7,12 @@ import angr
 from angr import options as o
 
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestSelfModifyingCOde(TestCase):
     def test_self_modifying_code(self):
-        p = angr.Project(os.path.join(test_location, 'cgc', 'stuff'), auto_load_libs=False, selfmodifying_code=True)
+        p = angr.Project(os.path.join(test_location, "cgc", "stuff"), auto_load_libs=False, selfmodifying_code=True)
         pg = p.factory.simulation_manager(p.factory.entry_state(add_options={o.STRICT_PAGE_ACCESS}))
 
         # small issue: the program is bugged and uses illegal stack allocation patterns, bypassing the red page
@@ -52,8 +52,8 @@ class TestSelfModifyingCOde(TestCase):
         assert j == len(u_bbl_addrs)
 
         # also ensure that block.pp() does not raise any exceptions
-        p.factory.block(0xbaaa7b42, backup_state=pg.one_deadended).pp()
+        p.factory.block(0xBAAA7B42, backup_state=pg.one_deadended).pp()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

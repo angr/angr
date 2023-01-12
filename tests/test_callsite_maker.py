@@ -10,8 +10,10 @@ import ailment
 class TestCallsiteMaker(unittest.TestCase):
     def test_callsite_maker(self):
 
-        project = angr.Project(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                            '..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
+        project = angr.Project(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "binaries", "tests", "x86_64", "all"),
+            auto_load_libs=False,
+        )
 
         manager = ailment.Manager(arch=project.arch)
 
@@ -30,7 +32,7 @@ class TestCallsiteMaker(unittest.TestCase):
                         func.prototype = cc_analysis.prototype
                         new_cc_found = True
 
-        main_func = cfg.kb.functions['main']
+        main_func = cfg.kb.functions["main"]
 
         for block in sorted(main_func.blocks, key=lambda x: x.addr):
             print(block.vex.pp())

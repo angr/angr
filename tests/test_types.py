@@ -52,13 +52,14 @@ def test_cproto_conversion():
     assert isinstance(pyproto.returnty, SimTypeInt)
 
     # Directly comparing the strings... how bad can I be?
-    assert the_str == '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv"]),'
+    assert (
+        the_str
+        == '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv"]),'
+    )
 
     # A bad function declaration
     cproto_1 = "int bad(xxxxxxx);"
-    pyproto_name, pyproto, the_str = convert_cproto_to_py(
-        cproto_1
-    )  # pylint:disable=unused-variable
+    pyproto_name, pyproto, the_str = convert_cproto_to_py(cproto_1)  # pylint:disable=unused-variable
 
     assert pyproto_name == "bad"
     assert pyproto is not None
@@ -66,9 +67,7 @@ def test_cproto_conversion():
     # A even worse function declaration
     # Special thanks to @schieb, see GitHub PR #958
     cproto_2 = "__attribute__ ((something)) void foo(void);"
-    pyproto_name, pyproto, the_str = convert_cproto_to_py(
-        cproto_2
-    )  # pylint:disable=unused-variable
+    pyproto_name, pyproto, the_str = convert_cproto_to_py(cproto_2)  # pylint:disable=unused-variable
 
     assert pyproto_name == "foo"
 
@@ -94,9 +93,7 @@ def test_cppproto_conversion():
     assert isinstance(proto.args[0], SimTypePointer)  # this
     assert isinstance(proto.args[1], SimTypeChar)
 
-    proto_2 = (
-        "void std::basic_string<CharT,Traits,Allocator>::swap(basic_string& other)"
-    )
+    proto_2 = "void std::basic_string<CharT,Traits,Allocator>::swap(basic_string& other)"
     name, proto, s = convert_cppproto_to_py(proto_2, with_param_names=True)
     assert name == "std::basic_string::swap"
     assert isinstance(proto.returnty, SimTypeBottom)
@@ -127,9 +124,7 @@ def test_struct_deduplication():
     angr.types.register_types(angr.types.parse_type("struct ahdr { int a ;}"))
     angr.types.register_types(angr.types.parse_type("struct bhdr { int b ;}"))
     angr.types.register_types(angr.types.parse_type("struct chdr { int c ;}"))
-    dhdr = angr.types.parse_type(
-        "struct dhdr { struct ahdr a; struct bhdr b; struct chdr c;}"
-    )
+    dhdr = angr.types.parse_type("struct dhdr { struct ahdr a; struct bhdr b; struct chdr c;}")
     assert dhdr.fields["a"].fields
 
 
@@ -156,9 +151,7 @@ def test_parse_type():
     assert isinstance(union_dcba.members["d"], SimTypeDouble)
     assert isinstance(union_dcba.members["lli"], SimTypeLongLong)
 
-    struct_llist = angr.types.parse_type(
-        "struct llist { int data; struct llist * next; }"
-    )
+    struct_llist = angr.types.parse_type("struct llist { int data; struct llist * next; }")
     assert isinstance(struct_llist, SimStruct)
     assert struct_llist.name == "llist"
     assert len(struct_llist.fields) == 2
@@ -187,9 +180,7 @@ def test_parse_type_no_basic_types():
 
 
 def test_self_referential_struct_or_union():
-    struct_llist = angr.types.parse_type(
-        "struct llist { int data; struct llist *next; }"
-    )
+    struct_llist = angr.types.parse_type("struct llist { int data; struct llist *next; }")
     next_struct_llist = struct_llist.fields["next"].pts_to
     assert len(next_struct_llist.fields) == 2
     assert isinstance(next_struct_llist.fields["data"], SimTypeInt)
@@ -236,31 +227,23 @@ def test_union_struct_referencing_each_other():
 
 def test_top_type():
     angr.types.register_types({"undefined": angr.types.SimTypeTop()})
-    fdef: Dict[str, SimTypeFunction]  = angr.types.parse_defns(
-        "undefined f(undefined param_1, int param_2);"
-    )
+    fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("undefined f(undefined param_1, int param_2);")
     sig = fdef["f"]
     assert sig.args == [angr.types.SimTypeTop(), angr.types.SimTypeInt()]
 
 
 def test_arg_names():
     angr.types.register_types({"undefined": angr.types.SimTypeTop()})
-    fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns(
-        "int f(int param_1, int param_2);"
-    )
+    fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param_1, int param_2);")
     sig = fdef["f"]
     assert sig.arg_names == ["param_1", "param_2"]
 
     # Check that arg_names survive a with_arch call
     nsig = sig.with_arch(angr.archinfo.ArchAMD64())
-    assert (
-        sig.arg_names == nsig.arg_names
-    ), "Function type generated with .with_arch() doesn't have identical arg_names"
+    assert sig.arg_names == nsig.arg_names, "Function type generated with .with_arch() doesn't have identical arg_names"
 
     # If for some reason only some of the parameters are named, the list can only be partially not None, but has to match the positions
-    fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns(
-        "int f(int param1, int);"
-    )
+    fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param1, int);")
     sig = fdef["f"]
     assert sig.arg_names == ["param1", None]
 
@@ -281,9 +264,7 @@ def test_varargs():
 
 
 def test_forward_declaration_typedef_struct():
-    types, extra_types = angr.types.parse_file(
-        "typedef struct _A A; struct _A {int a;int b;};"
-    )
+    types, extra_types = angr.types.parse_file("typedef struct _A A; struct _A {int a;int b;};")
 
     assert extra_types["A"].fields is not None
     assert isinstance(extra_types["A"].fields["a"], SimTypeInt)
@@ -295,9 +276,7 @@ def test_forward_declaration_typedef_struct():
 
 
 def test_forward_declaration_typedef_union():
-    types, extra_types = angr.types.parse_file(
-        "typedef union _A A; union _A {int a;int b;};"
-    )
+    types, extra_types = angr.types.parse_file("typedef union _A A; union _A {int a;int b;};")
 
     assert extra_types["A"].members is not None
     assert isinstance(extra_types["A"].members["a"], SimTypeInt)

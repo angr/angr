@@ -4,7 +4,7 @@ import unittest
 
 import angr
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestFindObjectsStatic(unittest.TestCase):
@@ -18,7 +18,7 @@ class TestFindObjectsStatic(unittest.TestCase):
         for possible_object in possible_objects_dict.values():
             class_labels.append(possible_object.class_name)
 
-        assert 'C' in class_labels
+        assert "C" in class_labels
         assert len(possible_objects_dict) == 2
         assert len(possible_constructors) == 1
         assert 0x401512 in possible_constructors

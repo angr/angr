@@ -5,6 +5,7 @@ from ....errors import SimMemoryError
 if typing.TYPE_CHECKING:
     from .... import Project
 
+
 class IndirectJumpResolver:
     def __init__(self, project, timeless=False, base_state=None):
         self.project: "Project" = project

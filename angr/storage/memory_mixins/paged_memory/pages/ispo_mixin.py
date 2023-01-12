@@ -8,6 +8,7 @@ class ISPOMixin(MemoryMixin):
     layer for memories which have no state and must redirect certain operations to a parent memory. Main usecase is
     for memory region classes which are stored within other memories, such as pages.
     """
+
     def set_state(self, state):
         raise Exception("Cannot set state on this stateless object")
 

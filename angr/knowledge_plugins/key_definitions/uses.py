@@ -13,17 +13,21 @@ class Uses:
     Describes uses (including the use location and the use expression) for definitions.
     """
 
-    __slots__ = ('_uses_by_definition', '_uses_by_location' )
+    __slots__ = ("_uses_by_definition", "_uses_by_location")
 
-    def __init__(self,
-                 uses_by_definition: Optional[DefaultChainMapCOW]=None,
-                 uses_by_location: Optional[DefaultChainMapCOW]=None):
-        self._uses_by_definition: DefaultChainMapCOW['Definition',Set[Tuple[CodeLocation,Optional[Any]]]] = \
+    def __init__(
+        self,
+        uses_by_definition: Optional[DefaultChainMapCOW] = None,
+        uses_by_location: Optional[DefaultChainMapCOW] = None,
+    ):
+        self._uses_by_definition: DefaultChainMapCOW["Definition", Set[Tuple[CodeLocation, Optional[Any]]]] = (
             DefaultChainMapCOW(set, collapse_threshold=25) if uses_by_definition is None else uses_by_definition
-        self._uses_by_location: DefaultChainMapCOW[CodeLocation, Set[Tuple['Definition',Optional[Any]]]] = \
+        )
+        self._uses_by_location: DefaultChainMapCOW[CodeLocation, Set[Tuple["Definition", Optional[Any]]]] = (
             DefaultChainMapCOW(set, collapse_threshold=25) if uses_by_location is None else uses_by_location
+        )
 
-    def add_use(self, definition: "Definition", codeloc: CodeLocation, expr: Optional[Any]=None):
+    def add_use(self, definition: "Definition", codeloc: CodeLocation, expr: Optional[Any] = None):
         """
         Add a use for a given definition.
 
@@ -34,15 +38,15 @@ class Uses:
         self._uses_by_definition[definition].add((codeloc, expr))
         self._uses_by_location[codeloc].add((definition, expr))
 
-    def get_uses(self, definition: 'Definition') -> Set[CodeLocation]:
+    def get_uses(self, definition: "Definition") -> Set[CodeLocation]:
         """
         Retrieve the uses of a given definition.
 
         :param definition: The definition for which we get the uses.
         """
-        return { codeloc for codeloc, _ in self._uses_by_definition.get(definition, set()) }
+        return {codeloc for codeloc, _ in self._uses_by_definition.get(definition, set())}
 
-    def get_uses_with_expr(self, definition: 'Definition') -> Set[Tuple[CodeLocation,Optional[Any]]]:
+    def get_uses_with_expr(self, definition: "Definition") -> Set[Tuple[CodeLocation, Optional[Any]]]:
         """
         Retrieve the uses and the corresponding expressions of a given definition.
 
@@ -50,7 +54,7 @@ class Uses:
         """
         return self._uses_by_definition.get(definition, set())
 
-    def remove_use(self, definition: 'Definition', codeloc: 'CodeLocation', expr: Optional[Any]=None) -> None:
+    def remove_use(self, definition: "Definition", codeloc: "CodeLocation", expr: Optional[Any] = None) -> None:
         """
         Remove one use of a given definition.
 
@@ -73,7 +77,7 @@ class Uses:
                 if item[0] == definition:
                     self._uses_by_location[codeloc].remove(item)
 
-    def remove_uses(self, definition: 'Definition'):
+    def remove_uses(self, definition: "Definition"):
         """
         Remove all uses of a given definition.
 
@@ -89,8 +93,9 @@ class Uses:
                     if item[0] == definition:
                         self._uses_by_location[codeloc].remove(item)
 
-    def get_uses_by_location(self, codeloc: CodeLocation, exprs: bool=False) -> \
-            Union[Set['Definition'],Set[Tuple['Definition',Optional[Any]]]]:
+    def get_uses_by_location(
+        self, codeloc: CodeLocation, exprs: bool = False
+    ) -> Union[Set["Definition"], Set[Tuple["Definition", Optional[Any]]]]:
         """
         Retrieve all definitions that are used at a given location.
 
@@ -99,10 +104,11 @@ class Uses:
         """
         if exprs:
             return self._uses_by_location.get(codeloc, set())
-        return { item[0] for item in self._uses_by_location.get(codeloc, set()) }
+        return {item[0] for item in self._uses_by_location.get(codeloc, set())}
 
-    def get_uses_by_insaddr(self, ins_addr: int, exprs: bool=False) -> \
-            Union[Set['Definition'],Set[Tuple['Definition',Optional[Any]]]]:
+    def get_uses_by_insaddr(
+        self, ins_addr: int, exprs: bool = False
+    ) -> Union[Set["Definition"], Set[Tuple["Definition", Optional[Any]]]]:
         """
         Retrieve all definitions that are used at a given location specified by the instruction address.
 
@@ -117,9 +123,9 @@ class Uses:
 
         if exprs:
             return all_uses
-        return { item[0] for item in all_uses }
+        return {item[0] for item in all_uses}
 
-    def copy(self) -> 'Uses':
+    def copy(self) -> "Uses":
         """
         Copy the instance.
 
@@ -132,7 +138,7 @@ class Uses:
 
         return u
 
-    def merge(self, other: 'Uses') -> bool:
+    def merge(self, other: "Uses") -> bool:
         """
         Merge an instance of <Uses> into the current instance.
 

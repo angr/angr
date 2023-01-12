@@ -2,7 +2,6 @@ from .plugin import KnowledgeBasePlugin
 
 
 class Comments(KnowledgeBasePlugin, dict):
-
     def __init__(self, kb):
         super().__init__()
         self._kb = kb
@@ -13,4 +12,4 @@ class Comments(KnowledgeBasePlugin, dict):
         return o
 
 
-KnowledgeBasePlugin.register_default('comments', Comments)
+KnowledgeBasePlugin.register_default("comments", Comments)

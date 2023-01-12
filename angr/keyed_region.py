@@ -13,12 +13,12 @@ l = logging.getLogger(name=__name__)
 
 class StoredObject:
 
-    __slots__ = ('__weakref__', 'start', 'obj', 'size')
+    __slots__ = ("__weakref__", "start", "obj", "size")
 
     def __init__(self, start, obj, size):
         self.start = start
         self.obj = obj
-        self.size: Union['UnknownSize',int] = size
+        self.size: Union["UnknownSize", int] = size
 
     def __eq__(self, other):
         assert type(other) is StoredObject
@@ -41,7 +41,7 @@ class RegionObject:
     Represents one or more objects occupying one or more bytes in KeyedRegion.
     """
 
-    __slots__ = ('start', 'size', 'stored_objects', '_internal_objects')
+    __slots__ = ("start", "size", "stored_objects", "_internal_objects")
 
     def __init__(self, start, size, objects=None):
         self.start = start
@@ -54,8 +54,12 @@ class RegionObject:
                 self._internal_objects.add(obj.obj)
 
     def __eq__(self, other):
-        return type(other) is RegionObject and self.start == other.start and self.size == other.size and \
-               self.stored_objects == other.stored_objects
+        return (
+            type(other) is RegionObject
+            and self.start == other.start
+            and self.size == other.size
+            and self.stored_objects == other.stored_objects
+        )
 
     def __ne__(self, other):
         return not self == other
@@ -110,7 +114,12 @@ class KeyedRegion:
     Registers and function frames can all be viewed as a keyed region.
     """
 
-    __slots__ = ('_storage', '_object_mapping', '_phi_node_contains', '_canonical_size', )
+    __slots__ = (
+        "_storage",
+        "_object_mapping",
+        "_phi_node_contains",
+        "_canonical_size",
+    )
 
     def __init__(self, tree=None, phi_node_contains=None, canonical_size=8):
         self._storage = SortedDict() if tree is None else tree
@@ -243,14 +252,14 @@ class KeyedRegion:
         :return: A string of debugging output.
         """
         keys = self._storage.keys()
-        offset_to_vars = { }
+        offset_to_vars = {}
 
         for key in sorted(keys):
             ro = self._storage[key]
-            variables = [ obj.obj for obj in ro.stored_objects ]
+            variables = [obj.obj for obj in ro.stored_objects]
             offset_to_vars[key] = variables
 
-        s = [ ]
+        s = []
         for offset, variables in offset_to_vars.items():
             s.append(f"Offset {offset:#x}: {variables}")
         return "\n".join(s)
@@ -367,10 +376,12 @@ class KeyedRegion:
     # Private methods
     #
 
-    def _canonicalize_size(self, size: Union[int,'UnknownSize']) -> int:
+    def _canonicalize_size(self, size: Union[int, "UnknownSize"]) -> int:
 
         # delayed import
-        from .knowledge_plugins.key_definitions.unknown_size import UnknownSize  # pylint:disable=import-outside-toplevel
+        from .knowledge_plugins.key_definitions.unknown_size import (
+            UnknownSize,
+        )  # pylint:disable=import-outside-toplevel
 
         if isinstance(size, UnknownSize):
             return self._canonical_size
@@ -406,7 +417,7 @@ class KeyedRegion:
         end: int = start + object_size
 
         # region items in the middle
-        overlapping_items = list(self._storage.irange(start, end-1))
+        overlapping_items = list(self._storage.irange(start, end - 1))
 
         # is there a region item that begins before the start and overlaps with this variable?
         floor_key, floor_item = self._get_container(start)
@@ -462,7 +473,7 @@ class KeyedRegion:
             # make sure this variable does not overlap with any other variable
             end = start + variable.size
             try:
-                prev_offset = next(self._storage.irange(maximum=end-1, reverse=True))
+                prev_offset = next(self._storage.irange(maximum=end - 1, reverse=True))
             except StopIteration:
                 prev_offset = None
 

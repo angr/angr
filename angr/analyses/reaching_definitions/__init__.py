@@ -12,20 +12,20 @@ if TYPE_CHECKING:
     from angr.storage.memory_mixins.paged_memory.pages import MVListPage
 
 
-def get_all_definitions(region: 'MultiValuedMemory') -> Set['Definition']:
+def get_all_definitions(region: "MultiValuedMemory") -> Set["Definition"]:
 
-    all_defs: Set['Definition'] = set()
+    all_defs: Set["Definition"] = set()
 
     # MultiValuedMemory only uses ListPage internally
     for page in region._pages.values():
-        page: 'MVListPage'
+        page: "MVListPage"
 
         for idx in page.stored_offset:
-            cnt_set: Optional[Union['SimMemoryObject', Set['SimMemoryObject']]] = page.content[idx]
+            cnt_set: Optional[Union["SimMemoryObject", Set["SimMemoryObject"]]] = page.content[idx]
             if cnt_set is None:
                 continue
             elif not type(cnt_set) is set:
-                cnt_set = { cnt_set }
+                cnt_set = {cnt_set}
             for cnt in cnt_set:
                 for def_ in LiveDefinitions.extract_defs(cnt.object):
                     all_defs.add(def_)
@@ -33,4 +33,4 @@ def get_all_definitions(region: 'MultiValuedMemory') -> Set['Definition']:
     return all_defs
 
 
-register_analysis(ReachingDefinitionsAnalysis, 'ReachingDefinitions')
+register_analysis(ReachingDefinitionsAnalysis, "ReachingDefinitions")

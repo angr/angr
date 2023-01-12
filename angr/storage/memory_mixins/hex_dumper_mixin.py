@@ -5,10 +5,20 @@ from . import MemoryMixin
 
 
 class HexDumperMixin(MemoryMixin):
-
-    def hex_dump(self, start, size, word_size=4, words_per_row=4, endianness="Iend_BE",
-                 symbolic_char='?', unprintable_char='.', solve=False, extra_constraints=None,
-                 inspect=False, disable_actions=True):
+    def hex_dump(
+        self,
+        start,
+        size,
+        word_size=4,
+        words_per_row=4,
+        endianness="Iend_BE",
+        symbolic_char="?",
+        unprintable_char=".",
+        solve=False,
+        extra_constraints=None,
+        inspect=False,
+        disable_actions=True,
+    ):
         """
         Returns a hex dump as a string. The solver, if enabled, is called once for every byte
         potentially making this function very slow. It is meant to be used mainly as a
@@ -54,10 +64,7 @@ class HexDumperMixin(MemoryMixin):
                     byte_value = None
                     if not self.state.solver.symbolic(byte_) or solve:
                         try:
-                            byte_value = self.state.solver.eval_one(
-                                byte_,
-                                extra_constraints=extra_constraints
-                            )
+                            byte_value = self.state.solver.eval_one(byte_, extra_constraints=extra_constraints)
                         except SimValueError:
                             pass
 
@@ -68,11 +75,11 @@ class HexDumperMixin(MemoryMixin):
                         else:
                             word_str += unprintable_char
                     else:
-                        word_bytes += symbolic_char*2
+                        word_bytes += symbolic_char * 2
                         word_str += symbolic_char
-                dump += ' ' + word_bytes
+                dump += " " + word_bytes
                 group_str += word_str[::end]  # always print ASCII representation in little-endian
-            dump += ' ' + group_str
+            dump += " " + group_str
             i += line_size
-            dump_str += dump + '\n'
+            dump_str += dump + "\n"
         return dump_str

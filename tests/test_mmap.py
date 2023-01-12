@@ -2,7 +2,7 @@ import logging
 
 from angr import SimState
 
-l = logging.getLogger('angr.tests.syscalls.mmap')
+l = logging.getLogger("angr.tests.syscalls.mmap")
 
 
 def test_mmap_base_copy():
@@ -20,7 +20,7 @@ def test_mmap_base_copy():
     assert state_copy.heap.mmap_base == mmap_base
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     g = globals().copy()
     for func_name, func in g.items():
         if func_name.startswith("test_") and hasattr(func, "__call__"):

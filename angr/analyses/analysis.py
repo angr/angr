@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     import angr
     from ..project import Project
     from typing_extensions import ParamSpec
+
     AnalysisParams = ParamSpec("AnalysisParams")
 
 l = logging.getLogger(name=__name__)
@@ -37,10 +38,12 @@ class AnalysisLogEntry:
         self.message = message
 
     def __getstate__(self):
-        return str(self.__dict__.get("exc_type")), \
-               str(self.__dict__.get("exc_value")), \
-               str(self.__dict__.get("exc_traceback")), \
-               self.message
+        return (
+            str(self.__dict__.get("exc_type")),
+            str(self.__dict__.get("exc_value")),
+            str(self.__dict__.get("exc_traceback")),
+            self.message,
+        )
 
     def __setstate__(self, s):
         self.exc_type, self.exc_value, self.exc_traceback, self.message = s
@@ -49,30 +52,33 @@ class AnalysisLogEntry:
         if self.exc_type is None:
             msg_str = repr(self.message)
             if len(msg_str) > 70:
-                msg_str = msg_str[:66] + '...'
+                msg_str = msg_str[:66] + "..."
                 if msg_str[0] in ('"', "'"):
                     msg_str += msg_str[0]
-            return '<AnalysisLogEntry %s>' % msg_str
+            return "<AnalysisLogEntry %s>" % msg_str
         else:
             msg_str = repr(self.message)
             if len(msg_str) > 40:
-                msg_str = msg_str[:36] + '...'
+                msg_str = msg_str[:36] + "..."
                 if msg_str[0] in ('"', "'"):
                     msg_str += msg_str[0]
-            return f'<AnalysisLogEntry {msg_str} with {self.exc_type.__name__}: {self.exc_value}>'
+            return f"<AnalysisLogEntry {msg_str} with {self.exc_type.__name__}: {self.exc_value}>"
 
 
 A = TypeVar("A", bound="Analysis")
+
+
 class AnalysesHub(PluginVendor):
     """
     This class contains functions for all the registered and runnable analyses,
     """
+
     def __init__(self, project):
         super().__init__()
         self.project = project
 
     @deprecated()
-    def reload_analyses(self): # pylint: disable=no-self-use
+    def reload_analyses(self):  # pylint: disable=no-self-use
         return
 
     def _init_plugin(self, plugin_cls: Type[A]) -> "AnalysisFactory[A]":
@@ -94,17 +100,18 @@ class AnalysisFactory(Generic[A]):
     def __init__(self, project: "Project", analysis_cls: Type[A]):
         self._project = project
         self._analysis_cls = analysis_cls
-        self.__doc__ = ''
-        self.__doc__ += analysis_cls.__doc__ or ''
-        self.__doc__ += analysis_cls.__init__.__doc__ or ''
+        self.__doc__ = ""
+        self.__doc__ += analysis_cls.__doc__ or ""
+        self.__doc__ += analysis_cls.__init__.__doc__ or ""
         self.__call__.__func__.__signature__ = Signature.from_callable(analysis_cls.__init__)
 
-    def prep(self,
-              fail_fast=False,
-              kb: Optional["KnowledgeBase"] = None,
-              progress_callback: Optional[Callable] = None,
-              show_progressbar: bool = False) -> Type[A]:
-
+    def prep(
+        self,
+        fail_fast=False,
+        kb: Optional["KnowledgeBase"] = None,
+        progress_callback: Optional[Callable] = None,
+        show_progressbar: bool = False,
+    ) -> Type[A]:
         @functools.wraps(self._analysis_cls.__init__)
         def wrapper(*args, **kwargs):
             oself = object.__new__(self._analysis_cls)
@@ -122,18 +129,17 @@ class AnalysisFactory(Generic[A]):
             oself.__init__(*args, **kwargs)
             return oself
 
-        return wrapper # type: ignore
+        return wrapper  # type: ignore
 
     def __call__(self, *args, **kwargs) -> A:
-        fail_fast = kwargs.pop('fail_fast', False)
-        kb = kwargs.pop('kb', self._project.kb)
-        progress_callback = kwargs.pop('progress_callback', None)
-        show_progressbar = kwargs.pop('show_progressbar', False)
+        fail_fast = kwargs.pop("fail_fast", False)
+        kb = kwargs.pop("kb", self._project.kb)
+        progress_callback = kwargs.pop("progress_callback", None)
+        show_progressbar = kwargs.pop("show_progressbar", False)
 
-        w = self.prep(fail_fast=fail_fast,
-                  kb=kb,
-                  progress_callback=progress_callback,
-                  show_progressbar=show_progressbar)
+        w = self.prep(
+            fail_fast=fail_fast, kb=kb, progress_callback=progress_callback, show_progressbar=show_progressbar
+        )
 
         r = w(*args, **kwargs)
         # clean up so that it's always pickleable
@@ -145,7 +151,8 @@ class StatusBar(progressbar.widgets.WidgetBase):
     """
     Implements a progressbar component for displaying raw text.
     """
-    def __init__(self, width: Optional[int]=40):
+
+    def __init__(self, width: Optional[int] = 40):
         super().__init__()
         self.status: str = ""
         self.width = width
@@ -156,7 +163,7 @@ class StatusBar(progressbar.widgets.WidgetBase):
         if len(self.status) < self.width:
             return self.status.ljust(self.width, " ")
         else:
-            return self.status[:self.width]
+            return self.status[: self.width]
 
 
 class Analysis:
@@ -175,7 +182,7 @@ class Analysis:
     """
 
     project: "Project" = None
-    kb: 'KnowledgeBase' = None
+    kb: "KnowledgeBase" = None
     _fail_fast = None
     _name = None
     errors = []
@@ -187,13 +194,13 @@ class Analysis:
 
     _PROGRESS_WIDGETS = [
         progressbar.Percentage(),
-        ' ',
+        " ",
         progressbar.Bar(),
-        ' ',
+        " ",
         progressbar.Timer(),
-        ' ',
+        " ",
         progressbar.ETA(),
-        ' ',
+        " ",
         StatusBar(),
     ]
 
@@ -280,19 +287,19 @@ class Analysis:
     def __getstate__(self):
         d = dict(self.__dict__)
         if "_progressbar" in d:
-            del d['_progressbar']
-        if '_progress_callback' in d:
-            del d['_progress_callback']
-        if '_statusbar' in d:
-            del d['_statusbar']
+            del d["_progressbar"]
+        if "_progress_callback" in d:
+            del d["_progress_callback"]
+        if "_statusbar" in d:
+            del d["_statusbar"]
         return d
 
     def __setstate__(self, state):
         self.__dict__.update(state)
 
     def __repr__(self):
-        return f'<{self._name} Analysis Result at {id(self):#x}>'
+        return f"<{self._name} Analysis Result at {id(self):#x}>"
 
 
 default_analyses = VendorPreset()
-AnalysesHub.register_preset('default', default_analyses)
+AnalysesHub.register_preset("default", default_analyses)

@@ -8,6 +8,7 @@ class CFGSliceToSink:
     """
     The representation of a slice of a CFG.
     """
+
     def __init__(self, target, transitions=None):
         """
         :param angr.knowledge_plugins.functions.function.Function target:
@@ -33,9 +34,9 @@ class CFGSliceToSink:
         :return List[Tuple[int,int]]: The list of transitions as pairs of (source, destination).
         """
         return reduce(
-            lambda acc, source: acc + [ (source, destination) for destination in self._transitions[source] ],
+            lambda acc, source: acc + [(source, destination) for destination in self._transitions[source]],
             self._transitions.keys(),
-            []
+            [],
         )
 
     @property
@@ -52,11 +53,7 @@ class CFGSliceToSink:
 
     @property
     def _destinations(self):
-        return set(reduce(
-            lambda acc, destinations: acc + destinations,
-            self._transitions.values(),
-            []
-        ))
+        return set(reduce(lambda acc, destinations: acc + destinations, self._transitions.values(), []))
 
     @property
     def nodes(self) -> List[int]:
@@ -94,7 +91,7 @@ class CFGSliceToSink:
         """
         return not bool(self._transitions)
 
-    def path_between(self, source: int, destination: int, visited: Optional[Set[Any]]=None) -> bool:
+    def path_between(self, source: int, destination: int, visited: Optional[Set[Any]] = None) -> bool:
         """
         Check the existence of a path in the slice between two given node adresses.
 
@@ -117,7 +114,4 @@ class CFGSliceToSink:
         if destination in direct_successors:
             return True
         else:
-            return any(map(
-                lambda s: self.path_between(s, destination, _visited),
-                direct_successors
-            ))
+            return any(map(lambda s: self.path_between(s, destination, _visited), direct_successors))

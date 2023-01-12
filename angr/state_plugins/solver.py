@@ -11,7 +11,7 @@ from .sim_action_object import ast_stripping_decorator, SimActionObject
 
 l = logging.getLogger(name=__name__)
 
-#pylint:disable=unidiomatic-typecheck,isinstance-second-argument-not-valid-type
+# pylint:disable=unidiomatic-typecheck,isinstance-second-argument-not-valid-type
 
 #
 # Timing stuff
@@ -20,34 +20,37 @@ l = logging.getLogger(name=__name__)
 _timing_enabled = False
 
 lt = logging.getLogger("angr.state_plugins.solver_timing")
+
+
 def timed_function(f):
     if _timing_enabled:
+
         @functools.wraps(f)
         def timing_guy(*args, **kwargs):
-            the_solver = kwargs.pop('the_solver', None)
+            the_solver = kwargs.pop("the_solver", None)
             the_solver = args[0] if the_solver is None else the_solver
             s = the_solver.state
 
             start = time.time()
             r = f(*args, **kwargs)
             end = time.time()
-            duration = end-start
+            duration = end - start
 
             try:
                 if s.scratch.sim_procedure is None and s.scratch.bbl_addr is not None:
                     location = "bbl {:#x}, stmt {} (inst {})".format(
                         s.scratch.bbl_addr,
                         s.scratch.stmt_idx,
-                        ('%s' % s.scratch.ins_addr if s.scratch.ins_addr is None else '%#x' % s.scratch.ins_addr)
+                        ("%s" % s.scratch.ins_addr if s.scratch.ins_addr is None else "%#x" % s.scratch.ins_addr),
                     )
                 elif s.scratch.sim_procedure is not None:
                     location = "sim_procedure %s" % s.scratch.sim_procedure
                 else:
                     location = "unknown"
-            except Exception: #pylint:disable=broad-except
+            except Exception:  # pylint:disable=broad-except
                 l.error("Got exception while generating timer message:", exc_info=True)
                 location = "unknown"
-            lt.log(int((end-start)*10), '%s took %s seconds at %s', f.__name__, round(duration, 2), location)
+            lt.log(int((end - start) * 10), "%s took %s seconds at %s", f.__name__, round(duration, 2), location)
 
             assert not (0 <= break_time < duration), "Please report this."
 
@@ -57,7 +60,8 @@ def timed_function(f):
     else:
         return f
 
-#pylint:disable=global-variable-undefined
+
+# pylint:disable=global-variable-undefined
 def enable_timing():
     global _timing_enabled
     _timing_enabled = True
@@ -68,17 +72,20 @@ def disable_timing():
     global _timing_enabled
     _timing_enabled = False
 
+
 import os
-if os.environ.get('SOLVER_TIMING', False):
+
+if os.environ.get("SOLVER_TIMING", False):
     enable_timing()
 else:
     disable_timing()
 
-break_time = float(os.environ.get('SOLVER_BREAK_TIME', -1))
+break_time = float(os.environ.get("SOLVER_BREAK_TIME", -1))
 
 #
 # Various over-engineered crap
 #
+
 
 def error_converter(f):
     @functools.wraps(f)
@@ -89,21 +96,25 @@ def error_converter(f):
             raise SimUnsatError("Got an unsat result") from e
         except claripy.ClaripyFrontendError as e:
             raise SimSolverModeError("Claripy threw an error") from e
+
     return wrapped_f
+
 
 #
 # Premature optimizations
 #
 
+
 def _concrete_bool(e):
     if isinstance(e, bool):
         return e
-    elif isinstance(e, claripy.ast.Base) and e.op == 'BoolV':
+    elif isinstance(e, claripy.ast.Base) and e.op == "BoolV":
         return e.args[0]
-    elif isinstance(e, SimActionObject) and e.op == 'BoolV':
+    elif isinstance(e, SimActionObject) and e.op == "BoolV":
         return e.args[0]
     else:
         return None
+
 
 def _concrete_value(e):
     # shortcuts for speed improvement
@@ -116,6 +127,7 @@ def _concrete_value(e):
     else:
         return None
 
+
 def concrete_path_bool(f):
     @functools.wraps(f)
     def concrete_shortcut_bool(self, *args, **kwargs):
@@ -124,7 +136,9 @@ def concrete_path_bool(f):
             return f(self, *args, **kwargs)
         else:
             return v
+
     return concrete_shortcut_bool
+
 
 def concrete_path_not_bool(f):
     @functools.wraps(f)
@@ -134,7 +148,9 @@ def concrete_path_not_bool(f):
             return f(self, *args, **kwargs)
         else:
             return not v
+
     return concrete_shortcut_not_bool
+
 
 def concrete_path_scalar(f):
     @functools.wraps(f)
@@ -144,7 +160,9 @@ def concrete_path_scalar(f):
             return f(self, *args, **kwargs)
         else:
             return v
+
     return concrete_shortcut_scalar
+
 
 def concrete_path_tuple(f):
     @functools.wraps(f)
@@ -153,8 +171,10 @@ def concrete_path_tuple(f):
         if v is None:
             return f(self, *args, **kwargs)
         else:
-            return ( v, )
+            return (v,)
+
     return concrete_shortcut_tuple
+
 
 def concrete_path_list(f):
     @functools.wraps(f)
@@ -163,14 +183,18 @@ def concrete_path_list(f):
         if v is None:
             return f(self, *args, **kwargs)
         else:
-            return [ v ]
+            return [v]
+
     return concrete_shortcut_list
+
 
 #
 # The main event
 #
 
 import claripy
+
+
 class SimSolver(SimStatePlugin):
     """
     This is the plugin you'll use to interact with symbolic variables, creating them and evaluating them.
@@ -178,7 +202,10 @@ class SimSolver(SimStatePlugin):
 
     Any top-level variable of the claripy module can be accessed as a property of this object.
     """
-    def __init__(self, solver=None, all_variables=None, temporal_tracked_variables=None, eternal_tracked_variables=None): #pylint:disable=redefined-outer-name
+
+    def __init__(
+        self, solver=None, all_variables=None, temporal_tracked_variables=None, eternal_tracked_variables=None
+    ):  # pylint:disable=redefined-outer-name
         super().__init__()
 
         self._stored_solver = solver
@@ -253,7 +280,9 @@ class SimSolver(SimStatePlugin):
         # pylint: disable=stop-iteration-return
         # ??? wtf pylint
         reverse_mapping = {next(iter(var.variables)): k for k, var in self.eternal_tracked_variables.items()}
-        reverse_mapping.update({next(iter(var.variables)): k for k, var in self.temporal_tracked_variables.items() if k[-1] is not None})
+        reverse_mapping.update(
+            {next(iter(var.variables)): k for k, var in self.temporal_tracked_variables.items() if k[-1] is not None}
+        )
 
         for var in v.variables:
             if var in reverse_mapping:
@@ -271,17 +300,19 @@ class SimSolver(SimStatePlugin):
         approximate_first = o.APPROXIMATE_FIRST in self.state.options
 
         if o.STRINGS_ANALYSIS in self.state.options:
-            if 'smtlib_cvc4' in backend_manager.backends._backends_by_name:
+            if "smtlib_cvc4" in backend_manager.backends._backends_by_name:
                 our_backend = backend_manager.backends.smtlib_cvc4
-            elif 'smtlib_z3' in backend_manager.backends._backends_by_name:
+            elif "smtlib_z3" in backend_manager.backends._backends_by_name:
                 our_backend = backend_manager.backends.smtlib_z3
-            elif 'smtlib_abc' in backend_manager.backends._backends_by_name:
+            elif "smtlib_abc" in backend_manager.backends._backends_by_name:
                 our_backend = backend_manager.backends.smtlib_abc
             else:
-                l.error("Cannot find a suitable string solver. Please ensure you have installed a string solver that "
-                        "angr supports, and have imported the corresponding solver backend in claripy. You can try "
-                        "adding \"from claripy.backends.backend_smtlib_solvers import *\" at the beginning of your "
-                        "script.")
+                l.error(
+                    "Cannot find a suitable string solver. Please ensure you have installed a string solver that "
+                    "angr supports, and have imported the corresponding solver backend in claripy. You can try "
+                    'adding "from claripy.backends.backend_smtlib_solvers import *" at the beginning of your '
+                    "script."
+                )
                 raise ValueError("Cannot find a suitable string solver")
             if o.COMPOSITE_SOLVER in self.state.options:
                 self._stored_solver = claripy.SolverComposite(
@@ -309,7 +340,9 @@ class SimSolver(SimStatePlugin):
     #
     # Get unconstrained stuff
     #
-    def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, key=None, eternal=False, **kwargs):
+    def Unconstrained(
+        self, name, bits, uninitialized=True, inspect=True, events=True, key=None, eternal=False, **kwargs
+    ):
         """
         Creates an unconstrained symbol or a default concrete value (0), based on the state options.
 
@@ -336,21 +369,48 @@ class SimSolver(SimStatePlugin):
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, key=key, eternal=eternal, inspect=inspect, events=events, **kwargs)
+                    r = self.BVS(
+                        name,
+                        bits,
+                        uninitialized=uninitialized,
+                        key=key,
+                        eternal=eternal,
+                        inspect=inspect,
+                        events=events,
+                        **kwargs,
+                    )
                 else:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, key=key, eternal=eternal, inspect=inspect, events=events, **kwargs)
+                    r = self.BVS(
+                        name,
+                        bits,
+                        uninitialized=uninitialized,
+                        key=key,
+                        eternal=eternal,
+                        inspect=inspect,
+                        events=events,
+                        **kwargs,
+                    )
 
             return r
         else:
             # Return a default value, aka. 0
             return claripy.BVV(0, bits)
 
-    def BVS(self, name, size,
-            min=None, max=None, stride=None,
-            uninitialized=False,
-            explicit_name=None, key=None, eternal=False,
-            inspect=True, events=True,
-            **kwargs): #pylint:disable=redefined-builtin
+    def BVS(
+        self,
+        name,
+        size,
+        min=None,
+        max=None,
+        stride=None,
+        uninitialized=False,
+        explicit_name=None,
+        key=None,
+        eternal=False,
+        inspect=True,
+        events=True,
+        **kwargs,
+    ):  # pylint:disable=redefined-builtin
         """
         Creates a bit-vector symbol (i.e., a variable). Other keyword parameters are passed directly on to the
         constructor of claripy.ast.BV.
@@ -379,17 +439,39 @@ class SimSolver(SimStatePlugin):
         if key is not None and eternal and key in self.eternal_tracked_variables:
             r = self.eternal_tracked_variables[key]
             # pylint: disable=too-many-boolean-expressions
-            if size != r.length or min != r.args[1] or max != r.args[2] or stride != r.args[3] or uninitialized != r.args[4] or bool(explicit_name) ^ (r.args[0] == name):
+            if (
+                size != r.length
+                or min != r.args[1]
+                or max != r.args[2]
+                or stride != r.args[3]
+                or uninitialized != r.args[4]
+                or bool(explicit_name) ^ (r.args[0] == name)
+            ):
                 l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
         else:
-            r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
+            r = claripy.BVS(
+                name,
+                size,
+                min=min,
+                max=max,
+                stride=stride,
+                uninitialized=uninitialized,
+                explicit_name=explicit_name,
+                **kwargs,
+            )
             if key is not None:
                 self.register_variable(r, key, eternal)
 
         if inspect:
-            self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
+            self.state._inspect(
+                "symbolic_variable",
+                BP_AFTER,
+                symbolic_name=next(iter(r.variables)),
+                symbolic_size=size,
+                symbolic_expr=r,
+            )
         if events:
-            self.state.history.add_event('unconstrained', name=next(iter(r.variables)), bits=size, **kwargs)
+            self.state.history.add_event("unconstrained", name=next(iter(r.variables)), bits=size, **kwargs)
         if o.TRACK_SOLVER_VARIABLES in self.state.options:
             self.all_variables = list(self.all_variables)
             self.all_variables.append(r)
@@ -401,7 +483,7 @@ class SimSolver(SimStatePlugin):
 
     def __getattr__(self, a):
         f = getattr(claripy._all_operations, a)
-        if hasattr(f, '__call__'):
+        if hasattr(f, "__call__"):
             ff = error_converter(ast_stripping_decorator(f))
             if _timing_enabled:
                 ff = functools.partial(timed_function(ff), the_solver=self)
@@ -418,7 +500,7 @@ class SimSolver(SimStatePlugin):
     #
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         c = super().copy(memo)
 
         c._stored_solver = self._solver.branch()
@@ -429,17 +511,18 @@ class SimSolver(SimStatePlugin):
         return c
 
     @error_converter
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=W0613
         merging_occurred, self._stored_solver = self._solver.merge(
-            [ oc._solver for oc in others ], merge_conditions,
-            common_ancestor=common_ancestor._solver if common_ancestor is not None else None
+            [oc._solver for oc in others],
+            merge_conditions,
+            common_ancestor=common_ancestor._solver if common_ancestor is not None else None,
         )
         return merging_occurred
 
     @error_converter
     def widen(self, others):
-        c = self.state.solver.BVS('random_widen_condition', 32)
-        merge_conditions = [ [ c == i ] for i in range(len(others)+1) ]
+        c = self.state.solver.BVS("random_widen_condition", 32)
+        merge_conditions = [[c == i] for i in range(len(others) + 1)]
         merging_occurred = self.merge(others, merge_conditions)
         return merging_occurred
 
@@ -464,7 +547,7 @@ class SimSolver(SimStatePlugin):
     def _adjust_constraint(self, c):
         if self.state._global_condition is None:
             return c
-        elif c is None: # this should never happen
+        elif c is None:  # this should never happen
             l.critical("PLEASE REPORT THIS MESSAGE, AND WHAT YOU WERE DOING, TO YAN")
             return self.state._global_condition
         else:
@@ -492,7 +575,9 @@ class SimSolver(SimStatePlugin):
         :return: a tuple of the solutions, in the form of claripy AST nodes
         :rtype: tuple
         """
-        return self._solver.eval_to_ast(e, n, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
+        return self._solver.eval_to_ast(
+            e, n, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact
+        )
 
     @concrete_path_tuple
     @timed_function
@@ -526,14 +611,15 @@ class SimSolver(SimStatePlugin):
         :return: the maximum possible value of e (backend object)
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
-            ar = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False,
-                                  signed=signed)
-            er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints),
-                                  signed=signed)
+            ar = self._solver.max(
+                e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False, signed=signed
+            )
+            er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), signed=signed)
             assert er <= ar
             return ar
-        return self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact,
-                                signed=signed)
+        return self._solver.max(
+            e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact, signed=signed
+        )
 
     @concrete_path_scalar
     @timed_function
@@ -550,13 +636,15 @@ class SimSolver(SimStatePlugin):
         :return: the minimum possible value of e (backend object)
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
-            ar = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False,
-                                  signed=signed)
+            ar = self._solver.min(
+                e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False, signed=signed
+            )
             er = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), signed=signed)
             assert ar <= er
             return ar
-        return self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact,
-                                signed=signed)
+        return self._solver.min(
+            e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact, signed=signed
+        )
 
     @timed_function
     @ast_stripping_decorator
@@ -572,12 +660,16 @@ class SimSolver(SimStatePlugin):
         :return:                    True if `v` is a solution of `expr`, False otherwise
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
-            ar = self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            ar = self._solver.solution(
+                e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False
+            )
             er = self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints))
             if er is True:
                 assert ar is True
             return ar
-        return self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
+        return self._solver.solution(
+            e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact
+        )
 
     @concrete_path_bool
     @timed_function
@@ -618,7 +710,9 @@ class SimSolver(SimStatePlugin):
         :return:                    True if `v` is definitely false, False otherwise
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
-            ar = self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            ar = self._solver.is_false(
+                e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False
+            )
             er = self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
             if er is False:
                 assert ar is False
@@ -636,7 +730,7 @@ class SimSolver(SimStatePlugin):
         :return: The unsat core.
         """
         if o.CONSTRAINT_TRACKING_IN_SOLVER not in self.state.options:
-            raise SimSolverOptionError('CONSTRAINT_TRACKING_IN_SOLVER must be enabled before calling unsat_core().')
+            raise SimSolverOptionError("CONSTRAINT_TRACKING_IN_SOLVER must be enabled before calling unsat_core().")
         return self._solver.unsat_core(extra_constraints=extra_constraints)
 
     @timed_function
@@ -653,7 +747,9 @@ class SimSolver(SimStatePlugin):
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             er = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints))
-            ar = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            ar = self._solver.satisfiable(
+                extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False
+            )
             if er is True:
                 assert ar is True
             return ar
@@ -675,7 +771,8 @@ class SimSolver(SimStatePlugin):
     # And some convenience stuff
     #
 
-    T = TypeVar('T', int, bytes)
+    T = TypeVar("T", int, bytes)
+
     @staticmethod
     def _cast_to(e, solution, cast_to: Type[T]) -> T:
         """
@@ -701,23 +798,28 @@ class SimSolver(SimStatePlugin):
         if cast_to is bytes:
             if len(e) == 0:
                 return b""
-            return binascii.unhexlify(f'{solution:x}'.zfill(len(e)//4))
+            return binascii.unhexlify(f"{solution:x}".zfill(len(e) // 4))
 
         if cast_to is not int:
-            raise ValueError(f"cast_to parameter {cast_to!r} is not a valid cast target, currently supported are only int and bytes!")
+            raise ValueError(
+                f"cast_to parameter {cast_to!r} is not a valid cast target, currently supported are only int and bytes!"
+            )
 
         return solution
 
-
     @overload
     # pylint: disable=no-self-use
-    def eval_upto(self, e, n: int, cast_to: None = ..., **kwargs) -> Any: ...
+    def eval_upto(self, e, n: int, cast_to: None = ..., **kwargs) -> Any:
+        ...
+
     CastTarget = TypeVar("CastTarget")
+
     @overload
     # pylint: disable=no-self-use, undefined-variable
-    def eval_upto(self, e, n: int, cast_to: CastTarget = ..., **kwargs) -> CastTarget: ...
+    def eval_upto(self, e, n: int, cast_to: CastTarget = ..., **kwargs) -> CastTarget:
+        ...
 
-    def eval_upto(self, e, n, cast_to = None, **kwargs):
+    def eval_upto(self, e, n, cast_to=None, **kwargs):
         """
         Evaluate an expression, using the solver if necessary. Returns primitives as specified by the `cast_to`
         parameter. Only certain primitives are supported, check the implementation of `_cast_to` to see which ones.
@@ -736,16 +838,18 @@ class SimSolver(SimStatePlugin):
 
         cast_vals = [self._cast_to(e, v, cast_to) for v in self._eval(e, n, **kwargs)]
         if len(cast_vals) == 0:
-            raise SimUnsatError('Not satisfiable: %s, expected up to %d solutions' % (e.shallow_repr(), n))
+            raise SimUnsatError("Not satisfiable: %s, expected up to %d solutions" % (e.shallow_repr(), n))
         return cast_vals
 
     @overload
     # pylint: disable=no-self-use
-    def eval(self, e, cast_to: None = ..., **kwargs) -> Any: ...
+    def eval(self, e, cast_to: None = ..., **kwargs) -> Any:
+        ...
 
     # pylint: disable=no-self-use,undefined-variable
     @overload
-    def eval(self, e, cast_to: CastTarget = ..., **kwargs) -> CastTarget: ...
+    def eval(self, e, cast_to: CastTarget = ..., **kwargs) -> CastTarget:
+        ...
 
     def eval(self, e, cast_to: Optional[CastTarget] = None, **kwargs):
         """
@@ -763,7 +867,7 @@ class SimSolver(SimStatePlugin):
         if concrete_val is not None:
             return self._cast_to(e, concrete_val, cast_to)
 
-        return self.eval_upto(e, 1, cast_to = cast_to,  **kwargs)[0]
+        return self.eval_upto(e, 1, cast_to=cast_to, **kwargs)[0]
 
     def eval_one(self, e, **kwargs):
         """
@@ -778,10 +882,10 @@ class SimSolver(SimStatePlugin):
         :return: The value for `e`
         """
         try:
-            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.items() if k != 'default'})[0]
+            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.items() if k != "default"})[0]
         except (SimUnsatError, SimValueError, SimSolverModeError):
-            if 'default' in kwargs:
-                return kwargs.pop('default')
+            if "default" in kwargs:
+                return kwargs.pop("default")
             raise
 
     def eval_atmost(self, e, n, **kwargs):
@@ -796,7 +900,7 @@ class SimSolver(SimStatePlugin):
         :raise SimValueError: if more than `n` solutions were found to satisfy the given constraints
         :return: The solutions for `e`
         """
-        r = self.eval_upto(e, n+1, **kwargs)
+        r = self.eval_upto(e, n + 1, **kwargs)
         if len(r) > n:
             raise SimValueError("Concretized %d values (must be at most %d) in eval_atmost" % (len(r), n))
         return r
@@ -865,7 +969,7 @@ class SimSolver(SimStatePlugin):
         else:
             return False
 
-    def symbolic(self, e): # pylint:disable=R0201
+    def symbolic(self, e):  # pylint:disable=R0201
         """
         Returns True if the expression `e` is symbolic.
         """
@@ -879,7 +983,7 @@ class SimSolver(SimStatePlugin):
         only 1 possible value. This differs from `unique` in that this *does*
         not query the constraint solver.
         """
-        if self.state.mode == 'static':
+        if self.state.mode == "static":
             if type(e) in (int, bytes, float, bool):
                 return True
             else:
@@ -910,17 +1014,19 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def _claripy_simplify(self, *args): #pylint:disable=no-self-use
+    def _claripy_simplify(self, *args):  # pylint:disable=no-self-use
         return claripy.simplify(args[0])
 
-    def variables(self, e): #pylint:disable=no-self-use
+    def variables(self, e):  # pylint:disable=no-self-use
         """
         Returns the symbolic variables present in the AST of `e`.
         """
         return e.variables
 
+
 from angr.sim_state import SimState
-SimState.register_default('solver', SimSolver)
+
+SimState.register_default("solver", SimSolver)
 
 from .. import sim_options as o
 from .inspect import BP_AFTER

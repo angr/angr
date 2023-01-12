@@ -4,7 +4,7 @@ import networkx
 
 
 class SCCPlaceholder:
-    __slots__ = ['scc_id']
+    __slots__ = ["scc_id"]
 
     def __init__(self, scc_id):
         self.scc_id = scc_id
@@ -13,7 +13,7 @@ class SCCPlaceholder:
         return isinstance(other, SCCPlaceholder) and other.scc_id == self.scc_id
 
     def __hash__(self):
-        return hash('scc_placeholder_%d' % self.scc_id)
+        return hash("scc_placeholder_%d" % self.scc_id)
 
 
 class CFGUtils:
@@ -78,7 +78,7 @@ class CFGUtils:
             else:
                 for n in scc:
                     predecessors = graph.predecessors(n)
-                    if any([ p not in scc for p in predecessors]):
+                    if any([p not in scc for p in predecessors]):
                         widening_addrs.add(n.addr)
                         break
 
@@ -104,8 +104,9 @@ class CFGUtils:
         return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
 
     @staticmethod
-    def quasi_topological_sort_nodes(graph: networkx.DiGraph, nodes: Optional[List]=None,
-                                     loop_heads: Optional[List]=None) -> List:
+    def quasi_topological_sort_nodes(
+        graph: networkx.DiGraph, nodes: Optional[List] = None, loop_heads: Optional[List] = None
+    ) -> List:
         """
         Sort a given set of nodes from a graph based on the following rules:
 
@@ -125,13 +126,13 @@ class CFGUtils:
         if graph.number_of_nodes() == 1:
             if nodes is None:
                 return list(graph.nodes)
-            return [ n for n in graph.nodes() if n in nodes ]
+            return [n for n in graph.nodes() if n in nodes]
 
         # make a copy to the graph since we are gonna modify it
         graph_copy = networkx.DiGraph()
 
         # find all strongly connected components in the graph
-        sccs = [ scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1 ]
+        sccs = [scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1]
 
         # collapse all strongly connected components
         for src, dst in graph.edges():
@@ -162,7 +163,7 @@ class CFGUtils:
         # topological sort on acyclic graph `graph_copy`
         tmp_nodes = networkx.topological_sort(graph_copy)
 
-        ordered_nodes = [ ]
+        ordered_nodes = []
         for n in tmp_nodes:
             if isinstance(n, SCCPlaceholder):
                 CFGUtils._append_scc(graph, ordered_nodes, sccs[n.scc_id], loop_heads=loop_heads)
@@ -173,7 +174,7 @@ class CFGUtils:
             return ordered_nodes
 
         nodes = set(nodes)
-        ordered_nodes = [ n for n in ordered_nodes if n in nodes ]
+        ordered_nodes = [n for n in ordered_nodes if n in nodes]
         return ordered_nodes
 
     @staticmethod
@@ -185,7 +186,7 @@ class CFGUtils:
         return None
 
     @staticmethod
-    def _append_scc(graph: networkx.DiGraph, ordered_nodes: List, scc: Set, loop_heads: Optional[List]=None) -> None:
+    def _append_scc(graph: networkx.DiGraph, ordered_nodes: List, scc: Set, loop_heads: Optional[List] = None) -> None:
         """
         Append all nodes from a strongly connected component to a list of ordered nodes and ensure the topological
         order.

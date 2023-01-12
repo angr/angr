@@ -17,12 +17,13 @@ class BadStatesDropper(ExplorationTechnique):
     """
     Dumps and drops states that are not "active".
     """
+
     def __init__(self, vault, db):
         super().__init__()
         self.vault = vault
         self.db = db
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
 
         for k in ("deadended", "avoid", "pruned", "unsat", "errored"):
             if k in simgr.stashes and simgr.stashes[k]:
@@ -41,17 +42,18 @@ class ExplorationStatusNotifier(ExplorationTechnique):
     """
     Force the exploration to stop if the server.stop is True.
     """
+
     def __init__(self, server_state: Dict):
         super().__init__()
         self.server_state = server_state
 
-    def step(self, simgr, stash='active', **kwargs):
-        if not self.server_state['stopped']:
+    def step(self, simgr, stash="active", **kwargs):
+        if not self.server_state["stopped"]:
             simgr = simgr.step(stash="active", **kwargs)
         else:
             _l.info("Server is marked as stopped. Stop stepping and drop %d active states.", len(simgr.active))
             # clear the active stash
-            simgr.stashes['active'] = [ ]
+            simgr.stashes["active"] = []
         return simgr
 
 
@@ -60,8 +62,16 @@ class Worker:
     Worker implements a worker thread/process for conducting a task.
     """
 
-    def __init__(self, worker_id, server, server_state, recursion_limit=None, techniques=None, add_options=None,
-                 remove_options=None):
+    def __init__(
+        self,
+        worker_id,
+        server,
+        server_state,
+        recursion_limit=None,
+        techniques=None,
+        add_options=None,
+        remove_options=None,
+    ):
         self.worker_id = worker_id
         self.server = server
         self.server_state = server_state
@@ -84,8 +94,9 @@ class Worker:
         if self._recursion_limit is not None and self._recursion_limit != sys.getrecursionlimit():
             sys.setrecursionlimit(self._recursion_limit)
 
-        state = self.server.project.factory.entry_state(add_options=self.add_options,
-                                                        remove_options=self.remove_options)
+        state = self.server.project.factory.entry_state(
+            add_options=self.add_options, remove_options=self.remove_options
+        )
         simgr = self.server.project.factory.simgr(state)
         if self.server.bucketizer:
             bucktizer = Bucketizer()
@@ -116,14 +127,14 @@ class Worker:
 
         if self.worker_id == 0:
             # bootstrap: the very first worker - start exploring right away!
-            _l.info('Worker 0 starts exploring...')
+            _l.info("Worker 0 starts exploring...")
             self.server.inc_active_workers()
             simgr.explore()
             self.server.dec_active_workers()
         else:
             time.sleep(8)  # give worker0 8 seconds to start running
 
-        while not self.server_state['stopped'] and self.server.active_workers > 0:
+        while not self.server_state["stopped"] and self.server.active_workers > 0:
             # this is not the first worker - waiting for jobs to arrive
             state_oid = None
             while state_oid is None:
@@ -146,7 +157,7 @@ class Worker:
             state = spiller._load_state(state_oid)
             # update simgr._project
             simgr._project = state.project
-            simgr.stashes['active'] = [state]
+            simgr.stashes["active"] = [state]
 
             simgr.explore()
             self.server.dec_active_workers()

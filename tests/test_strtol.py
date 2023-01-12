@@ -21,8 +21,18 @@ class TestStrtol(unittest.TestCase):
         pg = b.factory.simulation_manager(thing=initial_state, threads=threads)
 
         # find the end of main
-        expected_outputs = {b"base 8 worked\n", b"base +8 worked\n", b"0x worked\n", b"+0x worked\n", b"base +10 worked\n",
-                            b"base 10 worked\n", b"base -8 worked\n", b"-0x worked\n", b"base -10 worked\n", b"Nope\n"}
+        expected_outputs = {
+            b"base 8 worked\n",
+            b"base +8 worked\n",
+            b"0x worked\n",
+            b"+0x worked\n",
+            b"base +10 worked\n",
+            b"base 10 worked\n",
+            b"base -8 worked\n",
+            b"-0x worked\n",
+            b"base -10 worked\n",
+            b"Nope\n",
+        }
         pg.explore(find=0x400804, num_find=len(expected_outputs))
         assert len(pg.found) == len(expected_outputs)
 
@@ -51,7 +61,7 @@ class TestStrtol(unittest.TestCase):
 
         state.libc.max_strtol_len = 11
 
-        strtol = angr.SIM_LIBRARIES['libc.so.6'].get('strtol', arch=b.arch)
+        strtol = angr.SIM_LIBRARIES["libc.so.6"].get("strtol", arch=b.arch)
         strtol.state = state.copy()
         ret = strtol.run(0x500000, 0, 0)
 

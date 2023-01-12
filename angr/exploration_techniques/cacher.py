@@ -18,8 +18,9 @@ class Cacher(ExplorationTechnique):
     DO NOT USE THIS - THIS IS FOR ARCHIVAL PURPOSES ONLY
     """
 
-    def __init__(self, when=None, dump_cache=True, load_cache=True, container=None,
-                 lookup=None, dump_func=None, load_func=None):
+    def __init__(
+        self, when=None, dump_cache=True, load_cache=True, container=None, lookup=None, dump_func=None, load_func=None
+    ):
         """
         :param dump_cache: Whether to dump data to cache.
         :param load_cache: Whether to load data from cache.
@@ -55,7 +56,11 @@ class Cacher(ExplorationTechnique):
         # Container is the file name.
         elif isinstance(self.container, str) and not self.container_pickle_str:
             try:
-                self.container = self.container % {'name': os.path.basename(binary), 'binhash': binhash, 'addr': '%(addr)s'}
+                self.container = self.container % {
+                    "name": os.path.basename(binary),
+                    "binhash": binhash,
+                    "addr": "%(addr)s",
+                }
             except KeyError:
                 l.error("Only the following cache keys are accepted: 'name', 'binhash' and 'addr'.")
                 raise
@@ -66,12 +71,12 @@ class Cacher(ExplorationTechnique):
 
         self.project = simgr._project
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         # We cache if any of the states in 'stash' satisfies the condition.
         for s in simgr.stashes[stash]:
             if self._dump_cache and self._dump_cond(s):
                 if isinstance(self.container, str):
-                    self.container = self.container % {'addr': hex(s.addr)[:-1]}
+                    self.container = self.container % {"addr": hex(s.addr)[:-1]}
 
                 if self._cache_lookup():
                     continue
@@ -110,11 +115,11 @@ class Cacher(ExplorationTechnique):
             cached_project.store_function = project.store_function
             cached_project.load_function = project.load_function
 
-            stash = cached_project.storage['cached_states']
+            stash = cached_project.storage["cached_states"]
             for s in stash:
                 s.project = cached_project
 
-            simgr.stashes['active'] = stash
+            simgr.stashes["active"] = stash
             cached_project.storage = None
 
             simgr._project = cached_project
@@ -129,7 +134,7 @@ class Cacher(ExplorationTechnique):
             s.history.trim()
 
         project = simgr._project
-        project.storage['cached_states'] = simgr.stashes[stash]
+        project.storage["cached_states"] = simgr.stashes[stash]
         project.store_function(container)
 
         for s in simgr.stashes[stash]:

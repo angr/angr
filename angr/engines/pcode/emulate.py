@@ -12,13 +12,14 @@ from .behavior import OpBehavior
 
 l = logging.getLogger(__name__)
 
+
 class PcodeEmulatorMixin(SimEngineBase):
     """
     Mixin for p-code execution.
     """
 
-    _current_ins:      Union[Translation, None]
-    _current_op:       Union[PcodeOp, None]
+    _current_ins: Union[Translation, None]
+    _current_op: Union[PcodeOp, None]
     _current_behavior: Union[OpBehavior, None]
 
     def __init__(self, *args, **kwargs):
@@ -27,20 +28,20 @@ class PcodeEmulatorMixin(SimEngineBase):
         self._current_op = None
         self._current_behavior = None
         self._special_op_handlers = {
-            OpCode.LOAD:       self._execute_load,
-            OpCode.STORE:      self._execute_store,
-            OpCode.BRANCH:     self._execute_branch,
-            OpCode.CBRANCH:    self._execute_cbranch,
-            OpCode.BRANCHIND:  self._execute_branchind,
-            OpCode.CALL:       self._execute_call,
-            OpCode.CALLIND:    self._execute_callind,
-            OpCode.CALLOTHER:  self._execute_callother,
-            OpCode.RETURN:     self._execute_ret,
+            OpCode.LOAD: self._execute_load,
+            OpCode.STORE: self._execute_store,
+            OpCode.BRANCH: self._execute_branch,
+            OpCode.CBRANCH: self._execute_cbranch,
+            OpCode.BRANCHIND: self._execute_branchind,
+            OpCode.CALL: self._execute_call,
+            OpCode.CALLIND: self._execute_callind,
+            OpCode.CALLOTHER: self._execute_callother,
+            OpCode.RETURN: self._execute_ret,
             OpCode.MULTIEQUAL: self._execute_multiequal,
-            OpCode.INDIRECT:   self._execute_indirect,
-            OpCode.SEGMENTOP:  self._execute_segment_op,
-            OpCode.CPOOLREF:   self._execute_cpool_ref,
-            OpCode.NEW:        self._execute_new,
+            OpCode.INDIRECT: self._execute_indirect,
+            OpCode.SEGMENTOP: self._execute_segment_op,
+            OpCode.CPOOLREF: self._execute_cpool_ref,
+            OpCode.NEW: self._execute_new,
         }
 
     def handle_pcode_block(self, irsb: IRSB) -> None:
@@ -57,7 +58,9 @@ class PcodeEmulatorMixin(SimEngineBase):
 
         fallthru_addr = None
         for i, ins in enumerate(irsb._instructions):
-            l.debug("Executing machine instruction @ %#x (%d of %d)", ins.address.offset, i+1, len(irsb._instructions))
+            l.debug(
+                "Executing machine instruction @ %#x (%d of %d)", ins.address.offset, i + 1, len(irsb._instructions)
+            )
 
             # Execute a single instruction of the emulated machine
             self._current_ins = ins
@@ -123,20 +126,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         Ensure given bv is num_bits bits long by either zero extending or truncating.
         """
         if v_in.size() > num_bits:
-            v_out = v_in[num_bits-1:0]
-            l.debug('Truncating value %s (%d bits) to %s (%d bits)',
-                    v_in,
-                    v_in.size(),
-                    v_out,
-                    num_bits)
+            v_out = v_in[num_bits - 1 : 0]
+            l.debug("Truncating value %s (%d bits) to %s (%d bits)", v_in, v_in.size(), v_out, num_bits)
             return v_out
         elif v_in.size() < num_bits:
-            v_out = v_in.zero_extend(num_bits-v_in.size())
-            l.debug('Extending value %s (%d bits) to %s (%d bits)',
-                    v_in,
-                    v_in.size(),
-                    v_out,
-                    num_bits)
+            v_out = v_in.zero_extend(num_bits - v_in.size())
+            l.debug("Extending value %s (%d bits) to %s (%d bits)", v_in, v_in.size(), v_out, num_bits)
             return v_out
         else:
             return v_in
@@ -154,14 +149,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         space_name = varnode.space.name
 
         # FIXME: Consider moving into behavior.py
-        value = self._adjust_value_size(varnode.size*8, value)
-        assert varnode.size*8 == value.size()
+        value = self._adjust_value_size(varnode.size * 8, value)
+        assert varnode.size * 8 == value.size()
 
         l.debug("Storing %s %x %s %d", space_name, varnode.offset, value, varnode.size)
         if space_name == "register":
-            self.state.registers.store(
-                self._map_register_name(varnode), value, size=varnode.size
-            )
+            self.state.registers.store(self._map_register_name(varnode), value, size=varnode.size)
 
         elif space_name == "unique":
             self._pcode_tmps[varnode.offset] = value
@@ -187,13 +180,13 @@ class PcodeEmulatorMixin(SimEngineBase):
         size = varnode.size
         l.debug("Loading %s - %x x %d", space_name, varnode.offset, size)
         if space_name == "const":
-            return claripy.BVV(varnode.offset, size*8)
+            return claripy.BVV(varnode.offset, size * 8)
         elif space_name == "register":
             return self.state.registers.load(self._map_register_name(varnode), size=size)
         elif space_name == "unique":
             # FIXME: Support loading data of different sizes. For now, assume
             # size of values read are same as size written.
-            assert self._pcode_tmps[varnode.offset].size() == size*8
+            assert self._pcode_tmps[varnode.offset].size() == size * 8
             return self._pcode_tmps[varnode.offset]
         elif space_name in ("ram", "mem"):
             val = self.state.memory.load(varnode.offset, endness=self.project.arch.memory_endness, size=size)
@@ -208,9 +201,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         in1 = self._get_value(self._current_op.inputs[0])
         l.debug("in1 = %s", in1)
-        out = self._current_behavior.evaluate_unary(
-            self._current_op.output.size, self._current_op.inputs[0].size, in1
-        )
+        out = self._current_behavior.evaluate_unary(self._current_op.output.size, self._current_op.inputs[0].size, in1)
         l.debug("out unary = %s", out)
         self._set_value(self._current_op.output, out)
 
@@ -292,9 +283,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         cont_state = self.state
         cont_condition = cond == 0
         cont_state.add_constraints(cont_condition)
-        cont_state.scratch.guard = claripy.And(
-            cont_state.scratch.guard, cont_condition
-        )
+        cont_state.scratch.guard = claripy.And(cont_state.scratch.guard, cont_condition)
 
     def _execute_ret(self) -> None:
         """

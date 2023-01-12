@@ -4,16 +4,12 @@ import unittest
 
 import angr
 
-test_location = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
-)
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestFunction(unittest.TestCase):
     def test_function_serialization(self):
-        p = angr.Project(
-            os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
-        )
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = p.analyses.CFG()
 
         func_main = cfg.kb.functions["main"]
@@ -28,9 +24,7 @@ class TestFunction(unittest.TestCase):
         assert func_main.is_prototype_guessed == f.is_prototype_guessed
 
     def test_function_definition_application(self):
-        p = angr.Project(
-            os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
-        )
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = p.analyses.CFG()
         func_main: angr.knowledge_plugins.Function = cfg.kb.functions["main"]
 
@@ -44,16 +38,12 @@ class TestFunction(unittest.TestCase):
             ).with_arch(p.arch),
         ]
         # Check that the default calling convention of the architecture was applied
-        assert isinstance(
-            func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name]
-        )
+        assert isinstance(func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name])
 
         func_main.apply_definition("int main(int argc, char** argv)")
 
     def test_function_instruction_addr_from_any_addr(self):
-        p = angr.Project(
-            os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
-        )
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = p.analyses.CFG()
 
         func_main = cfg.kb.functions["main"]
@@ -65,9 +55,7 @@ class TestFunction(unittest.TestCase):
         assert func_main.addr_to_instruction_addr(0x400743) == 0x400742
 
     def test_function_instruction_size(self):
-        p = angr.Project(
-            os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
-        )
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = p.analyses.CFG()
 
         func_main = cfg.kb.functions["main"]

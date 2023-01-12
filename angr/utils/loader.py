@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from angr import Project
 
 
-def is_pc(project: 'Project', ins_addr: int, addr: int) -> bool:
+def is_pc(project: "Project", ins_addr: int, addr: int) -> bool:
     """
     Check if the given address is program counter (PC) or not. This function is for handling the case on some bizarre
     architectures where PC is always the currently executed instruction address plus a constant value.
@@ -27,7 +27,7 @@ def is_pc(project: 'Project', ins_addr: int, addr: int) -> bool:
     return ins_addr == addr
 
 
-def is_in_readonly_section(project: 'Project', addr: int) -> bool:
+def is_in_readonly_section(project: "Project", addr: int) -> bool:
     """
     Check if the specified address is inside a read-only section.
 
@@ -41,7 +41,7 @@ def is_in_readonly_section(project: 'Project', addr: int) -> bool:
     return False
 
 
-def is_in_readonly_segment(project: 'Project', addr: int) -> bool:
+def is_in_readonly_segment(project: "Project", addr: int) -> bool:
     """
     Check if the specified address is inside a read-only segment.
 

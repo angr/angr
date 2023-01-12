@@ -13,7 +13,7 @@ class strcmp(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super().__init__() #pylint disable=useless-super-delegation
+        super().__init__()  # pylint disable=useless-super-delegation
 
     def get_name(self):
         return "strcmp"
@@ -21,13 +21,13 @@ class strcmp(Func):
     def num_args(self):
         return 2
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["buf1", "buf2"]
 
     def gen_input_output_pair(self):
         l = 5
         s = rand_str(l, strcmp.non_null)
-         #pylint disable=unused-variable
+        # pylint disable=unused-variable
 
         return None
 

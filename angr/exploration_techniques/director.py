@@ -68,7 +68,7 @@ class BaseGoal:
         """
 
         call_stack_suffix = state.callstack.stack_suffix(cfg.context_sensitivity_level)
-        is_syscall = state.history.jumpkind is not None and state.history.jumpkind.startswith('Ijk_Sys')
+        is_syscall = state.history.jumpkind is not None and state.history.jumpkind.startswith("Ijk_Sys")
 
         block_id = cfg._generate_block_id(call_stack_suffix, state.addr, is_syscall)
 
@@ -90,8 +90,8 @@ class BaseGoal:
 
         else:
             steps_map = defaultdict(int)
-            traversed = { source }
-            stack = [ source ]
+            traversed = {source}
+            stack = [source]
 
             while stack:
                 src = stack.pop()
@@ -117,7 +117,7 @@ class ExecuteAddressGoal(BaseGoal):
     """
 
     def __init__(self, addr):
-        super().__init__('execute_address')
+        super().__init__("execute_address")
 
         self.addr = addr
 
@@ -140,7 +140,7 @@ class ExecuteAddressGoal(BaseGoal):
 
         if node is None:
             # Umm it doesn't exist on the control flow graph - why?
-            l.error('Failed to find CFGNode for state %s on the control flow graph.', state)
+            l.error("Failed to find CFGNode for state %s on the control flow graph.", state)
             return False
 
         # crawl the graph to see if we can reach the target address next
@@ -149,7 +149,7 @@ class ExecuteAddressGoal(BaseGoal):
                 l.debug("State %s will reach %#x.", state, self.addr)
                 return True
 
-        l.debug('SimState %s will not reach %#x.', state, self.addr)
+        l.debug("SimState %s will not reach %#x.", state, self.addr)
         return False
 
     def check_state(self, state):
@@ -176,7 +176,7 @@ class CallFunctionGoal(BaseGoal):
     REQUIRE_CFG_STATES = True
 
     def __init__(self, function, arguments):
-        super().__init__('function_call')
+        super().__init__("function_call")
 
         self.function = function
         self.arguments = arguments
@@ -185,17 +185,18 @@ class CallFunctionGoal(BaseGoal):
             for arg in self.arguments:
                 if arg is not None:
                     if len(arg) != 2:
-                        raise AngrDirectorError('Each argument must be either None or a 2-tuple contains argument ' +
-                                                'type and the expected value.'
-                                                )
+                        raise AngrDirectorError(
+                            "Each argument must be either None or a 2-tuple contains argument "
+                            + "type and the expected value."
+                        )
 
                     arg_type, expected_value = arg
 
                     if not isinstance(arg_type, SimType):
-                        raise AngrDirectorError('Each argument type must be an instance of SimType.')
+                        raise AngrDirectorError("Each argument type must be an instance of SimType.")
 
                     if isinstance(expected_value, claripy.ast.Base) and expected_value.symbolic:
-                        raise AngrDirectorError('Symbolic arguments are not supported.')
+                        raise AngrDirectorError("Symbolic arguments are not supported.")
 
         # TODO: allow user to provide an optional argument processor to process arguments
 
@@ -271,7 +272,7 @@ class CallFunctionGoal(BaseGoal):
         # TODO: default calling convention of the platform
 
         cc = DEFAULT_CC[arch.name](arch)
-        real_args = cc.get_args(state, cc.guess_prototype([0]*len(self.arguments)))
+        real_args = cc.get_args(state, cc.guess_prototype([0] * len(self.arguments)))
 
         for i, (expected_arg, real_arg) in enumerate(zip(self.arguments, real_args)):
             if expected_arg is None:
@@ -311,7 +312,7 @@ class CallFunctionGoal(BaseGoal):
                 return CallFunctionGoal._compare_pointer_content(state, ptr, expected_value)
 
             else:
-                l.error('Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.', arg_type)
+                l.error("Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.", arg_type)
 
         elif isinstance(arg_type, SimTypeString):
             # resolve the pointer and compare the content
@@ -323,7 +324,7 @@ class CallFunctionGoal(BaseGoal):
             return CallFunctionGoal._compare_integer_content(state, real_value, expected_value)
 
         else:
-            l.error('Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.', arg_type)
+            l.error("Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.", arg_type)
 
         return False
 
@@ -334,7 +335,7 @@ class CallFunctionGoal(BaseGoal):
             # convert it to an AST
             expected = state.solver.BVV(expected)
         length = expected.size() // 8
-        real_string = state.memory.load(ptr, length, endness='Iend_BE')
+        real_string = state.memory.load(ptr, length, endness="Iend_BE")
 
         if real_string.symbolic:
             # we do not support symbolic arguments
@@ -370,8 +371,15 @@ class Director(ExplorationTechnique):
       chance for those states to be explored as well in order to prevent over-fitting.
     """
 
-    def __init__(self, peek_blocks=100, peek_functions=5, goals=None, cfg_keep_states=False,
-                 goal_satisfied_callback=None, num_fallback_states=5):
+    def __init__(
+        self,
+        peek_blocks=100,
+        peek_functions=5,
+        goals=None,
+        cfg_keep_states=False,
+        goal_satisfied_callback=None,
+        num_fallback_states=5,
+    ):
         """
         Constructor.
         """
@@ -380,7 +388,7 @@ class Director(ExplorationTechnique):
 
         self._peek_blocks = peek_blocks
         self._peek_functions = peek_functions
-        self._goals = goals if goals is not None else [ ]
+        self._goals = goals if goals is not None else []
         self._cfg_keep_states = cfg_keep_states
         self._goal_satisfied_callback = goal_satisfied_callback
         self._num_fallback_states = num_fallback_states
@@ -388,7 +396,7 @@ class Director(ExplorationTechnique):
         self._cfg = None
         self._cfg_kb = None
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         """
 
         :param simgr:
@@ -444,9 +452,9 @@ class Director(ExplorationTechnique):
             starts = list(simgr.active)
             self._cfg_kb = KnowledgeBase(self.project)
 
-            self._cfg = self.project.analyses.CFGEmulated(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks,
-                                                          keep_state=self._cfg_keep_states
-                                                          )
+            self._cfg = self.project.analyses.CFGEmulated(
+                kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks, keep_state=self._cfg_keep_states
+            )
 
         else:
 
@@ -465,9 +473,9 @@ class Director(ExplorationTechnique):
 
         # take back some of the deprioritized states
         l.debug("No more active states. Load some deprioritized states to 'active' stash.")
-        if 'deprioritized' in pg.stashes and pg.deprioritized:
-            pg.active.extend(pg.deprioritized[-self._num_fallback_states : ])
-            pg.stashes['deprioritized'] = pg.deprioritized[ : -self._num_fallback_states]
+        if "deprioritized" in pg.stashes and pg.deprioritized:
+            pg.active.extend(pg.deprioritized[-self._num_fallback_states :])
+            pg.stashes["deprioritized"] = pg.deprioritized[: -self._num_fallback_states]
 
     def _categorize_states(self, simgr):
         """
@@ -490,11 +498,11 @@ class Director(ExplorationTechnique):
                         self._goal_satisfied_callback(goal, p, simgr)
 
         simgr.stash(
-            filter_func=lambda p: all(not goal.check(self._cfg, p, peek_blocks=self._peek_blocks) for goal in
-                                      self._goals
-                                      ),
-            from_stash='active',
-            to_stash='deprioritized',
+            filter_func=lambda p: all(
+                not goal.check(self._cfg, p, peek_blocks=self._peek_blocks) for goal in self._goals
+            ),
+            from_stash="active",
+            to_stash="deprioritized",
         )
 
         if simgr.active:
@@ -504,7 +512,7 @@ class Director(ExplorationTechnique):
         active_states = len(simgr.active)
         # deprioritized_states = len(simgr.deprioritized)
 
-        l.debug('%d/%d active states are deprioritized.', past_active_states - active_states, past_active_states)
+        l.debug("%d/%d active states are deprioritized.", past_active_states - active_states, past_active_states)
 
         return simgr
 

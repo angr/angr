@@ -8,6 +8,7 @@ from ..state_plugins.sim_event import resource_event
 
 l = logging.getLogger(name=__name__)
 
+
 class Explorer(ExplorationTechnique):
     """
     Search for up to "num_find" paths that satisfy condition "find", avoiding condition "avoid". Stashes found paths
@@ -26,15 +27,9 @@ class Explorer(ExplorationTechnique):
     If either the "find" or "avoid" parameter is a function returning a boolean, and a path triggers both conditions,
     it will be added to the find stash, unless "avoid_priority" is set to True.
     """
+
     def __init__(
-            self,
-            find=None,
-            avoid=None,
-            find_stash='found',
-            avoid_stash='avoid',
-            cfg=None,
-            num_find=1,
-            avoid_priority=False
+        self, find=None, avoid=None, find_stash="found", avoid_stash="avoid", cfg=None, num_find=1, avoid_priority=False
     ):
         super().__init__()
         self.find, static_find = condition_to_lambda(find)
@@ -53,6 +48,7 @@ class Explorer(ExplorationTechnique):
 
         # TODO: This is a hack for while CFGFast doesn't handle procedure continuations
         from .. import analyses  # pylint: disable=import-outside-toplevel
+
         if isinstance(cfg, analyses.CFGFast):
             l.error("CFGFast is currently inappropriate for use with Explorer.")
             l.error("Usage of the CFG has been disabled for this explorer.")
@@ -107,7 +103,7 @@ class Explorer(ExplorationTechnique):
         if not self.avoid_stash in simgr.stashes:
             simgr.stashes[self.avoid_stash] = []
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         base_extra_stop_points = set(kwargs.pop("extra_stop_points", []))
         return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
@@ -138,7 +134,7 @@ class Explorer(ExplorationTechnique):
                     return self.avoid_stash
         except claripy.errors.ClaripySolverInterruptError as e:
             resource_event(state, e)
-            return 'interrupted'
+            return "interrupted"
 
         if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
             if state.addr not in self.ok_blocks:

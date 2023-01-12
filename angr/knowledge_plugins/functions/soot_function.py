@@ -83,7 +83,7 @@ class SootFunction(Function):
         hooker = None
         if self.is_simprocedure:
             hooker = project.hooked_by(addr)
-        if hooker and hasattr(hooker, 'NO_RET'):
+        if hooker and hasattr(hooker, "NO_RET"):
             self.returning = not hooker.NO_RET
 
         self.prepared_registers = set()
@@ -96,10 +96,10 @@ class SootFunction(Function):
         self._addr_to_block_node = {}  # map addresses to nodes
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
-        self._local_blocks = {} # a dict of all blocks inside the function
+        self._local_blocks = {}  # a dict of all blocks inside the function
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
-        self.info = { }  # storing special information, like $gp values for MIPS32
+        self.info = {}  # storing special information, like $gp values for MIPS32
         self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
 
     def normalize(self):

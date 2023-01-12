@@ -20,9 +20,9 @@ def int2base(x, base):
         digits.append(digs[x % base])
         x //= base
     if sign < 0:
-        digits.append('-')
+        digits.append("-")
     digits.reverse()
-    return ''.join(digits)
+    return "".join(digits)
 
 
 class strtol(Func):
@@ -31,22 +31,22 @@ class strtol(Func):
         self.skips_whitespace = False
         self.version = ""
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
 
-    def num_args(self): #pylint disable=no-self-use
+    def num_args(self):  # pylint disable=no-self-use
         return 3
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["nptr", "endpointer", "base"]
 
     def get_name(self):
         return "strtol" + self.version
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2**31), 2**31-1)
+        num = random.randint(-(2**31), 2**31 - 1)
 
         base = random.randint(2, 16)
         s = int2base(num, base)
@@ -57,7 +57,7 @@ class strtol(Func):
         return TestData(test_input, test_output, return_val, max_steps)
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2**31), 2**31 - 1)
 
         s = str(num)
         test_input = [s, 0, 10]

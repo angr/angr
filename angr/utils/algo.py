@@ -1,7 +1,7 @@
 from typing import Callable, List, Any, Optional
 
 
-def binary_insert(lst: List, elem: Any, key: Callable, lo: int=0, hi: Optional[int]=None) -> None:
+def binary_insert(lst: List, elem: Any, key: Callable, lo: int = 0, hi: Optional[int] = None) -> None:
     """
     Insert an element into a sorted list, and keep the list sorted.
 

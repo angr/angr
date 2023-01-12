@@ -7,9 +7,7 @@ import gc
 import os
 import unittest
 
-tests_location = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
-)
+tests_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestPickle(unittest.TestCase):
@@ -91,9 +89,7 @@ class TestPickle(unittest.TestCase):
 
         # make a copy of the active_preset so that we do not touch the global preset object. this is only for writing this
         # test case.
-        p.analyses._active_preset = pickle.loads(
-            pickle.dumps(p.analyses._active_preset, -1)
-        )
+        p.analyses._active_preset = pickle.loads(pickle.dumps(p.analyses._active_preset, -1))
         assert len(p.analyses._active_preset._default_plugins) > 0
         p.analyses._active_preset = p.analyses._active_preset
         p.analyses._active_preset._default_plugins = {}

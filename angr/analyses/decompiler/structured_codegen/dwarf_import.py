@@ -10,12 +10,14 @@ from ....knowledge_plugins.functions.function import Function
 
 l = logging.getLogger(__name__)
 
+
 class ImportedLine:
     def __init__(self, addr):
-        self.tags = {'ins_addr': addr}
+        self.tags = {"ins_addr": addr}
+
 
 class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
-    def __init__(self, function, flavor='source', source_root=None, encoding='utf-8'):
+    def __init__(self, function, flavor="source", source_root=None, encoding="utf-8"):
         super().__init__(flavor=flavor)
 
         if isinstance(function, (int, str)):
@@ -39,16 +41,16 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
         pos = 0
         all_lines = []
         for filename, range_start, range_end in ranges:
-            these_lines = self._open_file(filename)[range_start-1:range_end-1+1]
+            these_lines = self._open_file(filename)[range_start - 1 : range_end - 1 + 1]
             all_lines.extend(these_lines)
             for idx, line_text in enumerate(these_lines):
                 addr = line_to_addr[(filename, range_start + idx)]
                 if addr is not None:
                     self.stmt_posmap.add_mapping(pos, len(line_text), ImportedLine(addr))
-                    self.insmap.add_mapping(addr, pos + len(line_text) - len(line_text.lstrip(' \t')))
+                    self.insmap.add_mapping(addr, pos + len(line_text) - len(line_text.lstrip(" \t")))
                 pos += len(line_text)
 
-        self.text = ''.join(all_lines)
+        self.text = "".join(all_lines)
 
     def _locate_file(self, filename):
         if os.path.isfile(filename):
@@ -56,8 +58,8 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
         if self._source_root is None:
             return None
 
-        filename = filename.strip('/\\')
-        path_keys = re.split('[/\\\\]', filename)
+        filename = filename.strip("/\\")
+        path_keys = re.split("[/\\\\]", filename)
         for i in range(len(path_keys)):
             maybe_path = os.path.join(self._source_root, *path_keys[i:])
             if os.path.isfile(maybe_path):
@@ -108,9 +110,9 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
                 continue
             if line - 1 >= len(file_lines) or line - 1 < 0:
                 # a non-existent line number is specified. skip this record
-                l.warning("Line number %d does not exist in file %s. It might be the wrong source code file.",
-                          line,
-                          filename)
+                l.warning(
+                    "Line number %d does not exist in file %s. It might be the wrong source code file.", line, filename
+                )
                 continue
             range_start = line
             range_end = line
@@ -119,16 +121,16 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
             # find the matching }
             # scan backwards for any lines that aren't blank and don't have {}; on them
             # scan forwards for any lines continued via \
-            col = file_lines[range_start-1].find('{')
+            col = file_lines[range_start - 1].find("{")
             if col != -1:
                 col += 1
                 stack = 1
                 while range_end - 1 < len(file_lines):
                     while col < len(file_lines[range_end - 1]):
                         ch = file_lines[range_end - 1][col]
-                        if ch == '{':
+                        if ch == "{":
                             stack += 1
-                        elif ch == '}':
+                        elif ch == "}":
                             stack -= 1
                         if stack == 0:
                             break
@@ -142,7 +144,7 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
             maybe_prev_line = range_start - 1
             while maybe_prev_line >= 0:
                 linedata = file_lines[maybe_prev_line - 1].strip()
-                if linedata and not any(c in linedata for c in '{};'):
+                if linedata and not any(c in linedata for c in "{};"):
                     range_start = maybe_prev_line
                     maybe_prev_line -= 1
                 else:
@@ -150,12 +152,14 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
 
             while range_end - 1 < len(file_lines) - 1:
                 linedata = file_lines[range_end - 1].strip()
-                if linedata.endswith('\\'):
+                if linedata.endswith("\\"):
                     range_end += 1
                 else:
                     break
 
-            if any(r[0] == filename and (r[1] <= range_start <= r[2] or range_start <= r[1] <= range_end) for r in ranges):
+            if any(
+                r[0] == filename and (r[1] <= range_start <= r[2] or range_start <= r[1] <= range_end) for r in ranges
+            ):
                 l.error("Detected line ranges are overlapping?")
             ranges.append((filename, range_start, range_end))
 
@@ -164,7 +168,7 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
     def _compute_line_to_addr(self, ranges):
         result = {}
         for filename, range_start, range_end in ranges:
-            for line in range(range_start, range_end+1):
+            for line in range(range_start, range_end + 1):
                 result[(filename, line)] = None
 
         obj = self.project.loader.find_object_containing(self.function.addr)
@@ -179,4 +183,4 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
         return result
 
 
-register_analysis(ImportSourceCode, 'ImportSourceCode')
+register_analysis(ImportSourceCode, "ImportSourceCode")

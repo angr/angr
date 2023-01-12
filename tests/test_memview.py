@@ -14,10 +14,7 @@ def test_simple_concrete():
     addr = 0xBA5E0
 
     def check_read(val):
-        assert (
-            s.solver.eval(s.memory.load(addr, 8, endness=Endness.LE), cast_to=int)
-            == val
-        )
+        assert s.solver.eval(s.memory.load(addr, 8, endness=Endness.LE), cast_to=int) == val
 
         assert s.mem[addr].char.concrete == chr(val & 0xFF).encode()
         assert s.mem[addr].byte.concrete == val & 0xFF
@@ -75,10 +72,7 @@ def test_array_concrete():
     assert s.mem[addr].dword.array(2).array(2).concrete == [[0x1, 0x2], [0x3, 0x4]]
 
     s.mem[addr].dword.array(5)[3] = 10
-    assert (
-        s.solver.eval(s.memory.load(addr + 12, 4, endness=Endness.LE), cast_to=int)
-        == 10
-    )
+    assert s.solver.eval(s.memory.load(addr + 12, 4, endness=Endness.LE), cast_to=int) == 10
 
     s.mem[addr].dword.array(5).store([20, 2, 3, 4, 5])
     assert s.mem[addr].dword.array(4).concrete == [20, 2, 3, 4]
@@ -97,9 +91,7 @@ def test_pointer_concrete():
 
     assert s.mem[ptraddr].deref.string.concrete == b"abcdef"
     s.mem[ptraddr].deref.dword = 123954
-    assert (
-        s.solver.eval(s.memory.load(addr, 4, endness=Endness.LE), cast_to=int) == 123954
-    )
+    assert s.solver.eval(s.memory.load(addr, 4, endness=Endness.LE), cast_to=int) == 123954
     assert s.mem[ptraddr].deref.dword.concrete == 123954
 
 
@@ -120,9 +112,7 @@ struct test_structs {
     s.memory.store(0x8000, bytes(16))
     s.mem[0x8000].struct.test_structs = {"a": 10, "b": 20}
     assert s.mem[0x8000].struct.test_structs.a.concrete == 10
-    assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=bytes) == bytes.fromhex(
-        "0a000000000000001400000000000000"
-    )
+    assert s.solver.eval(s.memory.load(0x8000, 16), cast_to=bytes) == bytes.fromhex("0a000000000000001400000000000000")
 
 
 def test_struct_bitfield_simple():
@@ -178,26 +168,14 @@ def test_struct_bitfield_simple():
     for (idx, (b, result)) in enumerate(data):
         v = view[idx]
         s = v.concrete
-        assert (
-            s.a == result[0]
-        ), f"Field a was {s.a}, expected {result[0]}, from bytes {b}"
-        assert (
-            v.a.concrete == result[0]
-        ), f"Field a was {v.a.concrete}, expected {result[0]}, from bytes {b}"
+        assert s.a == result[0], f"Field a was {s.a}, expected {result[0]}, from bytes {b}"
+        assert v.a.concrete == result[0], f"Field a was {v.a.concrete}, expected {result[0]}, from bytes {b}"
 
-        assert (
-            s.b == result[1]
-        ), f"Field b was {s.b}, expected {result[1]}, from bytes {b}"
-        assert (
-            v.b.concrete == result[1]
-        ), f"Field b was {s.b}, expected {result[1]}, from bytes {b}"
+        assert s.b == result[1], f"Field b was {s.b}, expected {result[1]}, from bytes {b}"
+        assert v.b.concrete == result[1], f"Field b was {s.b}, expected {result[1]}, from bytes {b}"
 
-        assert (
-            s.c == result[2]
-        ), f"Field c was {s.c}, expected {result[2]}, from bytes {b}"
-        assert (
-            v.c.concrete == result[2]
-        ), f"Field c was {v.c.concrete}, expected {result[2]}, from bytes {b}"
+        assert s.c == result[2], f"Field c was {s.c}, expected {result[2]}, from bytes {b}"
+        assert v.c.concrete == result[2], f"Field c was {v.c.concrete}, expected {result[2]}, from bytes {b}"
 
 
 def test_struct_bitfield_complex():

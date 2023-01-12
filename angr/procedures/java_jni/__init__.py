@@ -11,7 +11,7 @@ from ...sim_procedure import SimProcedure
 from ...sim_type import SimTypeFunction
 from ...state_plugins.sim_action_object import SimActionObject
 
-l = logging.getLogger('angr.procedures.java_jni')
+l = logging.getLogger("angr.procedures.java_jni")
 
 
 class JNISimProcedure(SimProcedure):
@@ -30,9 +30,10 @@ class JNISimProcedure(SimProcedure):
         # Setup a SimCC using the correct type for the return value
         if not self.return_ty:
             raise ValueError("Classes implementing JNISimProcedure's must set the return type.")
-        elif self.return_ty != 'void':
-            prototype = SimTypeFunction(args=self.prototype.args,
-                                      returnty=state.project.simos.get_native_type(self.return_ty))
+        elif self.return_ty != "void":
+            prototype = SimTypeFunction(
+                args=self.prototype.args, returnty=state.project.simos.get_native_type(self.return_ty)
+            )
             self.cc = DefaultCC[state.arch.name](state.arch)
             self.prototype = prototype
         super().execute(state, successors, arguments, ret_to)
@@ -57,28 +58,27 @@ class JNISimProcedure(SimProcedure):
         """
         # check if addr is symbolic
         if addr is not None and self.state.solver.symbolic(addr):
-            raise NotImplementedError('Symbolic addresses are not supported.')
+            raise NotImplementedError("Symbolic addresses are not supported.")
         # lookup native size of the type
         type_size = ArchSoot.sizeof[data_type]
         native_memory_endness = self.state.arch.memory_endness
         # store single value
         if isinstance(data, int):
             if addr is None:
-                addr = self._allocate_native_memory(size=type_size//8)
+                addr = self._allocate_native_memory(size=type_size // 8)
             value = self.state.solver.BVV(data, type_size)
             self.state.memory.store(addr, value, endness=native_memory_endness)
         # store array
         elif isinstance(data, list):
             if addr is None:
-                addr = self._allocate_native_memory(size=type_size*len(data)//8)
+                addr = self._allocate_native_memory(size=type_size * len(data) // 8)
             for idx, value in enumerate(data):
-                memory_addr = addr+idx*type_size//8
+                memory_addr = addr + idx * type_size // 8
                 self.state.memory.store(memory_addr, value, endness=native_memory_endness)
         # return native addr
         return addr
 
-    def _load_from_native_memory(self, addr, data_type=None, data_size=None,
-                                no_of_elements=1, return_as_list=False):
+    def _load_from_native_memory(self, addr, data_type=None, data_size=None, no_of_elements=1, return_as_list=False):
         """
         Load from native memory.
 
@@ -93,20 +93,18 @@ class JNISimProcedure(SimProcedure):
         """
         # check if addr is symbolic
         if addr is not None and self.state.solver.symbolic(addr):
-            raise NotImplementedError('Symbolic addresses are not supported.')
+            raise NotImplementedError("Symbolic addresses are not supported.")
         # if data size is not set, derive it from the type
         if not data_size:
             if data_type:
-                data_size = ArchSoot.sizeof[data_type]//8
+                data_size = ArchSoot.sizeof[data_type] // 8
             else:
                 raise ValueError("Cannot determine the data size w/o a type.")
         native_memory_endness = self.state.arch.memory_endness
         # load elements
         values = []
         for i in range(no_of_elements):
-            value = self.state.memory.load(addr + i*data_size,
-                                          size=data_size,
-                                          endness=native_memory_endness)
+            value = self.state.memory.load(addr + i * data_size, size=data_size, endness=native_memory_endness)
             if data_type:
                 value = self.state.project.simos.cast_primitive(self.state, value=value, to_type=data_type)
             values.append(value)
@@ -125,18 +123,19 @@ class JNISimProcedure(SimProcedure):
         """
         # check if addr is symbolic
         if self.state.solver.symbolic(addr_):
-            l.error("Loading strings from symbolic addresses is not implemented. "
-                    "Continue execution with an empty string.")
+            l.error(
+                "Loading strings from symbolic addresses is not implemented. "
+                "Continue execution with an empty string."
+            )
             return ""
         addr = self.state.solver.eval(addr_)
 
         # load chars one by one
         chars = []
         for i in itertools.count():
-            str_byte = self.state.memory.load(addr+i, size=1)
+            str_byte = self.state.memory.load(addr + i, size=1)
             if self.state.solver.symbolic(str_byte):
-                l.error("Loading of strings with symbolic chars is not supported. "
-                        "Character %d is concretized.", i)
+                l.error("Loading of strings with symbolic chars is not supported. " "Character %d is concretized.", i)
             str_byte = self.state.solver.eval(str_byte)
             if str_byte == 0:
                 break
@@ -154,24 +153,28 @@ class JNISimProcedure(SimProcedure):
         :return:            Native address of the string.
         """
         if addr is None:
-            addr = self._allocate_native_memory(size=len(string)+1)
+            addr = self._allocate_native_memory(size=len(string) + 1)
         else:
             # check if addr is symbolic
             if self.state.solver.symbolic(addr):
-                l.error("Storing strings at symbolic addresses is not implemented. "
-                        "Continue execution with concretized address.")
+                l.error(
+                    "Storing strings at symbolic addresses is not implemented. "
+                    "Continue execution with concretized address."
+                )
             addr = self.state.solver.eval(addr)
 
         # warn if string is symbolic
         if self.state.solver.symbolic(string):
-            l.warning('Support for symbolic strings, passed to native code, is limited. '
-                      'String will get concretized after `ReleaseStringUTFChars` is called.')
+            l.warning(
+                "Support for symbolic strings, passed to native code, is limited. "
+                "String will get concretized after `ReleaseStringUTFChars` is called."
+            )
 
         # store chars one by one
         str_len = len(string) // 8
         for idx in range(str_len):
             str_byte = StrSubstr(idx, 1, string)
-            self.state.memory.store(addr+idx, str_byte)
+            self.state.memory.store(addr + idx, str_byte)
 
         # store terminating zero
         self.state.memory.store(len(string), BVV(0, 8))
@@ -196,6 +199,7 @@ class JNISimProcedure(SimProcedure):
             return idx.reversed.get_bytes(index=0, size=4).reversed
         else:
             return idx.get_bytes(index=0, size=4)
+
 
 #
 # JNI function table
@@ -281,7 +285,7 @@ jni_functions["CallVoidMethod"] = "CallVoidMethod"
 jni_functions["CallVoidMethodV"] = not_implemented
 jni_functions["CallVoidMethodA"] = "CallVoidMethodA"
 
-#Calling Instance Methods of a Superclass
+# Calling Instance Methods of a Superclass
 jni_functions["CallNonvirtualObjectMethod"] = "CallNonvirtualObjectMethod"
 jni_functions["CallNonvirtualObjectMethodV"] = not_implemented
 jni_functions["CallNonvirtualObjectMethodA"] = "CallNonvirtualObjectMethodA"
@@ -320,7 +324,7 @@ jni_functions["GetBooleanField"] = "GetBooleanField"
 jni_functions["GetByteField"] = "GetByteField"
 jni_functions["GetCharField"] = "GetCharField"
 jni_functions["GetShortField"] = "GetShortField"
-jni_functions["GetIntField"] =  "GetIntField"
+jni_functions["GetIntField"] = "GetIntField"
 jni_functions["GetLongField"] = "GetLongField"
 jni_functions["GetFloatField"] = not_implemented
 jni_functions["GetDoubleField"] = not_implemented
@@ -399,7 +403,7 @@ jni_functions["GetStringUTFChars"] = "GetStringUTFChars"
 jni_functions["ReleaseStringUTFChars"] = "ReleaseStringUTFChars"
 
 # Array Operations
-jni_functions["GetArrayLength"] =  "GetArrayLength"
+jni_functions["GetArrayLength"] = "GetArrayLength"
 jni_functions["NewObjectArray"] = "NewObjectArray"
 jni_functions["GetObjectArrayElement"] = "GetObjectArrayElement"
 jni_functions["SetObjectArrayElement"] = "SetObjectArrayElement"
@@ -407,7 +411,7 @@ jni_functions["NewBooleanArray"] = "NewBooleanArray"
 jni_functions["NewByteArray"] = "NewByteArray"
 jni_functions["NewCharArray"] = "NewCharArray"
 jni_functions["NewShortArray"] = "NewShortArray"
-jni_functions["NewIntArray"] =  "NewIntArray"
+jni_functions["NewIntArray"] = "NewIntArray"
 jni_functions["NewLongArray"] = "NewLongArray"
 jni_functions["NewFloatArray"] = not_implemented
 jni_functions["NewDoubleArray"] = not_implemented

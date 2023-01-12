@@ -17,9 +17,7 @@ def test_ccall():
     l.debug("(8-bit) 1 + 1...")
     arg_l = s.solver.BVV(1, 8)
     arg_r = s.solver.BVV(1, 8)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADD(
-        s, 8, arg_l, arg_r, 0, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADD(s, 8, arg_l, arg_r, 0, platform="AMD64")
     assert s.solver.is_true(cf == 0)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 0)
@@ -30,9 +28,7 @@ def test_ccall():
     l.debug("(32-bit) (-1) + (-2)...")
     arg_l = s.solver.BVV(-1, 32)
     arg_r = s.solver.BVV(-1, 32)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADD(
-        s, 32, arg_l, arg_r, 0, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADD(s, 32, arg_l, arg_r, 0, platform="AMD64")
     assert s.solver.is_true(cf == 1)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 1)
@@ -46,9 +42,7 @@ def test_ccall():
     )
     arg_l = s.solver.BVV(1, 8)
     arg_r = s.solver.BVV(1, 8)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_SUB(
-        s, 8, arg_l, arg_r, 0, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_SUB(s, 8, arg_l, arg_r, 0, platform="AMD64")
     assert s.solver.is_true(cf == 0)
     assert s.solver.is_true(pf == 1)
     assert s.solver.is_true(af == 0)
@@ -59,9 +53,7 @@ def test_ccall():
     l.debug("(32-bit) (-1) - (-2)...")
     arg_l = s.solver.BVV(-1, 32)
     arg_r = s.solver.BVV(-2, 32)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_SUB(
-        s, 32, arg_l, arg_r, 0, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_SUB(s, 32, arg_l, arg_r, 0, platform="AMD64")
     assert s.solver.is_true(cf == 0)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 0)
@@ -73,9 +65,7 @@ def test_ccall():
     l.debug("(8-bit) ROL 1 1...")
     result = s.solver.BVV(2, 8)  # the result of rol(1, 1)
     oldflags = s.solver.BVV(0, 8)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROL(
-        s, 8, result, None, oldflags, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROL(s, 8, result, None, oldflags, platform="AMD64")
     assert s.solver.is_true(cf == 0)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 0)
@@ -86,9 +76,7 @@ def test_ccall():
     l.debug("(32-bit) ROL (-1) (-2)... (shift out of range)")
     result = s.solver.BVV(-1, 32)  # the result of rol(-1, 0xfe)
     oldflags = s.solver.BVV(0, 32)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROL(
-        s, 32, result, None, oldflags, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROL(s, 32, result, None, oldflags, platform="AMD64")
     assert s.solver.is_true(cf == 1)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 0)
@@ -100,9 +88,7 @@ def test_ccall():
     l.debug("(32-bit) ROR 2 1...")
     result = s.solver.BVV(1, 32)  # the result of ror(2, 1)
     oldflags = s.solver.BVV(0, 8)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(
-        s, 32, result, None, oldflags, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(s, 32, result, None, oldflags, platform="AMD64")
     assert s.solver.is_true(cf == 0)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 0)
@@ -114,9 +100,7 @@ def test_ccall():
     l.debug("(32-bit) ROR 1 1...")
     result = s.solver.BVV(0x80000000, 32)  # the result of ror(1, 1)
     oldflags = s.solver.BVV(0, 8)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(
-        s, 32, result, None, oldflags, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(s, 32, result, None, oldflags, platform="AMD64")
     assert s.solver.is_true(cf == 1)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 0)
@@ -128,9 +112,7 @@ def test_ccall():
     l.debug("(32-bit) ROR -1 1...")
     result = s.solver.BVV(-1, 32)  # the result of ror(0xffffffff, 1)
     oldflags = s.solver.BVV(0, 32)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(
-        s, 32, result, None, oldflags, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(s, 32, result, None, oldflags, platform="AMD64")
     assert s.solver.is_true(cf == 1)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 0)
@@ -141,9 +123,7 @@ def test_ccall():
     l.debug("(32-bit) ROR (-1) (-2)... (shift out of range)")
     result = s.solver.BVV(-1, 32)  # the result of ror(0xffffffff, 0xfe)
     oldflags = s.solver.BVV(0, 32)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(
-        s, 32, result, None, oldflags, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROR(s, 32, result, None, oldflags, platform="AMD64")
     assert s.solver.is_true(cf == 1)
     assert s.solver.is_true(pf == 0)
     assert s.solver.is_true(af == 0)
@@ -156,36 +136,28 @@ def test_ccall():
     l.debug("(ADCX, 32-bit) 0xffffffff + 1...")
     arg_l = s.solver.BVV(0xFFFFFFFF, 32)
     arg_r = s.solver.BVV(1, 32)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(
-        s, 32, arg_l, arg_r, s.solver.BVV(0, 32), True, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 32, arg_l, arg_r, s.solver.BVV(0, 32), True, platform="AMD64")
     assert s.solver.is_true(cf == 1)
     assert s.solver.is_true(of == 0)
 
     l.debug("(ADOX, 32-bit) 0xffffffff + 1...")
     arg_l = s.solver.BVV(0xFFFFFFFF, 32)
     arg_r = s.solver.BVV(1, 32)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(
-        s, 32, arg_l, arg_r, s.solver.BVV(0, 32), False, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 32, arg_l, arg_r, s.solver.BVV(0, 32), False, platform="AMD64")
     assert s.solver.is_true(cf == 0)
     assert s.solver.is_true(of == 1)
 
     l.debug("(ADCX, 64-bit) 0xffffffffffffffff + 1...")
     arg_l = s.solver.BVV(0xFFFFFFFFFFFFFFFF, 64)
     arg_r = s.solver.BVV(1, 64)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(
-        s, 64, arg_l, arg_r, s.solver.BVV(0, 64), True, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 64, arg_l, arg_r, s.solver.BVV(0, 64), True, platform="AMD64")
     assert s.solver.is_true(cf == 1)
     assert s.solver.is_true(of == 0)
 
     l.debug("(ADOX, 64-bit) 0xffffffffffffffff + 1...")
     arg_l = s.solver.BVV(0xFFFFFFFFFFFFFFFF, 64)
     arg_r = s.solver.BVV(1, 64)
-    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(
-        s, 64, arg_l, arg_r, s.solver.BVV(0, 64), False, platform="AMD64"
-    )
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 64, arg_l, arg_r, s.solver.BVV(0, 64), False, platform="AMD64")
     assert s.solver.is_true(cf == 0)
     assert s.solver.is_true(of == 1)
 
@@ -197,15 +169,11 @@ def test_aarch64_32bit_ccalls():
 
     x = s.solver.BVS("x", 32)
     # A normal operation
-    flag_z = s_ccall.arm64g_calculate_flag_z(
-        s, s_ccall.ARM64G_CC_OP_ADD32, x, s.solver.BVV(1, 32), 0
-    )
+    flag_z = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x, s.solver.BVV(1, 32), 0)
     assert s.satisfiable(extra_constraints=(flag_z == 0,))
     assert s.satisfiable(extra_constraints=(flag_z == 1,))
     # What VEX does
-    flag_z = s_ccall.arm64g_calculate_flag_z(
-        s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), s.solver.BVV(1, 64), 0
-    )
+    flag_z = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), s.solver.BVV(1, 64), 0)
     assert s.satisfiable(extra_constraints=(flag_z == 0,))
     assert s.satisfiable(extra_constraints=(flag_z == 1,))
 
@@ -432,9 +400,7 @@ def test_some_vector_ops():
                         claripy.If(
                             ss == 2,
                             claripy.BVV(0x06, 8),
-                            claripy.If(
-                                ss == 1, claripy.BVV(0x07, 8), claripy.BVV(0x08, 8)
-                            ),
+                            claripy.If(ss == 1, claripy.BVV(0x07, 8), claripy.BVV(0x08, 8)),
                         ),
                     ),
                 ),
@@ -456,9 +422,7 @@ def test_some_vector_ops():
     assert s.solver.is_true(calc_result == correct_result)
 
     calc_result = translate(s, "Iop_GetElem32x2", (r, ss))
-    correct_result = claripy.If(
-        ss == 1, claripy.BVV(0x01020304, 32), claripy.BVV(0x05060708, 32)
-    )
+    correct_result = claripy.If(ss == 1, claripy.BVV(0x01020304, 32), claripy.BVV(0x05060708, 32))
     assert s.solver.is_true(calc_result == correct_result)
 
     r_slices = r.chop(8)

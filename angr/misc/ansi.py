@@ -18,6 +18,7 @@ class Color(Enum):
     """
     The basic ansi colors
     """
+
     black = 30
     red = 31
     green = 32
@@ -28,7 +29,7 @@ class Color(Enum):
     white = 37
 
 
-BackgroundColor = unique(Enum("BackgroundColor", { i.name:(i.value+10) for i in Color }))
+BackgroundColor = unique(Enum("BackgroundColor", {i.name: (i.value + 10) for i in Color}))
 
 
 #

@@ -20,6 +20,7 @@ class HeapAllocator:
 
     *Note:* This has **NOT** been made to help detect heap vulnerabilities.
     """
+
     def __init__(self, canonical_size: int):
         """
         :param canonical_size: The concrete size an <UNKNOWN_SIZE> defaults to.
@@ -44,7 +45,7 @@ class HeapAllocator:
 
         return address
 
-    def free(self, address: Union[Undefined,HeapAddress]):
+    def free(self, address: Union[Undefined, HeapAddress]):
         """
         Mark the chunck pointed by <address> as freed.
 
@@ -52,7 +53,7 @@ class HeapAllocator:
         """
 
         if isinstance(address, Undefined):
-            _l.debug('free(), Undefined address provided')
+            _l.debug("free(), Undefined address provided")
         elif isinstance(address, HeapAddress):
             try:
                 self._allocated_addresses.remove(address)

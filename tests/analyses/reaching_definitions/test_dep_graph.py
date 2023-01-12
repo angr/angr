@@ -23,7 +23,7 @@ def unique_randrange(range_):
     return n
 
 
-def _a_mock_definition(atom: Atom=None):
+def _a_mock_definition(atom: Atom = None):
     # Randomise code locations to forcefully produce "different" <Definition>s.
     statement_index = unique_randrange(1000)
     code_location = CodeLocation(0x42, statement_index)
@@ -32,45 +32,72 @@ def _a_mock_definition(atom: Atom=None):
 
 class TestDepGraph(TestCase):
     class ArchMock:
-        def __init__(self): pass
+        def __init__(self):
+            pass
+
         @property
-        def bits(self): return 32
+        def bits(self):
+            return 32
+
     class CFGMock:
-        def __init__(self, memory_data): self._memory_data = memory_data
+        def __init__(self, memory_data):
+            self._memory_data = memory_data
+
         @property
-        def memory_data(self): return self._memory_data
+        def memory_data(self):
+            return self._memory_data
+
     class MemoryDataMock:
         def __init__(self, address, content, size, sort):
             self._address = address
             self._content = content
             self._size = size
             self._sort = sort
+
         @property
-        def address(self): return self._address
+        def address(self):
+            return self._address
+
         @property
-        def content(self): return self._content
+        def content(self):
+            return self._content
+
         @property
-        def size(self): return self._size
+        def size(self):
+            return self._size
+
         @property
-        def sort(self): return self._sort
+        def sort(self):
+            return self._sort
+
     class SectionMock:
-        def __init__(self, is_writable): self._is_writable = is_writable
+        def __init__(self, is_writable):
+            self._is_writable = is_writable
+
         @property
-        def is_writable(self): return self._is_writable
+        def is_writable(self):
+            return self._is_writable
+
     class MainObjectMock:
-        def __init__(self, section): self._section = section
-        def find_section_containing(self, _): return self._section
+        def __init__(self, section):
+            self._section = section
+
+        def find_section_containing(self, _):
+            return self._section
+
     class LoaderMock:
-        def __init__(self, main_object): self._main_object = main_object
+        def __init__(self, main_object):
+            self._main_object = main_object
+
         @property
-        def main_object(self): return self._main_object
+        def main_object(self):
+            return self._main_object
 
     def setUp(self):
         self.memory_address = 0x42424242
 
-        self.string_in_memory = 'some string of data in memory'
-        self.string_in_memory_length = len(self.string_in_memory + '\x00')
-
+        self.string_in_memory = "some string of data in memory"
+        self.string_in_memory_length = len(self.string_in_memory + "\x00")
 
     def test_dep_graph_has_a_default_graph(self):
         dep_graph = DepGraph()
@@ -81,7 +108,7 @@ class TestDepGraph(TestCase):
         self.assertRaises(TypeError, DepGraph, a_graph)
 
     def test_delegate_add_node_to_the_underlying_graph_object(self):
-        with mock.patch.object(networkx.DiGraph, 'add_node') as digraph_add_node_mock:
+        with mock.patch.object(networkx.DiGraph, "add_node") as digraph_add_node_mock:
             definition = _a_mock_definition()
             dep_graph = DepGraph()
             dep_graph.add_node(definition)
@@ -89,14 +116,14 @@ class TestDepGraph(TestCase):
             digraph_add_node_mock.assert_called_once_with(definition)
 
     def test_delegate_nodes_to_the_underlying_graph_object(self):
-        with mock.patch.object(networkx.DiGraph, 'nodes') as digraph_nodes_mock:
+        with mock.patch.object(networkx.DiGraph, "nodes") as digraph_nodes_mock:
             dep_graph = DepGraph()
             dep_graph.nodes()
 
             digraph_nodes_mock.assert_called_once()
 
     def test_delegate_predecessors_to_the_underlying_graph_object(self):
-        with mock.patch.object(networkx.DiGraph, 'predecessors') as digraph_predecessors_mock:
+        with mock.patch.object(networkx.DiGraph, "predecessors") as digraph_predecessors_mock:
             definition = _a_mock_definition()
             dep_graph = DepGraph()
             dep_graph.predecessors(definition)
@@ -104,9 +131,9 @@ class TestDepGraph(TestCase):
             digraph_predecessors_mock.assert_called_once_with(definition)
 
     def test_delegate_add_edge_to_the_underlying_graph_object(self):
-        with mock.patch.object(networkx.DiGraph, 'add_edge') as digraph_add_edge_mock:
+        with mock.patch.object(networkx.DiGraph, "add_edge") as digraph_add_edge_mock:
             use = (_a_mock_definition(), _a_mock_definition())
-            labels = { 'attribute1': 'value1', 'attribute2': 'value2' }
+            labels = {"attribute1": "value1", "attribute2": "value2"}
 
             dep_graph = DepGraph()
             dep_graph.add_edge(*use, **labels)
@@ -146,11 +173,7 @@ class TestDepGraph(TestCase):
         B = _a_mock_definition()
         C = _a_mock_definition()
         D = _a_mock_definition()
-        uses = [
-            (A, B),
-            (B, C),
-            (C, D)
-        ]
+        uses = [(A, B), (B, C), (C, D)]
         for use in uses:
             dep_graph.add_edge(*use)
 
@@ -172,11 +195,11 @@ class TestDepGraph(TestCase):
         uses = [(A, B)]
 
         for use in uses:
-            dep_graph.add_edge(*use, label='some data')
+            dep_graph.add_edge(*use, label="some data")
 
-        result = dep_graph.transitive_closure(B).get_edge_data(A, B)['label']
+        result = dep_graph.transitive_closure(B).get_edge_data(A, B)["label"]
 
-        self.assertEqual(result, 'some data')
+        self.assertEqual(result, "some data")
 
     def test_transitive_closure_of_a_node_on_a_graph_with_loops_should_still_terminate(self):
         dep_graph = DepGraph()
@@ -212,7 +235,7 @@ class TestDepGraph(TestCase):
         A = _a_mock_definition(r0)
         B = _a_mock_definition()
 
-        uses = [ (A, B) ]
+        uses = [(A, B)]
 
         for use in uses:
             dep_graph.add_edge(*use)
@@ -227,7 +250,7 @@ class TestDepGraph(TestCase):
         A = _a_mock_definition()
         B = _a_mock_definition()
 
-        uses = [ (A, B) ]
+        uses = [(A, B)]
 
         for use in uses:
             dep_graph.add_edge(*use)
@@ -244,22 +267,19 @@ class TestDepGraph(TestCase):
         )
 
         with self.assertRaises(AssertionError) as cm:
-            dependency_graph.add_dependencies_for_concrete_pointers_of([claripy.BVS('TOP', 32)], definition, None, None)
+            dependency_graph.add_dependencies_for_concrete_pointers_of([claripy.BVS("TOP", 32)], definition, None, None)
 
         ex = cm.exception
-        self.assertEqual(str(ex), 'The given Definition must be present in the given graph.')
+        self.assertEqual(str(ex), "The given Definition must be present in the given graph.")
 
     def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_for_data_pointed_to_by_given_definition(self):
         arch = self.ArchMock()
         loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
 
         memory_datum = self.MemoryDataMock(
-            self.memory_address,
-            str.encode(self.string_in_memory),
-            len(self.string_in_memory),
-            'string'
+            self.memory_address, str.encode(self.string_in_memory), len(self.string_in_memory), "string"
         )
-        cfg = self.CFGMock({ self.memory_address: memory_datum })
+        cfg = self.CFGMock({self.memory_address: memory_datum})
 
         register_definition = Definition(
             Register(0, 4),
@@ -269,8 +289,9 @@ class TestDepGraph(TestCase):
         dependency_graph = DepGraph()
         dependency_graph.add_node(register_definition)
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of([claripy.BVV(self.memory_address, arch.bits)],
-                                                                   register_definition, cfg, loader)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(
+            [claripy.BVV(self.memory_address, arch.bits)], register_definition, cfg, loader
+        )
 
         memory_definition = Definition(
             MemoryLocation(self.memory_address, self.string_in_memory_length),
@@ -282,17 +303,16 @@ class TestDepGraph(TestCase):
         self.assertEqual(nodes, [register_definition, memory_definition])
         self.assertListEqual(predecessors, [memory_definition])
 
-    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_already_in_dependency_graph(self):
+    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_already_in_dependency_graph(
+        self,
+    ):
         arch = self.ArchMock()
         loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
 
         memory_datum = self.MemoryDataMock(
-            self.memory_address,
-            str.encode(self.string_in_memory),
-            len(self.string_in_memory),
-            'string'
+            self.memory_address, str.encode(self.string_in_memory), len(self.string_in_memory), "string"
         )
-        cfg = self.CFGMock({ self.memory_address: memory_datum })
+        cfg = self.CFGMock({self.memory_address: memory_datum})
 
         memory_location_definition = Definition(
             MemoryLocation(self.memory_address, self.string_in_memory_length),
@@ -304,17 +324,12 @@ class TestDepGraph(TestCase):
             CodeLocation(0x42, 0),
         )
 
-        dependency_graph = DepGraph(networkx.DiGraph([
-            (memory_location_definition, register_definition)
-        ]))
+        dependency_graph = DepGraph(networkx.DiGraph([(memory_location_definition, register_definition)]))
 
         nodes_before_call = dependency_graph.nodes()
 
         dependency_graph.add_dependencies_for_concrete_pointers_of(
-            [claripy.BVV(self.memory_address, arch.bits)],
-            register_definition,
-            cfg,
-            loader
+            [claripy.BVV(self.memory_address, arch.bits)], register_definition, cfg, loader
         )
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
@@ -343,19 +358,16 @@ class TestDepGraph(TestCase):
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
 
-    def test_add_dependencies_for_concrete_pointers_of_create_memory_location_with_undefined_data_if_data_pointed_to_by_definition_is_not_known(self):
+    def test_add_dependencies_for_concrete_pointers_of_create_memory_location_with_undefined_data_if_data_pointed_to_by_definition_is_not_known(
+        self,
+    ):
         arch = self.ArchMock()
         loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
 
         datum_content = None
         datum_size = 0x4242
-        memory_datum = self.MemoryDataMock(
-            self.memory_address,
-            datum_content,
-            datum_size,
-            'unknown'
-        )
-        cfg = self.CFGMock({ self.memory_address: memory_datum })
+        memory_datum = self.MemoryDataMock(self.memory_address, datum_content, datum_size, "unknown")
+        cfg = self.CFGMock({self.memory_address: memory_datum})
 
         memory_definition = Definition(
             MemoryLocation(self.memory_address, datum_size),
@@ -382,19 +394,18 @@ class TestDepGraph(TestCase):
         self.assertEqual(nodes, [register_definition, memory_definition])
         self.assertListEqual(predecessors, [memory_definition])
 
-    def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_with_codelocation_in_binary_if_data_in_readonly_memory(self):
+    def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_with_codelocation_in_binary_if_data_in_readonly_memory(
+        self,
+    ):
         arch = self.ArchMock()
 
         writable = False
         loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(writable)))
 
         memory_datum = self.MemoryDataMock(
-            self.memory_address,
-            str.encode(self.string_in_memory),
-            len(self.string_in_memory),
-            'string'
+            self.memory_address, str.encode(self.string_in_memory), len(self.string_in_memory), "string"
         )
-        cfg = self.CFGMock({ self.memory_address: memory_datum })
+        cfg = self.CFGMock({self.memory_address: memory_datum})
 
         register_definition = Definition(
             Register(0, 4),
@@ -411,7 +422,7 @@ class TestDepGraph(TestCase):
             loader,
         )
 
-        origin_codelocation = CodeLocation(0, 0, info={'readonly': True})
+        origin_codelocation = CodeLocation(0, 0, info={"readonly": True})
 
         predecessor = list(dependency_graph.graph.predecessors(register_definition))[0]
         self.assertEqual(predecessor.codeloc, origin_codelocation)

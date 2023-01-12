@@ -17,6 +17,7 @@ class AngrObjectFactory:
     """
     This factory provides access to important analysis elements.
     """
+
     def __init__(self, project, default_engine=None):
         if default_engine is None:
             default_engine = UberEngine
@@ -32,16 +33,16 @@ class AngrObjectFactory:
             self.concrete_engine = None
 
     def snippet(self, addr, jumpkind=None, **block_opts):
-        if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
+        if self.project.is_hooked(addr) and jumpkind != "Ijk_NoHook":
             hook = self.project._sim_procedures[addr]
-            size = hook.kwargs.get('length', 0)
+            size = hook.kwargs.get("length", 0)
             return HookNode(addr, size, self.project.hooked_by(addr))
         elif self.project.simos.is_syscall_addr(addr):
             syscall = self.project.simos.syscall_from_addr(addr)
-            size = syscall.kwargs.get('length', 0)
+            size = syscall.kwargs.get("length", 0)
             return SyscallNode(addr, size, syscall)
         else:
-            return self.block(addr, **block_opts).codenode # pylint: disable=no-member
+            return self.block(addr, **block_opts).codenode  # pylint: disable=no-member
 
     def successors(self, *args, engine=None, **kwargs):
         """
@@ -152,7 +153,9 @@ class AngrObjectFactory:
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simulation_manager(self, thing: Optional[Union[List[SimState], SimState]]=None, **kwargs) -> 'SimulationManager':
+    def simulation_manager(
+        self, thing: Optional[Union[List[SimState], SimState]] = None, **kwargs
+    ) -> "SimulationManager":
         """
         Constructs a new simulation manager.
 
@@ -169,12 +172,12 @@ class AngrObjectFactory:
         * If a list is passed in, the list must contain only SimStates and the whole list will be used to seed the SimulationManager.
         """
         if thing is None:
-            thing = [ self.entry_state() ]
+            thing = [self.entry_state()]
         elif isinstance(thing, (list, tuple)):
             if any(not isinstance(val, SimState) for val in thing):
                 raise AngrError("Bad type to initialize SimulationManager")
         elif isinstance(thing, SimState):
-            thing = [ thing ]
+            thing = [thing]
         else:
             raise AngrError("BadType to initialze SimulationManager: %s" % repr(thing))
 
@@ -186,7 +189,9 @@ class AngrObjectFactory:
         """
         return self.simulation_manager(*args, **kwargs)
 
-    def callable(self, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
+    def callable(
+        self, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None
+    ):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
         function.
@@ -202,14 +207,16 @@ class AngrObjectFactory:
                                 python function.
         :rtype:                 angr.callable.Callable
         """
-        return Callable(self.project,
-                        addr=addr,
-                        prototype=prototype,
-                        concrete_only=concrete_only,
-                        perform_merge=perform_merge,
-                        base_state=base_state,
-                        toc=toc,
-                        cc=cc)
+        return Callable(
+            self.project,
+            addr=addr,
+            prototype=prototype,
+            concrete_only=concrete_only,
+            perform_merge=perform_merge,
+            base_state=base_state,
+            toc=toc,
+            cc=cc,
+        )
 
     def cc(self):
         """
@@ -223,29 +230,75 @@ class AngrObjectFactory:
 
         return self._default_cc(arch=self.project.arch)
 
-    #pylint: disable=unused-argument, no-self-use, function-redefined
+    # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
-    def block(self, addr: int, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
-              insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True, load_from_ro_regions=False,
-              initial_regs=None,
-              ) -> 'Block': ...
+    def block(
+        self,
+        addr: int,
+        size=None,
+        max_size=None,
+        byte_string=None,
+        vex=None,
+        thumb=False,
+        backup_state=None,
+        extra_stop_points=None,
+        opt_level=None,
+        num_inst=None,
+        traceflags=0,
+        insn_bytes=None,
+        insn_text=None,  # backward compatibility
+        strict_block_end=None,
+        collect_data_refs=False,
+        cross_insn_opt=True,
+        load_from_ro_regions=False,
+        initial_regs=None,
+    ) -> "Block":
+        ...
 
-    #pylint: disable=unused-argument, no-self-use, function-redefined
+    # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
-    def block(self, addr: SootAddressDescriptor, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
-              insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True,
-              ) -> 'SootBlock': ...
+    def block(
+        self,
+        addr: SootAddressDescriptor,
+        size=None,
+        max_size=None,
+        byte_string=None,
+        vex=None,
+        thumb=False,
+        backup_state=None,
+        extra_stop_points=None,
+        opt_level=None,
+        num_inst=None,
+        traceflags=0,
+        insn_bytes=None,
+        insn_text=None,  # backward compatibility
+        strict_block_end=None,
+        collect_data_refs=False,
+        cross_insn_opt=True,
+    ) -> "SootBlock":
+        ...
 
-    def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
-              insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True, load_from_ro_regions=False,
-              initial_regs=None,
-              ):
+    def block(
+        self,
+        addr,
+        size=None,
+        max_size=None,
+        byte_string=None,
+        vex=None,
+        thumb=False,
+        backup_state=None,
+        extra_stop_points=None,
+        opt_level=None,
+        num_inst=None,
+        traceflags=0,
+        insn_bytes=None,
+        insn_text=None,  # backward compatibility
+        strict_block_end=None,
+        collect_data_refs=False,
+        cross_insn_opt=True,
+        load_from_ro_regions=False,
+        initial_regs=None,
+    ):
 
         if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
             return SootBlock(addr, arch=self.project.arch, project=self.project)
@@ -260,19 +313,31 @@ class AngrObjectFactory:
             byte_string = self.project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
             if byte_string is None:
                 # assembly failed
-                raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
-                                        " string is correct.")
+                raise AngrAssemblyError(
+                    "Assembling failed. Please make sure keystone is installed, and the assembly" " string is correct."
+                )
 
         if max_size is not None:
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
             size = max_size
-        return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex,
-                     extra_stop_points=extra_stop_points, thumb=thumb, backup_state=backup_state,
-                     opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
-                     strict_block_end=strict_block_end, collect_data_refs=collect_data_refs,
-                     cross_insn_opt=cross_insn_opt, load_from_ro_regions=load_from_ro_regions,
-                     initial_regs=initial_regs,
-         )
+        return Block(
+            addr,
+            project=self.project,
+            size=size,
+            byte_string=byte_string,
+            vex=vex,
+            extra_stop_points=extra_stop_points,
+            thumb=thumb,
+            backup_state=backup_state,
+            opt_level=opt_level,
+            num_inst=num_inst,
+            traceflags=traceflags,
+            strict_block_end=strict_block_end,
+            collect_data_refs=collect_data_refs,
+            cross_insn_opt=cross_insn_opt,
+            load_from_ro_regions=load_from_ro_regions,
+            initial_regs=initial_regs,
+        )
 
     def fresh_block(self, addr, size, backup_state=None):
         return Block(addr, project=self.project, size=size, backup_state=backup_state)

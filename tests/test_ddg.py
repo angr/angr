@@ -9,9 +9,7 @@ from angr.code_location import CodeLocation
 
 
 l = logging.getLogger("angr.tests.test_ddg")
-test_location = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
-)
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 class TestDDG(unittest.TestCase):
@@ -55,13 +53,13 @@ class TestDDG(unittest.TestCase):
         20 | PUT(rip) = 0x0000000000400671
         """
 
-        cl1 = CodeLocation(0x400667, ins_addr=0x400667,stmt_idx=3)
+        cl1 = CodeLocation(0x400667, ins_addr=0x400667, stmt_idx=3)
         in_edges = ddg.graph.in_edges([cl1], data=True)
         # Where the memory address comes from
         memaddr_src = CodeLocation(0x400667, ins_addr=0x400667, stmt_idx=2)
         # Where the data comes from
-        data_src_0 = CodeLocation(0x40064C, ins_addr=0x40065e, stmt_idx=26)
-        data_src_1 = CodeLocation(0x400667, ins_addr=0x40066d, stmt_idx=19)
+        data_src_0 = CodeLocation(0x40064C, ins_addr=0x40065E, stmt_idx=26)
+        data_src_1 = CodeLocation(0x400667, ins_addr=0x40066D, stmt_idx=19)
         assert len(in_edges) == 3
         assert (data_src_0, cl1) in [(src, dst) for src, dst, _ in in_edges]
         assert (data_src_1, cl1) in [(src, dst) for src, dst, _ in in_edges]
@@ -70,7 +68,6 @@ class TestDDG(unittest.TestCase):
             cl1,
             {"data": 14, "type": "tmp", "subtype": ("mem_addr",)},
         ) in in_edges
-
 
     def test_ddg_0(self):
         binary_path = os.path.join(test_location, "x86_64", "datadep_test")

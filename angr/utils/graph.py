@@ -25,7 +25,7 @@ def shallow_reverse(g) -> networkx.DiGraph:
     return new_g
 
 
-def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph,Optional[Dict]]:
+def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph, Optional[Dict]]:
     """
     Invert the given graph and generate the immediate dominator tree on the inverted graph. This is useful for
     computing post-dominators.
@@ -52,8 +52,9 @@ def inverted_idoms(graph: networkx.DiGraph) -> Tuple[networkx.DiGraph,Optional[D
     return inverted_graph, idoms
 
 
-def to_acyclic_graph(graph: networkx.DiGraph, ordered_nodes: Optional[List]=None,
-                     loop_heads: Optional[List]=None) -> networkx.DiGraph:
+def to_acyclic_graph(
+    graph: networkx.DiGraph, ordered_nodes: Optional[List] = None, loop_heads: Optional[List] = None
+) -> networkx.DiGraph:
     """
     Convert a given DiGraph into an acyclic graph.
 
@@ -66,6 +67,7 @@ def to_acyclic_graph(graph: networkx.DiGraph, ordered_nodes: Optional[List]=None
     if ordered_nodes is None:
         # take the quasi-topological order of the graph
         from angr.analyses.cfg.cfg_utils import CFGUtils  # pylint:disable=import-outside-toplevel
+
         ordered_nodes = CFGUtils.quasi_topological_sort_nodes(graph, loop_heads=loop_heads)
 
     acyclic_graph = networkx.DiGraph()
@@ -134,7 +136,7 @@ def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
         raise KeyError("Source node or frontier nodes are not in the source graph.")
 
     # BFS on graph and add new nodes to g0
-    queue = [ source ]
+    queue = [source]
     traversed = set()
 
     frontier = set(frontier)
@@ -153,10 +155,18 @@ def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
                     break
 
     # recursively remove all nodes that have less than two neighbors
-    to_remove = [ n for n in g0.nodes() if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0) ]
+    to_remove = [
+        n
+        for n in g0.nodes()
+        if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
+    ]
     while to_remove:
         g0.remove_nodes_from(to_remove)
-        to_remove = [ n for n in g0.nodes() if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0) ]
+        to_remove = [
+            n
+            for n in g0.nodes()
+            if n not in frontier and n is not source and (g0.out_degree[n] == 0 or g0.in_degree[n] == 0)
+        ]
 
     if not include_frontier:
         # remove the frontier nodes
@@ -176,9 +186,11 @@ def dominates(idom, dominator_node, node):
             n = None
     return False
 
+
 #
 # Dominance frontier
 #
+
 
 def compute_dominance_frontier(graph, domtree):
     """
@@ -236,13 +248,13 @@ class TemporaryNode:
     Used as the start node and end node in post-dominator tree generation. Also used in some test cases.
     """
 
-    __slots__ = ['_label']
+    __slots__ = ["_label"]
 
     def __init__(self, label):
         self._label = label
 
     def __repr__(self):
-        return 'TN[%s]' % self._label
+        return "TN[%s]" % self._label
 
     def __eq__(self, other):
         if isinstance(other, TemporaryNode) and other._label == self._label:
@@ -250,7 +262,7 @@ class TemporaryNode:
         return False
 
     def __hash__(self):
-        return hash(('TemporaryNode', self._label))
+        return hash(("TemporaryNode", self._label))
 
 
 class ContainerNode:
@@ -261,7 +273,7 @@ class ContainerNode:
     original object.
     """
 
-    __slots__ = ['_obj', 'index']
+    __slots__ = ["_obj", "index"]
 
     def __init__(self, obj):
         self._obj = obj
@@ -277,7 +289,7 @@ class ContainerNode:
         return False
 
     def __hash__(self):
-        return hash(('CN', self._obj))
+        return hash(("CN", self._obj))
 
     def __repr__(self):
         return "CN[%s]" % repr(self._obj)
@@ -479,8 +491,9 @@ class Dominators:
             if counter >= all_nodes_count:
                 break
 
-            self._l.debug("%d nodes are left out during the DFS. They must formed a cycle themselves.",
-                          all_nodes_count - counter)
+            self._l.debug(
+                "%d nodes are left out during the DFS. They must formed a cycle themselves.", all_nodes_count - counter
+            )
             # Find those nodes
             leftovers = [s for s in traversed_nodes if s not in scanned_nodes]
             new_graph.add_edge(start_node, leftovers[0])
@@ -508,8 +521,10 @@ class Dominators:
     def _pd_compress(self, v):
         if self._ancestor[self._ancestor[v.index].index] is not None:
             self._pd_compress(self._ancestor[v.index])
-            if self._semi[self._label[self._ancestor[v.index].index].index].index < \
-                    self._semi[self._label[v.index].index].index:
+            if (
+                self._semi[self._label[self._ancestor[v.index].index].index].index
+                < self._semi[self._label[v.index].index].index
+            ):
                 self._label[v.index] = self._label[self._ancestor[v.index].index]
             self._ancestor[v.index] = self._ancestor[self._ancestor[v.index].index]
 

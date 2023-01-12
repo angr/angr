@@ -2,14 +2,24 @@
 import ailment
 
 from ...errors import UnsupportedNodeTypeError
-from .structuring.structurer_nodes import (MultiNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode,
-                                           CascadingConditionNode, ConditionalBreakNode, IncompleteSwitchCaseNode)
+from .structuring.structurer_nodes import (
+    MultiNode,
+    CodeNode,
+    SequenceNode,
+    ConditionNode,
+    SwitchCaseNode,
+    LoopNode,
+    CascadingConditionNode,
+    ConditionalBreakNode,
+    IncompleteSwitchCaseNode,
+)
 
 
 class SequenceWalker:
     """
     Walks a SequenceNode and all its nodes, recursively.
     """
+
     def __init__(self, handlers=None, exception_on_unsupported=False, update_seqnode_in_place=True):
         self._update_seqnode_in_place = update_seqnode_in_place
         self._exception_on_unsupported = exception_on_unsupported
@@ -93,13 +103,13 @@ class SequenceWalker:
         return None if not changed else node
 
     def _handle_SwitchCase(self, node, **kwargs):
-        self._handle(node.switch_expr, parent=node, label='switch_expr')
+        self._handle(node.switch_expr, parent=node, label="switch_expr")
 
         changed = False
-        new_cases = { }
+        new_cases = {}
         for idx in list(node.cases.keys()):
             case = node.cases[idx]
-            new_case = self._handle(case, parent=node, index=idx, label='case')
+            new_case = self._handle(case, parent=node, index=idx, label="case")
             if new_case is not None:
                 changed = True
                 new_cases[idx] = new_case
@@ -108,7 +118,7 @@ class SequenceWalker:
 
         new_default_node = None
         if node.default_node is not None:
-            new_default_node = self._handle(node.default_node, parent=node, index=0, label='default')
+            new_default_node = self._handle(node.default_node, parent=node, index=0, label="default")
             if new_default_node is not None:
                 changed = True
             else:
@@ -122,9 +132,9 @@ class SequenceWalker:
     def _handle_IncompleteSwitchCase(self, node: IncompleteSwitchCaseNode, **kwargs):
 
         changed = False
-        new_cases = [ ]
+        new_cases = []
         for idx, case in enumerate(node.cases):
-            new_case = self._handle(case, parent=node, index=idx, label='case')
+            new_case = self._handle(case, parent=node, index=idx, label="case")
             if new_case is not None:
                 changed = True
                 new_cases.append(new_case)
@@ -133,7 +143,7 @@ class SequenceWalker:
 
         new_head = None
         if node.head is not None:
-            new_head = self._handle(node.head, parent=node, index=0, label='default')
+            new_head = self._handle(node.head, parent=node, index=0, label="default")
             if new_head is not None:
                 changed = True
             else:
@@ -153,8 +163,15 @@ class SequenceWalker:
             self._handle(node.condition, parent=node, label="condition")
         seq_node = self._handle(node.sequence_node, **kwargs)
         if seq_node is not None:
-            return LoopNode(node.sort, node.condition, seq_node, addr=node.addr, continue_addr=node.continue_addr,
-                            initializer=node.initializer, iterator=node.iterator)
+            return LoopNode(
+                node.sort,
+                node.condition,
+                seq_node,
+                addr=node.addr,
+                continue_addr=node.continue_addr,
+                initializer=node.initializer,
+                iterator=node.iterator,
+            )
         return None
 
     def _handle_Condition(self, node, **kwargs):
@@ -171,9 +188,13 @@ class SequenceWalker:
         if new_true_node is None and new_false_node is None:
             return None
 
-        return ConditionNode(node.addr, node.reaching_condition, node.condition,
-                             node.true_node if new_true_node is None else new_true_node,
-                             false_node=node.false_node if new_false_node is None else new_false_node)
+        return ConditionNode(
+            node.addr,
+            node.reaching_condition,
+            node.condition,
+            node.true_node if new_true_node is None else new_true_node,
+            false_node=node.false_node if new_false_node is None else new_false_node,
+        )
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
         for index, (_, child_node) in enumerate(node.condition_and_nodes):

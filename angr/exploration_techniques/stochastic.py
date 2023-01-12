@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from . import ExplorationTechnique
 
+
 class StochasticSearch(ExplorationTechnique):
     """
     Stochastic Search.
@@ -25,7 +26,7 @@ class StochasticSearch(ExplorationTechnique):
         self._random.seed(42)
         self.affinity = defaultdict(self._random.random)
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
 
         if not simgr.stashes[stash] or self._random.random() < self.restart_prob:
@@ -33,6 +34,7 @@ class StochasticSearch(ExplorationTechnique):
             self.affinity.clear()
 
         if len(simgr.stashes[stash]) >= 2:
+
             def weighted_pick(states):
                 """
                 param states: Diverging states.

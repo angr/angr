@@ -14,8 +14,9 @@ class Callable:
     Otherwise, you can get the resulting simulation manager at callable.result_path_group.
     """
 
-    def __init__(self, project, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None,
-                 cc=None):
+    def __init__(
+        self, project, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None
+    ):
         """
         :param project:         The project to operate on
         :param addr:            The address of the function to use
@@ -62,12 +63,15 @@ class Callable:
 
     def perform_call(self, *args, prototype=None):
         prototype = SimCC.guess_prototype(args, prototype or self._func_ty).with_arch(self._project.arch)
-        state = self._project.factory.call_state(self._addr, *args,
-                    prototype=prototype,
-                    cc=self._cc,
-                    base_state=self._base_state,
-                    ret_addr=self._deadend_addr,
-                    toc=self._toc)
+        state = self._project.factory.call_state(
+            self._addr,
+            *args,
+            prototype=prototype,
+            cc=self._cc,
+            base_state=self._base_state,
+            ret_addr=self._deadend_addr,
+            toc=self._toc,
+        )
 
         def step_func(pg):
             pg2 = pg.prune()
@@ -76,7 +80,7 @@ class Callable:
             return pg2
 
         caller = self._project.factory.simulation_manager(state)
-        caller.run(step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
+        caller.run(step_func=step_func if self._concrete_only else None).unstash(from_stash="deadended")
         caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
         if len(caller.active) == 0:
@@ -113,12 +117,13 @@ class Callable:
             raise AngrCallableError("Error in parsing the given C-style argument string.")
 
         if not ast.ext[0].body.block_items or not isinstance(ast.ext[0].body.block_items[0], pycparser.c_ast.FuncCall):
-            raise AngrCallableError("Error in parsing the given C-style argument string: "
-                                    "Cannot find the expected function call.")
+            raise AngrCallableError(
+                "Error in parsing the given C-style argument string: " "Cannot find the expected function call."
+            )
 
         arg_exprs = ast.ext[0].body.block_items[0].args.exprs
 
-        args = [ ]
+        args = []
         for expr in arg_exprs:
             if isinstance(expr, pycparser.c_ast.Constant):
                 # string

@@ -13,8 +13,8 @@ class MemoryDataSort:
     SegmentBoundary = "segment-boundary"
     CodeReference = "code reference"
     GOTPLTEntry = "GOT PLT Entry"
-    ELFHeader = 'elf-header'
-    FloatingPoint = 'fp'  # the size is determined by the MemoryData itself
+    ELFHeader = "elf-header"
+    FloatingPoint = "fp"  # the size is determined by the MemoryData itself
 
 
 _SORT_TO_IDX = {
@@ -39,7 +39,14 @@ class MemoryData(Serializable):
     MemoryData describes the syntactic content of a single address of memory.
     """
 
-    __slots__ = ('addr', 'size', 'sort', 'max_size', 'pointer_addr', 'content', )
+    __slots__ = (
+        "addr",
+        "size",
+        "sort",
+        "max_size",
+        "pointer_addr",
+        "content",
+    )
 
     def __init__(self, address, size, sort, pointer_addr=None, max_size=None):
         self.addr = address
@@ -56,10 +63,9 @@ class MemoryData(Serializable):
         return self.addr
 
     def __repr__(self):
-        return "\\{:#x}, {}, {}/".format(self.address,
-                                   "%d bytes" % self.size if self.size is not None else "size unknown",
-                                   self.sort
-                                   )
+        return "\\{:#x}, {}, {}/".format(
+            self.address, "%d bytes" % self.size if self.size is not None else "size unknown", self.sort
+        )
 
     def copy(self):
         """

@@ -18,9 +18,14 @@ class LoaderSerializer:
     def dump(session, loader):
 
         for obj in loader.all_objects:
-            if isinstance(obj, (cle.ExternObject,
-                                cle.backends.tls.elf_tls.ELFTLSObject,
-                                cle.KernelObject,)):
+            if isinstance(
+                obj,
+                (
+                    cle.ExternObject,
+                    cle.backends.tls.elf_tls.ELFTLSObject,
+                    cle.KernelObject,
+                ),
+            ):
                 # skip dynamically created objects
                 continue
 
@@ -45,7 +50,7 @@ class LoaderSerializer:
     @staticmethod
     def load(session):
 
-        all_objects = { }  # path to object
+        all_objects = {}  # path to object
         main_object = None
 
         db_objects: List[DbObject] = session.query(DbObject)

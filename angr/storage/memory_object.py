@@ -10,24 +10,32 @@ def obj_bit_size(o):
 
 # TODO: get rid of is_bytes and have the bytes-backed objects be a separate class
 
+
 class SimMemoryObject:
     """
     A SimMemoryObject is a reference to a byte or several bytes in a specific object in memory. It should be used only
     by the bottom layer of memory.
     """
 
-    __slots__ = ('is_bytes', '_byte_width', 'base', 'object', 'length', 'endness', )
+    __slots__ = (
+        "is_bytes",
+        "_byte_width",
+        "base",
+        "object",
+        "length",
+        "endness",
+    )
 
     def __init__(self, obj, base, endness, length=None, byte_width=8):
         if type(obj) is bytes:
             assert byte_width == 8
 
         elif not isinstance(obj, claripy.ast.Base):
-            raise SimMemoryError('memory can only store claripy Expression')
+            raise SimMemoryError("memory can only store claripy Expression")
 
         self.is_bytes = type(obj) is bytes
-        if self.is_bytes and endness != 'Iend_BE':
-            raise SimMemoryError('bytes can only be stored big-endian')
+        if self.is_bytes and endness != "Iend_BE":
+            raise SimMemoryError("bytes can only be stored big-endian")
         self._byte_width = byte_width
         self.base = base
         self.object = obj
@@ -59,7 +67,7 @@ class SimMemoryObject:
     def includes(self, x):
         return 0 <= x - self.base < self.length
 
-    def bytes_at(self, addr, length, allow_concrete=False, endness='Iend_BE'):
+    def bytes_at(self, addr, length, allow_concrete=False, endness="Iend_BE"):
         rev = endness != self.endness
         if allow_concrete and rev:
             raise Exception("allow_concrete must be used with the stored endness")
@@ -77,7 +85,7 @@ class SimMemoryObject:
         else:
             offset = addr - self.base
             try:
-                thing = bv_slice(self.object, offset, length, self.endness == 'Iend_LE', self._byte_width)
+                thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
             except claripy.ClaripyOperationError:
                 # hacks to handle address space wrapping
                 if offset >= 0:
@@ -88,7 +96,7 @@ class SimMemoryObject:
                     offset += 2**64
                 else:
                     raise
-                thing = bv_slice(self.object, offset, length, self.endness == 'Iend_LE', self._byte_width)
+                thing = bv_slice(self.object, offset, length, self.endness == "Iend_LE", self._byte_width)
 
             if self.endness != endness:
                 thing = thing.reversed
@@ -119,9 +127,7 @@ class SimMemoryObject:
         if type(other) is not SimMemoryObject:
             return NotImplemented
 
-        return self.base == other.base and \
-               self._object_equals(other) and \
-               self._length_equals(other)
+        return self.base == other.base and self._object_equals(other) and self._length_equals(other)
 
     def __hash__(self):
         obj_hash = hash(self.object) if self.is_bytes else self.object.cache_key
@@ -136,7 +142,7 @@ class SimMemoryObject:
 
 class SimLabeledMemoryObject(SimMemoryObject):
 
-    __slots__ = ('label', )
+    __slots__ = ("label",)
 
     def __init__(self, obj, base, endness, length=None, byte_width=8, label=None):
         super().__init__(obj, base, endness, length=length, byte_width=byte_width)
@@ -171,4 +177,4 @@ def bv_slice(value, offset, size, rev, bw):
         return value
 
     bitstart = len(value) - offset * bw
-    return value[bitstart - 1:bitstart - size * bw]
+    return value[bitstart - 1 : bitstart - size * bw]

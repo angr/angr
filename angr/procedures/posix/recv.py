@@ -4,8 +4,9 @@ import angr
 # recv
 ######################################
 
+
 class recv(angr.SimProcedure):
-    #pylint:disable=arguments-differ,unused-argument
+    # pylint:disable=arguments-differ,unused-argument
 
     def run(self, fd, dst, length, flags):
         simfd = self.state.posix.get_fd(fd)

@@ -20,13 +20,14 @@ class TypeTranslator:
     """
     Translate type variables to SimType equivalence.
     """
+
     def __init__(self, arch=None):
 
         self.arch = arch
 
-        self.translated: Dict[TypeConstant,SimType] = { }
-        self.translated_simtypes: Dict[SimType,TypeConstant] = { }
-        self.structs = { }
+        self.translated: Dict[TypeConstant, SimType] = {}
+        self.translated_simtypes: Dict[SimType, TypeConstant] = {}
+        self.structs = {}
         self._struct_ctr = count()
 
         # will be updated every time .translate() is called
@@ -171,7 +172,7 @@ class TypeTranslator:
             self.backpatch(st.pts_to, translated)
 
         elif isinstance(st, sim_type.SimStruct):
-            fields_patch = { }
+            fields_patch = {}
             for offset, fld in st.fields.items():
                 if isinstance(fld, SimTypeTempRef) and fld.typevar in translated:
                     fields_patch[offset] = translated[fld.typevar]
@@ -194,7 +195,7 @@ class TypeTranslator:
         return typeconsts.Int8()
 
     def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct:
-        fields = { }
+        fields = {}
         offsets = st.offsets
         for name, ty in st.fields.items():
             offset = offsets[name]
@@ -207,8 +208,9 @@ class TypeTranslator:
         array_tc = typeconsts.Array(elem_type, count=st.length)
         return array_tc
 
-    def _translate_SimTypePointer(self,
-                                  st: sim_type.SimTypePointer) -> Union[typeconsts.Pointer32, typeconsts.Pointer64]:
+    def _translate_SimTypePointer(
+        self, st: sim_type.SimTypePointer
+    ) -> Union[typeconsts.Pointer32, typeconsts.Pointer64]:
         base = self._simtype2tc(st.pts_to)
         if self.arch.bits == 32:
             return typeconsts.Pointer32(base)

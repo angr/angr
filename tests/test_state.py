@@ -9,9 +9,8 @@ import angr
 from angr import SimState
 
 
-binaries_base = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries"
-)
+binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
+
 
 class TestState(unittest.TestCase):
     def test_state(self):
@@ -31,7 +30,6 @@ class TestState(unittest.TestCase):
         b = s.stack_pop()
         assert s.solver.eval(s.registers.load("sp")) == 0x7FFFFFFFFFF0000
         assert s.solver.eval(b, cast_to=bytes) == b"ABCDEFGH"
-
 
     def test_state_merge(self):
         a = SimState(arch="AMD64", mode="symbolic")
@@ -112,7 +110,6 @@ class TestState(unittest.TestCase):
         a.posix.open(b"/tmp/idk", 1)
         self.assertRaises(angr.errors.SimMergeError, lambda: a.copy().merge(b.copy()))
 
-
     def test_state_merge_static(self):
         # With abstract memory
         # Aligned memory merging
@@ -130,14 +127,9 @@ class TestState(unittest.TestCase):
         c.memory.store(addr, a.solver.BVV(70, 32), endness="Iend_LE")
 
         merged, _, _ = a.merge(b, c)
-        actual = claripy.backends.vsa.convert(
-            merged.memory.load(addr, 4, endness="Iend_LE")
-        )
-        expected = claripy.backends.vsa.convert(
-            a.solver.SI(bits=32, stride=10, lower_bound=50, upper_bound=70)
-        )
+        actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4, endness="Iend_LE"))
+        expected = claripy.backends.vsa.convert(a.solver.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
         assert actual.identical(expected)
-
 
     def test_state_merge_3way(self):
 
@@ -159,7 +151,6 @@ class TestState(unittest.TestCase):
         assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 8,))
         assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 9,))
         assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 10,))
-
 
     def test_state_merge_optimal_nostrongrefstate(self):
 
@@ -184,16 +175,13 @@ class TestState(unittest.TestCase):
 
         assert not s.solver.satisfiable(extra_constraints=(culprit == 12,))
 
-
     def test_state_merge_optimal(self):
 
         # Unlike the above test case, EFFICIENT_STATE_MERGING is enabled here
 
         binary_path = os.path.join(binaries_base, "tests", "x86_64", "state_merge_0")
         p = angr.Project(binary_path, auto_load_libs=False)
-        state = p.factory.blank_state(
-            add_options={angr.sim_options.EFFICIENT_STATE_MERGING}
-        )
+        state = p.factory.blank_state(add_options={angr.sim_options.EFFICIENT_STATE_MERGING})
         sm = p.factory.simulation_manager(state)
 
         sm.explore(find=0x400616, num_find=3)
@@ -209,7 +197,6 @@ class TestState(unittest.TestCase):
 
         assert not s.solver.satisfiable(extra_constraints=(culprit == 12,))
 
-
     def test_state_pickle(self):
         s = SimState(arch="AMD64")
         s.memory.store(100, s.solver.BVV(0x4141414241414241424300, 88), endness="Iend_BE")
@@ -220,7 +207,6 @@ class TestState(unittest.TestCase):
         gc.collect()
         s = pickle.loads(sp)
         assert s.solver.eval(s.memory.load(100, 10), cast_to=bytes) == b"AAABAABABC"
-
 
     def test_global_condition(self):
         s = SimState(arch="AMD64")
@@ -256,7 +242,6 @@ class TestState(unittest.TestCase):
             assert s.solver.eval_upto(s.regs.rbx, 10) == [1]
             assert s.solver.eval_upto(s.regs.rax, 10) == [25]
 
-
     def test_successors_catch_arbitrary_interrupts(self):
 
         # int 0xd2 should fail on x86/amd64 since it's an unsupported interrupt
@@ -275,7 +260,6 @@ class TestState(unittest.TestCase):
             len(simgr.errored) == 0
         ), "The state should not go to the errored stash. Is AngrSyscallError handled in SimSuccessors?"
         assert len(simgr.unsat) == 1
-
 
     def test_bypass_errored_irstmt(self):
 

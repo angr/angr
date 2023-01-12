@@ -5,9 +5,10 @@ class JobInfo:
     """
     Stores information of each job.
     """
+
     def __init__(self, key: BlockID, job: CFGJobBase):
         self.key = key
-        self.jobs = [(job, '')]
+        self.jobs = [(job, "")]
 
         self.narrowing_count = 0  # not used
 
@@ -35,13 +36,13 @@ class JobInfo:
     @property
     def merged_jobs(self):
         for job, job_type in self.jobs:
-            if job_type == 'merged':
+            if job_type == "merged":
                 yield job
 
     @property
     def widened_jobs(self):
         for job, job_type in self.jobs:
-            if job_type == 'widened':
+            if job_type == "widened":
                 yield job
 
     def add_job(self, job, merged=False, widened=False):
@@ -52,9 +53,9 @@ class JobInfo:
         :param bool widened: Whether it is a widened job or not.
         """
 
-        job_type = ''
+        job_type = ""
         if merged:
-            job_type = 'merged'
+            job_type = "merged"
         elif widened:
-            job_type = 'widened'
+            job_type = "widened"
         self.jobs.append((job, job_type))

@@ -1,8 +1,10 @@
 import logging
+
 l = logging.getLogger(name=__name__)
 
 from .plugin import SimStatePlugin
 from ..errors import SimUCManagerAllocationError
+
 
 class SimUCManager(SimStatePlugin):
     def __init__(self, man=None):
@@ -15,10 +17,10 @@ class SimUCManager(SimStatePlugin):
             self._alloc_depth_map = man._alloc_depth_map.copy()
 
         else:
-            self._region_base = None # It will be set later when self.state is set
+            self._region_base = None  # It will be set later when self.state is set
             self._pos = 0
 
-            self._alloc_depth_map = { }
+            self._alloc_depth_map = {}
 
         #
         # Some constants
@@ -38,8 +40,10 @@ class SimUCManager(SimStatePlugin):
         """
 
         if dst_addr_ast.uc_alloc_depth > self._max_alloc_depth:
-            raise SimUCManagerAllocationError('Current allocation depth %d is greater than the cap (%d)' % \
-                (dst_addr_ast.uc_alloc_depth, self._max_alloc_depth))
+            raise SimUCManagerAllocationError(
+                "Current allocation depth %d is greater than the cap (%d)"
+                % (dst_addr_ast.uc_alloc_depth, self._max_alloc_depth)
+            )
 
         abs_addr = self._region_base + self._pos
         ptr = self.state.solver.BVV(abs_addr, self.state.arch.bits)
@@ -51,7 +55,7 @@ class SimUCManager(SimStatePlugin):
         return ptr
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         return SimUCManager(man=self)
 
     def get_alloc_depth(self, addr):
@@ -74,8 +78,9 @@ class SimUCManager(SimStatePlugin):
 
     def set_state(self, state):
         super().set_state(state)
-        self._region_base = 0xd0 << (self.state.arch.bits - 8)
+        self._region_base = 0xD0 << (self.state.arch.bits - 8)
 
 
 from angr.sim_state import SimState
-SimState.register_default('uc_manager', SimUCManager)
+
+SimState.register_default("uc_manager", SimUCManager)

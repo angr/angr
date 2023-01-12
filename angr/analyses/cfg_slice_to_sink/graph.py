@@ -11,15 +11,9 @@ def slice_callgraph(callgraph, cfg_slice_to_sink):
         The representation of the slice, containing the data to update the callgraph from.
     """
 
-    edges_to_remove = list(filter(
-        lambda e: not cfg_slice_to_sink.path_between(*e),
-        callgraph.edges()
-    ))
+    edges_to_remove = list(filter(lambda e: not cfg_slice_to_sink.path_between(*e), callgraph.edges()))
 
-    nodes_to_remove = list(filter(
-        lambda node: node not in cfg_slice_to_sink.nodes,
-        callgraph.nodes()
-    ))
+    nodes_to_remove = list(filter(lambda node: node not in cfg_slice_to_sink.nodes, callgraph.nodes()))
 
     callgraph.remove_edges_from(edges_to_remove)
     callgraph.remove_nodes_from(nodes_to_remove)
@@ -45,15 +39,11 @@ def slice_cfg_graph(graph, cfg_slice_to_sink):
             return False
         return edge[1].addr in cfg_slice_to_sink.transitions[edge[0].addr]
 
-    edges_to_remove = list(filter(
-        lambda edge: not _edge_in_slice_transitions(cfg_slice_to_sink.transitions, edge),
-        graph.edges()
-    ))
+    edges_to_remove = list(
+        filter(lambda edge: not _edge_in_slice_transitions(cfg_slice_to_sink.transitions, edge), graph.edges())
+    )
 
-    nodes_to_remove = list(filter(
-        lambda node: node.addr not in cfg_slice_to_sink.nodes,
-        graph.nodes()
-    ))
+    nodes_to_remove = list(filter(lambda node: node.addr not in cfg_slice_to_sink.nodes, graph.nodes()))
 
     graph.remove_edges_from(edges_to_remove)
     graph.remove_nodes_from(nodes_to_remove)
@@ -87,10 +77,7 @@ def slice_function_graph(function_graph, cfg_slice_to_sink):
     :return networkx.DiGraph: The sliced graph.
     """
 
-    nodes_to_remove = list(filter(
-        lambda node: node.addr not in cfg_slice_to_sink.nodes,
-        function_graph.nodes()
-    ))
+    nodes_to_remove = list(filter(lambda node: node.addr not in cfg_slice_to_sink.nodes, function_graph.nodes()))
 
     function_graph.remove_nodes_from(nodes_to_remove)
 

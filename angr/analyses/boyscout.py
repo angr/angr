@@ -7,10 +7,12 @@ from archinfo import all_arches
 
 l = logging.getLogger(name=__name__)
 
+
 class BoyScout(Analysis):
     """
     Try to determine the architecture and endieness of a binary blob
     """
+
     def __init__(self, cookiesize=1):
         self.arch = None
         self.endianness = None
@@ -45,13 +47,14 @@ class BoyScout(Analysis):
                         if position % arch.instruction_alignment == 0:
                             votes[(arch.name, arch.memory_endness)] += 1
 
-            l.debug("%s %s hits %d times", arch.name, arch.memory_endness,
-                    votes[(arch.name, arch.memory_endness)])
+            l.debug("%s %s hits %d times", arch.name, arch.memory_endness, votes[(arch.name, arch.memory_endness)])
 
-        arch_name, endianness, hits = sorted([(k[0], k[1], v) for k, v in votes.items()], key=lambda x: x[2], reverse=True)[0]
+        arch_name, endianness, hits = sorted(
+            [(k[0], k[1], v) for k, v in votes.items()], key=lambda x: x[2], reverse=True
+        )[0]
 
         if hits < self.cookiesize * 2:
-        # this cannot possibly be code
+            # this cannot possibly be code
             arch_name = "DATA"
             endianness = ""
 
@@ -62,5 +65,7 @@ class BoyScout(Analysis):
 
         l.debug("The architecture should be %s with %s", self.arch, self.endianness)
 
+
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('BoyScout', BoyScout)
+
+AnalysesHub.register_default("BoyScout", BoyScout)

@@ -6,8 +6,8 @@ from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
 
 class TestAtoms(TestCase):
     def test_from_argument_instanciate_a_Register_when_given_a_SimRegArg(self):
-        argument = SimRegArg('r0', 4)
-        registers = { 'r0': (8, 4) }
+        argument = SimRegArg("r0", 4)
+        registers = {"r0": (8, 4)}
 
         result = Atom.from_argument(argument, registers)
 

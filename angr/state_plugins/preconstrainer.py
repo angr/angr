@@ -25,16 +25,16 @@ class SimStatePreconstrainer(SimStatePlugin):
         self._constrained_addrs = [] if constrained_addrs is None else constrained_addrs
         self.address_concretization = []
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         l.warning("Merging is not implemented for preconstrainer!")
         return False
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         l.warning("Widening is not implemented for preconstrainer!")
         return False
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         c = SimStatePreconstrainer(constrained_addrs=self._constrained_addrs)
 
         c.variable_map = dict(self.variable_map)
@@ -52,12 +52,15 @@ class SimStatePreconstrainer(SimStatePlugin):
         """
         if not isinstance(value, claripy.ast.Base):
             value = self.state.solver.BVV(value, len(variable))
-        elif value.op != 'BVV':
+        elif value.op != "BVV":
             raise ValueError("Passed a value to preconstrain that was not a BVV or a string")
 
         if variable.op not in claripy.operations.leaf_operations:
-            l.warning("The variable %s to preconstrain is not a leaf AST. This may cause replacement failures in the "
-                      "claripy replacement backend.", variable)
+            l.warning(
+                "The variable %s to preconstrain is not a leaf AST. This may cause replacement failures in the "
+                "claripy replacement backend.",
+                variable,
+            )
             l.warning("Please use a leaf AST as the preconstraining variable instead.")
 
         # Add the constraint with a simplification avoidance tag.  If
@@ -91,7 +94,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             repair_entry_state_opts = True
             self.state.options -= {o.TRACK_ACTION_HISTORY}
 
-        if set_length: # disable read bounds
+        if set_length:  # disable read bounds
             simfile.has_end = False
 
         pos = 0
@@ -100,14 +103,16 @@ class SimStatePreconstrainer(SimStatePlugin):
                 write = bytes([write])
             data, length, pos = simfile.read(pos, len(write), disable_actions=True, inspect=False, short_reads=False)
             if not claripy.is_true(length == len(write)):
-                raise AngrError("Bug in either SimFile or in usage of preconstrainer: couldn't get requested data from file")
+                raise AngrError(
+                    "Bug in either SimFile or in usage of preconstrainer: couldn't get requested data from file"
+                )
             self.preconstrain(write, data)
 
         # if the file is a stream, reset its position
         if simfile.pos is not None:
             simfile.pos = 0
 
-        if set_length: # enable read bounds; size is now maximum size
+        if set_length:  # enable read bounds; size is now maximum size
             simfile.has_end = True
 
         if repair_entry_state_opts:
@@ -147,7 +152,6 @@ class SimStatePreconstrainer(SimStatePlugin):
         else:
             new_constraints = [x for x in self.state.solver.constraints if x.cache_key not in precon_cache_keys]
 
-
         if self.state.has_plugin("zen_plugin"):
             new_constraints = self.state.get_plugin("zen_plugin").filter_constraints(new_constraints)
 
@@ -186,4 +190,5 @@ class SimStatePreconstrainer(SimStatePlugin):
 
 
 from angr.sim_state import SimState
-SimState.register_default('preconstrainer', SimStatePreconstrainer)
+
+SimState.register_default("preconstrainer", SimStatePreconstrainer)

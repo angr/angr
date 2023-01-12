@@ -14,7 +14,7 @@ class ExplorationTechnique:
     """
 
     # this is the master list of hook functinos
-    _hook_list = ('step', 'filter', 'selector', 'step_state', 'successors')
+    _hook_list = ("step", "filter", "selector", "step_state", "successors")
 
     def _get_hooks(self):
         return {name: getattr(self, name) for name in self._hook_list if self._is_overriden(name)}
@@ -24,7 +24,7 @@ class ExplorationTechnique:
 
     def __init__(self):
         # this attribute will be set from above by the manager
-        if not hasattr(self, 'project'):
+        if not hasattr(self, "project"):
             self.project: angr.project.Project = None
 
     def setup(self, simgr):
@@ -34,7 +34,7 @@ class ExplorationTechnique:
         :param angr.SimulationManager simgr:    The simulation manager to which you have just been added
         """
 
-    def step(self, simgr, stash='active', **kwargs):  # pylint:disable=no-self-use
+    def step(self, simgr, stash="active", **kwargs):  # pylint:disable=no-self-use
         """
         Hook the process of stepping a stash forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the
         actual processing.

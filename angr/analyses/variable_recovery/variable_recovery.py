@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Tuple
 
 import claripy
-import angr # For type annotations; pylint: disable=unused-import
+import angr  # For type annotations; pylint: disable=unused-import
 
 from ...errors import SimMemoryMissingError
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -58,14 +58,15 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
     def copy(self):
 
-        state = VariableRecoveryState(self.block_addr,
-                                      self._analysis,
-                                      self.arch,
-                                      self.function,
-                                      self._concrete_states,
-                                      stack_region=self.stack_region.copy(),
-                                      register_region=self.register_region.copy(),
-                                      )
+        state = VariableRecoveryState(
+            self.block_addr,
+            self._analysis,
+            self.arch,
+            self.function,
+            self._concrete_states,
+            stack_region=self.stack_region.copy(),
+            register_region=self.register_region.copy(),
+        )
 
         return state
 
@@ -79,21 +80,19 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         for concrete_state in concrete_states:
             # clear existing breakpoints
             # TODO: all breakpoints are removed. Fix this later by only removing breakpoints that we added
-            for bp_type in ('reg_read', 'reg_write', 'mem_read', 'mem_write', 'instruction'):
-                concrete_state.inspect._breakpoints[bp_type] = [ ]
+            for bp_type in ("reg_read", "reg_write", "mem_read", "mem_write", "instruction"):
+                concrete_state.inspect._breakpoints[bp_type] = []
 
-            concrete_state.inspect.add_breakpoint('reg_read', BP(when=BP_AFTER, enabled=True,
-                                                                 action=self._hook_register_read
-                                                                 )
-                                                  )
-            concrete_state.inspect.add_breakpoint('reg_write', BP(enabled=True, action=self._hook_register_write))
-            concrete_state.inspect.add_breakpoint('mem_read', BP(when=BP_AFTER, enabled=True,
-                                                                 action=self._hook_memory_read
-                                                                 )
-                                                  )
-            concrete_state.inspect.add_breakpoint('mem_write', BP(enabled=True, action=self._hook_memory_write))
+            concrete_state.inspect.add_breakpoint(
+                "reg_read", BP(when=BP_AFTER, enabled=True, action=self._hook_register_read)
+            )
+            concrete_state.inspect.add_breakpoint("reg_write", BP(enabled=True, action=self._hook_register_write))
+            concrete_state.inspect.add_breakpoint(
+                "mem_read", BP(when=BP_AFTER, enabled=True, action=self._hook_memory_read)
+            )
+            concrete_state.inspect.add_breakpoint("mem_write", BP(enabled=True, action=self._hook_memory_write))
 
-    def merge(self, others: Tuple['VariableRecoveryState'], successor=None) -> Tuple['VariableRecoveryState',bool]:
+    def merge(self, others: Tuple["VariableRecoveryState"], successor=None) -> Tuple["VariableRecoveryState", bool]:
         """
         Merge two abstract states.
 
@@ -105,23 +104,31 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         self.phi_variables = {}
         self.successor_block_addr = successor
 
-        merged_concrete_states =  [ self._concrete_states[0] ] # self._merge_concrete_states(other)
+        merged_concrete_states = [self._concrete_states[0]]  # self._merge_concrete_states(other)
 
         new_stack_region = self.stack_region.copy()
         new_stack_region.set_state(self)
-        merge_occurred = new_stack_region.merge([ other.stack_region for other in others ], None)
+        merge_occurred = new_stack_region.merge([other.stack_region for other in others], None)
 
         new_register_region = self.register_region.copy()
         new_register_region.set_state(self)
-        merge_occurred |= new_register_region.merge([ other.register_region for other in others ], None)
+        merge_occurred |= new_register_region.merge([other.register_region for other in others], None)
 
         self.phi_variables = {}
         self.successor_block_addr = None
 
-        return VariableRecoveryState(successor, self._analysis, self.arch, self.function, merged_concrete_states,
-                                     stack_region=new_stack_region,
-                                     register_region=new_register_region
-                                     ), merge_occurred
+        return (
+            VariableRecoveryState(
+                successor,
+                self._analysis,
+                self.arch,
+                self.function,
+                merged_concrete_states,
+                stack_region=new_stack_region,
+                register_region=new_register_region,
+            ),
+            merge_occurred,
+        )
 
     def _merge_concrete_states(self, other):
         """
@@ -131,7 +138,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         :rtype:                             list
         """
 
-        merged = [ ]
+        merged = []
 
         for s in self.concrete_states:
             other_state = other.get_concrete_state(s.ip._model_concrete.value)
@@ -166,15 +173,17 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             _: MultiValues = self.register_region.load(reg_read_offset, reg_read_length)
         except SimMemoryMissingError:
             # the variable being read doesn't exist before
-            variable = SimRegisterVariable(reg_read_offset, reg_read_length,
-                                           ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
-                                           region=self.func_addr,
-                                           )
+            variable = SimRegisterVariable(
+                reg_read_offset,
+                reg_read_length,
+                ident=self.variable_manager[self.func_addr].next_variable_ident("register"),
+                region=self.func_addr,
+            )
             data = self.annotate_with_variables(reg_read_expr, [(0, variable)])
             self.register_region.store(var_offset, data)
 
             # record this variable in variable manager
-            self.variable_manager[self.func_addr].add_variable('register', var_offset, variable)
+            self.variable_manager[self.func_addr].add_variable("register", var_offset, variable)
 
     def _hook_register_write(self, state):
 
@@ -198,22 +207,24 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
         state.inspect.reg_write_expr = reg_write_expr
 
-        existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(state.scratch.bbl_addr,
-                                                                                     state.scratch.stmt_idx,
-                                                                                     'register')
+        existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(
+            state.scratch.bbl_addr, state.scratch.stmt_idx, "register"
+        )
         if not existing_vars:
             # create the variable
-            variable = SimRegisterVariable(reg_write_offset, reg_write_length,
-                                           ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
-                                           region=self.func_addr,
-                                           )
+            variable = SimRegisterVariable(
+                reg_write_offset,
+                reg_write_length,
+                ident=self.variable_manager[self.func_addr].next_variable_ident("register"),
+                region=self.func_addr,
+            )
             var_offset = reg_write_offset
             data = self.top(reg_write_length * self.arch.byte_width)
             data = self.annotate_with_variables(data, [(0, variable)])
             self.register_region.store(var_offset, data)
 
             # record this variable in variable manager
-            self.variable_manager[self.func_addr].set_variable('register', var_offset, variable)
+            self.variable_manager[self.func_addr].set_variable("register", var_offset, variable)
             self.variable_manager[self.func_addr].write_to(variable, 0, self._codeloc_from_state(state))
 
         # is it writing a pointer to a stack variable into the register?
@@ -225,17 +236,20 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
             if stack_offset not in self.stack_region:
                 lea_size = 1
-                new_var = SimStackVariable(stack_offset, lea_size, base='bp',
-                                           ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
-                                           region=self.func_addr,
-                                           )
+                new_var = SimStackVariable(
+                    stack_offset,
+                    lea_size,
+                    base="bp",
+                    ident=self.variable_manager[self.func_addr].next_variable_ident("stack"),
+                    region=self.func_addr,
+                )
                 reg_write_expr = self.annotate_with_variables(reg_write_expr, [(0, new_var)])
-                self.stack_region.store(self.stack_addr_from_offset(stack_offset),
-                                        reg_write_expr,
-                                        endness=self.arch.memory_endness)
+                self.stack_region.store(
+                    self.stack_addr_from_offset(stack_offset), reg_write_expr, endness=self.arch.memory_endness
+                )
 
                 # record this variable in variable manager
-                self.variable_manager[self.func_addr].add_variable('stack', stack_offset, new_var)
+                self.variable_manager[self.func_addr].add_variable("stack", stack_offset, new_var)
 
             existing_vars = set()
             try:
@@ -248,10 +262,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 pass
 
             for offset, var in existing_vars:
-                self.variable_manager[self.func_addr].reference_at(var,
-                                                                   offset,
-                                                                   self._codeloc_from_state(state)
-                                                                   )
+                self.variable_manager[self.func_addr].reference_at(var, offset, self._codeloc_from_state(state))
 
     def _hook_memory_read(self, state):
 
@@ -270,23 +281,26 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         else:
             if stack_offset not in self.stack_region:
                 # this stack offset is not covered by any existing stack variable
-                ident_sort = 'argument' if stack_offset > 0 else 'stack'
-                variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
-                                            ident=self.variable_manager[self.func_addr].next_variable_ident(ident_sort),
-                                            region=self.func_addr,
-                                            )
+                ident_sort = "argument" if stack_offset > 0 else "stack"
+                variable = SimStackVariable(
+                    stack_offset,
+                    mem_read_length,
+                    base="bp",
+                    ident=self.variable_manager[self.func_addr].next_variable_ident(ident_sort),
+                    region=self.func_addr,
+                )
                 mem_read_expr = self.annotate_with_variables(mem_read_expr, [(0, variable)])
                 self.stack_region.store(self.stack_addr_from_offset(stack_offset), mem_read_expr, endness=endness)
 
                 # record this variable in variable manager
-                self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+                self.variable_manager[self.func_addr].add_variable("stack", stack_offset, variable)
 
             # load existing variables
             existing_variables = set()
             try:
-                vs: MultiValues = self.stack_region.load(self.stack_addr_from_offset(stack_offset),
-                                                         size=mem_read_length,
-                                                         endness=endness)
+                vs: MultiValues = self.stack_region.load(
+                    self.stack_addr_from_offset(stack_offset), size=mem_read_length, endness=endness
+                )
                 for values in vs.values():
                     for v in values:
                         for offset, var in self.extract_variables(v):
@@ -296,8 +310,9 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
             if len(existing_variables) > 1:
                 # create a phi node for all other variables
-                l.warning("Reading memory with overlapping variables: %s. Ignoring all but the first one.",
-                          existing_variables)
+                l.warning(
+                    "Reading memory with overlapping variables: %s. Ignoring all but the first one.", existing_variables
+                )
 
             if existing_variables:
                 offset, variable = next(iter(existing_variables))
@@ -319,22 +334,25 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
         else:
             # we always add a new variable to keep it SSA
-            variable = SimStackVariable(stack_offset, mem_write_length, base='bp',
-                                        ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
-                                        region=self.func_addr,
-                                        )
+            variable = SimStackVariable(
+                stack_offset,
+                mem_write_length,
+                base="bp",
+                ident=self.variable_manager[self.func_addr].next_variable_ident("stack"),
+                region=self.func_addr,
+            )
             mem_write_expr = self.annotate_with_variables(mem_write_expr, [(0, variable)])
             self.stack_region.store(self.stack_addr_from_offset(stack_offset), mem_write_expr, endness=endness)
 
             # record this variable in variable manager
-            self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+            self.variable_manager[self.func_addr].add_variable("stack", stack_offset, variable)
             self.variable_manager[self.func_addr].write_to(variable, 0, self._codeloc_from_state(state))
 
     #
     # Util methods
     #
 
-    def _normalize_register_offset(self, offset):  #pylint:disable=no-self-use
+    def _normalize_register_offset(self, offset):  # pylint:disable=no-self-use
 
         # TODO:
 
@@ -348,7 +366,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
         if n >= 2 ** (self.arch.bits - 1):
             # convert it to a negative number
-            return n - 2 ** self.arch.bits
+            return n - 2**self.arch.bits
 
         return n
 
@@ -362,19 +380,19 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         """
 
         def _parse(addr):
-            if addr.op == '__add__':
+            if addr.op == "__add__":
                 # __add__ might have multiple arguments
-                parsed = [ _parse(arg) for arg in addr.args ]
-                annotated = [ True for annotated, _ in parsed if annotated is True ]
+                parsed = [_parse(arg) for arg in addr.args]
+                annotated = [True for annotated, _ in parsed if annotated is True]
                 if len(annotated) != 1:
                     # either nothing is annotated, or more than one element is annotated
                     raise ValueError()
 
                 return True, sum(off for _, off in parsed)
-            elif addr.op == '__sub__':
+            elif addr.op == "__sub__":
                 # __sub__ might have multiple arguments
 
-                parsed = [ _parse(arg) for arg in addr.args ]
+                parsed = [_parse(arg) for arg in addr.args]
                 first_annotated, first_offset = parsed[0]
                 if first_annotated is False:
                     # the first argument is not annotated. we don't support it.
@@ -387,7 +405,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             else:
                 anno = next(iter(anno for anno in addr.annotations if isinstance(anno, StackLocationAnnotation)), None)
                 if anno is None:
-                    if addr.op == 'BVV':
+                    if addr.op == "BVV":
                         return False, addr._model_concrete.value
                     raise ValueError()
                 return True, anno.offset
@@ -404,7 +422,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         return self._to_signed(offset)
 
 
-class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=abstract-method
+class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable=abstract-method
     """
     Recover "variables" from a function using forced execution.
 
@@ -441,8 +459,9 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
         function_graph_visitor = FunctionGraphVisitor(func)
 
         VariableRecoveryBase.__init__(self, func, max_iterations, store_live_variables)
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
-                                 graph_visitor=function_graph_visitor)
+        ForwardAnalysis.__init__(
+            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=function_graph_visitor
+        )
 
         self._node_iterations = defaultdict(int)
 
@@ -461,8 +480,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
     def _initial_abstract_state(self, node):
 
         concrete_state = self.project.factory.blank_state(
-            addr=node.addr,
-            mode='fastpath'  # we don't want to do any solving
+            addr=node.addr, mode="fastpath"  # we don't want to do any solving
         )
 
         # annotate the stack pointer
@@ -471,7 +489,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
         # give it enough stack space
         concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        return VariableRecoveryState(node.addr, self, self.project.arch, self.function, [ concrete_state ])
+        return VariableRecoveryState(node.addr, self, self.project.arch, self.function, [concrete_state])
 
     def _merge_states(self, node, *states: VariableRecoveryState):
 
@@ -491,7 +509,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
         :rtype:                             tuple
         """
 
-        l.debug('Analyzing block %#x, iteration %d.', node.addr, self._node_iterations[node])
+        l.debug("Analyzing block %#x, iteration %d.", node.addr, self._node_iterations[node])
 
         concrete_state = state.get_concrete_state(node.addr)
 
@@ -504,20 +522,21 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
         self._instates[node.addr] = state
 
         if self._node_iterations[node] >= self._max_iterations:
-            l.debug('Skip node %s as we have iterated %d times on it.', node, self._node_iterations[node])
+            l.debug("Skip node %s as we have iterated %d times on it.", node, self._node_iterations[node])
             return False, state
 
-        state.register_callbacks([ concrete_state ])
+        state.register_callbacks([concrete_state])
 
-        successors = self.project.factory.successors(concrete_state,
-                                                     addr=node.addr,
-                                                     size=node.size,
-                                                     opt_level=1,
-                                                     cross_insn_opt=False,
-                                                     )
+        successors = self.project.factory.successors(
+            concrete_state,
+            addr=node.addr,
+            size=node.size,
+            opt_level=1,
+            cross_insn_opt=False,
+        )
         output_states = successors.all_successors
 
-        state.concrete_states = [ state for state in output_states if not state.ip.symbolic ]
+        state.concrete_states = [state for state in output_states if not state.ip.symbolic]
 
         self._outstates[node.addr] = state
 
@@ -542,4 +561,5 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
 
 
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('VariableRecovery', VariableRecovery)
+
+AnalysesHub.register_default("VariableRecovery", VariableRecovery)

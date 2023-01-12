@@ -13,10 +13,11 @@ class Environment:
 
     **Note**: The <Environment> object does not store the values associated with variables themselves.
     """
-    def __init__(self, environment: Dict[Union[str,Undefined],Set[claripy.ast.Base]]=None):
-        self._environment: Dict[Union[str,Undefined],Set[claripy.ast.Base]] = environment or {}
 
-    def get(self, names: Set[str]) -> Tuple[Set[claripy.ast.Base],bool]:
+    def __init__(self, environment: Dict[Union[str, Undefined], Set[claripy.ast.Base]] = None):
+        self._environment: Dict[Union[str, Undefined], Set[claripy.ast.Base]] = environment or {}
+
+    def get(self, names: Set[str]) -> Tuple[Set[claripy.ast.Base], bool]:
         """
         :param names: Potential values for the name of the environment variable to get the pointers of.
         :return:
@@ -37,7 +38,7 @@ class Environment:
 
         return pointers, has_unknown
 
-    def set(self, name: Union[str,Undefined], pointers: Set[claripy.ast.Base]):
+    def set(self, name: Union[str, Undefined], pointers: Set[claripy.ast.Base]):
         """
         :param name: Name of the environment variable to which we will associate the pointers.
         :param pointers: New addresses where the new values of the environment variable are located.
@@ -56,7 +57,7 @@ class Environment:
         assert isinstance(other, Environment), "Cannot compare Environment with %s" % type(other).__name__
         return self._environment == other._environment
 
-    def merge(self, *others: 'Environment') -> Tuple['Environment',bool]:
+    def merge(self, *others: "Environment") -> Tuple["Environment", bool]:
 
         new_env = self._environment
 
@@ -71,14 +72,13 @@ class Environment:
                 v = environment1.get(key, None)
                 w = environment2.get(key, None)
                 # Because the key is coming from one of them, they cannot be both `None`.
-                if v is None: return w
-                if w is None: return v
+                if v is None:
+                    return w
+                if w is None:
+                    return v
                 return v | w
 
-            new_env = dict(map(
-                lambda k: (k, _dataset_from_key(k, new_env, other._environment)),
-                keys
-            ))
+            new_env = dict(map(lambda k: (k, _dataset_from_key(k, new_env, other._environment)), keys))
 
         merge_occurred = new_env != self._environment
         return Environment(environment=new_env), merge_occurred

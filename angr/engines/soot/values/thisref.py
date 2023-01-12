@@ -12,7 +12,6 @@ l = logging.getLogger("angr.engines.soot.values.thisref")
 
 
 class SimSootValue_ThisRef(SimSootValue):
-
     def __init__(self, heap_alloc_id, type_, symbolic=False):
         self.heap_alloc_id = heap_alloc_id
         self.type = type_
@@ -23,10 +22,12 @@ class SimSootValue_ThisRef(SimSootValue):
         return self.id
 
     def __eq__(self, other):
-        return isinstance(other, SimSootValue_ThisRef) and \
-            self.id == other.id and \
-            self.heap_alloc_id == other.heap_alloc_id and \
-            self.type == other.type
+        return (
+            isinstance(other, SimSootValue_ThisRef)
+            and self.id == other.id
+            and self.heap_alloc_id == other.heap_alloc_id
+            and self.type == other.type
+        )
 
     @property
     def id(self):
@@ -41,11 +42,13 @@ class SimSootValue_ThisRef(SimSootValue):
         :param str field_type: type of the attribute
         :param SimSootValue field_value: attribute's value
         """
-        field_ref = SimSootValue_InstanceFieldRef.get_ref(state=state,
-                                                          obj_alloc_id=self.heap_alloc_id,
-                                                          field_class_name=self.type,
-                                                          field_name=field_name,
-                                                          field_type=field_type)
+        field_ref = SimSootValue_InstanceFieldRef.get_ref(
+            state=state,
+            obj_alloc_id=self.heap_alloc_id,
+            field_class_name=self.type,
+            field_name=field_name,
+            field_type=field_type,
+        )
 
         if options.JAVA_TRACK_ATTRIBUTES in state.options:
             self.attributes.add((field_name, field_type))
@@ -62,11 +65,13 @@ class SimSootValue_ThisRef(SimSootValue):
         :param str field_type: type of the attribute
         """
         # get field reference
-        field_ref = SimSootValue_InstanceFieldRef.get_ref(state=state,
-                                                          obj_alloc_id=self.heap_alloc_id,
-                                                          field_class_name=self.type,
-                                                          field_name=field_name,
-                                                          field_type=field_type)
+        field_ref = SimSootValue_InstanceFieldRef.get_ref(
+            state=state,
+            obj_alloc_id=self.heap_alloc_id,
+            field_class_name=self.type,
+            field_name=field_name,
+            field_type=field_type,
+        )
 
         if options.JAVA_TRACK_ATTRIBUTES in state.options:
             self.attributes.add((field_name, field_type))
@@ -126,13 +131,13 @@ class SimSootValue_ThisRef(SimSootValue):
             l.info(">" * 15 + " Initialize object %r ... " + ">" * 15, obj_ref)
             # find initializer method
             # TODO: add support for non-default initializing methods
-            init_method = resolve_method(state, '<init>', type_, init_class=init_class).address()
+            init_method = resolve_method(state, "<init>", type_, init_class=init_class).address()
 
             # setup init state
             args = [SootArgument(obj_ref, obj_ref.type, is_this_ref=True)]
-            init_state = state.project.simos.state_call(init_method, *args,
-                                                        base_state=state,
-                                                        ret_addr=SootAddressTerminator())
+            init_state = state.project.simos.state_call(
+                init_method, *args, base_state=state, ret_addr=SootAddressTerminator()
+            )
             # run init state
             simgr = state.project.factory.simgr(init_state)
             simgr.run()

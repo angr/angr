@@ -6,7 +6,10 @@ class SingleNodeGraphVisitor(GraphVisitor):
     :param node: The single node that should be in the graph.
     """
 
-    __slots__ = ('node', 'node_returned', )
+    __slots__ = (
+        "node",
+        "node_returned",
+    )
 
     def __init__(self, node):
         super().__init__()
@@ -23,13 +26,13 @@ class SingleNodeGraphVisitor(GraphVisitor):
         return self.node
 
     def successors(self, node):
-        return [ ]
+        return []
 
     def predecessors(self, node):
-        return [ ]
+        return []
 
     def sort_nodes(self, nodes=None):
         if nodes:
             return nodes
         else:
-            return [ self.node ]
+            return [self.node]

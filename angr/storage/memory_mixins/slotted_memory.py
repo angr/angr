@@ -4,6 +4,7 @@ from . import MemoryMixin
 from .paged_memory.pages.ispo_mixin import ISPOMixin
 from ...errors import SimMergeError
 
+
 class SlottedMemoryMixin(MemoryMixin):
     def __init__(self, width=None, **kwargs):
         super().__init__(**kwargs)
@@ -33,7 +34,15 @@ class SlottedMemoryMixin(MemoryMixin):
             addr_set.update(o.contents)
 
         for addr in addr_set:
-            self._single_store(addr, 0, self.width, self.state.solver.ite_cases(zip(merge_conditions[1:], (o._single_load(addr, 0, self.width) for o in others)), self._single_load(addr, 0, self.width)))
+            self._single_store(
+                addr,
+                0,
+                self.width,
+                self.state.solver.ite_cases(
+                    zip(merge_conditions[1:], (o._single_load(addr, 0, self.width) for o in others)),
+                    self._single_load(addr, 0, self.width),
+                ),
+            )
         # FIXME: Return True only when merge actually happens
         return True
 
@@ -53,13 +62,13 @@ class SlottedMemoryMixin(MemoryMixin):
             last_base = addr + size - last_size
 
             result = [(first_base, first_offset, self.width - first_offset)]
-            result.extend((a, 0, self.width) for a in range(first_base+self.width, last_base, self.width))
+            result.extend((a, 0, self.width) for a in range(first_base + self.width, last_base, self.width))
             if last_size != 0:
                 result.append((last_base, 0, last_size))
 
         # little endian: need to slice in reverse and also concatenate in reverse
         # if load endness and storage endness don't match, reverse whole data value before store/after load
-        if self.endness == 'Iend_LE':
+        if self.endness == "Iend_LE":
             result = [(addr, self.width - offset - size, size) for addr, offset, size in reversed(result)]
 
         return result
@@ -95,7 +104,7 @@ class SlottedMemoryMixin(MemoryMixin):
         else:
             cur = self._single_load(addr, 0, self.width)
             start = cur.get_bytes(0, offset)
-            end = cur.get_bytes(offset+size, self.width-offset-size)
+            end = cur.get_bytes(offset + size, self.width - offset - size)
             self.contents[addr] = start.concat(data, end)
 
     def load(self, addr, size=None, endness=None, **kwargs):
@@ -121,11 +130,11 @@ class SlottedMemoryMixin(MemoryMixin):
     def changed_bytes(self, other):
         changes = set()
 
-        for addr,v in self.contents.items():
+        for addr, v in self.contents.items():
             for i in range(self.width):
-                other_byte = other.load(addr+i, 1)
+                other_byte = other.load(addr + i, 1)
                 our_byte = v.get_byte(i)
                 if other_byte is our_byte:
-                    changes.add(addr+i)
+                    changes.add(addr + i)
 
         return changes

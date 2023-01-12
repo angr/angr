@@ -7,8 +7,9 @@ from angr.analyses.cfg_slice_to_sink import CFGSliceToSink, slice_callgraph, sli
 class _MockCFGNode:
     def __init__(self, addr):
         self.addr = addr
+
     def __repr__(self):
-        return '%s' % self.addr
+        return "%s" % self.addr
 
 
 def _a_graph_and_its_nodes():
@@ -28,11 +29,7 @@ class TestGraph(unittest.TestCase):
 
         # Let's imagine a node (0x42), not a function entry point, not in my_callgraph, such as:
         # 1 -> 0x42, 0x42 -> 2
-        transitions = {
-            nodes[0]: [nodes[1]],
-            nodes[1]: [0x42],
-            0x42: [nodes[2]]
-        }
+        transitions = {nodes[0]: [nodes[1]], nodes[1]: [0x42], 0x42: [nodes[2]]}
         cfg_slice_to_sink = CFGSliceToSink(None, transitions)
 
         sliced_callgraph = slice_callgraph(my_callgraph, cfg_slice_to_sink)
@@ -48,11 +45,7 @@ class TestGraph(unittest.TestCase):
 
         # Let's imagine a node (0x42), not a function entry point, not in my_callgraph, such as:
         # 1 -> 0x42, 0x42 -> 2
-        transitions = {
-            nodes[0]: [nodes[1]],
-            nodes[1]: [0x42],
-            0x42: [nodes[2]]
-        }
+        transitions = {nodes[0]: [nodes[1]], nodes[1]: [0x42], 0x42: [nodes[2]]}
         cfg_slice_to_sink = CFGSliceToSink(None, transitions)
 
         sliced_callgraph = slice_callgraph(my_callgraph, cfg_slice_to_sink)
@@ -64,10 +57,7 @@ class TestGraph(unittest.TestCase):
     def test_slice_cfg_graph_remove_content_not_in_a_cfg_slice_to_sink(self):
         my_graph, nodes = _a_graph_and_its_nodes()
 
-        transitions = {
-            nodes[0].addr: [nodes[1].addr],
-            nodes[1].addr: [nodes[2].addr]
-        }
+        transitions = {nodes[0].addr: [nodes[1].addr], nodes[1].addr: [nodes[2].addr]}
         my_slice = CFGSliceToSink(None, transitions)
 
         sliced_graph = slice_cfg_graph(my_graph, my_slice)
@@ -80,7 +70,7 @@ class TestGraph(unittest.TestCase):
     def test_slice_cfg_graph_mutates_the_original_graph(self):
         my_graph, nodes = _a_graph_and_its_nodes()
 
-        transitions = { nodes[0].addr: [nodes[1].addr] }
+        transitions = {nodes[0].addr: [nodes[1].addr]}
         my_slice = CFGSliceToSink(None, transitions)
 
         sliced_graph = slice_cfg_graph(my_graph, my_slice)
@@ -94,7 +84,7 @@ class TestGraph(unittest.TestCase):
         # And the function graph: 0 -> 1, 1 -> 2, 0 -> 3
         my_function_graph, nodes = _a_graph_and_its_nodes()
 
-        transitions = { nodes[0].addr: [0x42], 0x42: [nodes[1].addr] }
+        transitions = {nodes[0].addr: [0x42], 0x42: [nodes[1].addr]}
         my_slice = CFGSliceToSink(None, transitions)
 
         sliced_function_graph = slice_function_graph(my_function_graph, my_slice)
@@ -109,7 +99,7 @@ class TestGraph(unittest.TestCase):
         # And the function graph: 0 -> 1, 1 -> 2, 0 -> 3
         my_function_graph, nodes = _a_graph_and_its_nodes()
 
-        transitions = { nodes[0].addr: [0x42], 0x42: [nodes[1].addr] }
+        transitions = {nodes[0].addr: [0x42], 0x42: [nodes[1].addr]}
         my_slice = CFGSliceToSink(None, transitions)
 
         sliced_function_graph = slice_function_graph(my_function_graph, my_slice)

@@ -2,7 +2,8 @@ class IRange:
     """
     A simple range object for testing inclusion. Like range but works for huge numbers.
     """
-    __slots__ = ('start', 'end')
+
+    __slots__ = ("start", "end")
 
     def __init__(self, start, end):
         self.start = start

@@ -4,9 +4,7 @@ import unittest
 
 import angr
 
-test_location = str(
-    os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../binaries/tests")
-)
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../binaries/tests"))
 arches = {"x86_64"}
 
 
@@ -46,17 +44,11 @@ class TestDdgGlobalVarDependencies(unittest.TestCase):
             assert not self.check_dependency(
                 stmt, buf_addr, ord("a")
             ), "Target statement has incorrect dependency (DDG is underconstrained)"
-        assert (
-            has_correct_dependency
-        ), "Target statement does not have correct dependency (DDG is overconstrained)"
+        assert has_correct_dependency, "Target statement does not have correct dependency (DDG is overconstrained)"
 
     def check_dependency(self, stmt, addr, const):
         # Check if we are storing a constant to a variable with constant address
-        if (
-                stmt.tag == "Ist_Store"
-                and stmt.addr.tag == "Iex_Const"
-                and stmt.data.tag == "Iex_Const"
-        ):
+        if stmt.tag == "Ist_Store" and stmt.addr.tag == "Iex_Const" and stmt.data.tag == "Iex_Const":
             # Check if we are storing the specified constant to the specified variable address
             if stmt.addr.con.value == addr and stmt.data.con.value == const:
                 return True
@@ -72,11 +64,7 @@ class TestDdgGlobalVarDependencies(unittest.TestCase):
     def get_target_stmt(self, proj, block):
         for i, stmt in enumerate(block.vex.statements):
             # We're looking for the instruction that loads a constant memory address into a temporary variable
-            if (
-                    stmt.tag == "Ist_WrTmp"
-                    and stmt.data.tag == "Iex_Load"
-                    and stmt.data.addr.tag == "Iex_Const"
-            ):
+            if stmt.tag == "Ist_WrTmp" and stmt.data.tag == "Iex_Load" and stmt.data.addr.tag == "Iex_Const":
                 addr = stmt.data.addr.con.value
                 section = proj.loader.main_object.find_section_containing(addr)
                 # Confirm the memory address is in the uninitialized data section

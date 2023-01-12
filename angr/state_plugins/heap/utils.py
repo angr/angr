@@ -1,5 +1,6 @@
 from ...errors import SimSolverError
 
+
 def concretize(x, solver, sym_handler):
     """
     For now a lot of naive concretization is done when handling heap metadata to keep things manageable. This idiom

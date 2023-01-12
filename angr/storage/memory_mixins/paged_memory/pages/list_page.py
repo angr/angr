@@ -15,11 +15,13 @@ class ListPage(MemoryObjectMixin, PageBase):
     """
     This class implements a page memory mixin with lists as the main content store.
     """
+
     def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.content: Optional[DynamicDictList[Optional[SimMemoryObject]]] = \
+        self.content: Optional[DynamicDictList[Optional[SimMemoryObject]]] = (
             DynamicDictList(max_size=memory.page_size, content=content) if content is not None else None
+        )
         self.stored_offset = set()
         if self.content is None:
             if memory is not None:
@@ -42,7 +44,7 @@ class ListPage(MemoryObjectMixin, PageBase):
 
         # loop over the loading range. accumulate a result for each byte, but collapse results from adjacent bytes
         # using the same memory object
-        for subaddr in range(addr, addr+size):
+        for subaddr in range(addr, addr + size):
             item = self.content[subaddr]
             if item is None:
                 item = self.sinkhole
@@ -69,10 +71,20 @@ class ListPage(MemoryObjectMixin, PageBase):
         global_end_addr = addr + page_addr
         global_start_addr = result[-1][0]
         size = global_end_addr - global_start_addr
-        new_ast = self._default_value(global_start_addr, size, name=f'{memory.id}_{global_start_addr:x}',
-                                      key=(self.category, global_start_addr), memory=memory, **kwargs)
-        new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness,
-                                   byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        new_ast = self._default_value(
+            global_start_addr,
+            size,
+            name=f"{memory.id}_{global_start_addr:x}",
+            key=(self.category, global_start_addr),
+            memory=memory,
+            **kwargs,
+        )
+        new_item = SimMemoryObject(
+            new_ast,
+            global_start_addr,
+            endness=endness,
+            byte_width=memory.state.arch.byte_width if memory is not None else 8,
+        )
         subaddr_start = global_start_addr - page_addr
         for subaddr in range(subaddr_start, addr):
             self.content[subaddr] = new_item
@@ -98,15 +110,22 @@ class ListPage(MemoryObjectMixin, PageBase):
         for off in range(size):
             self.content[addr + off] = None
 
-    def merge(self, others: List['ListPage'], merge_conditions, common_ancestor=None, page_addr: int=None,
-              memory=None, changed_offsets: Optional[Set[int]]=None):
+    def merge(
+        self,
+        others: List["ListPage"],
+        merge_conditions,
+        common_ancestor=None,
+        page_addr: int = None,
+        memory=None,
+        changed_offsets: Optional[Set[int]] = None,
+    ):
 
         if changed_offsets is None:
             changed_offsets = set()
             for other in others:
                 changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: List['ListPage'] = [self] + others
+        all_pages: List["ListPage"] = [self] + others
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -161,17 +180,14 @@ class ListPage(MemoryObjectMixin, PageBase):
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
                 if isinstance(memory_objects[0][0], SimLabeledMemoryObject):
-                    labels = [(mo_.label if isinstance(mo_, SimLabeledMemoryObject) else {})
-                              for mo_, _ in memory_objects]
+                    labels = [
+                        (mo_.label if isinstance(mo_, SimLabeledMemoryObject) else {}) for mo_, _ in memory_objects
+                    ]
                     merged_label = self._merge_labels(labels, memory=memory)
                     new_mo = SimLabeledMemoryObject(merged_val, mo_base, endness=the_endness, label=merged_label)
                 else:
                     new_mo = SimMemoryObject(merged_val, mo_base, endness=the_endness)
-                self.store(b,
-                           new_mo,
-                           size=size,
-                           cooperate=True
-                           )
+                self.store(b, new_mo, size=size, cooperate=True)
                 # merged_objects.add(new_object)
                 # merged_objects.update(mos)
                 merged_offsets.add(b)
@@ -190,12 +206,12 @@ class ListPage(MemoryObjectMixin, PageBase):
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = [(mo.bytes_at(page_addr+b, min_size), fv) for mo, fv in memory_objects] \
-                    if min_size != 0 else []
+                extracted = (
+                    [(mo.bytes_at(page_addr + b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
+                )
                 created = [
-                    (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory),
-                     fv) for
-                    uc, fv in unconstrained_in
+                    (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory), fv)
+                    for uc, fv in unconstrained_in
                 ]
                 to_merge = extracted + created
 
@@ -204,23 +220,22 @@ class ListPage(MemoryObjectMixin, PageBase):
                     continue
 
                 if isinstance(memory_objects[0][0], SimLabeledMemoryObject):
-                    labels = [(mo_.label if isinstance(mo_, SimLabeledMemoryObject) else {})
-                              for mo_, _ in memory_objects]
+                    labels = [
+                        (mo_.label if isinstance(mo_, SimLabeledMemoryObject) else {}) for mo_, _ in memory_objects
+                    ]
                     merged_label = self._merge_labels(labels, memory=memory)
-                    new_mo = SimLabeledMemoryObject(merged_val, page_addr+b, endness='Iend_BE', label=merged_label)
+                    new_mo = SimLabeledMemoryObject(merged_val, page_addr + b, endness="Iend_BE", label=merged_label)
                 else:
-                    new_mo = SimMemoryObject(merged_val, page_addr+b, endness='Iend_BE')
-                self.store(b,
-                           new_mo,
-                           size=min_size,
-                           endness='Iend_BE', cooperate=True
-                           )  # do not convert endianness again
+                    new_mo = SimMemoryObject(merged_val, page_addr + b, endness="Iend_BE")
+                self.store(
+                    b, new_mo, size=min_size, endness="Iend_BE", cooperate=True
+                )  # do not convert endianness again
                 merged_offsets.add(b)
 
         self.stored_offset |= merged_offsets
         return merged_offsets
 
-    def changed_bytes(self, other: 'ListPage', page_addr: int=None):
+    def changed_bytes(self, other: "ListPage", page_addr: int = None):
         candidates = super().changed_bytes(other)
         if candidates is None:
             candidates: Set[int] = set()
@@ -249,11 +264,19 @@ class ListPage(MemoryObjectMixin, PageBase):
                 differences.add(c)
             else:
                 if self.content[c] is None:
-                    self.content[c] = SimMemoryObject(self.sinkhole.bytes_at(page_addr+c, 1), page_addr + c,
-                                                      byte_width=byte_width, endness='Iend_BE')
+                    self.content[c] = SimMemoryObject(
+                        self.sinkhole.bytes_at(page_addr + c, 1),
+                        page_addr + c,
+                        byte_width=byte_width,
+                        endness="Iend_BE",
+                    )
                 if other.content[c] is None:
-                    other.content[c] = SimMemoryObject(other.sinkhole.bytes_at(page_addr+c, 1), page_addr + c,
-                                                       byte_width=byte_width, endness='Iend_BE')
+                    other.content[c] = SimMemoryObject(
+                        other.sinkhole.bytes_at(page_addr + c, 1),
+                        page_addr + c,
+                        byte_width=byte_width,
+                        endness="Iend_BE",
+                    )
                 if s_contains and self.content[c] != other.content[c]:
                     same = None
                     if self._mo_cmp is not None:
@@ -281,19 +304,20 @@ class ListPage(MemoryObjectMixin, PageBase):
             return False
         return self.sinkhole.includes(page_addr + off)
 
-    def _replace_mo(self, old_mo: SimMemoryObject, new_mo: SimMemoryObject, page_addr: int,
-                    page_size: int) -> SimMemoryObject:
+    def _replace_mo(
+        self, old_mo: SimMemoryObject, new_mo: SimMemoryObject, page_addr: int, page_size: int
+    ) -> SimMemoryObject:
         if self.sinkhole is old_mo:
             self.sinkhole = new_mo
         else:
             start, end = self._resolve_range(old_mo, page_addr, page_size)
             for i in range(start, end):
-                if self.content[i-page_addr] is old_mo:
-                    self.content[i-page_addr] = new_mo
+                if self.content[i - page_addr] is old_mo:
+                    self.content[i - page_addr] = new_mo
         return new_mo
 
     @staticmethod
-    def _resolve_range(mo: SimMemoryObject, page_addr: int, page_size) -> Tuple[int,int]:
+    def _resolve_range(mo: SimMemoryObject, page_addr: int, page_size) -> Tuple[int, int]:
         start = max(mo.base, page_addr)
         end = min(mo.last_addr + 1, page_addr + page_size)
         if end <= start:

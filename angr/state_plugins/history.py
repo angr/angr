@@ -29,8 +29,9 @@ class SimStateHistory(SimStatePlugin):
         self.merged_from = [] if clone is None else list(clone.merged_from)
         self.merge_conditions = [] if clone is None else list(clone.merge_conditions)
         self.depth = (0 if parent is None else parent.depth + 1) if clone is None else clone.depth
-        self.previous_block_count = (0 if parent is None else parent.block_count) if clone is None else \
-            clone.previous_block_count
+        self.previous_block_count = (
+            (0 if parent is None else parent.block_count) if clone is None else clone.previous_block_count
+        )
 
         # a string description of this history
         self.recent_description = None if clone is None else clone.recent_description
@@ -81,9 +82,9 @@ class SimStateHistory(SimStatePlugin):
 
         rev_ancestry = list(reversed(ancestry))
         d = super().__getstate__()
-        d['strongref_state'] = None
-        d['rev_ancestry'] = rev_ancestry
-        d['successor_ip'] = self.successor_ip
+        d["strongref_state"] = None
+        d["rev_ancestry"] = rev_ancestry
+        d["successor_ip"] = self.successor_ip
 
         # reconstruct chain
         child = self
@@ -91,14 +92,14 @@ class SimStateHistory(SimStatePlugin):
             child.parent = parent
             child = parent
 
-        d.pop('parent')
+        d.pop("parent")
         return d
 
     def __setstate__(self, d):
         child = self
-        ancestry = list(reversed(d.pop('rev_ancestry')))
+        ancestry = list(reversed(d.pop("rev_ancestry")))
         for parent in ancestry:
-            if hasattr(child, 'parent'):
+            if hasattr(child, "parent"):
                 break
             child.parent = parent
             child = parent
@@ -137,20 +138,21 @@ class SimStateHistory(SimStatePlugin):
         # correct results when using constraints_since()
         self.parent = common_ancestor if common_ancestor is not None else self.parent
 
-
         # rebuild recent constraints
         recent_constraints = [h.constraints_since(common_ancestor) for h in itertools.chain([self], others)]
         if sim_options.SIMPLIFY_MERGED_CONSTRAINTS in self.state.options:
             combined_constraint = self.state.solver.Or(
-                *[self.state.solver.simplify(self.state.solver.And(*history_constraints)) for history_constraints in
-                  recent_constraints]
+                *[
+                    self.state.solver.simplify(self.state.solver.And(*history_constraints))
+                    for history_constraints in recent_constraints
+                ]
             )
         else:
             combined_constraint = self.state.solver.Or(
                 *[self.state.solver.And(*history_constraints) for history_constraints in recent_constraints]
             )
         self.recent_events = [
-                e.recent_events for e in itertools.chain([self], others) if not isinstance(e, SimActionConstraint)
+            e.recent_events for e in itertools.chain([self], others) if not isinstance(e, SimActionConstraint)
         ]
         self.recent_events.append(SimActionConstraint(self.state, combined_constraint))
 
@@ -175,10 +177,11 @@ class SimStateHistory(SimStatePlugin):
         """
         new_hist = self.copy({})
         new_hist.parent = None
-        self.state.register_plugin('history', new_hist)
+        self.state.register_plugin("history", new_hist)
 
-    def filter_actions(self, start_block_addr=None, end_block_addr=None, block_stmt=None, insn_addr=None,
-                       read_from=None, write_to=None):
+    def filter_actions(
+        self, start_block_addr=None, end_block_addr=None, block_stmt=None, insn_addr=None, read_from=None, write_to=None
+    ):
         """
         Filter self.actions based on some common parameters.
 
@@ -205,24 +208,24 @@ class SimStateHistory(SimStatePlugin):
         if read_from is not None:
             if write_to is not None:
                 raise ValueError("Can't handle read_from and write_to at the same time!")
-            if read_from in ('reg', 'mem'):
+            if read_from in ("reg", "mem"):
                 read_type = read_from
                 read_offset = None
             elif isinstance(read_from, str):
-                read_type = 'reg'
+                read_type = "reg"
                 read_offset = self.state.project.arch.registers[read_from][0]
             else:
-                read_type = 'mem'
+                read_type = "mem"
                 read_offset = read_from
         if write_to is not None:
-            if write_to in ('reg', 'mem'):
+            if write_to in ("reg", "mem"):
                 write_type = write_to
                 write_offset = None
             elif isinstance(write_to, str):
-                write_type = 'reg'
+                write_type = "reg"
                 write_offset = self.state.project.arch.registers[write_to][0]
             else:
-                write_type = 'mem'
+                write_type = "mem"
                 write_offset = write_to
 
         # def addr_of_stmt(bbl_addr, stmt_idx):
@@ -239,7 +242,7 @@ class SimStateHistory(SimStatePlugin):
         def action_reads(action):
             if action.type != read_type:
                 return False
-            if action.action != 'read':
+            if action.action != "read":
                 return False
             if read_offset is None:
                 return True
@@ -257,7 +260,7 @@ class SimStateHistory(SimStatePlugin):
         def action_writes(action):
             if action.type != write_type:
                 return False
-            if action.action != 'write':
+            if action.action != "write":
                 return False
             if write_offset is None:
                 return True
@@ -272,15 +275,17 @@ class SimStateHistory(SimStatePlugin):
                 return False
             return True
 
-        return [x for x in reversed(self.actions) if
-                (start_block_addr is None or x.bbl_addr >= start_block_addr) and
-                (end_block_addr is None or x.bbl_addr <= end_block_addr) and
-                (block_stmt is None or x.stmt_idx == block_stmt) and
-                (read_from is None or action_reads(x)) and
-                (write_to is None or action_writes(x)) and
-                (insn_addr is None or (x.sim_procedure is None and x.ins_addr == insn_addr))
-                # (insn_addr is None or (x.sim_procedure is None and addr_of_stmt(x.bbl_addr, x.stmt_idx) == insn_addr))
-                ]
+        return [
+            x
+            for x in reversed(self.actions)
+            if (start_block_addr is None or x.bbl_addr >= start_block_addr)
+            and (end_block_addr is None or x.bbl_addr <= end_block_addr)
+            and (block_stmt is None or x.stmt_idx == block_stmt)
+            and (read_from is None or action_reads(x))
+            and (write_to is None or action_writes(x))
+            and (insn_addr is None or (x.sim_procedure is None and x.ins_addr == insn_addr))
+            # (insn_addr is None or (x.sim_procedure is None and addr_of_stmt(x.bbl_addr, x.stmt_idx) == insn_addr))
+        ]
 
     # def _record_state(self, state, strong_reference=True):
     #   else:
@@ -386,43 +391,43 @@ class SimStateHistory(SimStatePlugin):
 
     @property
     def events(self):
-        return LambdaIterIter(self, operator.attrgetter('recent_events'))
+        return LambdaIterIter(self, operator.attrgetter("recent_events"))
 
     @property
     def actions(self):
-        return LambdaIterIter(self, operator.attrgetter('recent_actions'))
+        return LambdaIterIter(self, operator.attrgetter("recent_actions"))
 
     @property
     def jumpkinds(self):
-        return LambdaAttrIter(self, operator.attrgetter('jumpkind'))
+        return LambdaAttrIter(self, operator.attrgetter("jumpkind"))
 
     @property
     def jump_guards(self):
-        return LambdaAttrIter(self, operator.attrgetter('jump_guard'))
+        return LambdaAttrIter(self, operator.attrgetter("jump_guard"))
 
     @property
     def jump_targets(self):
-        return LambdaAttrIter(self, operator.attrgetter('jump_target'))
+        return LambdaAttrIter(self, operator.attrgetter("jump_target"))
 
     @property
     def jump_sources(self):
-        return LambdaAttrIter(self, operator.attrgetter('jump_source'))
+        return LambdaAttrIter(self, operator.attrgetter("jump_source"))
 
     @property
     def descriptions(self):
-        return LambdaAttrIter(self, operator.attrgetter('recent_description'))
+        return LambdaAttrIter(self, operator.attrgetter("recent_description"))
 
     @property
     def bbl_addrs(self):
-        return LambdaIterIter(self, operator.attrgetter('recent_bbl_addrs'))
+        return LambdaIterIter(self, operator.attrgetter("recent_bbl_addrs"))
 
     @property
     def ins_addrs(self):
-        return LambdaIterIter(self, operator.attrgetter('recent_ins_addrs'))
+        return LambdaIterIter(self, operator.attrgetter("recent_ins_addrs"))
 
     @property
     def stack_actions(self):
-        return LambdaIterIter(self, operator.attrgetter('recent_stack_actions'))
+        return LambdaIterIter(self, operator.attrgetter("recent_stack_actions"))
 
     #
     # Merging support
@@ -569,7 +574,7 @@ class LambdaIterIter(LambdaAttrIter):
 
 from angr.sim_state import SimState
 
-SimState.register_default('history', SimStateHistory)
+SimState.register_default("history", SimStateHistory)
 
 from .sim_action import SimAction, SimActionConstraint
 from .sim_event import SimEvent

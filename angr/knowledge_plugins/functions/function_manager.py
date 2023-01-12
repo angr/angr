@@ -22,9 +22,10 @@ class FunctionDict(SortedDict):
     FunctionDict is a dict where the keys are function starting addresses and
     map to the associated :class:`Function`.
     """
+
     def __init__(self, backref, *args, **kwargs):
         self._backref = backref
-        self._key_types = kwargs.pop('key_types', int)
+        self._key_types = kwargs.pop("key_types", int)
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, addr):
@@ -73,12 +74,13 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     This is a function boundaries management tool. It takes in intermediate
     results during CFG generation, and manages a function map of the binary.
     """
+
     def __init__(self, kb):
         super().__init__()
         self._kb = kb
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
-        self._function_map: Dict[int,Function] = FunctionDict(self, key_types=self.function_address_types)
+        self._function_map: Dict[int, Function] = FunctionDict(self, key_types=self.function_address_types)
         self.function_addrs_set: Set = set()
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
@@ -146,8 +148,17 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         dst_func._register_nodes(True, node)
         self.block_map[node.addr] = node
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None,
-                     ins_addr=None, return_to_outside=False):
+    def _add_call_to(
+        self,
+        function_addr,
+        from_node,
+        to_addr,
+        retn_node=None,
+        syscall=None,
+        stmt_idx=None,
+        ins_addr=None,
+        return_to_outside=False,
+    ):
         """
         Add a call to a function.
 
@@ -174,22 +185,30 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             dest_func = self._function_map[to_addr]
             if syscall in (True, False):
                 dest_func.is_syscall = syscall
-            func._call_to(from_node, dest_func, retn_node, stmt_idx=stmt_idx, ins_addr=ins_addr,
-                          return_to_outside=return_to_outside
-                          )
+            func._call_to(
+                from_node,
+                dest_func,
+                retn_node,
+                stmt_idx=stmt_idx,
+                ins_addr=ins_addr,
+                return_to_outside=return_to_outside,
+            )
 
         if return_to_outside:
             func.add_retout_site(from_node)
 
         # is there any existing edge on the callgraph?
-        edge_data = {'type': 'call'}
-        if function_addr not in self.callgraph or \
-                to_addr not in self.callgraph[function_addr] or \
-                edge_data not in self.callgraph[function_addr][to_addr].values():
+        edge_data = {"type": "call"}
+        if (
+            function_addr not in self.callgraph
+            or to_addr not in self.callgraph[function_addr]
+            or edge_data not in self.callgraph[function_addr][to_addr].values()
+        ):
             self.callgraph.add_edge(function_addr, to_addr, **edge_data)
 
-    def _add_fakeret_to(self, function_addr, from_node, to_node, confirmed=None, syscall=None, to_outside=False,
-                        to_function_addr=None):
+    def _add_fakeret_to(
+        self, function_addr, from_node, to_node, confirmed=None, syscall=None, to_outside=False, to_function_addr=None
+    ):
         if isinstance(from_node, self.address_types):
             from_node = self._kb._project.factory.snippet(from_node)
         if isinstance(to_node, self.address_types):
@@ -203,10 +222,12 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
         if to_outside and to_function_addr is not None:
             # mark it on the callgraph
-            edge_data = {'type': 'fakeret'}
-            if function_addr not in self.callgraph or \
-                    to_function_addr not in self.callgraph[function_addr] or \
-                    edge_data not in self.callgraph[function_addr][to_function_addr].values():
+            edge_data = {"type": "fakeret"}
+            if (
+                function_addr not in self.callgraph
+                or to_function_addr not in self.callgraph[function_addr]
+                or edge_data not in self.callgraph[function_addr][to_function_addr].values()
+            ):
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
     def _remove_fakeret(self, function_addr, from_node, to_node):
@@ -216,7 +237,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._remove_fakeret(from_node, to_node)
 
-    def _add_return_from(self, function_addr, from_node, to_node=None): #pylint:disable=unused-argument
+    def _add_return_from(self, function_addr, from_node, to_node=None):  # pylint:disable=unused-argument
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr]._add_return_site(from_node)
@@ -226,11 +247,13 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             from_node = self._kb._project.factory.snippet(from_node)
         if isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._transit_to(from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx,
-                                                      is_exception=is_exception)
+        self._function_map[function_addr]._transit_to(
+            from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx, is_exception=is_exception
+        )
 
-    def _add_outside_transition_to(self, function_addr, from_node, to_node, to_function_addr=None, ins_addr=None,
-                                   stmt_idx=None, is_exception=False):
+    def _add_outside_transition_to(
+        self, function_addr, from_node, to_node, to_function_addr=None, ins_addr=None, stmt_idx=None, is_exception=False
+    ):
         if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
@@ -240,16 +263,23 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                 # we cannot get the snippet, but we should at least tell the function that it's going to jump out here
                 self._function_map[function_addr].add_jumpout_site(from_node)
                 return
-        self._function_map[function_addr]._transit_to(from_node, to_node, outside=True, ins_addr=ins_addr,
-                                                      stmt_idx=stmt_idx, is_exception=is_exception,
-                                                      )
+        self._function_map[function_addr]._transit_to(
+            from_node,
+            to_node,
+            outside=True,
+            ins_addr=ins_addr,
+            stmt_idx=stmt_idx,
+            is_exception=is_exception,
+        )
 
         if to_function_addr is not None:
             # mark it on the callgraph
-            edge_data = {'type': 'transition' if not is_exception else 'exception'}
-            if function_addr not in self.callgraph or \
-                    to_function_addr not in self.callgraph[function_addr] or \
-                    edge_data not in self.callgraph[function_addr][to_function_addr].values():
+            edge_data = {"type": "transition" if not is_exception else "exception"}
+            if (
+                function_addr not in self.callgraph
+                or to_function_addr not in self.callgraph[function_addr]
+                or edge_data not in self.callgraph[function_addr][to_function_addr].values()
+            ):
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
     def _add_return_from_call(self, function_addr, src_function_addr, to_node, to_outside=False):
@@ -305,8 +335,10 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                 self.callgraph.remove_node(k)
             self.function_addrs_set.discard(k)
         else:
-            raise ValueError(f"FunctionManager.__delitem__ only accepts the following address types: "
-                             f"{self.function_address_types}")
+            raise ValueError(
+                f"FunctionManager.__delitem__ only accepts the following address types: "
+                f"{self.function_address_types}"
+            )
 
     def __len__(self):
         return len(self._function_map)
@@ -400,7 +432,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                     if name is not None:
                         f.name = name
                     if syscall:
-                        f.is_syscall=True
+                        f.is_syscall = True
                     return f
         elif name is not None:
             for func in self._function_map.values():
@@ -410,7 +442,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
         return None
 
-    def dbg_draw(self, prefix='dbg_function_'):
+    def dbg_draw(self, prefix="dbg_function_"):
         for func_addr, func in self._function_map.items():
             filename = f"{prefix}{func_addr:#08x}.png"
             func.dbg_draw(filename)
@@ -424,4 +456,4 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                         self.callgraph.add_edge(func.addr, node.addr)
 
 
-KnowledgeBasePlugin.register_default('functions', FunctionManager)
+KnowledgeBasePlugin.register_default("functions", FunctionManager)

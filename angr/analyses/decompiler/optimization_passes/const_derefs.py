@@ -18,7 +18,7 @@ _l = logging.getLogger(name=__name__)
 
 
 class BlockWalker(AILBlockWalker):
-    def __init__(self, project: 'Project'):
+    def __init__(self, project: "Project"):
         super().__init__()
         self._project = project
         self._new_block: Optional[Block] = None  # output
@@ -60,18 +60,19 @@ class BlockWalker(AILBlockWalker):
         new_src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
 
         if new_dst is not None or new_src is not None:
-            new_stmt = Assignment(stmt.idx,
-                                  stmt.dst if new_dst is None else new_dst,
-                                  stmt.src if new_src is None else new_src,
-                                  **stmt.tags
-                                  )
+            new_stmt = Assignment(
+                stmt.idx,
+                stmt.dst if new_dst is None else new_dst,
+                stmt.src if new_src is None else new_src,
+                **stmt.tags,
+            )
             return new_stmt
         return None
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block):
         if stmt.args:
             i = 0
-            new_exprs = [ ]
+            new_exprs = []
             while i < len(stmt.args):
                 arg = stmt.args[i]
                 new_expr = self._handle_expr(i, arg, stmt_idx, stmt, block)
@@ -79,16 +80,18 @@ class BlockWalker(AILBlockWalker):
                 i += 1
             if any(expr is not None for expr in new_exprs):
                 # create a new statement
-                new_args = [ (new_arg if new_arg is not None else old_arg)
-                             for new_arg, old_arg in zip(new_exprs, stmt.args)]
-                new_stmt = Call(stmt.idx,
-                                stmt.target,
-                                calling_convention=stmt.calling_convention,
-                                prototype=stmt.prototype,
-                                args=new_args,
-                                ret_expr=stmt.ret_expr,
-                                **stmt.tags
-                                )
+                new_args = [
+                    (new_arg if new_arg is not None else old_arg) for new_arg, old_arg in zip(new_exprs, stmt.args)
+                ]
+                new_stmt = Call(
+                    stmt.idx,
+                    stmt.target,
+                    calling_convention=stmt.calling_convention,
+                    prototype=stmt.prototype,
+                    args=new_args,
+                    ret_expr=stmt.ret_expr,
+                    **stmt.tags,
+                )
                 return new_stmt
         return None
 
@@ -96,12 +99,12 @@ class BlockWalker(AILBlockWalker):
         if isinstance(expr.addr, Const):
             # *(const_addr)
             # does it belong to a read-only section/segment?
-            if self._addr_belongs_to_got(expr.addr.value) or \
-                    self._addr_belongs_to_ro_region(expr.addr.value):
-                w = self._project.loader.memory.unpack_word(expr.addr.value,
-                                                            expr.addr.bits // self._project.arch.byte_width,
-                                                            endness=self._project.arch.memory_endness
-                                                            )
+            if self._addr_belongs_to_got(expr.addr.value) or self._addr_belongs_to_ro_region(expr.addr.value):
+                w = self._project.loader.memory.unpack_word(
+                    expr.addr.value,
+                    expr.addr.bits // self._project.arch.byte_width,
+                    endness=self._project.arch.memory_endness,
+                )
                 if w is not None:
                     # nice! replace it with the actual value
                     return Const(None, None, w, expr.bits, **expr.tags)
@@ -109,55 +112,64 @@ class BlockWalker(AILBlockWalker):
             if isinstance(expr.addr.addr, Const):
                 # *(*(const_addr))
                 # does it belong to a read-only section/segment?
-                if self._addr_belongs_to_got(expr.addr.addr.value) or \
-                        self._addr_belongs_to_ro_region(expr.addr.addr.value):
-                    w = self._project.loader.memory.unpack_word(expr.addr.addr.value,
-                                                                expr.addr.addr.bits // self._project.arch.byte_width,
-                                                                endness=self._project.arch.memory_endness
-                                                                )
+                if self._addr_belongs_to_got(expr.addr.addr.value) or self._addr_belongs_to_ro_region(
+                    expr.addr.addr.value
+                ):
+                    w = self._project.loader.memory.unpack_word(
+                        expr.addr.addr.value,
+                        expr.addr.addr.bits // self._project.arch.byte_width,
+                        endness=self._project.arch.memory_endness,
+                    )
                     if w is not None and self._addr_belongs_to_object(w):
                         # nice! replace it with a load from that address
-                        return Load(expr.idx,
-                                    Const(None, None, w, expr.addr.size, **expr.addr.addr.tags),
-                                    expr.size,
-                                    expr.endness,
-                                    variable=expr.variable,
-                                    variable_offset=expr.variable_offset,
-                                    guard=expr.guard,
-                                    alt=expr.alt,
-                                    **expr.tags
-                                    )
+                        return Load(
+                            expr.idx,
+                            Const(None, None, w, expr.addr.size, **expr.addr.addr.tags),
+                            expr.size,
+                            expr.endness,
+                            variable=expr.variable,
+                            variable_offset=expr.variable_offset,
+                            guard=expr.guard,
+                            alt=expr.alt,
+                            **expr.tags,
+                        )
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block):
-        new_operands = [ self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block),
-                         self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block),
-                         ]
+        new_operands = [
+            self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block),
+            self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block),
+        ]
         if any(op is not None for op in new_operands):
-            new_operands = [(new_op if new_op is not None else old_op) for new_op, old_op in zip(new_operands,
-                                                                                                 expr.operands)]
-            return BinaryOp(expr.idx, expr.op,
-                            new_operands,
-                            expr.signed,
-                            variable=expr.variable,
-                            variable_offset=expr.variable_offset,
-                            floating_point=expr.floating_point,
-                            rounding_mode=expr.rounding_mode,
-                            **expr.tags
-                            )
+            new_operands = [
+                (new_op if new_op is not None else old_op) for new_op, old_op in zip(new_operands, expr.operands)
+            ]
+            return BinaryOp(
+                expr.idx,
+                expr.op,
+                new_operands,
+                expr.signed,
+                variable=expr.variable,
+                variable_offset=expr.variable_offset,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return None
 
     def _handle_UnaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block):
         new_operand = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
         if new_operand is not None:
-            return UnaryOp(expr.idx, expr.op,
-                            new_operand,
-                            expr.signed,
-                            variable=expr.variable,
-                            variable_offset=expr.variable_offset,
-                            **expr.tags
-                            )
+            return UnaryOp(
+                expr.idx,
+                expr.op,
+                new_operand,
+                expr.signed,
+                variable=expr.variable,
+                variable_offset=expr.variable_offset,
+                **expr.tags,
+            )
         return None
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block):
@@ -166,12 +178,13 @@ class BlockWalker(AILBlockWalker):
         new_false_target = self._handle_expr(2, stmt.false_target, stmt_idx, stmt, block)
 
         if new_cond is not None or new_true_target is not None or new_false_target is not None:
-            return ConditionalJump(stmt.idx,
-                                   new_cond if new_cond is not None else stmt.condition,
-                                   new_true_target if new_true_target is not None else stmt.true_target,
-                                   new_false_target if new_false_target is not None else stmt.false_target,
-                                   **stmt.tags
-                                   )
+            return ConditionalJump(
+                stmt.idx,
+                new_cond if new_cond is not None else stmt.condition,
+                new_true_target if new_true_target is not None else stmt.true_target,
+                new_false_target if new_false_target is not None else stmt.false_target,
+                **stmt.tags,
+            )
         return None
 
 

@@ -7,6 +7,7 @@ from ..errors import AngrValueError
 
 l = logging.getLogger(name=__name__)
 
+
 class StaticHooker(Analysis):
     """
     This analysis works on statically linked binaries - it finds the library functions statically
@@ -44,5 +45,7 @@ class StaticHooker(Analysis):
             else:
                 l.debug("Failed to hook %s at %#x", func.name, func.rebased_addr)
 
+
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('StaticHooker', StaticHooker)
+
+AnalysesHub.register_default("StaticHooker", StaticHooker)

@@ -6,6 +6,7 @@ from collections import deque, defaultdict
 import networkx
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
 
@@ -53,7 +54,7 @@ def _euclidean_dist(vector_a, vector_b):
     """
     dist = 0
     for (x, y) in zip(vector_a, vector_b):
-        dist += (x-y)*(x-y)
+        dist += (x - y) * (x - y)
     return math.sqrt(dist)
 
 
@@ -68,7 +69,7 @@ def _get_closest_matches(input_attributes, target_attributes):
 
     # for each object in the first set find the objects with the closest target attributes
     for a in input_attributes:
-        best_dist = float('inf')
+        best_dist = float("inf")
         best_matches = []
         for b in target_attributes:
             dist = _euclidean_dist(input_attributes[a], target_attributes[b])
@@ -98,9 +99,7 @@ def _levenshtein_distance(s1, s2):
             if num1 == num2:
                 new_distances.append(distances[index1])
             else:
-                new_distances.append(1 + min((distances[index1],
-                                             distances[index1+1],
-                                             new_distances[-1])))
+                new_distances.append(1 + min((distances[index1], distances[index1 + 1], new_distances[-1])))
         distances = new_distances
     return distances[-1]
 
@@ -125,9 +124,7 @@ def _normalized_levenshtein_distance(s1, s2, acceptable_differences):
             if num2 - num1 in acceptable_differences:
                 new_distances.append(distances[index1])
             else:
-                new_distances.append(1 + min((distances[index1],
-                                             distances[index1+1],
-                                             new_distances[-1])))
+                new_distances.append(1 + min((distances[index1], distances[index1 + 1], new_distances[-1])))
         distances = new_distances
     return distances[-1]
 
@@ -284,7 +281,7 @@ class NormalizedBlock:
 
     def __repr__(self):
         size = sum([b.size for b in self.blocks])
-        return '<Normalized Block for %#x, %d bytes>' % (self.addr, size)
+        return "<Normalized Block for %#x, %d bytes>" % (self.addr, size)
 
 
 class NormalizedFunction:
@@ -310,8 +307,12 @@ class NormalizedFunction:
 
                 # merge if it ends with a single call, and the successor has only one predecessor and succ is after
                 successors = list(self.graph.successors(node))
-                if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
-                        len(list(self.graph.predecessors(successors[0]))) == 1 and successors[0].addr > node.addr:
+                if (
+                    bl.vex.jumpkind == "Ijk_Call"
+                    and len(successors) == 1
+                    and len(list(self.graph.predecessors(successors[0]))) == 1
+                    and successors[0].addr > node.addr
+                ):
                     # add edges to the successors of its successor, and delete the original successors
                     succ = list(self.graph.successors(node))[0]
                     for s in self.graph.successors(succ):
@@ -347,6 +348,7 @@ class FunctionDiff:
     """
     This class computes the a diff between two functions.
     """
+
     def __init__(self, function_a: "Function", function_b: "Function", bindiff=None):
         """
         :param function_a: The first angr Function object to diff.
@@ -410,8 +412,9 @@ class FunctionDiff:
         differing_blocks = []
         diffs = {}
         for (block_a, block_b) in self._block_matches:
-            if self.blocks_probably_identical(block_a, block_b) and \
-                    not self.blocks_probably_identical(block_a, block_b, check_constants=True):
+            if self.blocks_probably_identical(block_a, block_b) and not self.blocks_probably_identical(
+                block_a, block_b, check_constants=True
+            ):
                 differing_blocks.append((block_a, block_b))
         for block_a, block_b in differing_blocks:
             ba = NormalizedBlock(block_a, self._function_a)
@@ -548,8 +551,9 @@ class FunctionDiff:
                 continue
             # if both are in the binary we'll assume it's okay, although we should really match globals
             # TODO use global matches
-            if self._project_a.loader.main_object.contains_addr(c.value_a) and \
-                    self._project_b.loader.main_object.contains_addr(c.value_b):
+            if self._project_a.loader.main_object.contains_addr(
+                c.value_a
+            ) and self._project_b.loader.main_object.contains_addr(c.value_b):
                 continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
             if c.value_b - c.value_a in acceptable_differences:
@@ -599,8 +603,7 @@ class FunctionDiff:
         :param function:    A normalized Function object.
         :returns:           A dictionary of basic block addresses and their distance to the start of the function.
         """
-        return networkx.single_source_shortest_path_length(function.graph,
-                                                           function.startpoint)
+        return networkx.single_source_shortest_path_length(function.graph, function.startpoint)
 
     @staticmethod
     def _distances_from_function_exit(function: NormalizedFunction):
@@ -620,7 +623,7 @@ class FunctionDiff:
         # if there were no exits (a function with a while 1) let's consider the block with the highest address to
         # be the exit. This isn't the most scientific way, but since this case is pretty rare it should be okay
         if not found_exits:
-            last = max(function.graph.nodes(), key=lambda x:x.addr)
+            last = max(function.graph.nodes(), key=lambda x: x.addr)
             reverse_graph.add_edge("start", last)
 
         dists = networkx.single_source_shortest_path_length(reverse_graph, "start")
@@ -639,16 +642,18 @@ class FunctionDiff:
         Computes the diff of the functions and saves the result.
         """
         # get the attributes for all blocks
-        l.debug("Computing diff of functions: %s, %s",
-                ("%#x" % self._function_a.startpoint.addr) if self._function_a.startpoint is not None else "None",
-                ("%#x" % self._function_b.startpoint.addr) if self._function_b.startpoint is not None else "None"
-                )
+        l.debug(
+            "Computing diff of functions: %s, %s",
+            ("%#x" % self._function_a.startpoint.addr) if self._function_a.startpoint is not None else "None",
+            ("%#x" % self._function_b.startpoint.addr) if self._function_b.startpoint is not None else "None",
+        )
         self.attributes_a = self._compute_block_attributes(self._function_a)
         self.attributes_b = self._compute_block_attributes(self._function_b)
 
         # get the initial matches
-        initial_matches = self._get_block_matches(self.attributes_a, self.attributes_b,
-                                                  tiebreak_with_block_similarity=False)
+        initial_matches = self._get_block_matches(
+            self.attributes_a, self.attributes_b, tiebreak_with_block_similarity=False
+        )
 
         # Use a queue so we process matches in the order that they are found
         to_process = deque(initial_matches)
@@ -675,7 +680,7 @@ class FunctionDiff:
             block_b_pred = list(self._function_b.graph.predecessors(block_b))
 
             # propagate the difference in blocks as delta
-            delta = tuple((i-j) for i, j in zip(self.attributes_b[block_b], self.attributes_a[block_a]))
+            delta = tuple((i - j) for i, j in zip(self.attributes_b[block_b], self.attributes_a[block_a]))
 
             # get possible new matches
             new_matches = []
@@ -686,10 +691,22 @@ class FunctionDiff:
                 ordered_succ_b = self._get_ordered_successors(self._project_b, block_b, block_b_succ)
                 new_matches.extend(zip(ordered_succ_a, ordered_succ_b))
 
-            new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_succ, block_b_succ,
-                                                   delta, tiebreak_with_block_similarity=True)
-            new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_pred, block_b_pred,
-                                                   delta, tiebreak_with_block_similarity=True)
+            new_matches += self._get_block_matches(
+                self.attributes_a,
+                self.attributes_b,
+                block_a_succ,
+                block_b_succ,
+                delta,
+                tiebreak_with_block_similarity=True,
+            )
+            new_matches += self._get_block_matches(
+                self.attributes_a,
+                self.attributes_b,
+                block_a_pred,
+                block_b_pred,
+                delta,
+                tiebreak_with_block_similarity=True,
+            )
 
             # for each of the possible new matches add it if it improves the matching
             for (x, y) in new_matches:
@@ -729,14 +746,21 @@ class FunctionDiff:
                     ordered_succ.append(x)
 
             # add the rest (sorting might be better than no order)
-            for s in sorted(succ - set(ordered_succ), key=lambda x:x.addr):
+            for s in sorted(succ - set(ordered_succ), key=lambda x: x.addr):
                 ordered_succ.append(s)
             return ordered_succ
         except (SimMemoryError, SimEngineError):
-            return sorted(succ, key=lambda x:x.addr)
+            return sorted(succ, key=lambda x: x.addr)
 
-    def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
-                           tiebreak_with_block_similarity=False):
+    def _get_block_matches(
+        self,
+        attributes_a,
+        attributes_b,
+        filter_set_a=None,
+        filter_set_b=None,
+        delta=(0, 0, 0),
+        tiebreak_with_block_similarity=False,
+    ):
         """
         :param attributes_a:    A dict of blocks to their attributes
         :param attributes_b:    A dict of blocks to their attributes
@@ -761,9 +785,9 @@ class FunctionDiff:
 
         # add delta
         for k in filtered_attributes_a:
-            filtered_attributes_a[k] = tuple((i+j) for i, j in zip(filtered_attributes_a[k], delta))
+            filtered_attributes_a[k] = tuple((i + j) for i, j in zip(filtered_attributes_a[k], delta))
         for k in filtered_attributes_b:
-            filtered_attributes_b[k] = tuple((i+j) for i, j in zip(filtered_attributes_b[k], delta))
+            filtered_attributes_b[k] = tuple((i + j) for i, j in zip(filtered_attributes_b[k], delta))
 
         # get closest
         closest_a = _get_closest_matches(filtered_attributes_a, filtered_attributes_b)
@@ -827,8 +851,10 @@ class FunctionDiff:
 
         # get the difference between the data segments
         # this is hackish
-        if ".bss" in self._project_a.loader.main_object.sections_map and \
-                ".bss" in self._project_b.loader.main_object.sections_map:
+        if (
+            ".bss" in self._project_a.loader.main_object.sections_map
+            and ".bss" in self._project_b.loader.main_object.sections_map
+        ):
             bss_a = self._project_a.loader.main_object.sections_map[".bss"].min_addr
             bss_b = self._project_b.loader.main_object.sections_map[".bss"].min_addr
             acceptable_differences.add(bss_b - bss_a)
@@ -841,6 +867,7 @@ class BinDiff(Analysis):
     """
     This class computes the a diff between two binaries represented by angr Projects
     """
+
     def __init__(self, other_project, enable_advanced_backward_slicing=False, cfg_a=None, cfg_b=None):
         """
         :param other_project: The second project to diff
@@ -850,17 +877,21 @@ class BinDiff(Analysis):
         back_traversal = not enable_advanced_backward_slicing
 
         if cfg_a is None:
-            #self.cfg_a = self.project.analyses.CFG(resolve_indirect_jumps=True)
-            #self.cfg_b = other_project.analyses.CFG(resolve_indirect_jumps=True)
-            self.cfg_a = self.project.analyses[CFGEmulated].prep()(context_sensitivity_level=1,
-                                                            keep_state = True,
-                                                            enable_symbolic_back_traversal = back_traversal,
-                                                            enable_advanced_backward_slicing = enable_advanced_backward_slicing)
+            # self.cfg_a = self.project.analyses.CFG(resolve_indirect_jumps=True)
+            # self.cfg_b = other_project.analyses.CFG(resolve_indirect_jumps=True)
+            self.cfg_a = self.project.analyses[CFGEmulated].prep()(
+                context_sensitivity_level=1,
+                keep_state=True,
+                enable_symbolic_back_traversal=back_traversal,
+                enable_advanced_backward_slicing=enable_advanced_backward_slicing,
+            )
 
-            self.cfg_b = other_project.analyses[CFGEmulated].prep()(context_sensitivity_level=1,
-                                                            keep_state = True,
-                                                            enable_symbolic_back_traversal = back_traversal,
-                                                            enable_advanced_backward_slicing = enable_advanced_backward_slicing)
+            self.cfg_b = other_project.analyses[CFGEmulated].prep()(
+                context_sensitivity_level=1,
+                keep_state=True,
+                enable_symbolic_back_traversal=back_traversal,
+                enable_advanced_backward_slicing=enable_advanced_backward_slicing,
+            )
 
         else:
             self.cfg_a = cfg_a
@@ -1024,8 +1055,7 @@ class BinDiff(Analysis):
                     possible_matches.add((target_a, target_b))
                 # add them in reverse, since if a new call was added the ordering from each side
                 # will remain constant until the change
-                for target_a, target_b in zip(reversed(function_a.call_sites[a]),
-                                              reversed(function_b.call_sites[b])):
+                for target_a, target_b in zip(reversed(function_a.call_sites[a]), reversed(function_b.call_sites[b])):
                     possible_matches.add((target_a, target_b))
 
         return possible_matches
@@ -1041,11 +1071,11 @@ class BinDiff(Analysis):
         func_to_addr_b = {}
         for (k, hook) in self.project._sim_procedures.items():
             if "resolves" in hook.kwargs:
-                func_to_addr_a[hook.kwargs['resolves']] = k
+                func_to_addr_a[hook.kwargs["resolves"]] = k
 
         for (k, hook) in self._p2._sim_procedures.items():
             if "resolves" in hook.kwargs:
-                func_to_addr_b[hook.kwargs['resolves']] = k
+                func_to_addr_b[hook.kwargs["resolves"]] = k
 
         for name, addr in func_to_addr_a.items():
             if name in func_to_addr_b:
@@ -1124,10 +1154,12 @@ class BinDiff(Analysis):
             func_b_pred = self.cfg_b.kb.callgraph.predecessors(func_b) if func_b in callgraph_b_nodes else []
 
             # get possible new matches
-            new_matches = set(self._get_function_matches(self.attributes_a, self.attributes_b,
-                                                         func_a_succ, func_b_succ))
-            new_matches |= set(self._get_function_matches(self.attributes_a, self.attributes_b,
-                                                          func_a_pred, func_b_pred))
+            new_matches = set(
+                self._get_function_matches(self.attributes_a, self.attributes_b, func_a_succ, func_b_succ)
+            )
+            new_matches |= set(
+                self._get_function_matches(self.attributes_a, self.attributes_b, func_a_pred, func_b_pred)
+            )
 
             # could also find matches as function calls of matched basic blocks
             new_matches.update(self._get_call_site_matches(func_a, func_b))
@@ -1162,7 +1194,7 @@ class BinDiff(Analysis):
 
         # reformat matches into a set of pairs
         self.function_matches = set()
-        for x,y in matched_a.items():
+        for x, y in matched_a.items():
             # only keep if the pair is in the binary ranges
             if self.project.loader.main_object.contains_addr(x) and self._p2.loader.main_object.contains_addr(y):
                 self.function_matches.add((x, y))
@@ -1213,5 +1245,7 @@ class BinDiff(Analysis):
 
         return matches
 
+
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('BinDiff', BinDiff)
+
+AnalysesHub.register_default("BinDiff", BinDiff)

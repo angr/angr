@@ -13,8 +13,15 @@ class OutdatedDefinitionWalker(AILBlockWalker):
     """
     Walks an AIL expression to find outdated definitions.
     """
-    def __init__(self, expr, expr_defat: CodeLocation, state: 'PropagatorAILState',
-                 avoid: Optional[Expr.Expression]=None, extract_offset_to_sp: Callable=None):
+
+    def __init__(
+        self,
+        expr,
+        expr_defat: CodeLocation,
+        state: "PropagatorAILState",
+        avoid: Optional[Expr.Expression] = None,
+        extract_offset_to_sp: Callable = None,
+    ):
         super().__init__()
         self.expr = expr
         self.expr_defat = expr_defat
@@ -28,16 +35,21 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self.out_dated = False
 
     # pylint:disable=unused-argument
-    def _handle_Tmp(self, expr_idx: int, tmp_expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment,
-                    block: Optional[Block]):
+    def _handle_Tmp(
+        self, expr_idx: int, tmp_expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]
+    ):
         if self.avoid is not None and tmp_expr.likes(self.avoid):
             self.out_dated = True
 
     # pylint:disable=unused-argument
-    def _handle_Register(self, expr_idx: int, reg_expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment,
-                         block: Optional[Block]):
-        if self.avoid is not None and isinstance(self.avoid, Expr.Register) and (
-                reg_expr.likes(self.avoid) or self._reg_overlap(reg_expr, self.avoid)):
+    def _handle_Register(
+        self, expr_idx: int, reg_expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]
+    ):
+        if (
+            self.avoid is not None
+            and isinstance(self.avoid, Expr.Register)
+            and (reg_expr.likes(self.avoid) or self._reg_overlap(reg_expr, self.avoid))
+        ):
             self.out_dated = True
         else:
             v = self.state.load_register(reg_expr)
@@ -50,8 +62,10 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                         self.out_dated = True
                         break
                     if isinstance(detail.expr, Expr.TaggedObject):
-                        if not (detail.def_at == self.expr_defat or
-                                self._check_store_precedes_load(detail.def_at, self.expr_defat)):
+                        if not (
+                            detail.def_at == self.expr_defat
+                            or self._check_store_precedes_load(detail.def_at, self.expr_defat)
+                        ):
                             self.out_dated = True
                             break
 
@@ -65,8 +79,15 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         return store_defat.block_addr == load_defat.block_addr and store_defat.stmt_idx <= load_defat.stmt_idx
 
     @staticmethod
-    def _check_global_store_conflicts_load(store_block_addr: int, store_stmt_idx: int, addr: Any, store: Stmt.Store,
-                                           load_block_addr: int, load_stmt_idx: int, load: Expr.Load) -> bool:
+    def _check_global_store_conflicts_load(
+        store_block_addr: int,
+        store_stmt_idx: int,
+        addr: Any,
+        store: Stmt.Store,
+        load_block_addr: int,
+        load_stmt_idx: int,
+        load: Expr.Load,
+    ) -> bool:
         """
         Check if the load may conflict with any existing stores that happened in the past.
 
@@ -79,17 +100,19 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         if store_block_addr == load_block_addr and store_stmt_idx >= load_stmt_idx:
             written = set()
             if isinstance(addr, Expr.Const) and isinstance(store.size, int):
-                written |= { addr.value + i for i in range(store.size) }
+                written |= {addr.value + i for i in range(store.size)}
             else:
                 return False  # FIXME: This is unsafe
             if isinstance(load.addr, Expr.Const) and isinstance(load.size, int):
-                read = { load.addr.value + i for i in range(load.size) }
+                read = {load.addr.value + i for i in range(load.size)}
                 return bool(written.intersection(read))
             return True
         return False
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
-        if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):  # pylint:disable=consider-using-in
+        if self.avoid is not None and (
+            expr == self.avoid or expr.addr == self.avoid
+        ):  # pylint:disable=consider-using-in
             self.out_dated = True
         elif isinstance(expr.addr, Expr.StackBaseOffset):
             sp_offset = self.extract_offset_to_sp(expr.addr)
@@ -103,42 +126,55 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 else:
                     for details in curr_stackvar.offset_and_details.values():
                         if details.def_at is None or not self._check_store_precedes_load(
-                                details.def_at, self.expr_defat):
+                            details.def_at, self.expr_defat
+                        ):
                             self.out_dated = True
                             break
                     if not self.out_dated:
                         # if there has been a stack store whose address cannot be resolved or concretized, we see if
                         # this store happens after the current definition. if so, we mark it as out-dated
-                        if self.state.last_stack_store is not None \
-                                and not self._check_store_precedes_load(CodeLocation(*self.state.last_stack_store[:2]),
-                                                                        self.expr_defat):
+                        if self.state.last_stack_store is not None and not self._check_store_precedes_load(
+                            CodeLocation(*self.state.last_stack_store[:2]), self.expr_defat
+                        ):
                             self.out_dated = True
             else:
                 # in cases where expr.addr cannot be resolved to a concrete stack offset, we play safe and assume
                 # it's outdated
                 self.out_dated = True
-        elif isinstance(expr.addr, Expr.Const) \
-                and self.state.global_stores \
-                and any(self._check_global_store_conflicts_load(store_block_addr, store_stmt_idx, addr, store,
-                                                            self.expr_defat.block_addr, self.expr_defat.stmt_idx, expr)
-                        for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores):
+        elif (
+            isinstance(expr.addr, Expr.Const)
+            and self.state.global_stores
+            and any(
+                self._check_global_store_conflicts_load(
+                    store_block_addr,
+                    store_stmt_idx,
+                    addr,
+                    store,
+                    self.expr_defat.block_addr,
+                    self.expr_defat.stmt_idx,
+                    expr,
+                )
+                for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores
+            )
+        ):
             self.out_dated = True
-        elif not isinstance(expr.addr, (Expr.StackBaseOffset, Expr.Const)) \
-                and (
-                self.state.global_stores and
-                not all(self._check_store_precedes_load(CodeLocation(store_block_addr, store_stmt_idx), self.expr_defat)
-                        for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores) or
-                self.state.last_stack_store is not None and
-                not self._check_store_precedes_load(CodeLocation(*self.state.last_stack_store[:2]),
-                                                    self.expr_defat)
+        elif not isinstance(expr.addr, (Expr.StackBaseOffset, Expr.Const)) and (
+            self.state.global_stores
+            and not all(
+                self._check_store_precedes_load(CodeLocation(store_block_addr, store_stmt_idx), self.expr_defat)
+                for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores
+            )
+            or self.state.last_stack_store is not None
+            and not self._check_store_precedes_load(CodeLocation(*self.state.last_stack_store[:2]), self.expr_defat)
         ):
             # check both stack and global stores if the load address is unknown
             self.out_dated = True
         else:
             super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_VEXCCallExpression(self, expr_idx: int, expr: Expr.VEXCCallExpression, stmt_idx: int,
-                                   stmt: Stmt.Statement, block: Optional[Block]):
+    def _handle_VEXCCallExpression(
+        self, expr_idx: int, expr: Expr.VEXCCallExpression, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]
+    ):
         if self.avoid is not None:
             if any(op == self.avoid for op in expr.operands):
                 self.out_dated = True

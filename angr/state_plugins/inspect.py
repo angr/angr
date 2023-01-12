@@ -1,157 +1,142 @@
 # TODO: SimValue being able to compare two symbolics for is_solution
 
 import logging
+
 l = logging.getLogger(name=__name__)
 
 event_types = {
-    'vex_lift',
-    'mem_read',
-    'mem_write',
-    'address_concretization',
-    'reg_read',
-    'reg_write',
-    'tmp_read',
-    'tmp_write',
-    'expr',
-    'statement',
-    'instruction',
-    'irsb',
-    'constraints',
-    'exit',
-    'fork',
-    'symbolic_variable',
-    'call',
-    'return',
-    'simprocedure',
-    'dirty',
-    'syscall',
-    'cfg_handle_job',
-    'vfg_handle_successor',
-    'vfg_widen_state',
-    'engine_process',
-    'memory_page_map',
+    "vex_lift",
+    "mem_read",
+    "mem_write",
+    "address_concretization",
+    "reg_read",
+    "reg_write",
+    "tmp_read",
+    "tmp_write",
+    "expr",
+    "statement",
+    "instruction",
+    "irsb",
+    "constraints",
+    "exit",
+    "fork",
+    "symbolic_variable",
+    "call",
+    "return",
+    "simprocedure",
+    "dirty",
+    "syscall",
+    "cfg_handle_job",
+    "vfg_handle_successor",
+    "vfg_widen_state",
+    "engine_process",
+    "memory_page_map",
 }
 
 inspect_attributes = {
     # vex_lift
-    'vex_lift_addr',
-    'vex_lift_size',
-    'vex_lift_buff',
-
+    "vex_lift_addr",
+    "vex_lift_size",
+    "vex_lift_buff",
     # mem_read
-    'mem_read_address',
-    'mem_read_expr',
-    'mem_read_length',
-    'mem_read_condition',
-    'mem_read_endness',
-
+    "mem_read_address",
+    "mem_read_expr",
+    "mem_read_length",
+    "mem_read_condition",
+    "mem_read_endness",
     # mem_write
-    'mem_write_address',
-    'mem_write_expr',
-    'mem_write_length',
-    'mem_write_condition',
-    'mem_write_endness',
-
+    "mem_write_address",
+    "mem_write_expr",
+    "mem_write_length",
+    "mem_write_condition",
+    "mem_write_endness",
     # reg_read
-    'reg_read_offset',
-    'reg_read_expr',
-    'reg_read_length',
-    'reg_read_condition',
-    'reg_read_endness',
-
+    "reg_read_offset",
+    "reg_read_expr",
+    "reg_read_length",
+    "reg_read_condition",
+    "reg_read_endness",
     # reg_write
-    'reg_write_offset',
-    'reg_write_expr',
-    'reg_write_length',
-    'reg_write_condition',
-    'reg_write_endness',
-
+    "reg_write_offset",
+    "reg_write_expr",
+    "reg_write_length",
+    "reg_write_condition",
+    "reg_write_endness",
     # tmp_read
-    'tmp_read_num',
-    'tmp_read_expr',
-
+    "tmp_read_num",
+    "tmp_read_expr",
     # tmp_write
-    'tmp_write_num',
-    'tmp_write_expr',
-
+    "tmp_write_num",
+    "tmp_write_expr",
     # expr
-    'expr',
-    'expr_result',
-
+    "expr",
+    "expr_result",
     # statement
-    'statement',
-
+    "statement",
     # instruction
-    'instruction',
-
+    "instruction",
     # irsb
-    'address',
-
+    "address",
     # constraints
-    'added_constraints',
-
+    "added_constraints",
     # call
-    'function_address',
-
+    "function_address",
     # exit
-    'exit_target',
-    'exit_guard',
-    'exit_jumpkind',
-    'backtrace', #unused?
-
+    "exit_target",
+    "exit_guard",
+    "exit_jumpkind",
+    "backtrace",  # unused?
     # symbolic_variable
-    'symbolic_name',
-    'symbolic_size',
-    'symbolic_expr',
-
+    "symbolic_name",
+    "symbolic_size",
+    "symbolic_expr",
     # address_concretization
-    'address_concretization_strategy',
-    'address_concretization_action',
-    'address_concretization_memory',
-    'address_concretization_expr',
-    'address_concretization_result',
-    'address_concretization_add_constraints',
-
+    "address_concretization_strategy",
+    "address_concretization_action",
+    "address_concretization_memory",
+    "address_concretization_expr",
+    "address_concretization_result",
+    "address_concretization_add_constraints",
     # syscall
-    'syscall_name',
-
+    "syscall_name",
     # simprocedure
-    'simprocedure_name',
-    'simprocedure_addr',
-    'simprocedure_result',
-    'simprocedure',
-
+    "simprocedure_name",
+    "simprocedure_addr",
+    "simprocedure_result",
+    "simprocedure",
     # dirty
-    'dirty_name',
-    'dirty_handler',
-    'dirty_args',
-    'dirty_result',
-
+    "dirty_name",
+    "dirty_handler",
+    "dirty_args",
+    "dirty_result",
     # engine_process
-    'sim_engine',
-    'sim_successors',
-
+    "sim_engine",
+    "sim_successors",
     # memory mapping
-    'mapped_page',
-    'mapped_address',
-    }
+    "mapped_page",
+    "mapped_address",
+}
 
 NO_OVERRIDE = object()
 
-BP_BEFORE = 'before'
-BP_AFTER = 'after'
-BP_BOTH = 'both'
+BP_BEFORE = "before"
+BP_AFTER = "after"
+BP_BOTH = "both"
 
-BP_IPDB = 'ipdb'
-BP_IPYTHON = 'ipython'
+BP_IPDB = "ipdb"
+BP_IPYTHON = "ipython"
+
 
 class BP:
     """
     A breakpoint.
     """
+
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
-        if len({ k.replace("_unique", "") for k in kwargs} - set(inspect_attributes)) != 0:
-            raise ValueError(f"Invalid inspect attribute(s) {kwargs} passed in. Should be one of {inspect_attributes}, or their _unique option.")
+        if len({k.replace("_unique", "") for k in kwargs} - set(inspect_attributes)) != 0:
+            raise ValueError(
+                f"Invalid inspect attribute(s) {kwargs} passed in. Should be one of {inspect_attributes}, or their _unique option."
+            )
 
         self.kwargs = kwargs
 
@@ -173,7 +158,7 @@ class BP:
             return ok
         l.debug("... after enabled and when: %s", ok)
 
-        for a in [ _ for _ in self.kwargs if not _.endswith("_unique") ]:
+        for a in [_ for _ in self.kwargs if not _.endswith("_unique")]:
             current_expr = getattr(state.inspect, a)
             needed = self.kwargs.get(a, None)
 
@@ -190,7 +175,7 @@ class BP:
                     l.debug("...... not solution...")
                     c_ok = False
 
-                if c_ok and self.kwargs.get(a+'_unique', True):
+                if c_ok and self.kwargs.get(a + "_unique", True):
                     l.debug("...... checking uniqueness")
                     if not state.solver.unique(current_expr):
                         l.debug("...... not unique")
@@ -218,17 +203,24 @@ class BP:
             ipdb = __import__("ipdb").set_trace()
         elif self.action == BP_IPYTHON:
             import IPython
+
             shell = IPython.terminal.embed.InteractiveShellEmbed()
-            shell.mainloop(display_banner="This is an ipython shell for you to happily debug your state!\n" + \
-                           "The state can be accessed through the variable 'state'. You can\n" +\
-                           "make modifications, then exit this shell to resume your analysis.")
+            shell.mainloop(
+                display_banner="This is an ipython shell for you to happily debug your state!\n"
+                + "The state can be accessed through the variable 'state'. You can\n"
+                + "make modifications, then exit this shell to resume your analysis."
+            )
         else:
             self.action(state)
 
     def __repr__(self):
-        return "<BP %s-action with conditions %r, %s condition func, %s action func>" % \
-               (self.when, self.kwargs, "no" if self.condition is None else "with", "no" if self.action is None
-               else "with")
+        return "<BP %s-action with conditions %r, %s condition func, %s action func>" % (
+            self.when,
+            self.kwargs,
+            "no" if self.condition is None else "with",
+            "no" if self.action is None else "with",
+        )
+
 
 from .plugin import SimStatePlugin
 
@@ -238,18 +230,19 @@ class SimInspector(SimStatePlugin):
     The breakpoint interface, used to instrument execution. For usage information, look here:
     https://docs.angr.io/core-concepts/simulation#breakpoints
     """
+
     BP_AFTER = BP_AFTER
     BP_BEFORE = BP_BEFORE
     BP_BOTH = BP_BOTH
 
     def __init__(self):
         SimStatePlugin.__init__(self)
-        self._breakpoints = { }
+        self._breakpoints = {}
         for t in event_types:
-            self._breakpoints[t] = [ ]
+            self._breakpoints[t] = []
 
         self.action_attrs_set = False  # action() will set it to True if the kwargs passed in have been set as
-                                       # attributes to self.
+        # attributes to self.
 
         for i in inspect_attributes:
             setattr(self, i, None)
@@ -258,10 +251,11 @@ class SimInspector(SimStatePlugin):
         return sorted(set(dir(super()) + dir(inspect_attributes) + dir(self.__class__)))
 
     def _set_inspect_attrs(self, **kwargs):
-        for k,v in kwargs.items():
+        for k, v in kwargs.items():
             if k not in inspect_attributes:
-                raise ValueError("Invalid inspect attribute %s passed in. Should be one of: %s" %
-                                 (k, inspect_attributes))
+                raise ValueError(
+                    "Invalid inspect attribute %s passed in. Should be one of: %s" % (k, inspect_attributes)
+                )
             # l.debug("... setting %s", k)
             setattr(self, k, v)
 
@@ -305,9 +299,9 @@ class SimInspector(SimStatePlugin):
         :return:            The created breakpoint.
         """
         if event_type not in event_types:
-            raise ValueError("Invalid event type {} passed in. Should be one of: {}".format(event_type,
-                                                                                        ", ".join(event_types))
-                             )
+            raise ValueError(
+                "Invalid event type {} passed in. Should be one of: {}".format(event_type, ", ".join(event_types))
+            )
         self._breakpoints[event_type].append(bp)
 
     def remove_breakpoint(self, event_type, bp=None, filter_func=None):
@@ -325,18 +319,18 @@ class SimInspector(SimStatePlugin):
             if bp is not None:
                 self._breakpoints[event_type].remove(bp)
             else:
-                self._breakpoints[event_type] = [ b for b in self._breakpoints[event_type] if not filter_func(b) ]
+                self._breakpoints[event_type] = [b for b in self._breakpoints[event_type] if not filter_func(b)]
         except ValueError:
             # the breakpoint is not found
-            l.error('remove_breakpoint(): Breakpoint %s (type %s) is not found.', bp, event_type)
+            l.error("remove_breakpoint(): Breakpoint %s (type %s) is not found.", bp, event_type)
 
     @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         c = SimInspector()
         for i in inspect_attributes:
             setattr(c, i, getattr(self, i))
 
-        for t,a in self._breakpoints.items():
+        for t, a in self._breakpoints.items():
             c._breakpoints[t].extend(a)
         return c
 
@@ -359,7 +353,7 @@ class SimInspector(SimStatePlugin):
 
     def _combine(self, others):
         for t in event_types:
-            seen = { id(e) for e in self._breakpoints[t] }
+            seen = {id(e) for e in self._breakpoints[t]}
             for o in others:
                 for b in o._breakpoints[t]:
                     if id(b) not in seen:
@@ -367,7 +361,7 @@ class SimInspector(SimStatePlugin):
                         seen.add(id(b))
         return False
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return self._combine(others)
 
     def widen(self, others):
@@ -379,4 +373,5 @@ class SimInspector(SimStatePlugin):
 
 
 from angr.sim_state import SimState
-SimState.register_default('inspect', SimInspector)
+
+SimState.register_default("inspect", SimInspector)

@@ -3,20 +3,25 @@ import unittest
 
 import angr
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestAdc(unittest.TestCase):
     def test_adc_i386(self):
-        proj = angr.Project(os.path.join(test_location, 'i386', 'test_adc'), load_options={'auto_load_libs': False})
+        proj = angr.Project(os.path.join(test_location, "i386", "test_adc"), load_options={"auto_load_libs": False})
 
-        start = 0x804840b
-        end = 0x804842e
+        start = 0x804840B
+        end = 0x804842E
 
-        state = proj.factory.blank_state(addr=start, remove_options={angr.options.LAZY_SOLVES, },
-                                         add_options={angr.options.SYMBOLIC_WRITE_ADDRESSES})
+        state = proj.factory.blank_state(
+            addr=start,
+            remove_options={
+                angr.options.LAZY_SOLVES,
+            },
+            add_options={angr.options.SYMBOLIC_WRITE_ADDRESSES},
+        )
 
         pg = proj.factory.simulation_manager(state, veritesting=False)
         pg.explore(find=end)

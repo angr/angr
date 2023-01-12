@@ -7,6 +7,7 @@ import angr
 class A:
     n = 0
 
+
 class TestVault(unittest.TestCase):
     def _do_vault_identity(self, v_factory):
         v = v_factory()
@@ -43,7 +44,6 @@ class TestVault(unittest.TestCase):
         bbb = v.load(bid)
         assert bbb.n == 1
 
-
     def _do_vault_noidentity(self, v_factory):
         v = v_factory()
         assert len(v.keys()) == 0
@@ -76,7 +76,6 @@ class TestVault(unittest.TestCase):
         v.store(cc)
         assert len(v.keys()) == 6
 
-
     def _do_ast_vault(self, v_factory):
         v = v_factory()
         x = claripy.BVS("x", 32)
@@ -93,7 +92,6 @@ class TestVault(unittest.TestCase):
         zs = v.dumps(z)
         zzz = v.loads(zs)
         assert zzz is z
-
 
     def test_vault_noidentity_VaultDir(self):
         self._do_vault_noidentity(angr.vaults.VaultDir)
@@ -141,25 +139,26 @@ class TestVault(unittest.TestCase):
         ps = v.store(p)
         pp = v.load(ps)
         assert p is pp
-        assert sum(1 for k in v.keys() if k.startswith('Project')) == 1
+        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
 
         pstring = v.dumps(p)
-        assert sum(1 for k in v.keys() if k.startswith('Project')) == 1
+        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
         pp2 = v.loads(pstring)
-        assert sum(1 for k in v.keys() if k.startswith('Project')) == 1
+        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
         assert p is pp
 
-        p._asdf = 'fdsa'
+        p._asdf = "fdsa"
         del pp2
         del pp
         del p
         import gc
+
         gc.collect()
 
         p = v.load(ps)
-        #assert not hasattr(p, '_asdf')
-        assert sum(1 for k in v.keys() if k.startswith('Project')) == 1
+        # assert not hasattr(p, '_asdf')
+        assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -27,10 +27,10 @@ class BlockID:
         if self.callsite_tuples is None:
             return "None"
 
-        s = [ ]
-        format_addr = lambda addr: 'None' if addr is None else hex(addr)
+        s = []
+        format_addr = lambda addr: "None" if addr is None else hex(addr)
         for i in range(0, len(self.callsite_tuples), 2):
-            s.append('@'.join(map(format_addr, self.callsite_tuples[i:i+2])))
+            s.append("@".join(map(format_addr, self.callsite_tuples[i : i + 2])))
         return " -> ".join(s)
 
     def __repr__(self):
@@ -42,19 +42,22 @@ class BlockID:
         return self._hash
 
     def __eq__(self, other):
-        return isinstance(other, BlockID) and \
-               self.addr == other.addr and self.callsite_tuples == other.callsite_tuples and \
-               self.jump_type == other.jump_type
+        return (
+            isinstance(other, BlockID)
+            and self.addr == other.addr
+            and self.callsite_tuples == other.callsite_tuples
+            and self.jump_type == other.jump_type
+        )
 
     def __ne__(self, other):
         return not self == other
 
     @staticmethod
     def new(addr, callstack_suffix, jumpkind):
-        if jumpkind.startswith('Ijk_Sys') or jumpkind == 'syscall':
-            jump_type = 'syscall'
-        elif jumpkind in ('Ijk_Exit', 'exit'):
-            jump_type = 'exit'
+        if jumpkind.startswith("Ijk_Sys") or jumpkind == "syscall":
+            jump_type = "syscall"
+        elif jumpkind in ("Ijk_Exit", "exit"):
+            jump_type = "exit"
         else:
             jump_type = "normal"
         return BlockID(addr, callstack_suffix, jump_type)
@@ -83,9 +86,9 @@ class FunctionKey:
             return "None"
 
         s = []
-        format_addr = lambda addr: 'None' if addr is None else hex(addr)
+        format_addr = lambda addr: "None" if addr is None else hex(addr)
         for i in range(0, len(self.callsite_tuples), 2):
-            s.append('@'.join(map(format_addr, self.callsite_tuples[i:i + 2])))
+            s.append("@".join(map(format_addr, self.callsite_tuples[i : i + 2])))
         return " -> ".join(s)
 
     def __repr__(self):
@@ -94,12 +97,13 @@ class FunctionKey:
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.callsite_tuples, ) + (self.addr, ))
+            self._hash = hash((self.callsite_tuples,) + (self.addr,))
         return self._hash
 
     def __eq__(self, other):
-        return isinstance(other, FunctionKey) and \
-                self.addr == other.addr and self.callsite_tuples == other.callsite_tuples
+        return (
+            isinstance(other, FunctionKey) and self.addr == other.addr and self.callsite_tuples == other.callsite_tuples
+        )
 
     @staticmethod
     def new(addr, callsite_tuples):
@@ -110,9 +114,22 @@ class CFGJobBase:
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
-    def __init__(self, addr, state, context_sensitivity_level, block_id=None, src_block_id=None,
-                 src_exit_stmt_idx=None, src_ins_addr=None, jumpkind=None, call_stack=None, is_narrowing=False,
-                 skip=False, final_return_address=None):
+
+    def __init__(
+        self,
+        addr,
+        state,
+        context_sensitivity_level,
+        block_id=None,
+        src_block_id=None,
+        src_exit_stmt_idx=None,
+        src_ins_addr=None,
+        jumpkind=None,
+        call_stack=None,
+        is_narrowing=False,
+        skip=False,
+        final_return_address=None,
+    ):
         self.addr = addr  # Note that addr may not always be equal to self.state.ip (for syscalls, for example)
         self.state = state
         self.jumpkind = jumpkind
@@ -142,7 +159,9 @@ class CFGJobBase:
                 # Set the stack pointer to None
                 sp = None
 
-            self._call_stack = self._call_stack.call(None, self.addr, retn_target=final_return_address, stack_pointer=sp)
+            self._call_stack = self._call_stack.call(
+                None, self.addr, retn_target=final_return_address, stack_pointer=sp
+            )
 
         else:
             self._call_stack = call_stack

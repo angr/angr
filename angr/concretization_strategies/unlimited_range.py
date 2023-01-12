@@ -1,12 +1,13 @@
 from . import SimConcretizationStrategy
 
+
 class SimConcretizationStrategyUnlimitedRange(SimConcretizationStrategy):
     """
     Concretization strategy that resolves addresses to a range without checking if the number of possible addresses is
     within the limit.
     """
 
-    def __init__(self, limit, **kwargs): #pylint:disable=redefined-builtin
+    def __init__(self, limit, **kwargs):  # pylint:disable=redefined-builtin
         super().__init__(**kwargs)
         self._limit = limit
 

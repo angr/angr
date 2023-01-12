@@ -25,7 +25,7 @@ class DepGraph:
     Mostly a wrapper around a <networkx.DiGraph>.
     """
 
-    def __init__(self, graph: Optional[networkx.DiGraph]=None):
+    def __init__(self, graph: Optional[networkx.DiGraph] = None):
         """
         :param graph: A graph where nodes are definitions, and edges represent uses.
         """
@@ -66,7 +66,6 @@ class DepGraph:
         """
         return self._graph.predecessors(node)
 
-
     def transitive_closure(self, definition: Definition) -> networkx.DiGraph:
         """
         Compute the "transitive closure" of a given definition.
@@ -78,8 +77,12 @@ class DepGraph:
         :return:            A graph of the transitive closure of the given definition.
         """
 
-        def _transitive_closure(def_: Definition, graph: networkx.DiGraph, result: networkx.DiGraph,
-                                visited: Optional[Set[Definition]]=None):
+        def _transitive_closure(
+            def_: Definition,
+            graph: networkx.DiGraph,
+            result: networkx.DiGraph,
+            visited: Optional[Set[Definition]] = None,
+        ):
             """
             Returns a joint graph that comprises the transitive closure of all defs that `def_` depends on and the
             current graph `result`. `result` is updated.
@@ -96,7 +99,7 @@ class DepGraph:
             predecessors = list(graph.predecessors(def_))
 
             result.add_node(def_)
-            edges_and_data = [ ]
+            edges_and_data = []
             for pred in predecessors:
                 edge_data = graph.get_edge_data(pred, def_)
                 if edge_data is None:
@@ -109,9 +112,7 @@ class DepGraph:
             predecessors_to_visit = set(predecessors) - set(visited)
 
             closure = reduce(
-                lambda acc, def0: _transitive_closure(def0, graph, acc, visited),
-                predecessors_to_visit,
-                result
+                lambda acc, def0: _transitive_closure(def0, graph, acc, visited), predecessors_to_visit, result
             )
 
             self._transitive_closures[def_] = closure
@@ -120,16 +121,11 @@ class DepGraph:
         return _transitive_closure(definition, self._graph, networkx.DiGraph())
 
     def contains_atom(self, atom: Atom) -> bool:
-        return any(map(
-            lambda definition: definition.atom == atom,
-            self.nodes()
-        ))
+        return any(map(lambda definition: definition.atom == atom, self.nodes()))
 
-    def add_dependencies_for_concrete_pointers_of(self,
-                                                  values: Iterable[Union[claripy.ast.Base,int]],
-                                                  definition: Definition,
-                                                  cfg: CFGModel,
-                                                  loader: Loader):
+    def add_dependencies_for_concrete_pointers_of(
+        self, values: Iterable[Union[claripy.ast.Base, int]], definition: Definition, cfg: CFGModel, loader: Loader
+    ):
         """
         When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in
         the dependency graph; Adds them if necessary.
@@ -139,15 +135,14 @@ class DepGraph:
         :param cfg: The CFG, containing information about memory data.
         :param loader:
         """
-        assert definition in self.nodes(), 'The given Definition must be present in the given graph.'
+        assert definition in self.nodes(), "The given Definition must be present in the given graph."
 
-        known_predecessor_addresses: List[Union[int, claripy.ast.Base]] = list(map(
-            lambda definition: definition.atom.addr, # type: ignore # Needs https://github.com/python/mypy/issues/6847
-            filter(
-                lambda p: isinstance(p.atom, MemoryLocation),
-                self.predecessors(definition)
+        known_predecessor_addresses: List[Union[int, claripy.ast.Base]] = list(
+            map(
+                lambda definition: definition.atom.addr,  # type: ignore # Needs https://github.com/python/mypy/issues/6847
+                filter(lambda p: isinstance(p.atom, MemoryLocation), self.predecessors(definition)),
             )
-        ))
+        )
 
         # concretize addresses where possible
         concrete_known_pred_addresses = []
@@ -169,19 +164,19 @@ class DepGraph:
         for address in unknown_concrete_addresses:
             data_at_address = cfg.memory_data.get(address, None) if cfg is not None else None
 
-            if data_at_address is None or data_at_address.sort not in ['string', 'unknown']:
+            if data_at_address is None or data_at_address.sort not in ["string", "unknown"]:
                 continue
 
             section = loader.main_object.find_section_containing(address)
             read_only = False if section is None else not section.is_writable
-            code_location = \
-                CodeLocation(0, 0, info={'readonly': True}) if read_only else ExternalCodeLocation()
+            code_location = CodeLocation(0, 0, info={"readonly": True}) if read_only else ExternalCodeLocation()
 
             def _string_and_length_from(data_at_address):
                 if data_at_address.content is None:
                     return UNDEFINED, data_at_address.size
                 else:
-                    return data_at_address.content.decode('utf-8'), data_at_address.size + 1
+                    return data_at_address.content.decode("utf-8"), data_at_address.size + 1
+
             _, string_length = _string_and_length_from(data_at_address)
 
             memory_location_definition = Definition(

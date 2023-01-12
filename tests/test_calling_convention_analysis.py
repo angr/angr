@@ -34,9 +34,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             authenticate = cfg.functions[func_name]
             _ = fauxware.analyses.VariableRecoveryFast(authenticate)
 
-            cc_analysis = fauxware.analyses.CallingConvention(
-                authenticate, cfg=cfg, analyze_callsites=True
-            )
+            cc_analysis = fauxware.analyses.CallingConvention(authenticate, cfg=cfg, analyze_callsites=True)
             cc = cc_analysis.cc
 
             assert cc == expected_cc
@@ -53,11 +51,21 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         # print "OUTPUT:", map(hex, tag_manager.output_functions())
 
     def test_fauxware_i386(self):
-        self._run_fauxware("i386", [('authenticate', SimCCCdecl(archinfo.arch_from_id('i386')))])
+        self._run_fauxware("i386", [("authenticate", SimCCCdecl(archinfo.arch_from_id("i386")))])
 
     def test_fauxware_x86_64(self):
         amd64 = archinfo.arch_from_id("amd64")
-        self._run_fauxware("x86_64", [('authenticate', SimCCSystemVAMD64(amd64, )),])
+        self._run_fauxware(
+            "x86_64",
+            [
+                (
+                    "authenticate",
+                    SimCCSystemVAMD64(
+                        amd64,
+                    ),
+                ),
+            ],
+        )
 
     @requires_binaries_private
     def test_cgc_binary1(self):
@@ -81,9 +89,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def check_args(self, func_name, args, expected_arg_strs):
 
-        assert len(args) == len(
-            expected_arg_strs
-        ), "Wrong number of arguments for function %s. Got %d, expect %d." % (
+        assert len(args) == len(expected_arg_strs), "Wrong number of arguments for function %s. Got %d, expect %d." % (
             func_name,
             len(args),
             len(expected_arg_strs),
@@ -160,9 +166,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         cfg = proj.analyses.CFG()
 
-        proj.analyses.CompleteCallingConventions(
-            recover_variables=True, cfg=cfg.model, analyze_callsites=True
-        )
+        proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model, analyze_callsites=True)
 
         funcs = cfg.kb.functions
 
@@ -205,8 +209,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         prototype = cca.prototype
 
         assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function "
-            "0x80494f0."
+            "Calling convention analysis failed to determine the calling convention of function " "0x80494f0."
         )
         assert isinstance(cc, SimCCCdecl)
         assert len(prototype.args) == 3
@@ -224,8 +227,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         assert func_exit.returning is False
         assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function "
-            "0x804a1a9."
+            "Calling convention analysis failed to determine the calling convention of function " "0x804a1a9."
         )
         assert isinstance(cc, SimCCCdecl)
         assert len(prototype.args) == 1
@@ -247,7 +249,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         binary_path = os.path.join(test_location, "tests", "x86_64", "cwebp-0.3.1-feh-original")
         proj = angr.Project(binary_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True, force_complete_scan=False)
-        func = proj.kb.functions.get_by_addr(0x4046e0)
+        func = proj.kb.functions.get_by_addr(0x4046E0)
         cca = proj.analyses.CallingConvention(func=func, cfg=cfg, analyze_callsites=True)
 
         assert cca.prototype is not None
@@ -256,8 +258,8 @@ class TestCallingConventionAnalysis(unittest.TestCase):
     def test_armhf_thumb_movcc(self):
         binary_path = os.path.join(test_location, "tests", "armhf", "amp_challenge_07.gcc")
         proj = angr.Project(binary_path, auto_load_libs=False)
-        _ = proj.analyses.CFGFast(normalize=True, data_references=True, regions=[(0xfec94, 0xfef60)])
-        f = proj.kb.functions[0xfec95]
+        _ = proj.analyses.CFGFast(normalize=True, data_references=True, regions=[(0xFEC94, 0xFEF60)])
+        f = proj.kb.functions[0xFEC95]
         proj.analyses.VariableRecoveryFast(f)
         cca = proj.analyses.CallingConvention(f)
 
@@ -272,8 +274,9 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         cfg = proj.analyses.CFG(normalize=True)  # fill in the default kb
 
-        _ = proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True, workers=4,
-                                                     show_progressbar=True)
+        _ = proj.analyses.CompleteCallingConventions(
+            cfg=cfg.model, recover_variables=True, workers=4, show_progressbar=True
+        )
 
         for func in cfg.functions.values():
             assert func.is_prototype_guessed is True
@@ -286,9 +289,10 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             proj.analyses.CFG(normalize=True)
             proj.analyses.CompleteCallingConventions(recover_variables=True)
 
-            for func in ['target', 'direct', 'plt']:
-                self.assertEqual(str(proj.kb.functions[func].prototype), '(long long (64 bits)) -> long long (64 bits)')
+            for func in ["target", "direct", "plt"]:
+                self.assertEqual(str(proj.kb.functions[func].prototype), "(long long (64 bits)) -> long long (64 bits)")
                 # technically should be (int) -> int, but the compiler loads all 64 bits and then truncates
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)

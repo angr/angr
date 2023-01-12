@@ -1,55 +1,59 @@
 import logging
 
 from angr import SIM_PROCEDURES, options
-from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
-                                SootAddressTerminator, SootArgument,
-                                SootNullConstant)
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootAddressTerminator, SootArgument, SootNullConstant
 from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS
 from claripy.ast.fp import FP, fpToIEEEBV
 from claripy.ast.bv import BV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SootMixin
-from ..engines.soot.expressions import SimSootExpr_NewArray #, SimSootExpr_NewMultiArray
-from ..engines.soot.values import (SimSootValue_ArrayRef,
-                                   SimSootValue_StringRef,
-                                   SimSootValue_ThisRef,
-                                   SimSootValue_StaticFieldRef)
+from ..engines.soot.expressions import SimSootExpr_NewArray  # , SimSootExpr_NewMultiArray
+from ..engines.soot.values import (
+    SimSootValue_ArrayRef,
+    SimSootValue_StringRef,
+    SimSootValue_ThisRef,
+    SimSootValue_StaticFieldRef,
+)
 from ..errors import AngrSimOSError
 from ..procedures.java_jni import jni_functions
 from ..sim_state import SimState
 from ..sim_type import SimTypeFunction, SimTypeNum
 from .simos import SimOS
 
-l = logging.getLogger('angr.simos.JavaVM')
+l = logging.getLogger("angr.simos.JavaVM")
 
 
 class SimJavaVM(SimOS):
-
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, name='JavaVM', **kwargs)
+        super().__init__(*args, name="JavaVM", **kwargs)
 
         # is the binary using JNI libraries?
         self.is_javavm_with_jni_support = self.project.loader.main_object.jni_support
 
         if self.is_javavm_with_jni_support:
             # Step 1: find all native libs
-            self.native_libs = [obj for obj in self.project.loader.initial_load_objects
-                                    if not isinstance(obj.arch, ArchSoot)]
+            self.native_libs = [
+                obj for obj in self.project.loader.initial_load_objects if not isinstance(obj.arch, ArchSoot)
+            ]
 
             if len(self.native_libs) == 0:
                 raise AngrSimOSError("No JNI lib was loaded. Is the jni_libs_ld_path set correctly?")
 
             # Step 2: determine and set the native SimOS
             from . import os_mapping  # import dynamically, since the JavaVM class is part of the os_mapping dict
+
             # for each native library get the Arch
             native_libs_arch = {obj.arch.__class__ for obj in self.native_libs}
             # for each native library get the compatible SimOS
             native_libs_simos = {os_mapping[obj.os] for obj in self.native_libs}
             # show warning, if more than one SimOS or Arch would be required
             if len(native_libs_simos) > 1 or len(native_libs_arch) > 1:
-                l.warning("Native libraries appear to require different SimOS's (%s) or Arch's (%s).",
-                          native_libs_simos, native_libs_arch)
+                l.warning(
+                    "Native libraries appear to require different SimOS's (%s) or Arch's (%s).",
+                    native_libs_simos,
+                    native_libs_arch,
+                )
             # instantiate the native SimOS
             if native_libs_simos:
                 self.native_simos = native_libs_simos.pop()(self.project)
@@ -62,7 +66,7 @@ class SimJavaVM(SimOS):
             self.native_symbols = {}
             for lib in self.native_libs:
                 for name, symbol in lib.symbols_by_name.items():
-                    if name.startswith('Java'):
+                    if name.startswith("Java"):
                         self.native_symbols[name] = symbol
 
             # Step 4: Allocate memory for the return hook
@@ -79,14 +83,14 @@ class SimJavaVM(SimOS):
             #    table entries with SimProcedures, which then implement the effects of the interface functions.
 
             # i)   First we allocate memory for the JNIEnv pointer and the function table
-            native_addr_size = self.native_simos.arch.bits//8
-            function_table_size = native_addr_size*len(jni_functions)
+            native_addr_size = self.native_simos.arch.bits // 8
+            function_table_size = native_addr_size * len(jni_functions)
             self.jni_env = self.project.loader.extern_object.allocate(native_addr_size)
             self.jni_function_table = self.project.loader.extern_object.allocate(function_table_size)
             # ii)  Then we hook each table entry with the corresponding sim procedure
             for idx, jni_function in enumerate(jni_functions.values()):
                 addr = self.jni_function_table + idx * native_addr_size
-                self.project.hook(addr, SIM_PROCEDURES['java_jni'][jni_function]())
+                self.project.hook(addr, SIM_PROCEDURES["java_jni"][jni_function]())
             # iii) Lastly, we store the targets of the JNIEnv and function pointer in memory.
             #      => This is done for a specific state (see state_blank)
 
@@ -94,16 +98,19 @@ class SimJavaVM(SimOS):
     # States
     #
 
-    def state_blank(self, addr=None, **kwargs): # pylint: disable=arguments-differ
+    def state_blank(self, addr=None, **kwargs):  # pylint: disable=arguments-differ
 
-        if not kwargs.get('mode', None): kwargs['mode'] = self.project._default_analysis_mode
-        if not kwargs.get('arch', None):  kwargs['arch'] = self.arch
-        if not kwargs.get('os_name', None): kwargs['os_name'] = self.name
+        if not kwargs.get("mode", None):
+            kwargs["mode"] = self.project._default_analysis_mode
+        if not kwargs.get("arch", None):
+            kwargs["arch"] = self.arch
+        if not kwargs.get("os_name", None):
+            kwargs["os_name"] = self.name
         # enable support for string analysis
-        add_options = kwargs.get('add_options', set())
+        add_options = kwargs.get("add_options", set())
         add_options.add(options.STRINGS_ANALYSIS)
         add_options.add(options.COMPOSITE_SOLVER)
-        kwargs['add_options'] = add_options
+        kwargs["add_options"] = add_options
 
         if self.is_javavm_with_jni_support:
             # If the JNI support is enabled (i.e. JNI libs are loaded), the SimState
@@ -115,26 +122,31 @@ class SimJavaVM(SimOS):
             state = super().state_blank(addr=0, **kwargs)
             native_addr_size = self.native_simos.arch.bits
             # Let the JNIEnv pointer point to the function table
-            state.memory.store(addr=self.jni_env,
-                               data=BVV(self.jni_function_table, native_addr_size),
-                               endness=self.native_arch.memory_endness)
+            state.memory.store(
+                addr=self.jni_env,
+                data=BVV(self.jni_function_table, native_addr_size),
+                endness=self.native_arch.memory_endness,
+            )
             # Initialize the function table
             # => Each entry usually contains the address of the function, but since we hook all functions
             #    with SimProcedures, we store the address of the corresponding hook instead.
             #    This, by construction, is exactly the address of the function table entry itself.
             for idx in range(len(jni_functions)):
-                jni_function_addr = self.jni_function_table + idx * native_addr_size//8
-                state.memory.store(addr=jni_function_addr,
-                                   data=BVV(jni_function_addr, native_addr_size),
-                                   endness=self.native_arch.memory_endness)
+                jni_function_addr = self.jni_function_table + idx * native_addr_size // 8
+                state.memory.store(
+                    addr=jni_function_addr,
+                    data=BVV(jni_function_addr, native_addr_size),
+                    endness=self.native_arch.memory_endness,
+                )
 
         else:
             # w/o JNI support, we can just use a blank state
             state = SimState(project=self.project, **kwargs)
 
         if not self.project.entry and not addr:
-            raise ValueError("Failed to init blank state. Project entry is not set/invalid "
-                             "and no address was provided.")
+            raise ValueError(
+                "Failed to init blank state. Project entry is not set/invalid " "and no address was provided."
+            )
 
         # init state register
         state.regs._ip = addr if addr else self.project.entry
@@ -151,8 +163,9 @@ class SimJavaVM(SimOS):
         state.callstack.push(new_frame)
 
         # initialize class containing the current method
-        state.javavm_classloader.get_class(state.addr.method.class_name,
-                                           init_class=True, step_func=kwargs.get('step_function', None))
+        state.javavm_classloader.get_class(
+            state.addr.method.class_name, init_class=True, step_func=kwargs.get("step_function", None)
+        )
 
         # initialize the Java environment
         # TODO move this to `state_full_init?
@@ -161,7 +174,7 @@ class SimJavaVM(SimOS):
 
         return state
 
-    def state_entry(self, args=None, **kwargs): # pylint: disable=arguments-differ
+    def state_entry(self, args=None, **kwargs):  # pylint: disable=arguments-differ
         """
         Create an entry state.
 
@@ -170,14 +183,13 @@ class SimJavaVM(SimOS):
         state = self.state_blank(**kwargs)
         # for the Java main method `public static main(String[] args)`,
         # we add symbolic cmdline arguments
-        if not args and state.addr.method.name == 'main' and \
-                        state.addr.method.params[0] == 'java.lang.String[]':
-            cmd_line_args = SimSootExpr_NewArray.new_array(state, "java.lang.String", BVS('argc', 32))
+        if not args and state.addr.method.name == "main" and state.addr.method.params[0] == "java.lang.String[]":
+            cmd_line_args = SimSootExpr_NewArray.new_array(state, "java.lang.String", BVS("argc", 32))
             cmd_line_args.add_default_value_generator(self.generate_symbolic_cmd_line_arg)
             args = [SootArgument(cmd_line_args, "java.lang.String[]")]
             # for referencing the Java array, we need to know the array reference
             # => saves it in the globals dict
-            state.globals['cmd_line_args'] = cmd_line_args
+            state.globals["cmd_line_args"] = cmd_line_args
         # setup arguments
         SootMixin.setup_arguments(state, args)
         return state
@@ -201,19 +213,19 @@ class SimJavaVM(SimOS):
         :param addr:    Soot or native addr of the invoke target.
         :param args:   List of SootArgument values.
         """
-        state = kwargs.pop('base_state', None)
+        state = kwargs.pop("base_state", None)
         # check if we need to setup a native or a java callsite
         if isinstance(addr, SootAddressDescriptor):
             # JAVA CALLSITE
             # ret addr precedence: ret_addr kwarg > base_state.addr > terminator
-            ret_addr = kwargs.pop('ret_addr', state.addr if state else SootAddressTerminator())
-            cc = kwargs.pop('cc', SimCCSoot(self.arch))
+            ret_addr = kwargs.pop("ret_addr", state.addr if state else SootAddressTerminator())
+            cc = kwargs.pop("cc", SimCCSoot(self.arch))
             if state is None:
                 state = self.state_blank(addr=addr, **kwargs)
             else:
                 state = state.copy()
                 state.regs.ip = addr
-            cc.setup_callsite(state, ret_addr, args, kwargs.pop('prototype', None))
+            cc.setup_callsite(state, ret_addr, args, kwargs.pop("prototype", None))
             return state
 
         else:
@@ -221,23 +233,22 @@ class SimJavaVM(SimOS):
 
             # setup native return type
             # TODO roll this into protytype
-            ret_type = kwargs.pop('ret_type')
+            ret_type = kwargs.pop("ret_type")
             native_ret_type = self.get_native_type(ret_type)
 
             # setup function prototype, so the SimCC know how to init the callsite
-            prototype = kwargs.pop('prototype', None)
+            prototype = kwargs.pop("prototype", None)
             if prototype is None:
                 arg_types = [self.get_native_type(arg.type) for arg in args]
                 prototype = SimTypeFunction(args=arg_types, returnty=native_ret_type)
-            native_cc = kwargs.pop('cc', None)
+            native_cc = kwargs.pop("cc", None)
             if native_cc is None:
                 native_cc = self.get_native_cc()
 
             # setup native argument values
             native_arg_values = []
             for arg, arg_ty in zip(args, prototype.args):
-                if arg.type in ArchSoot.primitive_types or \
-                   arg.type == "JNIEnv":
+                if arg.type in ArchSoot.primitive_types or arg.type == "JNIEnv":
                     # the value of primitive types and the JNIEnv pointer
                     # are just getting copied into the native memory
                     native_arg_value = arg.value
@@ -250,14 +261,12 @@ class SimJavaVM(SimOS):
                         upper = native_arg_value.get_bytes(0, 4)
                         lower = native_arg_value.get_bytes(4, 4)
                         idx = args.index(arg)
-                        args = args[:idx] \
-                               + (SootArgument(upper, 'int'), SootArgument(lower, 'int')) \
-                               + args[idx+1:]
+                        args = args[:idx] + (SootArgument(upper, "int"), SootArgument(lower, "int")) + args[idx + 1 :]
                         native_arg_values += [upper, lower]
                         continue
                     if type(arg.value) is BV and len(arg.value) > arg_ty.size:
                         # hack??? all small primitives are passed around as 32bit but cc won't like that
-                        native_arg_value = native_arg_value[arg_ty.size - 1:0]
+                        native_arg_value = native_arg_value[arg_ty.size - 1 : 0]
                 else:
                     # argument has a relative type
                     # => map Java reference to an opaque reference, which the native code
@@ -266,10 +275,15 @@ class SimJavaVM(SimOS):
                 native_arg_values += [native_arg_value]
 
             # setup native invoke state
-            return self.native_simos.state_call(addr, *native_arg_values,
-                                                base_state=state,
-                                                ret_addr=self.native_return_hook_addr,
-                                                cc=native_cc, prototype=prototype, **kwargs)
+            return self.native_simos.state_call(
+                addr,
+                *native_arg_values,
+                base_state=state,
+                ret_addr=self.native_return_hook_addr,
+                cc=native_cc,
+                prototype=prototype,
+                **kwargs,
+            )
 
     #
     # MISC
@@ -291,35 +305,35 @@ class SimJavaVM(SimOS):
 
     @staticmethod
     def _get_default_symbolic_value_by_type(type_, state):
-        if type_ in ['byte', 'char', 'short', 'int', 'boolean']:
-            return BVS(f'default_value_{type_}', 32)
+        if type_ in ["byte", "char", "short", "int", "boolean"]:
+            return BVS(f"default_value_{type_}", 32)
         if type_ == "long":
-            return BVS(f'default_value_{type_}', 64)
-        if type_ == 'float':
-            return FPS(f'default_value_{type_}', FSORT_FLOAT)
-        if type_ == 'double':
-            return FPS(f'default_value_{type_}', FSORT_DOUBLE)
-        if type_ == 'java.lang.String':
-            return SimSootValue_StringRef.new_string(state, StringS(f'default_value_{type_}', 1000))
-        if type_.endswith('[][]'):
+            return BVS(f"default_value_{type_}", 64)
+        if type_ == "float":
+            return FPS(f"default_value_{type_}", FSORT_FLOAT)
+        if type_ == "double":
+            return FPS(f"default_value_{type_}", FSORT_DOUBLE)
+        if type_ == "java.lang.String":
+            return SimSootValue_StringRef.new_string(state, StringS(f"default_value_{type_}", 1000))
+        if type_.endswith("[][]"):
             raise NotImplementedError
             # multiarray = SimSootExpr_NewMultiArray.new_array(self.state, element_type, size)
             # multiarray.add_default_value_generator(lambda s: SimSootExpr_NewMultiArray._generate_inner_array(s, element_type, sizes))
             # return  multiarray
-        if type_.endswith('[]'):
+        if type_.endswith("[]"):
             array = SimSootExpr_NewArray.new_array(state, type_[:-2], BVV(2, 32))
             return array
         return SimSootValue_ThisRef.new_object(state, type_, symbolic=True, init_object=False)
 
     @staticmethod
-    def _get_default_concrete_value_by_type(type_, state=None): # pylint: disable=unused-argument
-        if type_ in ['byte', 'char', 'short', 'int', 'boolean']:
+    def _get_default_concrete_value_by_type(type_, state=None):  # pylint: disable=unused-argument
+        if type_ in ["byte", "char", "short", "int", "boolean"]:
             return BVV(0, 32)
         elif type_ == "long":
             return BVV(0, 64)
-        elif type_ == 'float':
+        elif type_ == "float":
             return FPV(0, FSORT_FLOAT)
-        elif type_ == 'double':
+        elif type_ == "double":
             return FPV(0, FSORT_DOUBLE)
         # not a primitive type
         # => treat it as a reference
@@ -334,38 +348,37 @@ class SimJavaVM(SimOS):
         :param to_type:     Name of the targeted type.
         :return:            Resized value.
         """
-        if to_type in ['float', 'double']:
+        if to_type in ["float", "double"]:
             if value.symbolic:
                 # TODO extend support for floating point types
-                l.warning('No support for symbolic floating-point arguments.'
-                          'Value gets concretized.')
+                l.warning("No support for symbolic floating-point arguments." "Value gets concretized.")
             value = float(state.solver.eval(value))
-            sort = FSORT_FLOAT if to_type == 'float' else FSORT_DOUBLE
+            sort = FSORT_FLOAT if to_type == "float" else FSORT_DOUBLE
             return FPV(value, sort)
 
-        elif to_type == 'int' and isinstance(value, FP):
+        elif to_type == "int" and isinstance(value, FP):
             # TODO fix fpToIEEEBV in claripty
-            l.warning('Converting FP to BV might provide incorrect results.')
+            l.warning("Converting FP to BV might provide incorrect results.")
             return fpToIEEEBV(value)[63:32]
 
-        elif to_type == 'long' and isinstance(value, FP):
+        elif to_type == "long" and isinstance(value, FP):
             # TODO fix fpToIEEEBV in claripty
-            l.warning('Converting FP to BV might provide incorrect results.')
+            l.warning("Converting FP to BV might provide incorrect results.")
             return fpToIEEEBV(value)
 
         else:
             # lookup the type size and extract value
             value_size = ArchSoot.sizeof[to_type]
-            value_extracted = value.reversed.get_bytes(index=0, size=value_size//8).reversed
+            value_extracted = value.reversed.get_bytes(index=0, size=value_size // 8).reversed
 
             # determine size of Soot bitvector and resize bitvector
             # Note: smaller types than int's are stored in a 32-bit BV
             value_soot_size = value_size if value_size >= 32 else 32
-            if to_type in ['char', 'boolean']:
+            if to_type in ["char", "boolean"]:
                 # unsigned extend
-                return value_extracted.zero_extend(value_soot_size-value_extracted.size())
+                return value_extracted.zero_extend(value_soot_size - value_extracted.size())
             # signed extend
-            return value_extracted.sign_extend(value_soot_size-value_extracted.size())
+            return value_extracted.sign_extend(value_soot_size - value_extracted.size())
 
     @staticmethod
     def init_static_field(state, field_class_name, field_name, field_type):
@@ -378,14 +391,13 @@ class SimJavaVM(SimOS):
         :param field_name: Name of the field.
         :param field_type: Type of the field and the new object.
         """
-        field_ref = SimSootValue_StaticFieldRef.get_ref(state, field_class_name,
-                                                        field_name, field_type)
+        field_ref = SimSootValue_StaticFieldRef.get_ref(state, field_class_name, field_name, field_type)
         field_val = SimSootValue_ThisRef.new_object(state, field_type)
         state.memory.store(field_ref, field_val)
 
     @staticmethod
     def get_cmd_line_args(state):
-        args_array = state.globals['cmd_line_args']
+        args_array = state.globals["cmd_line_args"]
         no_of_args = state.solver.eval(args_array.size)
         args = []
         for idx in range(no_of_args):
@@ -408,15 +420,14 @@ class SimJavaVM(SimOS):
         """
         for name, symbol in self.native_symbols.items():
             if soot_method.matches_with_native_name(native_method=name):
-                l.debug("Found native symbol '%s' @ %x matching Soot method '%s'",
-                        name, symbol.rebased_addr, soot_method)
+                l.debug(
+                    "Found native symbol '%s' @ %x matching Soot method '%s'", name, symbol.rebased_addr, soot_method
+                )
                 return symbol.rebased_addr
 
         native_symbols = "\n".join(self.native_symbols.keys())
-        l.warning("No native method found that matches the Soot method '%s'. "
-                  "Skipping statement.", soot_method.name)
-        l.debug("Available symbols (prefix + encoded class path + encoded method "
-                "name):\n%s", native_symbols)
+        l.warning("No native method found that matches the Soot method '%s'. " "Skipping statement.", soot_method.name)
+        l.debug("Available symbols (prefix + encoded class path + encoded method " "name):\n%s", native_symbols)
         return None
 
     def get_native_type(self, java_type):
@@ -450,6 +461,7 @@ class SimJavaVM(SimOS):
         """
         native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
         return native_cc_cls(self.native_simos.arch)
+
 
 def prepare_native_return_state(native_state):
     """

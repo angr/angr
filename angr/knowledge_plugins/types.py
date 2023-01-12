@@ -6,23 +6,23 @@ from ..sim_type import ALL_TYPES, TypeRef
 
 
 FRUITS = [
-    'mango',
-    'cherry',
-    'banana',
-    'papaya',
-    'apple',
-    'kiwi',
-    'pineapple',
-    'coconut',
-    'peach',
-    'honeydew',
-    'cucumber',
-    'pumpkin',
-    'cantaloupe',
-    'strawberry',
-    'watermelon',
-    'nectarine',
-    'orange',
+    "mango",
+    "cherry",
+    "banana",
+    "papaya",
+    "apple",
+    "kiwi",
+    "pineapple",
+    "coconut",
+    "peach",
+    "honeydew",
+    "cucumber",
+    "pumpkin",
+    "cantaloupe",
+    "strawberry",
+    "watermelon",
+    "nectarine",
+    "orange",
 ]
 
 
@@ -31,6 +31,7 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
     A kb plugin that stores a mapping from name to TypeRef. It will return types from angr.sim_type.ALL_TYPES as
     a default.
     """
+
     def __init__(self, kb):
         super().__init__()
         self.kb = kb
@@ -74,8 +75,8 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
                 name = fruit
                 break
         else:
-            name = f'type_{random.randint(0x10000000, 0x100000000):x}'
+            name = f"type_{random.randint(0x10000000, 0x100000000):x}"
         return name
 
 
-KnowledgeBasePlugin.register_default('types', TypesStore)
+KnowledgeBasePlugin.register_default("types", TypesStore)

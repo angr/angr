@@ -16,6 +16,7 @@ from .disassembly_utils import decode_instruction
 try:
     from ..engines import pcode
     import pypcode
+
     IRSBType = Union[pyvex.IRSB, pcode.lifter.IRSB]
     IROpObjType = Union[pyvex.stmt.IRStmt, pypcode.PcodeOp]
 except ImportError:
@@ -30,7 +31,7 @@ l = logging.getLogger(name=__name__)
 
 class DisassemblyPiece:
     addr = None
-    ident = float('nan')
+    ident = float("nan")
 
     def render(self, formatting=None):
         x = self._render(formatting)
@@ -47,7 +48,8 @@ class DisassemblyPiece:
 
     def width(self, formatting):
         r = self._render(formatting)
-        if not r: return 0
+        if not r:
+            return 0
         return max(len(x) for x in r)
 
     def height(self, formatting):
@@ -56,17 +58,17 @@ class DisassemblyPiece:
     @staticmethod
     def color(string, coloring, formatting):
         try:
-            return '{}{}{}'.format(formatting['colors'][coloring][0], string, formatting['colors'][coloring][1])
+            return "{}{}{}".format(formatting["colors"][coloring][0], string, formatting["colors"][coloring][1])
         except KeyError:
             return string
 
     def highlight(self, string, formatting=None):
         try:
             if formatting is not None:
-                if 'format_callback' in formatting:
-                    return formatting['format_callback'](self, string)
-                if self in formatting['highlight']:
-                    return self.color(string, 'highlight', formatting)
+                if "format_callback" in formatting:
+                    return formatting["format_callback"](self, string)
+                if self in formatting["highlight"]:
+                    return self.color(string, "highlight", formatting)
         except KeyError:
             pass
         return string
@@ -95,7 +97,7 @@ class FunctionStart(DisassemblyPiece):
 
     def _render(self, formatting):
         # TODO: Make the individual elements be individual Pieces
-        return [f'{name} = {offset:#x}' for offset, name in self.vars]
+        return [f"{name} = {offset:#x}" for offset, name in self.vars]
 
     def height(self, formatting):
         return len(self.vars)
@@ -107,17 +109,17 @@ class Label(DisassemblyPiece):
         self.name = name
 
     def _render(self, formatting):  # pylint:disable=unused-argument
-        return [self.name + ':']
+        return [self.name + ":"]
 
 
 class IROp(DisassemblyPiece):
 
     __slots__ = (
-        'addr',
-        'seq',
-        'obj',
-        'irsb',
-        )
+        "addr",
+        "seq",
+        "obj",
+        "irsb",
+    )
 
     addr: int
     seq: int
@@ -153,10 +155,10 @@ class Hook(DisassemblyPiece):
         self.addr = block.addr
         simproc_name = str(block.sim_procedure)
         self.name = simproc_name.split()[-1].strip("'<>")
-        self.short_name = simproc_name.strip("'<>").split('.')[-1]
+        self.short_name = simproc_name.strip("'<>").split(".")[-1]
 
     def _render(self, formatting):
-        return ['SimProcedure ' + self.short_name]
+        return ["SimProcedure " + self.short_name]
 
     def __eq__(self, other):
         return type(other) is Hook and self.name == other.name
@@ -170,10 +172,10 @@ class Instruction(DisassemblyPiece):
         self.parentblock = parentblock
         self.project = parentblock.project if parentblock is not None else project
         self.arch = self.project.arch
-        self.format = ''
+        self.format = ""
         self.components = ()
         self.opcode = None
-        self.operands = [ ]
+        self.operands = []
 
         # the following members will be filled in after dissecting the instruction
         self.type = None
@@ -204,24 +206,24 @@ class Instruction(DisassemblyPiece):
     def dissect_instruction_for_aarch64(self):
         ## ARM64 consts from capstone
         # ARM64 conditional
-        ARM64_CC = ['', 'eq', 'ne', 'hs', 'lo', 'mi', 'pl', 'vs', 'vc', 'hi', 'ls', 'ge', 'lt', 'gt', 'le', 'al', 'nv']
+        ARM64_CC = ["", "eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt", "gt", "le", "al", "nv"]
         # ARM64 shift type
-        ARM64_SFT = ['', 'lsl', 'lsr', 'asr', 'ror', 'msl']
+        ARM64_SFT = ["", "lsl", "lsr", "asr", "ror", "msl"]
 
         # don't forget to initialize self.opcode
         self.opcode = Opcode(self)
 
         cc = self.insn.cc
         assert 0 <= cc < len(ARM64_CC)
-        expected_cc_op = ''
+        expected_cc_op = ""
         if cc != 0:
             # exists in "B.cc", "BC.cc", or after all operands (e.g. instruction "csel")
-            if not (self.insn.mnemonic.startswith('b.') or self.insn.mnemonic.startswith('bc.')):
+            if not (self.insn.mnemonic.startswith("b.") or self.insn.mnemonic.startswith("bc.")):
                 # a dummy operand (Cond string) is expected at the end of op_str
                 expected_cc_op = ARM64_CC[cc]
 
         # We use capstone for arm64 disassembly, so this assertion must success
-        assert hasattr(self.insn, 'operands')
+        assert hasattr(self.insn, "operands")
 
         if len(self.insn.operands) == 0:
             self.operands = []
@@ -231,14 +233,14 @@ class Instruction(DisassemblyPiece):
         # split by comma outside squared brackets
         dummy_operands = self.split_aarch64_op_string(op_str)
         if len(dummy_operands) != len(self.insn.operands):
-            if not op_str.endswith(expected_cc_op) :
+            if not op_str.endswith(expected_cc_op):
                 l.error(
                     "Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
                     str(self.insn),
                     len(self.operands),
-                    len(self.insn.operands)
+                    len(self.insn.operands),
                 )
-                self.operands = [ ]
+                self.operands = []
                 return
 
         for operand in dummy_operands:
@@ -252,11 +254,12 @@ class Instruction(DisassemblyPiece):
 
             for i, p in enumerate(opr_pieces):
                 if p[0].isnumeric():
-                    if i > 0 and opr_pieces[i-1] == '.' or \
-                       i > 1 and (
-                            opr_pieces[i-2] in ARM64_SFT or
-                            opr_pieces[i-2][:3] in ('uxt', 'sxt')
-                       ):
+                    if (
+                        i > 0
+                        and opr_pieces[i - 1] == "."
+                        or i > 1
+                        and (opr_pieces[i - 2] in ARM64_SFT or opr_pieces[i - 2][:3] in ("uxt", "sxt"))
+                    ):
                         cur_operand.append(p)
                         continue
                     # Always set False. I don't see any '+' sign appear
@@ -268,7 +271,7 @@ class Instruction(DisassemblyPiece):
                         l.error("Failed to parse operand %s at %016x. Please report.", p, self.addr)
                         cur_operand.append(p)
                         continue
-                    if i > 0 and opr_pieces[i-1] == '-':
+                    if i > 0 and opr_pieces[i - 1] == "-":
                         v = -v
                         cur_operand.pop()
                     cur_operand.append(Value(v, with_sign))
@@ -284,35 +287,29 @@ class Instruction(DisassemblyPiece):
             else:
                 # set extra dummy operand type to default 0
                 op_type = 0
-            self.operands[i] = Operand.build(
-                op_type,
-                i,
-                opr,
-                self
-            )
+            self.operands[i] = Operand.build(op_type, i, opr, self)
 
     @staticmethod
     def split_aarch64_op_string(op_str: str):
         pieces = []
         outside_brackets = True
-        cur_opr = ''
+        cur_opr = ""
         for c in op_str:
-            if c == '[' or c == '{':
+            if c == "[" or c == "{":
                 outside_brackets = False
-            if c == ']' or c == '}':
+            if c == "]" or c == "}":
                 outside_brackets = True
-            if c == ',' and outside_brackets:
+            if c == "," and outside_brackets:
                 pieces.append(cur_opr)
-                cur_opr = ''
+                cur_opr = ""
                 continue
-            if c == ' ':
+            if c == " ":
                 continue
             cur_opr += c
         if cur_opr:
             pieces.append(cur_opr)
 
         return pieces
-
 
     def dissect_instruction_by_default(self):
         # perform a "smart split" of an operands string into smaller pieces
@@ -326,7 +323,7 @@ class Instruction(DisassemblyPiece):
         # iterate over operands in reverse order
         while i >= 0:
             c = insn_pieces[i]
-            if c == '':
+            if c == "":
                 i -= 1
                 continue
 
@@ -337,9 +334,7 @@ class Instruction(DisassemblyPiece):
             # Check if this is a number or an identifier.
             ordc = ord(c[0])
             # pylint:disable=too-many-boolean-expressions
-            if 0x30 <= ordc <= 0x39 or \
-               0x41 <= ordc <= 0x5a or \
-               0x61 <= ordc <= 0x7a:
+            if 0x30 <= ordc <= 0x39 or 0x41 <= ordc <= 0x5A or 0x61 <= ordc <= 0x7A:
 
                 # perform some basic classification
                 intc = None
@@ -355,50 +350,50 @@ class Instruction(DisassemblyPiece):
                 # - integers should consolidate with a sign prefix
 
                 if reg:
-                    prefix = ''
-                    if i > 0 and insn_pieces[i-1] in ('$', '%'):
-                        prefix = insn_pieces[i-1]
-                        insn_pieces[i-1] = ''
+                    prefix = ""
+                    if i > 0 and insn_pieces[i - 1] in ("$", "%"):
+                        prefix = insn_pieces[i - 1]
+                        insn_pieces[i - 1] = ""
                     cur_operand.append(Register(c, prefix))
                 elif intc is not None:
                     with_sign = False
-                    if i > 0 and insn_pieces[i-1] in ('+', '-'):
+                    if i > 0 and insn_pieces[i - 1] in ("+", "-"):
                         with_sign = True
-                        if insn_pieces[i-1] == '-':
+                        if insn_pieces[i - 1] == "-":
                             intc = -intc  # pylint: disable=invalid-unary-operand-type
-                        insn_pieces[i-1] = ''
+                        insn_pieces[i - 1] = ""
                     cur_operand.append(Value(intc, with_sign))
                 else:
                     cur_operand.append(c)
 
-            elif c == ',' and not nested_mem:
+            elif c == "," and not nested_mem:
                 cs_op_num -= 1
                 cur_operand = None
 
-            elif c == ':': # XXX this is a hack! fix this later
-                insn_pieces[i-1] += ':'
+            elif c == ":":  # XXX this is a hack! fix this later
+                insn_pieces[i - 1] += ":"
 
             else:
                 # Check if we are inside braces or parentheses. Do not forget
                 # that we are iterating in reverse order!
-                if c == ']' or c == ')':
+                if c == "]" or c == ")":
                     nested_mem = True
 
-                elif (c == '[' or c == '('):
+                elif c == "[" or c == "(":
                     nested_mem = False
 
                 if cur_operand is None:
                     cur_operand = [c]
                     self.operands.append(cur_operand)
                 else:
-                    cur_operand.append(c if c[0] != ',' else c + ' ')
+                    cur_operand.append(c if c[0] != "," else c + " ")
 
             i -= 1
 
         self.opcode = Opcode(self)
         self.operands.reverse()
 
-        if not hasattr(self.insn, 'operands'):
+        if not hasattr(self.insn, "operands"):
             # Not all disassemblers provide operands. Just use our smart split
             for i, o in enumerate(self.operands):
                 o.reverse()
@@ -410,19 +405,14 @@ class Instruction(DisassemblyPiece):
                 "Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
                 str(self.insn),
                 len(self.operands),
-                len(self.insn.operands)
+                len(self.insn.operands),
             )
-            self.operands = [ ]
+            self.operands = []
             return
 
         for i, o in enumerate(self.operands):
             o.reverse()
-            self.operands[i] = Operand.build(
-                self.insn.operands[i].type,
-                i,
-                o,
-                self
-            )
+            self.operands[i] = Operand.build(self.insn.operands[i].type, i, o, self)
 
     @staticmethod
     def split_op_string(insn_str):
@@ -444,7 +434,9 @@ class Instruction(DisassemblyPiece):
         return pieces
 
     def _render(self, formatting=None):
-        return ['{} {}'.format(self.opcode.render(formatting)[0], ', '.join(o.render(formatting)[0] for o in self.operands))]
+        return [
+            "{} {}".format(self.opcode.render(formatting)[0], ", ".join(o.render(formatting)[0] for o in self.operands))
+        ]
 
 
 class SootExpression(DisassemblyPiece):
@@ -461,7 +453,7 @@ class SootExpressionTarget(SootExpression):
         self.target_stmt_idx = target_stmt_idx
 
     def _render(self, formatting=None):
-        return [ "Goto %d" % self.target_stmt_idx ]
+        return ["Goto %d" % self.target_stmt_idx]
 
 
 class SootExpressionStaticFieldRef(SootExpression):
@@ -472,7 +464,7 @@ class SootExpressionStaticFieldRef(SootExpression):
         self.field_str = field_str
 
     def _render(self, formatting=None):
-        return [ self.field_str ]
+        return [self.field_str]
 
 
 class SootExpressionInvoke(SootExpression):
@@ -492,12 +484,11 @@ class SootExpressionInvoke(SootExpression):
 
     def _render(self, formatting=None):
 
-        return [ "{}{}({}) [{}]".format(self.base + "." if self.base else "",
-                                    self.method_name,
-                                    self.arg_str,
-                                    self.invoke_type
-                                    )
-                 ]
+        return [
+            "{}{}({}) [{}]".format(
+                self.base + "." if self.base else "", self.method_name, self.arg_str, self.invoke_type
+            )
+        ]
 
 
 class SootStatement(DisassemblyPiece):
@@ -506,7 +497,7 @@ class SootStatement(DisassemblyPiece):
         self.addr.stmt_idx = raw_stmt.label
         self.raw_stmt = raw_stmt
 
-        self.components = [ ]
+        self.components = []
 
         self._parse()
 
@@ -535,12 +526,14 @@ class SootStatement(DisassemblyPiece):
             return SootExpression(str(expr))
 
     def _render(self, formatting=None):
-        return [ " ".join([ component if type(component) is str
-                            else component.render(formatting=formatting)[0]
-                            for component in self.components
-                            ]
-                          )
-                 ]
+        return [
+            " ".join(
+                [
+                    component if type(component) is str else component.render(formatting=formatting)[0]
+                    for component in self.components
+                ]
+            )
+        ]
 
     #
     # Statement parsers
@@ -616,7 +609,7 @@ class Opcode(DisassemblyPiece):
         self.insn = parentinsn.insn
         self.parentinsn = parentinsn
         self.opcode_string = self.insn.mnemonic
-        self.ident = (self.addr, 'opcode')
+        self.ident = (self.addr, "opcode")
 
     def _render(self, formatting=None):
         return [self.opcode_string.ljust(7)]
@@ -631,11 +624,11 @@ class Operand(DisassemblyPiece):
         self.children = children
         self.parentinsn = parentinsn
         self.op_num = op_num
-        self.ident = (self.addr, 'operand', self.op_num)
+        self.ident = (self.addr, "operand", self.op_num)
 
         for i, c in enumerate(self.children):
             if type(c) not in (bytes, str):
-                c.ident = (self.addr, 'operand piece', self.op_num, i)
+                c.ident = (self.addr, "operand piece", self.op_num, i)
                 c.parentop = self
 
     @property
@@ -643,18 +636,23 @@ class Operand(DisassemblyPiece):
         return self.parentinsn.insn.operands[self.op_num]
 
     def _render(self, formatting):
-        return [''.join(x if type(x) is str else x.decode() if type(x) is bytes else x.render(formatting)[0] for x in self.children)]
+        return [
+            "".join(
+                x if type(x) is str else x.decode() if type(x) is bytes else x.render(formatting)[0]
+                for x in self.children
+            )
+        ]
 
     @staticmethod
     def build(operand_type, op_num, children, parentinsn):
 
         # Maps capstone operand types to operand classes
         MAPPING = {
-            0: Operand,   # default type for operand that haven't been fully implemented
+            0: Operand,  # default type for operand that haven't been fully implemented
             1: RegisterOperand,
             2: ConstantOperand,
             3: MemoryOperand,
-            4: Operand,   # ARM FP
+            4: Operand,  # ARM FP
             64: Operand,  # ARM CIMM
             65: Operand,  # ARM PIMM   | ARM64 REG_MRS
             66: Operand,  # ARM SETEND | ARM64 REG_MSR
@@ -666,20 +664,18 @@ class Operand(DisassemblyPiece):
 
         cls = MAPPING.get(operand_type, None)
         if cls is None:
-            raise ValueError('Unknown capstone operand type %s.' % operand_type)
+            raise ValueError("Unknown capstone operand type %s." % operand_type)
 
         operand = cls(op_num, children, parentinsn)
 
         # Post-processing
-        if cls is MemoryOperand and \
-                parentinsn.arch.name in { 'AMD64' } and \
-                len(operand.values) == 2:
+        if cls is MemoryOperand and parentinsn.arch.name in {"AMD64"} and len(operand.values) == 2:
             op0, op1 = operand.values
             if type(op0) is Register and op0.is_ip and type(op1) is Value:
                 # Indirect addressing in x86_64
                 # 400520  push [rip+0x200782] ==>  400520  push [0x600ca8]
                 absolute_addr = parentinsn.addr + parentinsn.size + op1.val
-                return MemoryOperand(1, operand.prefix + ['[', Value(absolute_addr, False), ']'], parentinsn)
+                return MemoryOperand(1, operand.prefix + ["[", Value(absolute_addr, False), "]"], parentinsn)
 
         return operand
 
@@ -689,7 +685,6 @@ class ConstantOperand(Operand):
 
 
 class RegisterOperand(Operand):
-
     @property
     def register(self):
         return next((child for child in self.children if isinstance(child, Register)), None)
@@ -697,8 +692,10 @@ class RegisterOperand(Operand):
     def _render(self, formatting):
         custom_value_str = None
         if formatting is not None:
-            try: custom_value_str = formatting['custom_values_str'][self.ident]
-            except KeyError: pass
+            try:
+                custom_value_str = formatting["custom_values_str"][self.ident]
+            except KeyError:
+                pass
 
         if custom_value_str:
             return [custom_value_str]
@@ -720,10 +717,10 @@ class MemoryOperand(Operand):
         # it will be converted into more meaningful and Pythonic properties
 
         self.segment_selector = None
-        self.prefix = [ ]
-        self.suffix_str = ''   # could be arm pre index mark "!"
-        self.values = [ ]
-        self.offset = [ ]
+        self.prefix = []
+        self.suffix_str = ""  # could be arm pre index mark "!"
+        self.values = []
+        self.offset = []
         # offset_location
         # - prefix: -0xff00($gp)
         # - before_value: 0xff00+rax
@@ -736,9 +733,9 @@ class MemoryOperand(Operand):
         self.values_style = "square"
 
         try:
-            if '[' in self.children:
+            if "[" in self.children:
                 self._parse_memop_squarebracket()
-            elif '(' in self.children:
+            elif "(" in self.children:
                 self._parse_memop_paren()
             else:
                 raise ValueError()
@@ -751,51 +748,51 @@ class MemoryOperand(Operand):
             self.values = None
 
     def _parse_memop_squarebracket(self):
-        if self.children[0] != '[':
+        if self.children[0] != "[":
             try:
-                square_bracket_pos = self.children.index('[')
-            except ValueError:  #pylint: disable=try-except-raise
+                square_bracket_pos = self.children.index("[")
+            except ValueError:  # pylint: disable=try-except-raise
                 raise
 
-            self.prefix = self.children[ : square_bracket_pos]
+            self.prefix = self.children[:square_bracket_pos]
 
             # take out segment selector
             if len(self.prefix) == 3:
                 self.segment_selector = self.prefix[-1]
-                self.prefix = self.prefix[ : -1]
+                self.prefix = self.prefix[:-1]
             else:
                 self.segment_selector = None
 
         else:
             # empty
             square_bracket_pos = 0
-            self.prefix = [ ]
+            self.prefix = []
             self.segment_selector = None
 
         close_square_pos = len(self.children) - 1
-        if self.children[-1] != ']':
-            if self.children[-1] == '!' and self.children[-2] == ']':
+        if self.children[-1] != "]":
+            if self.children[-1] == "!" and self.children[-2] == "]":
                 # arm64 pre index
-                self.suffix_str = '!'
+                self.suffix_str = "!"
                 close_square_pos -= 1
             else:
                 raise ValueError()
 
-        self.values = self.children[square_bracket_pos + 1: close_square_pos]
+        self.values = self.children[square_bracket_pos + 1 : close_square_pos]
 
     def _parse_memop_paren(self):
-        offset = [ ]
+        offset = []
         self.values_style = "paren"
 
-        if self.children[0] != '(':
+        if self.children[0] != "(":
             try:
-                paren_pos = self.children.index('(')
-            except ValueError:  #pylint: disable=try-except-raise
+                paren_pos = self.children.index("(")
+            except ValueError:  # pylint: disable=try-except-raise
                 raise
 
             if all(isinstance(item, str) for item in self.children[:paren_pos]):
                 # parse prefix
-                self.prefix = self.children[ : paren_pos]
+                self.prefix = self.children[:paren_pos]
             elif all(isinstance(item, Value) for item in self.children[:paren_pos]):
                 # parse offset
                 # force each piece to be rendered with its sign (+/-)
@@ -805,7 +802,7 @@ class MemoryOperand(Operand):
 
         else:
             paren_pos = 0
-            self.prefix = [ ]
+            self.prefix = []
             self.segment_selector = None
 
         self.values = self.children[paren_pos + 1 : len(self.children) - 1]
@@ -821,24 +818,28 @@ class MemoryOperand(Operand):
             custom_values_str = None
 
             if formatting is not None:
-                try: values_style = formatting['values_style'][self.ident]
-                except KeyError: pass
+                try:
+                    values_style = formatting["values_style"][self.ident]
+                except KeyError:
+                    pass
 
                 try:
-                    show_prefix_str = formatting['show_prefix'][self.ident]
-                    if show_prefix_str in ('false', 'False'):
+                    show_prefix_str = formatting["show_prefix"][self.ident]
+                    if show_prefix_str in ("false", "False"):
                         show_prefix = False
                 except KeyError:
                     pass
 
-                try: custom_values_str = formatting['custom_values_str'][self.ident]
-                except KeyError: pass
+                try:
+                    custom_values_str = formatting["custom_values_str"][self.ident]
+                except KeyError:
+                    pass
 
             prefix_str = " ".join(self.prefix) + " " if show_prefix and self.prefix else ""
             if custom_values_str is not None:
                 value_str = custom_values_str
             else:
-                value_str = ''.join(
+                value_str = "".join(
                     x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.values
                 )
 
@@ -856,23 +857,23 @@ class MemoryOperand(Operand):
 
                 # combine values and offsets according to self.offset_location
                 if self.offset_location == "prefix":
-                    value_str = ''.join([offset_str, left_paren, value_str, right_paren])
+                    value_str = "".join([offset_str, left_paren, value_str, right_paren])
                 elif self.offset_location == "before_value":
-                    value_str = ''.join([left_paren, offset_str, value_str, right_paren])
+                    value_str = "".join([left_paren, offset_str, value_str, right_paren])
                 else:  # after_value
-                    value_str = ''.join([left_paren, value_str, offset_str, right_paren])
+                    value_str = "".join([left_paren, value_str, offset_str, right_paren])
             else:
                 value_str = left_paren + value_str + right_paren
 
             segment_selector_str = "" if self.segment_selector is None else self.segment_selector
 
             if segment_selector_str and prefix_str:
-                prefix_str += ' '
+                prefix_str += " "
 
-            return [ f'{prefix_str}{segment_selector_str}{value_str}{self.suffix_str}' ]
+            return [f"{prefix_str}{segment_selector_str}{value_str}{self.suffix_str}"]
 
 
-class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
+class OperandPiece(DisassemblyPiece):  # pylint: disable=abstract-method
     # These get filled in later...
     addr = None
     parentop = None
@@ -880,7 +881,7 @@ class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
 
 
 class Register(OperandPiece):
-    def __init__(self, reg, prefix=''):
+    def __init__(self, reg, prefix=""):
         self.reg = reg
         self.prefix = prefix
         self.is_ip = self.reg in {"eip", "rip", "pc"}  # TODO: Support more architectures
@@ -908,23 +909,29 @@ class Value(OperandPiece):
     def _render(self, formatting):
         if formatting is not None:
             try:
-                style = formatting['int_styles'][self.ident]
-                if style[0] == 'hex':
+                style = formatting["int_styles"][self.ident]
+                if style[0] == "hex":
                     if self.render_with_sign:
-                        return ['%#+x' % self.val]
+                        return ["%#+x" % self.val]
                     else:
-                        return ['%#x' % self.val]
-                elif style[0] == 'dec':
+                        return ["%#x" % self.val]
+                elif style[0] == "dec":
                     if self.render_with_sign:
-                        return ['%+d' % self.val]
+                        return ["%+d" % self.val]
                     else:
                         return [str(self.val)]
-                elif style[0] == 'label':
+                elif style[0] == "label":
                     labeloffset = style[1]
                     if labeloffset == 0:
                         lbl = self.project.kb.labels[self.val]
                         return [lbl]
-                    return ['{}{}{:#+x}'.format('+' if self.render_with_sign else '', self.project.kb.labels[self.val + labeloffset], labeloffset)]
+                    return [
+                        "{}{}{:#+x}".format(
+                            "+" if self.render_with_sign else "",
+                            self.project.kb.labels[self.val + labeloffset],
+                            labeloffset,
+                        )
+                    ]
             except KeyError:
                 pass
 
@@ -942,20 +949,20 @@ class Value(OperandPiece):
                 if lbl == func.name and func.name != func.demangled_name:
                     normalized_name = get_cpp_function_name(func.demangled_name, specialized=False, qualified=True)
                     return [normalized_name]
-            return [('+' if self.render_with_sign else '') + lbl]
+            return [("+" if self.render_with_sign else "") + lbl]
         elif func is not None:
             return [func.demangled_name]
         else:
             if self.render_with_sign:
-                return ['%#+x' % self.val]
+                return ["%#+x" % self.val]
             else:
-                return ['%#x' % self.val]
+                return ["%#x" % self.val]
 
 
 class Comment(DisassemblyPiece):
     def __init__(self, addr, text):
         self.addr = addr
-        self.text = text.split('\n')
+        self.text = text.split("\n")
 
     def _render(self, formatting=None):
         return [self.text]
@@ -970,7 +977,7 @@ class FuncComment(DisassemblyPiece):
         self.func = func
 
     def _render(self, formatting=None):
-        return ['##', '## Function ' + self.func.name, '##']
+        return ["##", "## Function " + self.func.name, "##"]
 
 
 class Disassembly(Analysis):
@@ -979,21 +986,21 @@ class Disassembly(Analysis):
     """
 
     def __init__(
-            self,
-            function: Optional[Function] = None,
-            ranges: Optional[Sequence[Tuple[int,int]]] = None,
-            thumb: bool = False,
-            include_ir: bool = False,
-            block_bytes: Optional[bytes] = None,
+        self,
+        function: Optional[Function] = None,
+        ranges: Optional[Sequence[Tuple[int, int]]] = None,
+        thumb: bool = False,
+        include_ir: bool = False,
+        block_bytes: Optional[bytes] = None,
     ):
         self.raw_result = []
         self.raw_result_map = {
-            'block_starts': {},
-            'comments': {},
-            'labels': {},
-            'instructions': {},
-            'hooks': {},
-            'ir': defaultdict(list)
+            "block_starts": {},
+            "comments": {},
+            "labels": {},
+            "instructions": {},
+            "hooks": {},
+            "ir": defaultdict(list),
         }
         self.block_to_insn_addrs = defaultdict(list)
         self._func_cache = {}
@@ -1019,10 +1026,14 @@ class Disassembly(Analysis):
                         assert start < end
 
                         # Grab all blocks that intersect target range
-                        blocks = sorted([n.to_codenode()
-                                         for n in self._graph.nodes() if not (n.addr + (n.size or 1) <= start or
-                                                                              n.addr >= end)],
-                                        key=lambda node: (node.addr, not node.is_hook))
+                        blocks = sorted(
+                            [
+                                n.to_codenode()
+                                for n in self._graph.nodes()
+                                if not (n.addr + (n.size or 1) <= start or n.addr >= end)
+                            ],
+                            key=lambda node: (node.addr, not node.is_hook),
+                        )
 
                         # Trim blocks that are not within range
                         for i, block in enumerate(blocks):
@@ -1048,12 +1059,13 @@ class Disassembly(Analysis):
                 # generated). Simply disassemble the code in the given regions. In the future we may want to handle
                 # this case by automatically running CFG analysis on given ranges.
                 for start, end in ranges:
-                    self.parse_block(BlockNode(
-                        start,
-                        end - start,
-                        thumb=thumb,
-                        bytestr=self._block_bytes if len(ranges) == 1 else None,
-                    )
+                    self.parse_block(
+                        BlockNode(
+                            start,
+                            end - start,
+                            thumb=thumb,
+                            bytestr=self._block_bytes if len(ranges) == 1 else None,
+                        )
                     )
 
     def func_lookup(self, block):
@@ -1073,31 +1085,29 @@ class Disassembly(Analysis):
         if insn.address in self.kb.labels:
             label = Label(insn.address, self.kb.labels[insn.address])
             self.raw_result.append(label)
-            self.raw_result_map['labels'][label.addr] = label
+            self.raw_result_map["labels"][label.addr] = label
         if insn.address in self.kb.comments:
             comment = Comment(insn.address, self.kb.comments[insn.address])
             self.raw_result.append(comment)
-            self.raw_result_map['comments'][comment.addr] = comment
+            self.raw_result_map["comments"][comment.addr] = comment
         instruction = Instruction(insn, bs)
         self.raw_result.append(instruction)
-        self.raw_result_map['instructions'][instruction.addr] = instruction
+        self.raw_result_map["instructions"][instruction.addr] = instruction
         self.block_to_insn_addrs[block.addr].append(insn.address)
 
     def _add_block_ir_to_results(self, block: BlockNode, irsb: IRSBType) -> None:
         """
         Add lifter IR for this block
         """
-        addr_to_ops_map = self.raw_result_map['ir']
+        addr_to_ops_map = self.raw_result_map["ir"]
         addr = block.addr
         ops = addr_to_ops_map[addr]
 
         if irsb.statements is not None:
-            if (pcode is not None and
-                isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin)):
+            if pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
                 for ins in irsb._instructions:
                     addr = ins.address.offset
-                    addr_to_ops_map[addr].extend([
-                        IROp(addr, op.seq.uniq, op, irsb) for op in ins.ops])
+                    addr_to_ops_map[addr].extend([IROp(addr, op.seq.uniq, op, irsb) for op in ins.ops])
             else:
                 for seq, stmt in enumerate(irsb.statements):
                     if isinstance(stmt, pyvex.stmt.IMark):
@@ -1120,7 +1130,7 @@ class Disassembly(Analysis):
         if block.is_hook:
             hook = Hook(block)
             self.raw_result.append(hook)
-            self.raw_result_map['hooks'][block.addr] = hook
+            self.raw_result_map["hooks"][block.addr] = hook
         elif self.project.arch.capstone_support:
             # Prefer Capstone first, where we are able to extract a bit more
             # about the operands
@@ -1148,7 +1158,7 @@ class Disassembly(Analysis):
             for raw_stmt in block.stmts:
                 stmt = SootStatement(block.addr, raw_stmt)
                 self.raw_result.append(stmt)
-                self.raw_result_map['instructions'][stmt.addr] = stmt
+                self.raw_result_map["instructions"][stmt.addr] = stmt
                 self.block_to_insn_addrs[block.addr].append(stmt.addr)
         else:
             raise TypeError("")
@@ -1157,51 +1167,60 @@ class Disassembly(Analysis):
             b = self.project.factory.block(block.addr, size=block.size)
             self._add_block_ir_to_results(block, b.vex)
 
-    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True,
-               show_bytes: bool = False, ascii_only: Optional[bool] = None, color: bool = True) -> str:
+    def render(
+        self,
+        formatting=None,
+        show_edges: bool = True,
+        show_addresses: bool = True,
+        show_bytes: bool = False,
+        ascii_only: Optional[bool] = None,
+        color: bool = True,
+    ) -> str:
         """
         Render the disassembly to a string, with optional edges and addresses.
 
         Color will be added by default, if enabled. To disable color pass an empty formatting dict.
         """
         max_bytes_per_line = 5
-        bytes_width = max_bytes_per_line*3+1
+        bytes_width = max_bytes_per_line * 3 + 1
         a2ln = defaultdict(list)
         buf = []
 
         if formatting is None:
             formatting = {
-                'colors': {
-                    'address':       'gray',
-                    'bytes':         'cyan',
-                    'edge':          'yellow',
-                    Label:           'bright_yellow',
-                    ConstantOperand: 'cyan',
-                    MemoryOperand:   'yellow',
-                    Comment:         'gray',
-                    Hook:            'green',
-                } if ansi_color_enabled and color else {},
-                'format_callback': lambda item, s: ansi_color(s, formatting['colors'].get(type(item), None))
+                "colors": {
+                    "address": "gray",
+                    "bytes": "cyan",
+                    "edge": "yellow",
+                    Label: "bright_yellow",
+                    ConstantOperand: "cyan",
+                    MemoryOperand: "yellow",
+                    Comment: "gray",
+                    Hook: "green",
+                }
+                if ansi_color_enabled and color
+                else {},
+                "format_callback": lambda item, s: ansi_color(s, formatting["colors"].get(type(item), None)),
             }
 
         def col(item: Any) -> Optional[str]:
             try:
-                return formatting['colors'][item]
+                return formatting["colors"][item]
             except KeyError:
                 return None
 
         def format_address(addr: int, color: bool = True) -> str:
             if not show_addresses:
-                return ''
-            a, pad = f'{addr:x}', '  '
-            return (ansi_color(a, col('address')) if color else a) + pad
+                return ""
+            a, pad = f"{addr:x}", "  "
+            return (ansi_color(a, col("address")) if color else a) + pad
 
         def format_bytes(data: bytes, color: bool = True) -> str:
-            s = ' '.join(f'{x:02x}' for x in data).ljust(bytes_width)
-            return ansi_color(s, col('bytes')) if color else s
+            s = " ".join(f"{x:02x}" for x in data).ljust(bytes_width)
+            return ansi_color(s, col("bytes")) if color else s
 
         def format_comment(text: str, color: bool = True) -> str:
-            s = ' ; ' + text
+            s = " ; " + text
             return ansi_color(s, col(Comment)) if color else s
 
         comment = None
@@ -1209,11 +1228,11 @@ class Disassembly(Analysis):
         for item in self.raw_result:
             if isinstance(item, BlockStart):
                 if len(buf) > 0:
-                    buf.append('')
+                    buf.append("")
             elif isinstance(item, Label):
-                pad = len(format_address(item.addr, False)) * ' '
+                pad = len(format_address(item.addr, False)) * " "
                 if show_bytes:
-                    pad += bytes_width * ' '
+                    pad += bytes_width * " "
                 buf.append(pad + item.render(formatting)[0])
             elif isinstance(item, Comment):
                 comment = item
@@ -1227,7 +1246,7 @@ class Disassembly(Analysis):
                 # Chop instruction bytes into line segments
                 p, insn_bytes = 0, []
                 while show_bytes and p < len(item.insn.bytes):
-                    s = item.insn.bytes[p:p+min(len(item.insn.bytes)-p, max_bytes_per_line)]
+                    s = item.insn.bytes[p : p + min(len(item.insn.bytes) - p, max_bytes_per_line)]
                     p += len(s)
                     insn_bytes.append(s)
 
@@ -1247,19 +1266,19 @@ class Disassembly(Analysis):
 
                 # Add additional lines of instruction bytes
                 for i in range(1, len(insn_bytes)):
-                    lines.append(' ' * bytes_column + format_bytes(insn_bytes[i]))
+                    lines.append(" " * bytes_column + format_bytes(insn_bytes[i]))
 
                 # Add additional lines of comments
                 if comment is not None:
                     for i in range(1, len(comment.text)):
                         if len(lines) <= i:
-                            lines.append(' ' * comment_column)
+                            lines.append(" " * comment_column)
                         lines[i] += format_comment(comment.text[i])
                     comment = None
 
                 buf.extend(lines)
             else:
-                buf.append(''.join(item.render(formatting)))
+                buf.append("".join(item.render(formatting)))
 
         if self._graph is not None and show_edges and buf:
             edges_by_line = set()
@@ -1268,7 +1287,7 @@ class Disassembly(Analysis):
                 if from_block.size is None:
                     continue
                 if to_block.addr != from_block.addr + from_block.size:
-                    from_addr = edge[1]['ins_addr']
+                    from_addr = edge[1]["ins_addr"]
                     to_addr = to_block.addr
                     if not (from_addr in a2ln and to_addr in a2ln):
                         continue
@@ -1277,19 +1296,21 @@ class Disassembly(Analysis):
                             edges_by_line.add((f, t))
 
             # Render block edges, to a reference buffer for tracking and output buffer for display
-            edge_buf = ['' for _ in buf]
-            ref_buf = ['' for _ in buf]
-            edge_col = col('edge')
-            for f, t in sorted(edges_by_line, key=lambda e: abs(e[0]-e[1])):
+            edge_buf = ["" for _ in buf]
+            ref_buf = ["" for _ in buf]
+            edge_col = col("edge")
+            for f, t in sorted(edges_by_line, key=lambda e: abs(e[0] - e[1])):
                 add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, edge_col), ascii_only=ascii_only)
                 add_edge_to_buffer(ref_buf, ref_buf, f, t, ascii_only=ascii_only)
             max_edge_depth = max(map(len, ref_buf))
 
             # Justify edge and combine with disassembly
             for i, line in enumerate(buf):
-                buf[i] = ' ' * (max_edge_depth - len(ref_buf[i])) + edge_buf[i] + line
+                buf[i] = " " * (max_edge_depth - len(ref_buf[i])) + edge_buf[i] + line
 
-        return '\n'.join(buf)
+        return "\n".join(buf)
+
 
 from angr.analyses import AnalysesHub
-AnalysesHub.register_default('Disassembly', Disassembly)
+
+AnalysesHub.register_default("Disassembly", Disassembly)

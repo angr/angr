@@ -30,7 +30,7 @@ class receive_until_fd(Func):
     def num_args(self):
         return len(self.base_args())
 
-    def base_args(self): #pylint disable=no-self-use
+    def base_args(self):  # pylint disable=no-self-use
         return ["fd", "buf", "end_char", "max_len"]
 
     def args(self):
@@ -40,15 +40,15 @@ class receive_until_fd(Func):
     def gen_input_output_pair(self):
         max_len = random.randint(1, 60)
         term_char = random.randint(0, 255)
-        buf = rand_str(max_len+5)
+        buf = rand_str(max_len + 5)
         test_input = [0, buf, term_char, max_len]
-        stdin = rand_str(max_len+5)
+        stdin = rand_str(max_len + 5)
         return_val = stdin.find(chr(term_char))
         if return_val < 0 or return_val >= max_len:
             if "allow_too_long" in self.version:
                 return_val = max_len
                 if "allow_too_long_nullterm" in self.version:
-                    outbuf = stdin[:return_val-1] + "\x00"
+                    outbuf = stdin[: return_val - 1] + "\x00"
                 else:
                     outbuf = stdin[:return_val]
             else:
@@ -73,25 +73,25 @@ class receive_until_fd(Func):
         return False
 
     def do_pretests(self, func, runner):
-        test_input = [0, "A"*0x100, ord("X"), 40]
-        stdin = "a"*10 + "X" + "b"*10
+        test_input = [0, "A" * 0x100, ord("X"), 40]
+        stdin = "a" * 10 + "X" + "b" * 10
         max_len = 10
         max_steps = max_len * 8 + 20
 
         # prefilter
-        test_output = [None, "a"*10, None, None]
+        test_output = [None, "a" * 10, None, None]
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         if not self.run_test(func, runner, test):
             return False
 
         # version checks
-        test_output = [None, "a"*10 + "\x00", None, None]
+        test_output = [None, "a" * 10 + "\x00", None, None]
         return_val = 10
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         null_replace_not_counted = self.run_test(func, runner, test)
 
-        test_output = [None, "a"*10 + "\x00", None, None]
+        test_output = [None, "a" * 10 + "\x00", None, None]
         return_val = 11
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         null_replace_counted = self.run_test(func, runner, test)
@@ -99,7 +99,7 @@ class receive_until_fd(Func):
         if not (null_replace_counted or null_replace_not_counted):
             return False
 
-        stdin = "a"*30
+        stdin = "a" * 30
         max_len = 20
         max_steps = max_len * 8 + 20
         test_output = [None, "a" * 20, None, None]
@@ -175,7 +175,7 @@ class receive_until(Func):
     def num_args(self):
         return len(self.base_args())
 
-    def base_args(self): #pylint disable=no-self-use
+    def base_args(self):  # pylint disable=no-self-use
         return ["buf", "end_char", "max_len"]
 
     def args(self):
@@ -185,15 +185,15 @@ class receive_until(Func):
     def gen_input_output_pair(self):
         max_len = random.randint(1, 60)
         term_char = random.randint(0, 255)
-        buf = rand_str(max_len+5)
+        buf = rand_str(max_len + 5)
         test_input = [buf, term_char, max_len]
-        stdin = rand_str(max_len+5)
+        stdin = rand_str(max_len + 5)
         return_val = stdin.find(chr(term_char))
         if return_val < 0 or return_val >= max_len:
             if "allow_too_long" in self.version:
                 return_val = max_len
                 if "allow_too_long_nullterm" in self.version:
-                    outbuf = stdin[:return_val-1] + "\x00"
+                    outbuf = stdin[: return_val - 1] + "\x00"
                 else:
                     outbuf = stdin[:return_val]
             else:
@@ -219,20 +219,20 @@ class receive_until(Func):
         return False
 
     def do_pretests(self, func, runner):
-        test_input = ["A"*0x100, ord("X"), 40]
-        stdin = "a"*10 + "X" + "b"*10
+        test_input = ["A" * 0x100, ord("X"), 40]
+        stdin = "a" * 10 + "X" + "b" * 10
         max_len = 10
         max_steps = max_len * 8 + 20
 
         # prefilter
-        test_output = ["a"*10, None, None]
+        test_output = ["a" * 10, None, None]
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         if not self.run_test(func, runner, test):
             return False
 
         # check for has return
-        test_output = ["a"*10, None, None]
+        test_output = ["a" * 10, None, None]
         return_val = 10
         test1 = TestData(test_input, test_output, return_val, max_steps, stdin)
         return_val = 11
@@ -241,12 +241,12 @@ class receive_until(Func):
             self.has_return = False
 
         # version checks
-        test_output = ["a"*10 + "\x00", None, None]
+        test_output = ["a" * 10 + "\x00", None, None]
         return_val = 10
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         null_replace_not_counted = self.run_test(func, runner, test)
 
-        test_output = ["a"*10 + "\x00", None, None]
+        test_output = ["a" * 10 + "\x00", None, None]
         return_val = 11
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         null_replace_counted = self.run_test(func, runner, test)
@@ -254,7 +254,7 @@ class receive_until(Func):
         if not (null_replace_counted or null_replace_not_counted):
             return False
 
-        stdin = "a"*30
+        stdin = "a" * 30
         max_len = 20
         max_steps = max_len * 8 + 20
         test_output = ["a" * 20, None, None]

@@ -17,12 +17,13 @@ class RedundantLabelRemover:
     self._new_jump_target. The second pass (self._walker1) removes all redundant labels that (a) are not referenced
     anywhere (determined by jump_targets), or (b) are deemed replaceable by the first pass.
     """
-    def __init__(self, node, jump_targets: Set[Tuple[int,Optional[int]]]):
+
+    def __init__(self, node, jump_targets: Set[Tuple[int, Optional[int]]]):
         self.root = node
         self._jump_targets = jump_targets
 
         self._labels_to_remove: Set[ailment.Stmt.Label] = set()
-        self._new_jump_target: Dict[Tuple[int,Optional[int]],Tuple[int,Optional[int]]] = { }
+        self._new_jump_target: Dict[Tuple[int, Optional[int]], Tuple[int, Optional[int]]] = {}
 
         handlers0 = {
             SequenceNode: self._handle_Sequence,
@@ -43,7 +44,7 @@ class RedundantLabelRemover:
 
     def _handle_Sequence(self, node: SequenceNode, **kwargs):
         # merge consecutive labels
-        last_label_addr: Optional[Tuple[int,Optional[int]]] = None
+        last_label_addr: Optional[Tuple[int, Optional[int]]] = None
         for node_ in node.nodes:
             if isinstance(node_, ailment.Block):
                 if node_.statements:
@@ -72,7 +73,7 @@ class RedundantLabelRemover:
                     if isinstance(stmt, ailment.Stmt.Label):
                         if (stmt.ins_addr, stmt.block_idx) not in self._jump_targets or stmt in self._labels_to_remove:
                             # useless label - update the block in-place
-                            block.statements = block.statements[:idx] + block.statements[idx+1:]
+                            block.statements = block.statements[:idx] + block.statements[idx + 1 :]
                             break
                 else:
                     break

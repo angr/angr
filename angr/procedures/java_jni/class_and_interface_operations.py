@@ -2,13 +2,14 @@ import logging
 
 from . import JNISimProcedure
 
-l = logging.getLogger('angr.procedures.java_jni.getsuperclass')
+l = logging.getLogger("angr.procedures.java_jni.getsuperclass")
 
 # pylint: disable=arguments-differ,unused-argument
 
+
 class GetSuperclass(JNISimProcedure):
 
-    return_ty = 'reference'
+    return_ty = "reference"
 
     def run(self, ptr_env, class_):
         class_descriptor = self.state.jni_references.lookup(class_)
@@ -21,9 +22,10 @@ class GetSuperclass(JNISimProcedure):
             l.error("Couldn't identify superclass of %r", class_descriptor)
             return 0
 
+
 class FindClass(JNISimProcedure):
 
-    return_ty = 'reference'
+    return_ty = "reference"
 
     def run(self, ptr_env, name_ptr):
         class_name = self._load_string_from_native_memory(name_ptr)

@@ -3,7 +3,7 @@ import logging
 from ..expressions.invoke import InvokeBase
 from .base import SimSootStmt
 
-l = logging.getLogger('angr.engines.soot.statements.assign')
+l = logging.getLogger("angr.engines.soot.statements.assign")
 
 
 class SimSootStmt_Assign(SimSootStmt):

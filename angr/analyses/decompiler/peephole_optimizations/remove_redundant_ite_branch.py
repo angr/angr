@@ -7,7 +7,7 @@ class RemoveRedundantITEBranches(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Remove redundant ITE branches"
-    expr_classes = (ITE, )  # all expressions are allowed
+    expr_classes = (ITE,)  # all expressions are allowed
 
     def optimize(self, expr: ITE):
 
@@ -16,7 +16,10 @@ class RemoveRedundantITEBranches(PeepholeOptimizationExprBase):
             # cascading ITEs
             if isinstance(expr.cond, BinaryOp) and isinstance(expr.iffalse.cond, BinaryOp):
                 # are they negating each other?
-                if expr.cond.op in BinaryOp.COMPARISON_NEGATION and expr.iffalse.cond.op == BinaryOp.COMPARISON_NEGATION[expr.cond.op]:
+                if (
+                    expr.cond.op in BinaryOp.COMPARISON_NEGATION
+                    and expr.iffalse.cond.op == BinaryOp.COMPARISON_NEGATION[expr.cond.op]
+                ):
                     cond0_operands = expr.cond.operands
                     cond1_operands = expr.iffalse.cond.operands
                     if cond0_operands[0].likes(cond1_operands[0]) and cond0_operands[1].likes(cond1_operands[1]):

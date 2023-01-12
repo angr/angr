@@ -8,7 +8,7 @@ from .plugin import KnowledgeBasePlugin
 
 # TODO: Serializable
 class Patch:
-    def __init__(self, addr, new_bytes, comment: Optional[str]=None):
+    def __init__(self, addr, new_bytes, comment: Optional[str] = None):
         self.addr = addr
         self.new_bytes = new_bytes
         self.comment = comment
@@ -30,10 +30,10 @@ class PatchManager(KnowledgeBasePlugin):
     def __init__(self, kb):
         super().__init__()
 
-        self._patches: Dict[int,Patch] = SortedDict()
+        self._patches: Dict[int, Patch] = SortedDict()
         self._kb = kb
 
-    def add_patch(self, addr, new_bytes, comment: Optional[str]=None):
+    def add_patch(self, addr, new_bytes, comment: Optional[str] = None):
         self._patches[addr] = Patch(addr, new_bytes, comment=comment)
 
     def add_patch_obj(self, patch: Patch):
@@ -65,10 +65,10 @@ class PatchManager(KnowledgeBasePlugin):
         :return:            A list of patches.
         :rtype:             list
         """
-        patches = [ ]
-        for patch_addr in self._patches.irange(maximum=addr+size-1, reverse=True):
+        patches = []
+        for patch_addr in self._patches.irange(maximum=addr + size - 1, reverse=True):
             p = self._patches[patch_addr]
-            if self.overlap(p.addr, p.addr + len(p), addr, addr+size):
+            if self.overlap(p.addr, p.addr + len(p), addr, addr + size):
                 patches.append(p)
             else:
                 break
@@ -91,7 +91,9 @@ class PatchManager(KnowledgeBasePlugin):
     def overlap(a0, a1, b0, b1):
         return a0 <= b0 < a1 or a0 <= b1 < a1 or b0 <= a0 < b1
 
-    def apply_patches_to_binary(self, binary_bytes: Optional[bytes]=None, patches: Optional[List[Patch]]=None) -> bytes:
+    def apply_patches_to_binary(
+        self, binary_bytes: Optional[bytes] = None, patches: Optional[List[Patch]] = None
+    ) -> bytes:
         if patches is None:
             patches = sorted(list(self._patches.values()), key=lambda x: x.addr)
 
@@ -104,11 +106,11 @@ class PatchManager(KnowledgeBasePlugin):
             file_offset = at.to_raw()
 
             if file_offset < len(binary_bytes) and file_offset + len(patch.new_bytes) < len(binary_bytes):
-                binary_bytes = binary_bytes[:file_offset] + \
-                               patch.new_bytes + \
-                               binary_bytes[file_offset + len(patch.new_bytes):]
+                binary_bytes = (
+                    binary_bytes[:file_offset] + patch.new_bytes + binary_bytes[file_offset + len(patch.new_bytes) :]
+                )
 
         return binary_bytes
 
 
-KnowledgeBasePlugin.register_default('patches', PatchManager)
+KnowledgeBasePlugin.register_default("patches", PatchManager)

@@ -6,7 +6,6 @@ from ...engines.soot.expressions import translate_expr
 
 
 class JavaSimProcedure(SimProcedure):
-
     @property
     def is_java(self):
         return True
@@ -19,7 +18,7 @@ class JavaSimProcedure(SimProcedure):
         sim_args = []
         # try to get 'this' reference
         try:
-            this_ref = state.javavm_memory.load(addr=SimSootValue_Local('this', None))
+            this_ref = state.javavm_memory.load(addr=SimSootValue_Local("this", None))
             sim_args += [this_ref]
         except KeyError:
             pass

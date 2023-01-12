@@ -15,7 +15,7 @@ class snprintf(Func):
         self.string_spec_char = None
         self.allows_n = False
 
-    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
+    def rand_str(self, length, byte_list=None):  # pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in range(length))
         return "".join(random.choice(byte_list) for _ in range(length))
@@ -23,7 +23,7 @@ class snprintf(Func):
     def num_args(self):
         return 3
 
-    def args(self): #pylint disable=no-self-use
+    def args(self):  # pylint disable=no-self-use
         return ["buf", "size", "format"]
 
     def get_name(self):
@@ -43,14 +43,14 @@ class snprintf(Func):
         test_str = self.rand_str(length, string.ascii_letters + string.digits)
         outbuf = self.rand_str(length + 2)
         test_input = [outbuf, length, test_str]
-        test_output = [test_str[:length -1] + "\x00" + outbuf[length:], None, test_str]
+        test_output = [test_str[: length - 1] + "\x00" + outbuf[length:], None, test_str]
         max_steps = 20
         test = TestData(test_input, test_output, None, max_steps)
         if not runner.test(func, test):
             return False
 
         # find interesting characters
-        test_input = [outbuf, length, claripy.BVS("input", 10*8)]
+        test_input = [outbuf, length, claripy.BVS("input", 10 * 8)]
         test_output = [None, None, None]
         test = TestData(test_input, test_output, None, max_steps)
         s = runner.get_base_call_state(func, test)

@@ -1,6 +1,7 @@
 from . import ExplorationTechnique
 import random
 
+
 class DFS(ExplorationTechnique):
     """
     Depth-first search.
@@ -9,7 +10,7 @@ class DFS(ExplorationTechnique):
     When we run out of active paths to step, we take the longest one from deferred and continue.
     """
 
-    def __init__(self, deferred_stash='deferred'):
+    def __init__(self, deferred_stash="deferred"):
         super().__init__()
         self._random = random.Random()
         self._random.seed(10)
@@ -19,7 +20,7 @@ class DFS(ExplorationTechnique):
         if self.deferred_stash not in simgr.stashes:
             simgr.stashes[self.deferred_stash] = []
 
-    def step(self, simgr, stash='active', **kwargs):
+    def step(self, simgr, stash="active", **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
         if len(simgr.stashes[stash]) > 1:
             self._random.shuffle(simgr.stashes[stash])

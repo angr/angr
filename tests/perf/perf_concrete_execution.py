@@ -12,27 +12,30 @@ import claripy
 if hasattr(claripy, "set_debug"):
     claripy.set_debug(False)
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../../binaries')
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../binaries")
 
 
-class SkinnyEngine(angr.engines.SimEngineFailure,
-                   angr.engines.SimEngineSyscall,
-                   angr.engines.HooksMixin,
-                   angr.engines.HeavyVEXMixin):
+class SkinnyEngine(
+    angr.engines.SimEngineFailure, angr.engines.SimEngineSyscall, angr.engines.HooksMixin, angr.engines.HeavyVEXMixin
+):
     pass
 
-arch = 'x86_64'
-b = angr.Project(os.path.join(test_location, 'tests', arch, "perf_tight_loops"), auto_load_libs=False)
-state = b.factory.full_init_state(plugins={'registers': angr.state_plugins.SimLightRegisters()},
-                                           remove_options={angr.sim_options.COPY_STATES})
+
+arch = "x86_64"
+b = angr.Project(os.path.join(test_location, "tests", arch, "perf_tight_loops"), auto_load_libs=False)
+state = b.factory.full_init_state(
+    plugins={"registers": angr.state_plugins.SimLightRegisters()}, remove_options={angr.sim_options.COPY_STATES}
+)
 engine = SkinnyEngine(b)
+
 
 def main():
     simgr = b.factory.simgr(state)
     simgr.explore(engine=engine)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     tstart = time.time()
     main()
     tend = time.time()
-    print('Elapsed: %f sec' % (tend - tstart))
+    print("Elapsed: %f sec" % (tend - tstart))

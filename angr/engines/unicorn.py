@@ -13,7 +13,7 @@ from ..state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
 from ..utils.constants import DEFAULT_STATEMENT
 
-#pylint: disable=arguments-differ
+# pylint: disable=arguments-differ
 
 l = logging.getLogger(name=__name__)
 
@@ -35,10 +35,20 @@ class SimEngineUnicorn(SuccessorsMixin):
         # Addresses of basic blocks which native interface will not execute
         self._stop_block_addrs_cache = set()
         # Stop reasons to track and not switch to native interface for those basic blocks
-        self._stop_reasons_to_track = STOP.unsupported_reasons | \
-            {STOP.STOP_STOPPOINT, STOP.STOP_ERROR, STOP.STOP_NODECODE, STOP.STOP_SYSCALL, STOP.STOP_EXECNONE,
-             STOP.STOP_ZEROPAGE, STOP.STOP_NOSTART, STOP.STOP_SEGFAULT, STOP.STOP_ZERO_DIV, STOP.STOP_HLT, \
-             STOP.STOP_SYSCALL_ARM, STOP.STOP_X86_CPUID}
+        self._stop_reasons_to_track = STOP.unsupported_reasons | {
+            STOP.STOP_STOPPOINT,
+            STOP.STOP_ERROR,
+            STOP.STOP_NODECODE,
+            STOP.STOP_SYSCALL,
+            STOP.STOP_EXECNONE,
+            STOP.STOP_ZEROPAGE,
+            STOP.STOP_NOSTART,
+            STOP.STOP_SEGFAULT,
+            STOP.STOP_ZERO_DIV,
+            STOP.STOP_HLT,
+            STOP.STOP_SYSCALL_ARM,
+            STOP.STOP_X86_CPUID,
+        }
 
     def __getstate__(self):
         parent_ret = super().__getstate__()
@@ -53,13 +63,15 @@ class SimEngineUnicorn(SuccessorsMixin):
     def __check(self, num_inst=None, **kwargs):  # pylint: disable=unused-argument
         state = self.state
         if o.UNICORN not in state.options:
-            l.debug('Unicorn-engine is not enabled.')
+            l.debug("Unicorn-engine is not enabled.")
             return False
 
         if uc_module is None or _UC_NATIVE is None:
-            if once('unicorn_install_warning'):
-                l.error("You are attempting to use unicorn engine support even though it or the angr native layer "
-                        "isn't installed")
+            if once("unicorn_install_warning"):
+                l.error(
+                    "You are attempting to use unicorn engine support even though it or the angr native layer "
+                    "isn't installed"
+                )
             return False
 
         self.__countdown(state)
@@ -74,7 +86,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         # if we have a concrete target we want the program to synchronize the segment
         # registers before, otherwise undefined behavior could happen.
-        if state.project.concrete_target and self.project.arch.name in ('x86', 'x86_64'):
+        if state.project.concrete_target and self.project.arch.name in ("x86", "x86_64"):
             if not state.concrete.segment_registers_initialized:
                 l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
                 return False
@@ -85,8 +97,10 @@ class SimEngineUnicorn(SuccessorsMixin):
             l.info("not enough blocks since symbolic stop (%d more)", unicorn.countdown_symbolic_stop)
             return False
         if unicorn.countdown_unsupported_stop > 0:
-            l.info("not enough blocks since unsupported VEX statement/expression stop (%d more)",
-                   unicorn.countdown_unsupported_stop)
+            l.info(
+                "not enough blocks since unsupported VEX statement/expression stop (%d more)",
+                unicorn.countdown_unsupported_stop,
+            )
             return False
         if unicorn.countdown_nonunicorn_blocks > 0:
             l.info("not enough runs since last unicorn (%d)", unicorn.countdown_nonunicorn_blocks)
@@ -128,13 +142,13 @@ class SimEngineUnicorn(SuccessorsMixin):
             self._instr_mem_reads = list(stmt_entry["mem_dep"])  # pylint:disable=attribute-defined-outside-init
             if self._instr_mem_reads:
                 # Insert breakpoint to set the correct memory read address
-                self.state.inspect.b('mem_read', when=BP_BEFORE, action=self._set_correct_mem_read_addr)
+                self.state.inspect.b("mem_read", when=BP_BEFORE, action=self._set_correct_mem_read_addr)
 
-            self.state.inspect.b('mem_write', when=BP_AFTER, action=self._save_mem_write_addrs)
+            self.state.inspect.b("mem_write", when=BP_AFTER, action=self._save_mem_write_addrs)
             execute_default_exit = True
             # Execute handler from HeavyVEXMixin for the statement
-            vex_stmt = vex_block.statements[stmt_entry['stmt_idx']]
-            self.stmt_idx = stmt_entry['stmt_idx']  # pylint:disable=attribute-defined-outside-init
+            vex_stmt = vex_block.statements[stmt_entry["stmt_idx"]]
+            self.stmt_idx = stmt_entry["stmt_idx"]  # pylint:disable=attribute-defined-outside-init
             try:
                 super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
             except VEXEarlyExit:
@@ -166,9 +180,10 @@ class SimEngineUnicorn(SuccessorsMixin):
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_vex_stmts():
             self.state.scratch.guard = self.state.solver.true
             try:
-                if self.state.os_name == "CGC" and \
-                  block_details["block_addr"] in {self.state.unicorn.cgc_random_addr,
-                                                  self.state.unicorn.cgc_receive_addr}:
+                if self.state.os_name == "CGC" and block_details["block_addr"] in {
+                    self.state.unicorn.cgc_random_addr,
+                    self.state.unicorn.cgc_receive_addr,
+                }:
                     # Re-execute CGC syscall
                     reg_vals = dict(block_details["registers"])
                     curr_regs = self.state.regs
@@ -177,8 +192,12 @@ class SimEngineUnicorn(SuccessorsMixin):
                     # correct values right now.
                     if block_details["block_addr"] == self.state.unicorn.cgc_receive_addr:
                         # rx_bytes argument is set to 0 since we care about updating symbolic values only
-                        syscall_args = [reg_vals.get("ebx", curr_regs.ebx), reg_vals.get("ecx", curr_regs.ecx),
-                                        reg_vals.get("edx", curr_regs.edx), 0]
+                        syscall_args = [
+                            reg_vals.get("ebx", curr_regs.ebx),
+                            reg_vals.get("ecx", curr_regs.ecx),
+                            reg_vals.get("edx", curr_regs.edx),
+                            0,
+                        ]
                         syscall_simproc = self.state.project.simos.syscall_from_number(3, abi=None)
                         syscall_simproc.arch = self.state.arch
                         syscall_simproc.project = self.state.project
@@ -257,11 +276,13 @@ class SimEngineUnicorn(SuccessorsMixin):
         # pylint:disable=no-member
         irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)
         if irsb.size == 0:
-            if irsb.jumpkind == 'Ijk_NoDecode':
+            if irsb.jumpkind == "Ijk_NoDecode":
                 if not self.state.project.is_hooked(irsb.addr):
-                    raise SimIRSBNoDecodeError(f"IR decoding error at 0x{irsb.addr:02x}. You can hook this instruction"
-                                               " with a python replacement using project.hook"
-                                               f"(0x{irsb.addr:02x}, your_function, length=length_of_instruction).")
+                    raise SimIRSBNoDecodeError(
+                        f"IR decoding error at 0x{irsb.addr:02x}. You can hook this instruction"
+                        " with a python replacement using project.hook"
+                        f"(0x{irsb.addr:02x}, your_function, length=length_of_instruction)."
+                    )
 
                 raise SimIRSBError("Block is hooked with custom code but original block was executed in unicorn")
 
@@ -296,9 +317,13 @@ class SimEngineUnicorn(SuccessorsMixin):
         state.inspect.mem_read_address = state.solver.BVV(mem_read_address, state.inspect.mem_read_address.size())
         if mem_read_taint_map.count(-1) != mem_read_size:
             # Since read is might need bitmap adjustment, insert breakpoint to return the correct concrete value
-            self.state.inspect.b('mem_read', when=BP_AFTER,
-                                 action=functools.partial(self._set_correct_mem_read_val, value=mem_read_val,
-                                 taint_map=mem_read_taint_map))
+            self.state.inspect.b(
+                "mem_read",
+                when=BP_AFTER,
+                action=functools.partial(
+                    self._set_correct_mem_read_val, value=mem_read_val, taint_map=mem_read_taint_map
+                ),
+            )
 
     def _set_correct_mem_read_val(self, state, value, taint_map):  # pylint: disable=no-self-use
         state.inspect._breakpoints["mem_read"].pop()
@@ -328,8 +353,9 @@ class SimEngineUnicorn(SuccessorsMixin):
                         page_obj = state.memory._get_page(page_num, writing=False)
                         page_obj.symbolic_bitmap[page_off] = expected_taint
 
-            curr_value = state.memory.load(mem_read_addr, mem_read_len, endness=state.arch.memory_endness,
-                                           inspect=False, disable_actions=True)
+            curr_value = state.memory.load(
+                mem_read_addr, mem_read_len, endness=state.arch.memory_endness, inspect=False, disable_actions=True
+            )
             if restore_taints:
                 for offset, saved_taint in enumerate(saved_taints):
                     page_num, page_off = state.memory._divide_addr(mem_read_addr + offset)
@@ -362,9 +388,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         if not self.__check(**kwargs):
             return super().process_successors(successors, **kwargs)
 
-        extra_stop_points = kwargs.get('extra_stop_points', None)
-        last_block_details = kwargs.get('last_block_details', None)
-        step = kwargs.get('step', None)
+        extra_stop_points = kwargs.get("extra_stop_points", None)
+        last_block_details = kwargs.get("last_block_details", None)
+        step = kwargs.get("step", None)
         if extra_stop_points is None:
             extra_stop_points = set(self.project._sim_procedures)
         else:
@@ -375,11 +401,11 @@ class SimEngineUnicorn(SuccessorsMixin):
             # trying to start unicorn execution on a stop point, fallback to next engine
             return super().process_successors(successors, **kwargs)
 
-        successors.sort = 'Unicorn'
+        successors.sort = "Unicorn"
 
         # add all instruction breakpoints as extra_stop_points
         if state.supports_inspect:
-            for bp in state.inspect._breakpoints['instruction']:
+            for bp in state.inspect._breakpoints["instruction"]:
                 # if there is an instruction breakpoint on every instruction, it does not make sense
                 # to use unicorn.
                 if "instruction" not in bp.kwargs:
@@ -405,8 +431,10 @@ class SimEngineUnicorn(SuccessorsMixin):
             state.unicorn.set_stops(extra_stop_points)
             if last_block_details is not None:
                 state.unicorn.set_last_block_details(last_block_details)
-            state.unicorn.set_tracking(track_bbls=o.UNICORN_TRACK_BBL_ADDRS in state.options,
-                                       track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
+            state.unicorn.set_tracking(
+                track_bbls=o.UNICORN_TRACK_BBL_ADDRS in state.options,
+                track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options,
+            )
             state.unicorn.hook()
             state.unicorn.start(step=step)
             self._execute_symbolic_instrs(syscall_data=syscall_data)
@@ -427,24 +455,25 @@ class SimEngineUnicorn(SuccessorsMixin):
             # state then this is bad news.
             return super().process_successors(successors, **kwargs)
 
-        description = f'Unicorn ({STOP.name_stop(state.unicorn.stop_reason)} after {state.unicorn.steps} steps)'
+        description = f"Unicorn ({STOP.name_stop(state.unicorn.stop_reason)} after {state.unicorn.steps} steps)"
 
         state.history.recent_block_count += state.unicorn.steps
         state.history.recent_description = description
 
         # this can be expensive, so check first
         if state.supports_inspect:
-            for bp in state.inspect._breakpoints['irsb']:
+            for bp in state.inspect._breakpoints["irsb"]:
                 if bp.check(state, BP_AFTER):
                     for bbl_addr in state.history.recent_bbl_addrs:
-                        state._inspect('irsb', BP_AFTER, address=bbl_addr)
+                        state._inspect("irsb", BP_AFTER, address=bbl_addr)
                     break
 
-        if (state.unicorn.stop_reason in (STOP.symbolic_stop_reasons | STOP.unsupported_reasons) or
-            state.unicorn.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED)):
+        if state.unicorn.stop_reason in (
+            STOP.symbolic_stop_reasons | STOP.unsupported_reasons
+        ) or state.unicorn.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED):
             l.info(state.unicorn.stop_message)
 
-        if state.unicorn.jumpkind.startswith('Ijk_Sys'):
+        if state.unicorn.jumpkind.startswith("Ijk_Sys"):
             state.ip = state.unicorn._syscall_pc
         successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
 

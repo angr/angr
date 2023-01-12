@@ -52,14 +52,17 @@ class FormatInfoStrToInt(FormatInfo):
         self.input_base = None
 
     def copy(self):
-        out = FormatInfoStrToInt(self.addr, self.func_name, self.str_arg_num,
-                                 self.base, self.base_arg, self.allows_negative)
+        out = FormatInfoStrToInt(
+            self.addr, self.func_name, self.str_arg_num, self.base, self.base_arg, self.allows_negative
+        )
         return out
 
     def compute(self, state):
         self.input_val = angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.str_arg_num)
         if self.base_arg is not None:
-            self.input_base = state.solver.eval(angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.base_arg))
+            self.input_base = state.solver.eval(
+                angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.base_arg)
+            )
             if self.input_base == 0:
                 self.input_base = 16
         else:
@@ -67,6 +70,7 @@ class FormatInfoStrToInt(FormatInfo):
 
     def get_type(self):
         return "StrToInt"
+
 
 class FormatInfoIntToStr(FormatInfo):
     def __init__(self, addr, func_name, int_arg_num, str_dst_num, base, base_arg):
@@ -88,14 +92,17 @@ class FormatInfoIntToStr(FormatInfo):
         self.str_dst_addr = None
 
     def copy(self):
-        out = FormatInfoIntToStr(self.addr, self.func_name, self.int_arg_num,
-                                 self.str_dst_num, self.base, self.base_arg)
+        out = FormatInfoIntToStr(
+            self.addr, self.func_name, self.int_arg_num, self.str_dst_num, self.base, self.base_arg
+        )
         return out
 
     def compute(self, state):
         self.input_val = angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.int_arg_num)
         if self.base_arg is not None:
-            self.input_base = state.solver.eval(angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.base_arg))
+            self.input_base = state.solver.eval(
+                angr.calling_conventions.SimCCCdecl(state.arch).arg(state, self.base_arg)
+            )
             if self.input_base == 0:
                 self.input_base = 16
         else:
@@ -137,9 +144,9 @@ def int2base(x, base):
         digits.append(digs[x % base])
         x /= base
     if sign < 0:
-        digits.append('-')
+        digits.append("-")
     digits.reverse()
-    return ''.join(digits)
+    return "".join(digits)
 
 
 def generic_info_hook(state):
@@ -156,8 +163,9 @@ def generic_info_hook(state):
 
     # remove a current pending info
     if chall_resp_plugin.pending_info is not None:
-        chall_resp_plugin.backup_pending_info.append((chall_resp_plugin.ret_addr_to_unhook,
-                                                      chall_resp_plugin.pending_info))
+        chall_resp_plugin.backup_pending_info.append(
+            (chall_resp_plugin.ret_addr_to_unhook, chall_resp_plugin.pending_info)
+        )
         # undo the stops
         state.project.unhook(chall_resp_plugin.ret_addr_to_unhook)
         chall_resp_plugin.ret_addr_to_unhook = None
@@ -189,8 +197,9 @@ def end_info_hook(state):
         # mark the input
         input_val = state.mem[pending_info.input_val].string.resolved
         result = state.solver.BVV(state.solver.eval(state.regs.eax, cast_to=bytes))
-        real_len = chall_resp_plugin.get_real_len(input_val, pending_info.input_base,
-                                                  result, pending_info.allows_negative)
+        real_len = chall_resp_plugin.get_real_len(
+            input_val, pending_info.input_base, result, pending_info.allows_negative
+        )
 
         if real_len == 0:
             l.debug("ending hook for %s at %#x with len 0", pending_info.func_name, pending_info.addr)
@@ -206,20 +215,25 @@ def end_info_hook(state):
         # finish marking the input
         input_val = state.memory.load(pending_info.input_val, real_len)
         l.debug("string len was %d, value was %d", real_len, state.solver.eval(result))
-        input_bvs = state.solver.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_input", input_val.size())
+        input_bvs = state.solver.BVS(
+            pending_info.get_type() + "_" + str(pending_info.input_base) + "_input", input_val.size()
+        )
         chall_resp_plugin.str_to_int_pairs.append((input_bvs, new_var))
         if pending_info.allows_negative:
             chall_resp_plugin.allows_negative_bvs.add(input_bvs.cache_key)
         chall_resp_plugin.replacement_pairs.append((input_bvs, input_val))
     elif pending_info.get_type() == "IntToStr":
         # result constraint
-        result = state.solver.BVV(state.solver.eval(state.mem[pending_info.str_dst_addr].string.resolved, cast_to=bytes))
+        result = state.solver.BVV(
+            state.solver.eval(state.mem[pending_info.str_dst_addr].string.resolved, cast_to=bytes)
+        )
         if result is None or result.size() == 0:
             l.warning("zero len string")
             chall_resp_plugin.pop_from_backup()
             return
-        new_var = state.solver.BVS(pending_info.get_type() + "_" + str(pending_info.input_base) + "_result",
-                               result.size())
+        new_var = state.solver.BVS(
+            pending_info.get_type() + "_" + str(pending_info.input_base) + "_result", result.size()
+        )
         chall_resp_plugin.replacement_pairs.append((new_var, state.mem[pending_info.str_dst_addr].string.resolved))
         state.memory.store(pending_info.str_dst_addr, new_var)
         constraint = new_var == result
@@ -258,10 +272,11 @@ def exit_hook(state):
     stdin_min_stdout_constraints = chall_resp_plugin.stdin_min_stdout_constraints
     stdout_pos = state.solver.eval(state.posix.fd[1].write_pos)
     for v in guard.variables:
-        if v.startswith("aeg_input"): # TODO THIS IS SO FUCKED LMAO
+        if v.startswith("aeg_input"):  # TODO THIS IS SO FUCKED LMAO
             byte_num = ChallRespInfo.get_byte(v)
             if byte_num not in stdin_min_stdout_constraints:
                 stdin_min_stdout_constraints[byte_num] = stdout_pos
+
 
 def syscall_hook(state):
     if not state.has_plugin("chall_resp_info"):
@@ -283,8 +298,8 @@ def syscall_hook(state):
         num_bytes = state.solver.eval(state.regs.ecx)
         buf = state.solver.eval(state.regs.ebx)
         if num_bytes != 0:
-            rand_bytes = state.solver.BVS("random", num_bytes*8)
-            concrete_val = state.solver.BVV("A"*num_bytes)
+            rand_bytes = state.solver.BVS("random", num_bytes * 8)
+            concrete_val = state.solver.BVV("A" * num_bytes)
             state.solver._solver.add_replacement(rand_bytes, concrete_val, invalidate_cache=False)
             state.memory.store(buf, rand_bytes)
 
@@ -303,6 +318,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
     """
     This state plugin keeps track of the reads and writes to symbolic addresses
     """
+
     def __init__(self):
         angr.state_plugins.SimStatePlugin.__init__(self)
         # for each constraint we check what the max stdin it has and how much stdout we have
@@ -318,7 +334,6 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         self.backup_pending_info = []
         self.allows_negative_bvs = set()
 
-
     def __getstate__(self):
         d = dict(self.__dict__)
         del d["state"]
@@ -330,7 +345,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         self.state = None
 
     @angr.state_plugins.SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         s = ChallRespInfo()
         s.stdin_min_stdout_constraints = dict(self.stdin_min_stdout_constraints)
         s.stdin_min_stdout_reads = dict(self.stdin_min_stdout_reads)
@@ -345,10 +360,10 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         s.allows_negative_bvs = set(self.allows_negative_bvs)
         return s
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         raise angr.errors.SimMergeError("Can't merge ChallRespInfo - what on earth are you doing?")
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         raise angr.errors.SimMergeError("Can't widen ChallRespInfo - what on earth are you doing?")
 
     @staticmethod
@@ -393,15 +408,15 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         byte_indices = set()
         for int_val, str_val in self.int_to_str_pairs:
             if variable in int_val.variables:
-                num_bytes = str_val.size()//8
+                num_bytes = str_val.size() // 8
                 if stdout.op != "Concat":
                     l.warning("stdout is not concat!")
                     continue
                 stdout_pos = 0
                 for arg in stdout.args:
                     if arg is str_val:
-                        byte_indices.update(range(stdout_pos, stdout_pos+num_bytes))
-                    stdout_pos += arg.size()//8
+                        byte_indices.update(range(stdout_pos, stdout_pos + num_bytes))
+                    stdout_pos += arg.size() // 8
         return byte_indices
 
     def get_real_len(self, input_val, base, result_bv, allows_negative):
@@ -416,10 +431,10 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         input_s = self.state.solver.eval(input_val, cast_to=bytes)
         try:
             for i in range(possible_len):
-                if input_s[:i+1] == "-":
+                if input_s[: i + 1] == "-":
                     continue
-                if int(input_s[:i+1], base) & ((1<<result_bv.size())-1) == result:
-                    return i+1
+                if int(input_s[: i + 1], base) & ((1 << result_bv.size()) - 1) == result:
+                    return i + 1
         except ValueError:
             return 0
         l.warning("couldn't get real len returning 0")
@@ -429,7 +444,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         state = self.state
         input_s = state.solver.eval(input_val, cast_to=bytes)
         nums = "0123456789abcdef"
-        still_whitespace=True
+        still_whitespace = True
         for i, c in enumerate(input_s):
             if still_whitespace and c == "-" and allows_negative:
                 still_whitespace = False
@@ -447,14 +462,14 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
         for str_var, int_var in self.str_to_int_pairs:
             int_var_name = list(int_var.variables)[0]
             base = int(int_var_name.split("_")[1], 10)
-            original_len = str_var.size()//8
-            abs_max = (1 << int_var.size())-1
+            original_len = str_var.size() // 8
+            abs_max = (1 << int_var.size()) - 1
             if str_var.cache_key in self.allows_negative_bvs:
-                abs_max = (1 << (int_var.size()-1))-1
-            max_val = base**(original_len)-1
+                abs_max = (1 << (int_var.size() - 1)) - 1
+            max_val = base ** (original_len) - 1
             min_val = 0
             if str_var.cache_key in self.allows_negative_bvs and original_len > 1:
-                min_val = -(base**(original_len-1)-1)
+                min_val = -(base ** (original_len - 1) - 1)
 
             max_val = min(max_val, abs_max)
             min_val = max(min_val, -abs_max)
@@ -522,32 +537,20 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
             # now do the replacing
             offset = 0
             for start, length, str_val in sorted(stdin_replacements):
-                stdin = stdin[:start + offset] + str_val + stdin[start + length + offset:]
+                stdin = stdin[: start + offset] + str_val + stdin[start + length + offset :]
                 offset = len(str_val) - length
 
             return stdin
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             l.error("Exception %s during atoi_dumps!!", e)
             return state.posix.dumps(0)
 
     @staticmethod
     def prep_tracer(state, format_infos=None):
         format_infos = [] if format_infos is None else format_infos
-        state.inspect.b(
-            'exit',
-            angr.BP_BEFORE,
-            action=exit_hook
-        )
-        state.inspect.b(
-            'syscall',
-            angr.BP_AFTER,
-            action=syscall_hook
-        )
-        state.inspect.b(
-            'constraints',
-            angr.BP_BEFORE,
-            action=constraint_hook
-        )
+        state.inspect.b("exit", angr.BP_BEFORE, action=exit_hook)
+        state.inspect.b("syscall", angr.BP_AFTER, action=syscall_hook)
+        state.inspect.b("constraints", angr.BP_BEFORE, action=constraint_hook)
 
         if state.has_plugin("chall_resp_info"):
             chall_resp_plugin = state.get_plugin("chall_resp_info")
@@ -563,6 +566,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
 
 
 # THE ZEN HOOK
+
 
 def zen_hook(state, expr):
     # don't do this if inside a hooked function
@@ -677,7 +681,7 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         return depth
 
     @angr.state_plugins.SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
+    def copy(self, memo):  # pylint: disable=unused-argument
         z = ZenPlugin()
         # we explicitly don't copy the dict since it only is a mapping from var to replacement
         z.replacements = self.replacements
@@ -691,10 +695,10 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
         z.controlled_transmits = self.controlled_transmits
         return z
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         raise angr.errors.SimMergeError("Can't merge ZenPlugin - what on earth are you doing?")
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         raise angr.errors.SimMergeError("Can't widen ZenPlugin - what on earth are you doing?")
 
     def get_flag_bytes(self, ast):
@@ -709,12 +713,13 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
 
     def filter_constraints(self, constraints):
         zen_cache_keys = {x.cache_key for x in self.zen_constraints}
-        new_cons = [ ]
+        new_cons = []
         for con in constraints:
-            if con.cache_key in zen_cache_keys or \
-                    not all(v.startswith("cgc-flag") or
-                    v.startswith("random") for v in con.variables) or \
-                    len(con.variables) == 0:
+            if (
+                con.cache_key in zen_cache_keys
+                or not all(v.startswith("cgc-flag") or v.startswith("random") for v in con.variables)
+                or len(con.variables) == 0
+            ):
                 new_cons.append(con)
         return new_cons
 
@@ -735,16 +740,8 @@ class ZenPlugin(angr.state_plugins.SimStatePlugin):
             zen_plugin = ZenPlugin()
 
         state.register_plugin("zen_plugin", zen_plugin)
-        state.inspect.b(
-            'reg_write',
-            angr.BP_BEFORE,
-            action=zen_register_write
-        )
-        state.inspect.b(
-            'mem_write',
-            angr.BP_BEFORE,
-            action=zen_memory_write
-        )
+        state.inspect.b("reg_write", angr.BP_BEFORE, action=zen_register_write)
+        state.inspect.b("mem_write", angr.BP_BEFORE, action=zen_memory_write)
 
         # setup the byte dict
         byte_dict = zen_plugin.byte_dict

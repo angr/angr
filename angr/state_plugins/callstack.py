@@ -8,13 +8,23 @@ from ..errors import AngrError, SimEmptyCallStackError
 
 l = logging.getLogger(name=__name__)
 
+
 class CallStack(SimStatePlugin):
     """
     Stores the address of the function you're in and the value of SP
     at the VERY BOTTOM of the stack, i.e. points to the return address.
     """
-    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame: Optional['CallStack'] = None,
-                 invoke_return_variable=None):
+
+    def __init__(
+        self,
+        call_site_addr=0,
+        func_addr=0,
+        stack_ptr=0,
+        ret_addr=0,
+        jumpkind="Ijk_Call",
+        next_frame: Optional["CallStack"] = None,
+        invoke_return_variable=None,
+    ):
         super().__init__()
         self.state = None
         self.call_site_addr = call_site_addr
@@ -34,7 +44,7 @@ class CallStack(SimStatePlugin):
     #
 
     @SimStatePlugin.memo
-    def copy(self, memo, with_tail=True): # pylint: disable=unused-argument,arguments-differ
+    def copy(self, memo, with_tail=True):  # pylint: disable=unused-argument,arguments-differ
         o = super().copy(memo)
         o.call_site_addr = self.call_site_addr
         o.func_addr = self.func_addr
@@ -54,20 +64,20 @@ class CallStack(SimStatePlugin):
         # make the stack pointer as large as possible as soon as we know how large that actually is
         if self.stack_ptr == 0:
             try:
-                bits = state.arch.registers['sp'][1] * state.arch.byte_width
+                bits = state.arch.registers["sp"][1] * state.arch.byte_width
             except KeyError:
                 bits = state.arch.bits
             self.stack_ptr = 2**bits - 1
 
-    def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         for o in others:
             if o != self:
                 l.error("Trying to merge states with disparate callstacks!")
 
-    def widen(self, others): # pylint: disable=unused-argument
+    def widen(self, others):  # pylint: disable=unused-argument
         l.warning("Widening not implemented for callstacks")
 
-    def __iter__(self) -> Iterator['CallStack']:
+    def __iter__(self) -> Iterator["CallStack"]:
         """
         Iterate through the callstack, from top to bottom
         (most recent first).
@@ -111,7 +121,10 @@ class CallStack(SimStatePlugin):
         return "<CallStack (depth %d)>" % len(self)
 
     def __str__(self):
-        return "Backtrace:\n%s" % "\n".join("Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr) for i, f in enumerate(self))
+        return "Backtrace:\n%s" % "\n".join(
+            "Frame %d: %#x => %#x, sp = %#x" % (i, f.call_site_addr, f.func_addr, f.stack_ptr)
+            for i, f in enumerate(self)
+        )
 
     def __eq__(self, other):
         if not isinstance(other, CallStack):
@@ -203,8 +216,7 @@ class CallStack(SimStatePlugin):
         """
 
         try:
-            return dropwhile(lambda x: lst[x] != item,
-                             next(reversed(range(len(lst)))))
+            return dropwhile(lambda x: lst[x] != item, next(reversed(range(len(lst)))))
         except Exception as e:
             raise ValueError("%s not in the list" % item) from e
 
@@ -227,10 +239,10 @@ class CallStack(SimStatePlugin):
         """
         cf.next = self
         if self.state is not None:
-            self.state.register_plugin('callstack', cf)
-            self.state.history.recent_stack_actions.append(CallStackAction(
-                hash(cf), len(cf), 'push', callframe=cf.copy({}, with_tail=False)
-            ))
+            self.state.register_plugin("callstack", cf)
+            self.state.history.recent_stack_actions.append(
+                CallStackAction(hash(cf), len(cf), "push", callframe=cf.copy({}, with_tail=False))
+            )
 
         return cf
 
@@ -243,10 +255,10 @@ class CallStack(SimStatePlugin):
         new_list = self.next.copy({})
 
         if self.state is not None:
-            self.state.register_plugin('callstack', new_list)
-            self.state.history.recent_stack_actions.append(CallStackAction(
-                hash(new_list), len(new_list), 'pop', ret_site_addr=self.ret_addr
-            ))
+            self.state.register_plugin("callstack", new_list)
+            self.state.history.recent_stack_actions.append(
+                CallStackAction(hash(new_list), len(new_list), "pop", ret_site_addr=self.ret_addr)
+            )
 
         return new_list
 
@@ -261,8 +273,7 @@ class CallStack(SimStatePlugin):
         :return: None
         """
 
-        frame = CallStack(call_site_addr=callsite_addr, func_addr=addr, ret_addr=retn_target,
-                          stack_ptr=stack_pointer)
+        frame = CallStack(call_site_addr=callsite_addr, func_addr=addr, ret_addr=retn_target, stack_ptr=stack_pointer)
         return self.push(frame)
 
     def ret(self, retn_target=None):
@@ -292,10 +303,10 @@ class CallStack(SimStatePlugin):
         l.warning("Returning to an unexpected address %#x", retn_target)
         return self
 
-            # For Debugging
-            # raise Exception()
-            # There are cases especially in ARM where return is used as a jump
-            # So we don't pop anything out
+        # For Debugging
+        # raise Exception()
+        # There are cases especially in ARM where return is used as a jump
+        # So we don't pop anything out
 
     def dbg_repr(self):
         """
@@ -305,7 +316,7 @@ class CallStack(SimStatePlugin):
         :rtype: str
         """
 
-        stack = [ ]
+        stack = []
         for i, frame in enumerate(self):
             s = "%d | %s -> %s, returning to %s" % (
                 i,
@@ -329,11 +340,11 @@ class CallStack(SimStatePlugin):
         ret = ()
 
         for frame in self:
-            if len(ret) >= context_sensitivity_level*2:
+            if len(ret) >= context_sensitivity_level * 2:
                 break
             ret = (frame.call_site_addr, frame.func_addr) + ret
 
-        while len(ret) < context_sensitivity_level*2:
+        while len(ret) < context_sensitivity_level * 2:
             ret = (None, None) + ret
 
         return ret
@@ -357,34 +368,37 @@ class CallStack(SimStatePlugin):
                 return i
         return None
 
+
 class CallStackAction:
     """
     Used in callstack backtrace, which is a history of callstacks along a path, to record individual actions occurred
     each time the callstack is changed.
     """
+
     def __init__(self, callstack_hash, callstack_depth, action, callframe=None, ret_site_addr=None):
         self.callstack_hash = callstack_hash
         self.callstack_depth = callstack_depth
         self.action = action
 
-        if action not in ('push', 'pop'):
+        if action not in ("push", "pop"):
             raise AngrError('Unsupported action string "%s".' % action)
 
         self.callframe = callframe
         self.ret_site_addr = ret_site_addr
 
-        if action == 'push' and self.callframe is None:
+        if action == "push" and self.callframe is None:
             raise AngrError('callframe must be specified when action is "push".')
 
-        if action == 'pop' and self.callframe is not None:
+        if action == "pop" and self.callframe is not None:
             raise AngrError('callframe must not be specified when action is "pop".')
 
     def __repr__(self):
-        if self.action == 'push':
+        if self.action == "push":
             return "<CallStackAction push with %s>" % self.callframe
-        else: # pop
+        else:  # pop
             return "<CallStackAction pop, ret site %#x>" % self.ret_site_addr
 
 
 from angr.sim_state import SimState
-SimState.register_default('callstack', CallStack)
+
+SimState.register_default("callstack", CallStack)

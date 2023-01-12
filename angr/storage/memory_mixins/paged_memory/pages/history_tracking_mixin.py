@@ -12,6 +12,7 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
     """
     Tracks the history of memory writes.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._parent = None
@@ -64,9 +65,9 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
                 i -= 1
                 j -= 1
 
-            for page_ in self_history_list[:i+1]:
+            for page_ in self_history_list[: i + 1]:
                 candidates |= page_._changed_offsets
-            for page_ in other_history_list[:j+1]:
+            for page_ in other_history_list[: j + 1]:
                 candidates |= page_._changed_offsets
             return candidates
 

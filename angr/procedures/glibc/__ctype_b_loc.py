@@ -4,6 +4,7 @@ import angr
 # __ctype_b_loc
 ######################################
 
+
 class __ctype_b_loc(angr.SimProcedure):
     """
     Following is the description from linuxfoundation.org:

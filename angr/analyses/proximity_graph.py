@@ -23,6 +23,7 @@ class ProxiNodeTypes:
     """
     Node Type Enums
     """
+
     Empty = 0
     String = 1
     Function = 2
@@ -58,9 +59,7 @@ class FunctionProxiNode(BaseProxiNode):
         self.func = func
 
     def __eq__(self, other):
-        return isinstance(other, FunctionProxiNode) and \
-               other.type_ == self.type_ and \
-               self.func == other.func
+        return isinstance(other, FunctionProxiNode) and other.type_ == self.type_ and self.func == other.func
 
     def __hash__(self):
         return hash((FunctionProxiNode, self.func))
@@ -77,9 +76,7 @@ class VariableProxiNode(BaseProxiNode):
         self.name = name
 
     def __eq__(self, other):
-        return isinstance(other, VariableProxiNode) and \
-               other.type_ == self.type_ and \
-               self.addr == other.addr
+        return isinstance(other, VariableProxiNode) and other.type_ == self.type_ and self.addr == other.addr
 
     def __hash__(self):
         return hash((VariableProxiNode, self.addr))
@@ -96,9 +93,7 @@ class StringProxiNode(BaseProxiNode):
         self.content = content
 
     def __eq__(self, other):
-        return isinstance(other, StringProxiNode) and \
-               other.type_ == self.type_ and \
-               self.addr == other.addr
+        return isinstance(other, StringProxiNode) and other.type_ == self.type_ and self.addr == other.addr
 
     def __hash__(self):
         return hash((StringProxiNode, self.addr))
@@ -115,11 +110,13 @@ class CallProxiNode(BaseProxiNode):
         self.args = args
 
     def __eq__(self, other):
-        return isinstance(other, CallProxiNode) and \
-               other.type_ == self.type_ and \
-               self.callee == other.callee and \
-               self.args == other.args and \
-               self.ref_at == other.ref_at
+        return (
+            isinstance(other, CallProxiNode)
+            and other.type_ == self.type_
+            and self.callee == other.callee
+            and self.args == other.args
+            and self.ref_at == other.ref_at
+        )
 
     def __hash__(self):
         return hash((CallProxiNode, self.callee, self.args))
@@ -135,9 +132,7 @@ class IntegerProxiNode(BaseProxiNode):
         self.value = value
 
     def __eq__(self, other):
-        return isinstance(other, IntegerProxiNode) and \
-               self.type_ == other.type_ and \
-               self.value == other.value
+        return isinstance(other, IntegerProxiNode) and self.type_ == other.type_ and self.value == other.value
 
     def __hash__(self):
         return hash((IntegerProxiNode, self.value))
@@ -153,9 +148,9 @@ class UnknownProxiNode(BaseProxiNode):
         self.dummy_value = dummy_value
 
     def __eq__(self, other):
-        return isinstance(other, UnknownProxiNode) and \
-               self.type_ == other.type_ and \
-               self.dummy_value == other.dummy_value
+        return (
+            isinstance(other, UnknownProxiNode) and self.type_ == other.type_ and self.dummy_value == other.dummy_value
+        )
 
     def __hash__(self):
         return hash((UnknownProxiNode, self.dummy_value))
@@ -166,8 +161,14 @@ class ProximityGraphAnalysis(Analysis):
     Generate a proximity graph.
     """
 
-    def __init__(self, func: 'Function', cfg_model: 'CFGModel', xrefs: 'XRefManager',
-                 decompilation: Optional['Decompiler'] = None, expand_funcs: Optional[Set[int]] = None):
+    def __init__(
+        self,
+        func: "Function",
+        cfg_model: "CFGModel",
+        xrefs: "XRefManager",
+        decompilation: Optional["Decompiler"] = None,
+        expand_funcs: Optional[Set[int]] = None,
+    ):
         self._function = func
         self._cfg_model = cfg_model
         self._xrefs = xrefs
@@ -188,8 +189,9 @@ class ProximityGraphAnalysis(Analysis):
         if not self._decompilation:
             to_expand = self._process_function(self._function, self.graph, func_proxi_node=func_proxi_node)
         else:
-            to_expand = self._process_decompilation(self.graph, decompilation=self._decompilation,
-                                                    func_proxi_node=func_proxi_node)
+            to_expand = self._process_decompilation(
+                self.graph, decompilation=self._decompilation, func_proxi_node=func_proxi_node
+            )
 
         for func_node in to_expand:
             if self._expand_funcs:
@@ -208,7 +210,7 @@ class ProximityGraphAnalysis(Analysis):
             self.graph.add_nodes_from(subgraph.nodes())
             self.graph.add_edges_from(subgraph.edges())
 
-    def _endnode_connector(self, func: 'Function', subgraph: networkx.DiGraph):
+    def _endnode_connector(self, func: "Function", subgraph: networkx.DiGraph):
         """
         Properly connect expanded function call's to proximity graph.
         """
@@ -235,23 +237,26 @@ class ProximityGraphAnalysis(Analysis):
                 for succ in successors:
                     subgraph.add_edge(end_node, succ)
 
-    def _process_function(self, func: 'Function', graph: networkx.DiGraph,
-                          func_proxi_node: Optional[FunctionProxiNode] = None) -> List[FunctionProxiNode]:
+    def _process_function(
+        self, func: "Function", graph: networkx.DiGraph, func_proxi_node: Optional[FunctionProxiNode] = None
+    ) -> List[FunctionProxiNode]:
 
         to_expand: List[FunctionProxiNode] = []
-        found_blocks: Dict[BlockNode: BaseProxiNode] = {}
+        found_blocks: Dict[BlockNode:BaseProxiNode] = {}
 
         # function calls
         for n_ in func.nodes:
             if isinstance(n_, Function):
                 func_node = n_
                 for block, _, data in func.transition_graph.in_edges(func_node, data=True):
-                    if 'ins_addr' in data:
-                        if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
-                            node = FunctionProxiNode(func_node, ref_at={data['ins_addr']})
+                    if "ins_addr" in data:
+                        if (
+                            self._expand_funcs and func_node.addr in self._expand_funcs
+                        ):  # pylint:disable=unsupported-membership-test
+                            node = FunctionProxiNode(func_node, ref_at={data["ins_addr"]})
                             to_expand.append(node)
                         else:
-                            node = CallProxiNode(func_node, ref_at={data['ins_addr']})
+                            node = CallProxiNode(func_node, ref_at={data["ins_addr"]})
                         found_blocks[block] = node
 
         # subgraph check - do before in case of recursion
@@ -311,8 +316,9 @@ class ProximityGraphAnalysis(Analysis):
         else:
             args.append(UnknownProxiNode("_"))
 
-    def _process_decompilation(self, graph: networkx.DiGraph, decompilation: 'Decompiler',
-                               func_proxi_node: Optional[FunctionProxiNode] = None) -> List[FunctionProxiNode]:
+    def _process_decompilation(
+        self, graph: networkx.DiGraph, decompilation: "Decompiler", func_proxi_node: Optional[FunctionProxiNode] = None
+    ) -> List[FunctionProxiNode]:
         to_expand: List[FunctionProxiNode] = []
 
         # dedup
@@ -321,8 +327,9 @@ class ProximityGraphAnalysis(Analysis):
         # Walk the clinic structure to dump string references and function calls
         ail_graph = decompilation.clinic.cc_graph
 
-        def _handle_Call(stmt_idx: int, stmt: ailment.Stmt.Call,  # pylint:disable=unused-argument
-                         block: Optional[ailment.Block]):  # pylint:disable=unused-argument
+        def _handle_Call(
+            stmt_idx: int, stmt: ailment.Stmt.Call, block: Optional[ailment.Block]  # pylint:disable=unused-argument
+        ):  # pylint:disable=unused-argument
             func_node = self.kb.functions[stmt.target.value]
             ref_at = {stmt.ins_addr}
 
@@ -332,7 +339,9 @@ class ProximityGraphAnalysis(Analysis):
                 for arg in stmt.args:
                     self._arg_handler(arg, args, string_refs)
 
-            if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
+            if (
+                self._expand_funcs and func_node.addr in self._expand_funcs
+            ):  # pylint:disable=unsupported-membership-test
                 new_node = FunctionProxiNode(func_node, ref_at=ref_at)
                 if new_node not in to_expand:
                     to_expand.append(new_node)
@@ -343,9 +352,13 @@ class ProximityGraphAnalysis(Analysis):
             self.handled_stmts.append(new_node)
 
         # This should have the same functionality as the previous handler
-        def _handle_CallExpr(expr_idx: int, expr: ailment.Stmt.Call, stmt_idx: int,  # pylint:disable=unused-argument
-                             stmt: ailment.Stmt.Statement,  # pylint:disable=unused-argument
-                             block: Optional[ailment.Block]):  # pylint:disable=unused-argument
+        def _handle_CallExpr(
+            expr_idx: int,
+            expr: ailment.Stmt.Call,
+            stmt_idx: int,  # pylint:disable=unused-argument
+            stmt: ailment.Stmt.Statement,  # pylint:disable=unused-argument
+            block: Optional[ailment.Block],
+        ):  # pylint:disable=unused-argument
             _handle_Call(stmt_idx, expr, block)
 
         # subgraph check - do before in case of recursion
@@ -407,4 +420,4 @@ class ProximityGraphAnalysis(Analysis):
         return to_expand
 
 
-AnalysesHub.register_default('Proximity', ProximityGraphAnalysis)
+AnalysesHub.register_default("Proximity", ProximityGraphAnalysis)

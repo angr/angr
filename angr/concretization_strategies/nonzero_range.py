@@ -1,5 +1,6 @@
 from . import SimConcretizationStrategy
 
+
 class SimConcretizationStrategyNonzeroRange(SimConcretizationStrategy):
     """
     Concretization strategy that resolves a range in a non-zero location.
@@ -10,7 +11,7 @@ class SimConcretizationStrategyNonzeroRange(SimConcretizationStrategy):
         self._limit = limit
 
     def _concretize(self, memory, addr, extra_constraints=None, **kwargs):
-        mn,mx = self._range(memory, addr, extra_constraints=extra_constraints, **kwargs)
+        mn, mx = self._range(memory, addr, extra_constraints=extra_constraints, **kwargs)
         if mx - mn <= self._limit:
             child_constaints = (addr != 0,)
             if extra_constraints is not None:

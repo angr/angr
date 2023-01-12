@@ -97,7 +97,7 @@ def extract_jump_targets(stmt):
     :rtype:         list
     """
 
-    targets = [ ]
+    targets = []
 
     if isinstance(stmt, ailment.Stmt.Jump):
         if isinstance(stmt.target, ailment.Expr.Const):
@@ -111,7 +111,7 @@ def extract_jump_targets(stmt):
     return targets
 
 
-def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Optional[Tuple[Any,int,int]]:
+def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Optional[Tuple[Any, int, int]]:
     """
     Check the last statement of the switch-case header node, and extract lower+upper bounds for the comparison.
 
@@ -123,15 +123,17 @@ def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Option
         return None
 
     # TODO: Add more operations
-    if isinstance(last_stmt.condition, ailment.Expr.BinaryOp) and last_stmt.condition.op == 'CmpLE':
+    if isinstance(last_stmt.condition, ailment.Expr.BinaryOp) and last_stmt.condition.op == "CmpLE":
         if not isinstance(last_stmt.condition.operands[1], ailment.Expr.Const):
             return None
         cmp_ub = last_stmt.condition.operands[1].value
         cmp_lb = 0
         cmp = last_stmt.condition.operands[0]
-        if isinstance(cmp, ailment.Expr.BinaryOp) and \
-                cmp.op == 'Sub' and \
-                isinstance(cmp.operands[1], ailment.Expr.Const):
+        if (
+            isinstance(cmp, ailment.Expr.BinaryOp)
+            and cmp.op == "Sub"
+            and isinstance(cmp.operands[1], ailment.Expr.Const)
+        ):
             cmp_ub += cmp.operands[1].value
             cmp_lb += cmp.operands[1].value
             cmp = cmp.operands[0]
@@ -142,7 +144,7 @@ def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Option
 
 def get_ast_subexprs(claripy_ast):
 
-    queue = [ claripy_ast ]
+    queue = [claripy_ast]
     while queue:
         ast = queue.pop(0)
         if ast.op == "And":
@@ -152,7 +154,7 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int,Tuple[int]]], label=None):
+def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int, Tuple[int]]], label=None):
 
     if insert_location not in {"before", "after"}:
         raise ValueError('"insert_location" must be either "before" or "after"')
@@ -160,13 +162,13 @@ def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int
     if isinstance(parent, SequenceNode):
         if insert_location == "before":
             parent.nodes.insert(node_idx, node)
-        else: # if insert_location == "after":
+        else:  # if insert_location == "after":
             parent.nodes.insert(node_idx + 1, node)
     elif isinstance(parent, CodeNode):
         # Make a new sequence node
         if insert_location == "before":
             seq = SequenceNode(parent.addr, nodes=[node, parent.node])
-        else: # if insert_location == "after":
+        else:  # if insert_location == "after":
             seq = SequenceNode(parent.addr, nodes=[parent.node, node])
         parent.node = seq
     elif isinstance(parent, MultiNode):
@@ -201,30 +203,31 @@ def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int
         # note that this case will be hit only when the parent node is not a container, such as SequenceNode or
         # MultiNode. we always need to create a new SequenceNode and replace the original node in place.
 
-        if label == 'switch_expr':
+        if label == "switch_expr":
             raise TypeError("You cannot insert a node after an expression.")
-        if label == 'case':
+        if label == "case":
             # node_idx is the case number.
-            if insert_location == 'after':
-                new_nodes = [ parent.cases[node_idx], node ]
-            elif insert_location == 'before':
-                new_nodes = [ node, parent.cases[node_idx] ]
+            if insert_location == "after":
+                new_nodes = [parent.cases[node_idx], node]
+            elif insert_location == "before":
+                new_nodes = [node, parent.cases[node_idx]]
             else:
-                raise TypeError(f"Unsupported insert_location value \"{insert_location}\".")
+                raise TypeError(f'Unsupported insert_location value "{insert_location}".')
             seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
             parent.cases[node_idx] = seq
-        elif label == 'default':
-            if insert_location == 'after':
-                new_nodes = [ parent.default_node, node ]
-            elif insert_location == 'before':
-                new_nodes = [ node, parent.default_node ]
+        elif label == "default":
+            if insert_location == "after":
+                new_nodes = [parent.default_node, node]
+            elif insert_location == "before":
+                new_nodes = [node, parent.default_node]
             else:
                 raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
             seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
             parent.default_node = seq
         else:
-            raise TypeError(f"Unsupported label value \"{label}\". Must be one of the following: switch_expr, case, "
-                            f"default.")
+            raise TypeError(
+                f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, ' f"default."
+            )
     else:
         raise NotImplementedError()
 
@@ -271,16 +274,16 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
 
     while True:
         for src, dst, data in transition_graph.edges(data=True):
-            type_ = data.get('type', None)
+            type_ = data.get("type", None)
 
             if len(list(transition_graph.successors(src))) == 1 and len(list(transition_graph.predecessors(dst))) == 1:
                 # calls in the middle of blocks OR boring jumps
-                if (type_ == 'fake_return') or (src.addr + src.original_size == dst.addr):
+                if (type_ == "fake_return") or (src.addr + src.original_size == dst.addr):
                     _merge_ail_nodes(transition_graph, src, dst)
                     break
 
             # calls to functions with no return
-            elif type_ == 'call':
+            elif type_ == "call":
                 transition_graph.remove_node(dst)
                 break
         else:
@@ -320,7 +323,7 @@ def first_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Stat
     return None
 
 
-def first_nonlabel_node(seq: 'SequenceNode') -> Optional[Union['BaseNode',ailment.Block]]:
+def first_nonlabel_node(seq: "SequenceNode") -> Optional[Union["BaseNode", ailment.Block]]:
     for node in seq.nodes:
         if isinstance(node, CodeNode):
             inner_node = node.node
@@ -333,5 +336,12 @@ def first_nonlabel_node(seq: 'SequenceNode') -> Optional[Union['BaseNode',ailmen
 
 
 # delayed import
-from .structuring.structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, \
-    CascadingConditionNode
+from .structuring.structurer_nodes import (
+    MultiNode,
+    BaseNode,
+    CodeNode,
+    SequenceNode,
+    ConditionNode,
+    SwitchCaseNode,
+    CascadingConditionNode,
+)

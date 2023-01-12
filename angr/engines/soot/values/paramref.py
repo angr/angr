@@ -3,7 +3,7 @@ from .base import SimSootValue
 
 class SimSootValue_ParamRef(SimSootValue):
 
-    __slots__ = [ 'id', 'index', 'type' ]
+    __slots__ = ["id", "index", "type"]
 
     def __init__(self, index, type_):
         self.id = "param_%d" % index

@@ -7,7 +7,7 @@ class ConvShlShr(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "(expr << P) >> Q => (expr & mask) >> R"
-    expr_classes = (BinaryOp, )  # all expressions are allowed
+    expr_classes = (BinaryOp,)  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
 
@@ -28,7 +28,7 @@ class ConvShlShr(PeepholeOptimizationExprBase):
                         bitmask = (1 << (n - p)) - 1
                         and_expr = BinaryOp(
                             None,
-                            'And',
+                            "And",
                             (
                                 Convert(expr_a.idx, m, n, False, expr_a.operand, **expr_a.tags),
                                 Const(None, None, bitmask, n),
@@ -40,7 +40,7 @@ class ConvShlShr(PeepholeOptimizationExprBase):
                         )
                         return BinaryOp(
                             None,
-                            'Shr',
+                            "Shr",
                             (
                                 and_expr,
                                 Const(None, None, q - p, and_expr.bits),

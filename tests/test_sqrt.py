@@ -12,7 +12,7 @@ class TestSqrt(TestCase):
         proj = angr.load_shellcode(ins_bytes, "amd64", load_address=0)
         state = proj.factory.blank_state(addr=0)
 
-        xmm1 = claripy.FPS('v', claripy.FSORT_FLOAT)
+        xmm1 = claripy.FPS("v", claripy.FSORT_FLOAT)
         state.regs.xmm1 = xmm1.to_bv()
         simgr = proj.factory.simgr(state)
 

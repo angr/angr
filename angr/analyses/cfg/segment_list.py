@@ -13,7 +13,7 @@ class Segment:
     Representing a memory block. This is not the "Segment" in ELF memory model
     """
 
-    __slots__ = ['start', 'end', 'sort']
+    __slots__ = ["start", "end", "sort"]
 
     def __init__(self, start, end, sort):
         """
@@ -57,7 +57,7 @@ class SegmentList:
     blocks or not, and obtain the exact block(segment) that the address belongs to.
     """
 
-    __slots__ = ['_list', '_bytes_occupied']
+    __slots__ = ["_list", "_bytes_occupied"]
 
     def __init__(self):
         self._list: List[Segment] = []
@@ -181,7 +181,7 @@ class SegmentList:
                 else:
                     # They are overlapping. We will create one, two, or three different blocks based on how they are
                     # overlapping
-                    new_segments = [ ]
+                    new_segments = []
                     if segment.start < previous_segment.start:
                         new_segments.append(Segment(segment.start, previous_segment.start, segment.sort))
 
@@ -211,16 +211,18 @@ class SegmentList:
                         s0 = new_segments[i]
                         s1 = new_segments[i + 1]
                         if s0.sort == s1.sort:
-                            new_segments = new_segments[:i] + [Segment(s0.start, s1.end, s0.sort)] + new_segments[i+2:]
+                            new_segments = (
+                                new_segments[:i] + [Segment(s0.start, s1.end, s0.sort)] + new_segments[i + 2 :]
+                            )
                         else:
                             i += 1
 
                     # Put new segments into self._list
-                    old_size = sum([ seg.size for seg in self._list[previous_segment_pos : segment_pos + 1] ])
-                    new_size = sum([ seg.size for seg in new_segments ])
+                    old_size = sum([seg.size for seg in self._list[previous_segment_pos : segment_pos + 1]])
+                    new_size = sum([seg.size for seg in new_segments])
                     bytes_changed = new_size - old_size
 
-                    self._list = self._list[ : previous_segment_pos] + new_segments + self._list[ segment_pos + 1 : ]
+                    self._list = self._list[:previous_segment_pos] + new_segments + self._list[segment_pos + 1 :]
 
                     merged = True
 
@@ -455,7 +457,7 @@ class SegmentList:
             return self._list[idx - 1].sort
         return None
 
-    def occupied_by(self, address: int) -> Optional[Tuple[int,int,str]]:
+    def occupied_by(self, address: int) -> Optional[Tuple[int, int, str]]:
         """
         Check if an address belongs to any segment, and if yes, returns the beginning, the size, and the sort of the
         segment.
@@ -530,7 +532,7 @@ class SegmentList:
         """
         n = SegmentList()
 
-        n._list = [ a.copy() for a in self._list ]
+        n._list = [a.copy() for a in self._list]
         n._bytes_occupied = self._bytes_occupied
         return n
 

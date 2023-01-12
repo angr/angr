@@ -7,6 +7,7 @@ class Closure(NamedTuple):
     """
     A pickle-able lambda; note that f, args, and kwargs must be pickleable
     """
+
     f: Callable[..., None]
     args: List[Any]
     kwargs: Dict[str, Any]
@@ -16,6 +17,7 @@ class Initializer:
     """
     A singleton class with global state used to initialize a multiprocessing.Process
     """
+
     _single: Optional["Initializer"] = None
 
     @classmethod
@@ -24,7 +26,7 @@ class Initializer:
         A wrapper around init since this class is a singleton
         """
         if cls._single is None:
-            cls._single = cls(_manual = False)
+            cls._single = cls(_manual=False)
         return cls._single
 
     def __init__(self, *, _manual: bool = True):

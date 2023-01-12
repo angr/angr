@@ -1,10 +1,12 @@
 import logging
 
-l = logging.getLogger('angr.engines.soot.statements')
+l = logging.getLogger("angr.engines.soot.statements")
+
 
 def translate_stmt(stmt, state):
     stmt_name = stmt.__class__.__name__.split(".")[-1]
-    if stmt_name.endswith("Stmt"): stmt_name = stmt_name[:-4]
+    if stmt_name.endswith("Stmt"):
+        stmt_name = stmt_name[:-4]
 
     stmt_cls_name = "SimSootStmt_%s" % stmt_name
     if stmt_cls_name in globals():
@@ -16,6 +18,7 @@ def translate_stmt(stmt, state):
     else:
         l.warning("Unsupported Soot statement %s.", stmt_cls_name)
         return None
+
 
 from .assign import SimSootStmt_Assign
 from .return_ import SimSootStmt_Return, SimSootStmt_ReturnVoid

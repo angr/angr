@@ -10,7 +10,11 @@ class PeepholeOptimizationStmtBase:
     The base class for all peephole optimizations that are applied on AIL statements.
     """
 
-    __slots__ = ('project', 'kb', 'func_addr', )
+    __slots__ = (
+        "project",
+        "kb",
+        "func_addr",
+    )
     project: Project
     kb: KnowledgeBase
     func_addr: Optional[int]
@@ -33,7 +37,11 @@ class PeepholeOptimizationExprBase:
     The base class for all peephole optimizations that are applied on AIL expressions.
     """
 
-    __slots__ = ('project', 'kb', 'func_addr', )
+    __slots__ = (
+        "project",
+        "kb",
+        "func_addr",
+    )
     project: Project
     kb: KnowledgeBase
     func_addr: Optional[int]
@@ -58,9 +66,19 @@ class PeepholeOptimizationExprBase:
     def is_bool_expr(ail_expr):
 
         if isinstance(ail_expr, BinaryOp):
-            if ail_expr.op in {'CmpEQ', 'CmpNE', 'CmpLT', 'CmpLE', 'CmpGT', 'CmpGE', 'CmpLTs', 'CmpLEs', 'CmpGTs',
-                               'CmpGEs'}:
+            if ail_expr.op in {
+                "CmpEQ",
+                "CmpNE",
+                "CmpLT",
+                "CmpLE",
+                "CmpGT",
+                "CmpGE",
+                "CmpLTs",
+                "CmpLEs",
+                "CmpGTs",
+                "CmpGEs",
+            }:
                 return True
-        if isinstance(ail_expr, UnaryOp) and ail_expr.op == 'Not':
+        if isinstance(ail_expr, UnaryOp) and ail_expr.op == "Not":
             return True
         return False

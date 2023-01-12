@@ -4,8 +4,14 @@ import logging
 import ailment
 
 from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, \
-    CascadingConditionNode
+from ..structuring.structurer_nodes import (
+    SequenceNode,
+    CodeNode,
+    MultiNode,
+    LoopNode,
+    ConditionNode,
+    CascadingConditionNode,
+)
 
 
 l = logging.getLogger(name=__name__)
@@ -67,7 +73,7 @@ class IfSimplifier(SequenceWalker):
         for _, child_node in node.condition_and_nodes:
             self._handle(child_node, successor=successor)
         if node.else_node is not None:
-            self._handle(node.else_node,successor=successor)
+            self._handle(node.else_node, successor=successor)
 
     def _handle_loopnode(self, node, successor=None, **kwargs):
         """
@@ -103,25 +109,33 @@ class IfSimplifier(SequenceWalker):
                 true_cond = False
                 if cond_stmt.true_target is not None and successor.true_node is not None:
                     # True branch exists. Test if the true target is the address
-                    if isinstance(cond_stmt.true_target, ailment.Expr.Const) \
-                            and cond_stmt.true_target.value == successor.true_node.addr:
+                    if (
+                        isinstance(cond_stmt.true_target, ailment.Expr.Const)
+                        and cond_stmt.true_target.value == successor.true_node.addr
+                    ):
                         true_cond = True
                 if cond_stmt.true_target is not None and successor.false_node is not None:
                     # True branch exists. Test if the true target is the address
-                    if isinstance(cond_stmt.true_target, ailment.Expr.Const) \
-                            and cond_stmt.true_target.value == successor.false_node.addr:
+                    if (
+                        isinstance(cond_stmt.true_target, ailment.Expr.Const)
+                        and cond_stmt.true_target.value == successor.false_node.addr
+                    ):
                         true_cond = True
 
                 false_cond = False
                 if cond_stmt.false_target is not None and successor.false_node is not None:
                     # False branch exists. Test if the false target is the address
-                    if isinstance(cond_stmt.true_target, ailment.Expr.Const) \
-                            and cond_stmt.false_target.value == successor.false_node.addr:
+                    if (
+                        isinstance(cond_stmt.true_target, ailment.Expr.Const)
+                        and cond_stmt.false_target.value == successor.false_node.addr
+                    ):
                         false_cond = True
                 if cond_stmt.false_target is not None and successor.true_node is not None:
                     # True branch exists. Test if the true target is the address
-                    if isinstance(cond_stmt.true_target, ailment.Expr.Const) \
-                            and cond_stmt.false_target.value == successor.true_node.addr:
+                    if (
+                        isinstance(cond_stmt.true_target, ailment.Expr.Const)
+                        and cond_stmt.false_target.value == successor.true_node.addr
+                    ):
                         false_cond = True
 
                 if true_cond or false_cond:

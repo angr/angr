@@ -8,55 +8,55 @@ import angr
 
 l = logging.getLogger("angr_tests")
 
-test_location = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
-)
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 vfg_buffer_overflow_addresses = {"x86_64": 0x40055C}
 
 vfg_1_addresses = {
-        "x86_64": {
-            0x40071D,  # main
-            0x400510,  # _puts
-            0x40073E,  # main
-            0x400530,  # _read
-            0x400754,  # main
-            0x40076A,  # main
-            0x400774,  # main
-            0x40078A,  # main
-            0x4007A0,  # main
-            0x400664,  # authenticate
-            0x400550,  # _strcmp
-            0x40068E,  # authenticate
-            0x400699,  # authenticate
-            0x400560,  # _open
-            0x4006AF,  # authenticate
-            0x4006C8,  # authenticate
-            0x4006DB,  # authenticate
-            0x400692,  # authenticate
-            0x4006DF,  # authenticate
-            0x4006E6,  # authenticate
-            0x4006EB,  # authenticate
-            0x4007BD,  # main
-            0x4006ED,  # accepted
-            0x4006FB,  # accepted
-            0x4007C7,  # main
-            0x4007C9,  # main
-            0x4006FD,  # rejected
-            0x400520,  # _printf
-            0x400713,  # rejected
-            0x400570,  # _exit
-        }
+    "x86_64": {
+        0x40071D,  # main
+        0x400510,  # _puts
+        0x40073E,  # main
+        0x400530,  # _read
+        0x400754,  # main
+        0x40076A,  # main
+        0x400774,  # main
+        0x40078A,  # main
+        0x4007A0,  # main
+        0x400664,  # authenticate
+        0x400550,  # _strcmp
+        0x40068E,  # authenticate
+        0x400699,  # authenticate
+        0x400560,  # _open
+        0x4006AF,  # authenticate
+        0x4006C8,  # authenticate
+        0x4006DB,  # authenticate
+        0x400692,  # authenticate
+        0x4006DF,  # authenticate
+        0x4006E6,  # authenticate
+        0x4006EB,  # authenticate
+        0x4007BD,  # main
+        0x4006ED,  # accepted
+        0x4006FB,  # accepted
+        0x4007C7,  # main
+        0x4007C9,  # main
+        0x4006FD,  # rejected
+        0x400520,  # _printf
+        0x400713,  # rejected
+        0x400570,  # _exit
     }
+}
 
 
 class TestVfg(unittest.TestCase):
     def _run_vfg_buffer_overflow(self, arch):
         # pylint: disable=no-member
-        proj = angr.Project(os.path.join(test_location, arch, "basic_buffer_overflows"),
-                     use_sim_procedures=True,
-                     default_analysis_mode='symbolic',
-                     auto_load_libs=False)
+        proj = angr.Project(
+            os.path.join(test_location, arch, "basic_buffer_overflows"),
+            use_sim_procedures=True,
+            default_analysis_mode="symbolic",
+            auto_load_libs=False,
+        )
 
         cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1)
 
@@ -94,20 +94,16 @@ class TestVfg(unittest.TestCase):
         state = [s for s in states if s.solver.eval_one(s.ip) == 0x4005B4][0]
         assert claripy.backends.vsa.is_true(state.stack_read(12, 4) >= 0x28)
 
-
     def broken_vfg_buffer_overflow(self):
         # Test for running VFG on a single function
         self._run_vfg_buffer_overflow("x86_64")
-
 
     #
     # VFG test case 0
     #
 
-
     def test_vfg_0(self):
         self._run_vfg_0("x86_64")
-
 
     def _run_vfg_0(self, arch):
         proj = angr.Project(
@@ -136,16 +132,13 @@ class TestVfg(unittest.TestCase):
         # the following does not work without affine relation analysis
         # assert stdout == "i = 64
 
-
     #
     # VFG test case 1
     #
 
     def _run_vfg_1(self, arch):
         proj = angr.Project(
-            os.path.join(test_location, arch, "fauxware"),
-            use_sim_procedures=True,
-            auto_load_libs=False
+            os.path.join(test_location, arch, "fauxware"), use_sim_procedures=True, auto_load_libs=False
         )
 
         cfg = proj.analyses.CFGEmulated()
@@ -169,9 +162,7 @@ class TestVfg(unittest.TestCase):
         assert len(authenticate_final_states) == 1
         authenticate_final_state = next(iter(authenticate_final_states.values()))
         assert authenticate_final_state is not None
-        assert authenticate_final_state.solver.eval_upto(
-            authenticate_final_state.regs.rax, 3
-        ) == [0, 1]
+        assert authenticate_final_state.solver.eval_upto(authenticate_final_state.regs.rax, 3) == [0, 1]
 
         # optimal execution tests
         # - the basic block after returning from `authenticate` should only be executed once
@@ -206,7 +197,7 @@ class TestVfg(unittest.TestCase):
             (0x400808, 0x400790),  # init_2
         }
         indirect_call_targets = set()
-        for block_addr in cfg.kb.functions['main'].block_addrs_set:
+        for block_addr in cfg.kb.functions["main"].block_addrs_set:
             cfg_node = cfg.get_any_node(block_addr)
             succs_and_jumpkinds = cfg_node.successors_and_jumpkinds()
             if len(succs_and_jumpkinds) == 1 and succs_and_jumpkinds[0][1] == "Ijk_Call":

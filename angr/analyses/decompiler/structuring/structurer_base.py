@@ -11,8 +11,20 @@ from ... import Analysis
 from ..condition_processor import ConditionProcessor
 from ..sequence_walker import SequenceWalker
 from ..utils import extract_jump_targets, insert_node
-from .structurer_nodes import MultiNode, SequenceNode, SwitchCaseNode, CodeNode, ConditionNode, ConditionalBreakNode, \
-    ContinueNode, BaseNode, CascadingConditionNode, BreakNode, LoopNode, EmptyBlockNotice
+from .structurer_nodes import (
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
+    CodeNode,
+    ConditionNode,
+    ConditionalBreakNode,
+    ContinueNode,
+    BaseNode,
+    CascadingConditionNode,
+    BreakNode,
+    LoopNode,
+    EmptyBlockNotice,
+)
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -28,17 +40,27 @@ class StructurerBase(Analysis):
     The current function graph is provided so that we can detect certain edge cases, for example, jump table entries no
     longer exist due to empty node removal during structuring or prior steps.
     """
-    def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None,
-                 case_entry_to_switch_head: Optional[Dict[int,int]]=None, parent_region=None, improve_structurer=True):
-        self._region: 'GraphRegion' = region
+
+    def __init__(
+        self,
+        region,
+        parent_map=None,
+        condition_processor=None,
+        func: Optional["Function"] = None,
+        case_entry_to_switch_head: Optional[Dict[int, int]] = None,
+        parent_region=None,
+        improve_structurer=True,
+    ):
+        self._region: "GraphRegion" = region
         self._parent_map = parent_map
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
         self._parent_region = parent_region
         self._improve_structurer = improve_structurer
 
-        self.cond_proc = condition_processor if condition_processor is not None \
-            else ConditionProcessor(self.project.arch)
+        self.cond_proc = (
+            condition_processor if condition_processor is not None else ConditionProcessor(self.project.arch)
+        )
 
         # intermediate states
         self._new_sequences = []
@@ -71,8 +93,7 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def _remove_conditional_jumps_from_block(block, parent=None, index=0, label=None):  # pylint:disable=unused-argument
-        block.statements = [stmt for stmt in block.statements
-                            if not isinstance(stmt, ailment.Stmt.ConditionalJump)]
+        block.statements = [stmt for stmt in block.statements if not isinstance(stmt, ailment.Stmt.ConditionalJump)]
 
     @staticmethod
     def _remove_conditional_jumps(seq, follow_seq=True):
@@ -87,7 +108,6 @@ class StructurerBase(Analysis):
             if not follow_seq and node is not seq:
                 return None
             return walker._handle_Sequence(node, **kwargs)
-
 
         handlers = {
             SequenceNode: _handle_Sequence,
@@ -122,9 +142,7 @@ class StructurerBase(Analysis):
 
         if switch_end_addr is None:
             # we need to figure this out
-            handlers = {
-                ailment.Block: _find_gotos
-            }
+            handlers = {ailment.Block: _find_gotos}
 
             walker = SequenceWalker(handlers=handlers)
             for case_node in cases.values():
@@ -171,9 +189,11 @@ class StructurerBase(Analysis):
         """
 
         def _handle_Block(node: ailment.Block, **kwargs):  # pylint:disable=unused-argument
-            if node.statements \
-                    and isinstance(node.statements[-1], ailment.Stmt.Jump) \
-                    and isinstance(node.statements[-1].target, ailment.Expr.Const):
+            if (
+                node.statements
+                and isinstance(node.statements[-1], ailment.Stmt.Jump)
+                and isinstance(node.statements[-1].target, ailment.Expr.Const)
+            ):
                 # remove the jump
                 node.statements = node.statements[:-1]
 
@@ -201,30 +221,39 @@ class StructurerBase(Analysis):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
-                    jump_stmt: Optional[Union[ailment.Stmt.Jump,ailment.Stmt.ConditionalJump]] = None
-                    if isinstance(this_node, ailment.Block) and \
-                            this_node.statements and \
-                            isinstance(this_node.statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                    jump_stmt: Optional[Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump]] = None
+                    if (
+                        isinstance(this_node, ailment.Block)
+                        and this_node.statements
+                        and isinstance(this_node.statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump))
+                    ):
                         jump_stmt = this_node.statements[-1]
-                    elif isinstance(this_node, MultiNode) and \
-                            this_node.nodes and \
-                            isinstance(this_node.nodes[-1], ailment.Block) and \
-                            this_node.nodes[-1].statements and \
-                            isinstance(this_node.nodes[-1].statements[-1],
-                                       (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                    elif (
+                        isinstance(this_node, MultiNode)
+                        and this_node.nodes
+                        and isinstance(this_node.nodes[-1], ailment.Block)
+                        and this_node.nodes[-1].statements
+                        and isinstance(
+                            this_node.nodes[-1].statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)
+                        )
+                    ):
                         this_node = this_node.nodes[-1]
                         jump_stmt = this_node.statements[-1]
 
                     if isinstance(jump_stmt, ailment.Stmt.Jump):
                         next_node = node.nodes[i + 1]
-                        if isinstance(jump_stmt.target, ailment.Expr.Const) and \
-                                jump_stmt.target.value == next_node.addr:
+                        if (
+                            isinstance(jump_stmt.target, ailment.Expr.Const)
+                            and jump_stmt.target.value == next_node.addr
+                        ):
                             # this goto is useless
                             this_node.statements = this_node.statements[:-1]
                     elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
                         next_node = node.nodes[i + 1]
-                        if isinstance(jump_stmt.true_target, ailment.Expr.Const) and \
-                                jump_stmt.true_target.value == next_node.addr:
+                        if (
+                            isinstance(jump_stmt.true_target, ailment.Expr.Const)
+                            and jump_stmt.true_target.value == next_node.addr
+                        ):
                             # remove the true target
                             this_node.statements[-1] = ailment.Stmt.ConditionalJump(
                                 jump_stmt.idx,
@@ -233,8 +262,10 @@ class StructurerBase(Analysis):
                                 None,
                                 **jump_stmt.tags,
                             )
-                        elif isinstance(jump_stmt.false_target, ailment.Expr.Const) and \
-                                jump_stmt.false_target.value == next_node.addr:
+                        elif (
+                            isinstance(jump_stmt.false_target, ailment.Expr.Const)
+                            and jump_stmt.false_target.value == next_node.addr
+                        ):
                             # remove the false target
                             this_node.statements[-1] = ailment.Stmt.ConditionalJump(
                                 jump_stmt.idx,
@@ -250,30 +281,39 @@ class StructurerBase(Analysis):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
-                    jump_stmt: Optional[Union[ailment.Stmt.Jump,ailment.Stmt.ConditionalJump]] = None
-                    if isinstance(this_node, ailment.Block) and \
-                            this_node.statements and \
-                            isinstance(this_node.statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                    jump_stmt: Optional[Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump]] = None
+                    if (
+                        isinstance(this_node, ailment.Block)
+                        and this_node.statements
+                        and isinstance(this_node.statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump))
+                    ):
                         jump_stmt = this_node.statements[-1]
-                    elif isinstance(this_node, MultiNode) and \
-                            this_node.nodes and \
-                            isinstance(this_node.nodes[-1], ailment.Block) and \
-                            this_node.nodes[-1].statements and \
-                            isinstance(this_node.nodes[-1].statements[-1],
-                                       (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                    elif (
+                        isinstance(this_node, MultiNode)
+                        and this_node.nodes
+                        and isinstance(this_node.nodes[-1], ailment.Block)
+                        and this_node.nodes[-1].statements
+                        and isinstance(
+                            this_node.nodes[-1].statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)
+                        )
+                    ):
                         jump_stmt = this_node.nodes[-1].statements[-1]
                         this_node = this_node.nodes[-1]
 
                     if isinstance(jump_stmt, ailment.Stmt.Jump):
                         next_node = node.nodes[i + 1]
-                        if isinstance(jump_stmt.target, ailment.Expr.Const) and \
-                                jump_stmt.target.value == next_node.addr:
+                        if (
+                            isinstance(jump_stmt.target, ailment.Expr.Const)
+                            and jump_stmt.target.value == next_node.addr
+                        ):
                             # this goto is useless
                             this_node.statements = this_node.statements[:-1]
                     elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
                         next_node = node.nodes[i + 1]
-                        if isinstance(jump_stmt.true_target, ailment.Expr.Const) and \
-                                jump_stmt.true_target.value == next_node.addr:
+                        if (
+                            isinstance(jump_stmt.true_target, ailment.Expr.Const)
+                            and jump_stmt.true_target.value == next_node.addr
+                        ):
                             # remove the true target
                             this_node.statements[-1] = ailment.Stmt.ConditionalJump(
                                 jump_stmt.idx,
@@ -282,8 +322,10 @@ class StructurerBase(Analysis):
                                 None,
                                 **jump_stmt.tags,
                             )
-                        elif isinstance(jump_stmt.false_target, ailment.Expr.Const) and \
-                                jump_stmt.false_target.value == next_node.addr:
+                        elif (
+                            isinstance(jump_stmt.false_target, ailment.Expr.Const)
+                            and jump_stmt.false_target.value == next_node.addr
+                        ):
                             # remove the false target
                             this_node.statements[-1] = ailment.Stmt.ConditionalJump(
                                 jump_stmt.idx,
@@ -306,14 +348,14 @@ class StructurerBase(Analysis):
         return seq
 
     def _rewrite_conditional_jumps_to_breaks(self, loop_node, successor_addrs):
-
-        def _rewrite_conditional_jump_to_break(node: ailment.Block, parent=None, index=None, label=None,
-                                               **kwargs):  # pylint:disable=unused-argument
+        def _rewrite_conditional_jump_to_break(
+            node: ailment.Block, parent=None, index=None, label=None, **kwargs
+        ):  # pylint:disable=unused-argument
             if not node.statements:
                 return
 
             # stores all nodes that will replace the current AIL Block node
-            new_nodes: List = [ ]
+            new_nodes: List = []
             last_nonjump_stmt_idx = 0
 
             # find all jump and indirect jump statements
@@ -321,11 +363,13 @@ class StructurerBase(Analysis):
                 if not isinstance(stmt, (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump)):
                     continue
                 # skip if this is a jump that jumps directly to its successor within the same SequenceNode
-                if isinstance(stmt, ailment.Stmt.Jump) \
-                        and isinstance(parent, SequenceNode) \
-                        and index + 1 < len(parent.nodes) \
-                        and isinstance(stmt.target, ailment.Expr.Const) \
-                        and parent.nodes[index + 1].addr == stmt.target.value:
+                if (
+                    isinstance(stmt, ailment.Stmt.Jump)
+                    and isinstance(parent, SequenceNode)
+                    and index + 1 < len(parent.nodes)
+                    and isinstance(stmt.target, ailment.Expr.Const)
+                    and parent.nodes[index + 1].addr == stmt.target.value
+                ):
                     continue
                 targets = extract_jump_targets(stmt)
                 if any(target in successor_addrs for target in targets):
@@ -348,12 +392,13 @@ class StructurerBase(Analysis):
                         # previous nodes
                         if stmt_idx > last_nonjump_stmt_idx:
                             # add a subset of the block to new_nodes
-                            sub_block_statements = node.statements[last_nonjump_stmt_idx : stmt_idx]
-                            new_sub_block = ailment.Block(sub_block_statements[0].ins_addr,
-                                                          stmt.ins_addr - sub_block_statements[0].ins_addr,
-                                                          statements=sub_block_statements,
-                                                          idx=node.idx,
-                                                          )
+                            sub_block_statements = node.statements[last_nonjump_stmt_idx:stmt_idx]
+                            new_sub_block = ailment.Block(
+                                sub_block_statements[0].ins_addr,
+                                stmt.ins_addr - sub_block_statements[0].ins_addr,
+                                statements=sub_block_statements,
+                                idx=node.idx,
+                            )
                             new_nodes.append(new_sub_block)
                         last_nonjump_stmt_idx = stmt_idx + 1
 
@@ -362,19 +407,20 @@ class StructurerBase(Analysis):
             if new_nodes:
                 if len(node.statements) - 1 > last_nonjump_stmt_idx:
                     # insert the last node
-                    sub_block_statements = node.statements[last_nonjump_stmt_idx: ]
-                    new_sub_block = ailment.Block(sub_block_statements[0].ins_addr,
-                                                  node.addr + node.original_size - sub_block_statements[0].ins_addr,
-                                                  statements=sub_block_statements,
-                                                  idx=node.idx,
-                                                  )
+                    sub_block_statements = node.statements[last_nonjump_stmt_idx:]
+                    new_sub_block = ailment.Block(
+                        sub_block_statements[0].ins_addr,
+                        node.addr + node.original_size - sub_block_statements[0].ins_addr,
+                        statements=sub_block_statements,
+                        idx=node.idx,
+                    )
                     new_nodes.append(new_sub_block)
 
                 # replace the original node with nodes in the new_nodes list
                 for new_node in reversed(new_nodes):
                     insert_node(parent, "after", new_node, index)
                 # remove the current node
-                node.statements = [ ]
+                node.statements = []
 
         def _dummy(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
             return
@@ -395,7 +441,9 @@ class StructurerBase(Analysis):
         except EmptyBlockNotice:
             return
 
-        def _rewrite_jump_to_continue(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
+        def _rewrite_jump_to_continue(
+            node, parent=None, index=None, label=None, **kwargs
+        ):  # pylint:disable=unused-argument
             if not node.statements:
                 return
             stmt = node.statements[-1]
@@ -458,26 +506,25 @@ class StructurerBase(Analysis):
             if last_stmt.false_target is not None:
                 false_target_value = last_stmt.false_target.value
 
-            if (true_target_value is not None and true_target_value in loop_successor_addrs) and \
-                    (false_target_value is None or false_target_value not in loop_successor_addrs):
+            if (true_target_value is not None and true_target_value in loop_successor_addrs) and (
+                false_target_value is None or false_target_value not in loop_successor_addrs
+            ):
                 cond = last_stmt.condition
                 target = last_stmt.true_target.value
                 new_node = ConditionalBreakNode(
-                    last_stmt.ins_addr,
-                    self.cond_proc.claripy_ast_from_ail_condition(cond),
-                    target
+                    last_stmt.ins_addr, self.cond_proc.claripy_ast_from_ail_condition(cond), target
                 )
-            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
-                    (true_target_value is None or true_target_value not in loop_successor_addrs):
-                cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', last_stmt.condition)
+            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and (
+                true_target_value is None or true_target_value not in loop_successor_addrs
+            ):
+                cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, "Not", last_stmt.condition)
                 target = last_stmt.false_target.value
                 new_node = ConditionalBreakNode(
-                    last_stmt.ins_addr,
-                    self.cond_proc.claripy_ast_from_ail_condition(cond),
-                    target
+                    last_stmt.ins_addr, self.cond_proc.claripy_ast_from_ail_condition(cond), target
                 )
-            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
-                    (true_target_value is not None and true_target_value in loop_successor_addrs):
+            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and (
+                true_target_value is not None and true_target_value in loop_successor_addrs
+            ):
                 # both targets are pointing outside the loop
                 # we should use just add a break node
                 new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
@@ -511,12 +558,10 @@ class StructurerBase(Analysis):
                         # pop the previously added node
                         if new_nodes:
                             new_nodes = new_nodes[:-1]
-                        merged_condition = ConditionProcessor.simplify_condition(claripy.Or(node.condition,
-                                                                                            prev_node.condition))
-                        new_node = ConditionalBreakNode(node.addr,
-                                                        merged_condition,
-                                                        node.target
-                                                        )
+                        merged_condition = ConditionProcessor.simplify_condition(
+                            claripy.Or(node.condition, prev_node.condition)
+                        )
+                        new_node = ConditionalBreakNode(node.addr, merged_condition, node.target)
                         walker.merged = True
                 else:
                     walker._handle(node, parent=seq_node, index=i)
@@ -546,9 +591,7 @@ class StructurerBase(Analysis):
             if type(node) is CodeNode:
                 # unpack
                 node = node.node
-            if isinstance(node, ConditionNode) and \
-                    node.true_node is not None and \
-                    node.false_node is None:
+            if isinstance(node, ConditionNode) and node.true_node is not None and node.false_node is None:
                 return True, node
             return False, None
 
@@ -575,14 +618,12 @@ class StructurerBase(Analysis):
                     if r:
                         # amazing!
                         merged_cond = ConditionProcessor.simplify_condition(
-                            claripy.And(self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
-                                        self.cond_proc.claripy_ast_from_ail_condition(cond_node_inner.condition)))
-                        new_node = ConditionNode(cond_node.addr,
-                                                 None,
-                                                 merged_cond,
-                                                 cond_node_inner.true_node,
-                                                 None
-                                                 )
+                            claripy.And(
+                                self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
+                                self.cond_proc.claripy_ast_from_ail_condition(cond_node_inner.condition),
+                            )
+                        )
+                        new_node = ConditionNode(cond_node.addr, None, merged_cond, cond_node_inner.true_node, None)
                         seq_node.nodes[i] = new_node
                         walker.merged = True
                         i += 1
@@ -592,8 +633,11 @@ class StructurerBase(Analysis):
                     if r:
                         # amazing!
                         merged_cond = ConditionProcessor.simplify_condition(
-                            claripy.And(self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
-                                        self.cond_proc.claripy_ast_from_ail_condition(condbreak_node.condition)))
+                            claripy.And(
+                                self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
+                                self.cond_proc.claripy_ast_from_ail_condition(condbreak_node.condition),
+                            )
+                        )
                         new_node = ConditionalBreakNode(condbreak_node.addr, merged_cond, condbreak_node.target)
                         seq_node.nodes[i] = new_node
                         walker.merged = True
@@ -637,8 +681,7 @@ class StructurerBase(Analysis):
                 last_node.statements = last_node.statements[:-1]
             elif isinstance(last_node.statements[-1], ailment.Stmt.ConditionalJump):
                 last_stmt = last_node.statements[-1]
-                if isinstance(last_stmt.true_target, ailment.Expr.Const) \
-                        and last_stmt.true_target.value == node_1.addr:
+                if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == node_1.addr:
                     new_stmt = ailment.Stmt.ConditionalJump(
                         last_stmt.idx,
                         ailment.Expr.UnaryOp(None, "Not", last_stmt.condition),
@@ -647,8 +690,10 @@ class StructurerBase(Analysis):
                         **last_stmt.tags,
                     )
                     last_node.statements[-1] = new_stmt
-                elif isinstance(last_stmt.false_target, ailment.Expr.Const) \
-                        and last_stmt.false_target.value == node_1.addr:
+                elif (
+                    isinstance(last_stmt.false_target, ailment.Expr.Const)
+                    and last_stmt.false_target.value == node_1.addr
+                ):
                     new_stmt = ailment.Stmt.ConditionalJump(
                         last_stmt.idx,
                         last_stmt.condition,
@@ -662,15 +707,15 @@ class StructurerBase(Analysis):
             if isinstance(node_1, SequenceNode):
                 return SequenceNode(addr, nodes=node_0.nodes + node_1.nodes)
             else:
-                return SequenceNode(addr, nodes=node_0.nodes + [ node_1 ])
+                return SequenceNode(addr, nodes=node_0.nodes + [node_1])
         else:
             if isinstance(node_1, SequenceNode):
                 return SequenceNode(addr, nodes=[node_0] + node_1.nodes)
             else:
                 return SequenceNode(addr, nodes=[node_0, node_1])
 
-    def _update_new_sequences(self, removed_sequences: Set[SequenceNode], replaced_sequences: Dict[SequenceNode,Any]):
-        new_sequences = [ ]
+    def _update_new_sequences(self, removed_sequences: Set[SequenceNode], replaced_sequences: Dict[SequenceNode, Any]):
+        new_sequences = []
         for new_seq_ in self._new_sequences:
             if new_seq_ not in removed_sequences:
                 if new_seq_ in replaced_sequences:
@@ -707,9 +752,9 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def replace_node_in_node(
-            parent_node: BaseNode,
-            old_node: Union[BaseNode,ailment.Block],
-            new_node: Union[BaseNode,ailment.Block],
+        parent_node: BaseNode,
+        old_node: Union[BaseNode, ailment.Block],
+        new_node: Union[BaseNode, ailment.Block],
     ) -> None:
         if isinstance(parent_node, SequenceNode):
             for i in range(len(parent_node.nodes)):  # pylint:disable=consider-using-enumerate
@@ -732,7 +777,7 @@ class StructurerBase(Analysis):
             raise TypeError(f"Unsupported node type {type(parent_node)}")
 
     @staticmethod
-    def is_a_jump_target(stmt: Union[ailment.Stmt.ConditionalJump,ailment.Stmt.Jump], addr: int) -> bool:
+    def is_a_jump_target(stmt: Union[ailment.Stmt.ConditionalJump, ailment.Stmt.Jump], addr: int) -> bool:
         if isinstance(stmt, ailment.Stmt.ConditionalJump):
             if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == addr:
                 return True

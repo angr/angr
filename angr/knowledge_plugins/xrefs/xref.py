@@ -10,11 +10,27 @@ class XRef(Serializable):
     XRef describes a reference to a MemoryData instance (if a MemoryData instance is available) or just an address.
     """
 
-    __slots__ = ('ins_addr', 'block_addr', 'stmt_idx', 'insn_op_idx', 'insn_op_type', 'memory_data', 'dst', 'type', )
+    __slots__ = (
+        "ins_addr",
+        "block_addr",
+        "stmt_idx",
+        "insn_op_idx",
+        "insn_op_type",
+        "memory_data",
+        "dst",
+        "type",
+    )
 
-    def __init__(self, ins_addr=None, block_addr=None, stmt_idx=None, insn_op_idx=None, memory_data=None,
-                 dst: Optional[int]=None,
-                 xref_type=None):
+    def __init__(
+        self,
+        ins_addr=None,
+        block_addr=None,
+        stmt_idx=None,
+        insn_op_idx=None,
+        memory_data=None,
+        dst: Optional[int] = None,
+        xref_type=None,
+    ):
 
         if dst is not None and not isinstance(dst, int):
             raise TypeError("XRefs must be pointing to a constant target. Target %r is not supported." % dst)
@@ -39,16 +55,18 @@ class XRef(Serializable):
 
     def __repr__(self):
         return "<XRef {}: {}->{}>".format(
-                self.type_string,
-                "%#x" % self.ins_addr if self.ins_addr is not None else "%#x[%d]" % (self.block_addr, self.stmt_idx),
-                "%s" % self.dst if self.dst is not None else "%#x" % (self.memory_data.addr)
+            self.type_string,
+            "%#x" % self.ins_addr if self.ins_addr is not None else "%#x[%d]" % (self.block_addr, self.stmt_idx),
+            "%s" % self.dst if self.dst is not None else "%#x" % (self.memory_data.addr),
         )
 
     def __eq__(self, other):
-        return type(other) is XRef and \
-               other.type == self.type and \
-               other.ins_addr == self.ins_addr and \
-               other.dst == self.dst
+        return (
+            type(other) is XRef
+            and other.type == self.type
+            and other.ins_addr == self.ins_addr
+            and other.dst == self.dst
+        )
 
     def __hash__(self):
         return hash((XRef, self.type, self.ins_addr, self.dst))
@@ -107,14 +125,26 @@ class XRef(Serializable):
         else:
             dst = cmsg.data_ea
 
-        cr = XRef(ins_addr=cmsg.ea, block_addr=cmsg.block_ea, stmt_idx=cmsg.stmt_idx,
-                  insn_op_idx=None if cmsg.operand_idx == -1 else cmsg.opearnd_idx,
-                  dst=dst, xref_type=cmsg.ref_type)
+        cr = XRef(
+            ins_addr=cmsg.ea,
+            block_addr=cmsg.block_ea,
+            stmt_idx=cmsg.stmt_idx,
+            insn_op_idx=None if cmsg.operand_idx == -1 else cmsg.opearnd_idx,
+            dst=dst,
+            xref_type=cmsg.ref_type,
+        )
         return cr
 
     def copy(self):
-        cr = XRef(ins_addr=self.ins_addr, block_addr=self.block_addr, stmt_idx=self.stmt_idx,
-                  insn_op_idx=self.insn_op_idx, memory_data=self.memory_data, dst=self.dst, xref_type=self.type)
+        cr = XRef(
+            ins_addr=self.ins_addr,
+            block_addr=self.block_addr,
+            stmt_idx=self.stmt_idx,
+            insn_op_idx=self.insn_op_idx,
+            memory_data=self.memory_data,
+            dst=self.dst,
+            xref_type=self.type,
+        )
         return cr
 
 

@@ -2,6 +2,7 @@ from . import ExplorationTechnique
 
 from ..sim_options import EFFICIENT_STATE_MERGING
 
+
 class Veritesting(ExplorationTechnique):
     """
     Enable veritesting. This technique, described in a paper[1] from CMU, attempts to address the problem of state
@@ -9,6 +10,7 @@ class Veritesting(ExplorationTechnique):
 
     [1] https://users.ece.cmu.edu/~aavgerin/papers/veritesting-icse-2014.pdf
     """
+
     def __init__(self, **options):
         super().__init__()
         self.options = options
@@ -21,15 +23,15 @@ class Veritesting(ExplorationTechnique):
         vt = self.project.analyses.Veritesting(state, **self.options)
         if vt.result and vt.final_manager:
             simgr2 = vt.final_manager
-            simgr2.stash(from_stash='deviated', to_stash='active')
-            simgr2.stash(from_stash='successful', to_stash='active')
+            simgr2.stash(from_stash="deviated", to_stash="active")
+            simgr2.stash(from_stash="successful", to_stash="active")
 
             return {
-                    'active': simgr2.active,
-                    'unconstrained': simgr2.stashes.get('unconstrained', []),
-                    'unsat': simgr2.stashes.get('unsat', []),
-                    'pruned': simgr2.stashes.get('pruned', []),
-                    'errored': simgr2.errored,
-                    }
+                "active": simgr2.active,
+                "unconstrained": simgr2.stashes.get("unconstrained", []),
+                "unsat": simgr2.stashes.get("unsat", []),
+                "pruned": simgr2.stashes.get("pruned", []),
+                "errored": simgr2.errored,
+            }
 
         return simgr.step_state(state, successor_func=successor_func, **kwargs)

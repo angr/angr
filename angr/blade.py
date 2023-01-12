@@ -15,9 +15,24 @@ class Blade:
     Blade is a light-weight program slicer that works with networkx DiGraph containing CFGNodes.
     It is meant to be used in angr for small or on-the-fly analyses.
     """
-    def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
-                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None, stop_at_calls=False,
-                 cross_insn_opt=False, max_predecessors: int=10):
+
+    def __init__(
+        self,
+        graph,
+        dst_run,
+        dst_stmt_idx,
+        direction="backward",
+        project=None,
+        cfg=None,
+        ignore_sp=False,
+        ignore_bp=False,
+        ignored_regs=None,
+        max_level=3,
+        base_state=None,
+        stop_at_calls=False,
+        cross_insn_opt=False,
+        max_predecessors: int = 10,
+    ):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
                                         angr.analyses.CFGEmulated or angr.analyses.CFGFast.
@@ -65,14 +80,14 @@ class Blade:
                 else:
                     self._ignored_regs.add(self.project.arch.registers[r][0])
 
-        self._run_cache = { }
+        self._run_cache = {}
 
         self._traced_runs = set()
 
-        if direction == 'backward':
+        if direction == "backward":
             self._backward_slice()
-        elif direction == 'forward':
-            raise AngrBladeError('Forward slicing is not implemented yet')
+        elif direction == "forward":
+            raise AngrBladeError("Forward slicing is not implemented yet")
         else:
             raise AngrBladeError("Unknown slicing direction %s" % direction)
 
@@ -95,22 +110,23 @@ class Blade:
 
         s = ""
 
-        block_addrs = { a for a, _ in self.slice.nodes() }
+        block_addrs = {a for a, _ in self.slice.nodes()}
 
         for block_addr in block_addrs:
             block_str = "       IRSB %#x\n" % block_addr
 
-            block = self.project.factory.block(block_addr, cross_insn_opt=self._cross_insn_opt,
-                                               backup_state=self._base_state).vex
+            block = self.project.factory.block(
+                block_addr, cross_insn_opt=self._cross_insn_opt, backup_state=self._base_state
+            ).vex
 
-            included_stmts = { stmt for _, stmt in self.slice.nodes() if _ == block_addr }
+            included_stmts = {stmt for _, stmt in self.slice.nodes() if _ == block_addr}
             default_exit_included = any(stmt == DEFAULT_STATEMENT for _, stmt in self.slice.nodes() if _ == block_addr)
 
             for i, stmt in enumerate(block.statements):
                 if arch is not None:
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         reg_name = arch.translate_register_name(stmt.offset)
-                        stmt_str =  stmt.__str__(reg_name=reg_name)
+                        stmt_str = stmt.__str__(reg_name=reg_name)
                     elif isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Get):
                         reg_name = arch.translate_register_name(stmt.data.offset)
                         stmt_str = stmt.__str__(reg_name=reg_name)
@@ -119,10 +135,7 @@ class Blade:
                 else:
                     stmt_str = str(stmt)
 
-                block_str += "%02s %02d | %s\n" % ("+" if i in included_stmts else " ",
-                                                   i,
-                                                   stmt_str
-                                                   )
+                block_str += "%02s %02d | %s\n" % ("+" if i in included_stmts else " ", i, stmt_str)
 
             block_str += " + " if default_exit_included else "   "
             if isinstance(block.next, pyvex.IRExpr.Const):
@@ -159,15 +172,16 @@ class Blade:
                 return self._run_cache[v]
 
             if self.project:
-                irsb = self.project.factory.block(v, cross_insn_opt=self._cross_insn_opt,
-                                                  backup_state=self._base_state).vex
+                irsb = self.project.factory.block(
+                    v, cross_insn_opt=self._cross_insn_opt, backup_state=self._base_state
+                ).vex
                 self._run_cache[v] = irsb
                 return irsb
             else:
                 raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
 
         else:
-            raise AngrBladeError('Unsupported SimRun argument type %s' % type(v))
+            raise AngrBladeError("Unsupported SimRun argument type %s" % type(v))
 
     def _get_cfgnode(self, thing):
         """
@@ -194,21 +208,21 @@ class Blade:
         elif type(v) is int:
             return v
         else:
-            raise AngrBladeError('Unsupported SimRun argument type %s' % type(v))
+            raise AngrBladeError("Unsupported SimRun argument type %s" % type(v))
 
     def _in_graph(self, v):
         return self._get_cfgnode(v) in self._graph
 
     def _inslice_callback(self, stmt_idx, stmt, infodict):  # pylint:disable=unused-argument
-        tpl = (infodict['irsb_addr'], stmt_idx)
-        if 'prev' in infodict and infodict['prev']:
-            prev = infodict['prev']
+        tpl = (infodict["irsb_addr"], stmt_idx)
+        if "prev" in infodict and infodict["prev"]:
+            prev = infodict["prev"]
             self._slice.add_edge(tpl, prev)
         else:
             self._slice.add_node(tpl)
 
-        infodict['prev'] = tpl
-        infodict['has_statement'] = True
+        infodict["prev"] = tpl
+        infodict["has_statement"] = True
 
     def _backward_slice(self):
         """
@@ -243,7 +257,7 @@ class Blade:
             elif type(dst_stmt) is pyvex.IRStmt.WrTmp:
                 temps.add(dst_stmt.tmp)
             else:
-                raise AngrBladeError('Incorrect type of the specified target statement. We only support Put and WrTmp.')
+                raise AngrBladeError("Incorrect type of the specified target statement. We only support Put and WrTmp.")
 
             prev = (self._get_addr(self._dst_run), self._dst_stmt_idx)
         else:
@@ -256,7 +270,7 @@ class Blade:
                 # A const doesn't rely on anything else!
                 pass
             else:
-                raise AngrBladeError('Unsupported type for irsb.next: %s' % type(next_expr))
+                raise AngrBladeError("Unsupported type for irsb.next: %s" % type(next_expr))
 
             # Then we gotta start from the very last statement!
             self._dst_stmt_idx = len(stmts) - 1
@@ -267,15 +281,18 @@ class Blade:
             # no dependency
             return
 
-        slicer = SimSlicer(self.project.arch, stmts,
-                           target_tmps=temps,
-                           target_regs=regs,
-                           target_stack_offsets=None,
-                           inslice_callback=self._inslice_callback,
-                           inslice_callback_infodict={
-                               'irsb_addr':  self._get_irsb(self._dst_run).addr,
-                               'prev': prev,
-                           })
+        slicer = SimSlicer(
+            self.project.arch,
+            stmts,
+            target_tmps=temps,
+            target_regs=regs,
+            target_stack_offsets=None,
+            inslice_callback=self._inslice_callback,
+            inslice_callback_infodict={
+                "irsb_addr": self._get_irsb(self._dst_run).addr,
+                "prev": prev,
+            },
+        )
         regs = slicer.final_regs
         if self._ignore_sp and self.project.arch.sp_offset in regs:
             regs.remove(self.project.arch.sp_offset)
@@ -287,7 +304,7 @@ class Blade:
 
         stack_offsets = slicer.final_stack_offsets
 
-        prev = slicer.inslice_callback_infodict['prev']
+        prev = slicer.inslice_callback_infodict["prev"]
 
         if regs or stack_offsets:
             cfgnode = self._get_cfgnode(self._dst_run)
@@ -299,16 +316,16 @@ class Blade:
                     in_edges = itertools.islice(in_edges, self._max_predecessors)
 
                 for pred, _, data in in_edges:
-                    if 'jumpkind' in data:
-                        if self._stop_at_calls and data['jumpkind'] in {'Ijk_Call', 'Ijk_Ret'}:
+                    if "jumpkind" in data:
+                        if self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
                             # Skip calls
                             continue
                     if self.project.is_hooked(pred.addr):
                         # Skip SimProcedures
                         continue
-                    self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev,
-                                                   data.get('stmt_idx', None)
-                                                   )
+                    self._backward_slice_recursive(
+                        self._max_level - 1, pred, regs, stack_offsets, prev, data.get("stmt_idx", None)
+                    )
 
     def _backward_slice_recursive(self, level, run, regs, stack_offsets, prev, exit_stmt_idx):
 
@@ -328,7 +345,7 @@ class Blade:
                 temps.add(next_expr.tmp)
 
         # add the default exit into our slice
-        self._inslice_callback(DEFAULT_STATEMENT, None, {'irsb_addr': irsb_addr, 'prev': prev})
+        self._inslice_callback(DEFAULT_STATEMENT, None, {"irsb_addr": irsb_addr, "prev": prev})
         prev = irsb_addr, DEFAULT_STATEMENT
 
         # if there are conditional exits, we *always* add them into the slice (so if they should not be taken, we do not
@@ -336,30 +353,29 @@ class Blade:
         for stmt_idx_, s_ in enumerate(self._get_irsb(run).statements):
             if not type(s_) is pyvex.IRStmt.Exit:
                 continue
-            if s_.jumpkind != 'Ijk_Boring':
+            if s_.jumpkind != "Ijk_Boring":
                 continue
 
             if type(s_.guard) is pyvex.IRExpr.RdTmp:
                 temps.add(s_.guard.tmp)
 
             # Put it in our slice
-            self._inslice_callback(stmt_idx_, s_, {'irsb_addr': irsb_addr, 'prev': prev})
+            self._inslice_callback(stmt_idx_, s_, {"irsb_addr": irsb_addr, "prev": prev})
             prev = (irsb_addr, stmt_idx_)
 
-        infodict = {'irsb_addr' : irsb_addr,
-                    'prev' : prev,
-                    'has_statement': False
-                    }
+        infodict = {"irsb_addr": irsb_addr, "prev": prev, "has_statement": False}
 
-        slicer = SimSlicer(self.project.arch, stmts,
-                           target_tmps=temps,
-                           target_regs=regs,
-                           target_stack_offsets=stack_offsets,
-                           inslice_callback=self._inslice_callback,
-                           inslice_callback_infodict=infodict
-                           )
+        slicer = SimSlicer(
+            self.project.arch,
+            stmts,
+            target_tmps=temps,
+            target_regs=regs,
+            target_stack_offsets=stack_offsets,
+            inslice_callback=self._inslice_callback,
+            inslice_callback_infodict=infodict,
+        )
 
-        if not infodict['has_statement']:
+        if not infodict["has_statement"]:
             # put this block into the slice
             self._inslice_callback(0, None, infodict)
 
@@ -376,7 +392,7 @@ class Blade:
 
         stack_offsets = slicer.final_stack_offsets
 
-        prev = slicer.inslice_callback_infodict['prev']
+        prev = slicer.inslice_callback_infodict["prev"]
 
         if regs or stack_offsets:
             next_node = self._get_cfgnode(run)
@@ -388,13 +404,14 @@ class Blade:
                     in_edges = itertools.islice(in_edges, self._max_predecessors)
 
                 for pred, _, data in in_edges:
-                    if 'jumpkind' in data:
-                        if self._stop_at_calls and data['jumpkind'] in {'Ijk_Call', 'Ijk_Ret'}:
+                    if "jumpkind" in data:
+                        if self._stop_at_calls and data["jumpkind"] in {"Ijk_Call", "Ijk_Ret"}:
                             # skip calls as instructed
                             continue
                     if self.project.is_hooked(pred.addr):
                         # Stop at SimProcedures
                         continue
 
-                    self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev,
-                                                   data.get('stmt_idx', None))
+                    self._backward_slice_recursive(
+                        level - 1, pred, regs, stack_offsets, prev, data.get("stmt_idx", None)
+                    )

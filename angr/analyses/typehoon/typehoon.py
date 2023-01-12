@@ -26,10 +26,14 @@ class Typehoon(Analysis):
 
     User may specify ground truth, which will override all types at certain program points during constraint solving.
     """
-    def __init__(self, constraints, ground_truth=None,
-                 var_mapping: Optional[Dict['SimVariable',Set['TypeVariable']]]=None,
-                 must_struct: Optional[Set['TypeVariable']]=None,
-                 ):
+
+    def __init__(
+        self,
+        constraints,
+        ground_truth=None,
+        var_mapping: Optional[Dict["SimVariable", Set["TypeVariable"]]] = None,
+        must_struct: Optional[Set["TypeVariable"]] = None,
+    ):
         """
 
         :param constraints:
@@ -39,8 +43,8 @@ class Typehoon(Analysis):
         :param must_struct:
         """
 
-        self._constraints: Set['TypeConstraint'] = constraints
-        self._ground_truth: Optional[Dict['TypeVariable','SimType']] = ground_truth
+        self._constraints: Set["TypeConstraint"] = constraints
+        self._ground_truth: Optional[Dict["TypeVariable", "SimType"]] = ground_truth
         self._var_mapping = var_mapping  # variable mapping is only used for debugging purposes
         self._must_struct = must_struct
 
@@ -59,7 +63,7 @@ class Typehoon(Analysis):
     # Public methods
     #
 
-    def update_variable_types(self, func_addr: Union[int,str], var_to_typevars):
+    def update_variable_types(self, func_addr: Union[int, str], var_to_typevars):
 
         for var, typevars in var_to_typevars.items():
             for typevar in typevars:
@@ -67,8 +71,11 @@ class Typehoon(Analysis):
                 if type_ is not None:
                     # print("{} -> {}: {}".format(var, typevar, type_))
                     # Hack: if a global address is of a pointer type and it is not an array, we unpack the type
-                    if func_addr == "global" and isinstance(type_, SimTypePointer) \
-                            and not isinstance(type_.pts_to, SimTypeArray):
+                    if (
+                        func_addr == "global"
+                        and isinstance(type_, SimTypePointer)
+                        and not isinstance(type_.pts_to, SimTypeArray)
+                    ):
                         type_ = type_.pts_to
 
                     name = None
@@ -84,7 +91,7 @@ class Typehoon(Analysis):
         if self._var_mapping is None:
             raise ValueError("Variable mapping does not exist.")
 
-        typevar_to_var = { }
+        typevar_to_var = {}
         for k, typevars in self._var_mapping.items():
             for tv in typevars:
                 typevar_to_var[tv] = k
@@ -103,7 +110,7 @@ class Typehoon(Analysis):
         if self.solution is None:
             raise RuntimeError("Please run type solver before calling pp_solution().")
 
-        typevar_to_var = { }
+        typevar_to_var = {}
         for k, typevars in self._var_mapping.items():
             for tv in typevars:
                 typevar_to_var[tv] = k
@@ -153,7 +160,7 @@ class Typehoon(Analysis):
             if specialized is not None:
                 self.solution[tv] = specialized
 
-    def _specialize_struct(self, tc, memo: Optional[Set]=None):
+    def _specialize_struct(self, tc, memo: Optional[Set] = None):
 
         if isinstance(tc, Pointer):
             if memo is not None and tc in memo:
@@ -191,7 +198,7 @@ class Typehoon(Analysis):
         Translate solutions in type variables to solutions in SimTypes.
         """
 
-        simtypes_solution = { }
+        simtypes_solution = {}
         translator = TypeTranslator(arch=self.project.arch)
         needs_backpatch = set()
 

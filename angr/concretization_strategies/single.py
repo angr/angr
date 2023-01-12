@@ -1,5 +1,6 @@
 from . import SimConcretizationStrategy
 
+
 class SimConcretizationStrategySingle(SimConcretizationStrategy):
     """
     Concretization strategy that ensures a single solution for an address.
