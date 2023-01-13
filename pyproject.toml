@@ -23,7 +23,7 @@ extend-ignore = [
 	"F841", # dead code
 
 	# TODO: BUG! This hides bugs!
-	# "F821", # name not found (maybe because we directly edit globals() or import later :( )
+	"F821", # name not found (maybe because we directly edit globals() or import later :( )
 
 	"E712", "E713", "E714", "E722", # Code quality
 ]
