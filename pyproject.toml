@@ -20,9 +20,14 @@ extend-ignore = [
 	"E501", # No line length check
 
 	# TODO: Enable these!
-	"F601", # BUG: Dictionary key literal repeated
-	"F821", # name not found (maybe because we directly edit globals() or import later :( )
 	"F841", # dead code
 
-	"E712", "E713", "E714", "E722", # code quality
+	# TODO: BUG! This hides bugs!
+	# "F821", # name not found (maybe because we directly edit globals() or import later :( )
+
+	"E712", "E713", "E714", "E722", # Code quality
 ]
+
+# TODO: BUG! This hides bugs! See: https://github.com/angr/angr/issues/3685
+[tool.ruff.per-file-ignores]
+"angr/procedures/definitions/*" = ["F601"]
