@@ -207,7 +207,7 @@ class RegionIdentifier(Analysis):
                 outside_successors = list(succ for succ in graph.successors(loop_node) if succ not in loop_subgraph)
                 if len(outside_successors) == 1:
                     outside_successor = outside_successors[0]
-                    if graph.in_degree[outside_successor] == 1:
+                    if graph.in_degree[outside_successor] == 1 and graph.out_degree[outside_successor] <= 1:
                         added.add(outside_successor)
                         loop_subgraph.add_edge(loop_node, outside_successor)
             if not added:
