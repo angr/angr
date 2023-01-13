@@ -3,7 +3,7 @@ from typing import Optional
 
 
 class Manager:
-    def __init__(self, name: Optional[str]=None, arch=None):
+    def __init__(self, name: Optional[str] = None, arch=None):
         self.name = name
         self.arch = arch
 

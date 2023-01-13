@@ -41,7 +41,10 @@ class Assignment(Statement):
     Assignment statement: expr_a = expr_b
     """
 
-    __slots__ = ('dst', 'src', )
+    __slots__ = (
+        "dst",
+        "src",
+    )
 
     def __init__(self, idx, dst, src, **kwargs):
         super().__init__(idx, **kwargs)
@@ -50,15 +53,10 @@ class Assignment(Statement):
         self.src = src
 
     def __eq__(self, other):
-        return type(other) is Assignment and \
-               self.idx == other.idx and \
-               self.dst == other.dst and \
-               self.src == other.src
+        return type(other) is Assignment and self.idx == other.idx and self.dst == other.dst and self.src == other.src
 
     def likes(self, other):
-        return type(other) is Assignment and \
-               self.dst.likes(other.dst) and \
-               self.src.likes(other.src)
+        return type(other) is Assignment and self.dst.likes(other.dst) and self.src.likes(other.src)
 
     __hash__ = TaggedObject.__hash__
 
@@ -90,13 +88,21 @@ class Assignment(Statement):
         else:
             return False, self
 
-    def copy(self) -> 'Assignment':
+    def copy(self) -> "Assignment":
         return Assignment(self.idx, self.dst, self.src, **self.tags)
 
 
 class Store(Statement):
 
-    __slots__ = ('addr', 'size', 'data', 'endness', 'variable', 'offset', 'guard', )
+    __slots__ = (
+        "addr",
+        "size",
+        "data",
+        "endness",
+        "variable",
+        "offset",
+        "guard",
+    )
 
     def __init__(self, idx, addr, data, size, endness, guard=None, variable=None, offset=None, **kwargs):
         super().__init__(idx, **kwargs)
@@ -110,21 +116,25 @@ class Store(Statement):
         self.offset = offset  # variable_offset
 
     def __eq__(self, other):
-        return type(other) is Store and \
-               self.idx == other.idx and \
-               self.eq(self.addr, other.addr) and \
-               self.eq(self.data, other.data) and \
-               self.size == other.size and \
-               self.guard == other.guard and \
-               self.endness == other.endness
+        return (
+            type(other) is Store
+            and self.idx == other.idx
+            and self.eq(self.addr, other.addr)
+            and self.eq(self.data, other.data)
+            and self.size == other.size
+            and self.guard == other.guard
+            and self.endness == other.endness
+        )
 
     def likes(self, other):
-        return type(other) is Store and \
-               self.addr.likes(other.addr) and \
-               self.data.likes(other.data) and \
-               self.size == other.size and \
-               self.guard == other.guard and \
-               self.endness == other.endness
+        return (
+            type(other) is Store
+            and self.addr.likes(other.addr)
+            and self.data.likes(other.data)
+            and self.size == other.size
+            and self.guard == other.guard
+            and self.endness == other.endness
+        )
 
     __hash__ = TaggedObject.__hash__
 
@@ -132,16 +142,26 @@ class Store(Statement):
         return stable_hash((Store, self.idx, self.addr, self.data, self.size, self.endness, self.guard))
 
     def __repr__(self):
-        return "Store (%s, %s[%d])%s" % (self.addr, str(self.data), self.size,
-                                         "" if self.guard is None else "[%s]" % self.guard)
+        return "Store (%s, %s[%d])%s" % (
+            self.addr,
+            str(self.data),
+            self.size,
+            "" if self.guard is None else "[%s]" % self.guard,
+        )
 
     def __str__(self):
         if self.variable is None:
-            return "STORE(addr={}, data={}, size={}, endness={}, guard={})".format(self.addr, str(self.data), self.size,
-                                                                               self.endness, self.guard)
+            return "STORE(addr={}, data={}, size={}, endness={}, guard={})".format(
+                self.addr, str(self.data), self.size, self.endness, self.guard
+            )
         else:
-            return "%s =%s %s<%d>%s" % (self.variable.name, "L" if self.endness == "Iend_LE" else "B", str(self.data),
-                                        self.size, "" if self.guard is None else "[%s]" % self.guard)
+            return "%s =%s %s<%d>%s" % (
+                self.variable.name,
+                "L" if self.endness == "Iend_LE" else "B",
+                str(self.data),
+                self.size,
+                "" if self.guard is None else "[%s]" % self.guard,
+            )
 
     def replace(self, old_expr, new_expr):
         if self.addr.likes(old_expr):
@@ -165,34 +185,51 @@ class Store(Statement):
             r_guard, replaced_guard = False, None
 
         if r_addr or r_data or r_guard:
-            return True, Store(self.idx, replaced_addr, replaced_data, self.size, self.endness,
-                               guard=replaced_guard, variable=self.variable, **self.tags)
+            return True, Store(
+                self.idx,
+                replaced_addr,
+                replaced_data,
+                self.size,
+                self.endness,
+                guard=replaced_guard,
+                variable=self.variable,
+                **self.tags,
+            )
         else:
             return False, self
 
-    def copy(self) -> 'Store':
-        return Store(self.idx, self.addr, self.data, self.size, self.endness, guard=self.guard, variable=self.variable,
-                     offset=self.offset, **self.tags)
+    def copy(self) -> "Store":
+        return Store(
+            self.idx,
+            self.addr,
+            self.data,
+            self.size,
+            self.endness,
+            guard=self.guard,
+            variable=self.variable,
+            offset=self.offset,
+            **self.tags,
+        )
 
 
 class Jump(Statement):
 
-    __slots__ = ('target', 'target_idx', )
+    __slots__ = (
+        "target",
+        "target_idx",
+    )
 
-    def __init__(self, idx, target, target_idx: Optional[int]=None, **kwargs):
+    def __init__(self, idx, target, target_idx: Optional[int] = None, **kwargs):
         super().__init__(idx, **kwargs)
 
         self.target = target
         self.target_idx = target_idx
 
     def __eq__(self, other):
-        return type(other) is Jump and \
-               self.idx == other.idx and \
-               self.target == other.target
+        return type(other) is Jump and self.idx == other.idx and self.target == other.target
 
     def likes(self, other):
-        return type(other) is Jump and \
-            is_none_or_likeable(self.target, other.target)
+        return type(other) is Jump and is_none_or_likeable(self.target, other.target)
 
     __hash__ = TaggedObject.__hash__
 
@@ -227,7 +264,11 @@ class Jump(Statement):
 
 class ConditionalJump(Statement):
 
-    __slots__ = ('condition', 'true_target', 'false_target', )
+    __slots__ = (
+        "condition",
+        "true_target",
+        "false_target",
+    )
 
     def __init__(self, idx, condition, true_target, false_target, **kwargs):
         super().__init__(idx, **kwargs)
@@ -237,17 +278,21 @@ class ConditionalJump(Statement):
         self.false_target = false_target
 
     def __eq__(self, other):
-        return type(other) is ConditionalJump and \
-               self.idx == other.idx and \
-               self.condition == other.condition and \
-               self.true_target == other.true_target and \
-               self.false_target == other.false_target
+        return (
+            type(other) is ConditionalJump
+            and self.idx == other.idx
+            and self.condition == other.condition
+            and self.true_target == other.true_target
+            and self.false_target == other.false_target
+        )
 
     def likes(self, other):
-        return type(other) is ConditionalJump and \
-               self.condition.likes(other.condition) and \
-               is_none_or_likeable(self.true_target, other.true_target) and \
-               is_none_or_likeable(self.false_target, other.false_target)
+        return (
+            type(other) is ConditionalJump
+            and self.condition.likes(other.condition)
+            and is_none_or_likeable(self.true_target, other.true_target)
+            and is_none_or_likeable(self.false_target, other.false_target)
+        )
 
     __hash__ = TaggedObject.__hash__
 
@@ -255,8 +300,9 @@ class ConditionalJump(Statement):
         return stable_hash((ConditionalJump, self.idx, self.condition, self.true_target, self.false_target))
 
     def __repr__(self):
-        return "ConditionalJump (condition: {}, true: {}, false: {})".format(self.condition, self.true_target,
-                                                                         self.false_target)
+        return "ConditionalJump (condition: {}, true: {}, false: {})".format(
+            self.condition, self.true_target, self.false_target
+        )
 
     def __str__(self):
         return "if ({}) {{ Goto {} }} else {{ Goto {} }}".format(
@@ -283,7 +329,7 @@ class ConditionalJump(Statement):
         else:
             return False, self
 
-    def copy(self) -> 'ConditionalJump':
+    def copy(self) -> "ConditionalJump":
         return ConditionalJump(self.idx, self.condition, self.true_target, self.false_target, **self.tags)
 
 
@@ -293,11 +339,27 @@ class Call(Expression, Statement):
     if the callee function has one return expression.
     """
 
-    __slots__ = ('target', 'calling_convention', 'prototype', 'args', 'ret_expr', 'fp_ret_expr', )
+    __slots__ = (
+        "target",
+        "calling_convention",
+        "prototype",
+        "args",
+        "ret_expr",
+        "fp_ret_expr",
+    )
 
-    def __init__(self, idx, target, calling_convention: Optional['SimCC']=None, prototype=None, args=None,
-                 ret_expr=None, fp_ret_expr=None, **kwargs):
-        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1,**kwargs)
+    def __init__(
+        self,
+        idx,
+        target,
+        calling_convention: Optional["SimCC"] = None,
+        prototype=None,
+        args=None,
+        ret_expr=None,
+        fp_ret_expr=None,
+        **kwargs,
+    ):
+        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
 
         self.target = target
         self.calling_convention = calling_convention
@@ -307,13 +369,15 @@ class Call(Expression, Statement):
         self.fp_ret_expr = fp_ret_expr
 
     def likes(self, other):
-        return type(other) is Call and \
-               is_none_or_likeable(self.target, other.target) and \
-               self.calling_convention == other.calling_convention and \
-               self.prototype == other.prototype and \
-               is_none_or_likeable(self.args, other.args, is_list=True) and \
-               is_none_or_likeable(self.ret_expr, other.ret_expr) and \
-               is_none_or_likeable(self.fp_ret_expr, other.fp_ret_expr)
+        return (
+            type(other) is Call
+            and is_none_or_likeable(self.target, other.target)
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and is_none_or_likeable(self.args, other.args, is_list=True)
+            and is_none_or_likeable(self.ret_expr, other.ret_expr)
+            and is_none_or_likeable(self.fp_ret_expr, other.fp_ret_expr)
+        )
 
     __hash__ = TaggedObject.__hash__
 
@@ -328,13 +392,19 @@ class Call(Expression, Statement):
         cc = "Unknown CC" if self.calling_convention is None else "%s" % self.calling_convention
         if self.args is None:
             if self.calling_convention is not None:
-                s = ("%s" % cc) if self.prototype is None else \
-                    f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
+                s = (
+                    ("%s" % cc)
+                    if self.prototype is None
+                    else f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
+                )
             else:
                 s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
         else:
-            s = (f"{cc}: {self.args}") if self.prototype is None else "{}: {}".format(self.calling_convention,
-                                                                                        self.args)
+            s = (
+                (f"{cc}: {self.args}")
+                if self.prototype is None
+                else "{}: {}".format(self.calling_convention, self.args)
+            )
 
         if self.ret_expr is None:
             ret_s = "no-ret-value"
@@ -345,12 +415,7 @@ class Call(Expression, Statement):
         else:
             fp_ret_s = f"{self.fp_ret_expr}"
 
-        return "Call({}, {}, ret: {}, fp_ret: {})".format(
-            self.target,
-            s,
-            ret_s,
-            fp_ret_s
-        )
+        return "Call({}, {}, ret: {}, fp_ret: {})".format(self.target, s, ret_s, fp_ret_s)
 
     @property
     def bits(self):
@@ -379,7 +444,7 @@ class Call(Expression, Statement):
 
         new_args = None
         if self.args:
-            new_args = [ ]
+            new_args = []
             for arg in self.args:
                 if arg == old_expr:
                     r_arg = True
@@ -410,14 +475,16 @@ class Call(Expression, Statement):
             new_fp_ret_expr = replaced_fp_ret
 
         if r:
-            return True, Call(self.idx, replaced_target,
-                              calling_convention=self.calling_convention,
-                              prototype=self.prototype,
-                              args=new_args,
-                              ret_expr=new_ret_expr,
-                              fp_ret_expr=new_fp_ret_expr,
-                              **self.tags
-                              )
+            return True, Call(
+                self.idx,
+                replaced_target,
+                calling_convention=self.calling_convention,
+                prototype=self.prototype,
+                args=new_args,
+                ret_expr=new_ret_expr,
+                fp_ret_expr=new_fp_ret_expr,
+                **self.tags,
+            )
         else:
             return False, self
 
@@ -436,7 +503,10 @@ class Call(Expression, Statement):
 
 class Return(Statement):
 
-    __slots__ = ('target', 'ret_exprs', )
+    __slots__ = (
+        "target",
+        "ret_exprs",
+    )
 
     def __init__(self, idx, target, ret_exprs, **kwargs):
         super().__init__(idx, **kwargs)
@@ -445,15 +515,19 @@ class Return(Statement):
         self.ret_exprs = ret_exprs if isinstance(ret_exprs, list) else list(ret_exprs)
 
     def __eq__(self, other):
-        return type(other) is Return and \
-                self.idx == other.idx and \
-                self.target == other.target and \
-                self.ret_exprs == other.ret_exprs
+        return (
+            type(other) is Return
+            and self.idx == other.idx
+            and self.target == other.target
+            and self.ret_exprs == other.ret_exprs
+        )
 
     def likes(self, other):
-        return type(other) is Return and \
-               is_none_or_likeable(self.target, other.target) and \
-               is_none_or_likeable(self.ret_exprs, other.ret_exprs, is_list=True)
+        return (
+            type(other) is Return
+            and is_none_or_likeable(self.target, other.target)
+            and is_none_or_likeable(self.ret_exprs, other.ret_exprs, is_list=True)
+        )
 
     __hash__ = TaggedObject.__hash__
 
@@ -464,7 +538,7 @@ class Return(Statement):
         return "Return to {!r} ({})".format(self.target, ",".join(repr(x) for x in self.ret_exprs))
 
     def __str__(self):
-        exprs = (",".join(str(ret_expr) for ret_expr in self.ret_exprs))
+        exprs = ",".join(str(ret_expr) for ret_expr in self.ret_exprs)
         if not exprs:
             return "return;"
         else:
@@ -472,7 +546,7 @@ class Return(Statement):
 
     def replace(self, old_expr, new_expr):
 
-        new_ret_exprs = [ ]
+        new_ret_exprs = []
         replaced = False
 
         if self.target is not None:
@@ -497,11 +571,12 @@ class Return(Statement):
                 new_ret_exprs.append(old_expr)
 
         if replaced:
-            return True, Return(self.idx,
-                                new_target,
-                                new_ret_exprs,
-                                **self.tags,
-                                )
+            return True, Return(
+                self.idx,
+                new_target,
+                new_ret_exprs,
+                **self.tags,
+            )
 
         return False, self
 
@@ -519,7 +594,7 @@ class DirtyStatement(Statement):
     Wrapper around the original statement, which is usually not convertible (temporarily).
     """
 
-    __slots__ = ('dirty_stmt', )
+    __slots__ = ("dirty_stmt",)
 
     def __init__(self, idx, dirty_stmt, **kwargs):
         super().__init__(idx, **kwargs)
@@ -534,7 +609,7 @@ class DirtyStatement(Statement):
     def __str__(self):
         return "[D] %s" % (str(self.dirty_stmt))
 
-    def copy(self) -> 'DirtyStatement':
+    def copy(self) -> "DirtyStatement":
         return DirtyStatement(self.idx, self.dirty_stmt, **self.tags)
 
 
@@ -543,7 +618,11 @@ class Label(Statement):
     A dummy statement that indicates a label with a name.
     """
 
-    __slots__ = ('name', 'ins_addr', 'block_idx', )
+    __slots__ = (
+        "name",
+        "ins_addr",
+        "block_idx",
+    )
 
     def __init__(self, idx, name: str, ins_addr: int, block_idx: Optional[int] = None, **kwargs):
         super().__init__(idx, **kwargs)
@@ -555,7 +634,14 @@ class Label(Statement):
         return isinstance(other, Label)
 
     def _hash_core(self):
-        return stable_hash((Label, self.name, self.ins_addr, self.block_idx, ))
+        return stable_hash(
+            (
+                Label,
+                self.name,
+                self.ins_addr,
+                self.block_idx,
+            )
+        )
 
     def __repr__(self):
         return f"Label {self.name}"
@@ -563,5 +649,5 @@ class Label(Statement):
     def __str__(self):
         return f"{self.name}:"
 
-    def copy(self) -> 'Label':
+    def copy(self) -> "Label":
         return Label(self.idx, self.name, self.ins_addr, self.block_idx, **self.tags)

@@ -6,7 +6,11 @@ class TaggedObject:
     A class that takes arbitrary tags.
     """
 
-    __slots__ = ('idx', '_tags', '_hash', )
+    __slots__ = (
+        "idx",
+        "_tags",
+        "_hash",
+    )
 
     def __init__(self, idx, **kwargs):
         self._tags = None
@@ -16,7 +20,7 @@ class TaggedObject:
             self.initialize_tags(kwargs)
 
     def initialize_tags(self, tags):
-        self._tags = { }
+        self._tags = {}
         for k, v in tags.items():
             self._tags[k] = v
 
@@ -53,5 +57,5 @@ class TaggedObject:
     @property
     def tags(self) -> Dict:
         if not self._tags:
-            self._tags = { }
+            self._tags = {}
         return self._tags

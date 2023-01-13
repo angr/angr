@@ -19,6 +19,7 @@ available_converters: Set[str] = set()
 try:
     from .converter_vex import VEXIRSBConverter
     import pyvex
+
     available_converters.add("vex")
 except ImportError as e:
     log.debug("Could not import VEXIRSBConverter")
@@ -27,6 +28,7 @@ except ImportError as e:
 try:
     from .converter_pcode import PCodeIRSBConverter
     from angr.engines import pcode
+
     available_converters.add("pcode")
 except ImportError as e:
     log.debug("Could not import PCodeIRSBConverter")
