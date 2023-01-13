@@ -659,11 +659,11 @@ class SimEngineVRBase(SimEngineLight):
                     typevar = typevars.TypeVariable()
                     self.state.add_type_constraint(typevars.Subtype(typeconsts.int_type(size * 8), typevar))
 
-                # TODO: Create a tv_sp.load.<bits>@N type variable for the stack variable
-                # typevar = typevars.DerivedTypeVariable(
-                #    typevars.DerivedTypeVariable(typevar, typevars.Load()),
-                #    typevars.HasField(size * 8, 0)
-                # )
+                # | TODO: Create a tv_sp.load.<bits>@N type variable for the stack variable
+                # | typevar = typevars.DerivedTypeVariable(
+                # |    typevars.DerivedTypeVariable(typevar, typevars.Load()),
+                # |    typevars.HasField(size * 8, 0)
+                # | )
 
                 r = self.state.top(size * self.state.arch.byte_width)
                 r = self.state.annotate_with_variables(r, list(all_vars))

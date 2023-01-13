@@ -84,9 +84,7 @@ class SimHeapBase(SimStatePlugin):
 
         :param sim_size: the amount of memory (in bytes) to be allocated
         """
-        raise NotImplementedError(
-            "{} not implemented for {}".format(self._malloc.__func__.__name__, self.__class__.__name__)
-        )
+        raise NotImplementedError(f"{self._malloc.__func__.__name__} not implemented for {self.__class__.__name__}")
 
     def _free(self, ptr):
         """
@@ -95,9 +93,7 @@ class SimHeapBase(SimStatePlugin):
 
         :param ptr: the location in memory to be freed
         """
-        raise NotImplementedError(
-            "{} not implemented for {}".format(self._free.__func__.__name__, self.__class__.__name__)
-        )
+        raise NotImplementedError(f"{self._free.__func__.__name__} not implemented for {self.__class__.__name__}")
 
     def _calloc(self, sim_nmemb, sim_size):
         """
@@ -107,9 +103,7 @@ class SimHeapBase(SimStatePlugin):
         :param sim_nmemb: the number of elements to allocated
         :param sim_size: the size of each element (in bytes)
         """
-        raise NotImplementedError(
-            "{} not implemented for {}".format(self._calloc.__func__.__name__, self.__class__.__name__)
-        )
+        raise NotImplementedError(f"{self._calloc.__func__.__name__} not implemented for {self.__class__.__name__}")
 
     def _realloc(self, ptr, size):
         """
@@ -119,9 +113,7 @@ class SimHeapBase(SimStatePlugin):
         :param ptr: the location in memory to be reallocated
         :param size: the new size desired for the allocation
         """
-        raise NotImplementedError(
-            "{} not implemented for {}".format(self._realloc.__func__.__name__, self.__class__.__name__)
-        )
+        raise NotImplementedError(f"{self._realloc.__func__.__name__} not implemented for {self.__class__.__name__}")
 
     def init_state(self):
         if opts.ABSTRACT_MEMORY in self.state.options:

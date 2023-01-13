@@ -18,7 +18,7 @@ class CallSite:
         self.block_addr = block_addr
 
     def __repr__(self):
-        result = "<CallSite in function {:#x}, calling {:#x}".format(self.caller_func_addr, self.callee_func_addr)
+        result = f"<CallSite in function {self.caller_func_addr:#x}, calling {self.callee_func_addr:#x}"
         if self.block_addr is not None:
             result += "at block %#x" % self.block_addr
         result += ">"

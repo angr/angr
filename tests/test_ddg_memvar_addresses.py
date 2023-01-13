@@ -27,7 +27,7 @@ class TestDdgMemvarAddresses(unittest.TestCase):
             if isinstance(node.variable, angr.sim_variable.SimMemoryVariable):
                 assert (
                     0 <= node.variable.addr < (1 << proj.arch.bits)
-                ), "Program variable {} has an invalid address: {}".format(node.variable, node.variable.addr)
+                ), f"Program variable {node.variable} has an invalid address: {node.variable.addr}"
 
 
 if __name__ == "__main__":

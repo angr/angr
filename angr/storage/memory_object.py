@@ -112,10 +112,10 @@ class SimMemoryObject:
             return self.object.cache_key == other.object.cache_key
 
     def _length_equals(self, other):
-        if type(self.length) != type(other.length):
+        if type(self.length) is not type(other.length):  # noqa: E721
             return False
 
-        if type(self.length) is int:
+        if isinstance(self.length, int):
             return self.length == other.length
         else:
             return self.length.cache_key == other.length.cache_key

@@ -61,8 +61,8 @@ def test_control_flow_slicing():
     target = cfg.get_any_node(0x400594)
     bs = slicing_test.analyses.BackwardSlice(cfg, None, None, targets=[(target, -1)], control_flow_slice=True)
     anno_cfg = bs.annotated_cfg()
-    assert anno_cfg.get_whitelisted_statements(0x40057C) == None
-    assert anno_cfg.get_whitelisted_statements(0x400594) == None
+    assert anno_cfg.get_whitelisted_statements(0x40057C) is None
+    assert anno_cfg.get_whitelisted_statements(0x400594) is None
     assert anno_cfg.get_whitelisted_statements(0x4005A4) == []
 
 
