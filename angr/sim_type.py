@@ -706,7 +706,7 @@ class SimTypeArray(SimType):
             self.elem_type.store(state, addr + i * (self.elem_type.size // state.arch.byte_width), val)
 
     def _init_str(self):
-        return "%s(%s, %s%s)" % (
+        return "{}({}, {}{})".format(
             self.__class__.__name__,
             self.elem_type._init_str(),
             self.length,
@@ -1049,7 +1049,7 @@ class SimTypeDouble(SimTypeFloat):
         return 8 if self.align_double else 4
 
     def _init_str(self):
-        return "{}(align_double={})".format(self.__class__.__name__, self.align_double)
+        return f"{self.__class__.__name__}(align_double={self.align_double})"
 
     def copy(self):
         return SimTypeDouble(align_double=self.align_double)

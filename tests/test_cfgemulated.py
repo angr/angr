@@ -204,7 +204,7 @@ class TestCfgemulate(unittest.TestCase):
         assert not proj.kb.functions.function(name="main").returning
 
         # function_d should not be reachable
-        assert proj.kb.functions.function(name="function_d") == None
+        assert proj.kb.functions.function(name="function_d") is None
 
     @broken
     def test_cfg_5(self):

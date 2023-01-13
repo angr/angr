@@ -264,7 +264,7 @@ class Function(Serializable):
         if self._project is None:
             # try to set it from function manager
             if self._function_manager is not None:
-                self._project = self._function_manager._kb._project  # type: Optional[Project]
+                self._project: Optional[Project] = self._function_manager._kb._project
         return self._project
 
     @property
@@ -561,7 +561,7 @@ class Function(Serializable):
         s += "  Has return: %s\n" % self.has_return
         s += "  Returning: %s\n" % ("Unknown" if self.returning is None else self.returning)
         s += "  Alignment: %s\n" % (self.alignment)
-        s += "  Arguments: reg: %s, stack: %s\n" % (self._argument_registers, self._argument_stack_variables)
+        s += f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
         s += "  Blocks: [%s]\n" % ", ".join(["%#x" % i for i in self.block_addrs])
         s += "  Calling convention: %s" % self.calling_convention
         return s

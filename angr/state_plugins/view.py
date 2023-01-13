@@ -203,7 +203,7 @@ class SimMemView(SimStatePlugin):
             addr = repr(self._addr)
 
         type_name = repr(self._type) if self._type is not None else "<untyped>"
-        return "<{} {} at {}>".format(type_name, value, addr)
+        return f"<{type_name} {value} at {addr}>"
 
     def __dir__(self):
         return self._type._refine_dir() if self._type else [x for x in SimMemView.types if " " not in x] + ["struct"]

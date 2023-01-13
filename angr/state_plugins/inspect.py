@@ -214,7 +214,7 @@ class BP:
             self.action(state)
 
     def __repr__(self):
-        return "<BP %s-action with conditions %r, %s condition func, %s action func>" % (
+        return "<BP {}-action with conditions {!r}, {} condition func, {} action func>".format(
             self.when,
             self.kwargs,
             "no" if self.condition is None else "with",
@@ -253,9 +253,7 @@ class SimInspector(SimStatePlugin):
     def _set_inspect_attrs(self, **kwargs):
         for k, v in kwargs.items():
             if k not in inspect_attributes:
-                raise ValueError(
-                    "Invalid inspect attribute %s passed in. Should be one of: %s" % (k, inspect_attributes)
-                )
+                raise ValueError(f"Invalid inspect attribute {k} passed in. Should be one of: {inspect_attributes}")
             # l.debug("... setting %s", k)
             setattr(self, k, v)
 

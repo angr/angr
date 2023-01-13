@@ -110,7 +110,7 @@ class TestVariableRecovery(unittest.TestCase):
 
                 assert (
                     the_var is not None
-                ), "The variable %s in groundtruth at instruction %#x cannot be found in variable manager." % (
+                ), "The variable {} in groundtruth at instruction {:#x} cannot be found in variable manager.".format(
                     var_info,
                     insn_addr,
                 )
@@ -138,7 +138,7 @@ class TestVariableRecovery(unittest.TestCase):
 
                 assert (
                     the_var is not None
-                ), "The phi variable %s in groundtruth at block %#x cannot be found in variable manager." % (
+                ), "The phi variable {} in groundtruth at block {:#x} cannot be found in variable manager.".format(
                     var_info,
                     block_addr,
                 )
