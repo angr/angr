@@ -1916,6 +1916,23 @@ class TestDecompiler(unittest.TestCase):
         assert len(proj.kb.functions["xstrtol"].prototype.args) == 5
         assert re.search(r"xstrtol\([^\n,]+, [^\n,]+, [^\n,]+, [^\n,]+, [^\n,]+\)", d.codegen.text) is not None
 
+    @for_all_structuring_algos
+    def test_decompiling_base32_basenc_do_decode(self, decompiler_options=None):
+        # if region identifier works correctly, there should be no gotos
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "base32-basenc.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["do_decode"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "finish_and_exit(" in d.codegen.text
+        assert "goto" not in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
