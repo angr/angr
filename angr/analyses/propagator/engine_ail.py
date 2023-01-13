@@ -64,7 +64,12 @@ class SimEnginePropagatorAIL(
                 # provide details
                 src = src.with_details(dst.size, dst, self._codeloc())
 
+            # do not store tmps into register
+            if any(self.has_tmpexpr(expr) for expr in src.all_exprs()):
+                src = PropValue(src.value,
+                                offset_and_details={0: Detail(src.value.size() // 8, dst, None)})
             self.state.store_register(dst, src)
+
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
@@ -106,12 +111,14 @@ class SimEnginePropagatorAIL(
                     stmt.size, data.one_expr if data.one_expr is not None else stmt.data, self._codeloc()
                 )
 
-            # Storing data to a stack variable
-            self.state.store_stack_variable(sp_offset, to_store, endness=stmt.endness)
+            # ensure there isn't a Tmp variable in the data
+            if not self.has_tmpexpr(expr):
+                # Storing data to a stack variable
+                self.state.store_stack_variable(sp_offset, to_store, endness=stmt.endness)
 
-            # set equivalence
-            var = SimStackVariable(sp_offset, size)
-            self.state.add_equivalence(self._codeloc(), var, stmt.data)
+                # set equivalence
+                var = SimStackVariable(sp_offset, size)
+                self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
         else:
             addr_concrete = addr.one_expr
@@ -402,8 +409,8 @@ class SimEnginePropagatorAIL(
                             # there isn't a single expression to replace with. remove the old replacement for this
                             # expression if available.
                             self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits))
-                    if not self.state.is_top(var.value):
-                        return var
+                        if not self.state.is_top(var.value):
+                            return var
 
         if addr_expr is not None and addr_expr is not expr.addr:
             new_expr = Expr.Load(expr.idx, addr_expr, expr.size, expr.endness, **expr.tags)
@@ -1033,3 +1040,9 @@ class SimEnginePropagatorAIL(
         )
         walker.walk_expression(expr)
         return walker.out_dated
+
+    def has_tmpexpr(self, expr: Expr.Expression) -> bool:
+
+        from .tmpvar_finder import TmpvarFinder  # pylint:disable=import-outside-toplevel
+
+        return TmpvarFinder(expr).has_tmp

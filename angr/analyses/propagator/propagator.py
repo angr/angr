@@ -687,6 +687,13 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 self.project.arch, project=self.project, only_consts=self._only_consts, gp=self._gp
             )
             ail = True
+            spoffset_var = ailment.Expr.StackBaseOffset(None, self.project.arch.bits, 0)
+            sp_value = PropValue(claripy.BVV(0x7fff_ff00, self.project.arch.bits),
+                                 offset_and_details={0: Detail(self.project.arch.bytes, spoffset_var, None)})
+            state.store_register(
+                ailment.Expr.Register(None, None, self.project.arch.sp_offset, self.project.arch.bits),
+                sp_value,
+            )
         else:
             # VEX
             state = PropagatorVEXState(
