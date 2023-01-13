@@ -66,8 +66,7 @@ class SimEnginePropagatorAIL(
 
             # do not store tmps into register
             if any(self.has_tmpexpr(expr) for expr in src.all_exprs()):
-                src = PropValue(src.value,
-                                offset_and_details={0: Detail(src.value.size() // 8, dst, None)})
+                src = PropValue(src.value, offset_and_details={0: Detail(src.value.size() // 8, dst, None)})
             self.state.store_register(dst, src)
 
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
@@ -197,9 +196,9 @@ class SimEnginePropagatorAIL(
         else:
             true_target = None
         if stmt.false_target is not None:
-            false_target = self._expr(stmt.false_target)
+            _ = self._expr(stmt.false_target)
         else:
-            false_target = None
+            _ = None
 
         # parse the condition to set initial values for true/false branches
         if condition is not None and isinstance(true_target.one_expr, Expr.Const):
@@ -207,7 +206,7 @@ class SimEnginePropagatorAIL(
             if isinstance(cond_expr, Expr.BinaryOp) and cond_expr.op == "CmpEQ":
                 if isinstance(cond_expr.operands[1], Expr.Const):
                     # is there a register that's equivalent to the variable?
-                    for _, (reg_atom, reg_expr, def_at) in self.state.register_expressions.items():
+                    for _, (reg_atom, reg_expr, _) in self.state.register_expressions.items():
                         if cond_expr.operands[0] == reg_expr:
                             # found it!
                             key = self.block.addr, true_target.one_expr.value
@@ -1041,7 +1040,8 @@ class SimEnginePropagatorAIL(
         walker.walk_expression(expr)
         return walker.out_dated
 
-    def has_tmpexpr(self, expr: Expr.Expression) -> bool:
+    @staticmethod
+    def has_tmpexpr(expr: Expr.Expression) -> bool:
 
         from .tmpvar_finder import TmpvarFinder  # pylint:disable=import-outside-toplevel
 
