@@ -1,0 +1,98 @@
+repos:
+
+#
+# Fail fast
+#
+
+-   repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.10.1
+    hooks:
+    - id: validate-pyproject
+      fail_fast: true
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    # General
+    -   id: check-merge-conflict
+        fail_fast: true
+    -   id: check-case-conflict
+        fail_fast: true
+    -   id: destroyed-symlinks
+        fail_fast: true
+    -   id: check-symlinks
+        fail_fast: true
+    -   id: check-added-large-files
+        fail_fast: true
+    # Syntax
+    -   id: check-toml
+        fail_fast: true
+    -   id: check-json
+        fail_fast: true
+    -   id: check-yaml
+        fail_fast: true
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    -   id: check-ast
+        fail_fast: true
+
+#
+# Modifiers
+#
+
+-   repo: https://github.com/asottile/setup-cfg-fmt
+    rev: v2.2.0
+    hooks:
+    -   id: setup-cfg-fmt
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    -   id: mixed-line-ending
+    -   id: trailing-whitespace
+
+-   repo: https://github.com/dannysepler/rm_unneeded_f_str
+    rev: v0.1.0
+    hooks:
+    -   id: rm-unneeded-f-str
+
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v3.3.1
+    hooks:
+    -   id: pyupgrade
+        args: [--py38-plus]
+
+# Last modifier: Coding Standard
+-   repo: https://github.com/psf/black
+    rev: 22.12.0
+    hooks:
+    -   id: black
+
+#
+# Static Checks
+#
+
+-   repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.9.0
+    hooks:
+    # Python
+    -   id: python-use-type-annotations
+    -   id: python-no-log-warn
+    # Documentation
+    -   id: rst-backticks
+    -   id: rst-directive-colons
+    -   id: rst-inline-touching-normal
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    -   id: debug-statements
+    -   id: check-builtin-literals
+    -   id: check-docstring-first
+
+-   repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.210
+    hooks:
+    - id: ruff

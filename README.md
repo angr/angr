@@ -8,6 +8,7 @@ angr
 [![Gitbook](https://img.shields.io/badge/docs-gitbook-green.svg)](https://docs.angr.io)
 [![API Docs](https://img.shields.io/badge/docs-api-green.svg)](https://angr.io/api-doc)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
 angr is a platform-agnostic binary analysis framework.
 It is brought to you by [the Computer Security Lab at UC Santa Barbara](https://seclab.cs.ucsb.edu), [SEFCOM at Arizona State University](https://sefcom.asu.edu),  their associated CTF team, [Shellphish](https://shellphish.net), the open source community, and **[@rhelmot](https://github.com/rhelmot)**.

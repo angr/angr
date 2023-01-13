@@ -11,3 +11,18 @@ force-exclude = '''
 | angr\/procedures\/definitions
 )/
 '''
+
+[tool.ruff]
+extend-ignore = [
+	"F401", "F403", "E402", # No import checks
+	"E741", # Variable names
+	"E731", # Allow lambdas
+	"E501", # No line length check
+
+	# TODO: Enable these!
+	"F601", # BUG: Dictionary key literal repeated
+	"F821", # name not found (maybe because we directly edit globals() or import later :( )
+	"F841", # dead code
+
+	"E712", "E713", "E714", "E722", # code quality
+]
