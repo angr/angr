@@ -55,6 +55,32 @@ class AMD64CCallRewriter(CCallRewriterBase):
                                 **ccall.tags,
                             )
                             return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                elif cond_v == AMD64_CondTypes["CondNLE"]:
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_SUBB"],
+                        AMD64_OpTypes["G_CC_OP_SUBW"],
+                        AMD64_OpTypes["G_CC_OP_SUBL"],
+                        AMD64_OpTypes["G_CC_OP_SUBQ"],
+                    }:
+                        # dep_1 >s dep_2
+                        r = Expr.BinaryOp(ccall.idx, "CmpGT", (dep_1, dep_2), True, **ccall.tags)
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                    elif op_v in {
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                    }:
+                        if isinstance(dep_2, Expr.Const) and dep_2.value == 0:
+                            # dep_1 >s 0
+                            r = Expr.BinaryOp(
+                                ccall.idx,
+                                "CmpGT",
+                                (dep_1, dep_2),
+                                True,
+                                **ccall.tags,
+                            )
+                            return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondZ"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
@@ -64,6 +90,16 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     }:
                         # dep_1 - dep_2 == 0
                         r = Expr.BinaryOp(ccall.idx, "CmpEQ", (dep_1, dep_2), False, **ccall.tags)
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                    elif op_v in {
+                        AMD64_OpTypes["G_CC_OP_SHRB"],
+                        AMD64_OpTypes["G_CC_OP_SHRW"],
+                        AMD64_OpTypes["G_CC_OP_SHRL"],
+                        AMD64_OpTypes["G_CC_OP_SHRQ"],
+                    }:
+                        # dep_1 == 0
+                        zero = Expr.Const(None, None, 0, dep_1.bits)
+                        r = Expr.BinaryOp(ccall.idx, "CmpEQ", (dep_1, zero), False, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondL"]:
                     if op_v in {
