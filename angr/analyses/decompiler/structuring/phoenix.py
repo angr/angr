@@ -1312,7 +1312,7 @@ class PhoenixStructurer(StructurerBase):
             self._remove_last_statement_if_jump(start_node)
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-            self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
             self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
 
             return True
@@ -1334,7 +1334,7 @@ class PhoenixStructurer(StructurerBase):
             self._remove_last_statement_if_jump(start_node)
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-            self.replace_nodes(graph, start_node, new_node, old_node_1=right)
+            self.replace_nodes(graph, start_node, new_node, old_node_1=right if right in graph else None)
             self.replace_nodes(full_graph, start_node, new_node, old_node_1=right)
 
             return True
@@ -1356,7 +1356,7 @@ class PhoenixStructurer(StructurerBase):
             self._remove_last_statement_if_jump(start_node)
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-            self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
             self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
             return True
 
@@ -1377,7 +1377,7 @@ class PhoenixStructurer(StructurerBase):
             self._remove_last_statement_if_jump(start_node)
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
-            self.replace_nodes(graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
             self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
             return True
 
