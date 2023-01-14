@@ -597,17 +597,22 @@ class RegionIdentifier(Analysis):
             l.critical("No end node is found in a supposedly acyclic graph. Is it really acyclic?")
             return False
 
+        add_dummy_endnode = False
         if len(endnodes) > 1:
+            # if this graph has multiple end nodes: create a single end node
+            add_dummy_endnode = True
+        elif head_inedges and len(endnodes) == 1 and endnodes[0] not in list(graph.predecessors(head)):
+            # special case: there are in-edges to head, but the only end node is not a predecessor to head.
+            # in this case, we will want to put the end node and a predecessor of the head into the same region.
+            add_dummy_endnode = True
+
+        if add_dummy_endnode:
             # we need a copy of the graph!
             graph_copy = networkx.DiGraph(graph_copy)
-
-            # if this graph has multiple end nodes: create a single end node
-            dummy_endnode = None
-            if len(endnodes) > 1:
-                dummy_endnode = "DUMMY_ENDNODE"
-                for endnode in endnodes:
-                    graph_copy.add_edge(endnode, dummy_endnode)
-                endnodes = [dummy_endnode]
+            dummy_endnode = "DUMMY_ENDNODE"
+            for endnode in endnodes:
+                graph_copy.add_edge(endnode, dummy_endnode)
+            endnodes = [dummy_endnode]
         else:
             dummy_endnode = None
 
