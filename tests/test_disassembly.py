@@ -1,8 +1,8 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from unittest import TestCase, main
 
-import angr
 import archinfo
+import angr
 from angr.analyses import Disassembly
 from angr.analyses.disassembly import MemoryOperand, Instruction
 
