@@ -688,8 +688,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             )
             ail = True
             spoffset_var = ailment.Expr.StackBaseOffset(None, self.project.arch.bits, 0)
-            sp_value = PropValue(claripy.BVV(0x7fff_ff00, self.project.arch.bits),
-                                 offset_and_details={0: Detail(self.project.arch.bytes, spoffset_var, None)})
+            sp_value = PropValue(
+                claripy.BVV(0x7FFF_FF00, self.project.arch.bits),
+                offset_and_details={0: Detail(self.project.arch.bytes, spoffset_var, None)},
+            )
             state.store_register(
                 ailment.Expr.Register(None, None, self.project.arch.sp_offset, self.project.arch.bits),
                 sp_value,
@@ -727,8 +729,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         ),
                     )
                 else:
-                    state.store_register(
-                        self.project.arch.registers["t9"][0],  # pylint:disable=too-many-function-args
+                    state.store_register(  # pylint:disable=too-many-function-args
+                        self.project.arch.registers["t9"][0],
                         self.project.arch.registers["t9"][1],
                         claripy.BVV(self._func_addr, 64),
                     )
@@ -747,8 +749,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         ),
                     )
                 else:
-                    state.store_register(
-                        self.project.arch.registers["t9"][0],  # pylint:disable=too-many-function-args
+                    state.store_register(  # pylint:disable=too-many-function-args
+                        self.project.arch.registers["t9"][0],
                         self.project.arch.registers["t9"][1],
                         claripy.BVV(self._func_addr, 32),
                     )
@@ -762,8 +764,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                     PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))}),
                 )
             else:
-                state.store_register(
-                    self.project.arch.registers["fpscr"][0],  # pylint:disable=too-many-function-args
+                state.store_register(  # pylint:disable=too-many-function-args
+                    self.project.arch.registers["fpscr"][0],
                     self.project.arch.registers["fpscr"][1],
                     claripy.BVV(0, 32),
                 )
@@ -820,7 +822,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if self.replacements is None:
             self.replacements = state._replacements
         else:
-            self.replacements.update(state._replacements)
+            self._merge_replacements(self.replacements, state._replacements)
 
         self.equivalence |= state._equivalence
 
@@ -931,6 +933,39 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self._analysis_core_graph()
 
         self._post_analysis()
+
+    @staticmethod
+    def _merge_replacements(replacements_0, replacements_1) -> bool:
+        merge_occurred = False
+        for loc, vars_ in replacements_1.items():
+            if loc not in replacements_0:
+                replacements_0[loc] = vars_.copy()
+                merge_occurred = True
+            else:
+                for var, repl in vars_.items():
+                    if var not in replacements_0[loc]:
+                        replacements_0[loc][var] = repl
+                        merge_occurred = True
+                    else:
+                        if PropagatorState.is_top(repl) or PropagatorState.is_top(replacements_0[loc][var]):
+                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                            replacements_0[loc][var] = t
+                            merge_occurred = True
+                        elif (
+                            isinstance(replacements_0[loc][var], claripy.ast.Base) or isinstance(repl, claripy.ast.Base)
+                        ) and replacements_0[loc][var] is not repl:
+                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                            replacements_0[loc][var] = t
+                            merge_occurred = True
+                        elif (
+                            not isinstance(replacements_0[loc][var], claripy.ast.Base)
+                            and not isinstance(repl, claripy.ast.Base)
+                            and replacements_0[loc][var] != repl
+                        ):
+                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                            replacements_0[loc][var] = t
+                            merge_occurred = True
+        return merge_occurred
 
 
 register_analysis(PropagatorAnalysis, "Propagator")
