@@ -198,22 +198,6 @@ class RegionIdentifier(Analysis):
         # TODO optimize
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
         loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
-
-        # simple optimization: include all single-in-degree successors of existing loop nodes
-        new_loop_nodes = set(loop_subgraph)
-        while True:
-            added = set()
-            for loop_node in new_loop_nodes:
-                outside_successors = list(succ for succ in graph.successors(loop_node) if succ not in loop_subgraph)
-                if len(outside_successors) == 1:
-                    outside_successor = outside_successors[0]
-                    if graph.in_degree[outside_successor] == 1 and graph.out_degree[outside_successor] <= 1:
-                        added.add(outside_successor)
-                        loop_subgraph.add_edge(loop_node, outside_successor)
-            if not added:
-                break
-            new_loop_nodes = added
-
         nodes = set(loop_subgraph)
         return nodes
 
@@ -223,6 +207,20 @@ class RegionIdentifier(Analysis):
 
         refined_loop_nodes = initial_loop_nodes.copy()
         refined_exit_nodes = initial_exit_nodes.copy()
+
+        # simple optimization: include all single-in-degree successors of existing loop nodes
+        while True:
+            added = set()
+            for exit_node in list(refined_exit_nodes):
+                if graph.in_degree[exit_node] == 1 and graph.out_degree[exit_node] <= 1:
+                    added.add(exit_node)
+                    refined_loop_nodes.add(exit_node)
+                    refined_exit_nodes.remove(exit_node)
+            if not added:
+                break
+
+        if len(refined_exit_nodes) <= 1:
+            return refined_loop_nodes, refined_exit_nodes
 
         idom = networkx.immediate_dominators(graph, head)
 
