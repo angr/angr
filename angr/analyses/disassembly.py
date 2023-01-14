@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Union, Optional, Sequence, Tuple, Any
 
 import pyvex
+import archinfo
 from angr.knowledge_plugins import Function
 
 from . import Analysis
@@ -196,74 +197,53 @@ class Instruction(DisassemblyPiece):
         self.dissect_instruction()
 
     def dissect_instruction(self):
-        if self.arch.name == "AARCH64":
-            self.dissect_instruction_for_aarch64()
+        if isinstance(
+            self.arch,
+            (archinfo.ArchAArch64, archinfo.ArchARM, archinfo.ArchARMEL, archinfo.ArchARMHF, archinfo.ArchARMCortexM)
+        ):
+            self.dissect_instruction_for_arm()
         else:
             # the default one works well for x86, add more arch-specific
             # code when you find it doesn't meet your need.
             self.dissect_instruction_by_default()
 
-    def dissect_instruction_for_aarch64(self):
-        ## ARM64 consts from capstone
-        # ARM64 conditional
-        ARM64_CC = ["", "eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt", "gt", "le", "al", "nv"]
-        # ARM64 shift type
-        ARM64_SFT = ["", "lsl", "lsr", "asr", "ror", "msl"]
-
-        # don't forget to initialize self.opcode
+    def dissect_instruction_for_arm(self):
         self.opcode = Opcode(self)
-
-        cc = self.insn.cc
-        assert 0 <= cc < len(ARM64_CC)
-        expected_cc_op = ""
-        if cc != 0:
-            # exists in "B.cc", "BC.cc", or after all operands (e.g. instruction "csel")
-            if not (self.insn.mnemonic.startswith("b.") or self.insn.mnemonic.startswith("bc.")):
-                # a dummy operand (Cond string) is expected at the end of op_str
-                expected_cc_op = ARM64_CC[cc]
+        self.operands = []
 
         # We use capstone for arm64 disassembly, so this assertion must success
         assert hasattr(self.insn, "operands")
 
-        if len(self.insn.operands) == 0:
-            self.operands = []
-            return
-
         op_str = self.insn.op_str
-        # split by comma outside squared brackets
-        dummy_operands = self.split_aarch64_op_string(op_str)
-        if len(dummy_operands) != len(self.insn.operands):
-            if not op_str.endswith(expected_cc_op):
-                l.error(
-                    "Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
-                    str(self.insn),
-                    len(self.operands),
-                    len(self.insn.operands),
-                )
-                self.operands = []
-                return
+        # NOTE: the size of dummy_operands is not necessarily equal to
+        # operands count of capstone disasm result. If we check
+        # len(self.operands) == len(self.insn.operands)
+        # special cases in arm disassembly will mess up the code
+        dummy_operands = self.split_arm_op_string(op_str)
 
         for operand in dummy_operands:
             opr_pieces = self.split_op_string(operand)
             cur_operand = []
             if opr_pieces[0][0].isalpha() and opr_pieces[0] in self.arch.registers:
                 cur_operand.append(Register(opr_pieces[0]))
-                cur_operand.extend(opr_pieces[1:])  # SIMD register's suffix
+                # handle register's suffix (e.g. "sp!", "d0[1]", "v0.16b")
+                cur_operand.extend(opr_pieces[1:])
                 self.operands.append(cur_operand)
                 continue
 
             for i, p in enumerate(opr_pieces):
                 if p[0].isnumeric():
-                    if (
-                        i > 0
-                        and opr_pieces[i - 1] == "."
-                        or i > 1
-                        and (opr_pieces[i - 2] in ARM64_SFT or opr_pieces[i - 2][:3] in ("uxt", "sxt"))
-                    ):
+                    if any((
+                        i > 0 and opr_pieces[i - 1] == ".",
+                        i > 1 and (
+                            opr_pieces[i - 2] in ["lsl", "lsr", "asr", "ror", "msl"]
+                            or opr_pieces[i - 2][:3] in ("uxt", "sxt")
+                        )
+                    )):
                         cur_operand.append(p)
                         continue
                     # Always set False. I don't see any '+' sign appear
-                    # in capstone's arm64 disasm result
+                    # in capstone's arm disasm result
                     with_sign = False
                     try:
                         v = int(p, 0)
@@ -289,8 +269,17 @@ class Instruction(DisassemblyPiece):
                 op_type = 0
             self.operands[i] = Operand.build(op_type, i, opr, self)
 
+        if len(self.operands) == 0 and len(self.insn.operands) != 0:
+            l.error(
+                "Operand parsing failed for instruction %s at address %x",
+                str(self.insn), self.insn.address
+            )
+            self.operands = []
+            return
+
     @staticmethod
-    def split_aarch64_op_string(op_str: str):
+    def split_arm_op_string(op_str: str):
+        # Split arm operand string by comma outside brackets
         pieces = []
         outside_brackets = True
         cur_opr = ""
@@ -308,7 +297,6 @@ class Instruction(DisassemblyPiece):
             cur_opr += c
         if cur_opr:
             pieces.append(cur_opr)
-
         return pieces
 
     def dissect_instruction_by_default(self):

@@ -2,12 +2,13 @@
 from unittest import TestCase, main
 
 import angr
+import archinfo
 from angr.analyses import Disassembly
 from angr.analyses.disassembly import MemoryOperand, Instruction
 
 
 class TestDisassembly(TestCase):
-    def test_arm64_disect_instruction(self):
+    def test_arm_dissect_instructions(self):
         proj = angr.load_shellcode(
             b"\x00\xe4\x00\x6f"
             b"\x43\x3c\x0b\x0e"
@@ -15,7 +16,7 @@ class TestDisassembly(TestCase):
             b"\xfc\x6f\xba\xa9"
             b"\x88\x03\x98\x1a"
             b"\x00\x60\x01\x4e",
-            "AARCH64",
+            archinfo.ArchAArch64(),
             0,
         )
         # movi   v0.2d, #0000000000000000'                              ; SIMD register
@@ -38,6 +39,25 @@ class TestDisassembly(TestCase):
         regs_table = insn[insn.index("{") + 1 : insn.index("}")].replace(" ", "").split(",")
         assert ["v0.16b", "v1.16b", "v2.16b", "v3.16b"] == regs_table
 
+        proj = angr.load_shellcode(
+            b"\x00\xc0\x2d\xe9"
+            b"\x10\xf9\xf9\xe9",
+            archinfo.ArchARM(),
+            0,
+        )
+        # push {lr, pc}
+        # ldmib sb!, {r4, r8, fp, ip, sp, lr, pc}^
+
+        block = proj.factory.block(0)
+        disasm = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
+        insns = [r for r in disasm.raw_result if isinstance(r, Instruction)]
+        rendered_insns = [i.render()[0].lower() for i in insns]
+        assert all(
+            i in rendered_insns[0] for i in ('{', '}', 'lr', 'pc')
+        )
+        assert 'sb!' in rendered_insns[1]
+        assert rendered_insns[1].endswith('^')
+
     def test_mips32_missing_offset_in_instructions(self):
         proj = angr.load_shellcode(
             b"\x8f\xbc\x00\x10"
@@ -48,7 +68,7 @@ class TestDisassembly(TestCase):
             b"\x24\xA5\x5E\x38"
             b"\x03\x20\xF8\x09"
             b"\x24\x04\x00\x02",
-            "MIPS32",
+            archinfo.ArchMIPS32(),
             0,
         )
         # 0x0:    lw      $gp, 0x10($sp)
