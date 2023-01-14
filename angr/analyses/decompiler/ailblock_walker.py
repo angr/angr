@@ -3,7 +3,9 @@ from typing import Dict, Type, Callable, Any, Optional
 
 from ailment import Block
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from ailment.expression import Load, Expression, BinaryOp, UnaryOp, Convert, ITE, DirtyExpression, VEXCCallExpression
+from ailment.expression import (
+    Load, Expression, BinaryOp, UnaryOp, Convert, ITE, DirtyExpression, VEXCCallExpression, Tmp
+)
 
 
 class AILBlockWalkerBase:
@@ -30,6 +32,7 @@ class AILBlockWalkerBase:
             ITE: self._handle_ITE,
             DirtyExpression: self._handle_DirtyExpression,
             VEXCCallExpression: self._handle_VEXCCallExpression,
+            Tmp: self._handle_Tmp,
         }
 
         self.stmt_handlers: Dict[Type, Callable] = stmt_handlers if stmt_handlers else _default_stmt_handlers
@@ -125,6 +128,9 @@ class AILBlockWalkerBase:
         self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
         self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
         self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
+
+    def _handle_Tmp(self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement, block: Optional[Block]):
+        pass
 
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Optional[Block]

@@ -3205,7 +3205,7 @@ class CStructuredCodeWalker:
 
 class MakeTypecastsImplicit(CStructuredCodeWalker):
     @classmethod
-    def collapse(cls, dst_ty: SimType, child: CExpression):
+    def collapse(cls, dst_ty: SimType, child: CExpression) -> CExpression:
         result = child
         if isinstance(child, CTypeCast):
             intermediate_ty = child.dst_type
@@ -3252,6 +3252,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
 
     @classmethod
     def handle_CBinaryOp(cls, obj: CBinaryOp):
+        obj = super().handle_CBinaryOp(obj)
         while True:
             new_lhs = cls.collapse(obj.common_type, obj.lhs)
             if (
@@ -3268,12 +3269,13 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
                     obj.rhs = new_rhs
                 else:
                     break
-        return super().handle_CBinaryOp(obj)
+        return obj
 
     @classmethod
     def handle_CTypeCast(cls, obj):
-        obj.expr = cls.collapse(obj.dst_type, obj.expr)
-        return super().handle_CTypeCast(obj)
+        # note that the expression that this method returns may no longer be a CTypeCast
+        obj = super().handle_CTypeCast(obj)
+        return cls.collapse(obj.dst_type, obj.expr)
 
 
 class FieldReferenceCleanup(CStructuredCodeWalker):
