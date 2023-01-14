@@ -597,19 +597,12 @@ class RegionIdentifier(Analysis):
             l.critical("No end node is found in a supposedly acyclic graph. Is it really acyclic?")
             return False
 
-        if len(endnodes) > 1:
-            # we need a copy of the graph!
-            graph_copy = networkx.DiGraph(graph_copy)
-
-            # if this graph has multiple end nodes: create a single end node
-            dummy_endnode = None
-            if len(endnodes) > 1:
-                dummy_endnode = "DUMMY_ENDNODE"
-                for endnode in endnodes:
-                    graph_copy.add_edge(endnode, dummy_endnode)
-                endnodes = [dummy_endnode]
-        else:
-            dummy_endnode = None
+        # create a dummy end node and link all end nodes to this node, on a copy of the graph
+        graph_copy = networkx.DiGraph(graph_copy)
+        dummy_endnode = "DUMMY_ENDNODE"
+        for endnode in endnodes:
+            graph_copy.add_edge(endnode, dummy_endnode)
+        endnodes = [dummy_endnode]
 
         # compute dominator tree
         doms = networkx.immediate_dominators(graph_copy, head)
