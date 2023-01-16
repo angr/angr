@@ -703,7 +703,10 @@ class AILSimplifier(Analysis):
                     continue
 
                 # ensure the expression that we want to replace with is still up-to-date
-                if not self._check_atom_last_def(replace_with, used_expr.size, u.ins_addr, rd, def_):
+                replace_with_original_def = self._find_atom_def_at(replace_with, rd, def_.codeloc)
+                if replace_with_original_def is not None and not self._check_atom_last_def(
+                    replace_with, used_expr.size, u.ins_addr, rd, replace_with_original_def
+                ):
                     all_uses_replaced = False
                     continue
 
@@ -739,6 +742,17 @@ class AILSimplifier(Analysis):
         if simplified:
             self._clear_cache()
         return simplified
+
+    def _find_atom_def_at(self, atom, rd, codeloc: CodeLocation) -> Optional[Definition]:
+        if isinstance(atom, Register):
+            observ = rd.observed_results[("insn", codeloc.ins_addr, OP_BEFORE)]
+            try:
+                reg_vals = observ.register_definitions.load(atom.reg_offset, size=atom.size)
+                defs = list(observ.extract_defs_from_mv(reg_vals))
+                return defs[0] if len(defs) == 1 else None
+            except SimMemoryMissingError:
+                pass
+        return None
 
     def _check_atom_last_def(self, atom, size, ins_addr, rd, the_def) -> bool:
         if isinstance(atom, Register):
