@@ -8,8 +8,8 @@ from ailment.statement import ConditionalJump
 from ailment.expression import BinaryOp, Const, Register, Load
 
 from ...cfg.cfg_utils import CFGUtils
-from ..utils import first_nonlabel_statement
-from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
+from ..utils import first_nonlabel_statement, remove_last_statement
+from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
@@ -27,15 +27,19 @@ class Case:
         "expr",
         "value",
         "target",
+        "next_addr",
     )
 
-    def __init__(self, original_node, node_type: Optional[str], variable, expr, value: Union[int, str], target):
+    def __init__(
+        self, original_node, node_type: Optional[str], variable, expr, value: Union[int, str], target, next_addr
+    ):
         self.original_node = original_node
         self.node_type = node_type
         self.variable = variable
         self.expr = expr
         self.value = value
         self.target = target
+        self.next_addr = next_addr
 
     def __repr__(self):
         if self.value == "default":
@@ -86,7 +90,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
             original_head: Block = original_nodes[0]
             original_nodes = original_nodes[1:]
 
-            case_addrs = {(case.value, case.target) for case in cases}
+            case_addrs = {(case.original_node, case.value, case.target, case.next_addr) for case in cases}
 
             expr = cases[0].expr
 
@@ -128,13 +132,17 @@ class LoweredSwitchSimplifier(OptimizationPass):
             cases = []
             comp = head
             while True:
-                comp_type, variable, expr, value, target = variable_comparisons[comp]
+                comp_type, variable, expr, value, target, next_addr = variable_comparisons[comp]
                 if cases:
                     last_var = cases[-1].variable
                 else:
                     last_var = None
                 if last_var is None or last_var == variable:
-                    cases.append(Case(comp, comp_type, variable, expr, value, target))
+                    cases.append(Case(comp, comp_type, variable, expr, value, target, next_addr))
+                else:
+                    # new variable!
+                    cases.append(Case(None, None, last_var, None, "default", comp.addr, None))
+                    break
 
                 if comp is not head:
                     # non-head node has at most one predecessor
@@ -152,7 +160,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                         continue
 
                     else:
-                        cases.append(Case(None, None, variable, expr, "default", next_comp_addr))
+                        cases.append(Case(None, None, variable, expr, "default", next_comp_addr, None))
 
                 break
 
@@ -177,7 +185,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
     @staticmethod
     def _find_switch_variable_comparison_type_a(
         node,
-    ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int]]:
+    ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int, int]]:
 
         # type a: the last statement is a var == constant comparison, but there is more than one non-label statement in
         # the block
@@ -201,18 +209,20 @@ class LoweredSwitchSimplifier(OptimizationPass):
                             value = cond.operands[1].value
                             if cond.op == "CmpEQ":
                                 target = stmt.true_target.value
+                                next_node_addr = stmt.false_target.value
                             elif cond.op == "CmpNE":
                                 target = stmt.false_target.value
+                                next_node_addr = stmt.true_target.value
                             else:
                                 return None
-                            return variable, cond.operands[0], value, target
+                            return variable, cond.operands[0], value, target, next_node_addr
 
         return None
 
     @staticmethod
     def _find_switch_variable_comparison_type_b(
         node,
-    ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int]]:
+    ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int, int]]:
 
         # type b: the last statement is a var == constant comparison, and there is only one non-label statement
 
@@ -235,10 +245,72 @@ class LoweredSwitchSimplifier(OptimizationPass):
                             value = cond.operands[1].value
                             if cond.op == "CmpEQ":
                                 target = stmt.true_target.value
+                                next_node_addr = stmt.false_target.value
                             elif cond.op == "CmpNE":
                                 target = stmt.false_target.value
+                                next_node_addr = stmt.true_target.value
                             else:
                                 return None
-                            return variable, cond.operands[0], value, target
+                            return variable, cond.operands[0], value, target, next_node_addr
 
         return None
+
+    @staticmethod
+    def restore_graph(
+        node, last_stmt: IncompleteSwitchCaseHeadStatement, graph: networkx.DiGraph, full_graph: networkx.DiGraph
+    ):
+        last_node = node
+        ca_default = [
+            (onode, value, target, a) for onode, value, target, a in last_stmt.case_addrs if value == "default"
+        ]
+        ca_others = [
+            (onode, value, target, a) for onode, value, target, a in last_stmt.case_addrs if value != "default"
+        ]
+
+        # non-default nodes
+        ca_others = dict((ca[0].addr, ca) for ca in ca_others)
+        # extract the AIL block from last_node
+        last_block = last_node
+        if isinstance(last_block, SequenceNode):
+            last_block = last_block.nodes[-1]
+        if isinstance(last_block, MultiNode):
+            last_block = last_block.nodes[-1]
+        assert isinstance(last_block, Block)
+        next_node_addr = last_block.addr
+
+        while next_node_addr is not None and next_node_addr in ca_others:
+            onode, value, target, next_node_addr = ca_others[next_node_addr]
+            onode: Block
+
+            if first_nonlabel_statement(onode) is not onode.statements[-1]:
+                onode = onode.copy(statements=[onode.statements[-1]])
+
+            graph.add_edge(last_node, onode)
+            full_graph.add_edge(last_node, onode)
+
+            target_node = next(iter(nn for nn in full_graph if nn.addr == target))
+            graph.add_edge(onode, target_node)
+            full_graph.add_edge(onode, target_node)
+
+            if graph.has_edge(node, target_node):
+                graph.remove_edge(node, target_node)
+            if full_graph.has_edge(node, target_node):
+                full_graph.remove_edge(node, target_node)
+
+            # update last_node
+            last_node = onode
+
+        # default nodes
+        if ca_default:
+            onode, value, target, _ = ca_default[0]
+            default_target = next(iter(nn for nn in full_graph if nn.addr == target))
+            graph.add_edge(last_node, default_target)
+            full_graph.add_edge(last_node, default_target)
+
+            if graph.has_edge(node, default_target):
+                graph.remove_edge(node, default_target)
+            if full_graph.has_edge(node, default_target):
+                full_graph.remove_edge(node, default_target)
+
+        # all good - remove the last statement in node
+        remove_last_statement(node)

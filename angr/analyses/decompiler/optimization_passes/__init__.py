@@ -29,7 +29,7 @@ _all_optimization_passes = [
     (ConstantDereferencesSimplifier, True),
     (RetAddrSaveSimplifier, True),
     (X86GccGetPcSimplifier, True),
-    (LoweredSwitchSimplifier, True),
+    (LoweredSwitchSimplifier, False),
     (EagerReturnsSimplifier, True),
     (ITEExprConverter, True),
     (ExprOpSwapper, True),

@@ -17,6 +17,7 @@ from ailment.expression import (
     BinaryOp,
 )
 
+from ...errors import SimMemoryMissingError
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
@@ -24,6 +25,7 @@ from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ...analyses.propagator.propagator import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from .. import Analysis, AnalysesHub
 from .ailblock_walker import AILBlockWalker
 from .ailgraph_walker import AILGraphWalker
@@ -173,7 +175,7 @@ class AILSimplifier(Analysis):
     @staticmethod
     # pylint:disable=unused-argument
     def _simplify_function_rd_observe_callback(ob_type, **kwargs):
-        return ob_type == "node"
+        return ob_type == "node" or (ob_type == "insn" and kwargs.get("op_type", None) == OP_BEFORE)
 
     def _compute_propagation(self):
         # Propagate expressions or return the existing result
@@ -252,6 +254,7 @@ class AILSimplifier(Analysis):
                                     }
                                 },
                                 replace_assignment_dsts=True,
+                                replace_loads=True,
                             )
                         elif isinstance(stmt, Call):
                             tags = dict(stmt.ret_expr.tags)
@@ -274,25 +277,56 @@ class AILSimplifier(Analysis):
                         self.blocks[old_block] = new_block
 
                     # replace all uses if necessary
-                    for use_loc, use_expr in use_exprs:
-                        if isinstance(use_expr, Register) and to_size == use_expr.size:
-                            # don't replace registers to the same register
+                    for use_loc, use_expr_tpl in use_exprs:
+                        if isinstance(use_expr_tpl[0], Register) and to_size == use_expr_tpl[0].size:
+                            # don't replace registers to the same registers
                             continue
 
                         old_block = addr_and_idx_to_block.get((use_loc.block_addr, use_loc.block_idx))
                         the_block = self.blocks.get(old_block, old_block)
-                        tags = dict(use_expr.tags)
+
+                        # the first used expr
+                        use_expr_0 = use_expr_tpl[0]
+                        tags = dict(use_expr_0.tags)
                         tags["reg_name"] = self.project.arch.translate_register_name(def_.atom.reg_offset, size=to_size)
-                        new_use_expr = Register(
-                            use_expr.idx,
+                        new_use_expr_0 = Register(
+                            use_expr_0.idx,
                             None,
                             def_.atom.reg_offset,
                             to_size * self.project.arch.byte_width,
                             **tags,
                         )
-                        r, new_block = BlockSimplifier._replace_and_build(
-                            the_block, {use_loc: {use_expr: new_use_expr}}
-                        )
+
+                        # the second used expr (if it exists)
+                        if len(use_expr_tpl) == 2:
+                            use_expr_1 = use_expr_tpl[1]
+                            assert isinstance(use_expr_1, BinaryOp)
+                            con = use_expr_1.operands[1]
+                            assert isinstance(con, Const)
+                            new_use_expr_1 = BinaryOp(
+                                use_expr_1.idx,
+                                use_expr_1.op,
+                                [
+                                    new_use_expr_0,
+                                    Const(con.idx, con.variable, con.value, new_use_expr_0.bits, **con.tags),
+                                ],
+                                use_expr_1.signed,
+                                floating_point=use_expr_1.floating_point,
+                                rounding_mode=use_expr_1.rounding_mode,
+                                **use_expr_1.tags,
+                            )
+                            r, new_block = BlockSimplifier._replace_and_build(
+                                the_block, {use_loc: {use_expr_1: new_use_expr_1}}
+                            )
+                        elif len(use_expr_tpl) == 1:
+                            r, new_block = BlockSimplifier._replace_and_build(
+                                the_block, {use_loc: {use_expr_0: new_use_expr_0}}
+                            )
+                        else:
+                            _l.warning("Nothing to replace at %s.", use_loc)
+                            r = False
+                            new_block = None
+
                         if not r:
                             _l.warning("Failed to replace use-expr at %s.", use_loc)
                         else:
@@ -304,14 +338,14 @@ class AILSimplifier(Analysis):
 
     def _narrowing_needed(
         self, def_, rd, addr_and_idx_to_block
-    ) -> Tuple[bool, Optional[int], Optional[List[Tuple[CodeLocation, Expression]]]]:
+    ) -> Tuple[bool, Optional[int], Optional[List[Tuple[CodeLocation, Tuple[Expression, ...]]]]]:
 
         def_size = def_.size
         # find its uses
         use_and_exprs = rd.all_uses.get_uses_with_expr(def_)
 
         all_used_sizes = set()
-        used_by: List[Tuple[CodeLocation, Expression]] = []
+        used_by: List[Tuple[CodeLocation, Tuple[Expression, ...]]] = []
 
         for loc, expr in use_and_exprs:
             old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
@@ -325,20 +359,22 @@ class AILSimplifier(Analysis):
                 return False, None, None
             stmt = block.statements[loc.stmt_idx]
 
-            expr_size, used_by_expr = self._extract_expression_effective_size(stmt, expr)
+            expr_size, used_by_exprs = self._extract_expression_effective_size(stmt, expr)
             if expr_size is None:
                 # it's probably used in full width
                 return False, None, None
 
             all_used_sizes.add(expr_size)
-            used_by.append((loc, used_by_expr))
+            used_by.append((loc, used_by_exprs))
 
         if len(all_used_sizes) == 1 and next(iter(all_used_sizes)) < def_size:
             return True, next(iter(all_used_sizes)), used_by
 
         return False, None, None
 
-    def _extract_expression_effective_size(self, statement, expr) -> Tuple[Optional[int], Optional[Expression]]:
+    def _extract_expression_effective_size(
+        self, statement, expr
+    ) -> Tuple[Optional[int], Optional[Tuple[Expression, ...]]]:
         """
         Determine the effective size of an expression when it's used.
         """
@@ -348,24 +384,34 @@ class AILSimplifier(Analysis):
         if not walker.operations:
             if expr is None:
                 return None, None
-            return expr.size, expr
+            return expr.size, (expr,)
 
         first_op = walker.operations[0]
         if isinstance(first_op, Convert):
-            return first_op.to_bits // self.project.arch.byte_width, first_op
+            return first_op.to_bits // self.project.arch.byte_width, (first_op,)
         if isinstance(first_op, BinaryOp):
-            if first_op.op == "And" and isinstance(first_op.operands[1], Const):
+            second_op = None
+            if len(walker.operations) == 2:
+                second_op = walker.operations[1]
+            elif len(walker.operations) > 2:
+                # unsupported
+                return None, None
+            if (
+                first_op.op == "And"
+                and isinstance(first_op.operands[1], Const)
+                and (second_op is None or isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
+            ):
                 mask = first_op.operands[1].value
                 if mask == 0xFF:
-                    return 1, first_op
+                    return 1, (first_op, second_op) if second_op is not None else (first_op,)
                 if mask == 0xFFFF:
-                    return 2, first_op
+                    return 2, (first_op, second_op) if second_op is not None else (first_op,)
                 if mask == 0xFFFF_FFFF:
-                    return 4, first_op
+                    return 4, (first_op, second_op) if second_op is not None else (first_op,)
 
         if expr is None:
             return None, None
-        return expr.size, expr
+        return expr.size, (expr,)
 
     #
     # Expression folding
@@ -656,6 +702,11 @@ class AILSimplifier(Analysis):
                     all_uses_replaced = False
                     continue
 
+                # ensure the expression that we want to replace with is still up-to-date
+                if not self._check_atom_last_def(replace_with, used_expr.size, u.ins_addr, rd, def_):
+                    all_uses_replaced = False
+                    continue
+
                 # if there is an updated block, use it
                 the_block = self.blocks.get(old_block, old_block)
                 stmt: Statement = the_block.statements[u.stmt_idx]
@@ -688,6 +739,19 @@ class AILSimplifier(Analysis):
         if simplified:
             self._clear_cache()
         return simplified
+
+    def _check_atom_last_def(self, atom, size, ins_addr, rd, the_def) -> bool:
+        if isinstance(atom, Register):
+            observ = rd.observed_results[("insn", ins_addr, OP_BEFORE)]
+            try:
+                reg_vals = observ.register_definitions.load(atom.reg_offset, size=size)
+                for existing_def in observ.extract_defs_from_mv(reg_vals):
+                    if existing_def.codeloc != the_def.codeloc:
+                        return False
+            except SimMemoryMissingError:
+                pass
+
+        return True
 
     #
     # Folding call expressions

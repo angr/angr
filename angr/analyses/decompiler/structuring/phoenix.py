@@ -15,6 +15,7 @@ from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
 from ..condition_processor import ConditionProcessor
+from ..optimization_passes.lowered_switch_simplifier import LoweredSwitchSimplifier
 from ..utils import (
     remove_last_statement,
     extract_jump_targets,
@@ -44,6 +45,10 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(__name__)
 _DEBUG = False
+
+
+class GraphChangedNotification(Exception):
+    pass
 
 
 class PhoenixStructurer(StructurerBase):
@@ -672,13 +677,19 @@ class PhoenixStructurer(StructurerBase):
             l.debug("_match_acyclic_schemas: Iteration %d", idx)
             idx += 1
 
-            any_matches_this_iteration = self._match_acyclic_schemas(
-                self._region.graph,
-                self._region.graph_with_successors
-                if self._region.graph_with_successors is not None
-                else networkx.DiGraph(self._region.graph),
-                self._region.head,
-            )
+            try:
+                any_matches_this_iteration = self._match_acyclic_schemas(
+                    self._region.graph,
+                    self._region.graph_with_successors
+                    if self._region.graph_with_successors is not None
+                    else networkx.DiGraph(self._region.graph),
+                    self._region.head,
+                )
+            except GraphChangedNotification:
+                # restart
+                l.debug("_match_acyclic_schemas: Graph changed. Restart.")
+                idx = 0
+                continue
             if not any_matches_this_iteration:
                 break
             any_matches = True
@@ -772,39 +783,26 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         # make a fake jumptable
-        cmp_lb = None
-        cmp_ub = None
         node_default_addr = None
-        jumptable_entries = {}
-        for case_value, case_target_addr in last_stmt.case_addrs:
+        case_entries: Dict[int, int] = {}
+        for _, case_value, case_target_addr, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
                 if case_value == "default":
                     node_default_addr = case_target_addr
                     continue
                 else:
                     raise ValueError(f"Unsupported 'case_value' {case_value}")
-            if cmp_lb is None or case_value < cmp_lb:
-                cmp_lb = case_value
-            if cmp_ub is None or case_value > cmp_ub:
-                cmp_ub = case_value
-            jumptable_entries[case_value] = case_target_addr
-
-        if node_default_addr is not None:
-            for i in range(cmp_lb, cmp_ub):
-                if i not in jumptable_entries:
-                    jumptable_entries[i] = node_default_addr
-            jumptable_entries = dict((k - cmp_lb, v) for k, v in jumptable_entries.items())
+            case_entries[case_value] = case_target_addr
 
         cases, node_default, to_remove = self._switch_build_cases(
-            cmp_lb,
-            [v for k, v in sorted(jumptable_entries.items(), key=lambda x: x[0])],
+            case_entries,
             node,
             node,
             node_default_addr,
             graph,
             full_graph,
         )
-        self._make_switch_cases_core(
+        r = self._make_switch_cases_core(
             node,
             self.cond_proc.claripy_ast_from_ail_condition(last_stmt.switch_variable),
             cases,
@@ -813,7 +811,14 @@ class PhoenixStructurer(StructurerBase):
             to_remove,
             graph,
             full_graph,
+            can_bail=True,
         )
+        if not r:
+            # restore the graph to cascading if-then-elses
+            l.warning("Cannot structure as a switch-case. Restore the sub graph to if-elses.")
+            LoweredSwitchSimplifier.restore_graph(node, last_stmt, graph, full_graph)
+            raise GraphChangedNotification()
+
         self._switch_handle_gotos(cases, node_default, None)
         return True
 
@@ -884,7 +889,12 @@ class PhoenixStructurer(StructurerBase):
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
 
         cases, node_default, to_remove = self._switch_build_cases(
-            cmp_lb, jump_table.jumptable_entries, node, node_a, node_b_addr, graph, full_graph
+            dict((cmp_lb + i, entry_addr) for (i, entry_addr) in enumerate(jump_table.jumptable_entries)),
+            node,
+            node_a,
+            node_b_addr,
+            graph,
+            full_graph,
         )
 
         if node_default is None:
@@ -939,7 +949,12 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         cases, node_default, to_remove = self._switch_build_cases(
-            cmp_lb, jumptable_entries, node, node, default_addr, graph, full_graph
+            dict((cmp_lb + i, entry_addr) for (i, entry_addr) in enumerate(jump_table.jumptable_entries)),
+            node,
+            node,
+            default_addr,
+            graph,
+            full_graph,
         )
         if node_default is None:
             # there must be a default case
@@ -981,7 +996,7 @@ class PhoenixStructurer(StructurerBase):
         return False
 
     def _switch_build_cases(
-        self, cmp_lb, jumptable_entries, head_node, node_a: BaseNode, node_b_addr, graph, full_graph
+        self, case_and_entryaddrs: Dict[int, int], head_node, node_a: BaseNode, node_b_addr, graph, full_graph
     ) -> Tuple[Dict, Any, Set[Any]]:
         cases: Dict[Union[int, Tuple[int]], SequenceNode] = {}
         to_remove = set()
@@ -1020,11 +1035,10 @@ class PhoenixStructurer(StructurerBase):
             # the default node is not duplicated
             node_b_in_node_a_successors = False
 
-        for j, entry_addr in enumerate(jumptable_entries):
+        for case_idx, entry_addr in case_and_entryaddrs.items():
             if not node_b_in_node_a_successors and entry_addr == node_b_addr:
                 # jump to default or end of the switch-case structure - ignore this case
                 continue
-            case_idx = cmp_lb + j
 
             entry_addr_to_ids[entry_addr].add(case_idx)
             if entry_addr in converted_nodes:
@@ -1073,7 +1087,8 @@ class PhoenixStructurer(StructurerBase):
         graph: networkx.DiGraph,
         full_graph: networkx.DiGraph,
         node_a=None,
-    ):
+        can_bail=False,
+    ) -> bool:
 
         if node_default is not None:
             # the head no longer goes to the default case
@@ -1099,6 +1114,12 @@ class PhoenixStructurer(StructurerBase):
             for dst in full_graph.successors(nn):
                 if dst not in to_remove:
                     out_edges.append((nn, dst))
+
+        if can_bail:
+            nonhead_out_nodes = set(edge[1] for edge in out_edges if edge[1] is not head)
+            if len(nonhead_out_nodes) > 1:
+                # not ready to be structured yet - do it later
+                return False
 
         for nn in to_remove:
             graph.remove_node(nn)
@@ -1136,6 +1157,8 @@ class PhoenixStructurer(StructurerBase):
         if node_a is not None:
             # remove the last statement in node_a
             remove_last_statement(node_a)
+
+        return True
 
     # other acyclic schemas
 
