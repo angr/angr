@@ -41,6 +41,8 @@ class StructurerBase(Analysis):
     longer exist due to empty node removal during structuring or prior steps.
     """
 
+    NAME: str = None
+
     def __init__(
         self,
         region,

@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
-from ailment.expression import Expression, Tmp, Load, Const
+from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
 
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
@@ -149,7 +149,7 @@ class BlockSimplifier(Analysis):
             propagator = self._compute_propagation(block)
             replacements = list(propagator._states.values())[0]._replacements
             if replacements:
-                _, new_block = self._replace_and_build(block, replacements)
+                _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
                 new_block = self._eliminate_self_assignments(new_block)
                 self._clear_cache()
             else:
@@ -166,7 +166,12 @@ class BlockSimplifier(Analysis):
 
     @staticmethod
     def _replace_and_build(
-        block, replacements, replace_assignment_dsts: bool = False, gp: Optional[int] = None
+        block,
+        replacements,
+        replace_assignment_dsts: bool = False,
+        replace_loads: bool = False,
+        gp: Optional[int] = None,
+        replace_registers: bool = True,
     ) -> Tuple[bool, "Block"]:
 
         new_statements = block.statements[::]
@@ -176,7 +181,8 @@ class BlockSimplifier(Analysis):
             for old, new in repls.items():
                 stmt = new_statements[codeloc.stmt_idx]
                 if (
-                    isinstance(old, Load)
+                    not replace_loads
+                    and isinstance(old, Load)
                     and not isinstance(stmt, Call)
                     and not (gp is not None and isinstance(new, Const) and new.value == gp)
                 ):
@@ -188,7 +194,12 @@ class BlockSimplifier(Analysis):
                     new_stmt = new
                 else:
                     # replace the expressions involved in this statement
-                    if isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
+
+                    if not replace_registers and isinstance(old, Register):
+                        # don't replace
+                        r = False
+                        new_stmt = None
+                    elif isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
                         # special case: do not replace the ret_expr of a call statement to another call statement
                         r = False
                         new_stmt = None
@@ -225,6 +236,18 @@ class BlockSimplifier(Analysis):
             if type(stmt) is Assignment:
                 if stmt.dst.likes(stmt.src):
                     continue
+                if (
+                    isinstance(stmt.dst, Register)
+                    and isinstance(stmt.src, Convert)
+                    and isinstance(stmt.src.operand, Register)
+                ):
+                    if (
+                        stmt.dst.size == stmt.src.size
+                        and stmt.dst.reg_offset == stmt.src.operand.reg_offset
+                        and not stmt.src.is_signed
+                    ):
+                        # ignore statements like edi = convert(rdi, 32)
+                        continue
             new_statements.append(stmt)
 
         new_block = block.copy(statements=new_statements)
