@@ -364,3 +364,31 @@ class IncompleteSwitchCaseNode(BaseNode):
         self.addr = addr
         self.head = head
         self.cases = cases
+
+
+#
+# The following classes are custom AIL statements (not nodes, unfortunately)
+#
+
+
+class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
+    """
+    Describes a switch-case head. This is only created by LoweredSwitchSimplifier.
+    """
+
+    __slots__ = (
+        "addr",
+        "switch_variable",
+        "case_addrs",
+    )
+
+    def __init__(self, idx, switch_variable, case_addrs, **kwargs):
+        super().__init__(idx, **kwargs)
+        self.switch_variable = switch_variable
+        self.case_addrs: List[Tuple[Union[int, str], int]] = case_addrs
+
+    def __repr__(self):
+        return f"SwitchCaseHead: switch {self.switch_variable} with {len(self.case_addrs)} cases"
+
+    def __str__(self):
+        return f"switch ({str(self.switch_variable)}): {len(self.case_addrs)} cases"

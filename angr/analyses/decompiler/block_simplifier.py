@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
-from ailment.expression import Expression, Tmp, Load, Const
+from ailment.expression import Expression, Tmp, Load, Const, Register
 
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
@@ -149,7 +149,7 @@ class BlockSimplifier(Analysis):
             propagator = self._compute_propagation(block)
             replacements = list(propagator._states.values())[0]._replacements
             if replacements:
-                _, new_block = self._replace_and_build(block, replacements)
+                _, new_block = self._replace_and_build(block, replacements, replace_registers=False)
                 new_block = self._eliminate_self_assignments(new_block)
                 self._clear_cache()
             else:
@@ -166,7 +166,11 @@ class BlockSimplifier(Analysis):
 
     @staticmethod
     def _replace_and_build(
-        block, replacements, replace_assignment_dsts: bool = False, gp: Optional[int] = None
+        block,
+        replacements,
+        replace_assignment_dsts: bool = False,
+        gp: Optional[int] = None,
+        replace_registers: bool = True,
     ) -> Tuple[bool, "Block"]:
 
         new_statements = block.statements[::]
@@ -188,7 +192,12 @@ class BlockSimplifier(Analysis):
                     new_stmt = new
                 else:
                     # replace the expressions involved in this statement
-                    if isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
+
+                    if not replace_registers and isinstance(old, Register):
+                        # don't replace
+                        r = False
+                        new_stmt = None
+                    elif isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
                         # special case: do not replace the ret_expr of a call statement to another call statement
                         r = False
                         new_stmt = None

@@ -60,6 +60,8 @@ class DreamStructurer(StructurerBase):
     longer exist due to empty node removal during structuring or prior steps.
     """
 
+    NAME = "dream"
+
     def __init__(
         self,
         region,

@@ -1933,6 +1933,55 @@ class TestDecompiler(unittest.TestCase):
         assert "finish_and_exit(" in d.codegen.text
         assert "goto" not in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_reverting_switch_lowering_cksum_digest_print_filename(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["print_filename"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "switch" in d.codegen.text
+        assert "case 10:" in d.codegen.text
+        assert "case 13:" in d.codegen.text
+        assert "case 92:" in d.codegen.text
+        assert "default:" in d.codegen.text
+        assert "goto" not in d.codegen.text
+
+    @structuring_algo("phoenix")
+    def test_reverting_switch_lowering_cksum_digest_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "case 4294967165:" in d.codegen.text
+        assert "case 4294967166:" in d.codegen.text
+
+    @structuring_algo("phoenix")
+    def test_reverting_switch_lowering_filename_unescape(self, decompiler_options=None):
+        # nested switch-cases
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "b2sum-digest.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["filename_unescape"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("switch ") == 2
+        assert d.codegen.text.count("case 92:") == 2
+        assert d.codegen.text.count("case 0:") == 1
+        assert "goto" not in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

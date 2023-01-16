@@ -14,6 +14,7 @@ from ailment.expression import (
     VEXCCallExpression,
     Tmp,
     Const,
+    BinaryOp,
 )
 
 from ...engines.light import SpOffset
@@ -223,12 +224,16 @@ class AILSimplifier(Analysis):
                         stmt = the_block.statements[def_.codeloc.stmt_idx]
                         r, new_block = False, None
                         if isinstance(stmt, Assignment) and isinstance(stmt.dst, Register):
+                            tags = dict(stmt.dst.tags)
+                            tags["reg_name"] = self.project.arch.translate_register_name(
+                                def_.atom.reg_offset, size=to_size
+                            )
                             new_assignment_dst = Register(
                                 stmt.dst.idx,
                                 None,
                                 def_.atom.reg_offset,
                                 to_size * self.project.arch.byte_width,
-                                **stmt.dst.tags,
+                                **tags,
                             )
                             new_assignment_src = Convert(
                                 stmt.src.idx,  # FIXME: This is a hack
@@ -249,12 +254,16 @@ class AILSimplifier(Analysis):
                                 replace_assignment_dsts=True,
                             )
                         elif isinstance(stmt, Call):
+                            tags = dict(stmt.ret_expr.tags)
+                            tags["reg_name"] = self.project.arch.translate_register_name(
+                                def_.atom.reg_offset, size=to_size
+                            )
                             new_retexpr = Register(
                                 stmt.ret_expr.idx,
                                 None,
                                 def_.atom.reg_offset,
                                 to_size * self.project.arch.byte_width,
-                                **stmt.ret_expr.tags,
+                                **tags,
                             )
                             r, new_block = BlockSimplifier._replace_and_build(
                                 the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
@@ -264,21 +273,22 @@ class AILSimplifier(Analysis):
                             continue
                         self.blocks[old_block] = new_block
 
-                    # replace all uses
+                    # replace all uses if necessary
                     for use_loc, use_expr in use_exprs:
+                        if isinstance(use_expr, Register) and to_size == use_expr.size:
+                            # don't replace registers to the same register
+                            continue
+
                         old_block = addr_and_idx_to_block.get((use_loc.block_addr, use_loc.block_idx))
                         the_block = self.blocks.get(old_block, old_block)
-                        tags = use_expr.tags
-                        if "reg_name" not in tags:
-                            tags["reg_name"] = self.project.arch.translate_register_name(
-                                def_.atom.reg_offset, size=to_size * self.project.arch.byte_width
-                            )
+                        tags = dict(use_expr.tags)
+                        tags["reg_name"] = self.project.arch.translate_register_name(def_.atom.reg_offset, size=to_size)
                         new_use_expr = Register(
                             use_expr.idx,
                             None,
                             def_.atom.reg_offset,
                             to_size * self.project.arch.byte_width,
-                            **use_expr.tags,
+                            **tags,
                         )
                         r, new_block = BlockSimplifier._replace_and_build(
                             the_block, {use_loc: {use_expr: new_use_expr}}
@@ -336,13 +346,26 @@ class AILSimplifier(Analysis):
         walker = ExpressionNarrowingWalker(expr)
         walker.walk_statement(statement)
         if not walker.operations:
-            return None, None
+            if expr is None:
+                return None, None
+            return expr.size, expr
 
         first_op = walker.operations[0]
         if isinstance(first_op, Convert):
             return first_op.to_bits // self.project.arch.byte_width, first_op
+        if isinstance(first_op, BinaryOp):
+            if first_op.op == "And" and isinstance(first_op.operands[1], Const):
+                mask = first_op.operands[1].value
+                if mask == 0xFF:
+                    return 1, first_op
+                if mask == 0xFFFF:
+                    return 2, first_op
+                if mask == 0xFFFF_FFFF:
+                    return 4, first_op
 
-        return None, None
+        if expr is None:
+            return None, None
+        return expr.size, expr
 
     #
     # Expression folding
