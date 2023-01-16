@@ -315,10 +315,31 @@ class AILSimplifier(Analysis):
                                 rounding_mode=use_expr_1.rounding_mode,
                                 **use_expr_1.tags,
                             )
+
+                            if use_expr_1.size > new_use_expr_1.size:
+                                new_use_expr_1 = Convert(
+                                    None,
+                                    new_use_expr_1.bits,
+                                    use_expr_1.bits,
+                                    False,
+                                    new_use_expr_1,
+                                    **new_use_expr_1.tags,
+                                )
+
                             r, new_block = BlockSimplifier._replace_and_build(
                                 the_block, {use_loc: {use_expr_1: new_use_expr_1}}
                             )
                         elif len(use_expr_tpl) == 1:
+                            if use_expr_0.size > new_use_expr_0.size:
+                                new_use_expr_0 = Convert(
+                                    None,
+                                    new_use_expr_0.bits,
+                                    use_expr_0.bits,
+                                    False,
+                                    new_use_expr_0,
+                                    **new_use_expr_0.tags,
+                                )
+
                             r, new_block = BlockSimplifier._replace_and_build(
                                 the_block, {use_loc: {use_expr_0: new_use_expr_0}}
                             )
