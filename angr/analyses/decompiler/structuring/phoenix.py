@@ -48,6 +48,11 @@ _DEBUG = False
 
 
 class GraphChangedNotification(Exception):
+    """
+    A notification for graph that is currently worked on being changed. Once this notification is caught, the graph
+    schema matching process for the current region restarts.
+    """
+
     pass
 
 
@@ -790,8 +795,7 @@ class PhoenixStructurer(StructurerBase):
                 if case_value == "default":
                     node_default_addr = case_target_addr
                     continue
-                else:
-                    raise ValueError(f"Unsupported 'case_value' {case_value}")
+                raise ValueError(f"Unsupported 'case_value' {case_value}")
             case_entries[case_value] = case_target_addr
 
         cases, node_default, to_remove = self._switch_build_cases(
@@ -940,8 +944,6 @@ class PhoenixStructurer(StructurerBase):
         if not cmp:
             return False
         cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
-
-        jumptable_entries = jump_table.jumptable_entries
 
         if isinstance(last_stmt.false_target, Const):
             default_addr = last_stmt.false_target.value
@@ -1488,9 +1490,9 @@ class PhoenixStructurer(StructurerBase):
 
         return False
 
-    def _match_acyclic_short_circuit_conditions_type_a(
+    def _match_acyclic_short_circuit_conditions_type_a(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
-    ) -> Optional[Tuple]:  # pylint:disable=unused-argument
+    ) -> Optional[Tuple]:
 
         #   if (a) goto right
         #   else if (b) goto right
@@ -1527,9 +1529,9 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, right, edge_cond_left_right, other_succ
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_b(
+    def _match_acyclic_short_circuit_conditions_type_b(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
-    ) -> Optional[Tuple]:  # pylint:disable=unused-argument
+    ) -> Optional[Tuple]:
 
         #   if (a) goto left
         # right:
@@ -1570,9 +1572,9 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, right, edge_cond_right_left, else_node
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_c(
+    def _match_acyclic_short_circuit_conditions_type_c(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
-    ) -> Optional[Tuple]:  # pylint:disable=unused-argument
+    ) -> Optional[Tuple]:
 
         #   if (a) goto successor
         #   else if (b) goto successor
@@ -1609,9 +1611,9 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, successor, edge_cond_left_successor, right
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_d(
+    def _match_acyclic_short_circuit_conditions_type_d(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
-    ) -> Optional[Tuple]:  # pylint:disable=unused-argument
+    ) -> Optional[Tuple]:
 
         #   if (a) goto else_node
         # left:

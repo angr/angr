@@ -764,7 +764,8 @@ class AILSimplifier(Analysis):
             self._clear_cache()
         return simplified
 
-    def _find_atom_def_at(self, atom, rd, codeloc: CodeLocation) -> Optional[Definition]:
+    @staticmethod
+    def _find_atom_def_at(atom, rd, codeloc: CodeLocation) -> Optional[Definition]:
         if isinstance(atom, Register):
             observ = rd.observed_results[("insn", codeloc.ins_addr, OP_BEFORE)]
             try:
@@ -775,7 +776,8 @@ class AILSimplifier(Analysis):
                 pass
         return None
 
-    def _check_atom_last_def(self, atom, size, ins_addr, rd, the_def) -> bool:
+    @staticmethod
+    def _check_atom_last_def(atom, size, ins_addr, rd, the_def) -> bool:
         if isinstance(atom, Register):
             observ = rd.observed_results[("insn", ins_addr, OP_BEFORE)]
             try:

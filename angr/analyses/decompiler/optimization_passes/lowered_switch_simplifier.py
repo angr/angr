@@ -19,6 +19,9 @@ _l = logging.getLogger(name=__name__)
 
 
 class Case:
+    """
+    Describes a case in a switch-case construct.
+    """
 
     __slots__ = (
         "original_node",
@@ -158,10 +161,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     if next_comp in variable_comparisons:
                         comp = next_comp
                         continue
-
-                    else:
-                        cases.append(Case(None, None, variable, expr, "default", next_comp_addr, None))
-
+                    cases.append(Case(None, None, variable, expr, "default", next_comp_addr, None))
                 break
 
             if cases:
