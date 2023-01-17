@@ -7,6 +7,7 @@ class TmpvarFinder(AILBlockWalkerBase):
     """
     Walks an AIL expression to find Tmp expressions.
     """
+
     def __init__(self, expr: Expression):
         super().__init__()
         self.has_tmp = False

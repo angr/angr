@@ -230,9 +230,9 @@ class RegionIdentifier(Analysis):
                 if graph.in_degree[exit_node] == 1 and graph.out_degree[exit_node] <= 1:
                     added.add(exit_node)
                     refined_loop_nodes.add(exit_node)
-                    refined_exit_nodes |= set(
+                    refined_exit_nodes |= {
                         succ for succ in graph.successors(exit_node) if succ not in refined_loop_nodes
-                    )
+                    }
                     refined_exit_nodes.remove(exit_node)
             if not added:
                 break

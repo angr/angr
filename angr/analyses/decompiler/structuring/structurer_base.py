@@ -435,9 +435,7 @@ class StructurerBase(Analysis):
         walker.walk(loop_node)
 
     def _rewrite_jumps_to_continues(self, loop_seq: SequenceNode):
-        def _rewrite_jump_to_continue(
-            node, parent=None, index=None, label=None, **kwargs
-        ):
+        def _rewrite_jump_to_continue(node, parent=None, index=None, label=None, **kwargs):
             if not node.statements:
                 return
             stmt = node.statements[-1]

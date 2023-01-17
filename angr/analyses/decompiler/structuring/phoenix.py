@@ -893,7 +893,7 @@ class PhoenixStructurer(StructurerBase):
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
 
         cases, node_default, to_remove = self._switch_build_cases(
-            dict((cmp_lb + i, entry_addr) for (i, entry_addr) in enumerate(jump_table.jumptable_entries)),
+            {cmp_lb + i: entry_addr for (i, entry_addr) in enumerate(jump_table.jumptable_entries)},
             node,
             node_a,
             node_b_addr,
@@ -951,7 +951,7 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         cases, node_default, to_remove = self._switch_build_cases(
-            dict((cmp_lb + i, entry_addr) for (i, entry_addr) in enumerate(jump_table.jumptable_entries)),
+            {cmp_lb + i: entry_addr for (i, entry_addr) in enumerate(jump_table.jumptable_entries)},
             node,
             node,
             default_addr,
@@ -1118,7 +1118,7 @@ class PhoenixStructurer(StructurerBase):
                     out_edges.append((nn, dst))
 
         if can_bail:
-            nonhead_out_nodes = set(edge[1] for edge in out_edges if edge[1] is not head)
+            nonhead_out_nodes = {edge[1] for edge in out_edges if edge[1] is not head}
             if len(nonhead_out_nodes) > 1:
                 # not ready to be structured yet - do it later
                 return False
