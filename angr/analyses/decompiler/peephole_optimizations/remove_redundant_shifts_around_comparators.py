@@ -1,9 +1,15 @@
-from ailment.expression import BinaryOp, Const, Convert
+from ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
 
 
 class RemoveRedundantShiftsAroundComparators(PeepholeOptimizationExprBase):
+    """
+    Remove redundant bitshifts for both operands around a comparison operator.
+
+    More cases can be added in the future as we encounter them.
+    """
+
     __slots__ = ()
 
     NAME = "Remove redundant bitshifts for operands around a comparator"
