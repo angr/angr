@@ -212,8 +212,8 @@ class LoweredSwitchSimplifier(OptimizationPass):
         node,
     ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int, int]]:
 
-        # type a: the last statement is a var == constant comparison, but there is more than one non-label statement in
-        # the block
+        # the type a is the last statement is a var == constant comparison, but
+        # there is more than one non-label statement in the block
 
         if isinstance(node, Block) and node.statements:
             stmt = node.statements[-1]
@@ -249,7 +249,8 @@ class LoweredSwitchSimplifier(OptimizationPass):
         node,
     ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int, int]]:
 
-        # type b: the last statement is a var == constant comparison, and there is only one non-label statement
+        # the type b is the last statement is a var == constant comparison, and
+        # there is only one non-label statement
 
         if isinstance(node, Block):
             stmt = first_nonlabel_statement(node)
@@ -293,7 +294,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         ]
 
         # non-default nodes
-        ca_others = dict((ca[0].addr, ca) for ca in ca_others)
+        ca_others = {ca[0].addr: ca for ca in ca_others}
         # extract the AIL block from last_node
         last_block = last_node
         if isinstance(last_block, SequenceNode):

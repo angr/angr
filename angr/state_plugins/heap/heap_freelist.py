@@ -190,21 +190,21 @@ class SimHeapFreelist(SimHeapLibc):
         )
 
     def print_heap_state(self):
-        print("┌───────────────────────────────┐")
-        print("├───────── HEAP CHUNKS ─────────┤")
+        print("|-------------------------------|")
+        print("|--------- HEAP CHUNKS ---------|")
         for ck in self.chunks():
             print("│ " + str(ck) + " │")
-        print("├───────── USED CHUNKS ─────────┤")
+        print("|--------- USED CHUNKS ---------|")
         for ck in self.allocated_chunks():
             print("│ " + str(ck) + " │")
-        print("├───────── FREE CHUNKS ─────────┤")
+        print("|--------- FREE CHUNKS ---------|")
         for ck in self.free_chunks():
             print("│ " + str(ck) + " │")
-        print("└───────────────────────────────┘")
+        print("|-------------------------------|")
 
     def print_all_chunks(self):
-        print("┌───────────────────────────────┐")
-        print("├───────── HEAP CHUNKS ─────────┤")
+        print("|-------------------------------|")
+        print("|--------- HEAP CHUNKS ---------|")
         for ck in self.chunks():
             print("│ " + str(ck) + " │")
-        print("└───────────────────────────────┘")
+        print("|-------------------------------|")

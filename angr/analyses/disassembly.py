@@ -199,7 +199,7 @@ class Instruction(DisassemblyPiece):
     def dissect_instruction(self):
         if isinstance(
             self.arch,
-            (archinfo.ArchAArch64, archinfo.ArchARM, archinfo.ArchARMEL, archinfo.ArchARMHF, archinfo.ArchARMCortexM)
+            (archinfo.ArchAArch64, archinfo.ArchARM, archinfo.ArchARMEL, archinfo.ArchARMHF, archinfo.ArchARMCortexM),
         ):
             self.dissect_instruction_for_arm()
         else:
@@ -233,13 +233,16 @@ class Instruction(DisassemblyPiece):
 
             for i, p in enumerate(opr_pieces):
                 if p[0].isnumeric():
-                    if any((
-                        i > 0 and opr_pieces[i - 1] == ".",
-                        i > 1 and (
-                            opr_pieces[i - 2] in ["lsl", "lsr", "asr", "ror", "msl"]
-                            or opr_pieces[i - 2][:3] in ("uxt", "sxt")
+                    if any(
+                        (
+                            i > 0 and opr_pieces[i - 1] == ".",
+                            i > 1
+                            and (
+                                opr_pieces[i - 2] in ["lsl", "lsr", "asr", "ror", "msl"]
+                                or opr_pieces[i - 2][:3] in ("uxt", "sxt")
+                            ),
                         )
-                    )):
+                    ):
                         cur_operand.append(p)
                         continue
                     # Always set False. I don't see any '+' sign appear
@@ -270,10 +273,7 @@ class Instruction(DisassemblyPiece):
             self.operands[i] = Operand.build(op_type, i, opr, self)
 
         if len(self.operands) == 0 and len(self.insn.operands) != 0:
-            l.error(
-                "Operand parsing failed for instruction %s at address %x",
-                str(self.insn), self.insn.address
-            )
+            l.error("Operand parsing failed for instruction %s at address %x", str(self.insn), self.insn.address)
             self.operands = []
             return
 
