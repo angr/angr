@@ -437,12 +437,6 @@ class StructurerBase(Analysis):
         walker.walk(loop_node)
 
     def _rewrite_jumps_to_continues(self, loop_seq: SequenceNode):
-
-        try:
-            last_stmts = self.cond_proc.get_last_statements(loop_seq)
-        except EmptyBlockNotice:
-            return
-
         def _rewrite_jump_to_continue(
             node, parent=None, index=None, label=None, **kwargs
         ):  # pylint:disable=unused-argument
@@ -453,12 +447,10 @@ class StructurerBase(Analysis):
                 targets = extract_jump_targets(stmt)
                 if any(target == loop_seq.addr for target in targets):
                     # This node has an exit to the beginning of the loop
-                    # but, we do not add continue statement at the very end of a loop
-                    if not stmt in last_stmts:
-                        # create a continue node
-                        continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
-                        # insert this node to the parent
-                        insert_node(parent, "after", continue_node, index, label=label)  # insert after
+                    # create a continue node
+                    continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
+                    # insert this node to the parent
+                    insert_node(parent, "after", continue_node, index, label=label)  # insert after
                     # remove this statement
                     node.statements = node.statements[:-1]
             elif isinstance(stmt, ailment.Stmt.ConditionalJump):
@@ -483,6 +475,35 @@ class StructurerBase(Analysis):
         handlers = {
             ailment.Block: _rewrite_jump_to_continue,
             LoopNode: _dummy,
+        }
+
+        walker = SequenceWalker(handlers=handlers)
+        walker.walk(loop_seq)
+        self._remove_continue_node_at_loop_body_ends(loop_seq)
+
+    def _remove_continue_node_at_loop_body_ends(self, loop_seq: SequenceNode):
+        def _handle_Sequence(node: SequenceNode, parent=None, index=None, label=None, **kwargs):
+            if node.nodes:
+                if isinstance(node.nodes[-1], ContinueNode):
+                    node.nodes = node.nodes[:-1]
+                else:
+                    walker._handle(node.nodes[-1], parent=node, index=len(node.nodes) - 1)
+
+        def _handle_MultiNode(node: MultiNode, parent=None, index=None, label=None, **kwargs):
+            if node.nodes:
+                if isinstance(node.nodes[-1], ContinueNode):
+                    node.nodes = node.nodes[:-1]
+                else:
+                    walker._handle(node.nodes[-1], parent=node, index=len(node.nodes) - 1)
+
+        def _dummy(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
+            return
+
+        handlers = {
+            SequenceNode: _handle_Sequence,
+            MultiNode: _handle_MultiNode,
+            LoopNode: _dummy,
+            SwitchCaseNode: _dummy,
         }
 
         walker = SequenceWalker(handlers=handlers)

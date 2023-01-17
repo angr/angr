@@ -1137,11 +1137,13 @@ class PhoenixStructurer(StructurerBase):
                     case_node: SequenceNode = [
                         nn for nn in list(cases.values()) + [node_default] if nn.addr == out_src.addr
                     ][0]
-                    jump_stmt = Jump(
-                        None, Const(None, None, head.addr, self.project.arch.bits), None, ins_addr=out_src.addr
-                    )
-                    jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
-                    case_node.nodes.append(jump_node)
+                    case_node_last_stmt = self.cond_proc.get_last_statement(case_node)
+                    if not isinstance(case_node_last_stmt, Jump):
+                        jump_stmt = Jump(
+                            None, Const(None, None, head.addr, self.project.arch.bits), None, ins_addr=out_src.addr
+                        )
+                        jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
+                        case_node.nodes.append(jump_node)
                     graph.add_edge(scnode, head)
                     full_graph.add_edge(scnode, head)
 
@@ -1309,22 +1311,24 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
+                        new_nodes = [start_node, new_cond_node]
                         if full_graph.in_degree[right] == 1:
                             # only remove the if statement when it will no longer be used later
                             self._remove_last_statement_if_jump(start_node)
-                        # add a goto node at the end
-                        new_jump_node = Block(
-                            new_cond_node.addr,
-                            0,
-                            statements=[
-                                Jump(
-                                    None,
-                                    Const(None, None, right.addr, self.project.arch.bits),
-                                    ins_addr=new_cond_node.addr,
-                                )
-                            ],
-                        )
-                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node, new_jump_node])
+                            # add a goto node at the end
+                            new_jump_node = Block(
+                                new_cond_node.addr,
+                                0,
+                                statements=[
+                                    Jump(
+                                        None,
+                                        Const(None, None, right.addr, self.project.arch.bits),
+                                        ins_addr=new_cond_node.addr,
+                                    )
+                                ],
+                            )
+                            new_nodes.append(new_jump_node)
+                        new_node = SequenceNode(start_node.addr, nodes=new_nodes)
 
                         # on the original graph
                         self.replace_nodes(graph, start_node, new_node, old_node_1=left)
