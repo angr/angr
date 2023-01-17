@@ -7,7 +7,7 @@ from angr.analyses.disassembly import MemoryOperand, Instruction
 
 
 class TestDisassembly(TestCase):
-    def test_arm64_disect_instruction(self):
+    def test_arm64_dissect_instructions(self):
         proj = angr.load_shellcode(
             b"\x00\xe4\x00\x6f"
             b"\x43\x3c\x0b\x0e"
@@ -37,6 +37,28 @@ class TestDisassembly(TestCase):
         insn = rendered_insns[5]
         regs_table = insn[insn.index("{") + 1 : insn.index("}")].replace(" ", "").split(",")
         assert ["v0.16b", "v1.16b", "v2.16b", "v3.16b"] == regs_table
+
+    def test_arm32_dissect_instructions(self):
+        proj = angr.load_shellcode(
+            b"\x00\xc0\x2d\xe9"
+            b"\x10\xf9\xf9\xe9",
+            "ARM",
+            0,
+        )
+        # push {lr, pc}
+        # ldmib sb!, {r4, r8, fp, ip, sp, lr, pc}^
+
+        block = proj.factory.block(0)
+        disasm = proj.analyses[Disassembly].prep()(
+            ranges=[(block.addr, block.addr + block.size)]
+        )
+        insns = [r for r in disasm.raw_result if isinstance(r, Instruction)]
+        rendered_insns = [i.render()[0].lower() for i in insns]
+        assert all(
+            i in rendered_insns[0] for i in ('{', '}', 'lr', 'pc')
+        )
+        assert 'sb!' in rendered_insns[1]
+        assert rendered_insns[1].endswith('^')
 
     def test_mips32_missing_offset_in_instructions(self):
         proj = angr.load_shellcode(
