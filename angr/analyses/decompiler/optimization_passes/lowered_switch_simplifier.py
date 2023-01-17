@@ -89,7 +89,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         self.out_graph = graph_copy
 
         for _, cases in variable_to_cases.items():
-            original_nodes = [case.original_node for case in cases if case.original_node is not None]
+            original_nodes = [case.original_node for case in cases if case.value != "default"]
             original_head: Block = original_nodes[0]
             original_nodes = original_nodes[1:]
 
@@ -133,6 +133,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         for head in variable_comparisons:
 
             cases = []
+            last_comp = None
             comp = head
             while True:
                 comp_type, variable, expr, value, target, next_addr = variable_comparisons[comp]
@@ -141,10 +142,14 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 else:
                     last_var = None
                 if last_var is None or last_var == variable:
+                    if target == comp.addr:
+                        # invalid
+                        break
                     cases.append(Case(comp, comp_type, variable, expr, value, target, next_addr))
                 else:
                     # new variable!
-                    cases.append(Case(None, None, last_var, None, "default", comp.addr, None))
+                    if last_comp is not None:
+                        cases.append(Case(last_comp, None, last_var, None, "default", comp.addr, None))
                     break
 
                 if comp is not head:
@@ -159,9 +164,10 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     next_comp = self._get_block(next_comp_addr)
                     assert next_comp is not None
                     if next_comp in variable_comparisons:
+                        last_comp = comp
                         comp = next_comp
                         continue
-                    cases.append(Case(None, None, variable, expr, "default", next_comp_addr, None))
+                    cases.append(Case(comp, None, variable, expr, "default", next_comp_addr, None))
                 break
 
             if cases:
@@ -169,15 +175,34 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 if v not in variable_to_cases or len(variable_to_cases[v]) < len(cases):
                     variable_to_cases[v] = cases
 
-        # filter: there should be at least two non-default cases
-        # filter: no type a node after the first case node
         for v, cases in list(variable_to_cases.items()):
+            # filter: there should be at least two non-default cases
             if len([case for case in cases if case.value != "default"]) < 2:
                 del variable_to_cases[v]
                 continue
 
+            # filter: no type-a node after the first case node
             if any(case for case in cases[1:] if case.value != "default" and case.node_type == "a"):
                 del variable_to_cases[v]
+                continue
+
+            # filter: each case is only reachable from a case node
+            all_case_nodes = {case.original_node for case in cases}
+            skipped = False
+            for case in cases:
+                target_nodes = [succ for succ in self._graph.successors(case.original_node) if succ.addr == case.target]
+                if len(target_nodes) != 1:
+                    del variable_to_cases[v]
+                    skipped = True
+                    break
+                target_node = target_nodes[0]
+                nonself_preds = {pred for pred in self._graph.predecessors(target_node) if pred.addr == case.target}
+                if not nonself_preds.issubset(all_case_nodes):
+                    del variable_to_cases[v]
+                    skipped = True
+                    break
+
+            if skipped:
                 continue
 
         return variable_to_cases
