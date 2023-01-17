@@ -13,7 +13,7 @@ from ailment.expression import Const
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from .. import Analysis, register_analysis
 from ..cfg.cfg_utils import CFGUtils
-from .structuring.structurer_nodes import MultiNode, ConditionNode
+from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor
 from .utils import replace_last_statement, first_nonlabel_statement
@@ -198,6 +198,21 @@ class RegionIdentifier(Analysis):
         # TODO optimize
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
         loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
+
+        # special case: any node with more than two non-self successors are probably the head of a switch-case. we
+        # should include all successors into the loop subgraph.
+        while True:
+            updated = False
+            for node in list(loop_subgraph):
+                nonself_successors = [succ for succ in graph.successors(node) if succ is not node]
+                if len(nonself_successors) > 2:
+                    for succ in nonself_successors:
+                        if not loop_subgraph.has_edge(node, succ):
+                            updated = True
+                            loop_subgraph.add_edge(node, succ)
+            if not updated:
+                break
+
         nodes = set(loop_subgraph)
         return nodes
 
@@ -1021,7 +1036,12 @@ class RegionIdentifier(Analysis):
                 )
             else:
                 if not isinstance(first_nonlabel_statement(node), ConditionalJump) and not isinstance(
-                    node.statements[-1], (Jump, ConditionalJump)
+                    node.statements[-1],
+                    (
+                        Jump,
+                        ConditionalJump,
+                        IncompleteSwitchCaseHeadStatement,
+                    ),
                 ):
                     node.statements.append(
                         Jump(

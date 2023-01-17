@@ -294,6 +294,13 @@ class ConditionProcessor:
                 addr=node.addr,
             )
 
+        elif isinstance(node, IncompleteSwitchCaseNode):
+            return IncompleteSwitchCaseNode(
+                node.addr,
+                self.remove_claripy_bool_asts(node.head, memo=memo),
+                [self.remove_claripy_bool_asts(case, memo=memo) for case in node.cases],
+            )
+
         else:
             return node
 
@@ -443,6 +450,11 @@ class ConditionProcessor:
                 s.extend(cls.get_last_statements(block.default_node))
             else:
                 s.append(None)
+            return s
+        if type(block) is IncompleteSwitchCaseNode:
+            s = []
+            for case in block.cases:
+                s.extend(cls.get_last_statements(case))
             return s
         if type(block) is GraphRegion:
             # normally this should not happen. however, we have test cases that trigger this case.

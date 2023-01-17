@@ -1134,7 +1134,9 @@ class PhoenixStructurer(StructurerBase):
             # for all out edges going to head, we ensure there is a goto at the end of each corresponding case node
             for out_src, out_dst in out_edges:
                 if out_dst is head:
-                    case_node: SequenceNode = [nn for nn in cases.values() if nn.addr == out_src.addr][0]
+                    case_node: SequenceNode = [
+                        nn for nn in list(cases.values()) + [node_default] if nn.addr == out_src.addr
+                    ][0]
                     jump_stmt = Jump(
                         None, Const(None, None, head.addr, self.project.arch.bits), None, ins_addr=out_src.addr
                     )
@@ -1144,14 +1146,15 @@ class PhoenixStructurer(StructurerBase):
                     full_graph.add_edge(scnode, head)
 
             out_edges = [edge for edge in out_edges if edge[1] is not head]
-            # leave only one out edge and virtualize all other out edges
-            out_edge = out_edges[0]
-            out_dst = out_edge[1]
-            if out_dst in graph:
-                graph.add_edge(scnode, out_dst)
-            full_graph.add_edge(scnode, out_dst)
-            if full_graph.has_edge(head, out_dst):
-                full_graph.remove_edge(head, out_dst)
+            if out_edges:
+                # leave only one out edge and virtualize all other out edges
+                out_edge = out_edges[0]
+                out_dst = out_edge[1]
+                if out_dst in graph:
+                    graph.add_edge(scnode, out_dst)
+                full_graph.add_edge(scnode, out_dst)
+                if full_graph.has_edge(head, out_dst):
+                    full_graph.remove_edge(head, out_dst)
 
         # remove the last statement (conditional jump) in the head node
         remove_last_statement(head)
@@ -1309,7 +1312,19 @@ class PhoenixStructurer(StructurerBase):
                         if full_graph.in_degree[right] == 1:
                             # only remove the if statement when it will no longer be used later
                             self._remove_last_statement_if_jump(start_node)
-                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                        # add a goto node at the end
+                        new_jump_node = Block(
+                            new_cond_node.addr,
+                            0,
+                            statements=[
+                                Jump(
+                                    None,
+                                    Const(None, None, right.addr, self.project.arch.bits),
+                                    ins_addr=new_cond_node.addr,
+                                )
+                            ],
+                        )
+                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node, new_jump_node])
 
                         # on the original graph
                         self.replace_nodes(graph, start_node, new_node, old_node_1=left)
@@ -1803,6 +1818,9 @@ class PhoenixStructurer(StructurerBase):
                     return True
                 elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst_addr:
                     return True
+            elif isinstance(last_stmt, IncompleteSwitchCaseHeadStatement):
+                if any(case_addr == dst_addr for _, case_addr in last_stmt.case_addrs):
+                    return True
             return False
 
         def _handle_Block(block: Block, parent=None, **kwargs):  # pylint:disable=unused-argument
@@ -1822,7 +1840,11 @@ class PhoenixStructurer(StructurerBase):
                     return
 
         def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):  # pylint:disable=unused-argument
-            if isinstance(break_node.target, Const) and break_node.target.value == dst_addr:
+            if (
+                break_node.target == dst_addr
+                or isinstance(break_node.target, Const)
+                and break_node.target.value == dst_addr
+            ):
                 # FIXME: idx is ignored
                 walker.parent_and_block.append((parent, break_node))
                 return
