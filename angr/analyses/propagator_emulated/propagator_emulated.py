@@ -149,33 +149,39 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         save = False
         var_ast_list = []
-        if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_') and not merged_stack_address:
-            if not self.state.solver.symbolic(simplified_addr):
-                return result
-            for ast in simplified_addr.leaf_asts():
-                if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
-                    save = True
-                    var_ast_list.append(ast)
-                if isinstance(ast.args[0], str) and ast.args[0].startswith('symbolified_expr'):
-                    save = True
-                    var_ast_list.append(ast)
-            if not save:
-                poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0], 5)
-                addr_in_binary = True
 
-                for pos_addr in poss_addrs:
-                    if not self.state.project.loader.main_object.contains_addr(pos_addr):
-                        addr_in_binary = False
-                        break
+        no_constraints_solver = claripy.solvers.SolverComposite()
+        no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
+        conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
 
-                if len(poss_addrs) < 5 and addr_in_binary:
-                    # import ipdb;ipdb.set_trace()
-                    save = True
+        if len(conc_addrs) < 5:
+            if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_') and not merged_stack_address:
+                if not self.state.solver.symbolic(simplified_addr):
+                    return result
+                for ast in simplified_addr.leaf_asts():
+                    if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
+                        save = True
+                        var_ast_list.append(ast)
+                    if isinstance(ast.args[0], str) and ast.args[0].startswith('symbolified_expr'):
+                        save = True
+                        var_ast_list.append(ast)
+                if not save:
+                    poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0], 5)
+                    addr_in_binary = True
 
-                    for ast in simplified_addr.leaf_asts():
-                        if self.state.solver.symbolic(ast):
-                            if ast.args[0] not in self.state.globals['replaced_asts_str']:
-                                var_ast_list.append(ast)
+                    for pos_addr in poss_addrs:
+                        if not self.state.project.loader.main_object.contains_addr(pos_addr):
+                            addr_in_binary = False
+                            break
+
+                    if len(poss_addrs) < 5 and addr_in_binary:
+                        # import ipdb;ipdb.set_trace()
+                        save = True
+
+                        for ast in simplified_addr.leaf_asts():
+                            if self.state.solver.symbolic(ast):
+                                if ast.args[0] not in self.state.globals['replaced_asts_str']:
+                                    var_ast_list.append(ast)
 
         if len(var_ast_list) > 1:
             print("More than one variables? which one to save.... maybe both")
@@ -184,9 +190,9 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         if save:
             # create a solver without any constraints and use that to solve. This is equivalent to simplifying it and should not have the same issues that regular symbolic execution/solving with contraints should have
-            no_constraints_solver = claripy.solvers.SolverComposite()
-            no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
-            conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
+            # no_constraints_solver = claripy.solvers.SolverComposite()
+            # no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
+            # conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
 
             ## USE THIS THE PARTIAL CONSTRAINTS INSTEAD OF UNONCONSTRINAED SOLVER
             #conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 4)
