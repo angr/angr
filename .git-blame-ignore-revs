@@ -1,0 +1,7 @@
+# Black + pre-commit
+97f7d7f31dfa87d1a427d9acb3fd93be9764a075 # Improve pre-commit
+346b2d883deb97ccf1953a107ad6cb6c01c89370 # Black
+9d6edacbbc5c23f6fc10b27f1dd6b6e8cd43a567 # Type comments -> annotations
+2e627c88fc89e52984229b08c3f1ebc023dfcc2d # pyupgrade
+2d8158c6e7db52a426db8fd883160f417b683805 # Whitespace
+74e8f34cebf66f9efc27f8c4aa6968f2dd456852 # prefer builtins
