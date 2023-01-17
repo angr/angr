@@ -6,7 +6,7 @@ on:
 
 jobs:
   check:
-    name: Test Windows installation
+    name: Run checks
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -14,4 +14,4 @@ jobs:
         with:
           python-version: "3.8"
       - run: pip install pre-commit
-      - run: pre-commit run --source HEAD^ --all-files
+      - run: pre-commit run --all-files
