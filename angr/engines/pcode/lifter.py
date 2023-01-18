@@ -279,6 +279,11 @@ class IRSB:
     #
 
     @property
+    def tyenv(self):
+        # FIXME: Here for compatibility. Remove.
+        return None
+
+    @property
     def stmts_used(self) -> int:
         if self.statements is None:
             return 0
