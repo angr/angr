@@ -365,7 +365,7 @@ class OpBehaviorIntMult(OpBehavior):
         super().__init__(OpCode.INT_MULT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        return in1.zero_extend(size_out-size_in) * in2.zero_extend(size_out-size_in)
+        return in1.zero_extend(size_out - size_in) * in2.zero_extend(size_out - size_in)
 
 
 class OpBehaviorIntDiv(OpBehavior):
