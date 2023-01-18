@@ -72,7 +72,7 @@ class PcodeEmulatorMixin(SimEngineBase):
             # FIXME: Hacking this on here but ideally should use "scratch".
             self._pcode_tmps = {}  # FIXME: Consider alignment requirements
 
-            self.state._inspect('instruction', BP_BEFORE, instruction=self._current_ins.address.offset)
+            self.state._inspect("instruction", BP_BEFORE, instruction=self._current_ins.address.offset)
             offset = self.state.scratch.statement_offset
             self.state.scratch.statement_offset = 0
             for op in self._current_ins.ops[offset:]:
@@ -80,7 +80,7 @@ class PcodeEmulatorMixin(SimEngineBase):
                 self._current_behavior = irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
                 l.debug("Executing p-code op: %s", self._current_op)
                 self._execute_current_op()
-            self.state._inspect('instruction', BP_AFTER)
+            self.state._inspect("instruction", BP_AFTER)
 
             self._current_op = None
             self._current_behavior = None
@@ -192,20 +192,18 @@ class PcodeEmulatorMixin(SimEngineBase):
             return claripy.BVV(varnode.offset, size * 8)
         elif space_name == "register":
             return self.state.registers.load(
-                self._map_register_name(varnode),
-                size=size,
-                endness=self.project.arch.register_endness
+                self._map_register_name(varnode), size=size, endness=self.project.arch.register_endness
             )
 
         elif space_name == "unique":
             # FIXME: Support loading data of different sizes. For now, assume
             # size of values read are same as size written.
             try:
-                assert self._pcode_tmps[varnode.offset].size() == size*8
+                assert self._pcode_tmps[varnode.offset].size() == size * 8
             except KeyError:
                 # FIXME: Add unique space to state tracking?
-                l.warning('Uninitialized read from unique space offset %x', varnode.offset)
-                self._pcode_tmps[varnode.offset] = claripy.BVV(0, size*8)
+                l.warning("Uninitialized read from unique space offset %x", varnode.offset)
+                self._pcode_tmps[varnode.offset] = claripy.BVV(0, size * 8)
             return self._pcode_tmps[varnode.offset]
 
         elif space_name in ("ram", "mem"):

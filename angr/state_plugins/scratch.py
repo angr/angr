@@ -164,7 +164,6 @@ class SimStateScratch(SimStatePlugin):
         self.jumpkind = j  # preserve jumpkind - "what is the previous jumpkind" is an important question sometimes
 
 
-
 # pylint:disable=wrong-import-position
 from .sim_action import SimActionObject, SimActionData
 from ..errors import SimValueError, SimMissingTempError
@@ -172,4 +171,5 @@ from .. import sim_options as o
 from .inspect import BP_AFTER, BP_BEFORE
 
 from ..sim_state import SimState
-SimState.register_default('scratch', SimStateScratch)
+
+SimState.register_default("scratch", SimStateScratch)
