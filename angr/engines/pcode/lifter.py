@@ -810,9 +810,8 @@ class PcodeBasicBlockLifter:
             for op in insn.ops:
                 if (op.opcode in [pypcode.OpCode.BRANCH, pypcode.OpCode.CBRANCH]
                     and op.inputs[0].get_addr().is_constant):
-                    l.warning('Block contains relative p-code jump at '
-                             'instruction %#x:%d, which is not emulated '
-                             'yet.', op.seq.pc.offset, op.seq.uniq)
+                    # P-code relative branch (op.seq.pc.offset + op.seq.uniq + op.inputs[0].offset)
+                    continue
                 if op.opcode == pypcode.OpCode.CBRANCH:
                     irsb._exit_statements.append(
                         (op.seq.pc.offset, op.seq.uniq, ExitStatement(op.inputs[0].offset, "Ijk_Boring"))
