@@ -437,7 +437,7 @@ class IRSB:
     def statements(self) -> Iterable:
         # FIXME: For compatibility, may want to implement Ist_IMark and
         # pyvex.IRStmt.Exit to ease analyses.
-        l.warning("Returning empty statements list!")
+        l.debug("Returning empty statements list!")
         return []
         # return self._statements
 
