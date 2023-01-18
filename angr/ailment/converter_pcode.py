@@ -13,7 +13,7 @@ from .manager import Manager
 from .converter_common import Converter
 
 
-l = logging.getLogger(name=__name__)
+log = logging.getLogger(name=__name__)
 
 # FIXME: Not all ops are mapped to AIL expressions!
 opcode_to_generic_name = {
@@ -173,7 +173,7 @@ class PCodeIRSBConverter(Converter):
         in1 = self._get_value(self._current_op.inputs[0])
 
         if op is None:
-            l.warning("p-code: Unsupported opcode of type %s", opcode.name)
+            log.warning("p-code: Unsupported opcode of type %s", opcode.name)
             out = DirtyExpression(self._manager.next_atom(), opcode.name, bits=self._current_op.output.size * 8)
         else:
             out = UnaryOp(self._manager.next_atom(), op, in1, ins_addr=self._manager.ins_addr)
@@ -192,7 +192,7 @@ class PCodeIRSBConverter(Converter):
         signed = op in {"CmpLEs", "CmpGTs"}
 
         if op is None:
-            l.warning("p-code: Unsupported opcode of type %s.", opcode.name)
+            log.warning("p-code: Unsupported opcode of type %s.", opcode.name)
             out = DirtyExpression(self._manager.next_atom(), opcode.name, bits=self._current_op.output.size * 8)
         else:
             out = BinaryOp(self._manager.next_atom(), op, [in1, in2], signed, ins_addr=self._manager.ins_addr)
@@ -225,10 +225,10 @@ class PCodeIRSBConverter(Converter):
         reg_name = varnode.get_register_name()
         try:
             reg_offset = self._manager.arch.get_register_offset(reg_name.lower())
-            l.debug("Mapped register '%s' to offset %x", reg_name, reg_offset)
+            log.debug("Mapped register '%s' to offset %x", reg_name, reg_offset)
         except ValueError:
             reg_offset = varnode.offset + 0x100000
-            l.warning("Could not map register '%s' from archinfo. Mapping to %x", reg_name, reg_offset)
+            log.warning("Could not map register '%s' from archinfo. Mapping to %x", reg_name, reg_offset)
         return reg_offset
 
     def _remap_temp(self, offset: int, is_write: bool) -> int:
@@ -385,7 +385,7 @@ class PCodeIRSBConverter(Converter):
         assert spc.name in ["ram", "mem"]
         off = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
-        l.debug("Storing %s at offset %s", data, off)
+        log.debug("Storing %s at offset %s", data, off)
         # self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
         stmt = Store(
             self._statement_idx,

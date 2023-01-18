@@ -414,11 +414,7 @@ class Call(Expression, Statement):
             else:
                 s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
         else:
-            s = (
-                (f"{cc}: {self.args}")
-                if self.prototype is None
-                else "{}: {}".format(self.calling_convention, self.args)
-            )
+            s = (f"{cc}: {self.args}") if self.prototype is None else f"{self.calling_convention}: {self.args}"
 
         if self.ret_expr is None:
             ret_s = "no-ret-value"
@@ -429,7 +425,7 @@ class Call(Expression, Statement):
         else:
             fp_ret_s = f"{self.fp_ret_expr}"
 
-        return "Call({}, {}, ret: {}, fp_ret: {})".format(self.target, s, ret_s, fp_ret_s)
+        return f"Call({self.target}, {s}, ret: {ret_s}, fp_ret: {fp_ret_s})"
 
     @property
     def bits(self):

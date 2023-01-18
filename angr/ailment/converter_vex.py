@@ -23,7 +23,7 @@ from .expression import (
 from .converter_common import SkipConversionNotice, Converter
 
 
-l = logging.getLogger(name=__name__)
+log = logging.getLogger(name=__name__)
 
 
 class VEXExprConverter(Converter):
@@ -56,7 +56,7 @@ class VEXExprConverter(Converter):
             )
             return DirtyExpression(manager.next_atom(), ccall, bits=expr.result_size(manager.tyenv))
 
-        l.warning("VEXExprConverter: Unsupported VEX expression of type %s.", type(expr))
+        log.warning("VEXExprConverter: Unsupported VEX expression of type %s.", type(expr))
         return DirtyExpression(manager.next_atom(), expr, bits=expr.result_size(manager.tyenv))
 
     @staticmethod
