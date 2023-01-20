@@ -19,7 +19,7 @@ jobs:
       - run: python -m venv $HOME\venv
         name: Create venv
       - run: |
-          %USERPROFILE%\venv\Scripts\activate
+          call %USERPROFILE%\venv\Scripts\activate
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
           pip install git+https://github.com/angr/archinfo.git
@@ -30,13 +30,13 @@ jobs:
         name: Install dependencies
         shell: cmd
       - run: |
-          %USERPROFILE%\venv\Scripts\activate
+          call %USERPROFILE%\venv\Scripts\activate
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           pip install --no-build-isolation .
         name: Install angr
         shell: cmd
       - run: |
-          %USERPROFILE%\venv\Scripts\activate
+          call %USERPROFILE%\venv\Scripts\activate
           python -c "import angr; print('It works!')"
         name: Import angr
         shell: cmd
