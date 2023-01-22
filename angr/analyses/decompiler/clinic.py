@@ -27,6 +27,7 @@ from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
+from ..cfg.cfg_utils import CFGUtils
 from ..reaching_definitions import ReachingDefinitionsAnalysis
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .ailblock_walker import AILBlockWalker
@@ -41,7 +42,7 @@ l = logging.getLogger(name=__name__)
 
 
 BlockCache = namedtuple("BlockCache", ("rd", "prop"))
-
+analysis_done = {}
 
 class Clinic(Analysis):
     """
@@ -65,6 +66,7 @@ class Clinic(Analysis):
         variable_kb=None,
         reset_variable_names=False,
         cache: Optional["DecompilationCache"] = None,
+        recursive=False,
     ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -92,6 +94,7 @@ class Clinic(Analysis):
         self._reset_variable_names = reset_variable_names
         self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
+        self.recursive = recursive
 
         # sanity checks
         if not self.kb.functions:
@@ -171,144 +174,196 @@ class Clinic(Analysis):
         self._convert_all()
 
         ail_graph = self._make_ailgraph()
-        self._remove_redundant_jump_blocks(ail_graph)
-        if self._insert_labels:
-            self._insert_block_labels(ail_graph)
 
-        # Run simplification passes
-        self._update_progress(22.0, text="Optimizing fresh ailment graph")
-        ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
+        tmp_ail_graph = ail_graph
 
-        # Fix "fake" indirect jumps and calls
-        self._update_progress(25.0, text="Analyzing simple indirect jumps")
-        ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
+        for blk in ail_graph.nodes():
+            for idx, stmt in enumerate(blk.statements):
+                if isinstance(stmt, ailment.Stmt.Call):
+                    blk_with_func = blk
+                    target_func = self.function._function_manager.function(stmt.target.value)
+                    if(target_func.addr == self.function.addr):
+                        continue
+                    if(target_func.is_plt == False):
+                        if(target_func.addr not in analysis_done):
+                            #print(f"::::: Starting analysis of {target_func.name} :::::")
+                            #print(target_func.addr, analysis_done)
+                            clinic_func = self.project.analyses.Clinic(target_func, recursive=True)
+                            analysis_done[target_func.addr] = 1
+                            #print(f"analysis of {target_func.name} done!!")
+                            tmp_ail_graph = networkx.union(tmp_ail_graph, clinic_func.graph)
+                            clinic_graph_copy = clinic_func.copy_graph()
+                            func_blocks_sorted = list(CFGUtils.quasi_topological_sort_nodes(clinic_graph_copy))
+                        else:
+                            clinic_func = self.project.analyses.Clinic(target_func, recursive=True)
+                            # TODO : union of duplicate nodes
+                            times_analysed = analysis_done[target_func.addr]
+                            for blk in clinic_func.graph.nodes():
+                                blk.addr += 1
+                                blk.idx = times_analysed
+                            analysis_done[target_func.addr] += 1
+                            clinic_graph_copy = clinic_func.copy_graph()
 
-        # Fix tail calls
-        self._update_progress(28.0, text="Analyzing tail calls")
-        ail_graph = self._replace_tail_jumps_with_calls(ail_graph)
+                            tmp_ail_graph = networkx.union(tmp_ail_graph, clinic_func.graph)
+                            func_blocks_sorted = list(CFGUtils.quasi_topological_sort_nodes(clinic_graph_copy))
+                        func_start_blk = func_blocks_sorted[0]
+                        func_end_blk = func_blocks_sorted[-1]
 
-        # Make returns
-        self._update_progress(30.0, text="Making return sites")
-        if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
-            ail_graph = self._make_returns(ail_graph)
+                        out_edges = list(tmp_ail_graph.out_edges(blk_with_func, data=True))
+                        for _, succ, _ in out_edges:
+                            tmp_ail_graph.remove_edge(blk_with_func, succ)
+                        for _, succ, data_out in out_edges:
+                            tmp_ail_graph.add_edge(func_end_blk, succ)
+                        #print("adding edge b/w ", blk_with_func, "and", func_start_blk)
+                        tmp_ail_graph.add_edge(blk_with_func, func_start_blk)
+                        blk_with_func.statements.pop(idx)
+                if isinstance(stmt, ailment.Stmt.Return):
+                    blk.statements.pop(idx)
 
-        # full-function constant-only propagation
-        self._update_progress(33.0, text="Constant propagation")
-        self._simplify_function(
-            ail_graph,
-            remove_dead_memdefs=False,
-            unify_variables=False,
-            narrow_expressions=False,
-            only_consts=True,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            max_iterations=1,
-        )
+        ail_graph = tmp_ail_graph
 
-        # cached block-level reaching definition analysis results and propagator results
-        block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = {}
+        if(self.recursive == False):
+            self._remove_redundant_jump_blocks(ail_graph)
+            # TODO : block labels below creates issues with current sorting method
+            # if self._insert_labels:
+            #     self._insert_block_labels(ail_graph)
 
-        # Simplify blocks
-        # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
-        # before they are recognized as stack arguments.
-        self._update_progress(35.0, text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(
-            ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
-        )
+            # Run simplification passes
+            self._update_progress(22.0, text="Optimizing fresh ailment graph")
+            ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
 
-        # Run simplification passes
-        self._update_progress(40.0, text="Running simplifications 1")
-        ail_graph = self._run_simplification_passes(
-            ail_graph, stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
-        )
+            # Fix "fake" indirect jumps and calls
+            self._update_progress(25.0, text="Analyzing simple indirect jumps")
+            ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
 
-        # Simplify the entire function for the first time
-        self._update_progress(45.0, text="Simplifying function 1")
-        self._simplify_function(
-            ail_graph,
-            remove_dead_memdefs=False,
-            unify_variables=False,
-            narrow_expressions=True,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-        )
+            # Fix tail calls
+            self._update_progress(28.0, text="Analyzing tail calls")
+            ail_graph = self._replace_tail_jumps_with_calls(ail_graph)
 
-        # Run simplification passes again. there might be more chances for peephole optimizations after function-level
-        # simplification
-        self._update_progress(48.0, text="Simplifying blocks 2")
-        ail_graph = self._simplify_blocks(
-            ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
-        )
+            # Make returns
+            self._update_progress(30.0, text="Making return sites")
+            if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
+                ail_graph = self._make_returns(ail_graph)
 
-        # clear _blocks_by_addr_and_size so no one can use it again
-        # TODO: Totally remove this dict
-        self._blocks_by_addr_and_size = None
+            # full-function constant-only propagation
+            self._update_progress(33.0, text="Constant propagation")
+            self._simplify_function(
+                ail_graph,
+                remove_dead_memdefs=False,
+                unify_variables=False,
+                narrow_expressions=False,
+                only_consts=True,
+                fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+                max_iterations=1,
+            )
 
-        # Make call-sites
-        self._update_progress(50.0, text="Making callsites")
-        _, stackarg_offsets = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
+            # cached block-level reaching definition analysis results and propagator results
+            block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = {}
 
-        # Simplify the entire function for the second time
-        self._update_progress(55.0, text="Simplifying function 2")
-        self._simplify_function(
-            ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
-            stack_arg_offsets=stackarg_offsets,
-            unify_variables=True,
-            narrow_expressions=True,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-        )
+            # Simplify blocks
+            # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
+            # before they are recognized as stack arguments.
+            self._update_progress(35.0, text="Simplifying blocks 1")
+            ail_graph = self._simplify_blocks(
+                ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
+            )
 
-        # After global optimization, there might be more chances for peephole optimizations.
-        # Simplify blocks for the second time
-        self._update_progress(60.0, text="Simplifying blocks 3")
-        ail_graph = self._simplify_blocks(
-            ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
-            stack_pointer_tracker=spt,
-            cache=block_simplification_cache,
-        )
+            # Run simplification passes
+            self._update_progress(40.0, text="Running simplifications 1")
+            ail_graph = self._run_simplification_passes(
+                ail_graph, stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
+            )
 
-        # Simplify the entire function for the third time
-        self._update_progress(65.0, text="Simplifying function 3")
-        self._simplify_function(
-            ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
-            stack_arg_offsets=stackarg_offsets,
-            unify_variables=True,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-        )
+            # Simplify the entire function for the first time
+            self._update_progress(45.0, text="Simplifying function 1")
+            self._simplify_function(
+                ail_graph,
+                remove_dead_memdefs=False,
+                unify_variables=False,
+                narrow_expressions=True,
+                fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            )
 
-        self._update_progress(68.0, text="Simplifying blocks 4")
-        ail_graph = self._simplify_blocks(
-            ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
-            stack_pointer_tracker=spt,
-            cache=block_simplification_cache,
-        )
+            # Run simplification passes again. there might be more chances for peephole optimizations after function-level
+            # simplification
+            self._update_progress(48.0, text="Simplifying blocks 2")
+            ail_graph = self._simplify_blocks(
+                ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
+            )
 
-        # Make function arguments
-        self._update_progress(70.0, text="Making argument list")
-        arg_list = self._make_argument_list()
+            # clear _blocks_by_addr_and_size so no one can use it again
+            # TODO: Totally remove this dict
+            self._blocks_by_addr_and_size = None
 
-        # Run simplification passes
-        self._update_progress(75.0, text="Running simplifications 2")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
+            # Make call-sites
+            self._update_progress(50.0, text="Making callsites")
+            _, stackarg_offsets = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
-        # Recover variables on AIL blocks
-        self._update_progress(80.0, text="Recovering variables")
-        variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
+            # Simplify the entire function for the second time
+            self._update_progress(55.0, text="Simplifying function 2")
+            self._simplify_function(
+                ail_graph,
+                remove_dead_memdefs=self._remove_dead_memdefs,
+                stack_arg_offsets=stackarg_offsets,
+                unify_variables=True,
+                narrow_expressions=True,
+                fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            )
 
-        # Make function prototype
-        self._update_progress(90.0, text="Making function prototype")
-        self._make_function_prototype(arg_list, variable_kb)
+            # After global optimization, there might be more chances for peephole optimizations.
+            # Simplify blocks for the second time
+            self._update_progress(60.0, text="Simplifying blocks 3")
+            ail_graph = self._simplify_blocks(
+                ail_graph,
+                remove_dead_memdefs=self._remove_dead_memdefs,
+                stack_pointer_tracker=spt,
+                cache=block_simplification_cache,
+            )
 
-        # Run simplification passes
-        self._update_progress(95.0, text="Running simplifications 3")
-        ail_graph = self._run_simplification_passes(
-            ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY, variable_kb=variable_kb
-        )
+            # Simplify the entire function for the third time
+            self._update_progress(65.0, text="Simplifying function 3")
+            self._simplify_function(
+                ail_graph,
+                remove_dead_memdefs=self._remove_dead_memdefs,
+                stack_arg_offsets=stackarg_offsets,
+                unify_variables=True,
+                fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            )
 
-        # remove empty nodes from the graph
-        ail_graph = self.remove_empty_nodes(ail_graph)
+            self._update_progress(68.0, text="Simplifying blocks 4")
+            ail_graph = self._simplify_blocks(
+                ail_graph,
+                remove_dead_memdefs=self._remove_dead_memdefs,
+                stack_pointer_tracker=spt,
+                cache=block_simplification_cache,
+            )
+
+            # Make function arguments
+            self._update_progress(70.0, text="Making argument list")
+            arg_list = self._make_argument_list()
+
+            # Run simplification passes
+            self._update_progress(75.0, text="Running simplifications 2")
+            ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
+
+            # Recover variables on AIL blocks
+            self._update_progress(80.0, text="Recovering variables")
+            variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
+
+            # Make function prototype
+            self._update_progress(90.0, text="Making function prototype")
+            self._make_function_prototype(arg_list, variable_kb)
+
+            # Run simplification passes
+            self._update_progress(95.0, text="Running simplifications 3")
+            ail_graph = self._run_simplification_passes(
+                ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY, variable_kb=variable_kb
+            )
+            # remove empty nodes from the graph
+            ail_graph = self.remove_empty_nodes(ail_graph)
+        else:
+            arg_list = self._make_argument_list()
+            variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
 
         self.graph = ail_graph
         self.arg_list = arg_list
