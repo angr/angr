@@ -192,7 +192,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
             ):  # pylint:disable=consider-using-dict-items
                 self._func_queue.put((func_addr, None))
                 del depends_on[func_addr]
-                #self._remaining_funcs.value -= 1
+                # self._remaining_funcs.value -= 1
 
             self._update_progress(0, text="Spawning workers...")
             cc_callback = self._cc_callback
