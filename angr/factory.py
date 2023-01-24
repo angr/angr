@@ -1,13 +1,18 @@
 import logging
 from typing import List, Optional, Union, overload
+import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
-
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
 from .errors import AngrAssemblyError
 from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
+
+try:
+    from .engines import UberEnginePcode
+except ImportError:
+    UberEnginePcode = None
 
 
 l = logging.getLogger(name=__name__)
@@ -20,7 +25,11 @@ class AngrObjectFactory:
 
     def __init__(self, project, default_engine=None):
         if default_engine is None:
-            default_engine = UberEngine
+            if isinstance(project.arch, archinfo.ArchPcode):
+                l.warning("Creating project with the experimental 'UberEnginePcode' engine")
+                default_engine = UberEnginePcode
+            else:
+                default_engine = UberEngine
 
         self.project = project
         self._default_cc = DEFAULT_CC.get(project.arch.name, SimCCUnknown)
