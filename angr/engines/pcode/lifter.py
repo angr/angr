@@ -287,7 +287,7 @@ class IRSB:
 
         # append instructions if new
         addrs = self.instruction_addresses
-        newinsns = list(filter(lambda insn: insn.address not in addrs, extendwith._instructions))
+        newinsns = [insn for insn in extendwith._instructions if insn.address not in addrs]
         self._instructions.extend(newinsns)
 
         # reset disassem. now disassem will be recomputed if irsb.disassembly is called
@@ -1254,7 +1254,8 @@ class PcodeLifterEngineMixin(SimEngineBase):
                             size = len(backer) - offset
                         elif isinstance(backer, list):
                             raise SimTranslationError(
-                                "Cannot lift block for arch with strange byte width. If you think you ought to be able to, open an issue."
+                                "Cannot lift block for arch with strange byte width. If you think you ought to be able "
+                                "to, open an issue."
                             )
                         else:
                             raise TypeError("Unsupported backer type %s." % type(backer))
