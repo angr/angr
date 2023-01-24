@@ -113,6 +113,7 @@ class PCodeIRSBConverter(Converter):
         self._special_op_handlers = {
             OpCode.COPY: self._convert_copy,
             OpCode.INT_ZEXT: self._convert_zext,
+            OpCode.INT_SEXT: self._convert_sext,
             OpCode.LOAD: self._convert_load,
             OpCode.STORE: self._convert_store,
             OpCode.BRANCH: self._convert_branch,
@@ -169,9 +170,9 @@ class PCodeIRSBConverter(Converter):
         Convert the current unary op to corresponding AIL statement
         """
         opcode = self._current_op.opcode
+
         op = opcode_to_generic_name.get(opcode, None)
         in1 = self._get_value(self._current_op.inputs[0])
-
         if op is None:
             log.warning("p-code: Unsupported opcode of type %s", opcode.name)
             out = DirtyExpression(self._manager.next_atom(), opcode.name, bits=self._current_op.output.size * 8)
@@ -333,6 +334,21 @@ class PCodeIRSBConverter(Converter):
     def _convert_zext(self) -> None:
         """
         Convert zext operation
+        """
+        out = self._current_op.output
+        inp = Convert(
+            self._manager.next_atom(),
+            self._current_op.inputs[0].size * 8,
+            out.size * 8,
+            False,
+            self._get_value(self._current_op.inputs[0]),
+        )
+        stmt = self._set_value(out, inp)
+        self._statements.append(stmt)
+
+    def _convert_sext(self) -> None:
+        """
+        Convert the signed extension operation
         """
         out = self._current_op.output
         inp = Convert(
