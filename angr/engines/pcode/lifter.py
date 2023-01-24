@@ -10,7 +10,7 @@ import logging
 from typing import Union, Optional, Iterable, Sequence, Tuple, List
 
 import archinfo
-from archinfo import ArchARM
+from archinfo import ArchARM, ArchPcode
 import pypcode
 import cle
 from cachetools import LRUCache
@@ -19,7 +19,6 @@ from cachetools import LRUCache
 # should be refactored to use common error classes.
 from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
 
-from .arch import ArchPcode
 from .behavior import BehaviorFactory
 from ..engine import SimEngineBase
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
