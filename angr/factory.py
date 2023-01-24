@@ -11,6 +11,7 @@ from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
 
 try:
     from .engines import UberEnginePcode
+    from .engines.pcode import register_pcode_arch_default_cc
 except ImportError:
     UberEnginePcode = None
 
@@ -30,6 +31,9 @@ class AngrObjectFactory:
                 default_engine = UberEnginePcode
             else:
                 default_engine = UberEngine
+
+        if isinstance(project.arch, archinfo.ArchPcode):
+            register_pcode_arch_default_cc(project.arch)
 
         self.project = project
         self._default_cc = DEFAULT_CC.get(project.arch.name, SimCCUnknown)
