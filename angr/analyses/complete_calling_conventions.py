@@ -192,7 +192,6 @@ class CompleteCallingConventionsAnalysis(Analysis):
             ):  # pylint:disable=consider-using-dict-items
                 self._func_queue.put((func_addr, None))
                 del depends_on[func_addr]
-                self._remaining_funcs.value -= 1
 
             self._update_progress(0, text="Spawning workers...")
             cc_callback = self._cc_callback
@@ -243,7 +242,6 @@ class CompleteCallingConventionsAnalysis(Analysis):
                             callee_prototypes = self._get_callees_cc_prototypes(dependent)
                             self._func_queue.put((dependent, callee_prototypes))
                             del depends_on[dependent]
-                            self._remaining_funcs.value -= 1
 
             for proc in procs:
                 proc.join()
@@ -255,6 +253,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
             try:
                 with self._func_queue_lock:
                     func_addr, callee_info = self._func_queue.get(True, timeout=0.01)
+                    self._remaining_funcs.value -= 1
             except queue.Empty:
                 time.sleep(0.3)
                 continue
