@@ -39,7 +39,7 @@ class TestPcodeEngine(TestCase):
             base_address,
         )
 
-        arch = archinfo.ArchPcode.arch_from_lang_id("x86:LE:64:default")
+        arch = archinfo.ArchPcode("x86:LE:64:default")
         angr.calling_conventions.register_default_cc(arch.name, angr.calling_conventions.SimCCSystemVAMD64)
         p = angr.load_shellcode(code, arch=arch, load_address=base_address, engine=angr.engines.UberEnginePcode)
 
