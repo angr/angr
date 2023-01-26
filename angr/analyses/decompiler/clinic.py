@@ -142,6 +142,8 @@ class Clinic(Analysis):
 
     def _analyze(self):
 
+        is_pcode_arch = ":" in self.project.arch.name
+
         # Set up the function graph according to configurations
         self._update_progress(0.0, text="Setting up function graph")
         self._set_function_graph()
@@ -155,8 +157,9 @@ class Clinic(Analysis):
             return
 
         # Make sure calling conventions of all functions that the current function calls have been recovered
-        self._update_progress(10.0, text="Recovering calling conventions")
-        self._recover_calling_conventions()
+        if not is_pcode_arch:
+            self._update_progress(10.0, text="Recovering calling conventions")
+            self._recover_calling_conventions()
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
@@ -186,6 +189,10 @@ class Clinic(Analysis):
         # Fix tail calls
         self._update_progress(28.0, text="Analyzing tail calls")
         ail_graph = self._replace_tail_jumps_with_calls(ail_graph)
+
+        if is_pcode_arch:
+            self._update_progress(29.0, text="Recovering calling conventions (AIL mode)")
+            self._recover_calling_conventions(func_graph=ail_graph)
 
         # Make returns
         self._update_progress(30.0, text="Making return sites")
@@ -355,7 +362,7 @@ class Clinic(Analysis):
                 self._func_graph.remove_node(node)
 
     @timethis
-    def _recover_calling_conventions(self) -> None:
+    def _recover_calling_conventions(self, func_graph=None) -> None:
         """
         Examine the calling convention and function prototype for each function called. For functions with missing
         calling conventions or function prototypes, analyze each *call site* and recover the calling convention and
@@ -427,6 +434,7 @@ class Clinic(Analysis):
                     caller_func_addr=self.function.addr,
                     callsite_block_addr=callsite.addr,
                     callsite_insn_addr=callsite_ins_addr,
+                    func_graph=func_graph,
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
@@ -439,6 +447,7 @@ class Clinic(Analysis):
                 prioritize_func_addrs=[self.function.addr],
                 skip_other_funcs=True,
                 skip_signature_matched_functions=False,
+                func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
             )
 
     @timethis
@@ -1293,7 +1302,10 @@ class Clinic(Analysis):
         ):
             if expr is None:
                 return None
-            for v in [getattr(expr, "variable", None), expr.tags.get("reference_variable", None)]:
+            for v in [
+                getattr(expr, "variable", None),
+                expr.tags.get("reference_variable", None) if hasattr(expr, "tags") else None,
+            ]:
                 if v and v in global_vars:
                     variables.add(v)
             return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)

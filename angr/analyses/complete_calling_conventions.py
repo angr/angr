@@ -13,6 +13,7 @@ from ..analyses.cfg import CFGUtils
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
 
 if TYPE_CHECKING:
+    import networkx
     from angr.calling_conventions import SimCC
     from angr.sim_type import SimTypeFunction
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
@@ -44,6 +45,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         prioritize_func_addrs: Optional[Iterable[int]] = None,
         skip_other_funcs: bool = False,
         auto_start: bool = True,
+        func_graphs: Optional[Dict[int, "networkx.DiGraph"]] = None,
     ):
         """
 
@@ -76,6 +78,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._skip_other_funcs = skip_other_funcs
         self._auto_start = auto_start
         self._total_funcs = None
+        self._func_graphs = {} if not func_graphs else func_graphs
 
         self._func_addrs = []  # a list that holds addresses of all functions to be analyzed
         self._results = []
@@ -287,7 +290,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
         if self._recover_variables and self.function_needs_variable_recovery(func):
             _l.info("Performing variable recovery on %r...", func)
             try:
-                _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(func, low_priority=self._low_priority)
+                _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(
+                    func, low_priority=self._low_priority, func_graph=self._func_graphs.get(func.addr, None)
+                )
             except claripy.ClaripyError:
                 _l.warning(
                     "An claripy exception occurred during variable recovery analysis on function %#x.",

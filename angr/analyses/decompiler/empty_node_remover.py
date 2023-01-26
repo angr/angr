@@ -171,8 +171,7 @@ class EmptyNodeRemover:
         if (
             new_seq is None
             and node.sort == "while"
-            and isinstance(node.condition, ailment.Const)
-            and node.condition.value == 0
+            and (node.condition is None or (isinstance(node.condition, ailment.Const) and node.condition.value == 0))
         ):
             return None
 
