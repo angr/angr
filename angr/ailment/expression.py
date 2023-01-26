@@ -970,7 +970,11 @@ class DirtyExpression(Expression):
         if old_expr is self.dirty_expr:
             return True, DirtyExpression(self.idx, new_expr, bits=self.bits, **self.tags)
 
-        replaced, new_dirty_expr = self.dirty_expr.replace(old_expr, new_expr)
+        if isinstance(self.dirty_expr, Expression):
+            replaced, new_dirty_expr = self.dirty_expr.replace(old_expr, new_expr)
+        else:
+            replaced = False
+            new_dirty_expr = None
         if replaced:
             return True, DirtyExpression(self.idx, new_dirty_expr, bits=self.bits, **self.tags)
         else:
