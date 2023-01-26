@@ -1763,7 +1763,10 @@ class JumpTableResolver(IndirectJumpResolver):
         state.add_constraints(cond == 1)
         # load the target
         target_expr = temps[ite_stmt.data.iftrue.tmp]
-        jump_table = state.solver.eval_upto(target_expr, self._max_targets + 1)
+        try:
+            jump_table = state.solver.eval_upto(target_expr, self._max_targets + 1)
+        except SimError:
+            return None
         entry_size = len(target_expr) // self.project.arch.byte_width
 
         if len(jump_table) == self._max_targets + 1:
