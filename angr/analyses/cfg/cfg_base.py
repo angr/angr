@@ -1861,6 +1861,8 @@ class CFGBase(Analysis):
                 if (
                     len(func_0.block_addrs_set) == 1
                     and len(out_edges) == 1
+                    and out_edges[0][0].addr == cfgnode_0.addr
+                    and out_edges[0][0].size == cfgnode_0.size
                     and self.project.factory.block(cfgnode_0.addr, strict_block_end=True).size > cfgnode_0.size
                 ):
                     cfgnode_1_merged = True

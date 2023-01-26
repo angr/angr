@@ -436,6 +436,7 @@ class CFGJob:
     JOB_TYPE_FUNCTION_PROLOGUE = "Function-prologue"
     JOB_TYPE_COMPLETE_SCANNING = "Complete-scanning"
     JOB_TYPE_IFUNC_HINTS = "ifunc-hints"
+    JOB_TYPE_DATAREF_HINTS = "dataref-hints"
 
     def __init__(
         self,
@@ -2529,6 +2530,18 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     data_size=None,
                     data_type=MemoryDataSort.Unknown,
                 )
+
+                if sec_2nd.is_executable and not self._seg_list.is_occupied(v):
+                    # create a new CFG job
+                    ce = CFGJob(
+                        v,
+                        v,
+                        "Ijk_Boring",
+                        job_type=CFGJob.JOB_TYPE_DATAREF_HINTS,
+                    )
+                    self._pending_jobs.add_job(ce)
+                    self._register_analysis_job(v, ce)
+
                 return
 
             # attempt 2: pc + offset
