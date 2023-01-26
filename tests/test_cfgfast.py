@@ -1068,6 +1068,17 @@ class TestCfgfastDataReferences(unittest.TestCase):
         for testme in ("SOSNEAKY", "Welcome to the admin console, trusted user!\n", "Go away!\n", "Username: \n"):
             assert testme.encode("utf-16-le") in recovered_strings
 
+    def test_arm_function_hints_from_data_references(self):
+        path = os.path.join(test_location, "armel", "sha224sum")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        proj.analyses.CFGFast(data_references=True)
+        funcs = proj.kb.functions
+        assert funcs.contains_addr(0x129C4)
+        func = funcs[0x129C4]
+        assert len(list(func.blocks)) == 1
+        assert list(func.blocks)[0].size == 16
+
 
 if __name__ == "__main__":
     unittest.main()
