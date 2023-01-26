@@ -159,7 +159,10 @@ class PCodeIRSBConverter(Converter):
         is_special = self._current_behavior.opcode in self._special_op_handlers
 
         if is_special:
-            self._special_op_handlers[self._current_behavior.opcode]()
+            try:
+                self._special_op_handlers[self._current_behavior.opcode]()
+            except NotImplementedError as ex:
+                log.warning("Unsupported opcode: %s", ex)
         elif self._current_behavior.is_unary:
             self._convert_unary()
         else:
