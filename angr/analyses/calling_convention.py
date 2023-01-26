@@ -112,6 +112,7 @@ class CallingConventionAnalysis(Analysis):
         caller_func_addr: Optional[int] = None,
         callsite_block_addr: Optional[int] = None,
         callsite_insn_addr: Optional[int] = None,
+        func_graph: Optional = None,
     ):
 
         self._function = func
@@ -121,6 +122,7 @@ class CallingConventionAnalysis(Analysis):
         self.caller_func_addr = caller_func_addr
         self.callsite_block_addr = callsite_block_addr
         self.callsite_insn_addr = callsite_insn_addr
+        self._func_graph = func_graph
 
         self.cc: Optional[SimCC] = None
         self.prototype: Optional[SimTypeFunction] = None
@@ -420,7 +422,9 @@ class CallingConventionAnalysis(Analysis):
         callsite_block_addr: int,
         include_preds: bool = False,
     ) -> Optional[networkx.DiGraph]:
-        the_block = func.get_node(callsite_block_addr)
+        func_graph = self._func_graph if self._func_graph is not None else func.graph
+
+        the_block = next(iter(nn for nn in func_graph if nn.addr == callsite_block_addr), None)
         if the_block is None:
             return None
 
@@ -429,12 +433,12 @@ class CallingConventionAnalysis(Analysis):
 
         if include_preds:
             # add a predecessor
-            for src, _, data in func.graph.in_edges(the_block, data=True):
+            for src, _, data in func_graph.in_edges(the_block, data=True):
                 if src is not the_block:
                     subgraph.add_edge(src, the_block, **data)
                     break  # only add the first non-cycle in-edge
 
-        for _, dst, data in func.graph.out_edges(the_block, data=True):
+        for _, dst, data in func_graph.out_edges(the_block, data=True):
             subgraph.add_edge(the_block, dst, **data)
 
             # If the target block contains only direct jump statements and has only one successor,
@@ -449,7 +453,7 @@ class CallingConventionAnalysis(Analysis):
                 and dst_bb.vex.statements[0].tag == "Ist_IMark"
                 and func.graph.out_degree(dst) == 1
             ):
-                for _, jmp_dst, jmp_data in func.graph.out_edges(dst, data=True):
+                for _, jmp_dst, jmp_data in func_graph.out_edges(dst, data=True):
                     subgraph.add_edge(dst, jmp_dst, **jmp_data)
 
         return subgraph
