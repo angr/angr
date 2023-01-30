@@ -103,9 +103,11 @@ class StackCanarySimplifier(OptimizationPass):
 
             # One of the end nodes calls __stack_chk_fail
             stack_chk_fail_callers = None
-            for endnodes in [endnodes_0, endnodes_1]:
+            other_nodes = None
+            for endnodes, o in [(endnodes_0, endnodes_1), (endnodes_1, endnodes_0)]:
                 if self._calls_stack_chk_fail(endnodes[0]):
                     stack_chk_fail_callers = endnodes
+                    other_nodes = o
                     break
             else:
                 _l.debug("Cannot find the node that calls __stack_chk_fail().")
@@ -114,7 +116,11 @@ class StackCanarySimplifier(OptimizationPass):
             # Match stack_chk_fail_caller, ret_node, and predecessor
             nodes_to_process = []
             for stack_chk_fail_caller in stack_chk_fail_callers:
-                preds = list(self._graph.predecessors(stack_chk_fail_caller))
+                all_preds = set(self._graph.predecessors(stack_chk_fail_caller))
+                preds_for_other_nodes = set()
+                for o in other_nodes:
+                    preds_for_other_nodes |= set(self._graph.predecessors(o))
+                preds = list(all_preds.intersection(preds_for_other_nodes))
                 if len(preds) != 1:
                     _l.debug("Expect 1 predecessor. Found %d.", len(preds))
                     continue
@@ -156,10 +162,12 @@ class StackCanarySimplifier(OptimizationPass):
                     ins_addr=pred_copy.statements[-1].ins_addr,
                 )
 
+                self._graph.remove_edge(pred, stack_chk_fail_caller)
                 self._update_block(pred, pred_copy)
 
-                # Remove the block that calls stack_chk_fail_caller
-                self._remove_block(stack_chk_fail_caller)
+                if self._graph.in_degree[stack_chk_fail_caller] == 0:
+                    # Remove the block that calls stack_chk_fail_caller
+                    self._remove_block(stack_chk_fail_caller)
 
                 found_endpoints = True
 
