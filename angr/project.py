@@ -591,7 +591,7 @@ class Project:
         Return the SimProcedure, if it exists, for the given symbol name.
 
         :param str symbol_name: Name of the symbol.
-        
+
         :returns:    None if the address is not hooked.
         """
         sym = self.loader.find_symbol(symbol_name)

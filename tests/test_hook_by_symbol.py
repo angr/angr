@@ -5,6 +5,7 @@ from angr.codenode import BlockNode, HookNode, SyscallNode
 
 BIN_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
 
+
 def test_hook_symbol() -> None:
     """
     Test the hook_symbol (and related functions) useing the inet_ntoa simprocedure for functionality
@@ -17,7 +18,7 @@ def test_hook_symbol() -> None:
 
     original_hook = proj.hooked_by_symbol("inet_ntoa")
 
-    assert isinstance(original_hook, angr.SIM_PROCEDURES['posix']['inet_ntoa'])
+    assert isinstance(original_hook, angr.SIM_PROCEDURES["posix"]["inet_ntoa"])
 
     # No intention to call this, just checking hooking
     class FakeInetNtoa(angr.SimProcedure):
@@ -26,7 +27,7 @@ def test_hook_symbol() -> None:
 
     fake_inet_ntoa = FakeInetNtoa()
 
-    # test not allowing replacement 
+    # test not allowing replacement
     proj.hook_symbol("inet_ntoa", fake_inet_ntoa, replace=False)
     assert proj.hooked_by_symbol("inet_ntoa") == original_hook
 
