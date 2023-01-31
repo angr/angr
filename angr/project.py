@@ -586,6 +586,21 @@ class Project:
         self.hook(hook_addr, simproc, kwargs=kwargs, replace=replace)
         return hook_addr
 
+    def hooked_by_symbol(self, symbol_name) -> Optional[SimProcedure]:
+        """
+        Return the SimProcedure, if it exists, for the given symbol name.
+
+        :param str symbol_name: Name of the symbol.
+        
+        :returns:    None if the address is not hooked.
+        """
+        sym = self.loader.find_symbol(symbol_name)
+        if sym is None:
+            l.warning("Could not find symbol %s", symbol_name)
+            return False
+        hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        return self.hooked_by(hook_addr)
+
     def is_symbol_hooked(self, symbol_name):
         """
         Check if a symbol is already hooked.
