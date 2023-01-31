@@ -1,7 +1,7 @@
+# pylint:disable=missing-class-docstring,no-self-use,arguments-differ,unused-argument
 import os
+
 import angr
-import claripy
-from angr.codenode import BlockNode, HookNode, SyscallNode
 
 BIN_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
 
