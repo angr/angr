@@ -586,7 +586,7 @@ class Project:
         self.hook(hook_addr, simproc, kwargs=kwargs, replace=replace)
         return hook_addr
 
-    def hooked_by_symbol(self, symbol_name) -> Optional[SimProcedure]:
+    def symbol_hooked_by(self, symbol_name) -> Optional[SimProcedure]:
         """
         Return the SimProcedure, if it exists, for the given symbol name.
 

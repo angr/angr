@@ -16,7 +16,7 @@ def test_hook_symbol() -> None:
     assert proj.is_symbol_hooked("inet_ntoa")
     assert not proj.is_symbol_hooked("not_expected_to_exist")
 
-    original_hook = proj.hooked_by_symbol("inet_ntoa")
+    original_hook = proj.symbol_hooked_by("inet_ntoa")
 
     assert isinstance(original_hook, angr.SIM_PROCEDURES["posix"]["inet_ntoa"])
 
@@ -29,9 +29,9 @@ def test_hook_symbol() -> None:
 
     # test not allowing replacement
     proj.hook_symbol("inet_ntoa", fake_inet_ntoa, replace=False)
-    assert proj.hooked_by_symbol("inet_ntoa") == original_hook
+    assert proj.symbol_hooked_by("inet_ntoa") == original_hook
 
     # test allowing replacement
     proj.hook_symbol("inet_ntoa", fake_inet_ntoa, replace=True)
-    assert proj.hooked_by_symbol("inet_ntoa") != original_hook
-    assert proj.hooked_by_symbol("inet_ntoa") == fake_inet_ntoa
+    assert proj.symbol_hooked_by("inet_ntoa") != original_hook
+    assert proj.symbol_hooked_by("inet_ntoa") == fake_inet_ntoa
