@@ -617,8 +617,10 @@ class SimEngineVRBase(SimEngineLight):
                     all_vars = list(all_vars)
 
                     # sort by some value so that the outcome here isn't random
-                    all_vars.sort(reverse=True, key=lambda val: (val[0], val[1].offset, val[1].base
-, val[1].base_addr, val[1].size))
+                    all_vars.sort(
+                        reverse=True,
+                        key=lambda val: (val[0], val[1].offset, val[1].base, val[1].base_addr, val[1].size),
+                    )
 
                     l.warning(
                         "Reading memory with overlapping variables: %s. Ignoring all but the first one.", all_vars
