@@ -1284,7 +1284,7 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
                         new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        # self._remove_last_statement_if_jump(start_node)
+                        self._remove_last_statement_if_jump(start_node)
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
