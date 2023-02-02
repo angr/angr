@@ -1,16 +1,16 @@
 import angr
 
 ######################################
-# xstrtol_fatal
+# xalloc_die
 ######################################
 
 
-class xstrtol_fatal(angr.SimProcedure):
+class xalloc_die(angr.SimProcedure):
     """
-    xstrtol_fatal
+    xalloc_die
     """
     NO_RET = True
 
     # pylint: disable=unused-variable,arguments-differ
-    def run(self, err, opt_idx, c, long_options, arg):
+    def run(self):
         self.exit(1)
