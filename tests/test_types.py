@@ -1,9 +1,6 @@
-# pylint:disable=unused-variable
-
 from typing import Dict
 
 import archinfo
-import claripy
 
 import angr
 from angr.sim_type import (
@@ -23,19 +20,6 @@ from angr.sim_type import (
     SimTypeString,
 )
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
-
-
-def test_type_annotation():
-    my_ty = angr.sim_type.SimTypeTop()
-    ptr = claripy.BVS("ptr", 32).annotate(
-        angr.type_backend.TypeAnnotation(angr.sim_type.SimTypePointer(my_ty, label=[]))
-    )
-    ptroffset = ptr + 4
-
-    bt = angr.type_backend.TypeBackend()
-    tv = bt.convert(ptroffset)
-    assert tv.ty.pts_to is my_ty
-    assert claripy.is_true(tv.ty.offset == 4)
 
 
 def test_cproto_conversion():
@@ -312,7 +296,6 @@ def test_bitfield_struct():
 
 
 if __name__ == "__main__":
-    test_type_annotation()
     test_cproto_conversion()
     test_cppproto_conversion()
     test_struct_deduplication()

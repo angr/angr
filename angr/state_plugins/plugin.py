@@ -77,7 +77,7 @@ class SimStatePlugin:
 
         Note that when multiple instances of a single plugin object (for example, a file) are referenced in the state,
         it is important that merge only ever be called once. This should be solved by designating one of the plugin's
-        referees as the "real owner", who should be the one to actually merge it.  This technique doesn't work to
+        referees as the "real owner", who should be the one to actually merge it. This technique doesn't work to
         resolve the similar issue that arises during copying because merging doesn't produce a new reference to insert.
 
         There will be n ``others`` and n+1 merge conditions, since the first condition corresponds to self.
@@ -85,13 +85,13 @@ class SimStatePlugin:
 
         When implementing this, make sure that you "deepen" both ``others`` and ``common_ancestor`` before calling
         sub-elements' merge methods, e.g.
-        ```
+
+        .. code-block:: python
         self.foo.merge(
             [o.foo for o in others],
             merge_conditions,
             common_ancestor=common_ancestor.foo if common_ancestor is not None else None
         )
-        ```
 
         During static analysis, merge_conditions can be None, in which case you should use
         ``state.solver.union(values)``.

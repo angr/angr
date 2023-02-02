@@ -1,4 +1,4 @@
-from contextlib import supress
+from contextlib import suppress
 from claripy import BVS
 from angr.storage import SimFile
 import pickle
@@ -16,9 +16,9 @@ class TestPickle(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree("pickletest", ignore_errors=True)
         shutil.rmtree("pickletest2", ignore_errors=True)
-        with supress(FileNotFoundError):
+        with suppress(FileNotFoundError):
             os.remove("pickletest_good")
-        with supress(FileNotFoundError):
+        with suppress(FileNotFoundError):
             os.remove("pickletest_bad")
 
     def _load_pickles(self):

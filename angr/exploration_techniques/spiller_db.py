@@ -6,6 +6,7 @@ try:
     from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.ext.declarative import declarative_base
+    from sqlalchemy.exc import OperationalError
 
     Base = declarative_base()
 
