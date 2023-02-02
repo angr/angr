@@ -9,6 +9,7 @@ class xalloc_die(angr.SimProcedure):
     """
     xalloc_die
     """
+
     NO_RET = True
 
     # pylint: disable=unused-variable,arguments-differ

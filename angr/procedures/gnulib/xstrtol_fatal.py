@@ -9,6 +9,7 @@ class xstrtol_fatal(angr.SimProcedure):
     """
     xstrtol_fatal
     """
+
     NO_RET = True
 
     # pylint: disable=unused-variable,arguments-differ
