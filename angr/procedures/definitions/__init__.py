@@ -646,6 +646,7 @@ COMMON_LIBRARIES = {
     'cgc',
     # (mostly) Linux
     'glibc',
+    'gnulib',  # really just for .o files in coreutils
     'libstdcpp',
     'linux_kernel',
     'linux_loader',
