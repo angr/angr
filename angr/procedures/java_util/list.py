@@ -55,7 +55,7 @@ class ListGet(JavaSimProcedure):
 
         try:
             array_ref = this_ref.load_field(self.state, ELEMS, "java.lang.Object[]")
-            array_len = this_ref.load_field(self.state, SIZE, "int")
+            this_ref.load_field(self.state, SIZE, "int")
             # TODO should check boundaries?
 
             return self.state.javavm_memory.load_array_element(array_ref, index)
@@ -74,7 +74,7 @@ class ListGetFirst(JavaSimProcedure):
 
         try:
             array_ref = this_ref.load_field(self.state, ELEMS, "java.lang.Object[]")
-            array_len = this_ref.load_field(self.state, SIZE, "int")
+            this_ref.load_field(self.state, SIZE, "int")
 
             # TODO should check boundaries?
 

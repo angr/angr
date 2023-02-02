@@ -175,7 +175,7 @@ class SimSymbolizer(SimStatePlugin):  # pylint:disable=abstract-method
     def _should_symbolize(self, addr):
         return (
             self._page_id(addr) in self.symbolization_target_pages
-            and not self._page_id(addr) in self.ignore_target_pages
+            and self._page_id(addr) not in self.ignore_target_pages
         )
 
     def _resymbolize_int(self, be, le=0, base=0, offset=0, skip=()):

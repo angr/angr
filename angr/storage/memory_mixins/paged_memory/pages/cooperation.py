@@ -176,7 +176,7 @@ class MemoryObjectSetMixin(CooperationBase):
         elements: List[Set[claripy.ast.Base]] = []
         for i, (a, objs) in enumerate(c_objects):
             chopped_set = set()
-            if not type(objs) is set:
+            if type(objs) is not set:
                 objs = {objs}
             for o in objs:
                 if o.includes(a):

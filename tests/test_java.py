@@ -13,7 +13,7 @@ from archinfo.arch_soot import (
     SootArgument,
     SootAddressTerminator,
 )
-from claripy.backends.backend_smtlib_solvers import z3str_popen  # pylint:disable=unused-import
+from claripy.backends.backend_smtlib_solvers import z3str_popen  # noqa: F401
 
 try:
     import pysoot

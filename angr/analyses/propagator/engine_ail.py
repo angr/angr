@@ -538,9 +538,9 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_ITE(self, expr: Expr.ITE) -> Optional[PropValue]:
         # pylint:disable=unused-variable
-        cond = self._expr(expr.cond)
-        iftrue = self._expr(expr.iftrue)
-        iffalse = self._expr(expr.iffalse)
+        self._expr(expr.cond)  # cond
+        self._expr(expr.iftrue)  # iftrue
+        self._expr(expr.iffalse)  # iffalse
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 

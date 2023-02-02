@@ -16,11 +16,10 @@ from ..variables.variable_manager import VariableManagerInternal
 
 
 def import_binsync():
+    global binsync
     global binsync_available
     try:
         import binsync
-        from binsync.client import Client
-        from binsync.data.stack_variable import StackVariable, StackOffsetType
 
         binsync_available = True
     except ImportError:

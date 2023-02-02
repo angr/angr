@@ -1,5 +1,6 @@
 # pylint: disable=missing-class-docstring
 import glob
+import importlib
 import os
 import platform
 import shutil
@@ -23,12 +24,12 @@ else:
 
 def _build_native():
     try:
-        import pyvex  # pylint:disable=unused-import,import-outside-toplevel
+        importlib.import_module("pyvex")
     except ImportError as e:
         raise LibError("You must install pyvex before building angr") from e
 
     try:
-        import unicorn  # pylint:disable=unused-import,import-outside-toplevel
+        importlib.import_module("unicorn")
     except ImportError as e:
         raise LibError("You must install unicorn before building angr") from e
 

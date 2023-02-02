@@ -303,7 +303,7 @@ class TestDepGraph(TestCase):
         self.assertEqual(nodes, [register_definition, memory_definition])
         self.assertListEqual(predecessors, [memory_definition])
 
-    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_already_in_dependency_graph(
+    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_already_in_dependency_graph(  # noqa: E501
         self,
     ):
         arch = self.ArchMock()
@@ -358,7 +358,7 @@ class TestDepGraph(TestCase):
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
 
-    def test_add_dependencies_for_concrete_pointers_of_create_memory_location_with_undefined_data_if_data_pointed_to_by_definition_is_not_known(
+    def test_add_dependencies_for_concrete_pointers_of_create_memory_location_with_undefined_data_if_data_pointed_to_by_definition_is_not_known(  # noqa: E501
         self,
     ):
         arch = self.ArchMock()
@@ -394,7 +394,7 @@ class TestDepGraph(TestCase):
         self.assertEqual(nodes, [register_definition, memory_definition])
         self.assertListEqual(predecessors, [memory_definition])
 
-    def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_with_codelocation_in_binary_if_data_in_readonly_memory(
+    def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_with_codelocation_in_binary_if_data_in_readonly_memory(  # noqa: E501
         self,
     ):
         arch = self.ArchMock()

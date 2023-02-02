@@ -108,6 +108,11 @@ class SootBlockProcessor:
 
         expr = self._expr(right_op)
         if expr is not None:
+            try:
+                from pysoot.sootir.soot_value import SootLocal
+            except ImportError:
+                l.error("Please install PySoot before analyzing Java byte code.")
+                raise
             if isinstance(left_op, SootLocal):
                 # Log a def for the local variable
                 self.state.locals[left_op.name] = expr
@@ -166,6 +171,12 @@ class SootBlockProcessor:
 
         # Try to annotate the variable when applicable
         try:
+            try:
+                from pysoot.sootir.soot_value import SootValue
+            except ImportError:
+                l.error("Please install PySoot before analyzing Java byte code.")
+                raise
+
             var_type = mapping[full_method]
 
             if isinstance(base_var, (SootValue, AnnotatedVariable)):
@@ -180,13 +191,6 @@ class SootBlockProcessor:
 
 class LoopAnalysisState:
     def __init__(self, block):
-        # Delayed import
-        try:
-            from pysoot.sootir.soot_value import SootValue, SootLocal
-        except ImportError:
-            l.error("Please install PySoot before analyzing Java byte code.")
-            raise
-
         self.block = block
 
         self.induction_variables = {}
@@ -314,13 +318,14 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         """
 
         # Condition 0
-        check_0 = lambda cond: (
-            isinstance(cond, Condition)
-            and cond.op == Condition.Equal
-            and cond.val1 == 0
-            and isinstance(cond.val0, AnnotatedVariable)
-            and cond.val0.type == VariableTypes.HasNext
-        )
+        def check_0(cond):
+            return (
+                isinstance(cond, Condition)
+                and cond.op == Condition.Equal
+                and cond.val1 == 0
+                and isinstance(cond.val0, AnnotatedVariable)
+                and cond.val0.type == VariableTypes.HasNext
+            )
 
         check_0_results = [(check_0(stmt[0]), stmt[0]) for stmt in self.loop_exit_stmts]
         check_0_conds = [cond for r, cond in check_0_results if r]  # remove all False ones
@@ -331,9 +336,12 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         the_iterator = check_0_conds[0].val0.variable
 
         # Condition 1
-        check_1 = lambda local: (
-            isinstance(local, AnnotatedVariable) and local.type == VariableTypes.Next and local.variable == the_iterator
-        )
+        def check_1(local):
+            return (
+                isinstance(local, AnnotatedVariable)
+                and local.type == VariableTypes.Next
+                and local.variable == the_iterator
+            )
 
         if not any([check_1(local) for local in self.locals.values()]):
             return None

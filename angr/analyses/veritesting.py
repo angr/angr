@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
 from functools import cmp_to_key
+from typing import Tuple
 
 import networkx
 
@@ -234,11 +235,10 @@ class Veritesting(Analysis):
 
         self.result, self.final_manager = self._veritesting()
 
-    def _veritesting(self):
+    def _veritesting(self) -> Tuple[bool, SimulationManager]:
         """
         Perform static symbolic execution starting from the given point.
-        returns (bool, SimulationManager): tuple of the success/failure of veritesting and the subsequent SimulationManager after
-                                   execution
+        :returns: tuple of the success/failure of veritesting and the subsequent SimulationManager after execution
         """
 
         s = self._input_state.copy()
@@ -247,7 +247,7 @@ class Veritesting(Analysis):
             new_manager = self._execute_and_merge(s)
 
         except (ClaripyError, SimError, AngrError):
-            if not BYPASS_VERITESTING_EXCEPTIONS in s.options:
+            if BYPASS_VERITESTING_EXCEPTIONS not in s.options:
                 raise
             l.warning("Veritesting caught an exception.", exc_info=True)
             return False, SimulationManager(self.project, stashes={"deviated": [s]})
@@ -456,8 +456,8 @@ class Veritesting(Analysis):
 
     def _get_successors(self, state):
         """
-        Gets the successors to the current state by step, saves copy of state and finally stashes new unconstrained states
-        to manager.
+        Gets the successors to the current state by step, saves copy of state and finally stashes new unconstrained
+        states to manager.
 
         :param SimState state:          Current state to step on from
         :returns SimSuccessors:         The SimSuccessors object

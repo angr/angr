@@ -1,7 +1,6 @@
 import itertools
 
 import angr
-import claripy
 
 rand_count = itertools.count()
 

@@ -447,7 +447,8 @@ class Identifier(Analysis):
     def _prefilter_floats(self, func):  # pylint: disable=no-self-use
         # calling _get_block() from `func` respects the size of the basic block
         # in extreme cases (like at the end of a section where VEX cannot disassemble the instruction beyond the
-        # section boundary), directly calling self.project.factory.block() on func.addr may lead to an AngrTranslationError.
+        # section boundary), directly calling self.project.factory.block() on func.addr may lead to an
+        # AngrTranslationError.
         bl = func._get_block(func.addr).vex
 
         if any(c.type.startswith("Ity_F") for c in bl.all_constants):

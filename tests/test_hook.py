@@ -69,8 +69,8 @@ class TestHook(unittest.TestCase):
         s.run()
 
     def test_nonzero_length_userhook(self):
-        # If a user hook overwrites any instruction (length > 0), we should allow the execution of another hook that follows
-        # this hook immediately.
+        # If a user hook overwrites any instruction (length > 0), we should allow the execution of another hook that
+        # follows this hook immediately.
 
         class TwoTimesHook:
             def __init__(self):

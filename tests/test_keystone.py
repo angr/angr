@@ -3,8 +3,6 @@ import logging
 import sys
 import unittest
 
-from common import skip_if_not_linux
-
 import angr
 
 l = logging.getLogger("angr.tests")

@@ -267,7 +267,7 @@ class AnnotatedCFG:
         """
 
         whitelist = self.get_whitelisted_statements(path.addr)
-        last_stmt = self.get_last_statement_index(path.addr)
+        self.get_last_statement_index(path.addr)
 
         # pass in those arguments
         successors = path.step(stmt_whitelist=whitelist, last_stmt=None)

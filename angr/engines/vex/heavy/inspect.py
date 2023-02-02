@@ -3,7 +3,8 @@ from ....state_plugins import BP_BEFORE, BP_AFTER, NO_OVERRIDE
 
 
 class SimInspectMixin(VEXMixin):
-    # open question: what should be done about the BP_AFTER breakpoints in cases where the engine uses exceptional control flow?
+    # open question: what should be done about the BP_AFTER breakpoints in cases where the engine uses exceptional
+    # control flow?
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=NO_OVERRIDE):
         self.state._inspect(
             "dirty", when=BP_BEFORE, dirty_name=func_name, dirty_args=args, dirty_handler=func, dirty_result=NO_OVERRIDE

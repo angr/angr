@@ -1,7 +1,5 @@
 import logging
 
-from claripy import Or
-
 from .base import SimSootStmt
 
 l = logging.getLogger("angr.engines.soot.statements.switch")

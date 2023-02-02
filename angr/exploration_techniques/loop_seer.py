@@ -29,7 +29,8 @@ class LoopSeer(ExplorationTechnique):
         """
         :param cfg:                   Normalized CFG is required.
         :param functions:             Function(s) containing the loop(s) to be analyzed.
-        :param loops:                 Specific group of Loop(s) to be analyzed, if this is None we run the LoopFinder analysis.
+        :param loops:                 Specific group of Loop(s) to be analyzed, if this is None we run the LoopFinder
+                                      analysis.
         :param use_header:            Whether to use header based trip counter to compare with the bound limit.
         :param bound:                 Limit the number of iterations a loop may be executed.
         :param bound_reached:         If provided, should be a function that takes the LoopSeer and the succ_state.

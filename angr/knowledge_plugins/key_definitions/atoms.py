@@ -269,7 +269,7 @@ class MemoryLocation(Atom):
         if isinstance(self.addr, int):
             return False
         elif isinstance(self.addr, SpOffset):
-            return not type(self.addr.offset) is int
+            return type(self.addr.offset) is not int
         return True
 
     def __eq__(self, other):

@@ -185,7 +185,7 @@ class TestCfgemulate(unittest.TestCase):
 
         binary_path = os.path.join(test_location, "x86_64", "not_returning")
         proj = angr.Project(binary_path, use_sim_procedures=True, load_options={"auto_load_libs": False})
-        cfg = proj.analyses.CFGEmulated(context_sensitivity_level=0, fail_fast=True)  # pylint:disable=unused-variable
+        proj.analyses.CFGEmulated(context_sensitivity_level=0, fail_fast=True)  # pylint:disable=unused-variable
 
         # function_a returns
         assert proj.kb.functions.function(name="function_a") is not None
@@ -270,7 +270,7 @@ class TestCfgemulate(unittest.TestCase):
         o.modes["fastpath"] |= {o.DO_CCALLS}
         binary_path = test_location + "/i386/bios.bin.elf"
         proj = angr.Project(binary_path, use_sim_procedures=True, page_size=1, auto_load_libs=False)
-        cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
+        proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
         assert {f for f in proj.kb.functions} >= set(function_addresses)
         o.modes["fastpath"] ^= {o.DO_CCALLS}
 
@@ -425,18 +425,18 @@ class TestCfgemulate(unittest.TestCase):
 
     def test_armel_final_missing_block_b(self):
         # When _pending_jobs is not sorted, it is possible that we first process a pending job created earlier and then
-        # process another pending job created later. Ideally, we hope that jobs are always processed in a topological order,
-        # and the unsorted pending jobs break this assumption. In this test binary, at one point there can be two pending
-        # jobs, 0x10b05/0x10ac5(Ijk_FakeRet) and 0x10bbe(Ijk_FakeRet). If 0x10bbe is processed before 0x10b05, we do not
-        # know whether the function 0x10a29(aes) returns or not. As a result, the final block of the main function is not
-        # confirmed, and is not added to the function graph of function main.
+        # process another pending job created later. Ideally, we hope that jobs are always processed in a topological
+        # order, and the unsorted pending jobs break this assumption. In this test binary, at one point there can be two
+        # pending jobs, 0x10b05/0x10ac5(Ijk_FakeRet) and 0x10bbe(Ijk_FakeRet). If 0x10bbe is processed before 0x10b05,
+        # we do not # know whether the function 0x10a29(aes) returns or not. As a result, the final block of the main
+        # function is not confirmed, and is not added to the function graph of function main.
         #
-        # In fact, this also hints a different bug. We should always "confirm" that a function returns if its FakeRet job
-        # are processed for whatever reason.
+        # In fact, this also hints a different bug. We should always "confirm" that a function returns if its FakeRet
+        # job are processed for whatever reason.
         #
-        # Fixing either bug will resolve the issue that the final block does not show up in the function graph of main. To
-        # stay on the safe side, both of them are fixed. Thanks @tyb0807 for reporting this issue and providing a test
-        # binary.
+        # Fixing either bug will resolve the issue that the final block does not show up in the function graph of main.
+        # To stay on the safe side, both of them are fixed. Thanks @tyb0807 for reporting this issue and providing a
+        # test binary.
         # EDG says: This binary is compiled incorrectly.
         # The binary's app code was compiled as CortexM, but linked against ARM libraries.
         # This is illegal, and does not actually execute on a real CortexM.

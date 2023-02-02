@@ -476,8 +476,8 @@ class Director(ExplorationTechnique):
         Categorize all states into two different groups: reaching the destination within the peek depth, and not
         reaching the destination within the peek depth.
 
-        :param SimulationManager simgr:    The simulation manager that contains states. All active states (state belonging to "active" stash)
-                                are subjected to categorization.
+        :param SimulationManager simgr:    The simulation manager that contains states. All active states (state
+                                           belonging to "active" stash) are subjected to categorization.
         :return:                The categorized simulation manager.
         :rtype:                 angr.SimulationManager
         """

@@ -26,8 +26,7 @@ class strncmp(Func):
 
     def gen_input_output_pair(self):
         l = 5
-        s = rand_str(l, strncmp.non_null)
-        # pylint disable=unused-variable
+        rand_str(l, strncmp.non_null)  # s
         return None
 
     def can_call_other_funcs(self):

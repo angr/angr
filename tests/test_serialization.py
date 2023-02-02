@@ -54,7 +54,7 @@ def internaltest_cfgfast(p):
     # generate capstone blocks
     main_function = cfg.functions.function(name="main")
     for b in main_function.blocks:
-        c = b.capstone  # pylint:disable=unused-variable
+        b.capstone
 
     pickle.dump(cfg, state, -1)
 

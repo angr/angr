@@ -27,7 +27,8 @@ class SimUserland(SimOS):
         # syscall_abis is a dict of tuples {name: (base_number, min_number, max_number)}
         # min_number and max_number are just cached from SimSyscallLibrary.{min,max}imum_sysall_number
         # base_number is used to map the syscalls into the syscall address space - it's a "base address"
-        # but a number. to convert from syscall number to address it's (number - min_num + base_num) * alignment + kernel_base
+        # but a number. to convert from syscall number to address it's
+        # (number - min_num + base_num) * alignment + kernel_base
 
     def configure_project(self, abi_list=None):  # pylint: disable=arguments-differ
         if abi_list is None:
@@ -136,7 +137,8 @@ class SimUserland(SimOS):
         Get a syscall SimProcedure from its number.
 
         :param number:              The syscall number
-        :param allow_unsupported:   Whether to return a "stub" syscall for unsupported numbers instead of throwing an error
+        :param allow_unsupported:   Whether to return a "stub" syscall for unsupported numbers instead of throwing an
+                                    error
         :param abi:                 The name of the abi to use. If None, will assume that the abis have disjoint
                                     numbering schemes and pick the right one.
         :return: The SimProcedure for the syscall

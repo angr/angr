@@ -58,7 +58,8 @@ class FormatString:
 
     def replace(self, va_arg):
         """
-        Implement printf - based on the stored format specifier information, format the values from the arg getter function `args` into a string.
+        Implement printf - based on the stored format specifier information, format the values from the arg getter
+        function `args` into a string.
 
         :param va_arg:          A function which takes a type and returns the next argument of that type
         :return:                The result formatted string

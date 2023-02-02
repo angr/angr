@@ -43,7 +43,7 @@ class SimSootExpr_NewMultiArray(SimSootExpr):
         size_stays_below_maximum = state.solver.eval_upto(max_multi_array_size.SGE(multi_array_size), 2)
 
         # overwrite size, if it *always* exceeds the maximum
-        if not True in size_stays_below_maximum:
+        if True not in size_stays_below_maximum:
             l.warning(
                 "Array size %s always exceeds maximum size. " "It gets overwritten with the maximum %s.",
                 multi_array_size,

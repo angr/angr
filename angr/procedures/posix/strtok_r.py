@@ -43,7 +43,8 @@ class strtok_r(angr.SimProcedure):
             write_length = self.state.solver.If(where.ret_expr != 0, delim_strlen.ret_expr, 0)
             write_content = self.state.solver.BVV(0, delim_strlen.max_null_index * 8)
 
-            # do a symbolic write (we increment the limit because of the possibility that the write target is 0, in which case the length will be 0, anyways)
+            # do a symbolic write (we increment the limit because of the possibility that the write target is 0,
+            # in which case the length will be 0, anyways)
             l.debug("... doing the symbolic write")
             self.state.memory.store(
                 where.ret_expr,

@@ -1,7 +1,6 @@
 from unittest import TestCase
 
 import archinfo
-import claripy
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.knowledge_plugins.key_definitions.atoms import Register, SpOffset

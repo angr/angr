@@ -1,7 +1,6 @@
 # pylint:disable=unused-import
-from ..models import DbKnowledgeBase, DbLabel
+from ..models import DbLabel
 from ...knowledge_plugins.labels import Labels
-from ...knowledge_base import KnowledgeBase
 
 
 class LabelsSerializer:

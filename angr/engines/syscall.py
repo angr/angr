@@ -31,7 +31,9 @@ class SimEngineSyscall(SuccessorsMixin, ProcedureMixin):
         if sys_procedure is None:
             if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
                 raise AngrUnsupportedSyscallError(
-                    "Trying to perform a syscall on an emulated system which is not currently cofigured to support syscalls. To resolve this, make sure that your SimOS is a subclass of SimUserspace, or set the BYPASS_UNSUPPORTED_SYSCALL state option."
+                    "Trying to perform a syscall on an emulated system which is not currently cofigured to support "
+                    "syscalls. To resolve this, make sure that your SimOS is a subclass of SimUserspace, or set the "
+                    "BYPASS_UNSUPPORTED_SYSCALL state option."
                 )
             else:
                 try:

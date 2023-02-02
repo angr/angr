@@ -4,7 +4,6 @@ import os
 
 import claripy
 
-from ...sim_type import SimTypeFunction, SimTypeInt
 from ... import sim_options as so
 from ... import SIM_LIBRARIES
 from ... import BP_BEFORE, BP_AFTER
@@ -272,7 +271,6 @@ class Runner:
                 outputs.append(result_state.solver.eval(out, cast_to=bytes))
 
         if outputs != test_data.expected_output_args:
-            # print map(lambda x: x.encode('hex'), [a for a in outputs if a is not None]), map(lambda x: x.encode('hex'), [a for a in test_data.expected_output_args if a is not None])
             l.info("mismatch output")
             return False
 

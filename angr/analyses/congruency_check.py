@@ -10,7 +10,8 @@ l = logging.getLogger(name=__name__)
 
 class CongruencyCheck(Analysis):
     """
-    This is an analysis to ensure that angr executes things identically with different execution backends (i.e., unicorn vs vex).
+    This is an analysis to ensure that angr executes things identically with different execution backends (i.e., unicorn
+    vs vex).
     """
 
     def __init__(self, throw=False):
@@ -346,8 +347,8 @@ class CongruencyCheck(Analysis):
         # make sure the flags are the same
         if sl.arch.name in ("AMD64", "X86", "ARM", "ARMEL", "ARMHF", "AARCH64"):
             # pylint: disable=unused-variable
-            n_bkp = sr.regs.cc_op, sr.regs.cc_dep1, sr.regs.cc_dep2, sr.regs.cc_ndep
-            u_bkp = sl.regs.cc_op, sl.regs.cc_dep1, sl.regs.cc_dep2, sl.regs.cc_ndep
+            sr.regs.cc_op, sr.regs.cc_dep1, sr.regs.cc_dep2, sr.regs.cc_ndep  # n_bkp
+            sl.regs.cc_op, sl.regs.cc_dep1, sl.regs.cc_dep2, sl.regs.cc_ndep  # u_bkp
             if sl.arch.name in ("AMD64", "X86"):
                 n_flags = sr.regs.eflags.canonicalize(var_map=n_map, counter=n_counter)[-1]
                 u_flags = sl.regs.eflags.canonicalize(var_map=u_map, counter=u_counter)[-1]

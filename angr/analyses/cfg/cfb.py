@@ -1,5 +1,4 @@
 import logging
-import cffi
 
 import cle
 from cle.backends.externs import KernelObject, ExternObject

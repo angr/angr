@@ -61,7 +61,10 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         bounded by start and end.
         Will only return absolute xrefs, not relative ones (like SP offsets)
         """
-        f = lambda x: isinstance(x, int) and start <= x <= end
+
+        def f(x):
+            return isinstance(x, int) and start <= x <= end
+
         addrs = filter(f, self.xrefs_by_dst.keys())
         refs = set()
         for addr in addrs:
@@ -73,7 +76,10 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         Get a set of XRef objects that originate at a given address region
         bounded by start and end.  Useful for finding references from a basic block or function.
         """
-        f = lambda x: isinstance(x, int) and start <= x <= end
+
+        def f(x):
+            return isinstance(x, int) and start <= x <= end
+
         addrs = filter(f, self.xrefs_by_ins_addr.keys())
         refs = set()
         for addr in addrs:

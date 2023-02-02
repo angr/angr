@@ -27,7 +27,7 @@ class CodeTagging(Analysis):
 
     def analyze(self):
         for analysis, arches in self.ANALYSES:
-            if not arches is None and self.project.arch.name not in arches:
+            if arches is not None and self.project.arch.name not in arches:
                 continue
             tags = analysis()
             if tags:

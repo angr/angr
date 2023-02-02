@@ -48,8 +48,8 @@ class SlottedMemoryMixin(MemoryMixin):
 
     def _resolve_access(self, addr, size):
         """
-        Resolves a memory access of a certain size. Returns a sequence of the bases, offsets, and sizes of the accesses required
-        to fulfil this.
+        Resolves a memory access of a certain size. Returns a sequence of the bases, offsets, and sizes of the accesses
+        required to fulfil this.
         """
 
         # if we fit in one word

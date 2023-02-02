@@ -98,9 +98,9 @@ class Explorer(ExplorationTechnique):
             l.warning("Providing an incomplete CFG can cause viable paths to be discarded!")
 
     def setup(self, simgr):
-        if not self.find_stash in simgr.stashes:
+        if self.find_stash not in simgr.stashes:
             simgr.stashes[self.find_stash] = []
-        if not self.avoid_stash in simgr.stashes:
+        if self.avoid_stash not in simgr.stashes:
             simgr.stashes[self.avoid_stash] = []
 
     def step(self, simgr, stash="active", **kwargs):

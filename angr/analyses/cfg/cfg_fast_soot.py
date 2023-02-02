@@ -21,13 +21,9 @@ try:
     from pysoot.sootir.soot_value import SootLocal
     from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
     from pysoot.sootir.soot_expr import (
-        SootInterfaceInvokeExpr,
-        SootSpecialInvokeExpr,
         SootStaticInvokeExpr,
-        SootVirtualInvokeExpr,
         SootInvokeExpr,
-        SootDynamicInvokeExpr,
-    )  # pylint:disable=unused-import
+    )
 
     PYSOOT_INSTALLED = True
 except ImportError:
@@ -438,7 +434,8 @@ class CFGFastSoot(CFGFast):
             # Mark the address as traced
             self._traced_addresses.add(addr)
 
-        # soot_block is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
+        # soot_block is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save
+        # memory
         cfg_node.soot_block = None
 
         successors = self._soot_get_successors(addr, current_func_addr, soot_block, cfg_node)

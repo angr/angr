@@ -45,8 +45,11 @@ class readdir(angr.SimProcedure):
         self.condition = self.state.solver.BoolS("readdir_cond")  # TODO: variable key
 
     def _store_amd64(self, ptr):
-        stores = lambda offset, val: self.state.memory.store(ptr + offset, val, endness="Iend_BE")
-        storei = lambda offset, val: self.state.memory.store(ptr + offset, val, endness="Iend_LE")
+        def stores(offset, val):
+            return self.state.memory.store(ptr + offset, val, endness="Iend_BE")
+
+        def storei(offset, val):
+            return self.state.memory.store(ptr + offset, val, endness="Iend_LE")
 
         storei(0, self.struct.d_ino)
         storei(8, self.struct.d_off)

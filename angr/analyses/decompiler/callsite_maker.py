@@ -45,7 +45,7 @@ class CallSiteMaker(Analysis):
 
         last_stmt = self.block.statements[-1]
 
-        if not type(last_stmt) is Stmt.Call:
+        if type(last_stmt) is not Stmt.Call:
             self.result_block = self.block
             return
 

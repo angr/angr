@@ -81,7 +81,10 @@ class NewObjectArray(JNISimProcedure):
         # if available, set the initial_element as the arrays default value
         if self.state.solver.eval(initial_element_ != 0):
             initial_element = self.state.jni_references.lookup(initial_element_)
-            generator = lambda state: initial_element
+
+            def generator(state):
+                return initial_element
+
             array.add_default_value_generator(generator)
         else:
             initial_element = None
@@ -250,7 +253,7 @@ class GetArrayRegion(JNISimProcedure):
         #    True and False at the same time
         range_stays_within_bounds = state.solver.eval_upto(range_constraints, 2)
 
-        if not True in range_stays_within_bounds:
+        if True not in range_stays_within_bounds:
             # There is no valid combination of start_idx and length, s.t. the
             # range stays within the array bounds.
             # Correct simulation must continue with a raised Exception

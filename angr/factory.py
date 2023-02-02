@@ -172,7 +172,8 @@ class AngrObjectFactory:
         """
         Constructs a new simulation manager.
 
-        :param thing:           Optional - What to put in the new SimulationManager's active stash (either a SimState or a list of SimStates).
+        :param thing:           What to put in the new SimulationManager's active stash (either a SimState or a list of
+                                SimStates).
         :param kwargs:          Any additional keyword arguments will be passed to the SimulationManager constructor
         :returns:               The new SimulationManager
         :rtype:                 angr.sim_manager.SimulationManager
@@ -182,7 +183,8 @@ class AngrObjectFactory:
         * If nothing is passed in, the SimulationManager is seeded with a state initialized for the program
           entry point, i.e. :meth:`entry_state()`.
         * If a :class:`SimState` is passed in, the SimulationManager is seeded with that state.
-        * If a list is passed in, the list must contain only SimStates and the whole list will be used to seed the SimulationManager.
+        * If a list is passed in, the list must contain only SimStates and the whole list will be used to seed the
+          SimulationManager.
         """
         if thing is None:
             thing = [self.entry_state()]

@@ -165,9 +165,7 @@ class SimEngineRDAIL(
         addr: MultiValues = self._expr(stmt.addr)
         size: int = stmt.size
         if stmt.guard is not None:
-            guard = self._expr(stmt.guard)  # pylint:disable=unused-variable
-        else:
-            guard = None  # pylint:disable=unused-variable
+            self._expr(stmt.guard)
 
         addr_v = addr.one_value()
         if addr_v is not None and not self.state.is_top(addr_v):
@@ -501,11 +499,8 @@ class SimEngineRDAIL(
         size = expr.size
         bits = expr.bits
         if expr.guard is not None:
-            guard = self._expr(expr.guard)  # pylint:disable=unused-variable
-            alt = self._expr(expr.alt)  # pylint:disable=unused-variable
-        else:
-            guard = None  # pylint:disable=unused-variable
-            alt = None  # pylint:disable=unused-variable
+            self._expr(expr.guard)
+            self._expr(expr.alt)
 
         # convert addrs from MultiValues to a list of valid addresses
         if addrs.count() == 1:

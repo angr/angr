@@ -624,15 +624,15 @@ def test_strcpy():
 
     s.add_constraints(ln == 15)
     # readsize = 16
-    # both_strs = s.solver.Concat(*[ s.memory.load(dst_addr, readsize, endness='Iend_BE'), s.memory.load(src_addr, readsize, endness='Iend_BE') ])
+    # both_strs = s.solver.Concat(
+    #     *[s.memory.load(dst_addr, readsize, endness="Iend_BE"), s.memory.load(src_addr, readsize, endness="Iend_BE")]
+    # )
     # for i in s.solver.eval_upto(both_strs, 50, cast_to=bytes):
-
-    # print c.solver.eval_upto(10)
-    # assert c.solver.eval_upto(10) == [0]
-    # assert s.solver.solution(s.memory.load(dst_addr, 4, endness='Iend_BE'), 0x42434400)
-    # assert s.solver.solution(s.memory.load(dst_addr, 4, endness='Iend_BE'), 0x42434445)
-    # assert s.solver.solution(s.memory.load(dst_addr, 4, endness='Iend_BE'), 0x00414100)
-    # assert not s.solver.solution(s.memory.load(dst_addr, 4, endness='Iend_BE'), 0x00010203)
+    #     assert s.solver.eval_upto(10) == [0]
+    #     assert s.solver.solution(s.memory.load(dst_addr, 4, endness="Iend_BE"), 0x42434400)
+    #     assert s.solver.solution(s.memory.load(dst_addr, 4, endness="Iend_BE"), 0x42434445)
+    #     assert s.solver.solution(s.memory.load(dst_addr, 4, endness="Iend_BE"), 0x00414100)
+    #     assert not s.solver.solution(s.memory.load(dst_addr, 4, endness="Iend_BE"), 0x00010203)
 
 
 def broken_sprintf():

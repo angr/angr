@@ -48,7 +48,7 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
             return ALL_TYPES[item]
 
     def __setitem__(self, item, value):
-        if not type(value) is TypeRef:
+        if type(value) is not TypeRef:
             raise TypeError("Can only store TypeRefs in TypesStore")
 
         super().__setitem__(item, value.with_arch(self.kb._project.arch))

@@ -355,7 +355,6 @@ def pc_actions_LOGIC(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 
 def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
     arg_l = res + 1
-    arg_r = 1
 
     cf = (cc_ndep & data[platform]["CondBitMasks"]["G_CC_MASK_C"])[data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"]]
     pf = calc_paritybit(res)
@@ -473,7 +472,6 @@ def pc_actions_SBB(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
 
 def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
     arg_l = res - 1
-    arg_r = 1
 
     cf = (cc_ndep & data[platform]["CondBitMasks"]["G_CC_MASK_C"])[data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"]]
     pf = calc_paritybit(res)
@@ -946,7 +944,8 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
             r = globals()[cond_funcname](state, cc_expr)
         else:
             l.warning(
-                "Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.",
+                "Operation %s with condition %s is not supported in pc_calculate_condition_simple(). "
+                "Consider implementing.",
                 op,
                 cond,
             )
@@ -1397,8 +1396,10 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         and state.project.concrete_target is not None
     ):
         return bad(
-            "angr doesn't support Windows Heaven's gate calls https://rce.co/knockin-on-heavens-gate-dynamic-processor-mode-switching/ \n"
-            "Please use the native 32 bit libs (not WoW64) or implement a simprocedure to avoid executing these instructions"
+            "angr doesn't support Windows Heaven's gate calls "
+            "https://rce.co/knockin-on-heavens-gate-dynamic-processor-mode-switching/ \n"
+            "Please use the native 32 bit libs (not WoW64) or implement a simprocedure to avoid executing these "
+            "instructions"
         )
 
     # RPL=11 check
@@ -1436,7 +1437,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
             return bad("index out of range")
 
         ldt_base = ldt[47:16]
-        ldt_base_value = state.solver.eval_one(ldt_base)
+        state.solver.eval_one(ldt_base)
 
         ldt_value = state.solver.eval_one(ldt_base)
         descriptor = state.memory.load(ldt_value + seg_selector * 8, 8, endness="Iend_LE")
@@ -1446,7 +1447,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
         return bad("present bit set to 0")
 
     base = get_segdescr_base(state, descriptor)
-    limit = get_segdescr_limit(state, descriptor)
+    get_segdescr_limit(state, descriptor)
 
     # When a concrete target is set and memory is read directly from the process sometimes a negative offset
     # from a segment register is used
@@ -1665,9 +1666,9 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 
 
 def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
-    # cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
-    # created.
+    # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we
+    # require cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the
+    # constraints were created.
     n = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     z = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     c = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
@@ -1691,9 +1692,9 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     concrete_cond = op_concretize(cond)
     flag = None
 
-    # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
-    # cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
-    # created.
+    # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we
+    # require cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the
+    # constraints were created.
 
     if concrete_cond == ARMCondAL:
         flag = claripy.BVV(1, 32)
@@ -1960,9 +1961,9 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 
 
 def arm64g_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-    # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
-    # cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
-    # created.
+    # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we
+    # require cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the
+    # constraints were created.
     n = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     z = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     c = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)

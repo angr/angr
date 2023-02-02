@@ -105,7 +105,7 @@ class SimSootValue_ArrayRef(SimSootValue):
         # For now we just constraint the index to stay within the bounds
 
         # raise exception, if index is *always* invalid
-        if not True in idx_stays_within_bounds:
+        if True not in idx_stays_within_bounds:
             raise SimEngineError(
                 "Access of %s[%s] (length %s) is always invalid. "
                 "Cannot continue w/o raising java.lang.ArrayIndexOutOfBoundsException."

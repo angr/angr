@@ -38,7 +38,7 @@ def test_lwip_udpecho_bm():
 def test_lwip_udpecho_bm_the_better_way():
     bin_path = os.path.join(test_location, "armel", "lwip_udpecho_bm.elf")
     p = angr.Project(bin_path, auto_load_libs=False)
-    cfg = p.analyses.CFG(cross_references=True)  # pylint:disable=unused-variable
+    p.analyses.CFG(cross_references=True)
 
     timenow_cp_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x23D4)  # the constant in the constant pool
     timenow_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x1FFF36F4)  # the value in .bss

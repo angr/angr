@@ -2337,7 +2337,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             else:
                 callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall)
             if callee_function is not None:
-                callee_might_return = not (callee_function.returning is False)
+                callee_might_return = callee_function.returning is not False
 
         if callee_might_return:
             func_edges = []

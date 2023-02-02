@@ -69,7 +69,6 @@ class TestVeritesting(unittest.TestCase):
         proj = angr.Project(os.path.join(location, arch, "veritesting_skm"))
 
         # start the analysis after the call to lexer_read_line
-        start_address = 0x4024AE
         state = proj.factory.blank_state(addr=0x4024AE, remove_options={angr.sim_options.UNICORN})
 
         # set up the structures for the user_input

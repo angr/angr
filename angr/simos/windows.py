@@ -359,14 +359,14 @@ class SimWindows(SimOS):
 
                 else:
                     exc_state = r.flat_successors[0]
-            except:
+            except Exception as e:
                 # lol no
                 _l.error(
                     "Got some weirdo error while re-executing %d instructions at %#x " "for exception windup",
                     num_inst,
                     successors.initial_state.addr,
                 )
-                raise exception
+                raise exception from e
         else:
             # duplicate the history-cycle code here...
             exc_state = successors.initial_state.copy()
@@ -500,7 +500,8 @@ class SimWindows(SimOS):
     @staticmethod
     def _read_fs_register_x86(concrete_target):
         """
-        Injects small shellcode to leak the fs segment register address. In Windows x86 this address is pointed by gs:[0x18]
+        Injects small shellcode to leak the fs segment register address. In Windows x86 this address is pointed by
+        gs:[0x18]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
         :return: fs register address
         :rtype string
@@ -513,7 +514,8 @@ class SimWindows(SimOS):
     @staticmethod
     def _read_gs_register_x64(concrete_target):
         """
-        Injects small shellcode to leak the gs segment register address. In Windows x64 this address is pointed by gs:[0x30]
+        Injects small shellcode to leak the gs segment register address. In Windows x64 this address is pointed by
+        gs:[0x30]
         :param concrete_target: ConcreteTarget which will be used to get the fs register address
         :return: gs register address
         :rtype string

@@ -1,6 +1,7 @@
 """
 These classes perform some python magic that we use to implement the nesting of exploration technique methods.
-This process is formalized as a "hooking" of a python method - each exploration technique's methods "hooks" a method of the same name on the simulation manager class.
+This process is formalized as a "hooking" of a python method - each exploration technique's methods "hooks" a method of
+the same name on the simulation manager class.
 """
 
 
@@ -34,8 +35,8 @@ class HookSet:
 
         :param target:  The object from which to remove hooks. If all hooks are removed from a given method, the
                         HookedMethod object will be removed and replaced with the original function.
-        :param hooks:   Any keywords will be interpreted as hooks to remove. You must provide the exact hook that was applied
-                        so that it can it can be identified for removal among any other hooks.
+        :param hooks:   Any keywords will be interpreted as hooks to remove. You must provide the exact hook that was
+                        applied so that it can it can be identified for removal among any other hooks.
         """
         for name, hook in hooks.items():
             hooked = getattr(target, name)

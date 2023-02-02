@@ -1,4 +1,3 @@
-import archinfo
 import unittest
 
 import logging
@@ -11,7 +10,10 @@ from angr import SimState, SimPosixError, SimFile
 
 FAKE_ADDR = 0x100000
 
-lseek = lambda state, arguments: SIM_PROCEDURES["linux_kernel"]["lseek"]().execute(state, arguments=arguments)
+
+def lseek(state, arguments):
+    return SIM_PROCEDURES["linux_kernel"]["lseek"]().execute(state, arguments=arguments)
+
 
 # Taken from unistd.h
 SEEK_SET = 0  # Seek from beginning of file.

@@ -334,7 +334,7 @@ class CFGNode(Serializable):
     def __eq__(self, other):
         if isinstance(other, SimSuccessors):
             raise ValueError("You do not want to be comparing a SimSuccessors instance to a CFGNode.")
-        if not type(other) is CFGNode:
+        if type(other) is not CFGNode:
             return False
         return self.addr == other.addr and self.size == other.size and self.simprocedure_name == other.simprocedure_name
 

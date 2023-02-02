@@ -1,6 +1,5 @@
 # pylint: disable=missing-class-docstring,disable=no-self-use
 import os
-import logging
 import unittest
 
 from common import bin_location

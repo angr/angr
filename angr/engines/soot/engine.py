@@ -12,7 +12,7 @@ from ... import sim_options as o
 from ...errors import SimEngineError, SimTranslationError
 from cle import CLEError
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
-from ...sim_type import SimTypeNum, SimTypeFunction, parse_type
+from ...sim_type import SimTypeFunction, parse_type
 from ..engine import SuccessorsMixin
 from ..procedure import ProcedureMixin
 from .exceptions import BlockTerminationNotice, IncorrectLocationException

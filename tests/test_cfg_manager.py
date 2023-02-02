@@ -22,7 +22,7 @@ class TestCfgManager(unittest.TestCase):
 
         assert original_graph.edges() == new_graph.edges()
         assert original_graph.nodes() == new_graph.nodes()
-        assert not original_graph is new_graph
+        assert original_graph is not new_graph
 
 
 if __name__ == "__main__":

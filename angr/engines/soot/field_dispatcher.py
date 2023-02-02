@@ -40,7 +40,7 @@ def _class_contains_field(field_class, field_name, field_type):
     if not field_class.is_loaded:
         return False
     # check if a field with the given name exists
-    if not field_name in field_class.fields:
+    if field_name not in field_class.fields:
         return False
     field = field_class.fields[field_name]
     # check type

@@ -6,7 +6,6 @@ try:
     from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.ext.declarative import declarative_base
-    from sqlalchemy.exc import OperationalError
 
     Base = declarative_base()
 
@@ -21,3 +20,10 @@ try:
 
 except ImportError:
     sqlalchemy = None
+    create_engine = None
+    Base = None
+    OperationalError = None
+    sessionmaker = None
+
+
+__all__ = ["sqlalchemy", "create_engine", "Base", "OperationalError", "sessionmaker"]

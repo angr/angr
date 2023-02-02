@@ -1,6 +1,5 @@
 import angr
 import claripy
-import archinfo
 
 # all the input values were generated via
 # [random.randrange(256) for _ in range(16)]

@@ -26,7 +26,6 @@ class strncmp(angr.SimProcedure):
 
         # determine the maximum number of bytes to compare
         concrete_run = False
-        # if not self.state.solver.symbolic(a_len) and not self.state.solver.symbolic(b_len) and not self.state.solver.symbolic(limit):
         if (
             self.state.solver.single_valued(a_len)
             and self.state.solver.single_valued(b_len)

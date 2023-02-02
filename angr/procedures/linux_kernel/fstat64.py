@@ -24,7 +24,9 @@ class fstat64(angr.SimProcedure):
         return 0
 
     def _store_arm(self, stat_buf, stat):
-        store = lambda offset, val: self.state.memory.store(stat_buf + offset, val, endness="Iend_LE")
+        def store(offset, val):
+            return self.state.memory.store(stat_buf + offset, val, endness="Iend_LE")
+
         store(0x00, stat.st_dev)
         store(0x0C, stat.st_ino)
         store(0x10, stat.st_mode)
@@ -44,7 +46,9 @@ class fstat64(angr.SimProcedure):
         store(0x60, stat.st_ino)  # weird verification st_ino
 
     def _store_i386(self, stat_buf, stat):
-        store = lambda offset, val: self.state.memory.store(stat_buf + offset, val, endness="Iend_LE")
+        def store(offset, val):
+            return self.state.memory.store(stat_buf + offset, val, endness="Iend_LE")
+
         store(0x00, stat.st_dev)
         store(0x0C, stat.st_ino)
         store(0x10, stat.st_mode)
@@ -65,7 +69,8 @@ class fstat64(angr.SimProcedure):
         store(0x5C, stat.st_ino)  # weird verification st_ino
 
     def _store_amd64(self, stat_buf, stat):
-        store = lambda offset, val: self.state.memory.store(stat_buf + offset, val, endness="Iend_LE")
+        def store(offset, val):
+            return self.state.memory.store(stat_buf + offset, val, endness="Iend_LE")
 
         store(0x00, stat.st_dev)
         store(0x08, stat.st_ino)
@@ -89,9 +94,8 @@ class fstat64(angr.SimProcedure):
         store(0x88, self.state.solver.BVV(0, 64))
 
     def _store_ppc32(self, stat_buf, stat):
-        store = lambda offset, val: self.state.memory.store(
-            stat_buf + offset, val, endness=self.state.arch.memory_endness
-        )
+        def store(offset, val):
+            return self.state.memory.store(stat_buf + offset, val, endness=self.state.arch.memory_endness)
 
         store(0x00, stat.st_dev)
         store(0x08, stat.st_ino)
@@ -115,9 +119,8 @@ class fstat64(angr.SimProcedure):
         store(0x64, self.state.solver.BVV(0, 32))
 
     def _store_mips32(self, stat_buf, stat):
-        store = lambda offset, val: self.state.memory.store(
-            stat_buf + offset, val, endness=self.state.arch.memory_endness
-        )
+        def store(offset, val):
+            return self.state.memory.store(stat_buf + offset, val, endness=self.state.arch.memory_endness)
 
         store(0x00, stat.st_dev)
         store(0x04, self.state.solver.BVV(0, 32 * 3))
@@ -138,9 +141,8 @@ class fstat64(angr.SimProcedure):
         store(0x58, stat.st_blocks)
 
     def _store_arm_eabi(self, stat_buf, stat):
-        store = lambda offset, val: self.state.memory.store(
-            stat_buf + offset, val, endness=self.state.arch.memory_endness
-        )
+        def store(offset, val):
+            return self.state.memory.store(stat_buf + offset, val, endness=self.state.arch.memory_endness)
 
         store(0x00, stat.st_dev)
         store(0x02, self.state.solver.BVV(0, 8 * 10))

@@ -337,7 +337,7 @@ def test_cgc_se1_palindrome_raw():
         b"\tPlease enter a possible palindrome: "
     )
     # make sure there were no 'Nope's from non-palindromes
-    assert not b"Nope" in stdout_dump
+    assert b"Nope" not in stdout_dump
 
     # now test crashing input
     simgr, _ = tracer_cgc(b, "tracer_cgc_se1_palindrome_raw_yescrash", b"A" * 129)

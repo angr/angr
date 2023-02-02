@@ -316,9 +316,6 @@ class SimJavaVM(SimOS):
             return SimSootValue_StringRef.new_string(state, StringS(f"default_value_{type_}", 1000))
         if type_.endswith("[][]"):
             raise NotImplementedError
-            # multiarray = SimSootExpr_NewMultiArray.new_array(self.state, element_type, size)
-            # multiarray.add_default_value_generator(lambda s: SimSootExpr_NewMultiArray._generate_inner_array(s, element_type, sizes))
-            # return  multiarray
         if type_.endswith("[]"):
             array = SimSootExpr_NewArray.new_array(state, type_[:-2], BVV(2, 32))
             return array
