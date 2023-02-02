@@ -8,7 +8,7 @@ from typing import Optional, Dict, Type, TYPE_CHECKING
 
 import itanium_demangler
 
-from ...sim_type import parse_cpp_file, SimTypeFunction, SimTypeFloat, SimTypeDouble
+from ...sim_type import parse_cpp_file, SimTypeFunction
 from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
 from ...misc.ux import once
