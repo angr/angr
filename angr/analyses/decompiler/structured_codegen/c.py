@@ -606,7 +606,9 @@ class CStatements(CStatement):
     def c_repr_chunks(self, indent=0, asexpr=False):
 
         for stmt in self.statements:
-            yield from stmt.c_repr_chunks(indent=indent)
+            yield from stmt.c_repr_chunks(indent=indent, asexpr=asexpr)
+            if asexpr:
+                yield ", ", None
 
 
 class CAILBlock(CStatement):
@@ -2000,6 +2002,31 @@ class CITE(CExpression):
         yield ")", paren
 
 
+class CMultiStatementExpression(CExpression):
+    """
+    (stmt0, stmt1, stmt2, expr)
+    """
+
+    __slots__ = ("stmts", "expr", "tags")
+
+    def __init__(self, stmts: CStatements, expr: CExpression, tags=None, **kwargs):
+        super().__init__(**kwargs)
+        self.stmts = stmts
+        self.expr = expr
+        self.tags = tags
+
+    @property
+    def type(self):
+        return self.expr.type
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        paren = CClosingObject("(")
+        yield "(", paren
+        yield from self.stmts.c_repr_chunks(indent=0, asexpr=True)
+        yield from self.expr.c_repr_chunks()
+        yield ")", paren
+
+
 class CDirtyExpression(CExpression):
     """
     Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
@@ -2091,6 +2118,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Reinterpret: self._handle_Reinterpret,
+            Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
         }
 
         self._func = func
@@ -3069,6 +3097,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         src_type = _to_type(expr.from_bits, expr.from_type)
         dst_type = _to_type(expr.to_bits, expr.to_type)
         return CTypeCast(src_type, dst_type, self._handle(expr.operand), tags=expr.tags, codegen=self)
+
+    def _handle_MultiStatementExpression(self, expr: Expr.MultiStatementExpression):
+        cstmts = CStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)
+        cexpr = self._handle(expr.expr)
+        return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset):
 

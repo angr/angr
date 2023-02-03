@@ -2032,6 +2032,20 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("switch ") == 1
         assert d.codegen.text.count("case 92:") == 1
 
+    @structuring_algo("phoenix")
+    def test_comma_separated_statement_expression_whoami(self, decompiler_options=None):
+        # nested switch-cases
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "whoami.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "goto" not in d.codegen.text
+        assert re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text) is not None
+
 
 if __name__ == "__main__":
     unittest.main()

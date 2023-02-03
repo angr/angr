@@ -7,8 +7,8 @@ import networkx
 
 import claripy
 from ailment.block import Block
-from ailment.statement import ConditionalJump, Jump, Label
-from ailment.expression import Const, UnaryOp
+from ailment.statement import Statement, ConditionalJump, Jump, Label
+from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
@@ -1426,9 +1426,21 @@ class PhoenixStructurer(StructurerBase):
         if r is not None:
             left, left_cond, right, left_right_cond, succ = r
             # create the condition node
+            memo = {}
+            if not self._is_single_statement_block(left):
+                # create a MultiStatementExpression for left_right_cond
+                stmts = self._build_multistatementexpr_statements(left)
+                assert stmts is not None
+                mstmt_expr = MultiStatementExpression(
+                    None, stmts, self.cond_proc.convert_claripy_bool_ast(left_right_cond), ins_addr=left.addr
+                )
+                memo[left_right_cond._hash] = mstmt_expr
+            cond = self.cond_proc.convert_claripy_bool_ast(
+                claripy.Or(claripy.Not(left_cond), left_right_cond), memo=memo
+            )
             cond_jump = ConditionalJump(
                 None,
-                self.cond_proc.convert_claripy_bool_ast(claripy.Or(claripy.Not(left_cond), left_right_cond)),
+                cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, succ.addr, self.project.arch.bits),
                 ins_addr=start_node.addr,
@@ -1448,9 +1460,19 @@ class PhoenixStructurer(StructurerBase):
         if r is not None:
             left, left_cond, right, right_left_cond, else_node = r
             # create the condition node
+            memo = {}
+            if not self._is_single_statement_block(right):
+                # create a MultiStatementExpression for left_right_cond
+                stmts = self._build_multistatementexpr_statements(right)
+                assert stmts is not None
+                mstmt_expr = MultiStatementExpression(
+                    None, stmts, self.cond_proc.convert_claripy_bool_ast(right_left_cond), ins_addr=left.addr
+                )
+                memo[right_left_cond._hash] = mstmt_expr
+            cond = self.cond_proc.convert_claripy_bool_ast(claripy.Or(left_cond, right_left_cond), memo=memo)
             cond_jump = ConditionalJump(
                 None,
-                self.cond_proc.convert_claripy_bool_ast(claripy.Or(left_cond, right_left_cond)),
+                cond,
                 Const(None, None, left.addr, self.project.arch.bits),
                 Const(None, None, else_node.addr, self.project.arch.bits),
                 ins_addr=start_node.addr,
@@ -1470,9 +1492,21 @@ class PhoenixStructurer(StructurerBase):
         if r is not None:
             left, left_cond, succ, left_succ_cond, right = r
             # create the condition node
+            memo = {}
+            if not self._is_single_statement_block(left):
+                # create a MultiStatementExpression for left_right_cond
+                stmts = self._build_multistatementexpr_statements(left)
+                assert stmts is not None
+                mstmt_expr = MultiStatementExpression(
+                    None, stmts, self.cond_proc.convert_claripy_bool_ast(left_succ_cond), ins_addr=left.addr
+                )
+                memo[left_succ_cond._hash] = mstmt_expr
+            cond = self.cond_proc.convert_claripy_bool_ast(
+                claripy.And(left_cond, claripy.Not(left_succ_cond)), memo=memo
+            )
             cond_jump = ConditionalJump(
                 None,
-                self.cond_proc.convert_claripy_bool_ast(claripy.And(left_cond, claripy.Not(left_succ_cond))),
+                cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, succ.addr, self.project.arch.bits),
                 ins_addr=start_node.addr,
@@ -1491,9 +1525,19 @@ class PhoenixStructurer(StructurerBase):
         if r is not None:
             left, left_cond, right, right_left_cond, else_node = r
             # create the condition node
+            memo = {}
+            if not self._is_single_statement_block(left):
+                # create a MultiStatementExpression for left_right_cond
+                stmts = self._build_multistatementexpr_statements(left)
+                assert stmts is not None
+                mstmt_expr = MultiStatementExpression(
+                    None, stmts, self.cond_proc.convert_claripy_bool_ast(right_left_cond), ins_addr=left.addr
+                )
+                memo[right_left_cond._hash] = mstmt_expr
+            cond = self.cond_proc.convert_claripy_bool_ast(claripy.And(left_cond, right_left_cond))
             cond_jump = ConditionalJump(
                 None,
-                self.cond_proc.convert_claripy_bool_ast(claripy.And(left_cond, right_left_cond)),
+                cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, else_node.addr, self.project.arch.bits),
                 ins_addr=start_node.addr,
@@ -1528,7 +1572,7 @@ class PhoenixStructurer(StructurerBase):
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[right] == 1:
                 left, right = right, left
             if (
-                self._is_single_statement_block(left)
+                self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[right] >= 1
             ):
@@ -1571,7 +1615,7 @@ class PhoenixStructurer(StructurerBase):
             if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 2:
                 left, right = right, left
             if (
-                self._is_single_statement_block(right)
+                self._is_sequential_statement_block(right)
                 and full_graph.in_degree[left] == 2
                 and full_graph.in_degree[right] == 1
             ):
@@ -1608,7 +1652,7 @@ class PhoenixStructurer(StructurerBase):
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[successor] == 1:
                 left, successor = successor, left
             if (
-                self._is_single_statement_block(left)
+                self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[successor] >= 1
             ):
@@ -1652,7 +1696,7 @@ class PhoenixStructurer(StructurerBase):
             if full_graph.in_degree[left] > 1 and full_graph.in_degree[else_node] == 1:
                 left, else_node = else_node, left
             if (
-                self._is_single_statement_block(left)
+                self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[else_node] >= 1
             ):
@@ -1924,6 +1968,73 @@ class PhoenixStructurer(StructurerBase):
         if isinstance(node, (Block, MultiNode, SequenceNode)):
             return PhoenixStructurer._count_statements(node) == 1
         return False
+
+    @staticmethod
+    def _is_sequential_statement_block(node: Union[BaseNode, Block]) -> bool:
+        """
+        Examine if the node can be converted into a MultiStatementExpression object. The conversion fails if there are
+        any conditional statements or goto statements before the very last statement of the node.
+        """
+
+        def _is_sequential_statement_list(stmts: List[Statement]) -> bool:
+            if not stmts:
+                return True
+            for stmt in stmts[:-1]:
+                if isinstance(
+                    stmt,
+                    (
+                        ConditionalJump,
+                        Jump,
+                    ),
+                ):
+                    return False
+            return True
+
+        def _to_statement_list(node: Union[Block, MultiNode, SequenceNode]) -> List[Statement]:
+            if isinstance(node, Block):
+                return node.statements
+            if isinstance(node, MultiNode):
+                # expand it
+                all_statements = []
+                for nn in node.nodes:
+                    all_statements += _to_statement_list(nn)
+                return all_statements
+            if isinstance(node, SequenceNode):
+                all_statements = []
+                for nn in node.nodes:
+                    all_statements += _to_statement_list(nn)
+                return all_statements
+            raise TypeError(f"Unsupported node type {type(node)}")
+
+        try:
+            stmt_list = _to_statement_list(node)
+        except TypeError:
+            return False
+        return _is_sequential_statement_list(stmt_list)
+
+    @staticmethod
+    def _build_multistatementexpr_statements(block) -> Optional[List[Statement]]:
+        stmts = []
+        if isinstance(block, (SequenceNode, MultiNode)):
+            for b in block.nodes:
+                stmts_ = PhoenixStructurer._build_multistatementexpr_statements(b)
+                if stmts_ is None:
+                    return None
+                stmts += stmts_
+            return stmts
+        elif isinstance(block, Block):
+            for idx, stmt in enumerate(block.statements):
+                if isinstance(stmt, Label):
+                    continue
+                if isinstance(stmt, ConditionalJump):
+                    if idx == len(block.statements) - 1:
+                        continue
+                    return None
+                if isinstance(stmt, Jump):
+                    return None
+                stmts.append(stmt)
+            return stmts
+        return None
 
     @staticmethod
     def _remove_edges_except(graph: networkx.DiGraph, src, dst):
