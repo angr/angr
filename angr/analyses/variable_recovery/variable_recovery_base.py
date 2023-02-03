@@ -261,7 +261,7 @@ class VariableRecoveryStateBase:
         elif addr.op == "BVV":
             r = addr
         elif addr.op == "__add__":
-            r = sum([VariableRecoveryStateBase.extract_stack_offset_from_addr(arg) for arg in addr.args])
+            r = sum(VariableRecoveryStateBase.extract_stack_offset_from_addr(arg) for arg in addr.args)
         elif addr.op == "__sub__":
             r1 = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr.args[0])
             r2 = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr.args[1])
