@@ -1,4 +1,6 @@
 # pylint:disable=arguments-renamed,isinstance-second-argument-not-valid-type,missing-class-docstring
+from typing import Optional, List, TYPE_CHECKING
+
 try:
     import claripy
 except ImportError:
@@ -6,6 +8,9 @@ except ImportError:
 
 from .tagged_object import TaggedObject
 from .utils import get_bits, stable_hash, is_none_or_likeable
+
+if TYPE_CHECKING:
+    from .statement import Statement
 
 
 class Expression(TaggedObject):
@@ -1046,6 +1051,66 @@ class VEXCCallExpression(Expression):
     @property
     def size(self):
         return self.bits // 8
+
+
+class MultiStatementExpression(Expression):
+    """
+    For representing comma-separated statements and expression in C.
+    """
+
+    __slots__ = (
+        "stmts",
+        "expr",
+    )
+
+    def __init__(self, idx: Optional[int], stmts: List["Statement"], expr: Expression, **kwargs):
+        super().__init__(idx, expr.depth + 1, **kwargs)
+        self.stmts = stmts
+        self.expr = expr
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((MultiStatementExpression,) + tuple(self.stmts) + (self.expr,))
+
+    def __repr__(self):
+        return f"MultiStatementExpression({self.stmts}, {self.expr})"
+
+    def __str__(self):
+        stmts_str = [str(stmt) for stmt in self.stmts]
+        expr_str = str(self.expr)
+        concatenated_str = ", ".join(stmts_str + [expr_str])
+        return f"({concatenated_str})"
+
+    @property
+    def bits(self):
+        return self.expr.bits
+
+    @property
+    def size(self):
+        return self.expr.size
+
+    def replace(self, old_expr, new_expr):
+        replaced = False
+
+        new_stmts = []
+        for stmt in self.stmts:
+            r, new_stmt = stmt.replace(old_expr, new_expr)
+            new_stmts.append(new_stmt if new_stmt is not None else stmt)
+            replaced |= r
+
+        if self.expr is old_expr:
+            replaced = True
+            new_expr_ = new_expr
+        else:
+            r, new_expr_ = self.expr.replace(old_expr, new_expr)
+            replaced |= r
+
+        if replaced:
+            return True, MultiStatementExpression(
+                self.idx, new_stmts, new_expr_ if new_expr_ is not None else self.expr, **self.tags
+            )
+        return False, self
 
 
 #
