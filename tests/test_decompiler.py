@@ -2046,6 +2046,33 @@ class TestDecompiler(unittest.TestCase):
         assert "goto" not in d.codegen.text
         assert re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text) is not None
 
+    @for_all_structuring_algos
+    def test_complex_stack_offset_calculation(self, decompiler_options=None):
+        # nested switch-cases
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1.1")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(
+            f,
+            cfg=cfg.model,
+            options=decompiler_options,
+        )
+        self._print_decompilation_result(d)
+
+        # The highest level symptom here is that two variable used are
+        # confused and this shows up in the addition types.
+        assert not "Other Possible Types" in d.codegen.text
+
+        # check that the variable used in free is different from the one used in atoi
+        m = re.search(r"free\(([^)]+)", d.codegen.text)
+        assert m
+
+        var_name = m.group(1)
+        assert not re.search(f"atoi.*{var_name}", d.codegen.text)
+
 
 if __name__ == "__main__":
     unittest.main()

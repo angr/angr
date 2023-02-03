@@ -253,26 +253,39 @@ class VariableRecoveryStateBase:
                 return True
         return False
 
+    @staticmethod
+    def extract_stack_offset_from_addr(addr: claripy.ast.Base) -> claripy.ast.Base:
+        r = None
+        if addr.op == "BVS":
+            r = claripy.BVV(0, addr.size())
+        elif addr.op == "BVV":
+            r = addr
+        elif addr.op == "__add__":
+            r = sum(VariableRecoveryStateBase.extract_stack_offset_from_addr(arg) for arg in addr.args)
+        elif addr.op == "__sub__":
+            r1 = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr.args[0])
+            r2 = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr.args[1])
+            r = r1 - r2
+        else:
+            # NOTE: The original code here didn't support mul or
+            # anything like that, so let's specify it as 0
+            r = claripy.BVV(0, addr.size())
+        return r
+
     def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
         if "stack_base" in addr.variables:
-            r = None
-            if addr.op == "BVS":
-                return 0
-            elif addr.op == "__add__":
-                if len(addr.args) == 2 and addr.args[1].op == "BVV":
-                    r = addr.args[1]._model_concrete.value
-                if len(addr.args) == 1:
-                    return 0
-            elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                r = -addr.args[1]._model_concrete.value
+            r = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr)
 
-            if r is not None:
-                # convert it to a signed integer
-                if r >= 2 ** (self.arch.bits - 1):
-                    return r - 2**self.arch.bits
-                if r < -(2 ** (self.arch.bits - 1)):
-                    return 2**self.arch.bits + r
-                return r
+            # extract_stack_offset_from_addr should ensure that r is a BVV
+            assert r.concrete
+
+            val = r._model_concrete.value
+            # convert it to a signed integer
+            if val >= 2 ** (self.arch.bits - 1):
+                return val - 2**self.arch.bits
+            if val < -(2 ** (self.arch.bits - 1)):
+                return 2**self.arch.bits + val
+            return val
 
         return None
 
