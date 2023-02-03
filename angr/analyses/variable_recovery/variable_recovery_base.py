@@ -276,7 +276,7 @@ class VariableRecoveryStateBase:
         if "stack_base" in addr.variables:
             r = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr)
 
-            # VariableRecoveryStateBase should ensure that r is a BVV
+            # extract_stack_offset_from_addr should ensure that r is a BVV
             assert r.concrete
 
             val = r._model_concrete.value
