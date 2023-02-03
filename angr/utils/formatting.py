@@ -101,7 +101,7 @@ def add_edge_to_buffer(
         chars = {
             "start_cap": "╴",
             "start_corner": "╭" if descending else "╰",
-            "end_cap": "⧽",
+            "end_cap": "▸",
             "end_corner": "╰" if descending else "╭",
             "horizontal": "╌" if dashed else "─",
             "vertical": "╎" if dashed else "│",
