@@ -54,6 +54,7 @@ _UNIFIABLE_COMPARISONS = {
 # Util methods and mapping used during AIL AST to claripy AST conversion
 #
 
+
 def _op_with_unified_size(op, conv, operand0, operand1):
     # ensure operand1 is of the same size as operand0
     if isinstance(operand1, ailment.Expr.Const):
