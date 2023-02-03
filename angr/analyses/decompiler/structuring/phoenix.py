@@ -2021,6 +2021,7 @@ class PhoenixStructurer(StructurerBase):
                 if stmts_ is None:
                     return None
                 stmts += stmts_
+            return stmts
         elif isinstance(block, Block):
             for idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Label):

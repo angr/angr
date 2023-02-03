@@ -50,6 +50,65 @@ _UNIFIABLE_COMPARISONS = {
     "SGE",
 }
 
+#
+# Util methods and mapping used during AIL AST to claripy AST conversion
+#
+
+def _op_with_unified_size(op, conv, operand0, operand1):
+    # ensure operand1 is of the same size as operand0
+    if isinstance(operand1, ailment.Expr.Const):
+        # amazing - we do the eazy thing here
+        return op(conv(operand0), operand1.value)
+    if operand1.bits == operand0.bits:
+        return op(conv(operand0), conv(operand1))
+    # extension is required
+    assert operand1.bits < operand0.bits
+    operand1 = ailment.Expr.Convert(None, operand1.bits, operand0.bits, False, operand1)
+    return op(conv(operand0), conv(operand1))
+
+
+def _dummy_bvs(condition, condition_mapping):
+    var = claripy.BVS("ailexpr_%s" % repr(condition), condition.bits, explicit_name=True)
+    condition_mapping[var.args[0]] = condition
+    return var
+
+
+_ail2claripy_op_mapping = {
+    "LogicalAnd": lambda expr, conv, _: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
+    "LogicalOr": lambda expr, conv, _: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
+    "CmpEQ": lambda expr, conv, _: conv(expr.operands[0]) == conv(expr.operands[1]),
+    "CmpNE": lambda expr, conv, _: conv(expr.operands[0]) != conv(expr.operands[1]),
+    "CmpLE": lambda expr, conv, _: conv(expr.operands[0]) <= conv(expr.operands[1]),
+    "CmpLEs": lambda expr, conv, _: claripy.SLE(conv(expr.operands[0]), conv(expr.operands[1])),
+    "CmpLT": lambda expr, conv, _: conv(expr.operands[0]) < conv(expr.operands[1]),
+    "CmpLTs": lambda expr, conv, _: claripy.SLT(conv(expr.operands[0]), conv(expr.operands[1])),
+    "CmpGE": lambda expr, conv, _: conv(expr.operands[0]) >= conv(expr.operands[1]),
+    "CmpGEs": lambda expr, conv, _: claripy.SGE(conv(expr.operands[0]), conv(expr.operands[1])),
+    "CmpGT": lambda expr, conv, _: conv(expr.operands[0]) > conv(expr.operands[1]),
+    "CmpGTs": lambda expr, conv, _: claripy.SGT(conv(expr.operands[0]), conv(expr.operands[1])),
+    "Add": lambda expr, conv, _: conv(expr.operands[0]) + conv(expr.operands[1]),
+    "Sub": lambda expr, conv, _: conv(expr.operands[0]) - conv(expr.operands[1]),
+    "Mul": lambda expr, conv, _: conv(expr.operands[0]) * conv(expr.operands[1]),
+    "Div": lambda expr, conv, _: conv(expr.operands[0]) / conv(expr.operands[1]),
+    "Not": lambda expr, conv, _: claripy.Not(conv(expr.operand)),
+    "Xor": lambda expr, conv, _: conv(expr.operands[0]) ^ conv(expr.operands[1]),
+    "And": lambda expr, conv, _: conv(expr.operands[0]) & conv(expr.operands[1]),
+    "Or": lambda expr, conv, _: conv(expr.operands[0]) | conv(expr.operands[1]),
+    "Shr": lambda expr, conv, _: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
+    "Shl": lambda expr, conv, _: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
+    "Sar": lambda expr, conv, _: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
+    # There are no corresponding claripy operations for the following operations
+    "DivMod": lambda expr, _, m: _dummy_bvs(expr, m),
+    "CmpF": lambda expr, _, m: _dummy_bvs(expr, m),
+    "Mull": lambda expr, _, m: _dummy_bvs(expr, m),
+    "Mulls": lambda expr, _, m: _dummy_bvs(expr, m),
+    "Reinterpret": lambda expr, _, m: _dummy_bvs(expr, m),
+}
+
+#
+# The ConditionProcessor class
+#
+
 
 class ConditionProcessor:
     """
@@ -637,60 +696,11 @@ class ConditionProcessor:
         if isinstance(condition, claripy.ast.Base):  # pylint:disable=isinstance-second-argument-not-valid-type
             return condition
 
-        def _op_with_unified_size(op, conv, operand0, operand1):
-            # ensure operand1 is of the same size as operand0
-            if isinstance(operand1, ailment.Expr.Const):
-                # amazing - we do the eazy thing here
-                return op(conv(operand0), operand1.value)
-            if operand1.bits == operand0.bits:
-                return op(conv(operand0), conv(operand1))
-            # extension is required
-            assert operand1.bits < operand0.bits
-            operand1 = ailment.Expr.Convert(None, operand1.bits, operand0.bits, False, operand1)
-            return op(conv(operand0), conv(operand1))
-
-        def _dummy_bvs(condition):
-            var = claripy.BVS("ailexpr_%s" % repr(condition), condition.bits, explicit_name=True)
-            self._condition_mapping[var.args[0]] = condition
-            return var
-
-        _mapping = {
-            "LogicalAnd": lambda expr, conv: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
-            "LogicalOr": lambda expr, conv: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
-            "CmpEQ": lambda expr, conv: conv(expr.operands[0]) == conv(expr.operands[1]),
-            "CmpNE": lambda expr, conv: conv(expr.operands[0]) != conv(expr.operands[1]),
-            "CmpLE": lambda expr, conv: conv(expr.operands[0]) <= conv(expr.operands[1]),
-            "CmpLEs": lambda expr, conv: claripy.SLE(conv(expr.operands[0]), conv(expr.operands[1])),
-            "CmpLT": lambda expr, conv: conv(expr.operands[0]) < conv(expr.operands[1]),
-            "CmpLTs": lambda expr, conv: claripy.SLT(conv(expr.operands[0]), conv(expr.operands[1])),
-            "CmpGE": lambda expr, conv: conv(expr.operands[0]) >= conv(expr.operands[1]),
-            "CmpGEs": lambda expr, conv: claripy.SGE(conv(expr.operands[0]), conv(expr.operands[1])),
-            "CmpGT": lambda expr, conv: conv(expr.operands[0]) > conv(expr.operands[1]),
-            "CmpGTs": lambda expr, conv: claripy.SGT(conv(expr.operands[0]), conv(expr.operands[1])),
-            "Add": lambda expr, conv: conv(expr.operands[0]) + conv(expr.operands[1]),
-            "Sub": lambda expr, conv: conv(expr.operands[0]) - conv(expr.operands[1]),
-            "Mul": lambda expr, conv: conv(expr.operands[0]) * conv(expr.operands[1]),
-            "Div": lambda expr, conv: conv(expr.operands[0]) / conv(expr.operands[1]),
-            "Not": lambda expr, conv: claripy.Not(conv(expr.operand)),
-            "Xor": lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
-            "And": lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
-            "Or": lambda expr, conv: conv(expr.operands[0]) | conv(expr.operands[1]),
-            "Shr": lambda expr, conv: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
-            "Shl": lambda expr, conv: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
-            "Sar": lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
-            # There are no corresponding claripy operations for the following operations
-            "DivMod": lambda expr, _: _dummy_bvs(expr),
-            "CmpF": lambda expr, _: _dummy_bvs(expr),
-            "Mull": lambda expr, _: _dummy_bvs(expr),
-            "Mulls": lambda expr, _: _dummy_bvs(expr),
-            "Reinterpret": lambda expr, _: _dummy_bvs(expr),
-        }
-
         if isinstance(
             condition,
             (ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE, ailment.Stmt.Call),
         ):
-            return _dummy_bvs(condition)
+            return _dummy_bvs(condition, self._condition_mapping)
         elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
             # does it have a variable associated?
             if condition.variable is not None:
@@ -724,29 +734,35 @@ class ConditionProcessor:
         elif isinstance(condition, ailment.Expr.Tmp):
             l.warning("Left-over ailment.Tmp variable %s.", condition)
             if condition.bits == 1:
-                var = claripy.BoolV("ailtmp_%d" % condition.tmp_idx)
+                var = claripy.BoolS("ailtmp_%d" % condition.tmp_idx, explicit_name=True)
             else:
                 var = claripy.BVS("ailtmp_%d" % condition.tmp_idx, condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.MultiStatementExpression):
             # just cache it
-            var = claripy.BVS("mstmtexpr_%d" % hash(condition), condition.bits, explicit_name=True)
+            if condition.bits == 1:
+                var = claripy.BoolS("mstmtexpr_%d" % hash(condition), explicit_name=True)
+            else:
+                var = claripy.BVS("mstmtexpr_%d" % hash(condition), condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
 
-        lambda_expr = _mapping.get(condition.verbose_op, None)
+        lambda_expr = _ail2claripy_op_mapping.get(condition.verbose_op, None)
         if lambda_expr is None:
             # fall back to op
-            lambda_expr = _mapping.get(condition.op, None)
+            lambda_expr = _ail2claripy_op_mapping.get(condition.op, None)
         if lambda_expr is None:
             raise NotImplementedError(
                 "Unsupported AIL expression operation %s or %s. Consider implementing."
                 % (condition.op, condition.verbose_op)
             )
-        r = lambda_expr(condition, self.claripy_ast_from_ail_condition)
+        r = lambda_expr(condition, self.claripy_ast_from_ail_condition, self._condition_mapping)
         if r is NotImplemented:
-            r = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
+            if condition.bits == 1:
+                r = claripy.BoolS("ailexpr_%r" % condition, explicit_name=True)
+            else:
+                r = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
             self._condition_mapping[r.args[0]] = condition
         # don't lose tags
         self._ast2annotations[r] = condition.tags
