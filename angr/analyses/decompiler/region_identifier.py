@@ -300,6 +300,22 @@ class RegionIdentifier(Analysis):
             for newnode, exits in newnode_to_initial_exits.items():
                 for exit_ in exits:
                     initial_exit_to_newnodes[exit_].add(newnode)
+
+            # filter initial_exit_to_newnodes and remove the subtrees with nodes that are reachable from nodes that are
+            # outside the current subtree
+            for initial_exit, subtree in list(initial_exit_to_newnodes.items()):
+                subtree_preds = set()
+                for node in subtree:
+                    preds = set(graph.predecessors(node))
+                    subtree_preds |= set(pred for pred in preds if pred not in subtree)
+                    if len(subtree_preds) > 1:
+                        # early break
+                        break
+
+                if len(subtree_preds) > 1:
+                    # there is more than one out-of-tree predecessor. remove this subtree
+                    del initial_exit_to_newnodes[initial_exit]
+
             if initial_exit_to_newnodes:
                 tree_sizes = {exit_: len(initial_exit_to_newnodes[exit_]) for exit_ in initial_exit_to_newnodes}
                 max_tree_size = max(tree_sizes.values())
