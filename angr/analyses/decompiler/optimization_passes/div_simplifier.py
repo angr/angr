@@ -42,7 +42,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                     if divisor:
                         X = operand_expr.operands[0].operands[0]
                         new_const = Expr.Const(expr.idx, None, divisor, 64)
-                        return Expr.BinaryOp(expr.idx, "DivMod", [X, new_const], expr.signed, **expr.tags)
+                        return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
 
         return super()._ail_handle_Convert(expr)
 
@@ -192,7 +192,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
 
         if divisor and X:
             new_const = Expr.Const(expr.idx, None, divisor, 64)
-            return Expr.BinaryOp(expr.idx, "DivMod", [X, new_const], expr.signed, **expr.tags)
+            return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
 
         if isinstance(operand_1, Expr.Const):
             if isinstance(operand_0, Expr.Register):
@@ -236,7 +236,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             if self._check_divisor(pow(2, V + Y), C, ndigits) and X:
                 divisor = self._check_divisor(pow(2, Y + V), C, ndigits)
                 new_const = Expr.Const(expr.idx, None, divisor, 64)
-                return Expr.BinaryOp(expr.idx, "DivMod", [X, new_const], expr.signed, **expr.tags)
+                return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
         if (
             isinstance(operand_1, Expr.Const)
             and isinstance(operand_0, Expr.Convert)
@@ -255,7 +255,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             if self._check_divisor(pow(2, V + Y), C, ndigits) and X:
                 divisor = self._check_divisor(pow(2, Y + V), C, ndigits)
                 new_const = Expr.Const(expr.idx, None, divisor, 64)
-                return Expr.BinaryOp(expr.idx, "DivMod", [X, new_const], expr.signed, **expr.tags)
+                return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
         return super()._ail_handle_Mul(expr)
 
     def _ail_handle_Div(self, expr):
