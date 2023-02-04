@@ -2073,6 +2073,31 @@ class TestDecompiler(unittest.TestCase):
         var_name = m.group(1)
         assert not re.search(f"atoi.*{var_name}", d.codegen.text)
 
+    @for_all_structuring_algos
+    def test_switch_case_shared_case_nodes_b2sum_digest(self, decompiler_options=None):
+        # node 0x4028c8 is shared by two switch-case constructs. we should not crash even when eager returns simplifier
+        # is disabled.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "b2sum-digest_shared_switch_nodes.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("switch") == 1
+
 
 if __name__ == "__main__":
     unittest.main()

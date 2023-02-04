@@ -90,6 +90,9 @@ class PhoenixStructurer(StructurerBase):
         # the set is populated during the analysis. _last_resort_refinement() will ensure not to remove any edges
         # who fall into these sets.
         self.whitelist_edges: Set[Tuple[int, int]] = set()
+        # also whitelist certain nodes that are definitely header for switch-case constructs. they should not be merged
+        # into another node before we successfully structure the entire switch-case.
+        self.switch_case_known_heads: Set[Block] = set()
 
         self._phoenix_improved = self._improve_structurer
         self._edge_virtualization_hints = []
@@ -863,6 +866,7 @@ class PhoenixStructurer(StructurerBase):
             self.whitelist_edges.add((node_a.addr, case_node_addr))
         self.whitelist_edges.add((node.addr, node_b_addr))
         self.whitelist_edges.add((node_a.addr, node_b_addr))
+        self.switch_case_known_heads.add(node)
 
         # sanity check: case nodes are successors to node_a. all case nodes must have at most common one successor
         node_pred = None
@@ -879,6 +883,9 @@ class PhoenixStructurer(StructurerBase):
                 case_node_successors |= {succ for succ in succs if succ.addr not in jump_table.jumptable_entries}
         if len(case_node_successors) > 1:
             return False
+
+        # we will definitely be able to structure this into a full switch-case. remove node from switch_case_known_heads
+        self.switch_case_known_heads.remove(node)
 
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
@@ -1176,10 +1183,14 @@ class PhoenixStructurer(StructurerBase):
         succs = list(graph.successors(start_node))
         if len(succs) == 1:
             end_node = succs[0]
+            jump_tables = self.kb.cfgs["CFGFast"].jump_tables
             if (
                 full_graph.out_degree[start_node] == 1
                 and full_graph.in_degree[end_node] == 1
                 and not full_graph.has_edge(end_node, start_node)
+                and end_node.addr not in jump_tables
+                and end_node not in self.switch_case_known_heads
+                and start_node not in self.switch_case_known_heads
             ):
                 # merge two blocks
                 new_seq = self._merge_nodes(start_node, end_node)
@@ -1199,6 +1210,10 @@ class PhoenixStructurer(StructurerBase):
         succs = list(full_graph.successors(start_node))
         if len(succs) == 2:
             left, right = succs
+            if left in self.switch_case_known_heads or right in self.switch_case_known_heads:
+                # structure the switch-case first before we wrap them into an ITE. give up
+                return False
+
             left_succs = list(full_graph.successors(left))
             right_succs = list(full_graph.successors(right))
 
