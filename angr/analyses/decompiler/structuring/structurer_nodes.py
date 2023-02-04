@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring
-from typing import List, Tuple, Any, Optional, Union, Dict
+from typing import List, Tuple, Any, Optional, Union, OrderedDict as ODict
+from collections import OrderedDict
 
 import claripy
 import ailment
@@ -345,9 +346,9 @@ class SwitchCaseNode(BaseNode):
         "addr",
     )
 
-    def __init__(self, switch_expr, cases, default_node, addr=None):
+    def __init__(self, switch_expr, cases: ODict[Union[int, Tuple[int]], SequenceNode], default_node, addr=None):
         self.switch_expr = switch_expr
-        self.cases: Dict[Union[int, Tuple[int]], SequenceNode] = cases
+        self.cases: ODict[Union[int, Tuple[int]], SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr
 
@@ -360,10 +361,10 @@ class IncompleteSwitchCaseNode(BaseNode):
 
     __slots__ = ("addr", "head", "cases")
 
-    def __init__(self, addr, head, cases):
+    def __init__(self, addr, head, cases: List):
         self.addr = addr
         self.head = head
-        self.cases = cases
+        self.cases: List = cases
 
 
 #

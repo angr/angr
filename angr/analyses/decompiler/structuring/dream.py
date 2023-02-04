@@ -1,7 +1,7 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
-from typing import Dict, Set, Optional, Any, List, Union, Tuple, TYPE_CHECKING
+from typing import Dict, Set, Optional, Any, List, Union, Tuple, OrderedDict as ODict, TYPE_CHECKING
 import logging
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import networkx
 
@@ -665,7 +665,18 @@ class DreamStructurer(StructurerBase):
         return True
 
     def _make_switch_cases_core(
-        self, seq, i, node, cmp_expr, cases, node_default, addr, addr2nodes, to_remove, node_a=None, jumptable_addr=None
+        self,
+        seq,
+        i,
+        node,
+        cmp_expr,
+        cases: ODict,
+        node_default,
+        addr,
+        addr2nodes,
+        to_remove,
+        node_a=None,
+        jumptable_addr=None,
     ):
 
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
@@ -908,7 +919,7 @@ class DreamStructurer(StructurerBase):
         head_node_idx: int,
         node_b_addr: int,
         addr2nodes: Dict[int, Set[CodeNode]],
-    ) -> Tuple[Dict, Any, Any]:
+    ) -> Tuple[ODict, Any, Any]:
         """
         Discover all cases for the switch-case structure and build the switch-cases dict.
 
@@ -921,7 +932,7 @@ class DreamStructurer(StructurerBase):
         :return:                    A tuple of (dict of cases, the default node if exists, nodes to remove).
         """
 
-        cases: Dict[Union[int, Tuple[int]], SequenceNode] = {}
+        cases: ODict[Union[int, Tuple[int, ...]], SequenceNode] = OrderedDict()
         to_remove = set()
         node_default = addr2nodes.get(node_b_addr, None)
         if node_default is not None:
@@ -1029,6 +1040,9 @@ class DreamStructurer(StructurerBase):
                 cases[tuple(sorted(cases_ids))] = converted_node
 
             self._new_sequences.append(converted_node)
+
+        # reorganize cases to handle fallthroughs
+        cases = self._reorganize_switch_cases(cases)
 
         return cases, node_default, to_remove
 

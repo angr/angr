@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from typing import Generator, Dict, Any, Optional, Set, List
 import operator
 import logging
@@ -349,7 +349,9 @@ class ConditionProcessor:
         elif isinstance(node, SwitchCaseNode):
             return SwitchCaseNode(
                 self.convert_claripy_bool_ast(node.switch_expr, memo=memo),
-                {idx: self.remove_claripy_bool_asts(case_node, memo=memo) for idx, case_node in node.cases.items()},
+                OrderedDict(
+                    (idx, self.remove_claripy_bool_asts(case_node, memo=memo)) for idx, case_node in node.cases.items()
+                ),
                 self.remove_claripy_bool_asts(node.default_node, memo=memo),
                 addr=node.addr,
             )

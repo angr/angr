@@ -1,4 +1,6 @@
 # pylint:disable=unused-argument,useless-return
+from collections import OrderedDict
+
 import ailment
 
 from ...errors import UnsupportedNodeTypeError
@@ -106,7 +108,7 @@ class SequenceWalker:
         self._handle(node.switch_expr, parent=node, label="switch_expr")
 
         changed = False
-        new_cases = {}
+        new_cases = OrderedDict()
         for idx in list(node.cases.keys()):
             case = node.cases[idx]
             new_case = self._handle(case, parent=node, index=idx, label="case")

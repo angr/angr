@@ -1,6 +1,6 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
-from typing import List, Dict, Tuple, Union, Set, Any, DefaultDict, Optional, TYPE_CHECKING
-from collections import defaultdict
+from typing import List, Dict, Tuple, Union, Set, Any, DefaultDict, Optional, OrderedDict as ODict, TYPE_CHECKING
+from collections import defaultdict, OrderedDict
 import logging
 
 import networkx
@@ -14,7 +14,6 @@ from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
-from ..condition_processor import ConditionProcessor
 from ..optimization_passes.lowered_switch_simplifier import LoweredSwitchSimplifier
 from ..utils import (
     remove_last_statement,
@@ -1006,8 +1005,8 @@ class PhoenixStructurer(StructurerBase):
 
     def _switch_build_cases(
         self, case_and_entryaddrs: Dict[int, int], head_node, node_a: BaseNode, node_b_addr, graph, full_graph
-    ) -> Tuple[Dict, Any, Set[Any]]:
-        cases: Dict[Union[int, Tuple[int]], SequenceNode] = {}
+    ) -> Tuple[ODict, Any, Set[Any]]:
+        cases: ODict[Union[int, Tuple[int]], SequenceNode] = OrderedDict()
         to_remove = set()
 
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
@@ -1083,13 +1082,16 @@ class PhoenixStructurer(StructurerBase):
             else:
                 cases[tuple(sorted(case_ids))] = converted_node
 
+        # reorganize cases to handle fallthroughs
+        cases = self._reorganize_switch_cases(cases)
+
         return cases, node_default, to_remove
 
     def _make_switch_cases_core(
         self,
         head,
         cmp_expr,
-        cases,
+        cases: ODict,
         node_default,
         addr,
         to_remove: Set,
@@ -2084,17 +2086,6 @@ class PhoenixStructurer(StructurerBase):
                         continue
                     return PhoenixStructurer._remove_first_statement_if_jump(nn)
                 break
-        return None
-
-    @staticmethod
-    def _remove_last_statement_if_jump(node: Union[BaseNode, Block]) -> Optional[Union[Jump, ConditionalJump]]:
-        try:
-            last_stmts = ConditionProcessor.get_last_statements(node)
-        except EmptyBlockNotice:
-            return None
-
-        if len(last_stmts) == 1 and isinstance(last_stmts[0], (Jump, ConditionalJump)):
-            return remove_last_statement(node)
         return None
 
     @staticmethod
