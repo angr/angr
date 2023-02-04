@@ -206,7 +206,7 @@ class PhoenixStructurer(StructurerBase):
 
         matched, loop_node = self._match_cyclic_natural_loop(node, head, graph, full_graph)
         if matched:
-            if len(self._region.successors) == 1:
+            if self._region.successors is not None and len(self._region.successors) == 1:
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(
                     loop_node.sequence_node, [succ.addr for succ in self._region.successors]
