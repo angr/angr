@@ -307,7 +307,7 @@ class RegionIdentifier(Analysis):
                 subtree_preds = set()
                 for node in subtree:
                     preds = set(graph.predecessors(node))
-                    subtree_preds |= set(pred for pred in preds if pred not in subtree)
+                    subtree_preds |= {pred for pred in preds if pred not in subtree}
                     if len(subtree_preds) > 1:
                         # early break
                         break
