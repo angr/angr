@@ -157,10 +157,12 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     if self._graph.in_degree[comp] > 1:
                         break
 
-                successors = list(self._graph.successors(comp))
+                successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
                 succ_addrs = {succ.addr for succ in successors}
                 if target in succ_addrs:
-                    next_comp_addr = next(iter(succ_addr for succ_addr in succ_addrs if succ_addr != target))
+                    next_comp_addr = next(iter(succ_addr for succ_addr in succ_addrs if succ_addr != target), None)
+                    if next_comp_addr is None:
+                        break
                     next_comp = self._get_block(next_comp_addr)
                     assert next_comp is not None
                     if next_comp in variable_comparisons:
