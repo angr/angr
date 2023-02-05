@@ -1,6 +1,5 @@
 # pylint:disable=missing-class-docstring
 from typing import List, Tuple, Any, Optional, Union, OrderedDict as ODict
-from collections import OrderedDict
 
 import claripy
 import ailment
