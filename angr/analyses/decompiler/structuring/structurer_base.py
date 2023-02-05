@@ -1,6 +1,6 @@
 # pylint:disable=unused-argument
-from typing import Optional, Dict, Set, List, Any, Union, TYPE_CHECKING
-from collections import defaultdict
+from typing import Optional, Dict, Set, List, Any, Union, Tuple, OrderedDict as ODict, TYPE_CHECKING
+from collections import defaultdict, OrderedDict
 import logging
 
 import networkx
@@ -11,7 +11,7 @@ import claripy
 from ... import Analysis
 from ..condition_processor import ConditionProcessor
 from ..sequence_walker import SequenceWalker
-from ..utils import extract_jump_targets, insert_node
+from ..utils import extract_jump_targets, insert_node, remove_last_statement
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,
@@ -24,6 +24,7 @@ from .structurer_nodes import (
     CascadingConditionNode,
     BreakNode,
     LoopNode,
+    EmptyBlockNotice,
 )
 
 if TYPE_CHECKING:
@@ -681,6 +682,93 @@ class StructurerBase(Analysis):
     #
     # Util methods
     #
+
+    def _reorganize_switch_cases(
+        self, cases: ODict[Union[int, Tuple[int, ...]], SequenceNode]
+    ) -> ODict[Union[int, Tuple[int, ...]], SequenceNode]:
+
+        new_cases = OrderedDict()
+
+        caseid2gotoaddrs = {}
+        addr2caseids: Dict[int, List[int, Tuple[int, ...]]] = defaultdict(list)
+
+        # collect goto locations
+        for idx, case_node in cases.items():
+            addr2caseids[case_node.addr].append(idx)
+            try:
+                last_stmt = self.cond_proc.get_last_statement(case_node)
+            except EmptyBlockNotice:
+                continue
+
+            if not isinstance(last_stmt, ailment.Stmt.Jump):
+                continue
+            if not isinstance(last_stmt.target, ailment.Expr.Const):
+                continue
+            caseid2gotoaddrs[idx] = last_stmt.target.value
+
+        graph = networkx.DiGraph()
+        for idx, goto_addr in caseid2gotoaddrs.items():
+            if goto_addr not in addr2caseids:
+                continue
+            case_ids = addr2caseids[goto_addr]
+            if len(case_ids) != 1:
+                # multiple nodes sharing the same address? weird
+                continue
+            successor_case_id = case_ids[0]
+
+            # ensure each node has at most one successor and one predecessor
+            if (idx not in graph or graph.out_degree[idx] == 0) and (
+                successor_case_id not in graph or graph.in_degree[successor_case_id] == 0
+            ):
+                graph.add_edge(idx, successor_case_id)
+
+        if not graph:
+            # nothing to shuffle
+            return cases
+
+        # just in case, we break loops
+        while True:
+            try:
+                cycle = networkx.find_cycle(graph)
+            except networkx.NetworkXNoCycle:
+                break
+            graph.remove_edge(*cycle[0])
+
+        # reshuffle case nodes
+        starting_case_ids = []
+        for idx, case_node in cases.items():
+            if idx not in graph:
+                new_cases[idx] = case_node
+                continue
+            if graph.in_degree[idx] == 0:
+                starting_case_ids.append(idx)
+                continue
+
+        for idx in starting_case_ids:
+            new_cases[idx] = cases[idx]
+            self._remove_last_statement_if_jump(new_cases[idx])
+            succs = networkx.dfs_successors(graph, idx)
+            idx_ = idx
+            while idx_ in succs:
+                idx_ = succs[idx_][0]
+                new_cases[idx_] = cases[idx_]
+
+        assert len(new_cases) == len(cases)
+
+        return new_cases
+
+    @staticmethod
+    def _remove_last_statement_if_jump(
+        node: Union[BaseNode, ailment.Block]
+    ) -> Optional[Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump]]:
+        try:
+            last_stmts = ConditionProcessor.get_last_statements(node)
+        except EmptyBlockNotice:
+            return None
+
+        if len(last_stmts) == 1 and isinstance(last_stmts[0], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+            return remove_last_statement(node)
+        return None
 
     @staticmethod
     def _merge_nodes(node_0, node_1):

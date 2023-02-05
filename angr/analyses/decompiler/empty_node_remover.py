@@ -1,4 +1,6 @@
 # pylint:disable=unused-argument,no-self-use
+from collections import OrderedDict
+
 import claripy
 import ailment
 
@@ -184,7 +186,7 @@ class EmptyNodeRemover:
 
     def _handle_SwitchCase(self, node, **kwargs):
 
-        new_cases = {}
+        new_cases = OrderedDict()
 
         for idx, case in node.cases.items():
             new_case = self._walker._handle(case)
