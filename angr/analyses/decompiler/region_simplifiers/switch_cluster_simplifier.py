@@ -298,7 +298,7 @@ def simplify_switch_clusters(
             continue
 
         # there is at most one default node
-        default_node_addrs = set(r.node.default_node.addr for r in switch_regions if r.node.default_node is not None)
+        default_node_addrs = {r.node.default_node.addr for r in switch_regions if r.node.default_node is not None}
         if len(default_node_addrs) > 1:
             continue
 
