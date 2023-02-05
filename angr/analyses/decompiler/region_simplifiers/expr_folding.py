@@ -8,7 +8,13 @@ from ailment.statement import Statement, Assignment, Call
 
 from ..ailblock_walker import AILBlockWalker
 from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode, CascadingConditionNode
+from ..structuring.structurer_nodes import (
+    ConditionNode,
+    ConditionalBreakNode,
+    LoopNode,
+    CascadingConditionNode,
+    SwitchCaseNode,
+)
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
@@ -187,6 +193,7 @@ class ExpressionCounter(SequenceWalker):
             ConditionalBreakNode: self._handle_ConditionalBreak,
             ConditionNode: self._handle_Condition,
             LoopNode: self._handle_Loop,
+            SwitchCaseNode: self._handle_SwitchCase,
             ailment.Block: self._handle_Block,
         }
 
@@ -289,6 +296,10 @@ class ExpressionCounter(SequenceWalker):
             self._collect_uses(node.condition, ConditionLocation(node.addr))
         return super()._handle_Loop(node, **kwargs)
 
+    def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
+        self._collect_uses(node.switch_expr, ConditionLocation(node.addr))
+        return super()._handle_SwitchCase(node, **kwargs)
+
 
 class ExpressionReplacer(AILBlockWalker):
     def __init__(self, assignments: Dict, uses: Dict, variable_manager):
@@ -342,6 +353,7 @@ class ExpressionFolder(SequenceWalker):
             ailment.Block: self._handle_Block,
             ConditionNode: self._handle_Condition,
             ConditionalBreakNode: self._handle_ConditionalBreak,
+            SwitchCaseNode: self._handle_SwitchCase,
         }
 
         super().__init__(handlers)
@@ -426,6 +438,15 @@ class ExpressionFolder(SequenceWalker):
                 node.condition = r
 
         return super()._handle_Loop(node, **kwargs)
+
+    def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
+        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
+
+        r = replacer.walk_expression(node.switch_expr)
+        if r is not None and r is not node.switch_expr:
+            node.switch_expr = r
+
+        return super()._handle_SwitchCase(node, **kwargs)
 
 
 class StoreStatementFinder(SequenceWalker):
