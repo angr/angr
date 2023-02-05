@@ -1381,7 +1381,9 @@ class TestDecompiler(unittest.TestCase):
 
         # ensure the default case node is not duplicated
         cases = set(re.findall(r"case \d+:", d.codegen.text))
-        assert cases.issuperset({"case 0:", "case 4:", "case 13:", "case 16:", "case 17:", "case 18:", "case 20:"})
+        assert cases.issuperset(
+            {"case 99:", "case 103:", "case 112:", "case 115:", "case 116:", "case 117:", "case 119:"}
+        )
 
     @for_all_structuring_algos
     def test_expr_collapsing(self, decompiler_options=None):
