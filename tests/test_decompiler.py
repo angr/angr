@@ -1381,7 +1381,9 @@ class TestDecompiler(unittest.TestCase):
 
         # ensure the default case node is not duplicated
         cases = set(re.findall(r"case \d+:", d.codegen.text))
-        assert cases.issuperset({"case 0:", "case 4:", "case 13:", "case 16:", "case 17:", "case 18:", "case 20:"})
+        assert cases.issuperset(
+            {"case 99:", "case 103:", "case 112:", "case 115:", "case 116:", "case 117:", "case 119:"}
+        )
 
     @for_all_structuring_algos
     def test_expr_collapsing(self, decompiler_options=None):
@@ -2031,6 +2033,58 @@ class TestDecompiler(unittest.TestCase):
         # assert "goto" not in d.codegen.text
         assert d.codegen.text.count("switch ") == 1
         assert d.codegen.text.count("case 92:") == 1
+
+    @structuring_algo("phoenix")
+    def test_reverting_switch_clustering_and_lowering_cat_main(self, decompiler_options=None):
+        # nested switch-cases
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "cat.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes += [angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier]
+
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("switch (") == 1
+        assert (
+            "> 118" not in d.codegen.text and ">= 119" not in d.codegen.text
+        )  # > 118 (>= 119) goes to the default case
+
+    @structuring_algo("phoenix")
+    def test_reverting_switch_clustering_and_lowering_cat_main_no_endpoint_dup(self, decompiler_options=None):
+        # nested switch-cases
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "cat.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        # turn off eager returns simplifier
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+        all_optimization_passes += [angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier]
+
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("switch (") == 1
+        assert (
+            "> 118" not in d.codegen.text and ">= 119" not in d.codegen.text
+        )  # > 118 (>= 119) goes to the default case
 
     @structuring_algo("phoenix")
     def test_comma_separated_statement_expression_whoami(self, decompiler_options=None):

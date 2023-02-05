@@ -345,9 +345,9 @@ class SwitchCaseNode(BaseNode):
         "addr",
     )
 
-    def __init__(self, switch_expr, cases: ODict[Union[int, Tuple[int]], SequenceNode], default_node, addr=None):
+    def __init__(self, switch_expr, cases: ODict[Union[int, Tuple[int, ...]], SequenceNode], default_node, addr=None):
         self.switch_expr = switch_expr
-        self.cases: ODict[Union[int, Tuple[int]], SequenceNode] = cases
+        self.cases: ODict[Union[int, Tuple[int, ...]], SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr
 

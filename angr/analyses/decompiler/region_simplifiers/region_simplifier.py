@@ -12,6 +12,8 @@ from .ifelse import IfElseFlattener
 from .loop import LoopSimplifier
 from .expr_folding import ExpressionCounter, ExpressionFolder, StoreStatementFinder, ExpressionLocation
 from .cascading_cond_transformer import CascadingConditionTransformer
+from .switch_expr_simplifier import SwitchExpressionSimplifier
+from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters
 
 
 class RegionSimplifier(Analysis):
@@ -52,6 +54,14 @@ class RegionSimplifier(Analysis):
             r = self._fold_oneuse_expressions(r)
             r = self._remove_empty_nodes(r)
 
+        # Simplify switch expressions
+        r = self._simplify_switch_expressions(r)
+        # Simplify switch clusters
+        r = self._simplify_switch_clusters(r)
+        # Again, remove labels that are not referenced by anything
+        r = self._simplify_labels(r)
+        # Remove empty nodes
+        r = self._remove_empty_nodes(r)
         # Remove unnecessary else branches if the if branch will always return
         r = self._simplify_ifelses(r)
         #
@@ -135,6 +145,17 @@ class RegionSimplifier(Analysis):
 
         # replace them
         ExpressionFolder(variable_assignments, variable_uses, region, variable_manager)
+        return region
+
+    @staticmethod
+    def _simplify_switch_expressions(region):
+        SwitchExpressionSimplifier(region)
+        return region
+
+    @staticmethod
+    def _simplify_switch_clusters(region):
+        finder = SwitchClusterFinder(region)
+        simplify_switch_clusters(region, finder.var2condnodes, finder.var2switches)
         return region
 
     @staticmethod
