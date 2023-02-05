@@ -10,6 +10,10 @@ from ..sequence_walker import SequenceWalker
 
 
 class CmpOp(enum.Enum):
+    """
+    All supported comparison operators.
+    """
+
     LT = 0
     GT = 1
     EQ = 2
@@ -17,6 +21,18 @@ class CmpOp(enum.Enum):
 
 
 class ConditionalRegion:
+    """
+    Describes a conditional region.
+    """
+
+    __slots__ = (
+        "variable",
+        "op",
+        "value",
+        "node",
+        "parent",
+    )
+
     def __init__(self, variable, op: CmpOp, value: int, node: Union[ConditionNode, ailment.Block], parent=None):
         self.variable = variable
         self.op = op
@@ -29,6 +45,16 @@ class ConditionalRegion:
 
 
 class SwitchCaseRegion:
+    """
+    Describes an already-recovered switch region.
+    """
+
+    __slots__ = (
+        "variable",
+        "node",
+        "parent",
+    )
+
     def __init__(self, variable, node: SwitchCaseNode, parent=None):
         self.variable = variable
         self.node = node
@@ -56,7 +82,7 @@ class SwitchClusterFinder(SequenceWalker):
 
         self.walk(node)
 
-    def _handle_Block(self, node: ailment.Block, parent=None, **kwargs):
+    def _handle_Block(self, node: ailment.Block, parent=None, **kwargs):  # pylint:disable=unused-argument
         if node.statements and isinstance(node.statements[-1], ailment.Stmt.ConditionalJump):
             cond = node.statements[-1].condition
             self._process_condition(cond, node, parent)
@@ -125,7 +151,7 @@ class SwitchClusterFinder(SequenceWalker):
 
 class SwitchClusterReplacer(SequenceWalker):
     """
-    Find comparisons and switches in order to identify switch clusters.
+    Replace an identified switch cluster with a newly created SwitchCase node.
     """
 
     def __init__(self, region, to_replace, replace_with):
@@ -264,7 +290,7 @@ def simplify_switch_clusters(
                         switch_region_to_parent_region[r] = (cr, "true")
                         used_condnodes_and_branch.add((cr, "true"))
                         break
-                    elif cr.node.false_node is r.node:
+                    if cr.node.false_node is r.node:
                         switch_region_to_parent_region[r] = (cr, "false")
                         used_condnodes_and_branch.add((cr, "false"))
                         break
