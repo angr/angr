@@ -61,7 +61,6 @@ class VEXExprConverter(Converter):
 
     @staticmethod
     def convert_list(exprs, manager):
-
         converted = []
         for expr in exprs:
             converted.append(VEXExprConverter.convert(expr, manager))
@@ -376,7 +375,6 @@ class VEXStmtConverter(Converter):
 
     @staticmethod
     def WrTmp(idx, stmt, manager):
-
         var = VEXExprConverter.tmp(stmt.tmp, stmt.data.result_size(manager.tyenv), manager)
         reg = VEXExprConverter.convert(stmt.data, manager)
 
@@ -404,7 +402,6 @@ class VEXStmtConverter(Converter):
 
     @staticmethod
     def Store(idx, stmt, manager):
-
         return Store(
             idx,
             VEXExprConverter.convert(stmt.addr, manager),
@@ -418,7 +415,6 @@ class VEXStmtConverter(Converter):
 
     @staticmethod
     def Exit(idx, stmt, manager):
-
         if stmt.jumpkind in {
             "Ijk_EmWarn",
             "Ijk_NoDecode",
@@ -443,7 +439,6 @@ class VEXStmtConverter(Converter):
 
     @staticmethod
     def LoadG(idx, stmt: pyvex.IRStmt.LoadG, manager):
-
         sizes = {
             "ILGop_Ident32": (32, 32, False),
             "ILGop_Ident64": (64, 64, False),
@@ -478,7 +473,6 @@ class VEXStmtConverter(Converter):
 
     @staticmethod
     def StoreG(idx, stmt: pyvex.IRStmt.StoreG, manager):
-
         return Store(
             idx,
             VEXExprConverter.convert(stmt.addr, manager),

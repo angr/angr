@@ -70,7 +70,6 @@ class Assignment(Statement):
         return f"{str(self.dst)} = {str(self.src)}"
 
     def replace(self, old_expr, new_expr):
-
         if self.dst == old_expr:
             r_dst = True
             replaced_dst = new_expr
@@ -93,7 +92,6 @@ class Assignment(Statement):
 
 
 class Store(Statement):
-
     __slots__ = (
         "addr",
         "size",
@@ -213,7 +211,6 @@ class Store(Statement):
 
 
 class Jump(Statement):
-
     __slots__ = (
         "target",
         "target_idx",
@@ -263,7 +260,6 @@ class Jump(Statement):
 
 
 class ConditionalJump(Statement):
-
     __slots__ = (
         "condition",
         "true_target",
@@ -402,7 +398,6 @@ class Call(Expression, Statement):
         return f"Call (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
 
     def __str__(self):
-
         cc = "Unknown CC" if self.calling_convention is None else "%s" % self.calling_convention
         if self.args is None:
             if self.calling_convention is not None:
@@ -512,7 +507,6 @@ class Call(Expression, Statement):
 
 
 class Return(Statement):
-
     __slots__ = (
         "target",
         "ret_exprs",
@@ -555,7 +549,6 @@ class Return(Statement):
             return "return %s;" % exprs
 
     def replace(self, old_expr, new_expr):
-
         new_ret_exprs = []
         replaced = False
 

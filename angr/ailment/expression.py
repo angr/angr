@@ -58,7 +58,6 @@ class Expression(TaggedObject):
 
 
 class Atom(Expression):
-
     __slots__ = (
         "variable",
         "variable_offset",
@@ -77,7 +76,6 @@ class Atom(Expression):
 
 
 class Const(Atom):
-
     __slots__ = (
         "value",
         "bits",
@@ -119,7 +117,6 @@ class Const(Atom):
 
 
 class Tmp(Atom):
-
     __slots__ = (
         "tmp_idx",
         "bits",
@@ -154,7 +151,6 @@ class Tmp(Atom):
 
 
 class Register(Atom):
-
     __slots__ = (
         "reg_offset",
         "bits",
@@ -194,7 +190,6 @@ class Register(Atom):
 
 
 class Op(Expression):
-
     __slots__ = ("op",)
 
     def __init__(self, idx, depth, op, **kwargs):
@@ -207,7 +202,6 @@ class Op(Expression):
 
 
 class UnaryOp(Op):
-
     __slots__ = (
         "operand",
         "bits",
@@ -267,7 +261,6 @@ class UnaryOp(Op):
 
 
 class Convert(UnaryOp):
-
     TYPE_INT = 0
     TYPE_FP = 1
 
@@ -385,7 +378,6 @@ class Convert(UnaryOp):
 
 
 class Reinterpret(UnaryOp):
-
     __slots__ = (
         "from_bits",
         "from_type",
@@ -455,7 +447,6 @@ class Reinterpret(UnaryOp):
 
 
 class BinaryOp(Op):
-
     __slots__ = (
         "operands",
         "bits",
@@ -672,7 +663,6 @@ class BinaryOp(Op):
 
 
 class TernaryOp(Op):
-
     OPSTR_MAP = {}
 
     __slots__ = (
@@ -776,7 +766,6 @@ class TernaryOp(Op):
 
 
 class Load(Expression):
-
     __slots__ = (
         "addr",
         "size",
@@ -865,7 +854,6 @@ class Load(Expression):
 
 
 class ITE(Expression):
-
     __slots__ = (
         "cond",
         "iffalse",
@@ -943,7 +931,6 @@ class ITE(Expression):
 
 
 class DirtyExpression(Expression):
-
     __slots__ = (
         "dirty_expr",
         "bits",
@@ -991,7 +978,6 @@ class DirtyExpression(Expression):
 
 
 class VEXCCallExpression(Expression):
-
     __slots__ = (
         "cee_name",
         "operands",
@@ -1119,7 +1105,6 @@ class MultiStatementExpression(Expression):
 
 
 class BasePointerOffset(Expression):
-
     __slots__ = (
         "bits",
         "base",
@@ -1186,7 +1171,6 @@ class BasePointerOffset(Expression):
 
 
 class StackBaseOffset(BasePointerOffset):
-
     __slots__ = ()
 
     def __init__(self, idx, bits, offset, **kwargs):
