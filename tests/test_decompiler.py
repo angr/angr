@@ -1959,7 +1959,6 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
-
         f = proj.kb.functions["print_many_per_line"]
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
@@ -1967,6 +1966,33 @@ class TestDecompiler(unittest.TestCase):
         # it should make somewhat sense
         assert "calculate_columns(" in d.codegen.text
         assert "putchar_unlocked(eolbyte)" in d.codegen.text
+
+    def test_decompiling_tr_build_spec_list(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["build_spec_list"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        # lowered-switch simplifier cannot be enabled. otherwise we will have an extra goto that goes into the fake
+        # switch-case.
+
+        # also, setting max_level to 3 in EagerReturnsSimplifier will eliminate the other unexpected goto
+
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("goto ") == 3
+        assert d.codegen.text.count("goto LABEL_400d08;") == 2
+        # goto 400e40 this is the fake goto that can be eliminated if cross-jumping reverter is present
+        assert d.codegen.text.count("goto LABEL_400e40;") == 1
 
     @for_all_structuring_algos
     def test_eliminating_stack_canary_reused_stack_chk_fail_call(self, decompiler_options=None):
