@@ -1800,7 +1800,7 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         ordered_nodes = CFGUtils.quasi_topological_sort_nodes(acyclic_graph, loop_heads=[head])
-        node_seq = dict((nn, idx) for (idx, nn) in enumerate(ordered_nodes))
+        node_seq = {nn: idx for (idx, nn) in enumerate(ordered_nodes)}
 
         if all_edges_wo_dominance:
             all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance, node_seq)
