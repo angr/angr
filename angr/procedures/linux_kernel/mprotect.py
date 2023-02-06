@@ -6,7 +6,6 @@ l = logging.getLogger(name=__name__)
 
 class mprotect(angr.SimProcedure):
     def run(self, addr, length, prot):  # pylint:disable=arguments-differ,unused-argument
-
         try:
             addr = self.state.solver.eval_one(addr)
         except angr.errors.SimValueError:

@@ -12,7 +12,6 @@ class ConvConstMullAShift(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)
 
     def optimize(self, expr: Convert):
-
         if expr.from_bits == 64 and expr.to_bits == 32:
             if (
                 isinstance(expr.operand, BinaryOp)

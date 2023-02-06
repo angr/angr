@@ -83,7 +83,6 @@ CAPSTONE_REG_MAP = {
 
 
 def string_escape(s):
-
     if isinstance(s, bytes):
         s = "".join(chr(i) for i in s)
 
@@ -111,7 +110,6 @@ def fill_reg_map():
 
 
 def split_operands(s):
-
     operands = []
     operand = ""
     in_paranthesis = False
@@ -147,7 +145,6 @@ class Label:
     g_label_ctr = count()
 
     def __init__(self, binary, name, original_addr=None):
-
         self.binary = binary
         self.name = name
 
@@ -334,7 +331,6 @@ class SymbolManager:
             i += 1
 
     def new_label(self, addr, name=None, is_function=None, force=False):
-
         if force:
             if self.binary.main_nonexecutable_regions_contain(addr):
                 label = DataLabel(self.binary, addr, name=name)
@@ -490,7 +486,6 @@ class Operand:
                 return self.label.operand_str
 
         elif self.type == OP_TYPE_MEM:
-
             disp = ""
             if self.disp:
                 if self.disp_label:
@@ -615,7 +610,6 @@ class Operand:
     #
 
     def _initialize(self, capstone_operand):
-
         arch_name = self.project.arch.name
         self.type = CAPSTONE_OP_TYPE_MAP[arch_name][capstone_operand.type]
 
@@ -638,7 +632,6 @@ class Operand:
                 self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.operand_offset)
 
         elif self.type == OP_TYPE_MEM:
-
             self.base = capstone_operand.mem.base
             self.index = capstone_operand.mem.index
             self.scale = capstone_operand.mem.scale
@@ -759,7 +752,6 @@ class Instruction:
     #
 
     def assign_labels(self):
-
         if self.addr in self.binary.symbol_manager.addr_to_label:
             labels = self.binary.symbol_manager.addr_to_label[self.addr]
             for label in labels:
@@ -926,7 +918,6 @@ class BasicBlock:
         return self.assembly(symbolized=False)
 
     def __repr__(self):
-
         return "<BasicBlock %#08x>" % self.addr
 
     #
@@ -1170,7 +1161,6 @@ class Procedure:
     #
 
     def _initialize(self):
-
         if self.function is None:
             if not self.asm_code:
                 raise BinaryError(
@@ -1257,7 +1247,6 @@ class Data:
         addr=None,
         initial_content=None,
     ):
-
         self.binary = binary
         self.project = binary.project
         self.memory_data = memory_data
@@ -1336,7 +1325,6 @@ class Data:
         self.content = [content]
 
     def assign_labels(self):
-
         # TODO: What if it's not aligned for some sort of data, like pointer array?
 
         if self.addr is None:
@@ -1375,7 +1363,6 @@ class Data:
             return s
 
         if self.sort == MemoryDataSort.String:
-
             if symbolized:
                 ss = []
                 last_pos = 0
@@ -1424,7 +1411,6 @@ class Data:
             s += "\n"
 
         elif self.sort == MemoryDataSort.PointerArray:
-
             if self.binary.project.arch.bits == 32:
                 directive = ".long"
             elif self.binary.project.arch.bits == 64:
@@ -1443,7 +1429,6 @@ class Data:
                 if self.name is not None:
                     s += "%s:\n" % self.name
                 for symbolized_label in self.content:
-
                     if self.addr is not None and (self.addr + i) in addr_to_labels:
                         for label in addr_to_labels[self.addr + i]:
                             s += "%s\n" % str(label)
@@ -1463,7 +1448,6 @@ class Data:
                     s += f"\t{directive} {label.operand_str}\n"
 
         elif self.sort == MemoryDataSort.SegmentBoundary:
-
             if symbolized:
                 for _, label in self.labels:
                     s += "\t%s\n" % str(label)
@@ -1608,14 +1592,11 @@ class Data:
     #
 
     def _initialize(self):
-
         if self.memory_data is None:
-
             if self.size is None or self._initial_content is None and self.sort is None:
                 raise BinaryError("You must at least specify size, initial_content, and sort.")
 
             if self.sort == MemoryDataSort.PointerArray:
-
                 lbl = DataLabel(self.binary, -1, name=self.name)
                 self.labels.append((0, lbl))
 
@@ -1654,7 +1635,6 @@ class Data:
                     self._content.append(label)
 
             elif self.sort in {MemoryDataSort.String, MemoryDataSort.Unknown, MemoryDataSort.Integer}:
-
                 lbl = DataLabel(self.binary, -1, name=self.name)
                 self.labels.append((0, lbl))
 
@@ -1762,7 +1742,6 @@ class Reassembler(Analysis):
     """
 
     def __init__(self, syntax="intel", remove_cgc_attachments=True, log_relocations=True):
-
         self.syntax = syntax
         self._remove_cgc_attachments = remove_cgc_attachments
 
@@ -1826,7 +1805,6 @@ class Reassembler(Analysis):
 
     @property
     def relocations(self):
-
         return self._relocations
 
     @property
@@ -1995,7 +1973,6 @@ class Reassembler(Analysis):
         return False, None
 
     def register_instruction_reference(self, insn_addr, ref_addr, sort, operand_offset):
-
         if not self.log_relocations:
             return
 
@@ -2005,7 +1982,6 @@ class Reassembler(Analysis):
         self._relocations.append(r)
 
     def register_data_reference(self, data_addr, ref_addr):
-
         if not self.log_relocations:
             return
 
@@ -2108,7 +2084,6 @@ class Reassembler(Analysis):
         raise NotImplementedError()
 
     def symbolize(self):
-
         # clear the flag
         self._symbolization_needed = False
 
@@ -2166,7 +2141,6 @@ class Reassembler(Analysis):
                 proc.assign_labels()
 
     def assembly(self, comments=False, symbolized=True):
-
         if symbolized and self._symbolization_needed:
             self.symbolize()
 
@@ -2532,7 +2506,6 @@ class Reassembler(Analysis):
 
         l.debug("Creating data entries...")
         for addr, memory_data in cfg._memory_data.items():
-
             if memory_data.sort in ("code reference",):
                 continue
 
@@ -2623,7 +2596,6 @@ class Reassembler(Analysis):
 
         if has_sections:
             for section in self.project.loader.main_object.sections:
-
                 if section.name in section_names_to_ignore:
                     # skip all sections that are CGC specific
                     continue
@@ -2657,7 +2629,6 @@ class Reassembler(Analysis):
 
         # Go through data entry list and refine them
         for i, data in enumerate(self.data):
-
             if i in data_indices_to_remove:
                 continue
 
@@ -2908,7 +2879,6 @@ class Reassembler(Analysis):
             return False
 
         for candidate in candidates:
-
             # if the candidate is in .bss, we don't care about it
             sec = self.cfg.project.loader.find_section_containing(candidate.address)
             if sec.name in (".bss", ".got.plt"):

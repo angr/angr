@@ -37,7 +37,6 @@ class deallocate(angr.SimProcedure):
 
         # only add sinkholes and unmap on success
         if self.state.solver.max_int(r) == 0:
-
             # shorten length
             allowed_pages = 0
             while (

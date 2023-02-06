@@ -10,7 +10,6 @@ class OneSubBool(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
-
         # Sub(1, Conv(1->N, some bool expression)) ==> Conv(1->N, Not(some bool expression))
         if (
             expr.op == "Sub"

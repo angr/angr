@@ -62,7 +62,6 @@ class LoopSimplifier(SequenceWalker):
     def _handle_cascadingconditionnode(
         self, node: CascadingConditionNode, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs
     ):
-
         for _, child_node in node.condition_and_nodes:
             self._handle(
                 child_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor

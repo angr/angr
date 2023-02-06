@@ -8,7 +8,6 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 
 
 def test_function_prototype():
-
     proj = angr.Project(os.path.join(test_location, "x86_64", "all"), auto_load_libs=False)
 
     func = angr.knowledge_plugins.Function(proj.kb.functions, 0x100000, name="strcmp")

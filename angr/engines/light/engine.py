@@ -73,7 +73,6 @@ class SimEngineLight(
     SimEngine,
 ):
     def __init__(self):
-
         logger = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
         super().__init__(logger=logger)
 
@@ -131,7 +130,6 @@ class SimEngineLight(
 # noinspection PyPep8Naming
 class SimEngineLightVEXMixin(SimEngineLightMixin):
     def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
-
         # initialize local variables
         self.tmps = {}
         self.block = block
@@ -148,7 +146,6 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         self.ins_addr = None
 
     def _process_Stmt(self, whitelist=None):
-
         if whitelist is not None:
             # optimize whitelist lookups
             whitelist = set(whitelist)
@@ -226,7 +223,6 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
     #
 
     def _expr(self, expr):
-
         handler = "_handle_%s" % type(expr).__name__
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
@@ -785,7 +781,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _process(
         self, state, successors, *args, block=None, whitelist=None, **kwargs
     ):  # pylint:disable=arguments-differ
-
         self.tmps = {}
         self.block: ailment.Block = block
         self.state = state
@@ -797,7 +792,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         self.ins_addr = None
 
     def _process_Stmt(self, whitelist=None):
-
         if whitelist is not None:
             whitelist = set(whitelist)
 
@@ -811,7 +805,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             self._handle_Stmt(stmt)
 
     def _expr(self, expr):
-
         expr_type_name = type(expr).__name__
         if isinstance(expr, ailment.Stmt.Call):
             # Call can be both an expression and a statement. Add a suffix to make sure we are working on the expression
@@ -956,7 +949,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     #
 
     def _ail_handle_CmpLT(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -972,7 +964,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             return ailment.Expr.BinaryOp(expr.idx, "CmpLT", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Add(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -996,7 +987,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             )
 
     def _ail_handle_Sub(self, expr):
-
         arg0, arg1 = expr.operands
 
         if not isinstance(arg0, claripy.ast.Base):
@@ -1027,7 +1017,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             )
 
     def _ail_handle_Div(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -1052,7 +1041,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             )
 
     def _ail_handle_DivMod(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -1069,7 +1057,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             return ailment.Expr.BinaryOp(expr.idx, "DivMod", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Mul(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -1095,7 +1082,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             )
 
     def _ail_handle_Mull(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -1121,7 +1107,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             )
 
     def _ail_handle_And(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -1138,7 +1123,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             return ailment.Expr.BinaryOp(expr.idx, "And", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Or(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -1155,7 +1139,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             return ailment.Expr.BinaryOp(expr.idx, "Or", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Xor(self, expr):
-
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
@@ -1172,7 +1155,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             return ailment.Expr.BinaryOp(expr.idx, "Xor", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Shr(self, expr):
-
         arg0, arg1 = expr.operands
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
@@ -1188,7 +1170,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             return ailment.Expr.BinaryOp(expr.idx, "Shr", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Shl(self, expr):
-
         arg0, arg1 = expr.operands
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
@@ -1207,7 +1188,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         return self._ail_handle_Shl(expr)
 
     def _ail_handle_Sar(self, expr):
-
         arg0, arg1 = expr.operands
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
@@ -1223,7 +1203,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             return ailment.Expr.BinaryOp(expr.idx, "Sar", [expr_0, expr_1], expr.signed, **expr.tags)
 
     def _ail_handle_Concat(self, expr):
-
         arg0, arg1 = expr.operands
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
@@ -1247,7 +1226,6 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         return None
 
     def _ail_handle_Not(self, expr):
-
         data = self._expr(expr.operand)
         if data is None:
             return None

@@ -22,7 +22,6 @@ def test_stack_end():
 
 
 def test_execstack():
-
     bin_path = os.path.join(test_location, "x86_64", "fauxware")
     proj = angr.Project(bin_path, auto_load_libs=False)
     # manually mark the stack as executable

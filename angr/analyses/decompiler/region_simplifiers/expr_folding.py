@@ -22,12 +22,10 @@ if TYPE_CHECKING:
 
 
 class LocationBase:
-
     __slots__ = ()
 
 
 class StatementLocation(LocationBase):
-
     __slots__ = (
         "block_addr",
         "block_idx",
@@ -58,7 +56,6 @@ class StatementLocation(LocationBase):
 
 
 class ExpressionLocation(LocationBase):
-
     __slots__ = (
         "block_addr",
         "block_idx",
@@ -92,7 +89,6 @@ class ExpressionLocation(LocationBase):
 
 
 class ConditionLocation(LocationBase):
-
     __slots__ = (
         "node_addr",
         "case_idx",
@@ -117,7 +113,6 @@ class ConditionLocation(LocationBase):
 
 
 class ConditionalBreakLocation(LocationBase):
-
     __slots__ = ("node_addr",)
 
     def __init__(self, node_addr):
@@ -348,7 +343,6 @@ class ExpressionReplacer(AILBlockWalker):
 
 class ExpressionFolder(SequenceWalker):
     def __init__(self, assignments: Dict, uses: Dict, node, variable_manager):
-
         handlers = {
             ailment.Block: self._handle_Block,
             ConditionNode: self._handle_Condition,

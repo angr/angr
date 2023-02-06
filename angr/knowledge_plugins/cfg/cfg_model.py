@@ -42,7 +42,6 @@ class CFGModel(Serializable):
     )
 
     def __init__(self, ident, cfg_manager=None, is_arm=False):
-
         self.ident = ident
         self._cfg_manager = cfg_manager
         self.is_arm = is_arm

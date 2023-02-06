@@ -499,7 +499,6 @@ class SimTypeChar(SimTypeReg):
 
 
 class SimTypeBool(SimTypeChar):
-
     _base_name = "bool"
 
     def __repr__(self):

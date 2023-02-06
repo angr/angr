@@ -10,7 +10,6 @@ class AMulConstDivShrConst(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-
         if (
             expr.op == "Shr"
             and len(expr.operands) == 2

@@ -8,7 +8,6 @@ from ...errors import SimMemoryError
 
 
 class MemoryMixin(SimStatePlugin):
-
     SUPPORTS_CONCRETE_LOAD = False
 
     def __init__(self, memory_id=None, endness="Iend_BE"):

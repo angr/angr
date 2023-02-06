@@ -16,7 +16,6 @@ class Veritesting(ExplorationTechnique):
         self.options = options
 
     def step_state(self, simgr, state, successor_func=None, **kwargs):
-
         if EFFICIENT_STATE_MERGING not in state.options:
             state.options.add(EFFICIENT_STATE_MERGING)
 

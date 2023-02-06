@@ -248,7 +248,6 @@ class VSA_DDG(Analysis):
                 del dict_[key]
 
         for a in action_list:
-
             if a.bbl_addr is None:
                 current_code_loc = CodeLocation(None, None, sim_procedure=a.sim_procedure)
             else:

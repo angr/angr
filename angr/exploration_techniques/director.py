@@ -15,7 +15,6 @@ l = logging.getLogger(name=__name__)
 
 
 class BaseGoal:
-
     REQUIRE_CFG_STATES = False
 
     def __init__(self, sort):
@@ -267,7 +266,6 @@ class CallFunctionGoal(BaseGoal):
     #
 
     def _check_arguments(self, arch, state):
-
         # TODO: add calling convention detection to individual functions, and use that instead of the
         # TODO: default calling convention of the platform
 
@@ -330,7 +328,6 @@ class CallFunctionGoal(BaseGoal):
 
     @staticmethod
     def _compare_pointer_content(state, ptr, expected):
-
         if isinstance(expected, str):
             # convert it to an AST
             expected = state.solver.BVV(expected)
@@ -345,7 +342,6 @@ class CallFunctionGoal(BaseGoal):
 
     @staticmethod
     def _compare_integer_content(state, val, expected):
-
         # note that size difference does not matter - we only compare their concrete values
 
         if isinstance(val, claripy.ast.Base) and val.symbolic:
@@ -448,7 +444,6 @@ class Director(ExplorationTechnique):
         """
 
         if self._cfg is None:
-
             starts = list(simgr.active)
             self._cfg_kb = KnowledgeBase(self.project)
 
@@ -457,7 +452,6 @@ class Director(ExplorationTechnique):
             )
 
         else:
-
             starts = list(simgr.active)
 
             self._cfg.resume(starts=starts, max_steps=self._peek_blocks)

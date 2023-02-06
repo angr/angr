@@ -6,6 +6,7 @@ l = logging.getLogger(name=__name__)
 from .engine import SuccessorsMixin
 from .procedure import ProcedureMixin
 
+
 # pylint:disable=abstract-method,arguments-differ
 class SimEngineSyscall(SuccessorsMixin, ProcedureMixin):
     """

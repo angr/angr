@@ -114,7 +114,6 @@ class CallingConventionAnalysis(Analysis):
         callsite_insn_addr: Optional[int] = None,
         func_graph: Optional = None,
     ):
-
         self._function = func
         self._variable_manager = self.kb.variables
         self._cfg = cfg
@@ -464,7 +463,6 @@ class CallingConventionAnalysis(Analysis):
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
     ) -> CallSiteFact:
-
         fact = CallSiteFact(
             True,  # by default we treat all return values as used
         )
@@ -480,7 +478,6 @@ class CallingConventionAnalysis(Analysis):
     def _analyze_callsite_return_value_uses(
         self, default_cc: SimCC, caller_block_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
-
         state = rda.observed_results[("node", caller_block_addr, OP_AFTER)]
         all_defs: Set["Definition"] = get_all_definitions(state.register_definitions)
         all_uses: "Uses" = rda.all_uses
@@ -560,7 +557,6 @@ class CallingConventionAnalysis(Analysis):
         facts: List[CallSiteFact],
         update_arguments: int = UpdateArgumentsOption.DoNotUpdate,
     ) -> Optional[SimTypeFunction]:
-
         if proto is None:
             return None
 

@@ -141,7 +141,6 @@ class Clinic(Analysis):
     #
 
     def _analyze(self):
-
         is_pcode_arch = ":" in self.project.arch.name
 
         # Set up the function graph according to configurations
@@ -745,7 +744,6 @@ class Clinic(Analysis):
         variable_kb=None,
         **kwargs,
     ):
-
         addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
         addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
 
@@ -758,7 +756,6 @@ class Clinic(Analysis):
 
         # Run each pass
         for pass_ in self._optimization_passes:
-
             if pass_.STAGE != stage:
                 continue
 
@@ -948,7 +945,6 @@ class Clinic(Analysis):
 
     @timethis
     def _recover_and_link_variables(self, ail_graph, arg_list):
-
         # variable recovery
         tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
         vr = self.project.analyses.VariableRecoveryFast(
@@ -1219,7 +1215,6 @@ class Clinic(Analysis):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
 
     def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
-
         if blocks_by_addr_and_size is None:
             blocks_by_addr_and_size = self._blocks_by_addr_and_size
 

@@ -8,7 +8,6 @@ log = logging.getLogger(name=__name__)
 
 
 class StringBuilderInit(JavaSimProcedure):
-
     __provides__ = (("java.lang.StringBuilder", "<init>()"),)
 
     def run(self, this_ref):
@@ -20,7 +19,6 @@ class StringBuilderInit(JavaSimProcedure):
 
 
 class StringBuilderAppend(JavaSimProcedure):
-
     __provides__ = (("java.lang.StringBuilder", "append(java.lang.String)"), ("java.lang.StringBuilder", "append(int)"))
 
     def run(self, this_ref, thing):

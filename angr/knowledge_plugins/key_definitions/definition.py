@@ -28,7 +28,6 @@ class Definition:
     )
 
     def __init__(self, atom: Atom, codeloc: CodeLocation, dummy: bool = False, tags: Set[Tag] = None):
-
         self.atom: Atom = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy

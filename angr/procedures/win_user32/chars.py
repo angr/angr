@@ -1,5 +1,6 @@
 import angr
 
+
 # these are NOT suitable for multibyte characters
 class CharNextA(angr.SimProcedure):
     def run(self, ptr):

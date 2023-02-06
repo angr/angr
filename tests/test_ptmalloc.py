@@ -2,6 +2,7 @@ import unittest
 
 from angr import SimState, SimHeapPTMalloc
 
+
 # TODO: Make these tests more architecture-independent (note dependencies of some behavior on chunk metadata size)
 class TestPtmalloc(unittest.TestCase):
     def chunk_iterators_are_same(self, iterator1, iterator2):

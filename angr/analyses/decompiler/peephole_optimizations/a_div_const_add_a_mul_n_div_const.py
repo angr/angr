@@ -10,7 +10,6 @@ class ADivConstAddAMulNDivConst(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-
         if expr.op == "Add" and len(expr.operands) == 2:
             op0, op1 = expr.operands
             if isinstance(op0, BinaryOp) and op0.op == "Div" and isinstance(op0.operands[1], Const):

@@ -45,7 +45,6 @@ class ListPageMemory(
 
 class TestMemoryMerge(TestCase):
     def test_merge_memory_object_endness(self):
-
         for memcls in [UltraPageMemory, ListPageMemory]:
             state0 = SimState(arch="AMD64", mode="symbolic", plugins={"memory": memcls()})
             state0.memory.store(0x20000, claripy.BVS("x", 64), endness="Iend_LE")

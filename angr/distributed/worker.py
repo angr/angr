@@ -24,7 +24,6 @@ class BadStatesDropper(ExplorationTechnique):
         self.db = db
 
     def step(self, simgr, stash="active", **kwargs):
-
         for k in ("deadended", "avoid", "pruned", "unsat", "errored"):
             if k in simgr.stashes and simgr.stashes[k]:
                 _l.debug("Storing states in stash %s.", k)

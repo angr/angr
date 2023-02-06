@@ -14,7 +14,6 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 # pylint: disable=no-self-use
 class TestCdg(unittest.TestCase):
     def test_graph_0(self):
-
         # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron
         # Cytron, etc.
 
@@ -93,7 +92,6 @@ class TestCdg(unittest.TestCase):
             assert len(cdg.graph.out_edges(TemporaryNode(node))) == len(cd_nodes)
 
     def test_dominance_frontiers(self):
-
         # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron
         # Cytron, etc.
 

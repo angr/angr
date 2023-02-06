@@ -88,7 +88,6 @@ class SyncController(KnowledgeBasePlugin):
     """
 
     def __init__(self, kb):
-
         # import binsync upon the first use of this class
         import_binsync()
 

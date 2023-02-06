@@ -4,7 +4,6 @@ from ...utils.constants import is_alignment_mask
 
 
 class ArithmeticExpression:
-
     Add = 0
     Sub = 1
     Or = 2
@@ -331,7 +330,6 @@ class ArithmeticExpression:
 
 
 class RegisterOffset:
-
     __slots__ = (
         "_bits",
         "reg",
@@ -623,7 +621,6 @@ class RegisterOffset:
 
 
 class SpOffset(RegisterOffset):
-
     __slots__ = ("is_base",)
 
     def __init__(self, bits, offset, is_base=False):

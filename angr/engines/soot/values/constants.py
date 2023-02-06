@@ -2,7 +2,6 @@ from .base import SimSootValue
 
 
 class SimSootValue_IntConstant(SimSootValue):
-
     __slots__ = ["value", "type"]
 
     def __init__(self, value, type_):

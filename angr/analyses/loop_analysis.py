@@ -17,7 +17,6 @@ class VariableTypes:
 
 
 class AnnotatedVariable:
-
     __slots__ = ["variable", "type"]
 
     def __init__(self, variable, type_):
@@ -32,7 +31,6 @@ class AnnotatedVariable:
 
 
 class Condition:
-
     Equal = "=="
     NotEqual = "!="
 
@@ -46,7 +44,6 @@ class Condition:
 
     @classmethod
     def from_opstr(cls, opstr):
-
         mapping = {
             "eq": cls.Equal,
             "==": cls.Equal,
@@ -65,7 +62,6 @@ class SootBlockProcessor:
         self.defuse = defuse
 
     def process(self):
-
         if not isinstance(self.block, SootBlockNode):
             raise AngrLoopAnalysisError("Got an unexpected type of block %s." % type(self.block))
 
@@ -73,7 +69,6 @@ class SootBlockProcessor:
             return None
 
         for stmt in self.block.stmts:
-
             func_name = "_handle_%s" % (stmt.__class__.__name__)
 
             if hasattr(self, func_name):
@@ -97,7 +92,6 @@ class SootBlockProcessor:
         return False
 
     def _expr(self, expr):
-
         func_name = "_handle_%s" % (expr.__class__.__name__)
 
         if hasattr(self, func_name):
@@ -110,7 +104,6 @@ class SootBlockProcessor:
     #
 
     def _handle_AssignStmt(self, stmt):
-
         left_op, right_op = stmt.left_op, stmt.right_op
 
         expr = self._expr(right_op)
@@ -120,12 +113,10 @@ class SootBlockProcessor:
                 self.state.locals[left_op.name] = expr
 
     def _handle_IfStmt(self, stmt):
-
         target = stmt.target
 
         # is it jumping outside the loop?
         if not self._stmt_inside_loop(target):
-
             cond = Condition(
                 Condition.from_opstr(stmt.condition.op),
                 self._expr(stmt.condition.value1),
@@ -139,7 +130,6 @@ class SootBlockProcessor:
     #
 
     def _handle_SootLocal(self, expr):
-
         local_name = expr.name
 
         # First try state.locals
@@ -158,11 +148,9 @@ class SootBlockProcessor:
         return expr
 
     def _handle_SootIntConstant(self, expr):
-
         return expr.value
 
     def _handle_SootInterfaceInvokeExpr(self, expr):
-
         full_method = expr.class_name + "." + expr.method_name
 
         mapping = {
@@ -192,7 +180,6 @@ class SootBlockProcessor:
 
 class LoopAnalysisState:
     def __init__(self, block):
-
         # Delayed import
         try:
             from pysoot.sootir.soot_value import SootValue, SootLocal
@@ -211,7 +198,6 @@ class LoopAnalysisState:
         return "<LoopAnalysisState %s>" % self.block.addr
 
     def copy(self):
-
         state = LoopAnalysisState(block=self.block)
 
         state.induction_variables = self.induction_variables.copy()
@@ -221,7 +207,6 @@ class LoopAnalysisState:
         return state
 
     def merge(self, state):
-
         s = self.copy()
 
         # TODO: Induction variables
@@ -242,7 +227,6 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
     """
 
     def __init__(self, loop, defuse):
-
         visitor = LoopVisitor(loop)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=visitor)
 
@@ -268,12 +252,10 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-
         state = LoopAnalysisState(node)
         return state
 
     def _merge_states(self, node, *states):
-
         merged = states[0]
         for other in states[1:]:
             if other is not None:
@@ -281,7 +263,6 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         return merged
 
     def _run_on_node(self, node, state):
-
         if node in self._traversed:
             return False, state
 
@@ -300,7 +281,6 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _post_analysis(self):
-
         self.loop_exit_stmts = self._last_state.loop_exit_stmts
         self.locals = self._last_state.locals
 

@@ -312,7 +312,6 @@ class AngrObjectFactory:
         load_from_ro_regions=False,
         initial_regs=None,
     ):
-
         if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
             return SootBlock(addr, arch=self.project.arch, project=self.project)
 

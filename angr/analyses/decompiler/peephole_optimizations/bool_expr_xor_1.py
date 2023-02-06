@@ -10,7 +10,6 @@ class BoolExprXor1(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
-
         # Conv(1->N, some_bool_expr) ^ 1 ==> Conv(1->N, Not(some_bool_expr))
         if expr.op == "Xor" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
             arg0 = expr.operands[0]

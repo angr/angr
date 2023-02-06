@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 
 
 class SimVariable(Serializable):
-
     __slots__ = [
         "ident",
         "name",
@@ -84,7 +83,6 @@ class SimVariable(Serializable):
 
 
 class SimConstantVariable(SimVariable):
-
     __slots__ = ["value", "_hash"]
 
     def __init__(self, ident=None, value=None, region=None, size=None):
@@ -122,7 +120,6 @@ class SimConstantVariable(SimVariable):
 
 
 class SimTemporaryVariable(SimVariable):
-
     __slots__ = ["tmp_id", "_hash"]
 
     def __init__(self, tmp_id, size=None):
@@ -172,7 +169,6 @@ class SimTemporaryVariable(SimVariable):
 
 
 class SimRegisterVariable(SimVariable):
-
     __slots__ = ["reg", "_hash"]
 
     def __init__(self, reg_offset, size, ident=None, name=None, region=None, category=None):
@@ -186,7 +182,6 @@ class SimRegisterVariable(SimVariable):
         return self.size * 8
 
     def __repr__(self):
-
         ident_str = "[%s]" % self.ident if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
 
@@ -242,7 +237,6 @@ class SimRegisterVariable(SimVariable):
 
 
 class SimMemoryVariable(SimVariable):
-
     __slots__ = ["addr", "_hash"]
 
     def __init__(self, addr, size, ident=None, name=None, region=None, category=None):
@@ -332,7 +326,6 @@ class SimMemoryVariable(SimVariable):
 
 
 class SimStackVariable(SimMemoryVariable):
-
     __slots__ = (
         "base",
         "offset",
@@ -442,7 +435,6 @@ class SimVariableSet(collections.abc.MutableSet):
     """
 
     def __init__(self):
-
         self.register_variables = set()
         # For the sake of performance optimization, all elements in register_variables must be concrete integers which
         # representing register offsets..
@@ -556,7 +548,6 @@ class SimVariableSet(collections.abc.MutableSet):
 
     def __contains__(self, item):
         if type(item) is SimRegisterVariable:
-
             return self.contains_register_variable(item)
 
         elif type(item) is SimMemoryVariable:

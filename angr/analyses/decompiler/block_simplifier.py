@@ -80,7 +80,6 @@ class BlockSimplifier(Analysis):
             self._analyze()
 
     def _analyze(self):
-
         block = self.block
         ctr = 0
         max_ctr = 30
@@ -173,7 +172,6 @@ class BlockSimplifier(Analysis):
         gp: Optional[int] = None,
         replace_registers: bool = True,
     ) -> Tuple[bool, "Block"]:
-
         new_statements = block.statements[::]
         replaced = False
 
@@ -229,7 +227,6 @@ class BlockSimplifier(Analysis):
 
     @staticmethod
     def _eliminate_self_assignments(block):
-
         new_statements = []
 
         for stmt in block.statements:
@@ -254,7 +251,6 @@ class BlockSimplifier(Analysis):
         return new_block
 
     def _eliminate_dead_assignments(self, block):
-
         new_statements = []
         if not block.statements:
             return block
@@ -344,7 +340,6 @@ class BlockSimplifier(Analysis):
     #
 
     def _peephole_optimize(self, block):
-
         # expressions are updated in place
         self._peephole_optimize_exprs(block, self._expr_peephole_opts)
 
@@ -363,7 +358,6 @@ class BlockSimplifier(Analysis):
         def _handle_expr(
             expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block
         ) -> Optional[Expression]:
-
             old_expr = expr
 
             redo = True
@@ -394,7 +388,6 @@ class BlockSimplifier(Analysis):
 
     @staticmethod
     def _peephole_optimize_stmts(block, stmt_opts):
-
         any_update = False
         statements = []
 

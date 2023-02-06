@@ -130,7 +130,6 @@ def broken_symbolic_write():
 
 
 def test_unsat_core():
-
     s = angr.SimState(arch="AMD64", mode="symbolic", add_options={angr.options.CONSTRAINT_TRACKING_IN_SOLVER})
     x = s.solver.BVS("x", 32)
     s.add_constraints(s.solver.BVV(0, 32) == x)

@@ -7,7 +7,6 @@ from typing import Optional
 
 
 class TypeConstant:
-
     SIZE = None
 
     def pp_str(self, mapping) -> str:  # pylint:disable=unused-argument

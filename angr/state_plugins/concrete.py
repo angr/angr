@@ -22,7 +22,6 @@ class Concrete(SimStatePlugin):
         fs_register_bp=None,
         already_sync_objects_addresses=None,
     ):
-
         super().__init__()
 
         self.segment_registers_initialized = segment_registers_initialized
@@ -110,7 +109,6 @@ class Concrete(SimStatePlugin):
         to_sync_register = list(filter(lambda x: x.concrete, self.state.arch.register_list))
 
         for register in to_sync_register:
-
             # before let's sync all the subregisters of the current register.
             # sometimes this can be helpful ( i.e. ymmm0 e xmm0 )
             if register.subregisters:
@@ -236,7 +234,6 @@ class Concrete(SimStatePlugin):
                         break  # object has been synchronized, move to the next one!
 
     def _sync_simproc(self):
-
         l.debug("Restoring SimProc using concrete memory")
 
         for reloc in self.state.project.loader.main_object.relocs:

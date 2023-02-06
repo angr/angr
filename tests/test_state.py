@@ -132,7 +132,6 @@ class TestState(unittest.TestCase):
         assert actual.identical(expected)
 
     def test_state_merge_3way(self):
-
         a = SimState(arch="AMD64", mode="symbolic")
         b = a.copy()
         c = a.copy()
@@ -153,7 +152,6 @@ class TestState(unittest.TestCase):
         assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 10,))
 
     def test_state_merge_optimal_nostrongrefstate(self):
-
         # We do not specify the state option EFFICIENT_STATE_MERGING, and as a result, state histories do not store strong
         # references to states. This will result in less efficient state merging since SimStateHistory will be the only
         # state plugin that knows the common ancestor of all instances to merge. But it should still succeed.
@@ -176,7 +174,6 @@ class TestState(unittest.TestCase):
         assert not s.solver.satisfiable(extra_constraints=(culprit == 12,))
 
     def test_state_merge_optimal(self):
-
         # Unlike the above test case, EFFICIENT_STATE_MERGING is enabled here
 
         binary_path = os.path.join(binaries_base, "tests", "x86_64", "state_merge_0")
@@ -243,7 +240,6 @@ class TestState(unittest.TestCase):
             assert s.solver.eval_upto(s.regs.rax, 10) == [25]
 
     def test_successors_catch_arbitrary_interrupts(self):
-
         # int 0xd2 should fail on x86/amd64 since it's an unsupported interrupt
         block_bytes = b"\xcd\xd2"
 
@@ -262,7 +258,6 @@ class TestState(unittest.TestCase):
         assert len(simgr.unsat) == 1
 
     def test_bypass_errored_irstmt(self):
-
         # fild [esp+4]  will fail when ftop is unspecified
         # BYPASS_ERRORED_IRSTMT will suppress it
 

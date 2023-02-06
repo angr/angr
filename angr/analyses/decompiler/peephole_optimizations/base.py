@@ -64,7 +64,6 @@ class PeepholeOptimizationExprBase:
 
     @staticmethod
     def is_bool_expr(ail_expr):
-
         if isinstance(ail_expr, BinaryOp):
             if ail_expr.op in {
                 "CmpEQ",

@@ -127,7 +127,6 @@ class SimStateHistory(SimStatePlugin):
         return self.recent_bbl_addrs[-1]
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-
         if not others:
             return False
 

@@ -35,7 +35,6 @@ class VEXLifter(SimEngineBase):
         default_strict_block_end=False,
         **kwargs,
     ):
-
         super().__init__(project, **kwargs)
 
         self._use_cache = use_cache
@@ -94,7 +93,6 @@ class VEXLifter(SimEngineBase):
         cross_insn_opt=None,
         load_from_ro_regions=False,
     ):
-
         """
         Lift an IRSB.
 
@@ -257,7 +255,6 @@ class VEXLifter(SimEngineBase):
         l.debug("Creating IRSB of %s at %#x", arch, addr)
         try:
             for subphase in range(2):
-
                 irsb = pyvex.lift(
                     buff,
                     addr + thumb,

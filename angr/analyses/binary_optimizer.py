@@ -121,7 +121,6 @@ class BinaryOptimizer(Analysis):
     BLOCKS_THRESHOLD = 500  # do not optimize a function if it has more than this number of blocks
 
     def __init__(self, cfg, techniques):
-
         self.cfg = cfg
 
         if techniques is None:
@@ -554,7 +553,6 @@ class BinaryOptimizer(Analysis):
 
         filtered_stack_variables = set()
         for stack_variable in stack_variables:
-
             failed = False
 
             # check how they are accessed
@@ -609,7 +607,6 @@ class BinaryOptimizer(Analysis):
 
         # aha these are the ones that we can replace!
         for reg, sv in zip(unused_general_registers, sorted_stack_variables):
-
             non_initial_sources = [src for src in stack_variable_sources[sv] if not src.initial]
 
             if not non_initial_sources:

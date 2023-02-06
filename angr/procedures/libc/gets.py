@@ -16,7 +16,6 @@ class gets(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
     def run(self, dst):
-
         if once("gets_warning"):
             _l.warning(
                 "The use of gets in a program usually causes buffer overflows. You may want to adjust "

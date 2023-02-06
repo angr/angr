@@ -234,7 +234,6 @@ class SegmentList:
         return merged, new_pos, bytes_changed
 
     def _remove(self, init_address: int, init_size: int, init_idx: int) -> None:
-
         address = init_address
         size = init_size
         idx = init_idx

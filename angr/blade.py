@@ -104,7 +104,6 @@ class Blade:
     #
 
     def dbg_repr(self, arch=None):
-
         if arch is None and self.project is not None:
             arch = self.project.arch
 
@@ -261,7 +260,6 @@ class Blade:
 
             prev = (self._get_addr(self._dst_run), self._dst_stmt_idx)
         else:
-
             next_expr = self._get_irsb(self._dst_run).next
 
             if type(next_expr) is pyvex.IRExpr.RdTmp:
@@ -328,7 +326,6 @@ class Blade:
                     )
 
     def _backward_slice_recursive(self, level, run, regs, stack_offsets, prev, exit_stmt_idx):
-
         if level <= 0:
             return
 

@@ -275,7 +275,6 @@ class PhoenixStructurer(StructurerBase):
                 and full_graph.out_degree[left] == 1
                 and not full_graph.has_edge(right, node)
             ):
-
                 # possible candidate
                 _, head_block = self._find_node_going_to_dst(node, left, condjump_only=True)
                 if head_block is not None:
@@ -365,7 +364,6 @@ class PhoenixStructurer(StructurerBase):
                 out_node = succ_succs[0]
 
                 if full_graph.has_edge(succ, node):
-
                     # possible candidate
                     _, succ_block = self._find_node_going_to_dst(succ, out_node, condjump_only=True)
                     if succ_block is not None:
@@ -421,7 +419,6 @@ class PhoenixStructurer(StructurerBase):
         return False, None, None
 
     def _match_cyclic_natural_loop(self, node, head, graph, full_graph) -> Tuple[bool, Optional[LoopNode]]:
-
         if not (node is head or graph.in_degree[node] == 2):
             return False, None
 
@@ -1129,7 +1126,6 @@ class PhoenixStructurer(StructurerBase):
         node_a=None,
         can_bail=False,
     ) -> bool:
-
         if node_default is not None:
             # the head no longer goes to the default case
             graph.remove_edge(head, node_default)
@@ -1603,7 +1599,6 @@ class PhoenixStructurer(StructurerBase):
     def _match_acyclic_short_circuit_conditions_type_a(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
     ) -> Optional[Tuple]:
-
         #   if (a) goto right
         #   else if (b) goto right
         #   else goto other_succ
@@ -1642,7 +1637,6 @@ class PhoenixStructurer(StructurerBase):
     def _match_acyclic_short_circuit_conditions_type_b(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
     ) -> Optional[Tuple]:
-
         #   if (a) goto left
         # right:
         #   else if (b) goto left
@@ -1685,7 +1679,6 @@ class PhoenixStructurer(StructurerBase):
     def _match_acyclic_short_circuit_conditions_type_c(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
     ) -> Optional[Tuple]:
-
         #   if (a) goto successor
         #   else if (b) goto successor
         # right:
@@ -1724,7 +1717,6 @@ class PhoenixStructurer(StructurerBase):
     def _match_acyclic_short_circuit_conditions_type_d(  # pylint:disable=unused-argument
         self, graph, full_graph, start_node
     ) -> Optional[Tuple]:
-
         #   if (a) goto else_node
         # left:
         #   else if (b) goto else_node
@@ -1762,7 +1754,6 @@ class PhoenixStructurer(StructurerBase):
         return None
 
     def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: Optional[networkx.DiGraph]) -> bool:
-
         if self._phoenix_improved:
             while self._edge_virtualization_hints:
                 src, dst = self._edge_virtualization_hints.pop(0)
@@ -1822,7 +1813,6 @@ class PhoenixStructurer(StructurerBase):
         return False
 
     def _virtualize_edge(self, graph, full_graph, src, dst):
-
         # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
         try:
             last_stmt = self.cond_proc.get_last_statement(src)
@@ -2123,7 +2113,6 @@ class PhoenixStructurer(StructurerBase):
 
     @staticmethod
     def _chick_order_edges(edges: List, node_seq: Dict[Any, int]) -> List:
-
         graph = networkx.DiGraph()
         graph.add_edges_from(edges)
 

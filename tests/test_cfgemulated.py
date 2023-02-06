@@ -320,7 +320,6 @@ class TestCfgemulate(unittest.TestCase):
                 check_addr(f.startpoint.addr)
 
     def test_fakeret_edges_0(self):
-
         # Test the bug where a fakeret edge can be missing in certain cases
         # Reported by Attila Axt (GitHub: @axt)
         # Ref: https://github.com/angr/angr/issues/72
@@ -369,7 +368,6 @@ class TestCfgemulate(unittest.TestCase):
         assert jumpkinds == {"Ijk_Call", "Ijk_FakeRet"}
 
     def test_string_references(self):
-
         # Test AttributeError on 'addr' which occurs when searching for string
         # references
 
@@ -384,7 +382,6 @@ class TestCfgemulate(unittest.TestCase):
         # test passes if hasn't thrown an exception
 
     def test_arrays(self):
-
         binary_path = os.path.join(test_location, "armhf", "test_arrays")
         b = angr.Project(binary_path, load_options={"auto_load_libs": False})
         cfg = b.analyses.CFGEmulated(fail_fast=True)
@@ -396,7 +393,6 @@ class TestCfgemulate(unittest.TestCase):
         assert len(successors) == 2
 
     def test_max_steps(self):
-
         binary_path = os.path.join(test_location, "x86_64", "fauxware")
         b = angr.Project(binary_path, load_options={"auto_load_libs": False})
         cfg = b.analyses.CFGEmulated(max_steps=5, fail_fast=True)
@@ -414,7 +410,6 @@ class TestCfgemulate(unittest.TestCase):
         assert max(depth_map.values()) <= 5
 
     def test_armel_final_missing_block(self):
-
         # Due to a stupid bug in CFGEmulated, the last block of a function might go missing in the function graph if the
         # only entry edge to that block is an Ijk_Ret edge. See #475 on GitHub.
         # Thank @gergo for reporting and providing this test binary.
@@ -429,7 +424,6 @@ class TestCfgemulate(unittest.TestCase):
         assert {block.addr for block in blocks} == {0x8000, 0x8014, 0x8020}
 
     def test_armel_final_missing_block_b(self):
-
         # When _pending_jobs is not sorted, it is possible that we first process a pending job created earlier and then
         # process another pending job created later. Ideally, we hope that jobs are always processed in a topological order,
         # and the unsorted pending jobs break this assumption. In this test binary, at one point there can be two pending
@@ -464,7 +458,6 @@ class TestCfgemulate(unittest.TestCase):
         assert {block.addr for block in blocks} == {0x10B79, 0x10BBF}
 
     def test_armel_incorrect_function_detection_caused_by_branch(self):
-
         # GitHub issue #685
         binary_path = os.path.join(test_location, "armel", "RTOSDemo.axf.issue_685")
         b = angr.Project(binary_path, auto_load_libs=False)
@@ -488,7 +481,6 @@ class TestCfgemulate(unittest.TestCase):
         assert block_addrs == [0x8009, 0x8011, 0x801F, 0x8027]
 
     def test_cfg_switches(self):
-
         # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
         # logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
 
@@ -565,7 +557,6 @@ class TestCfgemulate(unittest.TestCase):
                 super()._intra_analysis()
 
     def test_abort_and_resume(self):
-
         angr.analyses.AnalysesHub.register_default("CFGEmulatedAborted", self.CFGEmulatedAborted)
 
         self.CFGEmulatedAborted.should_abort = False
@@ -621,7 +612,7 @@ class TestCfgemulate(unittest.TestCase):
                 dst_node,
             )
 
-        for (node_addr, final_states_number) in final_states_info.items():
+        for node_addr, final_states_number in final_states_info.items():
             node = target_function_cfg_emulated.get_any_node(node_addr)
             assert final_states_number == len(node.final_states), (
                 "CFG node 0x%x has incorrect final states." % node_addr

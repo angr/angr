@@ -69,7 +69,6 @@ class IfSimplifier(SequenceWalker):
             self._handle(node.false_node, successor=successor)
 
     def _handle_cascadingconditionnode(self, node: CascadingConditionNode, successor=None, **kwargs):
-
         for _, child_node in node.condition_and_nodes:
             self._handle(child_node, successor=successor)
         if node.else_node is not None:

@@ -38,6 +38,7 @@ merge_counter = itertools.count()
 
 _complained_se = False
 
+
 # pylint: disable=not-callable
 class SimState(PluginHub):
     """

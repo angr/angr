@@ -184,7 +184,6 @@ class ClemoryBackerMixin(PagedMemoryMixin):
 
 class ConcreteBackerMixin(ClemoryBackerMixin):
     def _initialize_page(self, pageno, force_default=False, **kwargs):
-
         if self._clemory_backer is None or force_default:
             return super()._initialize_page(pageno, **kwargs)
 

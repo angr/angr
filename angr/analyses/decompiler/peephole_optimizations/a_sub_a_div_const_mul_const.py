@@ -10,7 +10,6 @@ class ASubADivConstMulConst(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-
         if (
             expr.op == "Sub"
             and len(expr.operands) == 2

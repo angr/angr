@@ -29,7 +29,6 @@ class strlen(angr.SimProcedure):
             chunk_size = 1
 
         if self.state.mode == "static":
-
             self.max_null_index = 0
 
             # Make sure to convert s to ValueSet
@@ -38,7 +37,6 @@ class strlen(angr.SimProcedure):
             # size_t
             length = self.state.solver.ESI(self.arch.bits)
             for s_aw in self.state.memory._concretize_address_descriptor(addr_desc, None):
-
                 s_ptr = s_aw.to_valueset(self.state)
                 r, c, i = self.state.memory.find(
                     s,

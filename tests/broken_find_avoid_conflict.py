@@ -4,6 +4,7 @@ import os
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
+
 # While exploring, if the 'find' and 'avoid' addresses occur in the same run
 # the path is added to find_stash even if the avoid address occurs first.
 # This is not an entirely trivial issue since a run can span several basic

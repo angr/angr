@@ -49,7 +49,6 @@ def parse_stack_pointer(sp):
 
 
 class VariableAnnotation(Annotation):
-
     __slots__ = ("addr_and_variables",)
 
     def __init__(self, addr_and_variables: List[Tuple[int, SimVariable]]):
@@ -81,7 +80,6 @@ class VariableRecoveryBase(Analysis):
     """
 
     def __init__(self, func, max_iterations, store_live_variables: bool):
-
         self.function = func
         self.variable_manager = self.kb.variables
 
@@ -143,7 +141,6 @@ class VariableRecoveryStateBase:
         stack_offset_typevars=None,
         project=None,
     ):
-
         self.block_addr = block_addr
         self._analysis = analysis
         self.arch: Arch = arch

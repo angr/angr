@@ -315,7 +315,6 @@ class AddressConcretizationMixin(MemoryMixin):
         super().store(concrete_addr, data, size=size, condition=sub_condition, **kwargs)
 
     def store(self, addr, data, size=None, condition=None, **kwargs):
-
         # Fast path
         if type(addr) is int:
             self._store_one_addr(addr, data, True, addr, condition, size, **kwargs)

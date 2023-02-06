@@ -17,7 +17,6 @@ l = logging.getLogger("angr.procedures.java_jni.array_operations")
 
 
 class GetArrayLength(JNISimProcedure):
-
     return_ty = "int"
 
     def run(self, ptr_env, array_):
@@ -31,7 +30,6 @@ class GetArrayLength(JNISimProcedure):
 
 
 class NewArray(JNISimProcedure):
-
     element_type: Optional[str] = None
     return_ty = "reference"
 
@@ -71,11 +69,9 @@ class NewLongArray(NewArray):
 
 
 class NewObjectArray(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, length_, element_type_, initial_element_):
-
         length = self._normalize_array_idx(length_)
         element_type = self.state.jni_references.lookup(element_type_)
 
@@ -100,11 +96,9 @@ class NewObjectArray(JNISimProcedure):
 
 
 class GetObjectArrayElement(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, array_, idx_):
-
         idx = self._normalize_array_idx(idx_)
         array = self.state.jni_references.lookup(array_)
 
@@ -124,11 +118,9 @@ class GetObjectArrayElement(JNISimProcedure):
 
 
 class SetObjectArrayElement(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, array_, idx_, value_):
-
         idx = self._normalize_array_idx(idx_)
         array = self.state.jni_references.lookup(array_)
         value = self.state.jni_references.lookup(value_)
@@ -152,11 +144,9 @@ class SetObjectArrayElement(JNISimProcedure):
 
 
 class GetArrayElements(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, array_, ptr_isCopy):
-
         array = self.state.jni_references.lookup(array_)
 
         # load array elements from java memory
@@ -176,14 +166,12 @@ class GetArrayElements(JNISimProcedure):
 
 
 class ReleaseArrayElements(JNISimProcedure):
-
     return_ty = "void"
 
     JNI_COMMIT = 1
     JNI_ABORT = 2
 
     def run(self, ptr_env, array_, ptr_elems, mode_):
-
         if self.state.solver.symbolic(mode_):
             l.warning(
                 "Symbolic mode %s in JNI function ReleaseArrayElements" "is not supported and gets concretized.", mode_
@@ -212,11 +200,9 @@ class ReleaseArrayElements(JNISimProcedure):
 
 
 class GetArrayRegion(JNISimProcedure):
-
     return_ty = "void"
 
     def run(self, ptr_env, array_, start_idx_, length_, ptr_buf):
-
         array = self.state.jni_references.lookup(array_)
         start_idx = self._normalize_array_idx(start_idx_)
         length = self._normalize_array_idx(length_)
@@ -299,11 +285,9 @@ class GetArrayRegion(JNISimProcedure):
 
 
 class SetArrayRegion(JNISimProcedure):
-
     return_ty = "void"
 
     def run(self, ptr_env, array_, start_idx_, length_, ptr_buf):
-
         array = self.state.jni_references.lookup(array_)
         start_idx = self._normalize_array_idx(start_idx_)
         length = self._normalize_array_idx(length_)

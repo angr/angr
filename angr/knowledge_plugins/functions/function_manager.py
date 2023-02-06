@@ -283,7 +283,6 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
     def _add_return_from_call(self, function_addr, src_function_addr, to_node, to_outside=False):
-
         # Note that you will never return to a syscall
 
         if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
@@ -297,7 +296,6 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     #
 
     def __contains__(self, item):
-
         if type(item) is int:
             # this is an address
             return item in self._function_map

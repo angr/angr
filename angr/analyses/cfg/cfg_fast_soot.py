@@ -36,7 +36,6 @@ except ImportError:
 
 class CFGFastSoot(CFGFast):
     def __init__(self, support_jni=False, **kwargs):
-
         if not PYSOOT_INSTALLED:
             raise ImportError("Please install PySoot before analyzing Java byte code.")
 
@@ -51,7 +50,6 @@ class CFGFastSoot(CFGFast):
         self._total_methods = None
 
     def _pre_analysis(self):
-
         # Call _initialize_cfg() before self.functions is used.
         self._initialize_cfg()
 
@@ -109,7 +107,6 @@ class CFGFastSoot(CFGFast):
         self._total_methods = total_methods
 
     def _pre_job_handling(self, job):
-
         if self._show_progressbar or self._progress_callback:
             if self._total_methods:
                 percentage = len(self.functions) * 100.0 / self._total_methods
@@ -120,7 +117,6 @@ class CFGFastSoot(CFGFast):
         pass
 
     def _pop_pending_job(self, returning=True):
-
         # We are assuming all functions must return
         return self._pending_jobs.pop_job(returning=True)
 
@@ -128,7 +124,6 @@ class CFGFastSoot(CFGFast):
         addr = cfg_job.addr
 
         try:
-
             cfg_node = self.model.get_node(addr)
             if cfg_node is not None:
                 soot_block = cfg_node.soot_block
@@ -151,7 +146,6 @@ class CFGFastSoot(CFGFast):
             return None, None, None, None
 
     def _block_get_successors(self, addr, function_addr, block, cfg_node):
-
         if block is None:
             # this block is not included in the artifacts...
             return []
@@ -159,7 +153,6 @@ class CFGFastSoot(CFGFast):
         return self._soot_get_successors(addr, function_addr, block, cfg_node)
 
     def _soot_get_successors(self, addr, function_id, block, cfg_node):  # pylint:disable=unused-argument
-
         # soot method
         method = self.project.loader.main_object.get_soot_method(function_id)
 
@@ -225,7 +218,6 @@ class CFGFastSoot(CFGFast):
                 break
 
             elif isinstance(stmt, AssignStmt):
-
                 expr = stmt.right_op
 
                 if isinstance(expr, SootInvokeExpr):
@@ -315,7 +307,6 @@ class CFGFastSoot(CFGFast):
         return succs
 
     def _soot_create_invoke_successors(self, stmt, addr, invoke_expr):
-
         method_class = invoke_expr.class_name
         method_name = invoke_expr.method_name
         method_params = invoke_expr.method_params
@@ -339,13 +330,11 @@ class CFGFastSoot(CFGFast):
 
     @staticmethod
     def _loc_to_funcloc(location):
-
         if isinstance(location, SootAddressDescriptor):
             return location.method
         return location
 
     def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
-
         assert thumb is False
 
         if cfg_node is not None:
@@ -381,7 +370,6 @@ class CFGFastSoot(CFGFast):
 
     @staticmethod
     def _soot_block_size(soot_block, start_stmt_idx):
-
         if soot_block is None:
             return 0
 
@@ -469,7 +457,6 @@ class CFGFastSoot(CFGFast):
     def _create_jobs(
         self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx
     ):  # pylint:disable=arguments-differ
-
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -619,7 +606,6 @@ class CFGFastSoot(CFGFast):
         max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
         for i, fn in enumerate(function_nodes):
-
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (
                     i * 1.0 / nodes_count
@@ -658,7 +644,6 @@ class CFGFastSoot(CFGFast):
 
         nodes_count = len(secondary_function_nodes)
         for i, fn in enumerate(secondary_function_nodes):
-
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_3_progress + (max_stage_3_progress - min_stage_3_progress) * (
                     i * 1.0 / nodes_count

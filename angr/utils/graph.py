@@ -208,7 +208,6 @@ def compute_dominance_frontier(graph, domtree):
 
     # Perform a post-order search on the dominator tree
     for x in networkx.dfs_postorder_nodes(domtree):
-
         if x not in graph:
             # Skip nodes that are not in the graph
             continue
@@ -299,7 +298,6 @@ class Dominators:
     dom: networkx.DiGraph
 
     def __init__(self, graph, entry_node, successors_func=None, reverse=False):
-
         self._l = logging.getLogger("utils.graph.dominators")
         self._graph_successors_func = successors_func
 
@@ -397,7 +395,6 @@ class Dominators:
         self.prepared_graph = _prepared_graph
 
     def _prepare_graph(self, graph, entry):
-
         # We want to reverse the graph, and label each node according to its order in a DFS
         new_graph = networkx.DiGraph()
 

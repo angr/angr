@@ -39,13 +39,11 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
-
         super().__init__(func, **kwargs)
 
         self.analyze()
 
     def _check(self):
-
         # Check the first block to see what external registers are stored on the stack
         stored_info = self._find_registers_stored_on_stack()
         if not stored_info:
@@ -92,7 +90,6 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
             self._update_block(old_block, new_block)
 
     def _find_registers_stored_on_stack(self) -> List[Tuple[int, int, CodeLocation]]:
-
         first_block = self._get_block(self._func.addr)
         if first_block is None:
             return []
@@ -114,7 +111,6 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
         return results
 
     def _find_registers_restored_from_stack(self) -> List[List[Tuple[int, int, CodeLocation]]]:
-
         all_results = []
         for ret_site in self._func.ret_sites + self._func.jumpout_sites:
             for block in self._get_blocks(ret_site.addr):
@@ -177,7 +173,6 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
             lr_reg_offset = None
 
         for reg in list(result.keys()):
-
             # stored link register should always be removed
             if lr_reg_offset is not None and reg == lr_reg_offset:
                 if "restored" not in result[reg]:

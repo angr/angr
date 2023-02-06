@@ -17,7 +17,6 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-
         # And(Conv(M->N, expr), full_N_bitmask) ==> Conv(M->N, expr)
         # And(Conv(1->N, bool_expr), bitmask) ==> Conv(1->N, bool_expr)
         # And(ITE(?, const_expr, const_expr), bitmask) ==> ITE(?, const_expr, const_expr)

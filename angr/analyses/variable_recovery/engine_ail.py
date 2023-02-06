@@ -289,7 +289,6 @@ class SimEngineVRAIL(
     _ail_handle_CmpGE = _ail_handle_Cmp
 
     def _ail_handle_Add(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -322,7 +321,6 @@ class SimEngineVRAIL(
         )
 
     def _ail_handle_Sub(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -347,7 +345,6 @@ class SimEngineVRAIL(
         )
 
     def _ail_handle_Mul(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -365,7 +362,6 @@ class SimEngineVRAIL(
         )
 
     def _ail_handle_Mull(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -393,7 +389,6 @@ class SimEngineVRAIL(
         )
 
     def _ail_handle_Div(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -415,7 +410,6 @@ class SimEngineVRAIL(
         )
 
     def _ail_handle_DivMod(self, expr: ailment.Expr.BinaryOp):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -446,7 +440,6 @@ class SimEngineVRAIL(
         )
 
     def _ail_handle_Xor(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -464,7 +457,6 @@ class SimEngineVRAIL(
         )
 
     def _ail_handle_Shl(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -484,7 +476,6 @@ class SimEngineVRAIL(
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
     def _ail_handle_Shr(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -506,7 +497,6 @@ class SimEngineVRAIL(
         )
 
     def _ail_handle_Sal(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -526,7 +516,6 @@ class SimEngineVRAIL(
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
     def _ail_handle_Sar(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -546,7 +535,6 @@ class SimEngineVRAIL(
         return RichR(r0.data >> shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
     def _ail_handle_And(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -564,7 +552,6 @@ class SimEngineVRAIL(
         return RichR(r, typevar=r0.typevar)
 
     def _ail_handle_Or(self, expr):
-
         arg0, arg1 = expr.operands
 
         r0 = self._expr(arg0)
@@ -582,7 +569,6 @@ class SimEngineVRAIL(
         return RichR(r, typevar=r0.typevar)
 
     def _ail_handle_Concat(self, expr):
-
         arg0, arg1 = expr.operands
 
         _ = self._expr(arg0)

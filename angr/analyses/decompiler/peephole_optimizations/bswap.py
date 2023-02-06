@@ -13,7 +13,6 @@ class Bswap(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
-
         # bswap_16
         #   And(
         #     (
@@ -68,7 +67,6 @@ class Bswap(PeepholeOptimizationExprBase):
                         and isinstance(inner_second.operands[1], Const)
                         and inner_second.operands[1].value == 8
                     ):
-
                         if isinstance(inner_first.operands[0], Convert):
                             conv: Convert = inner_first.operands[0]
                             if conv.from_bits == 16 and conv.to_bits == 32:

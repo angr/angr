@@ -6,7 +6,6 @@ import angr
 
 
 class ReturnUnconstrained(angr.SimProcedure):
-
     ARGS_MISMATCH = True
 
     def run(self, *args, **kwargs):  # pylint:disable=arguments-differ

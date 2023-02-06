@@ -31,7 +31,6 @@ class XRef(Serializable):
         dst: Optional[int] = None,
         xref_type=None,
     ):
-
         if dst is not None and not isinstance(dst, int):
             raise TypeError("XRefs must be pointing to a constant target. Target %r is not supported." % dst)
 

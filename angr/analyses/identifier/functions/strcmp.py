@@ -43,7 +43,6 @@ class strcmp(Func):
 
     @staticmethod
     def _strcmp_pretest(func, runner):
-
         # todo we don't test which order it returns the signs in
         bufa = "asdf\x00"
         bufb = "asdf\x00"

@@ -39,7 +39,6 @@ def test_type_annotation():
 
 
 def test_cproto_conversion():
-
     # A normal function declaration
     cproto_0 = "int main(int argc, char** argv);"
     pyproto_name, pyproto, the_str = convert_cproto_to_py(cproto_0)
@@ -73,7 +72,6 @@ def test_cproto_conversion():
 
 
 def test_cppproto_conversion():
-
     # a demangled class constructor prototype, without parameter names
     proto_0 = "std::basic_ifstream<char, std::char_traits<char>>::{ctor}(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>> const&, std::_Ios_Openmode)"
     name, proto, s = convert_cppproto_to_py(proto_0, with_param_names=False)

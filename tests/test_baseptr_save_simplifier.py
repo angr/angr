@@ -35,7 +35,6 @@ def check_bp_save_fauxware(arch):
 # pylint: disable=no-self-use
 class TestBaseptrSaveSimplifier(unittest.TestCase):
     def test_baseptr_save_simplifier_amd64(self):
-
         # decompile all:main and make sure the first and the last blocks do not save or restore to rbp
         bin_path = os.path.join(test_location, "x86_64", "all")
         proj = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)

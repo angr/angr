@@ -1966,7 +1966,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         se = state.solver
 
         if func is not None and sp_addr is not None:
-
             # Fix the stack pointer (for example, skip the return address on the stack)
             new_sp_addr = sp_addr + self.project.arch.call_sp_fix
 
@@ -2117,7 +2116,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             )
 
         if jumpkind.startswith("Ijk_Sys"):
-
             self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
@@ -2153,7 +2151,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             )
 
         elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache"):
-
             src_obj = self.project.loader.find_object_containing(src_node.addr)
             dest_obj = self.project.loader.find_object_containing(dst_node.addr) if dst_node is not None else None
 
@@ -2356,7 +2353,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             # We need input states to perform backward slicing
             if self._advanced_backward_slicing and self._keep_state:
-
                 # Optimization: make sure we only try to resolve an indirect jump if any of the following criteria holds
                 # - It's a jump (Ijk_Boring), and its target is either fully symbolic, or its resolved target is within
                 #   the current binary
@@ -2954,7 +2950,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 )
 
         except (SimFastPathError, SimSolverModeError) as ex:
-
             if saved_state.mode == "fastpath":
                 # Got a SimFastPathError or SimSolverModeError in FastPath mode.
                 # We wanna switch to symbolic mode for current IRSB.

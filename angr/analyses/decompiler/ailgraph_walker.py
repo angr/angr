@@ -11,13 +11,11 @@ class AILGraphWalker:
     """
 
     def __init__(self, graph, handler, replace_nodes: bool = False):
-
         self.graph: networkx.DiGraph = graph
         self.handler = handler
         self._replace_nodes = replace_nodes
 
     def walk(self):
-
         for node in list(self.graph.nodes()):
             try:
                 r = self.handler(node)

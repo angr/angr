@@ -182,7 +182,6 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
     """
 
     def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None):
-
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -232,7 +231,6 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         return None
 
     def _run_on_node(self, node, state):
-
         block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
         if block.size == 0:
             # VEX couldn't decode it

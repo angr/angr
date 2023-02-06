@@ -13,6 +13,7 @@ sml = logging.getLogger("angr.state_plugins.symbolic_memory")
 CHUNK_FLAGS_MASK = 0x07
 CHUNK_P_MASK = 0x01
 
+
 # These are included as sometimes the heap will touch uninitialized locations, which normally causes a warning
 def silence_logger():
     level = sml.getEffectiveLevel()

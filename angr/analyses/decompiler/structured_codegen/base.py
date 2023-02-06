@@ -9,7 +9,6 @@ from ....sim_variable import SimVariable
 
 
 class PositionMappingElement:
-
     __slots__ = ("start", "length", "obj")
 
     def __init__(self, start, length, obj):
@@ -25,7 +24,6 @@ class PositionMappingElement:
 
 
 class PositionMapping:
-
     __slots__ = ("_posmap",)
 
     DUPLICATION_CHECK = True
@@ -71,7 +69,6 @@ class PositionMapping:
 
 
 class InstructionMappingElement:
-
     __slots__ = ("ins_addr", "posmap_pos")
 
     def __init__(self, ins_addr, posmap_pos):
@@ -86,7 +83,6 @@ class InstructionMappingElement:
 
 
 class InstructionMapping:
-
     __slots__ = ("_insmap",)
 
     def __init__(self):

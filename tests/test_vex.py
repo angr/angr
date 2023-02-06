@@ -163,7 +163,6 @@ def test_ccall():
 
 
 def test_aarch64_32bit_ccalls():
-
     # GitHub issue #1238
     s = SimState(arch="AArch64")
 
@@ -499,7 +498,6 @@ def test_loadg_no_constraint_creation():
 
 
 def test_amd64_ud012_behaviors():
-
     # Test if VEX's lifter behaves as what CFGFast expects
     #
     # Note: if such behaviors change in the future, you also need to fix the ud{0,1,2} handling logic in
@@ -522,7 +520,6 @@ def test_amd64_ud012_behaviors():
 
 
 def test_x86_ud2_behaviors():
-
     # Test if VEX's lifter behaves as what CFGFast expects
     #
     # Note: if such behaviors change in the future, you also need to fix the ud2 handling logic in

@@ -9,7 +9,6 @@ from .cfg_model import CFGModel
 
 class CFGManager(KnowledgeBasePlugin):
     def __init__(self, kb):
-
         super().__init__()
 
         self._kb = kb
@@ -34,7 +33,6 @@ class CFGManager(KnowledgeBasePlugin):
         self.cfgs[ident] = model
 
     def new_model(self, prefix):
-
         if prefix not in self.cfgs:
             return self[prefix]
 

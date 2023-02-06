@@ -66,7 +66,6 @@ class BaseOptimizationPass:
         return self.project.kb
 
     def analyze(self):
-
         ret, cache = self._check()
         if ret:
             self._analyze(cache=cache)
@@ -132,7 +131,6 @@ class OptimizationPass(BaseOptimizationPass):
     #
 
     def _get_block(self, addr, idx=None) -> Optional[ailment.Block]:
-
         if not self._blocks_by_addr:
             return None
         else:
@@ -162,7 +160,6 @@ class OptimizationPass(BaseOptimizationPass):
                     yield block
 
     def _update_block(self, old_block, new_block):
-
         if self.out_graph is None:
             self.out_graph = self._graph  # we do not make copy here for performance reasons. we can change it if needed
 
@@ -188,7 +185,6 @@ class OptimizationPass(BaseOptimizationPass):
             self.out_graph.add_edge(new_block, dst, **data)
 
     def _remove_block(self, block):
-
         if self.out_graph is None:
             self.out_graph = self._graph
 

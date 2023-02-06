@@ -11,7 +11,6 @@ l = logging.getLogger("angr.engines.soot.values.arrayref")
 
 
 class SimSootValue_ArrayBaseRef(SimSootValue):
-
     __slots__ = ["id", "element_type", "size", "_default_value_generator", "type"]
 
     def __init__(self, heap_alloc_id, element_type, size, default_value_generator=None):
@@ -49,7 +48,6 @@ class SimSootValue_ArrayBaseRef(SimSootValue):
 
 
 class SimSootValue_ArrayRef(SimSootValue):
-
     __slots__ = ["id", "base", "index"]
 
     def __init__(self, base, index):

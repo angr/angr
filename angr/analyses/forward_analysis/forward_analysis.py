@@ -255,9 +255,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
         self._post_analysis()
 
     def _analysis_core_graph(self) -> None:
-
         while not self.should_abort:
-
             self._intra_analysis()
 
             n: NodeType = self._graph_visitor.next_node()
@@ -355,12 +353,10 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
         return merged_state
 
     def _analysis_core_baremetal(self) -> None:
-
         if not self._job_info_queue:
             self._job_queue_empty()
 
         while not self.should_abort:
-
             if self._status_callback is not None:
                 self._status_callback(self)
 

@@ -165,7 +165,7 @@ def test_struct_bitfield_simple():
         b"\x04\x1e\x03\x00",
     )
     view = state.mem[0x8000].struct.bitfield_struct.array(5)
-    for (idx, (b, result)) in enumerate(data):
+    for idx, (b, result) in enumerate(data):
         v = view[idx]
         s = v.concrete
         assert s.a == result[0], f"Field a was {s.a}, expected {result[0]}, from bytes {b}"

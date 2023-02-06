@@ -199,7 +199,6 @@ class UltraPage(MemoryObjectMixin, PageBase):
         memory=None,
         changed_offsets: Optional[Set[int]] = None,
     ):
-
         all_pages = [self] + others
         merged_to = None
         merged_objects = set()
@@ -258,7 +257,6 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
             # first, optimize the case where we are dealing with the same-sized memory objects
             if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in:
-
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
@@ -407,7 +405,6 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 return None
 
     def replace_all_with_offsets(self, offsets: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV, memory=None):
-
         memory_objects = set()
         for offset in sorted(list(offsets)):
             try:

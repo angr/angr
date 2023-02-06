@@ -64,7 +64,6 @@ class Typehoon(Analysis):
     #
 
     def update_variable_types(self, func_addr: Union[int, str], var_to_typevars):
-
         for var, typevars in var_to_typevars.items():
             for typevar in typevars:
                 type_ = self.simtypes_solution.get(typevar, None)
@@ -126,7 +125,6 @@ class Typehoon(Analysis):
     #
 
     def _analyze(self):
-
         # convert ground truth into constraints
         if self._ground_truth:
             translator = TypeTranslator(arch=self.project.arch)
@@ -161,7 +159,6 @@ class Typehoon(Analysis):
                 self.solution[tv] = specialized
 
     def _specialize_struct(self, tc, memo: Optional[Set] = None):
-
         if isinstance(tc, Pointer):
             if memo is not None and tc in memo:
                 return None

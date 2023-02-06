@@ -201,7 +201,6 @@ class ReachingDefinitionsAnalysis(
 
     @property
     def one_result(self):
-
         if not self.observed_results:
             raise ValueError("No result is available.")
         if len(self.observed_results) != 1:

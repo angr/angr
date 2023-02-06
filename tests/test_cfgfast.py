@@ -357,7 +357,6 @@ class TestCfgfast(unittest.TestCase):
         self.cfg_fast_edges_check("s390x", "cfg_switches", edges)
 
     def test_cfg_about_time(self):
-
         # This is to test the correctness of the PLT stub removal in CFGBase
         proj = angr.Project(os.path.join(test_location, "x86_64", "about_time"), auto_load_libs=False)
         cfg = proj.analyses.CFG()
@@ -623,7 +622,6 @@ class TestCfgfast(unittest.TestCase):
     #
 
     def test_tail_call_optimization_detection_armel(self):
-
         # GitHub issue #1286
 
         path = os.path.join(test_location, "armel", "Nucleo_read_hyperterminal-stripped.elf")
@@ -713,7 +711,6 @@ class TestCfgfast(unittest.TestCase):
     #
 
     def test_function_leading_blocks_merging(self):
-
         # GitHub issue #1312
 
         path = os.path.join(test_location, "armel", "Nucleo_read_hyperterminal-stripped.elf")
@@ -738,7 +735,6 @@ class TestCfgfast(unittest.TestCase):
     #
 
     def test_blanket_fauxware(self):
-
         path = os.path.join(test_location, "x86_64", "fauxware")
         proj = angr.Project(path, auto_load_libs=False)
 
@@ -757,7 +753,6 @@ class TestCfgfast(unittest.TestCase):
     #
 
     def test_cfg_with_patches(self):
-
         path = os.path.join(test_location, "x86_64", "fauxware")
         proj = angr.Project(path, auto_load_libs=False)
 
@@ -806,7 +801,6 @@ class TestCfgfast(unittest.TestCase):
         assert len(endpoint_addrs.symmetric_difference(true_endpoint_addrs)) == 0
 
     def test_indirect_jump_to_outside(self):
-
         # an indirect jump might be jumping to outside as well
         path = os.path.join(test_location, "mipsel", "libndpi.so.4.0.0")
         proj = angr.Project(path, auto_load_libs=False)
@@ -820,7 +814,6 @@ class TestCfgfast(unittest.TestCase):
         }
 
     def test_plt_stub_has_one_jumpout_site(self):
-
         # each PLT stub must have exactly one jumpout site
         path = os.path.join(test_location, "x86_64", "1after909")
         proj = angr.Project(path, auto_load_libs=False)
@@ -831,7 +824,6 @@ class TestCfgfast(unittest.TestCase):
                 assert len(func.jumpout_sites) == 1
 
     def test_generate_special_info(self):
-
         path = os.path.join(test_location, "mipsel", "fauxware")
         proj = angr.Project(path, auto_load_libs=False)
 
@@ -841,14 +833,12 @@ class TestCfgfast(unittest.TestCase):
         assert cfg.functions["main"].info["gp"] == 0x418CA0
 
     def test_load_from_shellcode(self):
-
         proj = angr.load_shellcode("loop: dec ecx; jnz loop; ret", "x86")
         cfg = proj.analyses.CFGFast()
 
         assert len(cfg.model.nodes()) == 2
 
     def test_starting_point_ordering(self):
-
         # project entry should always be first
         # so edge/path to unlabeled main function from _start
         # is correctly generated
@@ -874,7 +864,6 @@ class TestCfgfast(unittest.TestCase):
         assert n.successors[0].successors[0].successors[0].addr == 0x103D4
 
     def test_error_returning(self):
-
         # error() is a great function: its returning depends on the value of the first argument...
         path = os.path.join(test_location, "x86_64", "mv_-O2")
         proj = angr.Project(path, auto_load_libs=False)
@@ -963,7 +952,6 @@ class TestCfgfast(unittest.TestCase):
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
-
         path = os.path.join(test_location, "x86_64", "fauxware")
         proj = angr.Project(path, auto_load_libs=False)
 
@@ -984,7 +972,6 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert sneaky_str.content == b"SOSNEAKY"
 
     def test_data_references_mipsel(self):
-
         path = os.path.join(test_location, "mipsel", "fauxware")
         proj = angr.Project(path, auto_load_libs=False)
 
@@ -1025,7 +1012,6 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert str_.content == b"Password: "
 
     def test_data_references_mips64(self):
-
         path = os.path.join(test_location, "mips64", "true")
         proj = angr.Project(path, auto_load_libs=False)
 
@@ -1042,7 +1028,6 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert {x.ins_addr for x in refs} == {0x1200020E8, 0x120002108}
 
     def test_data_references_i386_gcc_pie(self):
-
         path = os.path.join(test_location, "i386", "nl")
         proj = angr.Project(path, auto_load_libs=False)
 

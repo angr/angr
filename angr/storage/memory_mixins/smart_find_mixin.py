@@ -18,7 +18,6 @@ class SmartFindMixin(MemoryMixin):
         char_size=1,
         **kwargs,
     ):
-
         if endness is None:
             endness = self.endness
             if endness is None:

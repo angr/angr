@@ -22,7 +22,6 @@ class TypeTranslator:
     """
 
     def __init__(self, arch=None):
-
         self.arch = arch
 
         self.translated: Dict[TypeConstant, SimType] = {}
@@ -38,7 +37,6 @@ class TypeTranslator:
     #
 
     def struct_name(self):
-
         return "struct_%d" % next(self._struct_ctr)
 
     #
@@ -46,12 +44,10 @@ class TypeTranslator:
     #
 
     def tc2simtype(self, tc):
-
         self._has_nonexistent_ref = False
         return self._tc2simtype(tc), self._has_nonexistent_ref
 
     def _tc2simtype(self, tc):
-
         if tc is None:
             return sim_type.SimTypeBottom().with_arch(self.arch)
 
@@ -80,7 +76,6 @@ class TypeTranslator:
     #
 
     def _translate_Pointer64(self, tc):
-
         if isinstance(tc.basetype, typeconsts.BottomType):
             # void *
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
@@ -89,7 +84,6 @@ class TypeTranslator:
         return sim_type.SimTypePointer(internal).with_arch(self.arch)
 
     def _translate_Pointer32(self, tc):
-
         if isinstance(tc.basetype, typeconsts.BottomType):
             # void *
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
@@ -102,7 +96,6 @@ class TypeTranslator:
         return sim_type.SimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
 
     def _translate_Struct(self, tc):
-
         if tc in self.structs:
             return self.structs[tc]
 
@@ -149,7 +142,6 @@ class TypeTranslator:
         return sim_type.SimTypeNum(128, signed=False).with_arch(self.arch)
 
     def _translate_TypeVariableReference(self, tc):
-
         if tc.typevar in self.translated:
             return self.translated[tc.typevar]
 

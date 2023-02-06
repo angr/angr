@@ -99,7 +99,6 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg_model=None, kb=None, **kwargs):  # pylint:disable=arguments-differ
-
         model = XRefManager(kb)
         bits = kb._project.arch.bits
 

@@ -146,7 +146,6 @@ class PendingJobs:
     __nonzero__ = __bool__
 
     def _pop_job(self, func_addr: Optional[int]):
-
         jobs = self._jobs[func_addr]
         j = jobs.pop(-1)
         if not jobs:
@@ -470,7 +469,6 @@ class CFGJob:
         self._func_edges = func_edges
 
     def add_function_edge(self, edge):
-
         if self._func_edges is None:
             self._func_edges = []
         self._func_edges.append(edge)
@@ -1159,7 +1157,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         return start_addr
 
     def _next_code_addr(self):
-
         while True:
             try:
                 addr = self._next_code_addr_core()
@@ -1230,7 +1227,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         return job.addr
 
     def _pre_analysis(self):
-
         # Call _initialize_cfg() before self.functions is used.
         self._initialize_cfg()
 
@@ -1350,7 +1346,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         pass
 
     def _get_successors(self, job: CFGJob) -> List[CFGJob]:  # type: ignore[override] # pylint:disable=arguments-differ
-
         # current_function_addr = job.func_addr
         # addr = job.addr
 
@@ -1380,7 +1375,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         pass
 
     def _post_process_successors(self, irsb, successors):
-
         if is_arm_arch(self.project.arch):
             if irsb.addr % 2 == 1:
                 # we are in thumb mode. filter successors
@@ -1422,7 +1416,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         pass
 
     def _job_queue_empty(self):
-
         if self._pending_jobs:
             # fastpath
             # look for a job that comes from a function that must return
@@ -1527,7 +1520,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 self._register_analysis_job(addr, job)
 
     def _post_analysis(self):
-
         self._make_completed_functions()
 
         if self._normalize:
@@ -1560,7 +1552,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             for src, dst, data in all_edges:
                 if "type" in data:
                     if data["type"] == "fake_return" and data.get("confirmed", False) is False:
-
                         # Get all possible functions being called here
                         target_funcs = [
                             self.functions.function(addr=func_addr) for func_addr in callsites_to_functions[src.addr]
@@ -2572,7 +2563,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 )
 
     def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):
-
         # helper methods
         def _process(stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
             """
@@ -2637,7 +2627,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                             tmps[stmt.tmp] = v
 
                 elif type(stmt.data) in (pyvex.IRExpr.Binop,):  # pylint: disable=unidiomatic-typecheck
-
                     # rip-related addressing
                     if stmt.data.op in ("Iop_Add32", "Iop_Add64"):
                         if all(type(arg) is pyvex.expr.Const for arg in stmt.data.args):
@@ -2693,7 +2682,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Dirty:
-
                 _process(
                     stmt_idx,
                     stmt.mAddr,
@@ -2704,7 +2692,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 )
 
             elif type(stmt) is pyvex.IRStmt.LoadG:
-
                 _process(
                     stmt_idx,
                     stmt.addr,
@@ -2738,7 +2725,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         # Make sure data_addr is within a valid memory range
         if not self.project.loader.find_loadable_containing(data_addr):
-
             # data might be at the end of some section or segment...
             # let's take a look
             for segment in self.project.loader.main_object.segments:
@@ -3291,7 +3277,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     # Exception handling
 
     def _preprocess_exception_handlings(self):
-
         self._exception_handling_by_endaddr.clear()
 
         bin_count = 0
@@ -3441,7 +3426,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         is_arm = is_arm_arch(self.project.arch)
 
         for i in range(len(sorted_nodes)):  # pylint:disable=consider-using-enumerate
-
             if a is None:
                 a = sorted_nodes[0]
                 continue
@@ -3738,7 +3722,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         return jumpout_targets
 
     def _get_return_sources(self, func):
-
         # We will create a return edge for each returning point of this function
 
         # Get all endpoints
@@ -4223,7 +4206,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         addr = cfg_job.addr
 
         try:
-
             if addr in self._nodes:
                 cfg_node = self._nodes[addr]
                 irsb = cfg_node.irsb
@@ -4766,7 +4748,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         return to_remove
 
     def _cascading_remove_lifted_blocks(self, addr: int):
-
         # first let's consider both predecessors and successors
         to_remove = self._extract_node_cluster_by_dependency(addr, include_successors=True)
 

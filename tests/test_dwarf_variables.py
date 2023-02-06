@@ -142,7 +142,7 @@ class TestDwarfVariables(TestCase):
             # (84, b"Wor"),  # FIXME fails
             (88, b"ld!\n"),
         ]
-        for (line, expected_string) in lines_strings:
+        for line, expected_string in lines_strings:
             addr = {addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)}.pop()
             simgr.explore(find=addr)
             s = simgr.found[0]

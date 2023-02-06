@@ -23,7 +23,6 @@ class SimEnginePropagatorVEX(
     SimEngineLightVEXMixin,
     SimEnginePropagatorBase,
 ):
-
     state: "PropagatorVEXState"
 
     #
@@ -31,7 +30,6 @@ class SimEnginePropagatorVEX(
     #
 
     def _process(self, state, successors, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
-
         super()._process(state, successors, block=block, whitelist=whitelist, **kwargs)
 
         if self.block.vex.jumpkind == "Ijk_Call":
@@ -186,7 +184,6 @@ class SimEnginePropagatorVEX(
             self.state.add_replacement(self._codeloc(block_only=True), VEXTmp(stmt.dst), self.tmps[stmt.dst])
 
     def _handle_StoreG(self, stmt):
-
         guard = self._expr(stmt.guard)
         data = self._expr(stmt.data)
         if guard is True:

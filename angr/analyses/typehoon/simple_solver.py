@@ -77,7 +77,6 @@ class SimpleSolver:
     """
 
     def __init__(self, bits: int, constraints):
-
         if bits not in (32, 64):
             raise ValueError("Pointer size %d is not supported. Expect 32 or 64." % bits)
 
@@ -115,7 +114,6 @@ class SimpleSolver:
         # pprint.pprint(self._upper_bounds)
 
     def determine(self):
-
         solution = {}
 
         for v in self._lower_bounds:
@@ -147,7 +145,6 @@ class SimpleSolver:
         return solution
 
     def _handle_equivalence(self):
-
         graph = networkx.Graph()
 
         replacements = {}
@@ -235,7 +232,6 @@ class SimpleSolver:
         raise NotImplementedError("Unsupported bits %d" % self.bits)
 
     def _calculate_closure(self, constraints):
-
         ptr_class = self._pointer_class()
 
         # a mapping from type variables to all the variables which are {super,sub}types of them
@@ -356,7 +352,6 @@ class SimpleSolver:
         return self._upper_bounds[v]
 
     def _compute_lower_upper_bounds(self, subtypevars, supertypevars):
-
         # compute the least upper bound for each type variable
         for typevar, upper_bounds in supertypevars.items():
             if typevar is None:
@@ -402,7 +397,6 @@ class SimpleSolver:
                     self._lower_bounds[subtypevar] = subtype_infimum
 
     def _lower_struct_fields(self):
-
         # tv_680: ptr32(struct{0: int32})
         # tv_680.load.<32>@0: ptr32(struct{5: int8})
         #    becomes
@@ -418,7 +412,6 @@ class SimpleSolver:
                 base = outer.type_var.type_var
 
                 if base in self._lower_bounds:
-
                     base_lb = self._lower_bounds[base]
 
                     # make sure it's a pointer at the offset that v.label specifies
@@ -461,7 +454,6 @@ class SimpleSolver:
         return t.__class__
 
     def _concretize(self, n_cls, t1, t2, join_or_meet, translate):
-
         ptr_class = self._pointer_class()
 
         if n_cls is ptr_class:

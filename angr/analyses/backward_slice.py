@@ -536,7 +536,6 @@ class BackwardSlice(Analysis):
                                 )
 
                     if target_addresses is not None:
-
                         if stmt_idx is not None:
                             # If it's an exit statement, we create a new tainted code location
                             cl = CodeLocation(predecessor.addr, self._normalize_stmt_idx(predecessor.addr, stmt_idx))

@@ -832,7 +832,6 @@ class PcodeBasicBlockLifter:
         max_bytes: Optional[int] = None,
         max_inst: Optional[int] = None,
     ) -> None:
-
         if max_bytes is None or max_bytes > MAX_BYTES:
             max_bytes = min(len(data), MAX_BYTES)
         if max_inst is None or max_inst > MAX_INSTRUCTIONS:

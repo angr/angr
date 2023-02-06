@@ -58,7 +58,6 @@ class RepHook:
         return p.execute(state, None, arguments=e_args)
 
     def run(self, state):
-
         from .. import SIM_PROCEDURES  # pylint: disable=import-outside-toplevel
 
         dst = state.regs.edi if state.arch.name == "X86" else state.regs.rdi
@@ -93,7 +92,6 @@ class RepHook:
                 state.regs.rcx = 0
 
         elif self.mnemonic.startswith("movs"):
-
             src = state.regs.esi if state.arch.name == "X86" else state.regs.rsi
 
             # copy a string

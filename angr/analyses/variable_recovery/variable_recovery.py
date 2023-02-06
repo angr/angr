@@ -25,7 +25,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     """
 
     def __init__(self, block_addr, analysis, arch, func, concrete_states, stack_region=None, register_region=None):
-
         super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region)
 
         self._concrete_states = concrete_states
@@ -57,7 +56,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         return None
 
     def copy(self):
-
         state = VariableRecoveryState(
             self.block_addr,
             self._analysis,
@@ -153,7 +151,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     #
 
     def _hook_register_read(self, state):
-
         reg_read_offset = state.inspect.reg_read_offset
         if isinstance(reg_read_offset, claripy.ast.BV):
             if reg_read_offset.multivalued:
@@ -186,7 +183,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             self.variable_manager[self.func_addr].add_variable("register", var_offset, variable)
 
     def _hook_register_write(self, state):
-
         reg_write_offset = state.inspect.reg_write_offset
         if isinstance(reg_write_offset, claripy.ast.BV):
             if reg_write_offset.multivalued:
@@ -265,7 +261,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 self.variable_manager[self.func_addr].reference_at(var, offset, self._codeloc_from_state(state))
 
     def _hook_memory_read(self, state):
-
         mem_read_address = state.inspect.mem_read_address
         mem_read_expr = state.inspect.mem_read_expr
         mem_read_length = state.inspect.mem_read_length
@@ -319,7 +314,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 self.variable_manager[self.func_addr].read_from(variable, offset, self._codeloc_from_state(state))
 
     def _hook_memory_write(self, state):
-
         mem_write_address = state.inspect.mem_write_address
         mem_write_expr = state.inspect.mem_write_expr
         mem_write_length = len(mem_write_expr) // 8
@@ -353,7 +347,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
     #
 
     def _normalize_register_offset(self, offset):  # pylint:disable=no-self-use
-
         # TODO:
 
         return offset
@@ -363,7 +356,6 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         return CodeLocation(state.scratch.bbl_addr, state.scratch.stmt_idx, ins_addr=state.scratch.ins_addr)
 
     def _to_signed(self, n):
-
         if n >= 2 ** (self.arch.bits - 1):
             # convert it to a negative number
             return n - 2**self.arch.bits
@@ -478,7 +470,6 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
         pass
 
     def _initial_abstract_state(self, node):
-
         concrete_state = self.project.factory.blank_state(
             addr=node.addr, mode="fastpath"  # we don't want to do any solving
         )
@@ -492,7 +483,6 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
         return VariableRecoveryState(node.addr, self, self.project.arch, self.function, [concrete_state])
 
     def _merge_states(self, node, *states: VariableRecoveryState):
-
         if len(states) == 1:
             return states[0], True
 

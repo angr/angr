@@ -22,7 +22,6 @@ class AILBlockWalkerBase:
     """
 
     def __init__(self, stmt_handlers=None, expr_handlers=None):
-
         _default_stmt_handlers = {
             Assignment: self._handle_Assignment,
             Call: self._handle_Call,
@@ -244,7 +243,6 @@ class AILBlockWalker(AILBlockWalkerBase):
                 block.statements[stmt_idx] = new_stmt
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Optional[Block]):
-
         changed = False
 
         addr = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
@@ -275,7 +273,6 @@ class AILBlockWalker(AILBlockWalkerBase):
             block.statements[stmt_idx] = new_stmt
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Optional[Block]):
-
         changed = False
 
         condition = self._handle_expr(0, stmt.condition, stmt_idx, stmt, block)
@@ -328,7 +325,6 @@ class AILBlockWalker(AILBlockWalkerBase):
         return None
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional[Block]):
-
         changed = False
 
         if expr.args:

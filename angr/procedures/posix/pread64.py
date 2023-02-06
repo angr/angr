@@ -8,7 +8,6 @@ l = logging.getLogger(name=__name__)
 class pread64(angr.SimProcedure):
     # pylint: disable=arguments-differ
     def run(self, fd, buf, nbyte, offset):
-
         SEEK_SET = 0  # Seek from beginning of file.
         SEEK_CUR = 1  # Seek from current position.
 

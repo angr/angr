@@ -7,7 +7,6 @@ from .. import MemoryMixin
 
 
 class MemoryRegionMetaMixin(MemoryMixin):
-
     __slots__ = (
         "_endness",
         "_id",

@@ -25,7 +25,6 @@ class transmit(angr.SimProcedure):
 
         else:
             if self.state.solver.solution(count != 0, True):
-
                 # rules for invalid
                 # greater than 0xc0 or wraps around
                 if self.state.solver.max_int(buf + count) > 0xC0000000 or self.state.solver.min_int(

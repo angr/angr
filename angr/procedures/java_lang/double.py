@@ -8,7 +8,6 @@ log = logging.getLogger(name=__name__)
 
 
 class ParseDouble(JavaSimProcedure):
-
     __provides__ = (("java.lang.Double", "parseDouble(java.lang.String)"),)
 
     def run(self, str_ref):

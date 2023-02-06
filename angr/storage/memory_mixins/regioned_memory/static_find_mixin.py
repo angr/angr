@@ -21,7 +21,6 @@ class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method
         char_size=1,
         **kwargs,
     ):  # pylint:disable=arguments-differ
-
         if endness is None:
             endness = self.endness
             if endness is None:

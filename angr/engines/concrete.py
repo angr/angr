@@ -30,7 +30,6 @@ class SimEngineConcrete(SuccessorsMixin):
         if isinstance(self.project.concrete_target, ConcreteTarget) and self.check_concrete_target_methods(
             self.project.concrete_target
         ):
-
             self.target = self.project.concrete_target
         else:
             l.warning("Error, you must provide an instance of a ConcreteTarget to initialize a SimEngineConcrete.")
@@ -49,7 +48,6 @@ class SimEngineConcrete(SuccessorsMixin):
         *args,
         **kwargs,
     ):
-
         new_state = self.state
         # setup the concrete process and resume the execution
         self.to_engine(new_state, extra_stop_points, memory_concretize, register_concretize, timeout)

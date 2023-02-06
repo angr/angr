@@ -165,7 +165,6 @@ class Block(Serializable):
         load_from_ro_regions=False,
         initial_regs=None,
     ):
-
         # set up arch
         if project is not None:
             self.arch = project.arch
@@ -459,7 +458,6 @@ class SootBlock:
     """
 
     def __init__(self, addr, project=None, arch=None):
-
         self.addr = addr
         self.arch = arch
         self._project = project

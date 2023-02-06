@@ -169,11 +169,9 @@ class SimSlicer:
         return None
 
     def _forward_handler_expr_Const(self, expr, state):  # pylint:disable=unused-argument
-
         return expr.con.value
 
     def _forward_handler_expr_Binop(self, expr, state):
-
         funcname = "_forward_handler_expr_binop_%s" % expr.op.strip("Iop_")
 
         if hasattr(self, funcname):
@@ -185,11 +183,9 @@ class SimSlicer:
         return None
 
     def _forward_handler_expr_binop_Add64(self, op0, op1, state):  # pylint:disable=unused-argument
-
         return (op0 + op1) & (2**64 - 1)
 
     def _forward_handler_expr_binop_Add32(self, op0, op1, state):  # pylint:disable=unused-argument
-
         return (op0 + op1) & (2**32 - 1)
 
     #
@@ -268,7 +264,6 @@ class SimSlicer:
             return False
 
     def _backward_handler_stmt_Store(self, stmt, state):
-
         addr = stmt.addr
 
         if type(addr) is pyvex.IRExpr.RdTmp:
@@ -288,7 +283,6 @@ class SimSlicer:
         return False
 
     def _backward_handler_stmt_LoadG(self, expr, state):
-
         if expr.dst not in state.temps:
             return False
 
@@ -342,19 +336,16 @@ class SimSlicer:
             self._backward_handler_expr(arg, state)
 
     def _backward_handler_expr_CCall(self, expr, state):
-
         for arg in expr.args:
             if type(arg) is pyvex.IRExpr.RdTmp:
                 self._backward_handler_expr(arg, state)
 
     def _backward_handler_expr_Binop(self, expr, state):
-
         for arg in expr.args:
             if type(arg) is pyvex.IRExpr.RdTmp:
                 self._backward_handler_expr(arg, state)
 
     def _backward_handler_expr_ITE(self, expr, state):
-
         self._backward_handler_expr(expr.cond, state)
         self._backward_handler_expr(expr.iftrue, state)
         self._backward_handler_expr(expr.iffalse, state)

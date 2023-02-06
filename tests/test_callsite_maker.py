@@ -9,7 +9,6 @@ import ailment
 # pylint: disable=no-self-use
 class TestCallsiteMaker(unittest.TestCase):
     def test_callsite_maker(self):
-
         project = angr.Project(
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "binaries", "tests", "x86_64", "all"),
             auto_load_libs=False,

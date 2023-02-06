@@ -11,7 +11,6 @@ class IndirectJumpType:
 
 
 class IndirectJump(Serializable):
-
     __slots__ = (
         "addr",
         "ins_addr",
@@ -56,7 +55,6 @@ class IndirectJump(Serializable):
         self.type = type_
 
     def __repr__(self):
-
         status = ""
         if self.jumptable or self.jumptable_entries:
             if self.type == IndirectJumpType.Vtable:

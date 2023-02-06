@@ -293,7 +293,6 @@ class CallStack(SimStatePlugin):
         return_target_index = self._find_return_target(retn_target)
 
         if return_target_index is not None:
-
             o = self
             while return_target_index >= 0:
                 o = o.pop()

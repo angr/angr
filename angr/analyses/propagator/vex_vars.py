@@ -2,7 +2,6 @@
 
 
 class VEXVariable:
-
     __slots__ = ()
 
     def __hash__(self):
@@ -13,7 +12,6 @@ class VEXVariable:
 
 
 class VEXMemVar:
-
     __slots__ = (
         "addr",
         "size",
@@ -34,7 +32,6 @@ class VEXMemVar:
 
 
 class VEXReg(VEXVariable):
-
     __slots__ = (
         "offset",
         "size",
@@ -55,7 +52,6 @@ class VEXReg(VEXVariable):
 
 
 class VEXTmp(VEXVariable):
-
     __slots__ = ("tmp",)
 
     def __init__(self, tmp):

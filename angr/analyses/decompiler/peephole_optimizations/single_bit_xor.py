@@ -10,7 +10,6 @@ class SingleBitXor(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)  # all expressions are allowed
 
     def optimize(self, expr: Convert):
-
         # Convert(N->1, (Convert(1->N, t_x) ^ 0x1<N>) ==> Not(t_x)
         if expr.to_bits == 1:
             xor_expr = expr.operand

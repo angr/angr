@@ -240,7 +240,6 @@ class ProximityGraphAnalysis(Analysis):
     def _process_function(
         self, func: "Function", graph: networkx.DiGraph, func_proxi_node: Optional[FunctionProxiNode] = None
     ) -> List[FunctionProxiNode]:
-
         to_expand: List[FunctionProxiNode] = []
         found_blocks: Dict[BlockNode:BaseProxiNode] = {}
 

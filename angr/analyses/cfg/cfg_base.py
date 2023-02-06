@@ -252,9 +252,7 @@ class CFGBase(Analysis):
         self._completed_functions = set()
 
     def _post_analysis(self):
-
         if self._normalize:
-
             if not self.normalized:
                 self.normalize()
 
@@ -931,7 +929,6 @@ class CFGBase(Analysis):
         for goout_site, type_ in [(site, "jumpout") for site in func.jumpout_sites] + [
             (site, "retout") for site in func.retout_sites
         ]:
-
             # determine where it jumps/returns to
             goout_site_successors = goout_site.successors()
             # Filter out UnresolvableJumpTarget because those don't mean that we actually know where it jumps to
@@ -1161,7 +1158,6 @@ class CFGBase(Analysis):
     def _normalize_core(
         self, graph: networkx.DiGraph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addresses_to_nodes
     ):
-
         # Break other nodes
         for n in other_nodes:
             new_size = get_real_address_if_arm(self.project.arch, smallest_node.addr) - get_real_address_if_arm(
@@ -1476,7 +1472,6 @@ class CFGBase(Analysis):
         max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
-
             if self._low_priority:
                 self._release_gil(i, 800, 0.000001)
 
@@ -1518,7 +1513,6 @@ class CFGBase(Analysis):
 
         nodes_count = len(secondary_function_nodes)
         for i, fn in enumerate(sorted(secondary_function_nodes, key=lambda n: n.addr)):
-
             if self._show_progressbar or self._progress_callback:
                 progress = min_stage_3_progress + (max_stage_3_progress - min_stage_3_progress) * (
                     i * 1.0 / nodes_count
@@ -1637,7 +1631,6 @@ class CFGBase(Analysis):
         all_func_addrs = sorted(set(functions.keys()))
 
         for func_pos, (func_addr, function) in enumerate(functions.items()):
-
             if func_addr in functions_to_remove:
                 continue
 
@@ -2169,7 +2162,6 @@ class CFGBase(Analysis):
         stmt_idx = data.get("stmt_idx", None)
 
         if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys"):
-
             is_syscall = jumpkind.startswith("Ijk_Sys")
 
             # It must be calling a function
@@ -2234,7 +2226,6 @@ class CFGBase(Analysis):
                     )
 
         elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"):
-
             # convert src_addr and dst_addr to CodeNodes
             n = self.model.get_any_node(src_addr)
             if n is None:
@@ -2309,7 +2300,6 @@ class CFGBase(Analysis):
                 )
 
         elif jumpkind == "Ijk_FakeRet":
-
             # convert src_addr and dst_addr to CodeNodes
             n = self.model.get_any_node(src_addr)
             if n is None:
