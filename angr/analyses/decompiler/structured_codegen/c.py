@@ -2944,9 +2944,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Load(self, expr: Expr.Load):
         ty = self.default_simtype_from_size(expr.size)
 
-        def negotiate(old_ty, proposed_ty):
+        def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
             if old_ty.size == proposed_ty.size:
-                return proposed_ty
+                # we do not allow returning a struct for a primitive type
+                if not (isinstance(proposed_ty, SimStruct) and not isinstance(old_ty, SimStruct)):
+                    return proposed_ty
             return old_ty
 
         if expr.variable is not None:

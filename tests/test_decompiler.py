@@ -1951,6 +1951,23 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_decompiling_ls_print_many_per_line(self, decompiler_options=None):
+        # complex variable types involved. a struct with only one field was causing _access() in
+        # CStructuredCodeGenerator to end up in an infinite loop.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["print_many_per_line"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # it should make somewhat sense
+        assert "calculate_columns(" in d.codegen.text
+        assert "putchar_unlocked(eolbyte)" in d.codegen.text
+
     @for_all_structuring_algos
     def test_eliminating_stack_canary_reused_stack_chk_fail_call(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
