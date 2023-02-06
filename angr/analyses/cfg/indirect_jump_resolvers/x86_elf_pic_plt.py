@@ -22,9 +22,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         self._got_addr_cache = {}
 
     def _got_addr(self, obj):
-
         if obj not in self._got_addr_cache:
-
             if not isinstance(obj, cle.MetaELF):
                 self._got_addr_cache[obj] = None
             else:
@@ -45,7 +43,6 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         return self._got_addr_cache[obj]
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-
         if not isinstance(self.project.arch, archinfo.ArchX86):
             return False
 
@@ -68,7 +65,6 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         return True
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
-
         obj = self.project.loader.find_object_containing(addr)
         if obj is None:
             return False, []

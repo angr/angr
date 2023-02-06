@@ -6,10 +6,11 @@ import angr
 ######################################
 
 l = logging.getLogger(name=__name__)
+
+
 # pylint:disable=redefined-builtin,arguments-differ
 class getrlimit(angr.SimProcedure):
     def run(self, resource, rlim):
-
         if self.state.solver.eval(resource) == 3:  # RLIMIT_STACK
             l.debug("running getrlimit(RLIMIT_STACK)")
             self.state.memory.store(rlim, 8388608, 8)  # rlim_cur

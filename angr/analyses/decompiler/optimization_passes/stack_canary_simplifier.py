@@ -31,7 +31,6 @@ class StackCanarySimplifier(OptimizationPass):
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
-
         super().__init__(func, **kwargs)
 
         self.analyze()
@@ -43,7 +42,6 @@ class StackCanarySimplifier(OptimizationPass):
         return init_stmt is not None, {"init_stmt": init_stmt}
 
     def _analyze(self, cache=None):
-
         init_stmt = None
         if cache is not None:
             init_stmt = cache.get("init_stmt", None)
@@ -180,7 +178,6 @@ class StackCanarySimplifier(OptimizationPass):
         # Done!
 
     def _find_canary_init_stmt(self):
-
         first_block = self._get_block(self._func.addr)
         if first_block is None:
             return None
@@ -203,7 +200,6 @@ class StackCanarySimplifier(OptimizationPass):
         return None
 
     def _find_canary_comparison_stmt(self, block, canary_value_stack_offset):
-
         for idx, stmt in enumerate(block.statements):
             if isinstance(stmt, ailment.Stmt.ConditionalJump):
                 if isinstance(stmt.condition, ailment.Expr.UnaryOp) and stmt.condition.op == "Not":
@@ -255,7 +251,6 @@ class StackCanarySimplifier(OptimizationPass):
         return None
 
     def _calls_stack_chk_fail(self, node):
-
         for stmt in node.statements:
             if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
                 const_target = stmt.target.value

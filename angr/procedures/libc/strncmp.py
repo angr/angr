@@ -116,7 +116,6 @@ class strncmp(angr.SimProcedure):
                     else:
                         return self.state.solver.BVV(1, 32)
             else:
-
                 if self.state.mode == "static":
                     return_values.append(a_byte - b_byte)
 

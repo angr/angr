@@ -53,7 +53,7 @@ def _euclidean_dist(vector_a, vector_b):
     :returns:           The euclidean distance between the two vectors.
     """
     dist = 0
-    for (x, y) in zip(vector_a, vector_b):
+    for x, y in zip(vector_a, vector_b):
         dist += (x - y) * (x - y)
     return math.sqrt(dist)
 
@@ -377,7 +377,7 @@ class FunctionDiff:
         """
         if len(self._unmatched_blocks_from_a | self._unmatched_blocks_from_b) > 0:
             return False
-        for (a, b) in self._block_matches:
+        for a, b in self._block_matches:
             if not self.blocks_probably_identical(a, b):
                 return False
         return True
@@ -388,7 +388,7 @@ class FunctionDiff:
         :returns: A list of block matches which appear to be identical
         """
         identical_blocks = []
-        for (block_a, block_b) in self._block_matches:
+        for block_a, block_b in self._block_matches:
             if self.blocks_probably_identical(block_a, block_b):
                 identical_blocks.append((block_a, block_b))
         return identical_blocks
@@ -399,7 +399,7 @@ class FunctionDiff:
         :returns: A list of block matches which appear to differ
         """
         differing_blocks = []
-        for (block_a, block_b) in self._block_matches:
+        for block_a, block_b in self._block_matches:
             if not self.blocks_probably_identical(block_a, block_b):
                 differing_blocks.append((block_a, block_b))
         return differing_blocks
@@ -411,7 +411,7 @@ class FunctionDiff:
         """
         differing_blocks = []
         diffs = {}
-        for (block_a, block_b) in self._block_matches:
+        for block_a, block_b in self._block_matches:
             if self.blocks_probably_identical(block_a, block_b) and not self.blocks_probably_identical(
                 block_a, block_b, check_constants=True
             ):
@@ -664,7 +664,7 @@ class FunctionDiff:
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
         matched_b = {}
-        for (x, y) in processed_matches:
+        for x, y in processed_matches:
             matched_a[x] = y
             matched_b[y] = x
 
@@ -709,7 +709,7 @@ class FunctionDiff:
             )
 
             # for each of the possible new matches add it if it improves the matching
-            for (x, y) in new_matches:
+            for x, y in new_matches:
                 if (x, y) not in processed_matches:
                     processed_matches.add((x, y))
                     l.debug("FunctionDiff: checking if (%#x, %#x) is better", x.addr, y.addr)
@@ -933,7 +933,7 @@ class BinDiff(Analysis):
         :returns: A list of function matches that appear to be identical
         """
         identical_funcs = []
-        for (func_a, func_b) in self.function_matches:
+        for func_a, func_b in self.function_matches:
             if self.functions_probably_identical(func_a, func_b):
                 identical_funcs.append((func_a, func_b))
         return identical_funcs
@@ -944,7 +944,7 @@ class BinDiff(Analysis):
         :returns: A list of function matches that appear to differ
         """
         different_funcs = []
-        for (func_a, func_b) in self.function_matches:
+        for func_a, func_b in self.function_matches:
             if not self.functions_probably_identical(func_a, func_b):
                 different_funcs.append((func_a, func_b))
         return different_funcs
@@ -954,7 +954,7 @@ class BinDiff(Analysis):
         :return: A list of function matches that appear to differ including just by constants
         """
         different_funcs = []
-        for (func_a, func_b) in self.function_matches:
+        for func_a, func_b in self.function_matches:
             if not self.functions_probably_identical(func_a, func_b, check_consts=True):
                 different_funcs.append((func_a, func_b))
         return different_funcs
@@ -965,7 +965,7 @@ class BinDiff(Analysis):
         :returns: A list of block matches that appear to differ
         """
         differing_blocks = []
-        for (func_a, func_b) in self.function_matches:
+        for func_a, func_b in self.function_matches:
             differing_blocks.extend(self.get_function_diff(func_a, func_b).differing_blocks)
         return differing_blocks
 
@@ -975,7 +975,7 @@ class BinDiff(Analysis):
         :return A list of all block matches that appear to be identical
         """
         identical_blocks = []
-        for (func_a, func_b) in self.function_matches:
+        for func_a, func_b in self.function_matches:
             identical_blocks.extend(self.get_function_diff(func_a, func_b).identical_blocks)
         return identical_blocks
 
@@ -985,7 +985,7 @@ class BinDiff(Analysis):
         :return: A dict of block matches with differing constants to the tuple of constants
         """
         diffs = {}
-        for (func_a, func_b) in self.function_matches:
+        for func_a, func_b in self.function_matches:
             diffs.update(self.get_function_diff(func_a, func_b).blocks_with_differing_constants)
         return diffs
 
@@ -1048,7 +1048,7 @@ class BinDiff(Analysis):
         basic_block_matches = fd.block_matches
         function_a = fd._function_a
         function_b = fd._function_b
-        for (a, b) in basic_block_matches:
+        for a, b in basic_block_matches:
             if a in function_a.call_sites and b in function_b.call_sites:
                 # add them in order
                 for target_a, target_b in zip(function_a.call_sites[a], function_b.call_sites[b]):
@@ -1069,11 +1069,11 @@ class BinDiff(Analysis):
         # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
         func_to_addr_a = {}
         func_to_addr_b = {}
-        for (k, hook) in self.project._sim_procedures.items():
+        for k, hook in self.project._sim_procedures.items():
             if "resolves" in hook.kwargs:
                 func_to_addr_a[hook.kwargs["resolves"]] = k
 
-        for (k, hook) in self._p2._sim_procedures.items():
+        for k, hook in self._p2._sim_procedures.items():
             if "resolves" in hook.kwargs:
                 func_to_addr_b[hook.kwargs["resolves"]] = k
 
@@ -1118,7 +1118,7 @@ class BinDiff(Analysis):
         initial_matches = self._get_plt_matches()
         initial_matches += self._get_name_matches()
         initial_matches += self._get_function_matches(self.attributes_a, self.attributes_b)
-        for (a, b) in initial_matches:
+        for a, b in initial_matches:
             l.debug("Initially matched (%#x, %#x)", a, b)
 
         # Use a queue so we process matches in the order that they are found
@@ -1130,7 +1130,7 @@ class BinDiff(Analysis):
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
         matched_b = {}
-        for (x, y) in processed_matches:
+        for x, y in processed_matches:
             matched_a[x] = y
             matched_b[y] = x
 
@@ -1165,7 +1165,7 @@ class BinDiff(Analysis):
             new_matches.update(self._get_call_site_matches(func_a, func_b))
 
             # for each of the possible new matches add it if it improves the matching
-            for (x, y) in new_matches:
+            for x, y in new_matches:
                 # skip none functions and syscalls
                 func_a = self.cfg_a.kb.functions.function(x)
                 if func_a is None or func_a.is_simprocedure or func_a.is_syscall:
@@ -1204,7 +1204,7 @@ class BinDiff(Analysis):
         self._unmatched_functions_from_b = {x for x in self.attributes_b.keys() if x not in matched_b}
 
         # remove unneeded function diffs
-        for (x, y) in dict(self._function_diffs):
+        for x, y in dict(self._function_diffs):
             if (x, y) not in self.function_matches:
                 del self._function_diffs[(x, y)]
 

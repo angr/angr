@@ -11,7 +11,6 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-
         # TODO make this lhs/rhs agnostic
         if isinstance(expr.operands[0], Convert):
             # check: is the lhs convert an up-cast and is rhs a const?

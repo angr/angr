@@ -47,7 +47,6 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         return super()._ail_handle_Convert(expr)
 
     def _ail_handle_Shr(self, expr):
-
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -213,7 +212,6 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         return expr
 
     def _ail_handle_Mul(self, expr):
-
         operand_0, operand_1 = expr.operands
 
         if (
@@ -259,7 +257,6 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         return super()._ail_handle_Mul(expr)
 
     def _ail_handle_Div(self, expr):
-
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -269,7 +266,6 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             and operand_0.op in {"Div", "DivMod"}
             and isinstance(operand_0.operands[1], Expr.Const)
         ):
-
             new_const_value = operand_1.value * operand_0.operands[1].value
             new_const = Expr.Const(operand_1.idx, None, new_const_value, operand_1.bits)
             return Expr.BinaryOp(expr.idx, "Div", [operand_0.operands[0], new_const], expr.signed, **expr.tags)
@@ -279,7 +275,6 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         return expr
 
     def _ail_handle_Add(self, expr):
-
         if len(expr.operands) != 2:
             return super()._ail_handle_Add(expr)
 
@@ -370,7 +365,6 @@ class DivSimplifier(OptimizationPass):
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
-
         super().__init__(func, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
@@ -382,7 +376,6 @@ class DivSimplifier(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-
         for block in list(self._graph.nodes()):
             new_block = block
             old_block = None

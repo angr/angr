@@ -2,7 +2,6 @@ from .. import MemoryMixin
 
 
 class TypedVariable:
-
     __slots__ = (
         "type",
         "value",

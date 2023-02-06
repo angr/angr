@@ -44,7 +44,6 @@ class Server:
         add_options=None,
         remove_options=None,
     ):
-
         self.project = project
 
         self.spill_yard = spill_yard if spill_yard else tempfile.mkdtemp(suffix="angr_spill_yard")
@@ -75,7 +74,6 @@ class Server:
         self._active_workers = multiprocessing.Value("i", lock=True)
 
     def __setstate__(self, state):
-
         self.project = state["project"]
         self.spill_yard = state["spill_yard"]
         self.db_str = state["db_str"]
@@ -151,7 +149,6 @@ class Server:
     #
 
     def run(self):
-
         # create workers
         with multiprocessing.Manager() as manager:
             server_state = manager.dict()

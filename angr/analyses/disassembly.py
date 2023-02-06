@@ -114,7 +114,6 @@ class Label(DisassemblyPiece):
 
 
 class IROp(DisassemblyPiece):
-
     __slots__ = (
         "addr",
         "seq",
@@ -323,7 +322,6 @@ class Instruction(DisassemblyPiece):
             ordc = ord(c[0])
             # pylint:disable=too-many-boolean-expressions
             if 0x30 <= ordc <= 0x39 or 0x41 <= ordc <= 0x5A or 0x61 <= ordc <= 0x7A:
-
                 # perform some basic classification
                 intc = None
                 reg = False
@@ -456,13 +454,11 @@ class SootExpressionStaticFieldRef(SootExpression):
 
 
 class SootExpressionInvoke(SootExpression):
-
     Virtual = "virtual"
     Static = "static"
     Special = "special"
 
     def __init__(self, invoke_type, expr):
-
         super().__init__(str(expr))
 
         self.invoke_type = invoke_type
@@ -471,7 +467,6 @@ class SootExpressionInvoke(SootExpression):
         self.arg_str = expr.list_to_arg_str(expr.args)
 
     def _render(self, formatting=None):
-
         return [
             "{}{}({}) [{}]".format(
                 self.base + "." if self.base else "", self.method_name, self.arg_str, self.invoke_type
@@ -494,7 +489,6 @@ class SootStatement(DisassemblyPiece):
         return self.addr.stmt_idx
 
     def _parse(self):
-
         func = "_parse_%s" % self.raw_stmt.__class__.__name__
 
         if hasattr(self, func):
@@ -504,7 +498,6 @@ class SootStatement(DisassemblyPiece):
             self.components += ["NotImplemented: %s" % func]
 
     def _expr(self, expr):
-
         func = "_handle_%s" % expr.__class__.__name__
 
         if hasattr(self, func):
@@ -528,7 +521,6 @@ class SootStatement(DisassemblyPiece):
     #
 
     def _parse_AssignStmt(self):
-
         self.components += [
             SootExpression(str(self.raw_stmt.left_op)),
             "=",
@@ -536,19 +528,16 @@ class SootStatement(DisassemblyPiece):
         ]
 
     def _parse_InvokeStmt(self):
-
         self.components += [
             self._expr(self.raw_stmt.invoke_expr),
         ]
 
     def _parse_GotoStmt(self):
-
         self.components += [
             SootExpressionTarget(self.raw_stmt.target),
         ]
 
     def _parse_IfStmt(self):
-
         self.components += [
             "if (",
             SootExpression(str(self.raw_stmt.condition)),
@@ -557,13 +546,11 @@ class SootStatement(DisassemblyPiece):
         ]
 
     def _parse_ReturnVoidStmt(self):
-
         self.components += [
             "return",
         ]
 
     def _parse_IdentityStmt(self):
-
         self.components += [
             SootExpression(str(self.raw_stmt.left_op)),
             "<-",
@@ -575,19 +562,15 @@ class SootStatement(DisassemblyPiece):
     #
 
     def _handle_SootStaticFieldRef(self, expr):
-
         return SootExpressionStaticFieldRef(expr.field[::-1])
 
     def _handle_SootVirtualInvokeExpr(self, expr):
-
         return SootExpressionInvoke(SootExpressionInvoke.Virtual, expr)
 
     def _handle_SootStaticInvokeExpr(self, expr):
-
         return SootExpressionInvoke(SootExpressionInvoke.Static, expr)
 
     def _handle_SootSpecialInvokeExpr(self, expr):
-
         return SootExpressionInvoke(SootExpressionInvoke.Special, expr)
 
 
@@ -633,7 +616,6 @@ class Operand(DisassemblyPiece):
 
     @staticmethod
     def build(operand_type, op_num, children, parentinsn):
-
         # Maps capstone operand types to operand classes
         MAPPING = {
             0: Operand,  # default type for operand that haven't been fully implemented

@@ -19,7 +19,6 @@ def _remove_addr_from_trace_item(trace_item_str):
 
 
 def _compare_trace(trace, expected):
-
     assert len(trace) == len(expected)
 
     for trace_item, expected_str in zip(trace, expected):

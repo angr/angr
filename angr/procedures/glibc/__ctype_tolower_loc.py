@@ -21,7 +21,6 @@ class __ctype_tolower_loc(angr.SimProcedure):
     """
 
     def run(self):
-
         table_ptr = self.state.libc.ctype_tolower_loc_table_ptr
 
         return table_ptr

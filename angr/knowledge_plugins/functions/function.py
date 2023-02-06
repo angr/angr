@@ -755,7 +755,6 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     def _confirm_fakeret(self, src, dst):
-
         if src not in self.transition_graph or dst not in self.transition_graph[src]:
             raise AngrValueError(f"FakeRet edge ({src}, {dst}) is not in transition graph.")
 
@@ -1511,7 +1510,6 @@ class Function(Serializable):
 
     @staticmethod
     def _addr_to_funcloc(addr):
-
         # FIXME
         if isinstance(addr, tuple):
             return addr[0]

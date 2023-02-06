@@ -4,7 +4,6 @@ from . import JNISimProcedure
 
 
 class GetVersion(JNISimProcedure):
-
     return_ty = "int"
 
     def run(self, ptr_env):

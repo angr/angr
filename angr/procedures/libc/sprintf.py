@@ -10,7 +10,6 @@ l = logging.getLogger(name=__name__)
 
 
 class sprintf(FormatParser):
-
     # pylint:disable=arguments-differ
 
     def run(self, dst_ptr, fmt):  # pylint:disable=unused-argument

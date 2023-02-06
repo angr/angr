@@ -10,7 +10,6 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 
 class TestTypehoon(unittest.TestCase):
     def test_smoketest(self):
-
         p = angr.Project(os.path.join(test_location, "x86_64", "linked_list"), auto_load_libs=False)
         cfg = p.analyses.CFG(data_references=True, normalize=True)
 
@@ -34,7 +33,6 @@ class TestTypehoon(unittest.TestCase):
         # print(t)
 
     def test_type_inference_byte_pointer_cast(self):
-
         proj = angr.Project(os.path.join(test_location, "i386", "type_inference_1"), auto_load_libs=False)
         cfg = proj.analyses.CFG(data_references=True, normalize=True)
         main_func = cfg.kb.functions["main"]

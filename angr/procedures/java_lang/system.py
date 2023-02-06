@@ -7,7 +7,6 @@ log = logging.getLogger(name=__name__)
 
 
 class SystemCurrentTimeMillis(JavaSimProcedure):
-
     __provides__ = (("java.lang.System", "currentTimeMillis()"),)
 
     def run(self):

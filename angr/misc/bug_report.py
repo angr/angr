@@ -34,7 +34,6 @@ def get_venv():
 
 
 def print_versions():
-
     remove_fake_pkg_resources()
     # import the real pkg_resources
     import pkg_resources  # pylint:disable=import-outside-toplevel

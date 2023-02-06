@@ -30,7 +30,6 @@ class Checker:
             self._parts = len(check_func)
 
     def _extract_integer(self, s):
-
         charset = string.digits if self._base == 10 else string.digits + "abcdefABCDEF"
 
         component = ""
@@ -68,7 +67,6 @@ class Checker:
         check_passes = False
 
         for s in some_strings:
-
             if self._length is not None:
                 s = s[: self._length]
 

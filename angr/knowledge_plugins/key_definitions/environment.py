@@ -58,7 +58,6 @@ class Environment:
         return self._environment == other._environment
 
     def merge(self, *others: "Environment") -> Tuple["Environment", bool]:
-
         new_env = self._environment
 
         for other in others:

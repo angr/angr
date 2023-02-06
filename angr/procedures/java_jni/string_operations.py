@@ -15,7 +15,6 @@ l = logging.getLogger("angr.procedures.java_jni.string_operations")
 
 
 class GetStringUTFChars(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, str_ref_, ptr_isCopy):
@@ -39,7 +38,6 @@ class GetStringUTFChars(JNISimProcedure):
 
 
 class ReleaseStringUTFChars(JNISimProcedure):
-
     return_ty = "void"
 
     def run(self, ptr_env, str_ref_, native_buf):
@@ -62,7 +60,6 @@ class ReleaseStringUTFChars(JNISimProcedure):
 
 
 class NewStringUTF(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, ptr_str_bytes):
@@ -81,7 +78,6 @@ class NewStringUTF(JNISimProcedure):
 
 
 class GetStringUTFLength(JNISimProcedure):
-
     return_ty = "int"
 
     def run(self, ptr_env, str_ref_):

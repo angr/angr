@@ -24,7 +24,6 @@ class SootClassHierarchy(Analysis):
     """
 
     def __init__(self):
-
         if self.project.arch.name != "Soot":
             raise SootClassHierarchyError("SootClassHierarchyError only supports analyzing Soot programs.")
 
@@ -38,7 +37,6 @@ class SootClassHierarchy(Analysis):
 
     def init_hierarchy(self):
         for class_name, cls in self.project.loader.main_object.classes.items():
-
             if "INTERFACE" in cls.attrs:
                 self.interface_implementers[cls] = []
                 self.dir_sub_interfaces[cls] = []

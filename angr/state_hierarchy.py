@@ -20,7 +20,6 @@ class StateHierarchy:
     """
 
     def __init__(self):
-
         # The New Order
         self._graph = networkx.DiGraph()
         self._leaves = set()  # nodes with no children

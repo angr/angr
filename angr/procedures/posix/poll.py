@@ -39,7 +39,7 @@ class poll(angr.SimProcedure):
                 ),
             }
             pollfd_array.append(pollfd)
-        for (offset, pollfd) in enumerate(pollfd_array):
+        for offset, pollfd in enumerate(pollfd_array):
             try:
                 fd = self.state.solver.eval_one(pollfd["fd"])
                 events = self.state.solver.eval_one(pollfd["events"])

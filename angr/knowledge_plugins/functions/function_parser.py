@@ -250,7 +250,6 @@ class FunctionParser:
 
     @staticmethod
     def _get_block_or_func(addr, blocks, external_addrs, function_manager, project, all_func_addrs=None):
-
         # should we get a block or a function?
         try:
             r = blocks[addr]

@@ -10,7 +10,6 @@ _l = logging.getLogger(name=__name__)
 
 class ModSimplifierAILEngine(SimplifierAILEngine):
     def _ail_handle_Sub(self, expr):
-
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -62,7 +61,6 @@ class ModSimplifier(OptimizationPass):
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
-
         super().__init__(func, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
@@ -74,7 +72,6 @@ class ModSimplifier(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-
         for block in list(self._graph.nodes()):
             new_block = block
             old_block = None

@@ -84,7 +84,6 @@ class SimEnginePropagatorAIL(
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
     def _ail_handle_Store(self, stmt: Stmt.Store):
-
         self.state: "PropagatorAILState"
 
         addr = self._expr(stmt.addr)
@@ -286,7 +285,6 @@ class SimEnginePropagatorAIL(
         return PropValue(self.state.top(expr.size * self.arch.byte_width))
 
     def _ail_handle_Register(self, expr: Expr.Register) -> Optional[PropValue]:
-
         self.state: "PropagatorAILState"
 
         # Special handling for SP and BP
@@ -372,7 +370,6 @@ class SimEnginePropagatorAIL(
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
     def _ail_handle_Load(self, expr: Expr.Load) -> Optional[PropValue]:
-
         self.state: "PropagatorAILState"
 
         addr = self._expr(expr.addr)
@@ -533,7 +530,6 @@ class SimEnginePropagatorAIL(
     def _ail_handle_DirtyExpression(
         self, expr: Expr.DirtyExpression
     ) -> Optional[PropValue]:  # pylint:disable=no-self-use
-
         if isinstance(expr.dirty_expr, Expr.VEXCCallExpression):
             for operand in expr.dirty_expr.operands:
                 _ = self._expr(operand)
@@ -697,7 +693,6 @@ class SimEnginePropagatorAIL(
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
     def _ail_handle_And(self, expr: Expr.BinaryOp):
-
         o0_value = self._expr(expr.operands[0])
         o1_value = self._expr(expr.operands[1])
 
@@ -953,7 +948,6 @@ class SimEnginePropagatorAIL(
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_LogicalAnd(self, expr: Expr.BinaryOp):
-
         o0_value = self._expr(expr.operands[0])
         o1_value = self._expr(expr.operands[1])
 
@@ -1031,7 +1025,6 @@ class SimEnginePropagatorAIL(
     def is_using_outdated_def(
         self, expr: Expr.Expression, expr_defat: "CodeLocation", avoid: Optional[Expr.Expression] = None
     ) -> bool:
-
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
         walker = OutdatedDefinitionWalker(
@@ -1042,7 +1035,6 @@ class SimEnginePropagatorAIL(
 
     @staticmethod
     def has_tmpexpr(expr: Expr.Expression) -> bool:
-
         from .tmpvar_finder import TmpvarFinder  # pylint:disable=import-outside-toplevel
 
         return TmpvarFinder(expr).has_tmp

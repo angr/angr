@@ -116,7 +116,6 @@ class Project:
         eager_ifunc_resolution=None,
         **kwargs,
     ):
-
         # Step 1: Load the binary
 
         if load_options is None:
@@ -173,7 +172,6 @@ class Project:
         # It doesn't make any sense to have auto_load_libs
         # if you have the concrete target, let's warn the user about this.
         if self.concrete_target and load_options.get("auto_load_libs", None):
-
             l.critical(
                 "Incompatible options selected for this project, please disable auto_load_libs if "
                 "you want to use a concrete target."
@@ -646,7 +644,6 @@ class Project:
         """
         new_sim_procedures = {}
         for key_address, simproc_obj in self._sim_procedures.items():
-
             # if we don't want stubs during the sync let's skip those, we will execute the real function.
             if not stubs_on_sync and simproc_obj.is_stub:
                 continue

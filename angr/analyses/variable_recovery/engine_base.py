@@ -81,7 +81,6 @@ class SimEngineVRBase(SimEngineLight):
         return self.state.function.addr
 
     def process(self, state, *args, **kwargs):  # pylint:disable=unused-argument
-
         self.variable_manager = state.variable_manager
 
         try:
@@ -503,7 +502,6 @@ class SimEngineVRBase(SimEngineLight):
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
 
     def _store_to_variable(self, richr_addr: RichR, size: int, stmt=None):  # pylint:disable=unused-argument
-
         addr_variable = richr_addr.variable
         codeloc = self._codeloc()
 
@@ -723,7 +721,6 @@ class SimEngineVRBase(SimEngineLight):
         offset: Optional[claripy.ast.BV] = None,
         elem_size: Optional[claripy.ast.BV] = None,
     ) -> RichR:
-
         variable_manager = self.variable_manager["global"]
         if expr is None:
             existing_vars = variable_manager.find_variables_by_stmt(self.block.addr, self.stmt_idx, "memory")

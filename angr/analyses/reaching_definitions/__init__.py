@@ -13,7 +13,6 @@ if TYPE_CHECKING:
 
 
 def get_all_definitions(region: "MultiValuedMemory") -> Set["Definition"]:
-
     all_defs: Set["Definition"] = set()
 
     # MultiValuedMemory only uses ListPage internally

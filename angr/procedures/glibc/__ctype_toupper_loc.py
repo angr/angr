@@ -21,7 +21,6 @@ class __ctype_toupper_loc(angr.SimProcedure):
     """
 
     def run(self):
-
         table_ptr = self.state.libc.ctype_toupper_loc_table_ptr
 
         return table_ptr

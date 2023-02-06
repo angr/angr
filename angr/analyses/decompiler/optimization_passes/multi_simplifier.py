@@ -14,7 +14,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
     """
 
     def _ail_handle_Add(self, expr):
-
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -50,7 +49,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
                     or (isinstance(operand_1, Expr.BinaryOp) and operand_1.op != "Mul")
                 )
             ):
-
                 x1 = operand_1
                 x0_index = 0 if isinstance(operand_0.operands[1], Expr.Const) else 1
                 x0 = operand_0.operands[x0_index]
@@ -87,7 +85,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         return expr
 
     def _ail_handle_Sub(self, expr):
-
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -109,7 +106,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
                     or (isinstance(operand_0, Expr.BinaryOp) and operand_0.op != "Mul")
                 )
             ):
-
                 x0 = operand_0
                 x1_index = 0 if isinstance(operand_1.operands[1], Expr.Const) else 1
                 x1 = operand_1.operands[x1_index]
@@ -126,7 +122,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
                     or (isinstance(operand_1, Expr.BinaryOp) and operand_1.op != "Mul")
                 )
             ):
-
                 x1 = operand_1
                 x0_index = 0 if isinstance(operand_0.operands[1], Expr.Const) else 1
                 x0 = operand_0.operands[x0_index]
@@ -163,7 +158,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         return expr
 
     def _ail_handle_Shl(self, expr):
-
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -176,7 +170,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         return expr
 
     def _ail_handle_Mul(self, expr):
-
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
@@ -221,7 +214,6 @@ class MultiSimplifier(OptimizationPass):
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
-
         super().__init__(func, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
@@ -233,7 +225,6 @@ class MultiSimplifier(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-
         for block in list(self._graph.nodes()):
             new_block = block
             old_block = None

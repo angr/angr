@@ -40,7 +40,6 @@ class CallSiteMaker(Analysis):
         self._analyze()
 
     def _analyze(self):
-
         if not self.block.statements:
             return
 
@@ -111,7 +110,6 @@ class CallSiteMaker(Analysis):
                     offset = arg_loc.check_offset(cc.arch)
                     args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
                 elif type(arg_loc) is SimStackArg:
-
                     stack_arg_locs.append(arg_loc)
                     _, the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
 
@@ -227,7 +225,6 @@ class CallSiteMaker(Analysis):
             return None
 
     def _resolve_register_argument(self, call_stmt, arg_loc) -> Tuple:
-
         size = arg_loc.size
         offset = arg_loc.check_offset(self.project.arch)
 
@@ -267,7 +264,6 @@ class CallSiteMaker(Analysis):
         return None, None
 
     def _resolve_stack_argument(self, call_stmt, arg_loc) -> Tuple[Any, Any]:  # pylint:disable=unused-argument
-
         size = arg_loc.size
         offset = arg_loc.stack_offset
         if self.project.arch.call_pushes_ret:
@@ -299,7 +295,6 @@ class CallSiteMaker(Analysis):
         return None
 
     def _load_string(self, addr: int) -> bytes:
-
         s = b""
         while True:
             try:

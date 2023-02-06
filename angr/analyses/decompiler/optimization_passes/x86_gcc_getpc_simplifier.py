@@ -24,7 +24,6 @@ class X86GccGetPcSimplifier(OptimizationPass):
         self.analyze()
 
     def _check(self):
-
         getpc_calls = self._find_getpc_calls()
 
         return bool(getpc_calls), {
@@ -32,7 +31,6 @@ class X86GccGetPcSimplifier(OptimizationPass):
         }
 
     def _analyze(self, cache=None):
-
         getpc_calls = None
 
         if cache is not None:
@@ -46,7 +44,6 @@ class X86GccGetPcSimplifier(OptimizationPass):
 
         # update each block
         for block_key, stmt_idx, getpc_reg, getpc_reg_value in getpc_calls:
-
             pcreg_offset = self.project.arch.registers[getpc_reg][0]
 
             old_block = self.blocks_by_addr_and_idx[block_key]

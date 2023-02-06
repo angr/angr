@@ -60,7 +60,6 @@ class EagerReturnsSimplifier(OptimizationPass):
         reaching_definitions=None,
         **kwargs,
     ):
-
         super().__init__(
             func, blocks_by_addr=blocks_by_addr, blocks_by_addr_and_idx=blocks_by_addr_and_idx, graph=graph, **kwargs
         )
@@ -73,7 +72,6 @@ class EagerReturnsSimplifier(OptimizationPass):
         self.analyze()
 
     def _check(self):
-
         # does this function have end points?
         if not self._func.endpoints:
             return False, None
@@ -83,7 +81,6 @@ class EagerReturnsSimplifier(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-
         # for each block with no successors and more than 1 predecessors, make copies of this block and link it back to
         # the sources of incoming edges
         graph_copy = networkx.DiGraph(self._graph)
@@ -101,7 +98,6 @@ class EagerReturnsSimplifier(OptimizationPass):
             self.out_graph = graph_copy
 
     def _analyze_core(self, graph: networkx.DiGraph):
-
         endnodes = [node for node in graph.nodes() if graph.out_degree[node] == 0]
         graph_changed = False
 

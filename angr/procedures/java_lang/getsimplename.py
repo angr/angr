@@ -7,7 +7,6 @@ l = logging.getLogger(name=__name__)
 
 
 class GetSimpleName(JavaSimProcedure):
-
     __provides__ = (("java.lang.Class", "getSimpleName()"),)
 
     def run(self, this):  # pylint: disable=arguments-differ

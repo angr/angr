@@ -2421,7 +2421,6 @@ class TestJumpTableResolver(unittest.TestCase):
         self._compare(cfg.jump_tables, all_jumptables)
 
     def test_arm_libsoap(self):
-
         # This is the ADDLS type of jump table (IndirectJumpType.JumpTable_AddressComputed) where no actual table is used
         # libsoap.so seems to be compiled from gSOAP, which is an open-source product
 
@@ -2771,7 +2770,6 @@ class TestJumpTableResolver(unittest.TestCase):
     #
 
     def test_jumptable_occupied_as_data(self):
-
         # GitHub issue #1671
 
         p = angr.Project(os.path.join(test_location, "i386", "windows", "printenv.exe"), auto_load_libs=False)
@@ -2796,7 +2794,6 @@ class TestJumpTableResolver(unittest.TestCase):
     #
 
     def test_vtable_amd64_libc_ubuntu_2004(self):
-
         p = angr.Project(
             os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004_stripped"), auto_load_libs=False
         )
@@ -2813,7 +2810,6 @@ class TestJumpTableResolver(unittest.TestCase):
                 assert entry in cfg.functions
 
     def test_mips_jumptable0(self):
-
         p = angr.Project(os.path.join(test_location, "mipsel", "jumptable_0"), auto_load_libs=False)
         cfg = p.analyses[CFGFast].prep()()
 
@@ -2843,7 +2839,6 @@ class TestJumpTableResolver(unittest.TestCase):
         ]
 
     def test_amd64_fmt0_with_constant_propagation_r12(self):
-
         p = angr.Project(os.path.join(test_location, "x86_64", "fmt_0"), auto_load_libs=False)
         cfg = p.analyses[CFGFast].prep()()
 

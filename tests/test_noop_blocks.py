@@ -4,7 +4,6 @@ from angr.analyses.cfg import CFGBase
 
 
 def test_x86_noop_blocks():
-
     # nop
     arch = archinfo.arch_from_id("x86")
     b = b"\x90\x90\x90\x90\x90\x90\x90\x90"
@@ -16,7 +15,6 @@ def test_x86_noop_blocks():
 
 
 def test_amd64_noop_blocks():
-
     # nop
     arch = archinfo.arch_from_id("amd64")
     b = b"\x90\x90\x90\x90\x90\x90\x90\x90"

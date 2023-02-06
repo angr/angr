@@ -10,7 +10,6 @@ log = logging.getLogger(name=__name__)
 
 
 class IteratorHasNext(JavaSimProcedure):
-
     __provides__ = (("java.util.Iterator", "hasNext()"),)
 
     def run(self, this_ref):
@@ -28,7 +27,6 @@ class IteratorHasNext(JavaSimProcedure):
 
 
 class IteratorNext(JavaSimProcedure):
-
     __provides__ = (("java.util.Iterator", "next()"),)
 
     def run(self, this_ref):

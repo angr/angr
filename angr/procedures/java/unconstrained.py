@@ -7,7 +7,6 @@ from ... import sim_options as options
 
 
 class UnconstrainedMethod(JavaSimProcedure):
-
     __provides__ = (("angr.unconstrained", "unconstrained()"),)
 
     def run(self, thing, *args):

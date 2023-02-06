@@ -12,7 +12,6 @@ l = logging.getLogger("angr.procedures.java_jni.global_and_local_references")
 
 
 class NewGlobalRef(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, obj_):
@@ -26,7 +25,6 @@ class NewGlobalRef(JNISimProcedure):
 
 
 class DeleteGlobalRef(JNISimProcedure):
-
     return_ty = "void"
 
     def run(self, ptr_env, obj_):
@@ -39,7 +37,6 @@ class DeleteGlobalRef(JNISimProcedure):
 
 
 class NewLocalRef(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, obj_):
@@ -53,7 +50,6 @@ class NewLocalRef(JNISimProcedure):
 
 
 class DeleteLocalRef(JNISimProcedure):
-
     return_ty = "void"
 
     def run(self, ptr_env, obj_):

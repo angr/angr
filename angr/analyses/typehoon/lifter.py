@@ -15,7 +15,6 @@ class TypeLifter:
         self.bits = bits
 
     def lift(self, ty: SimType):
-
         handler = _mapping.get(type(ty), None)
         if handler is None:
             return BottomType()

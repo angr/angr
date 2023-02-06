@@ -146,7 +146,6 @@ class AngrDB:
         return version == self.VERSION
 
     def dump(self, db_path, kbs: Optional[List["KnowledgeBase"]] = None, extra_info: Optional[Dict[str, Any]] = None):
-
         db_str = "sqlite:///%s" % db_path
 
         with self.open_db(db_str) as Session:
@@ -171,7 +170,6 @@ class AngrDB:
         other_kbs: Optional[Dict[str, "KnowledgeBase"]] = None,
         extra_info: Optional[Dict[str, Any]] = None,
     ):
-
         db_str = "sqlite:///%s" % db_path
 
         with self.open_db(db_str) as Session:

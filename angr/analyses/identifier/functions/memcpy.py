@@ -45,7 +45,6 @@ class memcpy(Func):
         return test
 
     def pre_test(self, func, runner):
-
         result_buf = "A" * 6
         in_buf = "a\x00bbbc"
 

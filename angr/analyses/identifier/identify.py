@@ -36,7 +36,6 @@ class FuncInfo:
 
 
 class Identifier(Analysis):
-
     _special_case_funcs = ["free"]
 
     def __init__(self, cfg=None, require_predecessors=True, only_find=None):
@@ -446,7 +445,6 @@ class Identifier(Analysis):
         return state
 
     def _prefilter_floats(self, func):  # pylint: disable=no-self-use
-
         # calling _get_block() from `func` respects the size of the basic block
         # in extreme cases (like at the end of a section where VEX cannot disassemble the instruction beyond the
         # section boundary), directly calling self.project.factory.block() on func.addr may lead to an AngrTranslationError.
@@ -456,7 +454,6 @@ class Identifier(Analysis):
             raise IdentifierException("floating const")
 
     def find_stack_vars_x86(self, func):
-
         # could also figure out if args are buffers etc
         # doesn't handle dynamically allocated stack, etc
 

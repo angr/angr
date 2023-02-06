@@ -179,7 +179,6 @@ class CFGUtils:
 
     @staticmethod
     def _components_index_node(components, node):
-
         for i, comp in enumerate(components):
             if node in comp:
                 return i

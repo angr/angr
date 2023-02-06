@@ -83,7 +83,6 @@ class TestPickle(unittest.TestCase):
         self._load_pickles()
 
     def test_project_pickling(self):
-
         # AnalysesHub should not be pickled together with the project itself
         p = angr.Project(os.path.join(tests_location, "i386", "fauxware"))
 

@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
 
 class TypeConstraint:
-
     __slots__ = ()
 
     def pp_str(self, mapping: Dict["TypeVariable", Any]) -> str:
@@ -20,7 +19,6 @@ class TypeConstraint:
 
 
 class Equivalence(TypeConstraint):
-
     __slots__ = (
         "type_a",
         "type_b",
@@ -49,7 +47,6 @@ class Equivalence(TypeConstraint):
 
 
 class Existence(TypeConstraint):
-
     __slots__ = ("type_",)
 
     def __init__(self, type_):
@@ -68,7 +65,6 @@ class Existence(TypeConstraint):
         return hash((Existence, self.type_))
 
     def replace(self, replacements):
-
         if self.type_ in replacements:
             return True, Existence(replacements[self.type_])
 
@@ -80,7 +76,6 @@ class Existence(TypeConstraint):
 
 
 class Subtype(TypeConstraint):
-
     __slots__ = (
         "super_type",
         "sub_type",
@@ -103,7 +98,6 @@ class Subtype(TypeConstraint):
         return hash((Subtype, hash(self.sub_type), hash(self.super_type)))
 
     def replace(self, replacements):
-
         subtype, supertype = None, None
 
         if self.sub_type in replacements:
@@ -170,7 +164,6 @@ class Add(TypeConstraint):
         return hash((Add, self.type_0, self.type_1, self.type_r))
 
     def replace(self, replacements):
-
         t0, t1, tr = None, None, None
 
         if self.type_0 in replacements:
@@ -281,7 +274,6 @@ _typevariable_counter = count()
 
 
 class TypeVariable:
-
     __slots__ = ("idx",)
 
     def __init__(self, idx: Optional[int] = None):
@@ -307,7 +299,6 @@ class TypeVariable:
 
 
 class DerivedTypeVariable(TypeVariable):
-
     __slots__ = (
         "type_var",
         "label",
@@ -331,7 +322,6 @@ class DerivedTypeVariable(TypeVariable):
         return f"{self.type_var!r}.{self.label!r}"
 
     def replace(self, replacements):
-
         typevar = None
 
         if self.type_var in replacements:
@@ -350,7 +340,6 @@ class DerivedTypeVariable(TypeVariable):
 
 
 class TypeVariables:
-
     __slots__ = ("_typevars",)
 
     def __init__(self):
@@ -380,7 +369,6 @@ class TypeVariables:
         return "{TypeVars: %d items}" % len(self._typevars)
 
     def add_type_variable(self, var: "SimVariable", codeloc, typevar: TypeVariable):  # pylint:disable=unused-argument
-
         # if var not in self._typevars:
         #    self._typevars[var] = { }
 
@@ -390,7 +378,6 @@ class TypeVariables:
         self._typevars[var] = typevar
 
     def get_type_variable(self, var, codeloc):  # pylint:disable=unused-argument
-
         return self._typevars[var]  # [codeloc]
 
     def has_type_variable_for(self, var: "SimVariable", codeloc):  # pylint:disable=unused-argument
@@ -414,7 +401,6 @@ class TypeVariables:
 
 
 class BaseLabel:
-
     __slots__ = ()
 
     def __eq__(self, other):
@@ -425,7 +411,6 @@ class BaseLabel:
 
 
 class FuncIn(BaseLabel):
-
     __slots__ = ("loc",)
 
     def __init__(self, loc):
@@ -436,7 +421,6 @@ class FuncIn(BaseLabel):
 
 
 class FuncOut(BaseLabel):
-
     __slots__ = ("loc",)
 
     def __init__(self, loc):
@@ -447,7 +431,6 @@ class FuncOut(BaseLabel):
 
 
 class Load(BaseLabel):
-
     __slots__ = ()
 
     def __repr__(self):
@@ -455,7 +438,6 @@ class Load(BaseLabel):
 
 
 class Store(BaseLabel):
-
     __slots__ = ()
 
     def __repr__(self):
@@ -463,7 +445,6 @@ class Store(BaseLabel):
 
 
 class AddN(BaseLabel):
-
     __slots__ = ("n",)
 
     def __init__(self, n):
@@ -474,7 +455,6 @@ class AddN(BaseLabel):
 
 
 class SubN(BaseLabel):
-
     __slots__ = ("n",)
 
     def __init__(self, n):
@@ -485,7 +465,6 @@ class SubN(BaseLabel):
 
 
 class ConvertTo(BaseLabel):
-
     __slots__ = ("to_bits",)
 
     def __init__(self, to_bits):
@@ -496,7 +475,6 @@ class ConvertTo(BaseLabel):
 
 
 class ReinterpretAs(BaseLabel):
-
     __slots__ = (
         "to_type",
         "to_bits",
@@ -511,7 +489,6 @@ class ReinterpretAs(BaseLabel):
 
 
 class HasField(BaseLabel):
-
     __slots__ = (
         "bits",
         "offset",

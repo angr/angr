@@ -11,7 +11,6 @@ def repr_addr(addr):
 
 
 class CodeNode:
-
     __slots__ = ["addr", "size", "_graph", "thumb", "_hash"]
 
     def __init__(self, addr, size, graph=None, thumb=False):
@@ -67,7 +66,6 @@ class CodeNode:
 
 
 class BlockNode(CodeNode):
-
     __slots__ = ["bytestr"]
 
     is_hook = False
@@ -87,7 +85,6 @@ class BlockNode(CodeNode):
 
 
 class SootBlockNode(BlockNode):
-
     __slots__ = ["stmts"]
 
     def __init__(self, addr, size, stmts, **kwargs):
@@ -107,7 +104,6 @@ class SootBlockNode(BlockNode):
 
 
 class HookNode(CodeNode):
-
     __slots__ = ["sim_procedure"]
 
     is_hook = True

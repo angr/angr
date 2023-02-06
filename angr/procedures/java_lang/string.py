@@ -10,7 +10,6 @@ log = logging.getLogger(name=__name__)
 
 
 class StringConcat(JavaSimProcedure):
-
     __provides__ = (("java.lang.String", "concat(java.lang.String)"),)
 
     def run(self, str_1_ref, str_2_ref):  # pylint: disable=arguments-differ
@@ -22,7 +21,6 @@ class StringConcat(JavaSimProcedure):
 
 
 class StringEquals(JavaSimProcedure):
-
     __provides__ = (("java.lang.String", "equals(java.lang.Object)"),)
 
     def run(self, str_ref_1, str_ref_2):  # pylint: disable=unused-argument
@@ -32,7 +30,6 @@ class StringEquals(JavaSimProcedure):
 
 
 class StringSplit(JavaSimProcedure):
-
     __provides__ = (("java.lang.String", "split(java.lang.String)"),)
 
     def generate_symbolic_array(self, state, max_length=1000):
@@ -63,7 +60,6 @@ class StringSplit(JavaSimProcedure):
 
 
 class StringLength(JavaSimProcedure):
-
     __provides__ = (("java.lang.String", "length()"),)
 
     def run(self, this_str):
@@ -73,7 +69,6 @@ class StringLength(JavaSimProcedure):
 
 
 class StringCharAt(JavaSimProcedure):
-
     __provides__ = (("java.lang.String", "charAt(int)"),)
 
     def run(self, this_str, index):

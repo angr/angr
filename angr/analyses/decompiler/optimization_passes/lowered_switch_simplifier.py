@@ -74,12 +74,10 @@ class LoweredSwitchSimplifier(OptimizationPass):
         self.analyze()
 
     def _check(self):
-
         # TODO: More filtering
         return True, None
 
     def _analyze(self, cache=None):
-
         variable_to_cases = self._find_cascading_switch_variable_comparisons()
 
         if not variable_to_cases:
@@ -131,7 +129,6 @@ class LoweredSwitchSimplifier(OptimizationPass):
         variable_to_cases = {}
 
         for head in variable_comparisons:
-
             cases = []
             last_comp = None
             comp = head
@@ -213,7 +210,6 @@ class LoweredSwitchSimplifier(OptimizationPass):
     def _find_switch_variable_comparison_type_a(
         node,
     ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int, int]]:
-
         # the type a is the last statement is a var == constant comparison, but
         # there is more than one non-label statement in the block
 
@@ -250,7 +246,6 @@ class LoweredSwitchSimplifier(OptimizationPass):
     def _find_switch_variable_comparison_type_b(
         node,
     ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int, int]]:
-
         # the type b is the last statement is a var == constant comparison, and
         # there is only one non-label statement
 

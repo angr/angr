@@ -9,7 +9,6 @@ class puts(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
     def run(self, string):
-
         stdout = self.state.posix.get_fd(1)
         if stdout is None:
             return -1

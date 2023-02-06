@@ -31,7 +31,6 @@ class MemoryWatcher(ExplorationTechnique):
             simgr.stashes[self.memory_stash] = []
 
     def step(self, simgr, stash="active", **kwargs):
-
         if psutil.virtual_memory().available <= self.min_memory:
             simgr.move(from_stash="active", to_stash=self.memory_stash)
 

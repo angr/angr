@@ -39,7 +39,6 @@ class DynamicDictList(Generic[VT]):
             self.dict_content = {}
 
     def _initialize_content(self, content) -> None:
-
         if isinstance(content, DynamicDictList):
             # make a copy
             self.list_content = list(content.list_content) if content.list_content is not None else None

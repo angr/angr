@@ -31,7 +31,6 @@ l = logging.getLogger(name=__name__)
 
 
 class DefinitionAnnotation(Annotation):
-
     __slots__ = ("definition",)
 
     def __init__(self, definition):
@@ -109,7 +108,6 @@ class LiveDefinitions:
         memory_uses=None,
         tmp_uses=None,
     ):
-
         self.project = None
         self.arch = arch
         self.track_tmps = track_tmps
@@ -355,7 +353,6 @@ class LiveDefinitions:
         return (base_v + offset) & mask
 
     def merge(self, *others) -> Tuple["LiveDefinitions", bool]:
-
         state = self.copy()
 
         merge_occurred = state.register_definitions.merge([other.register_definitions for other in others], None)
@@ -629,7 +626,6 @@ class LiveDefinitions:
         self.uses_by_codeloc[code_loc].add(def_)
 
     def add_stack_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
-
         if not isinstance(atom.addr, SpOffset):
             raise TypeError("Atom %r is not a stack location atom." % atom)
 
@@ -641,7 +637,6 @@ class LiveDefinitions:
         self.uses_by_codeloc[code_loc].add(def_)
 
     def add_heap_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
-
         if not isinstance(atom.addr, HeapAddress):
             raise TypeError("Atom %r is not a heap location atom." % atom)
 
@@ -655,7 +650,6 @@ class LiveDefinitions:
         self.uses_by_codeloc[code_loc].add(def_)
 
     def add_memory_use(self, atom: MemoryLocation, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
-
         # get all current definitions
         current_defs: Iterable[Definition] = self.get_definitions(atom)
 
@@ -667,7 +661,6 @@ class LiveDefinitions:
         self.uses_by_codeloc[code_loc].add(def_)
 
     def add_tmp_use(self, atom: Tmp, code_loc: CodeLocation) -> None:
-
         if self.track_tmps:
             if atom.tmp_idx in self.tmps:
                 defs = self.tmps[atom.tmp_idx]
@@ -681,7 +674,6 @@ class LiveDefinitions:
                     self.add_use_by_def(d, code_loc)
 
     def add_tmp_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
-
         if not isinstance(def_.atom, Tmp):
             raise TypeError("Atom %r is not a Tmp atom." % def_.atom)
 

@@ -231,7 +231,6 @@ class ConditionProcessor:
         # reaching conditions for if-else. see my super long chatlog with rhelmot on 5/14/2021.
         guarding_conditions = {}
         for the_node in sorted_nodes:
-
             preds = list(_g.predecessors(the_node))
             if len(preds) != 2:
                 continue
@@ -269,7 +268,6 @@ class ConditionProcessor:
         self.guarding_conditions = guarding_conditions
 
     def remove_claripy_bool_asts(self, node, memo=None):
-
         # Convert claripy Bool ASTs to AIL expressions
 
         if memo is None:
@@ -301,7 +299,6 @@ class ConditionProcessor:
             return node
 
         elif isinstance(node, ConditionalBreakNode):
-
             return ConditionalBreakNode(
                 node.addr,
                 self.convert_claripy_bool_ast(node.condition, memo=memo),
@@ -309,7 +306,6 @@ class ConditionProcessor:
             )
 
         elif isinstance(node, ConditionNode):
-
             return ConditionNode(
                 node.addr,
                 None
@@ -321,7 +317,6 @@ class ConditionProcessor:
             )
 
         elif isinstance(node, CascadingConditionNode):
-
             cond_and_nodes = []
             for cond, child_node in node.condition_and_nodes:
                 cond_and_nodes.append(
@@ -338,7 +333,6 @@ class ConditionProcessor:
             )
 
         elif isinstance(node, LoopNode):
-
             result = node.copy()
             result.condition = (
                 self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None
@@ -531,7 +525,6 @@ class ConditionProcessor:
     EXC_COUNTER = 1000
 
     def _extract_predicate(self, src_block, dst_block, edge_type) -> claripy.ast.Bool:
-
         if edge_type == "exception":
             # TODO: THIS IS ABSOLUTELY A HACK. AT THIS MOMENT YOU SHOULD NOT ATTEMPT TO MAKE SENSE OF EXCEPTION EDGES.
             self.EXC_COUNTER += 1
@@ -694,7 +687,6 @@ class ConditionProcessor:
         )
 
     def claripy_ast_from_ail_condition(self, condition) -> claripy.ast.Bool:
-
         # Unpack a condition all the way to the leaves
         if isinstance(condition, claripy.ast.Base):  # pylint:disable=isinstance-second-argument-not-valid-type
             return condition
@@ -823,7 +815,6 @@ class ConditionProcessor:
 
     @staticmethod
     def simplify_condition_deprecated(cond):
-
         # Z3's simplification may yield weird and unreadable results
         # hence we mostly rely on our own simplification. we only use Z3's simplification results when it returns a
         # concrete value.
@@ -846,7 +837,6 @@ class ConditionProcessor:
 
     @staticmethod
     def _simplify_trivial_cases(cond):
-
         if cond.op == "And":
             new_args = []
             for arg in cond.args:
@@ -860,7 +850,6 @@ class ConditionProcessor:
 
     @staticmethod
     def _revert_short_circuit_conditions(cond):
-
         # revert short-circuit conditions
         # !A||(A&&!B) ==> !(A&&B)
 
@@ -904,7 +893,6 @@ class ConditionProcessor:
 
     @staticmethod
     def _fold_double_negations(cond):
-
         # !(!A) ==> A
         # !((!A) && (!B)) ==> A || B
         # !((!A) && B) ==> A || !B
@@ -1107,7 +1095,6 @@ class ConditionProcessor:
         traversed_nodes = set()
         edges_to_remove = set()
         for starting_node in starting_nodes:
-
             queue = [starting_node]
             while queue:
                 src = queue.pop(0)

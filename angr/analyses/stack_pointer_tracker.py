@@ -289,7 +289,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     """
 
     def __init__(self, func: Function, reg_offsets: Set[int], track_memory=True):
-
         if not func.normalized:
             # Make a copy before normalizing the function
             func = func.copy()
@@ -415,7 +414,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._set_state(addr, new_val, "pre")
 
     def _run_on_node(self, node: BlockNode, state):
-
         block = self.project.factory.block(node.addr, size=node.size)
         self._blocks[node.addr] = block
 
@@ -450,7 +448,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return None, output_state
 
     def _process_vex_irsb(self, node, vex_block: pyvex.IRSB, state: StackPointerTrackerState) -> int:
-
         tmps = {}
         curr_stmt_start_addr = None
 
@@ -574,7 +571,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return curr_stmt_start_addr
 
     def _process_pcode_irsb(self, node, pcode_irsb: "pcode.lifter.IRSB", state: StackPointerTrackerState) -> int:
-
         unique = {}
         curr_stmt_start_addr = None
 
@@ -689,7 +685,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return merged
 
     def _merge_states(self, node, *states: StackPointerTrackerState):
-
         merged_state = states[0]
         for other in states[1:]:
             merged_state = merged_state.merge(other)

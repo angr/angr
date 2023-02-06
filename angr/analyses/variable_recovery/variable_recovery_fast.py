@@ -49,7 +49,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         project=None,
         ret_val_size=None,
     ):
-
         super().__init__(
             block_addr,
             analysis,
@@ -79,7 +78,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         return self.stack_region == other.stack_region and self.register_region == other.register_region
 
     def copy(self):
-
         state = VariableRecoveryFastState(
             self.block_addr,
             self._analysis,
@@ -212,13 +210,11 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
     #
 
     def _normalize_register_offset(self, offset):  # pylint:disable=no-self-use
-
         # TODO:
 
         return offset
 
     def _to_signed(self, n):
-
         if n >= 2 ** (self.arch.bits - 1):
             # convert it to a negative number
             return n - 2**self.arch.bits
@@ -293,7 +289,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     #
 
     def _pre_analysis(self):
-
         self.type_constraints = set()
 
         self.initialize_dominance_frontiers()
@@ -478,7 +473,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         return mapping.get(size)(value)
 
     def _peephole_optimize(self, block: Block):
-
         # find regN = xor(regN, regN) and replace it with PUT(regN) = 0
         i = 0
         while i < len(block.vex.statements) - 3:

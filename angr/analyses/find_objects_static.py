@@ -63,7 +63,6 @@ class NewFunctionHandler(FunctionHandler):
         src_ins_addr=None,
         codeloc=None,
     ):
-
         if function_address == self.new_func_addr:
             word_size = self.project.arch.bits // self.project.arch.byte_width
             # check if this is a call to new()

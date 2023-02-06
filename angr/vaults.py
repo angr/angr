@@ -164,7 +164,6 @@ class Vault(collections.abc.MutableMapping):
                 return o
 
     def store(self, o):
-
         actual_id = self._get_persistent_id(o) or "TMP-" + str(uuid.uuid4())
 
         return self._store(o, actual_id)
@@ -217,7 +216,6 @@ class Vault(collections.abc.MutableMapping):
         return VaultUnpickler(self, f).load()
 
     def _clear_cache(self):
-
         self._object_cache.clear()
         self._uuid_cache.clear()
         self.stored.clear()
@@ -350,7 +348,6 @@ class VaultDirShelf(VaultDict):
         return oid
 
     def load(self, oid):
-
         shelve_path = os.path.join(self._d, oid)
         with self._locked_shelve(shelve_path):
             o = super().load(oid)

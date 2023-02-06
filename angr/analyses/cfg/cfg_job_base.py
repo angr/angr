@@ -23,7 +23,6 @@ class BlockID:
         self._hash = None
 
     def callsite_repr(self):
-
         if self.callsite_tuples is None:
             return "None"
 
@@ -81,7 +80,6 @@ class FunctionKey:
         self._hash = None
 
     def callsite_repr(self):
-
         if self.callsite_tuples is None:
             return "None"
 

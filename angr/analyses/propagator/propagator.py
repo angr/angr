@@ -142,7 +142,6 @@ class PropagatorState:
         raise NotImplementedError()
 
     def merge(self, *others):
-
         state = self.copy()
         merge_occurred = False
 
@@ -286,7 +285,6 @@ class PropagatorVEXState(PropagatorState):
         self._registers.store(offset, value, size=size)
 
     def load_register(self, offset, size):
-
         # TODO: Fix me
         if size != self.gpr_size:
             return self.top(size * self.arch.byte_width)
@@ -513,7 +511,6 @@ class PropagatorAILState(PropagatorState):
         return prop_value
 
     def add_replacement(self, codeloc, old, new):
-
         if self._only_consts:
             if self.is_const_or_register(new) or self.is_top(new):
                 pass
@@ -560,7 +557,6 @@ class PropagatorAILState(PropagatorState):
                     self._replacements[codeloc_][old] = self.top(1)
 
     def filter_replacements(self):
-
         to_remove = set()
 
         for old, new in self._replacements.items():
@@ -778,7 +774,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         return merged_state, not merge_occurred
 
     def _run_on_node(self, node, state):
-
         if isinstance(node, ailment.Block):
             block = node
             block_key = (node.addr, node.idx)

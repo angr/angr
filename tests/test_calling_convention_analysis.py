@@ -80,7 +80,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
     #
 
     def check_arg(self, arg, expected_str):
-
         if isinstance(arg, SimRegArg):
             arg_str = "r_%s" % (arg.reg_name)
         else:
@@ -88,7 +87,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         return arg_str == expected_str
 
     def check_args(self, func_name, args, expected_arg_strs):
-
         assert len(args) == len(expected_arg_strs), "Wrong number of arguments for function %s. Got %d, expect %d." % (
             func_name,
             len(args),
@@ -109,7 +107,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         return func.calling_convention.arg_locs(func.prototype)
 
     def test_x8664_dir_gcc_O0(self):
-
         binary_path = os.path.join(test_location, "tests", "x86_64", "dir_gcc_-O0")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
 
@@ -194,7 +191,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                     assert ret_val.reg_name == r
 
     def test_x86_saved_regs(self):
-
         # Calling convention analysis should be able to determine calling convention of functions with registers
         # saved on the stack.
         binary_path = os.path.join(test_location, "tests", "cgc", "NRFIN_00036")
@@ -234,7 +230,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cc.arg_locs(prototype)[0] == SimStackArg(4, 4)
 
     def test_callsite_inference_amd64(self):
-
         # Calling convention analysis should be able to determine calling convention of a library function by
         # analyzing its callsites.
         binary_path = os.path.join(test_location, "tests", "x86_64", "decompiler", "morton")

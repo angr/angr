@@ -404,7 +404,6 @@ class CFGENode(CFGNode):
         callstack_key=None,
         creation_failure_info=None,
     ):
-
         super().__init__(
             addr,
             size,

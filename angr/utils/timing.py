@@ -15,7 +15,6 @@ time_distribution = defaultdict(list)
 def timethis(func):
     @wraps(func)
     def timed_func(*args, **kwargs):
-
         if TIMING:
             _t = lambda: time.perf_counter_ns() / 1000000
             start = _t()

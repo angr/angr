@@ -437,7 +437,6 @@ class SimulationManager:
         error_list = error_list if error_list is not None else self._errored
 
         for state in self._fetch_states(stash=stash):
-
             goto = self.filter(state, filter_func=filter_func)
             if isinstance(goto, tuple):
                 goto, state = goto

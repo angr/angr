@@ -107,7 +107,6 @@ class SimEngineRDVEX(
     #
 
     def _handle_Stmt(self, stmt):
-
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
@@ -117,7 +116,6 @@ class SimEngineRDVEX(
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     def _handle_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
-
         data: MultiValues = self._expr(stmt.data)
 
         tmp_atom = Tmp(stmt.tmp, self.tyenv.sizeof(stmt.tmp) // self.arch.byte_width)
@@ -328,7 +326,6 @@ class SimEngineRDVEX(
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_Get(self, expr: pyvex.IRExpr.Get) -> MultiValues:
-
         reg_offset: int = expr.offset
         bits: int = expr.result_size(self.tyenv)
         size: int = bits // self.arch.byte_width
@@ -386,7 +383,6 @@ class SimEngineRDVEX(
         return MultiValues(top)
 
     def _load_core(self, addrs: Iterable[claripy.ast.Base], size: int, endness: str) -> MultiValues:
-
         result: Optional[MultiValues] = None
         # we may get more than one stack addrs with the same value but different annotations (because they are defined
         # at different locations). only load them once.
@@ -420,7 +416,6 @@ class SimEngineRDVEX(
                 result = result.merge(vs) if result is not None else vs
 
             else:
-
                 addr_v = addr._model_concrete.value
 
                 # Load data from a global region
@@ -1012,7 +1007,6 @@ class SimEngineRDVEX(
     def _handle_function_core(
         self, func_addr: Optional[MultiValues], **kwargs
     ) -> bool:  # pylint:disable=unused-argument
-
         if self._call_stack is not None and len(self._call_stack) + 1 > self._maximum_local_call_depth:
             l.warning("The analysis reached its maximum recursion depth.")
             return False

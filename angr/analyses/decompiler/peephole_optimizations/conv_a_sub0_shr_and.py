@@ -10,7 +10,6 @@ class ConvASub0ShrAnd(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)  # all expressions are allowed
 
     def optimize(self, expr: Convert):
-
         # Conv(M->1, ((expr) >> N) & 1) => expr < 0
         # Conv(M->1, ((expr - 0) >> N) & 1) => expr < 0
         if expr.to_bits == 1:

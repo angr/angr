@@ -141,7 +141,6 @@ class SimMemoryObject:
 
 
 class SimLabeledMemoryObject(SimMemoryObject):
-
     __slots__ = ("label",)
 
     def __init__(self, obj, base, endness, length=None, byte_width=8, label=None):

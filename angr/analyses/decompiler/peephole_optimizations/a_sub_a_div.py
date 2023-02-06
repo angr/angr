@@ -10,7 +10,6 @@ class ASubADiv(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-
         if expr.op == "Sub" and len(expr.operands) == 2:
             expr0, expr1 = expr.operands
             if isinstance(expr1, BinaryOp) and expr1.op == "Div" and isinstance(expr1.operands[1], Const):

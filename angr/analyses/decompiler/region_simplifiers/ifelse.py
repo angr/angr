@@ -36,7 +36,6 @@ class IfElseFlattener(SequenceWalker):
         self.walk(node)
 
     def _handle_Condition(self, node: ConditionNode, parent=None, index=None, **kwargs):
-
         if node.true_node is not None:
             self._handle(node.true_node, parent=node, index=0)
         if node.false_node is not None:
@@ -60,7 +59,6 @@ class IfElseFlattener(SequenceWalker):
                 insert_node(parent, "after", else_node, index, **kwargs)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, parent=None, index=None, **kwargs):
-
         super()._handle_CascadingCondition(node, parent=parent, index=index, **kwargs)
 
         if node.else_node is not None:
@@ -84,7 +82,6 @@ class IfElseFlattener(SequenceWalker):
                 insert_node(parent, "after", else_node, index, **kwargs)
 
     def _is_statement_terminating(self, stmt):
-
         if isinstance(stmt, ailment.Stmt.Return):
             return True
         if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):

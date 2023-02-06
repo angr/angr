@@ -43,7 +43,6 @@ class LoopFinder(Analysis):
         self.loops = []
         self.loops_hierarchy = {}
         for function in functions:
-
             if self.project.is_hooked(function.addr) or self.project.simos.is_syscall_addr(function.addr):
                 # skip SimProcedures and syscalls
                 continue

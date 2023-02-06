@@ -18,6 +18,7 @@ l = logging.getLogger(name=__name__)
 ### Helpers ###
 ###############
 
+
 # There might be a better way of doing this
 def calc_paritybit(p, msb=7, lsb=0):
     if len(p) > msb:
@@ -286,6 +287,7 @@ data_inverted = {
 
 data["AMD64"]["size"] = 64
 data["X86"]["size"] = 32
+
 
 #
 # AMD64 internal helpers
@@ -798,6 +800,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
 # for each conditional flag, which greatly helps static analysis (like VSA).
 
 # TODO: Implement the missing ones
+
 
 # General ops
 def pc_actions_op_SUB(arg_l, arg_r, cc_ndep):
@@ -1345,6 +1348,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
 #
 # x86 segment selection
 #
+
 
 # Reference for the GDT entry layout
 # https://wiki.osdev.org/Global_Descriptor_Table

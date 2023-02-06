@@ -13,7 +13,6 @@ class NameResolutionMixin(MemoryMixin):
     """
 
     def _resolve_location_name(self, name, is_write=False):
-
         # Delayed load so SimMemory does not rely on SimEngines
         from ...engines.vex.claripy.ccall import _get_flags
 

@@ -202,7 +202,6 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         successors.processed = True
 
     def _get_sim_procedure(self, addr):
-
         # Delayed import
         from ...procedures import SIM_PROCEDURES
 

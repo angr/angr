@@ -17,7 +17,6 @@ l = logging.getLogger("angr.procedures.java_jni.field_access")
 
 
 class GetFieldID(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, field_class_, ptr_field_name, ptr_field_sig):
@@ -86,7 +85,6 @@ class GetStaticObjectField(GetStaticField):
 
 
 class SetStaticField(JNISimProcedure):
-
     return_ty = "void"
 
     def run(self, ptr_env, field_class_, field_id_, value_):
@@ -158,7 +156,6 @@ class GetObjectField(GetField):
 
 
 class SetField(JNISimProcedure):
-
     return_ty = "void"
 
     def run(self, ptr_env, obj_, field_id_, value_):

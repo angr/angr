@@ -38,7 +38,6 @@ def remove_last_statement(node):
 
 
 def append_statement(node, stmt):
-
     if type(node) is CodeNode:
         append_statement(node.node, stmt)
         return
@@ -62,7 +61,6 @@ def append_statement(node, stmt):
 
 
 def replace_last_statement(node, old_stmt, new_stmt):
-
     if type(node) is CodeNode:
         replace_last_statement(node.node, old_stmt, new_stmt)
         return
@@ -143,7 +141,6 @@ def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Option
 
 
 def get_ast_subexprs(claripy_ast):
-
     queue = [claripy_ast]
     while queue:
         ast = queue.pop(0)
@@ -155,7 +152,6 @@ def get_ast_subexprs(claripy_ast):
 
 
 def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int, Tuple[int]]], label=None):
-
     if insert_location not in {"before", "after"}:
         raise ValueError('"insert_location" must be either "before" or "after"')
 

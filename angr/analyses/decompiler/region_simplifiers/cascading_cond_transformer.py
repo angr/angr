@@ -33,7 +33,6 @@ class CascadingConditionTransformer(SequenceWalker):
             and not isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode))
             and cond_node.true_node is not None
         ):
-
             cond_0 = cond_node.condition
             node_0 = cond_node.true_node
             remaining_node = cond_node.false_node

@@ -103,7 +103,6 @@ class AILSimplifier(Analysis):
         self._simplify()
 
     def _simplify(self):
-
         if self._narrow_expressions:
             _l.debug("Narrowing expressions")
             narrowed_exprs = self._narrow_exprs()
@@ -360,7 +359,6 @@ class AILSimplifier(Analysis):
     def _narrowing_needed(
         self, def_, rd, addr_and_idx_to_block
     ) -> Tuple[bool, Optional[int], Optional[List[Tuple[CodeLocation, Tuple[Expression, ...]]]]]:
-
         def_size = def_.size
         # find its uses
         use_and_exprs = rd.all_uses.get_uses_with_expr(def_)
@@ -933,7 +931,6 @@ class AILSimplifier(Analysis):
         return simplified
 
     def _get_super_node_blocks(self, start_node: Block) -> List[Block]:
-
         lst: List[Block] = [start_node]
         while True:
             b = lst[-1]
@@ -970,7 +967,6 @@ class AILSimplifier(Analysis):
         return False, None
 
     def _remove_dead_assignments(self) -> bool:
-
         stmts_to_remove_per_block: Dict[Tuple[int, int], Set[int]] = defaultdict(set)
 
         # Find all statements that should be removed
@@ -1009,7 +1005,6 @@ class AILSimplifier(Analysis):
 
         # Remove the statements
         for old_block in self.func_graph.nodes():
-
             # if there is an updated block, use it
             block = self.blocks.get(old_block, old_block)
 
@@ -1097,7 +1092,6 @@ class AILSimplifier(Analysis):
         def _handle_expr(
             expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block
         ) -> Optional[Expression]:
-
             if isinstance(expr, DirtyExpression) and isinstance(expr.dirty_expr, VEXCCallExpression):
                 rewriter = rewriter_cls(expr.dirty_expr, self.project.arch)
                 if rewriter.result is not None:

@@ -14,7 +14,6 @@ class SimStateGlobals(SimStatePlugin):
         pass
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
-
         for other in others:
             for k in other.keys():
                 if k not in self:

@@ -22,7 +22,6 @@ class DominanceFrontier(Analysis):
         return g
 
     def _compute(self):
-
         g = self._get_graph()
 
         # Compute the dominator tree

@@ -21,7 +21,6 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 
 class TestVariableRecovery(unittest.TestCase):
     def _compare_memory_variable(self, variable, variable_info):
-
         if variable_info["location"] == "stack":
             if not isinstance(variable, SimStackVariable):
                 return False
@@ -54,7 +53,6 @@ class TestVariableRecovery(unittest.TestCase):
             raise NotImplementedError()
 
     def _compare_register_variable(self, variable, variable_info):  # pylint:disable=unused-argument
-
         if not isinstance(variable, SimRegisterVariable):
             return False
 
@@ -456,7 +454,6 @@ class TestVariableRecovery(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     l.setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.variable_recovery_fast").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.variable_recovery").setLevel(logging.DEBUG)

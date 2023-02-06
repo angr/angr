@@ -148,7 +148,6 @@ class MVListPage(
         memory=None,
         changed_offsets: Optional[Set[int]] = None,
     ):
-
         if changed_offsets is None:
             changed_offsets = set()
             for other in others:

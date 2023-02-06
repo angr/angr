@@ -618,7 +618,6 @@ class BSSHook:
         self._written_addrs = set()
 
     def bss_memory_read_hook(self, state):
-
         if not self._bss_regions:
             return
 
@@ -651,7 +650,6 @@ class BSSHook:
                 # job done :-)
 
     def bss_memory_write_hook(self, state):
-
         if not self._bss_regions:
             return
 
@@ -1849,7 +1847,6 @@ class JumpTableResolver(IndirectJumpResolver):
             reg_val += 16
 
     def _find_bss_region(self):
-
         self._bss_regions = []
 
         # TODO: support other sections other than '.bss'.
@@ -1865,7 +1862,6 @@ class JumpTableResolver(IndirectJumpResolver):
         cond = state.inspect.mem_read_condition
 
         if not isinstance(read_addr, int) and read_addr.uninitialized and cond is None:
-
             # if this AST has been initialized before, just use the cached addr
             cached_addr = self._cached_memread_addrs.get(read_addr, None)
             if cached_addr is not None:
@@ -1892,7 +1888,6 @@ class JumpTableResolver(IndirectJumpResolver):
             # job done :-)
 
     def _dbg_repr_slice(self, blade, in_slice_stmts_only=False):
-
         stmts = defaultdict(set)
 
         for addr, stmt_idx in sorted(list(blade.slice.nodes())):
@@ -2048,7 +2043,6 @@ class JumpTableResolver(IndirectJumpResolver):
         return jump_addr
 
     def _is_jumptarget_legal(self, target):
-
         try:
             vex_block = self.project.factory.block(target, cross_insn_opt=True).vex_nostmt
         except (AngrError, SimError):

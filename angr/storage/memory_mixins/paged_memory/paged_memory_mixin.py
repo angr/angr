@@ -504,7 +504,6 @@ class PagedMemoryMixin(MemoryMixin):
             except (SimMemoryError, AttributeError):
                 break
             else:
-
                 newdata, bitmap = concrete_load(offset, subsize, **kwargs)
                 for i, byte in enumerate(bitmap):
                     if byte != 0:
@@ -591,7 +590,6 @@ class PagedMemoryMixin(MemoryMixin):
         return changes
 
     def _replace_all(self, addrs: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV):
-
         page_offsets: Dict[Set[int]] = defaultdict(set)
         for addr in addrs:
             page_no, page_offset = self._divide_addr(addr)

@@ -129,7 +129,6 @@ class mmap(angr.SimProcedure):
         return addr
 
     def allocate_memory(self, size):
-
         addr = self.state.heap.mmap_base
         new_base = addr + size
 

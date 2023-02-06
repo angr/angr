@@ -8,7 +8,6 @@ from ..errors import SimUCManagerAllocationError
 
 class SimUCManager(SimStatePlugin):
     def __init__(self, man=None):
-
         SimStatePlugin.__init__(self)
 
         if man:

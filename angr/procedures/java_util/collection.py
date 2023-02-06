@@ -13,7 +13,6 @@ INDEX = "index"
 
 
 class GetIterator(JavaSimProcedure):
-
     __provides__ = (
         ("java.util.Collection", "iterator()"),
         ("java.util.Set", "iterator()"),

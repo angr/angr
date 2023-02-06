@@ -22,7 +22,6 @@ class CFBlanketView:
         self._cfb = cfb
 
     def __getitem__(self, item):
-
         if isinstance(item, slice):
             addr = item.start
             start_addr = self._cfb.floor_addr(addr)
@@ -109,7 +108,6 @@ class CFBlanket(Analysis):
         self._mark_unknowns()
 
     def _init_regions(self):
-
         for obj in self.project.loader.all_objects:
             if isinstance(obj, cle.MetaELF):
                 if obj.sections:
@@ -342,7 +340,6 @@ class CFBlanket(Analysis):
                 self._mark_unknowns_core(min_addr, max_addr + 1, obj=obj)
 
     def _mark_unknowns_core(self, min_addr, max_addr, obj=None, segment=None, section=None):
-
         # The region should be [min_addr, max_addr)
 
         try:

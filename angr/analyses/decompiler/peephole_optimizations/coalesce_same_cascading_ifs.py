@@ -11,7 +11,6 @@ class CoalesceSameCascadingIfs(PeepholeOptimizationStmtBase):
     stmt_classes = (ConditionalJump,)
 
     def optimize(self, stmt: ConditionalJump):
-
         cond = stmt.condition
 
         # if (cond) {ITE(cond, true_branch, false_branch)} else {} ==> if (cond) {true_branch} else {}

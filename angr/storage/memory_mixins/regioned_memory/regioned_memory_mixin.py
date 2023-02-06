@@ -99,7 +99,6 @@ class RegionedMemoryMixin(MemoryMixin):
     def load(
         self, addr, size: Optional[Union[BV, int]] = None, endness=None, condition: Optional[Bool] = None, **kwargs
     ):
-
         if isinstance(size, BV) and isinstance(size._model_vsa, ValueSet):
             _l.critical("load(): size %s is a ValueSet. Something is wrong.", size)
             if self.state.scratch.ins_addr is not None:

@@ -184,7 +184,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_dir_gcc_O0_main(self, decompiler_options=None):
-
         # tests loop structuring
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -210,7 +209,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_switch0_x86_64(self, decompiler_options=None):
-
         bin_path = os.path.join(test_location, "x86_64", "switch_0")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -234,7 +232,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_switch1_x86_64(self, decompiler_options=None):
-
         bin_path = os.path.join(test_location, "x86_64", "switch_1")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -270,7 +267,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_switch2_x86_64(self, decompiler_options=None):
-
         bin_path = os.path.join(test_location, "x86_64", "switch_2")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -308,7 +304,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_true_x86_64_0(self, decompiler_options=None):
-
         # in fact this test case tests if CFGBase._process_jump_table_targeted_functions successfully removes "function"
         # 0x402543, which is an artificial function that the compiler (GCC) created for identified "cold" functions.
 
@@ -402,7 +397,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_1(self, decompiler_options=None):
-
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -452,7 +446,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_true_mips64(self, decompiler_options=None):
-
         bin_path = os.path.join(test_location, "mips64", "true")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=False)
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
@@ -479,7 +472,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_1after909_verify_password(self, decompiler_options=None):
-
         bin_path = os.path.join(test_location, "x86_64", "1after909")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -517,7 +509,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_1after909_doit(self, decompiler_options=None):
-
         # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
 
         bin_path = os.path.join(test_location, "x86_64", "1after909")
@@ -585,7 +576,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_libsoap(self, decompiler_options=None):
-
         bin_path = os.path.join(test_location, "armel", "libsoap.so")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -598,7 +588,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_no_arguments_in_variable_list(self, decompiler_options=None):
-
         # function arguments should never appear in the variable list
         bin_path = os.path.join(test_location, "x86_64", "test_arrays")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -620,10 +609,9 @@ class TestDecompiler(unittest.TestCase):
         assert code.count(decls) == 1  # it should only appear once
 
     def test_decompiling_strings_c_representation(self):
-
         input_expected = [("""Foo"bar""", '"Foo\\"bar"'), ("""Foo'bar""", '"Foo\'bar"')]
 
-        for (_input, expected) in input_expected:
+        for _input, expected in input_expected:
             result = angr.analyses.decompiler.structured_codegen.c.CConstant.str_to_c_str(_input)
             assert result == expected
 
@@ -741,7 +729,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompilation_call_expr_folding_mips64_true(self, decompiler_options=None):
-
         # This test is to ensure call expression folding correctly replaces call expressions in return statements
         bin_path = os.path.join(test_location, "mips64", "true")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -758,7 +745,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompilation_call_expr_folding_x8664_calc(self, decompiler_options=None):
-
         # This test is to ensure call expression folding do not re-use out-dated definitions when folding expressions
         bin_path = os.path.join(test_location, "x86_64", "calc")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -845,7 +831,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompilation_switch_case_structuring_with_removed_nodes(self, decompiler_options=None):
-
         # Some jump table entries are fully folded into their successors. Structurer should be able to handle this case.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "union")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -863,7 +848,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompilation_x86_64_stack_arguments(self, decompiler_options=None):
-
         # Arguments passed on the stack should not go missing
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "union")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -990,7 +974,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_stack_canary_removal_x8664_extra_exits(self, decompiler_options=None):
-
         # Test stack canary removal on functions with extra exit
         # nodes (e.g., assert(false);) without stack canary checks
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
@@ -1009,7 +992,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_ifelseif_x8664(self, decompiler_options=None):
-
         # nested if-else should be transformed to cascading if-elseif constructs
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -1307,7 +1289,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_fmt_get_space(self, decompiler_options=None):
-
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
         proj = angr.Project(bin_path, auto_load_libs=False)
 

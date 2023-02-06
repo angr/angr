@@ -17,11 +17,9 @@ l = logging.getLogger("angr.procedures.java_jni.callmethod")
 
 
 class GetMethodID(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, class_, ptr_method_name, ptr_method_sig):
-
         method_class = self.state.jni_references.lookup(class_)
         method_name = self._load_string_from_native_memory(ptr_method_name)
         method_sig = self._load_string_from_native_memory(ptr_method_sig)
@@ -40,7 +38,6 @@ class GetMethodID(JNISimProcedure):
 
 
 class CallMethodBase(JNISimProcedure):
-
     return_ty: Optional[str] = None
 
     def _invoke(self, method_id, obj=None, dynamic_dispatch=True, args_in_array=None):
@@ -80,7 +77,6 @@ class CallMethodBase(JNISimProcedure):
 
         # function arguments
         for arg_value_, arg_type in zip(arg_values, method_id.params):
-
             if arg_type in ArchSoot.primitive_types:
                 # argument has a primitive integral type
                 # => cast native value to java type

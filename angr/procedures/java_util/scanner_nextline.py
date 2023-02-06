@@ -9,7 +9,6 @@ l = logging.getLogger("angr.procedures.java.scanner.nextLine")
 
 
 class ScannerNextLine(JavaSimProcedure):
-
     __provides__ = (("java.util.Scanner", "nextLine()"),)
 
     def run(self, this):  # pylint: disable=arguments-differ,unused-argument

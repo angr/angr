@@ -90,7 +90,6 @@ class ReachingDefinitionsState:
         heap_allocator: HeapAllocator = None,
         environment: Environment = None,
     ):
-
         # handy short-hands
         self.arch = arch
         self._subject = subject
@@ -359,7 +358,6 @@ class ReachingDefinitionsState:
         return rd
 
     def merge(self, *others) -> Tuple["ReachingDefinitionsState", bool]:
-
         state = self.copy()
         others: Iterable["ReachingDefinitionsState"]
 

@@ -16,7 +16,6 @@ class LoaderSerializer:
 
     @staticmethod
     def dump(session, loader):
-
         for obj in loader.all_objects:
             if isinstance(
                 obj,
@@ -49,7 +48,6 @@ class LoaderSerializer:
 
     @staticmethod
     def load(session):
-
         all_objects = {}  # path to object
         main_object = None
 

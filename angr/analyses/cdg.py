@@ -152,7 +152,6 @@ class CDG(Analysis):
     #
 
     def _pd_construct(self):
-
         pdoms = PostDominators(self._acyclic_cfg, self._entry, successors_func=self._pd_graph_successors)
 
         self._post_dom = pdoms.post_dom
@@ -166,7 +165,6 @@ class CDG(Analysis):
 
     @staticmethod
     def _pd_graph_successors(graph, node):
-
         if type(node) is TemporaryNode:
             # This is for testing
             successors = graph.graph.successors(node)

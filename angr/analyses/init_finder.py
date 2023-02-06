@@ -236,7 +236,6 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
         return None
 
     def _run_on_node(self, node, state):
-
         block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
         block_key = node.addr
         engine = self._engine_vex

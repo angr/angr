@@ -97,7 +97,6 @@ class RegionedAddressConcretizationMixin(MemoryMixin):
         is_write: bool = False,
         target_region: Optional[str] = None,
     ) -> Generator[AddressWrapper, None, None]:
-
         strategies = self.write_strategies if is_write else self.read_strategies
         targets_limit = self._write_targets_limit if is_write else self._read_targets_limit
 

@@ -25,7 +25,6 @@ def get_map_key(state, key_ref):
 
 
 class MapInit(JavaSimProcedure):
-
     __provides__ = (("java.util.Map", "<init>()"), ("java.util.HashMap", "<init>()"))
 
     def run(self, this_ref):
@@ -39,7 +38,6 @@ class MapInit(JavaSimProcedure):
 
 
 class MapPut(JavaSimProcedure):
-
     __provides__ = (
         ("java.util.Map", "put(java.lang.Object,java.lang.Object)"),
         ("java.util.HashMap", "put(java.lang.Object,java.lang.Object)"),
@@ -69,7 +67,6 @@ class MapPut(JavaSimProcedure):
 
 
 class MapGet(JavaSimProcedure):
-
     __provides__ = (("java.util.Map", "get(java.lang.Object)"), ("java.util.HashMap", "get(java.lang.Object)"))
 
     def run(self, this_ref, key_ref):
@@ -85,7 +82,6 @@ class MapGet(JavaSimProcedure):
 
 
 class MapSize(JavaSimProcedure):
-
     __provides__ = (("java.util.Map", "size()"), ("java.util.HashMap", "size()"))
 
     def run(self, this_ref):
@@ -98,7 +94,6 @@ class MapSize(JavaSimProcedure):
 
 
 class MapContainsKey(JavaSimProcedure):
-
     __provides__ = (
         ("java.util.Map", "containsKey(java.lang.Object)"),
         ("java.util.HashMap", "containsKey(java.lang.Object)"),
@@ -119,7 +114,6 @@ class MapContainsKey(JavaSimProcedure):
 
 
 class MapKeySet(JavaSimProcedure):
-
     __provides__ = (("java.util.Map", "keySet()"), ("java.util.HashMap", "keySet()"))
 
     def run(self, this_ref):

@@ -13,6 +13,7 @@ l = logging.getLogger(name=__name__)
 
 # they return retval, constraints
 
+
 # Reference:
 # http://www-inteng.fnal.gov/Integrated_Eng/GoodwinDocs/pdf/Sys%20docs/PowerPC/PowerPC%20Elapsed%20Time.pdf
 # and
@@ -91,7 +92,6 @@ def amd64g_create_mxcsr(_, sseround):
 
 # see canonical implementation of this in guest_amd64_helpers.c
 def amd64g_dirtyhelper_XSAVE_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
-
     mxcsr = amd64g_create_mxcsr(state, state.regs.sseround)
     mxcsr = mxcsr[15:0]
 
@@ -119,7 +119,6 @@ EmWarn_S390X_invalid_rounding = 11
 
 
 def amd64g_check_ldmxcsr(state, mxcsr):
-
     rmode = state.solver.LShR(mxcsr, 13) & 3
 
     ew = state.solver.If(
@@ -139,7 +138,6 @@ def amd64g_check_ldmxcsr(state, mxcsr):
 
 # see canonical implementation of this in guest_amd64_helpers.c
 def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
-
     w32 = state.solver.BVV(
         (state.mem[state.solver.eval(addr) + 12 * 2].short.concrete & 0xFFFF)
         | ((state.mem[state.solver.eval(addr) + 13 * 2].short.concrete & 0xFFFF) << 16),

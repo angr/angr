@@ -2,7 +2,6 @@ from ..java import JavaSimProcedure
 
 
 class NextInt(JavaSimProcedure):
-
     __provides__ = (("java.util.Random", "nextInt(int)"),)
 
     def run(self, obj, bound):  # pylint: disable=arguments-differ,unused-argument

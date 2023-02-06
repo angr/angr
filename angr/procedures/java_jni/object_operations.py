@@ -10,7 +10,6 @@ from .method_calls import CallMethodBase
 
 
 class GetObjectClass(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, obj_):
@@ -25,7 +24,6 @@ class GetObjectClass(JNISimProcedure):
 
 
 class AllocObject(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, obj_class_):
@@ -43,7 +41,6 @@ class AllocObject(JNISimProcedure):
 
 
 class NewObject(CallMethodBase):
-
     return_ty = "reference"
     obj = None
     local_vars = ("obj",)
@@ -67,7 +64,6 @@ class NewObject(CallMethodBase):
 
 
 class IsInstanceOf(CallMethodBase):
-
     return_ty = "boolean"
 
     def run(self, ptr_env, obj_, target_class_):
@@ -88,7 +84,6 @@ class IsInstanceOf(CallMethodBase):
 
 
 class IsSameObject(JNISimProcedure):
-
     return_ty = "boolean"
 
     def run(self, ptr_env, ref1_, ref2_):

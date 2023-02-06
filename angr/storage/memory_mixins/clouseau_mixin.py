@@ -121,7 +121,6 @@ class InspectMixinHigh(MemoryMixin):
         return r
 
     def _add_constraints(self, c, add_constraints=True, inspect=True, **kwargs):
-
         if inspect and self.state.supports_inspect:
             # tracer uses address_concretization_add_constraints
             add_constraints = self.state._inspect_getattr("address_concretization_add_constraints", add_constraints)

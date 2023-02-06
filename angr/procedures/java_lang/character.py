@@ -7,7 +7,6 @@ log = logging.getLogger(name=__name__)
 
 
 class CharacterIsDigit(JavaSimProcedure):
-
     __provides__ = (("java.lang.Character", "isDigit(char)"),)
 
     def run(self, char_ref):
@@ -20,7 +19,6 @@ class CharacterIsDigit(JavaSimProcedure):
 
 
 class CharacterIsSpaceChar(JavaSimProcedure):
-
     __provides__ = (("java.lang.Character", "isSpaceChar(char)"),)
 
     def run(self, char_ref):

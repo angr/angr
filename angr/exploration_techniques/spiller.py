@@ -65,7 +65,6 @@ class PickledStatesDb(PickledStatesBase):
     """
 
     def __init__(self, db_str="sqlite:///:memory:"):
-
         from .spiller_db import sqlalchemy, create_engine, Base, OperationalError, sessionmaker
 
         if sqlalchemy is None:
@@ -89,7 +88,6 @@ class PickledStatesDb(PickledStatesBase):
         pass
 
     def add(self, prio, sid, taken=False, stash="spilled"):  # pylint:disable=arguments-differ
-
         from .spiller_db import PickledState
 
         record = PickledState(id=sid, priority=prio, taken=taken, stash=stash)
@@ -99,7 +97,6 @@ class PickledStatesDb(PickledStatesBase):
         session.close()
 
     def pop_n(self, n, stash="spilled"):  # pylint:disable=arguments-differ
-
         from .spiller_db import PickledState
 
         session = self.Session()
@@ -121,7 +118,6 @@ class PickledStatesDb(PickledStatesBase):
         return ss
 
     def get_recent_n(self, n, stash="spilled"):
-
         from .spiller_db import PickledState
 
         session = self.Session()
@@ -134,7 +130,6 @@ class PickledStatesDb(PickledStatesBase):
         return ss
 
     def count(self):
-
         from .spiller_db import PickledState
 
         session = self.Session()

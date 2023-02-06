@@ -32,7 +32,6 @@ def test_file_read():
 
 
 def test_file_seek():
-
     # TODO: Make this test more complete
 
     state = SimState(arch="AMD64", mode="symbolic")

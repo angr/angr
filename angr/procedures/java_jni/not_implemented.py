@@ -8,7 +8,6 @@ l = logging.getLogger("angr.procedures.java_jni.NotImplemented")
 
 
 class UnsupportedJNIFunction(JNISimProcedure):
-
     return_ty = "void"
 
     def run(self):

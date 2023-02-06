@@ -10,7 +10,6 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)
 
     def optimize(self, expr: Convert):
-
         if isinstance(expr.operand, Convert):
             inner = expr.operand
             if inner.from_bits == expr.to_bits:

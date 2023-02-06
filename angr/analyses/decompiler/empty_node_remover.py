@@ -66,7 +66,6 @@ class EmptyNodeRemover:
     #
 
     def _handle_Sequence(self, node, **kwargs):
-
         new_nodes = []
         for node_ in node.nodes:
             new_node = self._walker._handle(node_)
@@ -89,7 +88,6 @@ class EmptyNodeRemover:
         return sn
 
     def _handle_MultiNode(self, node: MultiNode, **kwargs):
-
         new_nodes = []
         for node_ in node.nodes:
             new_node = self._walker._handle(node_)
@@ -123,7 +121,6 @@ class EmptyNodeRemover:
         return CodeNode(inner_node, node.reaching_condition)
 
     def _handle_Condition(self, node, **kwargs):
-
         true_node = self._walker._handle(node.true_node)
         false_node = self._walker._handle(node.false_node)
 
@@ -149,7 +146,6 @@ class EmptyNodeRemover:
         return ConditionNode(node.addr, node.reaching_condition, node.condition, true_node, false_node=false_node)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
-
         new_else_node = None if node.else_node is None else self._walker._handle(node.else_node)
 
         new_cond_and_nodes = []
@@ -185,7 +181,6 @@ class EmptyNodeRemover:
         return node
 
     def _handle_SwitchCase(self, node, **kwargs):
-
         new_cases = OrderedDict()
 
         for idx, case in node.cases.items():

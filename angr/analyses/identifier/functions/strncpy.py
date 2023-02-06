@@ -45,7 +45,6 @@ class strncpy(Func):
         return test
 
     def pre_test(self, func, runner):
-
         # check only copies up to null
         test_input = ["A" * 7, "abc\x00ccc", 7]
         test_output = ["abc\x00AAA", "abc\x00ccc", None]

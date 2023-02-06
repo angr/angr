@@ -15,11 +15,9 @@ class Bucketizer(ExplorationTechnique):
     """
 
     def __init__(self):
-
         super().__init__()
 
     def successors(self, simgr, state, **kwargs):
-
         # step first
         successors: SimSuccessors = super().successors(simgr, state, **kwargs)
 

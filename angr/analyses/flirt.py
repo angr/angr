@@ -31,7 +31,6 @@ class FlirtAnalysis(Analysis):
     """
 
     def __init__(self, sig: Optional[Union[FlirtSignature, str]] = None):
-
         self._is_arm = is_arm_arch(self.project.arch)
         self._all_suggestions: Dict[str, Dict[str, Dict[int, str]]] = {}
         self._suggestions: Dict[int, str] = {}

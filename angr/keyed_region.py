@@ -12,7 +12,6 @@ l = logging.getLogger(name=__name__)
 
 
 class StoredObject:
-
     __slots__ = ("__weakref__", "start", "obj", "size")
 
     def __init__(self, start, obj, size):
@@ -377,7 +376,6 @@ class KeyedRegion:
     #
 
     def _canonicalize_size(self, size: Union[int, "UnknownSize"]) -> int:
-
         # delayed import
         from .knowledge_plugins.key_definitions.unknown_size import (
             UnknownSize,
@@ -468,7 +466,6 @@ class KeyedRegion:
         self._storage.update(to_update)
 
     def _is_overlapping(self, start, variable):
-
         if variable.size is not None:
             # make sure this variable does not overlap with any other variable
             end = start + variable.size

@@ -62,17 +62,14 @@ class SimplifierAILEngine(
     """
 
     def __init__(self):  # pylint: disable=useless-super-delegation
-
         super().__init__()
 
     def process(self, state, *args, **kwargs):
-
         # override SimEngineLight.process() so that we can return the processed block
         super().process(state, *args, **kwargs)
         return self.block
 
     def _process_Stmt(self, whitelist=None):
-
         if whitelist is not None:
             whitelist = set(whitelist)
 
@@ -96,7 +93,6 @@ class SimplifierAILEngine(
             return stmt
 
     def _ail_handle_Assignment(self, stmt):
-
         src = self._expr(stmt.src)
         dst = self._expr(stmt.dst)
 
@@ -110,7 +106,6 @@ class SimplifierAILEngine(
         return stmt
 
     def _ail_handle_Store(self, stmt):
-
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
@@ -121,7 +116,6 @@ class SimplifierAILEngine(
         return stmt
 
     def _ail_handle_Jump(self, stmt):
-
         target = self._expr(stmt.target)
 
         return Stmt.Jump(stmt.idx, target, **stmt.tags)
@@ -130,7 +124,6 @@ class SimplifierAILEngine(
         return stmt
 
     def _ail_handle_Call(self, stmt):
-
         target = self._expr(stmt.target)
 
         new_args = None
@@ -177,7 +170,6 @@ class SimplifierAILEngine(
     # handle expr
 
     def _expr(self, expr):
-
         handler = "_ail_handle_%s" % type(expr).__name__
         if hasattr(self, handler):
             v = getattr(self, handler)(expr)

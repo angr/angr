@@ -9,7 +9,6 @@ class fdwait(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
     def run(self, nfds, readfds, writefds, timeout, readyfds):
-
         run_count = next(fdcount)
         total_ready = self.state.solver.BVV(0, self.state.arch.bits)
 

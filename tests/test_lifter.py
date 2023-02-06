@@ -70,7 +70,6 @@ def test_strict_block_ends_with_size_amd64():
 
 
 def test_no_cross_insn_boundary_opt_amd64():
-
     # 0x4020f8:       sub     rsp, 8
     # 0x4020fc:       mov     rax, qword ptr [rip + 0x221ef5]
     # 0x402103:       test    rax, rax

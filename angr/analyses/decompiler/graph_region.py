@@ -76,7 +76,6 @@ class GraphRegion:
         )
 
     def recursive_copy(self, nodes_map=None):
-
         if nodes_map is None:
             nodes_map = {}
         new_graph = self._recursive_copy(self.graph, nodes_map)
@@ -151,7 +150,6 @@ class GraphRegion:
         return s
 
     def dbg_print(self, ident=0):
-
         s = self.dbg_get_repr(self.head, ident=ident) + "\n"
 
         successors = list(self.graph.successors(self.head))
@@ -178,7 +176,6 @@ class GraphRegion:
         return s
 
     def replace_region(self, sub_region, replace_with):
-
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception()
@@ -191,7 +188,6 @@ class GraphRegion:
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with)
 
     def replace_region_with_region(self, sub_region: "GraphRegion", replace_with: "GraphRegion"):
-
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception()
@@ -241,7 +237,6 @@ class GraphRegion:
 
     @staticmethod
     def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with):
-
         in_edges = list(graph.in_edges(node))
         out_edges = list(graph.out_edges(node))
 
@@ -271,7 +266,6 @@ class GraphRegion:
         sub_graph: networkx.DiGraph,
         sub_graph_head,
     ):
-
         in_edges = list(graph.in_edges(node))
         out_edges = list(graph.out_edges(node))
 

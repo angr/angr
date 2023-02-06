@@ -41,7 +41,6 @@ class RecursiveStructurer(Analysis):
         self._analyze()
 
     def _analyze(self):
-
         region = self._region.recursive_copy()
         self._case_entry_to_switch_head: Dict[int, int] = self._get_switch_case_entries()
 
@@ -129,7 +128,6 @@ class RecursiveStructurer(Analysis):
         parent_region.replace_region_with_region(sub_region, new_region)
 
     def _get_switch_case_entries(self) -> Dict[int, int]:
-
         if self.function is None:
             return {}
 

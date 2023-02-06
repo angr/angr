@@ -12,7 +12,6 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 
 class TestPeepholeOptimizations(unittest.TestCase):
     def test_constant_dereference(self):
-
         # a = *(A) :=> a = the variable at at A iff
         # - A is a pointer that points to a read-only section.
 

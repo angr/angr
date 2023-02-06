@@ -26,7 +26,6 @@ class RetAddrSaveSimplifier(OptimizationPass):
         self.analyze()
 
     def _check(self):
-
         if self.project.arch.name not in DEFAULT_CC:
             return False, {}
 

@@ -7,7 +7,6 @@ l = logging.getLogger(name=__name__)
 
 class lseek(angr.SimProcedure):
     def run(self, fd, seek, whence):  # pylint:disable=arguments-differ,unused-argument
-
         if self.state.solver.symbolic(whence):
             err = "Symbolic whence is not supported in lseek syscall."
             l.error(err)

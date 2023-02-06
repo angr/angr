@@ -2,7 +2,6 @@ from .base import SimSootValue
 
 
 class SimSootValue_StringRef(SimSootValue):
-
     __slots__ = ["id", "type"]
 
     def __init__(self, heap_alloc_id):

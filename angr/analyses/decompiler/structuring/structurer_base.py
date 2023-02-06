@@ -519,7 +519,6 @@ class StructurerBase(Analysis):
         walker.walk(loop_seq)
 
     def _loop_create_break_node(self, last_stmt, loop_successor_addrs):
-
         # This node has an exit to the outside of the loop
         # add a break or a conditional break node
         new_node = None
@@ -568,7 +567,6 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def _merge_conditional_breaks(seq):
-
         # Find consecutive ConditionalBreakNodes and merge their conditions
 
         def _handle_SequenceNode(seq_node, parent=None, index=0, label=None):
@@ -616,7 +614,6 @@ class StructurerBase(Analysis):
         return walker.merged, seq
 
     def _merge_nesting_conditionals(self, seq):
-
         # find if(A) { if(B) { ... ] } and simplify them to if( A && B ) { ... }
 
         def _condnode_truenode_only(node):
@@ -697,7 +694,6 @@ class StructurerBase(Analysis):
     def _reorganize_switch_cases(
         self, cases: ODict[Union[int, Tuple[int, ...]], SequenceNode]
     ) -> ODict[Union[int, Tuple[int, ...]], SequenceNode]:
-
         new_cases = OrderedDict()
 
         caseid2gotoaddrs = {}
@@ -783,7 +779,6 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def _merge_nodes(node_0, node_1):
-
         addr = node_0.addr if node_0.addr is not None else node_1.addr
 
         # fix the last block of node_0 and remove useless goto statements

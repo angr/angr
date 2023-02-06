@@ -17,7 +17,6 @@ class BitwiseOrToLogicalOr(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
-
         if (
             expr.op in {"CmpEQ", "CmpNE"}
             and isinstance(expr.operands[0], BinaryOp)

@@ -132,7 +132,6 @@ class SequenceWalker:
         return None
 
     def _handle_IncompleteSwitchCase(self, node: IncompleteSwitchCaseNode, **kwargs):
-
         changed = False
         new_cases = []
         for idx, case in enumerate(node.cases):

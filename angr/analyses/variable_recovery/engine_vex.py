@@ -54,7 +54,6 @@ class SimEngineVRVEX(
     def _handle_StoreG(self, stmt):
         guard = self._expr(stmt.guard)
         if guard is True:
-
             addr = self._expr(stmt.addr)
             size = stmt.data.result_size(self.tyenv) // 8
             data = self._expr(stmt.data)
@@ -167,7 +166,6 @@ class SimEngineVRVEX(
                             self._load(addr, loc.size)
 
     def _process_block_end(self):
-
         # handles block-end calls
         current_addr = self.state.block_addr
         for target_func in self.call_info.get(current_addr, []):

@@ -16,7 +16,6 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-
         if expr.op == "Add" and isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
             mask = (2 << expr.bits) - 1
             new_expr = Const(

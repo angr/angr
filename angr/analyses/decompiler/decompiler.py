@@ -81,7 +81,6 @@ class Decompiler(Analysis):
             self._decompile()
 
     def _decompile(self):
-
         if self.func.is_simprocedure:
             return
 
@@ -251,7 +250,6 @@ class Decompiler(Analysis):
 
         # run each pass
         for pass_ in self._optimization_passes:
-
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.BEFORE_REGION_IDENTIFICATION:
                 continue
@@ -303,7 +301,6 @@ class Decompiler(Analysis):
 
         # run each pass
         for pass_ in self._optimization_passes:
-
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.DURING_REGION_IDENTIFICATION:
                 continue
@@ -339,9 +336,7 @@ class Decompiler(Analysis):
 
     @timethis
     def _run_post_structuring_simplification_passes(self, seq_node, **kwargs):
-
         for pass_ in self._optimization_passes:
-
             if pass_.STAGE != OptimizationPassStage.AFTER_STRUCTURING:
                 continue
 
@@ -352,7 +347,6 @@ class Decompiler(Analysis):
         return seq_node
 
     def _set_global_variables(self):
-
         global_variables = self.kb.variables["global"]
         for symbol in self.project.loader.main_object.symbols:
             if symbol.type == SymbolType.TYPE_OBJECT:

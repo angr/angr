@@ -8,7 +8,6 @@ l = logging.getLogger("angr.procedures.java_jni.getsuperclass")
 
 
 class GetSuperclass(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, class_):
@@ -24,7 +23,6 @@ class GetSuperclass(JNISimProcedure):
 
 
 class FindClass(JNISimProcedure):
-
     return_ty = "reference"
 
     def run(self, ptr_env, name_ptr):

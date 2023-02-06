@@ -24,7 +24,6 @@ def is_linux():
 
 
 def test_data_reference_collection_in_add():
-
     # Issue reported and test binary provided by Antonio F. Montoya
     # Fixed in https://github.com/angr/pyvex/pull/192
 
@@ -53,7 +52,6 @@ def test_data_reference_collection_in_add():
 
 
 def test_ln_gcc_O2():
-
     # Issue reported and test binary provided by Antonio F. Montoya
 
     p = angr.Project(os.path.join(test_location, "x86_64", "ln_gcc_-O2"), auto_load_libs=False)
@@ -86,7 +84,6 @@ def test_ln_gcc_O2():
 
 
 def test_chmod_gcc_O1():
-
     # Issue reported and test binary provided by Antonio F. Montoya
 
     p = angr.Project(os.path.join(test_location, "x86_64", "chmod_gcc_-O1"), auto_load_libs=False)
@@ -115,7 +112,6 @@ def test_chmod_gcc_O1():
 
 
 def test_ex_gpp():
-
     # Issue reported and test binary provided by Antonio F. Montoya
 
     p = angr.Project(os.path.join(test_location, "x86_64", "ex_g++"), auto_load_libs=False)
@@ -145,7 +141,6 @@ def test_ex_gpp():
 
 
 def test_df_gcc_O1():
-
     # Issue reported and test binary provided by Antonio F. Montoya
 
     p = angr.Project(os.path.join(test_location, "x86_64", "df_gcc_-O1"), auto_load_libs=False)
@@ -174,7 +169,6 @@ def test_df_gcc_O1():
 
 
 def test_dir_gcc_O0():
-
     # Issue reported and test binary provided by Antonio F. Montoya
 
     p = angr.Project(os.path.join(test_location, "x86_64", "dir_gcc_-O0"), auto_load_libs=False)
@@ -204,7 +198,6 @@ def test_dir_gcc_O0():
 
 
 def test_helloworld():
-
     # Reassembler complains about TYPE_OTHER symbols, which is because it's trying to classify bytes inside the ELF
     # header as pointers. We identify the ELF header in CFGFast to workaround this problem.
     # https://github.com/angr/angr/issues/1630
@@ -219,7 +212,6 @@ def test_helloworld():
 
 
 def test_helloworld_gcc9():
-
     # New versions of GCC changed the names of init and fini sections.
     # https://github.com/angr/patcherex/issues/39
 
@@ -249,7 +241,6 @@ def test_helloworld_gcc9():
 
 
 def test_partial_pie_ls_x86():
-
     # https://github.com/angr/patcherex/issues/39
     # a GCC-generated X86 binary with a few functions somehow being PIE
 
