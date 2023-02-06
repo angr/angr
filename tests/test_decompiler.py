@@ -1967,6 +1967,20 @@ class TestDecompiler(unittest.TestCase):
         assert "calculate_columns(" in d.codegen.text
         assert "putchar_unlocked(eolbyte)" in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_decompiling_who_scan_entries(self, decompiler_options=None):
+        # order of edge virtualization matters. suboptimal order will lead to more gotos.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "who.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["scan_entries"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # it should make somewhat sense
+        assert d.codegen.text.count("goto ") == 1
+
     def test_decompiling_tr_build_spec_list(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
