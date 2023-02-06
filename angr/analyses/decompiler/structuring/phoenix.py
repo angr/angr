@@ -537,7 +537,8 @@ class PhoenixStructurer(StructurerBase):
                 # virtualize all other edges
                 for succ in successor_candidates:
                     for pred in fullgraph.predecessors(succ):
-                        outgoing_edges.append((pred, succ))
+                        if pred in graph:
+                            outgoing_edges.append((pred, succ))
 
         if outgoing_edges:
             # convert all out-going edges into breaks (if there is a single successor) or gotos (if there are multiple
