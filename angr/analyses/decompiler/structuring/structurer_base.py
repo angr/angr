@@ -435,30 +435,41 @@ class StructurerBase(Analysis):
         walker = SequenceWalker(handlers=handlers)
         walker.walk(loop_node)
 
-    def _rewrite_jumps_to_continues(self, loop_seq: SequenceNode):
+    def _rewrite_jumps_to_continues(self, loop_seq: SequenceNode, loop_node: Optional[LoopNode] = None):
+        continue_node_addr = loop_seq.addr
+        # exception: do-while with a multi-statement condition
+        if (
+            loop_node is not None
+            and loop_node.sort == "do-while"
+            and isinstance(loop_node.condition, ailment.Expr.MultiStatementExpression)
+        ):
+            continue_node_addr = loop_node.condition.ins_addr
+
         def _rewrite_jump_to_continue(node, parent=None, index=None, label=None, **kwargs):
             if not node.statements:
                 return
             stmt = node.statements[-1]
             if isinstance(stmt, ailment.Stmt.Jump):
                 targets = extract_jump_targets(stmt)
-                if any(target == loop_seq.addr for target in targets):
-                    # This node has an exit to the beginning of the loop
+                if any(target == continue_node_addr for target in targets):
+                    # This node has an exit to the continue location of the loop
                     # create a continue node
-                    continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
+                    continue_node = ContinueNode(stmt.ins_addr, continue_node_addr)
                     # insert this node to the parent
                     insert_node(parent, "after", continue_node, index, label=label)  # insert after
                     # remove this statement
                     node.statements = node.statements[:-1]
             elif isinstance(stmt, ailment.Stmt.ConditionalJump):
                 cond = None
-                if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == loop_seq.addr:
+                if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == continue_node_addr:
                     cond = self.cond_proc.claripy_ast_from_ail_condition(stmt.condition)
-                elif isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value == loop_seq.addr:
+                elif (
+                    isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value == continue_node_addr
+                ):
                     cond = claripy.Not(self.cond_proc.claripy_ast_from_ail_condition(stmt.condition))
                 if cond is not None:
                     # create a continue node
-                    continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
+                    continue_node = ContinueNode(stmt.ins_addr, continue_node_addr)
                     # create a condition node
                     cond_node = ConditionNode(stmt.ins_addr, None, cond, continue_node)
                     # insert this node to the parent
