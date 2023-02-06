@@ -579,12 +579,12 @@ class PhoenixStructurer(StructurerBase):
                         fullgraph.remove_edge(src, dst)
                     else:
                         has_continue = False
-                        # at the same time, examine if there is an edge that goes from src to head. if so, we deal with
-                        # it here as well.
-                        head_going_edge = src, loop_head
-                        if head_going_edge in continue_edges and len(continue_edges) > 1:
+                        # at the same time, examine if there is an edge that goes from src to the continue node. if so,
+                        # we deal with it here as well.
+                        continue_node_going_edge = src, continue_node
+                        if continue_node_going_edge in continue_edges and len(continue_edges) > 1:
                             has_continue = True
-                            continue_edges.remove(head_going_edge)
+                            continue_edges.remove(continue_node_going_edge)
 
                         # create the "break" node. in fact, we create a jump or a conditional jump, which will be
                         # rewritten to break nodes after (if possible). directly creating break nodes may lead to
@@ -616,7 +616,7 @@ class PhoenixStructurer(StructurerBase):
                             )
                         new_node = SequenceNode(src_block.addr, nodes=[src_block, break_node])
                         if has_continue:
-                            if self.is_a_jump_target(last_src_stmt, loop_head.addr):
+                            if self.is_a_jump_target(last_src_stmt, continue_node.addr):
                                 # instead of a conditional break node, we should insert a condition node instead
                                 break_stmt = Jump(
                                     None,
@@ -626,14 +626,15 @@ class PhoenixStructurer(StructurerBase):
                                 )
                                 break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
                                 cont_node = ContinueNode(
-                                    last_src_stmt.ins_addr, Const(None, None, loop_head.addr, self.project.arch.bits)
+                                    last_src_stmt.ins_addr,
+                                    Const(None, None, continue_node.addr, self.project.arch.bits),
                                 )
                                 cond_node = ConditionNode(
                                     last_src_stmt.ins_addr, None, break_cond, break_node, false_node=cont_node
                                 )
                                 new_node.nodes[-1] = cond_node
-                                graph.remove_edge(src, loop_head)
-                                fullgraph.remove_edge(src, loop_head)
+                                graph.remove_edge(src, continue_node)
+                                fullgraph.remove_edge(src, continue_node)
                             else:
                                 # the last statement in src_block is not the conditional jump whose one branch goes to
                                 # the loop head. it probably goes to another block that ends up going to the loop head.
@@ -650,6 +651,8 @@ class PhoenixStructurer(StructurerBase):
                             self.replace_nodes(fullgraph, src, new_node)
                             if src is loop_head:
                                 loop_head = new_node
+                            if src is continue_node:
+                                continue_node = new_node
 
                         self._replace_node_in_edge_list(outgoing_edges, src_block, new_node)
                         self._replace_node_in_edge_list(continue_edges, src_block, new_node)
