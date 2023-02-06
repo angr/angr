@@ -1799,8 +1799,11 @@ class PhoenixStructurer(StructurerBase):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     other_edges.append((src, dst))
 
+        ordered_nodes = CFGUtils.quasi_topological_sort_nodes(acyclic_graph, loop_heads=[head])
+        node_seq = {nn: idx for (idx, nn) in enumerate(ordered_nodes)}
+
         if all_edges_wo_dominance:
-            all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance)
+            all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance, node_seq)
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -1808,7 +1811,7 @@ class PhoenixStructurer(StructurerBase):
             return True
 
         if secondary_edges:
-            secondary_edges = self._chick_order_edges(secondary_edges)
+            secondary_edges = self._chick_order_edges(secondary_edges, node_seq)
             # virtualize the first edge
             src, dst = secondary_edges[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -2119,16 +2122,20 @@ class PhoenixStructurer(StructurerBase):
         return None
 
     @staticmethod
-    def _chick_order_edges(edges: List) -> List:
+    def _chick_order_edges(edges: List, node_seq: Dict[Any, int]) -> List:
 
         graph = networkx.DiGraph()
         graph.add_edges_from(edges)
 
         def _sort_edge(edge_):
+            # this is a bit complex. we first sort based on the topological order of the destination node; edges with
+            # destination nodes that are closer to the head (as specified in node_seq) should be virtualized first.
+            # then we solve draws by prioritizing edges whose destination nodes are with a lower in-degree (only
+            # consider the sub graph with these edges), and a few other properties.
             src, dst = edge_
             dst_in_degree = graph.in_degree[dst]
             src_out_degree = graph.out_degree[src]
-            return dst_in_degree, src_out_degree, -src.addr, -dst.addr
+            return -node_seq.get(dst), dst_in_degree, src_out_degree, -src.addr, -dst.addr
 
         return list(sorted(edges, key=_sort_edge, reverse=True))
 
