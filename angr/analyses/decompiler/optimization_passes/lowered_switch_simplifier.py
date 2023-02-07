@@ -10,7 +10,7 @@ from ailment.expression import BinaryOp, Const, Register, Load
 from ...cfg.cfg_utils import CFGUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
-from .optimization_pass import OptimizationPass, OptimizationPassStage
+from .optimization_pass import OptimizationPass, OptimizationPassStage, MultipleBlocksException
 
 if TYPE_CHECKING:
     from ....sim_variable import SimVariable
@@ -160,7 +160,11 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     next_comp_addr = next(iter(succ_addr for succ_addr in succ_addrs if succ_addr != target), None)
                     if next_comp_addr is None:
                         break
-                    next_comp = self._get_block(next_comp_addr)
+                    try:
+                        next_comp = self._get_block(next_comp_addr)
+                    except MultipleBlocksException:
+                        # multiple blocks :/ we don't support for now
+                        break
                     assert next_comp is not None
                     if next_comp in variable_comparisons:
                         last_comp = comp

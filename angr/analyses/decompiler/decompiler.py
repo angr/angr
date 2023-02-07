@@ -321,6 +321,11 @@ class Decompiler(Analysis):
                 # use the new graph
                 ail_graph = a.out_graph
 
+                # the graph might change! update them.
+                addr_and_idx_to_blocks = {}
+                addr_to_blocks = defaultdict(set)
+                AILGraphWalker(ail_graph, _updatedict_handler).walk()
+
                 cond_proc = ConditionProcessor(self.project.arch)
                 # always update RI on graph change
                 ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
