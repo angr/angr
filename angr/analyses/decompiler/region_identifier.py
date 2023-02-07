@@ -664,7 +664,10 @@ class RegionIdentifier(Analysis):
                     subgraph = networkx.DiGraph()
                     subgraph.add_node(node)
                     self._abstract_acyclic_region(
-                        graph, GraphRegion(node, subgraph, None, None, False, None), [], secondary_graph=secondary_graph
+                        graph,
+                        GraphRegion(node, subgraph, None, None, False, None, cyclic_ancestor=cyclic),
+                        [],
+                        secondary_graph=secondary_graph,
                     )
                 continue
 
@@ -675,7 +678,9 @@ class RegionIdentifier(Analysis):
                 if (node, postdom_node) not in failed_region_attempts:
                     if self._check_region(graph_copy, node, postdom_node, doms, df):
                         frontier = [postdom_node]
-                        region = self._compute_region(graph_copy, node, frontier, dummy_endnode=dummy_endnode)
+                        region = self._compute_region(
+                            graph_copy, node, frontier, dummy_endnode=dummy_endnode, cyclic_ancestor=cyclic
+                        )
                         if region is not None:
                             # update region.graph_with_successors
                             if secondary_graph is not None:
@@ -754,7 +759,7 @@ class RegionIdentifier(Analysis):
         return True
 
     @staticmethod
-    def _compute_region(graph, node, frontier, include_frontier=False, dummy_endnode=None):
+    def _compute_region(graph, node, frontier, include_frontier=False, dummy_endnode=None, cyclic_ancestor=False):
         subgraph = networkx.DiGraph()
         frontier_edges = []
         queue = [node]
@@ -802,7 +807,9 @@ class RegionIdentifier(Analysis):
                     subgraph_with_frontier.add_edge(src, dst, **edge_data)
             # assert dummy_endnode not in frontier
             # assert dummy_endnode not in subgraph_with_frontier
-            return GraphRegion(node, subgraph, frontier, subgraph_with_frontier, False, None)
+            return GraphRegion(
+                node, subgraph, frontier, subgraph_with_frontier, False, None, cyclic_ancestor=cyclic_ancestor
+            )
         else:
             return None
 

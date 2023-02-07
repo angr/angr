@@ -150,6 +150,12 @@ class PhoenixStructurer(StructurerBase):
                 has_cycle = self._has_cycle()
 
             if not progressed:
+                if self._region.cyclic_ancestor and not self._region.cyclic:
+                    # we prefer directly returning this subgraph in case it can be further restructured within a loop
+                    # region
+                    l.debug("No progress is made on this acyclic graph with a cyclic ancestor. Give up.")
+                    break
+
                 l.debug("No progress is made. Enter last resort refinement.")
                 removed_edge = self._last_resort_refinement(
                     self._region.head,

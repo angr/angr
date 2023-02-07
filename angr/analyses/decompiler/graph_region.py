@@ -27,6 +27,7 @@ class GraphRegion:
         "graph_with_successors",
         "cyclic",
         "full_graph",
+        "cyclic_ancestor",
     )
 
     def __init__(
@@ -37,6 +38,7 @@ class GraphRegion:
         graph_with_successors: Optional[networkx.DiGraph],
         cyclic,
         full_graph: Optional[networkx.DiGraph],
+        cyclic_ancestor: bool = False,
     ):
         self.head = head
         self.graph = graph
@@ -49,6 +51,7 @@ class GraphRegion:
 
         self.full_graph = full_graph
         self.cyclic = cyclic
+        self.cyclic_ancestor = cyclic_ancestor
 
     def __repr__(self):
         addrs: List[int] = []
@@ -73,6 +76,7 @@ class GraphRegion:
             networkx.DiGraph(self.graph_with_successors) if self.graph_with_successors is not None else None,
             self.cyclic,
             networkx.DiGraph(self.full_graph) if self.full_graph is not None else None,
+            cyclic_ancestor=self.cyclic_ancestor,
         )
 
     def recursive_copy(self, nodes_map=None):
@@ -101,7 +105,13 @@ class GraphRegion:
             new_full_graph = None
 
         return GraphRegion(
-            nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic, new_full_graph
+            nodes_map[self.head],
+            new_graph,
+            successors,
+            new_graph_with_successors,
+            self.cyclic,
+            new_full_graph,
+            cyclic_ancestor=self.cyclic_ancestor,
         )
 
     @staticmethod
