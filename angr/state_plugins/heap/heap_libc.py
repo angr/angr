@@ -39,7 +39,7 @@ class SimHeapLibc(SimHeapBase):
 
         :param ptr:  the location in memory to be reallocated
         :param size: the new size desired for the allocation
-        :returns:    the address of the allocation, or a NULL pointer if the allocation was freed or if no new allocation
-                     was made
+        :returns:    the address of the allocation, or a NULL pointer if the allocation was freed or if no new
+                     allocation was made
         """
         raise NotImplementedError(f"{self.realloc.__func__.__name__} not implemented for {self.__class__.__name__}")

@@ -76,16 +76,26 @@ class SimStatePlugin:
         the target state, so this should mutate the current instance to merge with the others.
 
         Note that when multiple instances of a single plugin object (for example, a file) are referenced in the state,
-        it is important that merge only ever be called once. This should be solved by designating one of the plugin's referees as the "real owner", who should be the one to actually merge it.
-        This technique doesn't work to resolve the similar issue that arises during copying because merging doesn't produce a new reference to insert.
+        it is important that merge only ever be called once. This should be solved by designating one of the plugin's
+        referees as the "real owner", who should be the one to actually merge it. This technique doesn't work to
+        resolve the similar issue that arises during copying because merging doesn't produce a new reference to insert.
 
         There will be n ``others`` and n+1 merge conditions, since the first condition corresponds to self.
         To match elements up to conditions, say ``zip([self] + others, merge_conditions)``
 
-        When implementing this, make sure that you "deepen" both ``others`` and ``common_ancestor`` before calling sub-elements' merge methods,
-        e.g. ``self.foo.merge([o.foo for o in others], merge_conditions, common_ancestor=common_ancestor.foo if common_ancestor is not None else None)``.
+        When implementing this, make sure that you "deepen" both ``others`` and ``common_ancestor`` before calling
+        sub-elements' merge methods, e.g.
 
-        During static analysis, merge_conditions can be None, in which case you should use ``state.solver.union(values)``.
+        .. code-block:: python
+
+           self.foo.merge(
+               [o.foo for o in others],
+               merge_conditions,
+               common_ancestor=common_ancestor.foo if common_ancestor is not None else None
+           )
+
+        During static analysis, merge_conditions can be None, in which case you should use
+        ``state.solver.union(values)``.
         TODO: fish please make this less bullshit
 
         There is a utility ``state.solver.ite_cases`` which will help with constructing arbitrarily large merged ASTs.
@@ -117,7 +127,8 @@ class SimStatePlugin:
         if cls is SimStatePlugin:
             if once("simstateplugin_register_default deprecation"):
                 l.critical(
-                    "SimStatePlugin.register_default(name, cls) is deprecated, please use SimState.register_default(name)"
+                    "SimStatePlugin.register_default(name, cls) is deprecated, "
+                    "please use SimState.register_default(name)"
                 )
 
             from angr.sim_state import SimState
@@ -128,7 +139,8 @@ class SimStatePlugin:
             if xtr is cls:
                 if once("simstateplugin_register_default deprecation case 2"):
                     l.critical(
-                        "SimStatePlugin.register_default(name, cls) is deprecated, please use cls.register_default(name)"
+                        "SimStatePlugin.register_default(name, cls) is deprecated, "
+                        "please use cls.register_default(name)"
                     )
                 xtr = None
 

@@ -82,7 +82,8 @@ class Project:
     :ivar analyses:     The available analyses.
     :type analyses:     angr.analysis.Analyses
     :ivar entry:        The program entrypoint.
-    :ivar factory:      Provides access to important analysis elements such as path groups and symbolic execution results.
+    :ivar factory:      Provides access to important analysis elements such as path groups and symbolic execution
+                        results.
     :type factory:      AngrObjectFactory
     :ivar filename:     The filename of the executable.
     :ivar loader:       The program loader.

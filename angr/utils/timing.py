@@ -1,5 +1,4 @@
 # pylint:disable=no-member
-import sys
 import time
 from functools import wraps
 from collections import defaultdict
@@ -16,7 +15,10 @@ def timethis(func):
     @wraps(func)
     def timed_func(*args, **kwargs):
         if TIMING:
-            _t = lambda: time.perf_counter_ns() / 1000000
+
+            def _t():
+                return time.perf_counter_ns() / 1000000
+
             start = _t()
             r = func(*args, **kwargs)
             millisec = _t() - start

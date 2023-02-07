@@ -15,7 +15,10 @@ def condition_to_lambda(condition, default=False):
                         at, or None if no addresses were provided statically.
     """
     if condition is None:
-        condition_function = lambda state: default
+
+        def condition_function(state):
+            return default
+
         static_addrs = set()
 
     elif isinstance(condition, int):

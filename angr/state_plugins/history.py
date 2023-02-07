@@ -286,38 +286,6 @@ class SimStateHistory(SimStatePlugin):
             # (insn_addr is None or (x.sim_procedure is None and addr_of_stmt(x.bbl_addr, x.stmt_idx) == insn_addr))
         ]
 
-    # def _record_state(self, state, strong_reference=True):
-    #   else:
-    #       # state.scratch.bbl_addr may not be initialized as final states from the "flat_successors" list. We need to get
-    #       # the value from _target in that case.
-    #       if self.addr is None and not self._target.symbolic:
-    #           self._addrs = [ self._target._model_concrete.value ]
-    #       else:
-    #           # FIXME: redesign so this does not happen
-    #           l.warning("Encountered a path to a SimProcedure with a symbolic target address.")
-    #
-    #   if o.UNICORN in state.options:
-    #       self.extra_length += state.scratch.executed_block_count - 1
-    #
-    #   if o.TRACK_ACTION_HISTORY in state.options:
-    #       self._events = state.history.events
-    #
-    #   # record constraints, added constraints, and satisfiability
-    #   self._all_constraints = state.solver.constraints
-    #   self._fresh_constraints = state.history.fresh_constraints
-    #
-    #   if isinstance(state.solver._solver, claripy.frontend_mixins.SatCacheMixin):
-    #       self._satisfiable = state.solver._solver._cached_satness
-    #   else:
-    #       self._satisfiable = None
-    #
-    #   # record the state as a weak reference
-    #   self._state_weak_ref = weakref.ref(state)
-    #
-    #   # and as a strong ref
-    #   if strong_reference:
-    #       self._state_strong_ref = state
-
     def demote(self):
         """
         Demotes this history node, causing it to drop the strong state reference.

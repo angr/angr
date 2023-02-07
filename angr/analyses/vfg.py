@@ -1073,7 +1073,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         addr = job_0.addr
 
-        if not addr in self._widening_points(job_0.func_addr):
+        if addr not in self._widening_points(job_0.func_addr):
             return False
 
         tracing_times = self._tracing_times[job_0.block_id]
@@ -1101,8 +1101,6 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         l.debug("Widening %s", job_1)
 
         new_state, _ = self._widen_states(job_0.state, job_1.state)
-        # print "job_0.state.eax =", job_0.state.regs.eax._model_vsa, "job_1.state.eax =", job_1.state.regs.eax._model_vsa
-        # print "new_job.state.eax =", new_state.regs.eax._model_vsa
 
         new_job = VFGJob(
             jobs[0].addr,
@@ -1491,8 +1489,10 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
             if job.call_skipped:
                 # TODO: Make sure the return values make sense
-                # if self.project.arch.name == 'X86':
-                #    successor_state.regs.eax = successor_state.solver.BVS('ret_val', 32, min=0, max=0xffffffff, stride=1)
+                # if self.project.arch.name == "X86":
+                #     successor_state.regs.eax = successor_state.solver.BVS(
+                #         "ret_val", 32, min=0, max=0xFFFFFFFF, stride=1
+                #     )
 
                 new_job = VFGJob(
                     successor_addr,
@@ -1534,10 +1534,10 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                     if isinstance(reg_sp_expr._model_vsa, claripy.vsa.StridedInterval):
                         reg_sp_si = reg_sp_expr._model_vsa
-                        reg_sp_val = reg_sp_si.min
+                        reg_sp_si.min  # reg_sp_val
                     elif isinstance(reg_sp_expr._model_vsa, claripy.vsa.ValueSet):
                         reg_sp_si = next(iter(reg_sp_expr._model_vsa.items()))[1]
-                        reg_sp_val = reg_sp_si.min
+                        reg_sp_si.min  # reg_sp_val
                         # TODO: Finish it!
 
             new_job = VFGJob(

@@ -21,3 +21,7 @@ try:
 
 except ImportError:
     sqlalchemy = None
+    create_engine = None
+    Base = None
+    OperationalError = None
+    sessionmaker = None

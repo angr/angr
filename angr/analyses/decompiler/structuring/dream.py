@@ -447,7 +447,7 @@ class DreamStructurer(StructurerBase):
         i = 0
         while i < len(seq.nodes) - 1:
             node_0 = seq.nodes[i]
-            if not type(node_0) is CodeNode:
+            if type(node_0) is not CodeNode:
                 i += 1
                 continue
             rcond_0 = node_0.reaching_condition
@@ -455,7 +455,7 @@ class DreamStructurer(StructurerBase):
                 i += 1
                 continue
             node_1 = seq.nodes[i + 1]
-            if not type(node_1) is CodeNode:
+            if type(node_1) is not CodeNode:
                 i += 1
                 continue
             rcond_1 = node_1.reaching_condition
@@ -522,7 +522,9 @@ class DreamStructurer(StructurerBase):
                     { Goto A<64> } else { Goto B<64> }
 
         A:     (with an indirect jump)
-               Goto((Conv(32->64, Load(addr=(0x40964c<64> + (Load(addr=stack_base-80, size=8, endness=Iend_LE) Mul 0x4<8>)), size=4, endness=Iend_LE)) + 0x40964c<64>))
+               Goto((
+                Conv(32->64, Load(addr=(0x40964c<64> + (Load(addr=stack_base-80, size=8, endness=Iend_LE) Mul 0x4<8>)),
+                size=4, endness=Iend_LE)) + 0x40964c<64>))
 
         B:     (the default case)
         """
@@ -1043,7 +1045,7 @@ class DreamStructurer(StructurerBase):
             break_hard = False
             for i in range(len(seq.nodes)):
                 node_0 = seq.nodes[i]
-                if not type(node_0) is CodeNode:
+                if type(node_0) is not CodeNode:
                     continue
                 rcond_0 = node_0.reaching_condition
                 if rcond_0 is None:
@@ -1052,7 +1054,7 @@ class DreamStructurer(StructurerBase):
                     continue
                 for j in range(i + 1, len(seq.nodes)):
                     node_1 = seq.nodes[j]
-                    if not type(node_1) is CodeNode:
+                    if type(node_1) is not CodeNode:
                         continue
                     if node_0 is node_1:
                         continue

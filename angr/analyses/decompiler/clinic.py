@@ -488,7 +488,7 @@ class Clinic(Analysis):
         :rtype:             ailment.Block
         """
 
-        if not type(block_node) is BlockNode:
+        if type(block_node) is not BlockNode:
             return block_node
 
         block = self.project.factory.block(block_node.addr, block_node.size)

@@ -135,7 +135,8 @@ class BP:
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
         if len({k.replace("_unique", "") for k in kwargs} - set(inspect_attributes)) != 0:
             raise ValueError(
-                f"Invalid inspect attribute(s) {kwargs} passed in. Should be one of {inspect_attributes}, or their _unique option."
+                f"Invalid inspect attribute(s) {kwargs} passed in. "
+                f"Should be one of {inspect_attributes}, or their _unique option."
             )
 
         self.kwargs = kwargs
@@ -200,7 +201,7 @@ class BP:
         :param state:   The state.
         """
         if self.action is None or self.action == BP_IPDB:
-            ipdb = __import__("ipdb").set_trace()
+            __import__("ipdb").set_trace()
         elif self.action == BP_IPYTHON:
             import IPython
 

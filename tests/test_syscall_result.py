@@ -2,9 +2,6 @@ import angr
 
 import logging
 
-from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
-from angr.simos import SimUserland
-
 l = logging.getLogger("angr.tests")
 
 import os

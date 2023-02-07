@@ -1,7 +1,6 @@
 # pylint:disable=unused-import
-from ..models import DbKnowledgeBase, DbComment
+from ..models import DbComment
 from ...knowledge_plugins.comments import Comments
-from ...knowledge_base import KnowledgeBase
 
 
 class CommentsSerializer:

@@ -131,7 +131,6 @@ class VariableManagerInternal(Serializable):
         cmsg = self._get_cmsg()
 
         # variables
-        temp_variables = []
         register_variables = []
         stack_variables = []
         memory_variables = []
@@ -170,7 +169,6 @@ class VariableManagerInternal(Serializable):
         cmsg.accesses.extend(accesses)
 
         # unified variables
-        unified_temp_variables = []
         unified_register_variables = []
         unified_stack_variables = []
         unified_memory_variables = []

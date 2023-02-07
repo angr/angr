@@ -81,9 +81,7 @@ class TestDecompiler(unittest.TestCase):
             if f.is_simprocedure:
                 l.debug("Skipping SimProcedure %s.", repr(f))
                 continue
-            dec = p.analyses[Decompiler].prep()(
-                f, cfg=cfg.model, options=decompiler_options
-            )  # pylint: disable=unused-variable
+            p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
             # FIXME: This test does not pass
             # assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
             # self._print_decompilation_result(dec)
@@ -1832,7 +1830,7 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("phoenix")
     def test_decompiling_split_lines_split(self, decompiler_options=None):
-        # region identifier's fine-tuned loop refinement logic ensures there is only one goto statement in the
+        # Region identifier's fine-tuned loop refinement logic ensures there is only one goto statement in the
         # decompilation output.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "split.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2213,7 +2211,7 @@ class TestDecompiler(unittest.TestCase):
 
         # The highest level symptom here is that two variable used are
         # confused and this shows up in the addition types.
-        assert not "Other Possible Types" in d.codegen.text
+        assert "Other Possible Types" not in d.codegen.text
 
         # check that the variable used in free is different from the one used in atoi
         m = re.search(r"free\(([^)]+)", d.codegen.text)

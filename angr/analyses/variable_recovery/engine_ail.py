@@ -268,10 +268,9 @@ class SimEngineVRAIL(
         return richr
 
     def _ail_handle_ITE(self, expr: ailment.Expr.ITE):
-        # pylint:disable=unused-variable
-        cond = self._expr(expr.cond)
-        r0 = self._expr(expr.iftrue)
-        r1 = self._expr(expr.iffalse)
+        self._expr(expr.cond)  # cond
+        self._expr(expr.iftrue)  # r0
+        self._expr(expr.iffalse)  # r1
 
         return RichR(self.state.top(expr.bits))
 

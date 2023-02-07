@@ -32,10 +32,12 @@ class StackAllocationMixin(PagedMemoryMixin):
         Pre-allocates pages for the stack without triggering any logic related to reading from them.
 
         :param addr: The highest address that should be mapped
-        :param size: The number of bytes to be allocated. byte 1 is the one at addr, byte 2 is the one before that, and so on.
+        :param size: The number of bytes to be allocated. byte 1 is the one at addr, byte 2 is the one before that, and
+                     so on.
         :return: A list of the new page objects
         """
-        # weird off-by-ones here. we want to calculate the last byte requested, find its pageno, and then use that to determine what the last page allocated will be and then how many pages are touched
+        # weird off-by-ones here. we want to calculate the last byte requested, find its pageno, and then use that to
+        # determine what the last page allocated will be and then how many pages are touched
         pageno = addr // self.page_size
         if pageno != self._red_pageno:
             raise SimMemoryError("Trying to allocate stack space in a place that isn't the top of the stack")

@@ -242,7 +242,8 @@ class PhoenixStructurer(StructurerBase):
                     # 03 | 0x4058c8 | cc_dep2<8> = Conv(8->64, Load(addr=rdi<8>, size=1, endness=Iend_LE))
                     # 04 | 0x4058c8 | rdi<8> = (rdi<8> + d<8>)
                     # 05 | 0x4058c8 | rsi<8> = (rsi<8> + d<8>)
-                    # 06 | 0x4058c8 | if ((Conv(64->8, cc_dep1<8>) == Conv(64->8, cc_dep2<8>))) { Goto 0x4058c8<64> } else { Goto None }
+                    # 06 | 0x4058c8 | if ((Conv(64->8, cc_dep1<8>) == Conv(64->8, cc_dep2<8>))) { Goto 0x4058c8<64> }
+                    #   else { Goto None }
                     # 07 | 0x4058c8 | Goto(0x4058ca<64>)
                     _, head_block = self._find_node_going_to_dst(node, right)
 
@@ -680,7 +681,7 @@ class PhoenixStructurer(StructurerBase):
                 if cont_block is None:
                     # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
                     # case being the loop head. in such cases, we can just remove the edge.
-                    if not src.addr in self.kb.cfgs["CFGFast"].jump_tables:
+                    if src.addr not in self.kb.cfgs["CFGFast"].jump_tables:
                         l.warning(
                             "_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r."
                             "Remove the edge anyway.",
@@ -1235,7 +1236,7 @@ class PhoenixStructurer(StructurerBase):
             if nn is head:
                 continue
             for src in graph.predecessors(nn):
-                if not src in to_remove:
+                if src not in to_remove:
                     other_nodes_inedges.append((src, nn))
             for dst in full_graph.successors(nn):
                 if dst not in to_remove:
@@ -1427,11 +1428,11 @@ class PhoenixStructurer(StructurerBase):
 
                         return True
 
-            if right in graph and not left in graph:
+            if right in graph and left not in graph:
                 # swap them
                 left, right = right, left
                 left_succs, right_succs = right_succs, left_succs  # pylint:disable=unused-variable
-            if left in graph and not right in graph:
+            if left in graph and right not in graph:
                 # potentially If-then
                 if full_graph.in_degree[left] == 1 and (
                     full_graph.in_degree[right] == 2

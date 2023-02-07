@@ -152,9 +152,9 @@ class TestState(unittest.TestCase):
         assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 10,))
 
     def test_state_merge_optimal_nostrongrefstate(self):
-        # We do not specify the state option EFFICIENT_STATE_MERGING, and as a result, state histories do not store strong
-        # references to states. This will result in less efficient state merging since SimStateHistory will be the only
-        # state plugin that knows the common ancestor of all instances to merge. But it should still succeed.
+        # We do not specify the state option EFFICIENT_STATE_MERGING, and as a result, state histories do not store
+        # strong # references to states. This will result in less efficient state merging since SimStateHistory will be
+        # the only # state plugin that knows the common ancestor of all instances to merge. But it should still succeed.
 
         binary_path = os.path.join(binaries_base, "tests", "x86_64", "state_merge_0")
         p = angr.Project(binary_path, auto_load_libs=False)

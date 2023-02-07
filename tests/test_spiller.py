@@ -3,6 +3,7 @@ from angr.exploration_techniques.spiller import Spiller
 import os
 import gc
 import unittest
+import claripy
 
 
 def _bin(*s):
@@ -24,9 +25,8 @@ def priority_key(state):
 class TestSpiller(unittest.TestCase):
     @classmethod
     def setUp(self):
-        # clean up AST cache in claripy, because a cached AST might believe it has been stored in ana after we clean up the
-        # ana storage
-        import claripy  # pylint:disable=import-outside-toplevel
+        # clean up AST cache in claripy, because a cached AST might believe it
+        # has been stored in ana after we clean up the ana storage
 
         claripy.ast.bv._bvv_cache.clear()
         claripy.ast.bv.BV._hash_cache.clear()

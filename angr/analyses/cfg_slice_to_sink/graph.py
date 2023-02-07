@@ -1,7 +1,7 @@
 def slice_callgraph(callgraph, cfg_slice_to_sink):
     """
-    Slice a callgraph, keeping only the nodes present in the <CFGSliceToSink> representation, and th transitions for which
-    a path exists.
+    Slice a callgraph, keeping only the nodes present in the <CFGSliceToSink> representation, and th transitions for
+    which a path exists.
 
     *Note* that this function mutates the graph passed as an argument.
 

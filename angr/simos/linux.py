@@ -4,7 +4,7 @@ import struct
 
 import claripy
 from cle import MetaELF
-from cle.backends.elf.symbol import ELFSymbol, ELFSymbolType
+from cle.backends.elf.symbol import ELFSymbolType
 from cle.backends.elf.elfcore import ELFCore
 from cle.address_translator import AT
 from cle.backends.elf.relocation.arm64 import R_AARCH64_TLSDESC

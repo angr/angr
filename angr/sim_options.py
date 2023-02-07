@@ -7,7 +7,8 @@ from .sim_state_options import SimStateOptions
 # This option controls whether or not constraints are tracked in the analysis.
 TRACK_CONSTRAINTS = "TRACK_CONSTRAINTS"
 
-# This option controls whether or not various entities (IRExpr constants, reads, writes, etc) get simplified automatically
+# This option controls whether or not various entities (IRExpr constants, reads, writes, etc) get simplified
+# automatically
 SIMPLIFY_EXPRS = "SIMPLIFY_EXPRS"
 SIMPLIFY_MEMORY_READS = "SIMPLIFY_MEMORY_READS"
 SIMPLIFY_MEMORY_WRITES = "SIMPLIFY_MEMORY_WRITES"
@@ -49,7 +50,8 @@ SYMBOLIC = "SYMBOLIC"
 # This variable causes claripy to use a string solver (CVC4)
 STRINGS_ANALYSIS = "STRINGS_ANALYSIS"
 
-# Generate symbolic values for non-existent values. The absence of this option causes Unconstrained() to return default concrete values (like 0)
+# Generate symbolic values for non-existent values. The absence of this option causes Unconstrained() to return default
+# concrete values (like 0)
 SYMBOLIC_INITIAL_VALUES = "SYMBOLIC_INITIAL_VALUES"
 
 # this causes angr to use SimAbstractMemory for the memory region

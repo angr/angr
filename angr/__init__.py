@@ -68,7 +68,6 @@ from . import analyses
 from . import knowledge_plugins
 from . import exploration_techniques
 from .exploration_techniques import ExplorationTechnique
-from . import type_backend
 from . import sim_type as types
 from .state_hierarchy import StateHierarchy
 

@@ -2421,8 +2421,8 @@ class TestJumpTableResolver(unittest.TestCase):
         self._compare(cfg.jump_tables, all_jumptables)
 
     def test_arm_libsoap(self):
-        # This is the ADDLS type of jump table (IndirectJumpType.JumpTable_AddressComputed) where no actual table is used
-        # libsoap.so seems to be compiled from gSOAP, which is an open-source product
+        # This is the ADDLS type of jump table (IndirectJumpType.JumpTable_AddressComputed) where no actual table is
+        # used libsoap.so seems to be compiled from gSOAP, which is an open-source product
 
         p = angr.Project(os.path.join(test_location, "armel", "libsoap.so"), auto_load_libs=False)
         cfg = p.analyses.CFGFast(data_references=True)
@@ -2549,8 +2549,8 @@ class TestJumpTableResolver(unittest.TestCase):
                 ],
             ),
             J(0x41B0B4, None, [0x41B0C4, 0x41B0C8, 0x41B0CC, 0x41B0D0, 0x41B0D4]),
-            # 0x41d0e8 and 0x41d0fc are the same jump table - they appear twice because the CFG is not normalized (the two
-            # blocks 0x41d0e8 and 0x41d0fc overlap and end at the same instruction)
+            # 0x41d0e8 and 0x41d0fc are the same jump table - they appear twice because the CFG is not normalized
+            # (the two blocks 0x41d0e8 and 0x41d0fc overlap and end at the same instruction)
             J(
                 0x41D0E8,
                 None,

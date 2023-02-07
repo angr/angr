@@ -1,7 +1,4 @@
 import angr
-from angr.sim_type import SimTypeInt, SimTypeFd
-from angr.state_plugins import SimSystemPosix
-from angr.storage.file import SimFileDescriptor
 
 ##################################
 # dup

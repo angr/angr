@@ -27,7 +27,10 @@ class BlockID:
             return "None"
 
         s = []
-        format_addr = lambda addr: "None" if addr is None else hex(addr)
+
+        def format_addr(addr):
+            return "None" if addr is None else hex(addr)
+
         for i in range(0, len(self.callsite_tuples), 2):
             s.append("@".join(map(format_addr, self.callsite_tuples[i : i + 2])))
         return " -> ".join(s)
@@ -84,7 +87,10 @@ class FunctionKey:
             return "None"
 
         s = []
-        format_addr = lambda addr: "None" if addr is None else hex(addr)
+
+        def format_addr(addr):
+            return "None" if addr is None else hex(addr)
+
         for i in range(0, len(self.callsite_tuples), 2):
             s.append("@".join(map(format_addr, self.callsite_tuples[i : i + 2])))
         return " -> ".join(s)

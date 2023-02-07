@@ -2,7 +2,6 @@ from unittest import TestCase
 
 import claripy
 
-from angr.knowledge_plugins.key_definitions.atoms import SpOffset
 from angr.knowledge_plugins.key_definitions.environment import Environment
 from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
 

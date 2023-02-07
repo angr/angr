@@ -12,11 +12,11 @@ def test_fauxware():
     cfg = proj.analyses.CFG(data_references=True, cross_references=True, normalize=True)
     func = cfg.kb.functions["main"]
 
-    prox = proj.analyses.Proximity(func, cfg.model, cfg.kb.xrefs)  # pylint:disable=unused-variable
+    proj.analyses.Proximity(func, cfg.model, cfg.kb.xrefs)
 
     # once we have decompiled code, things are different...
     dec = proj.analyses.Decompiler(func, cfg=cfg.model)
-    prox = proj.analyses.Proximity(func, cfg.model, cfg.kb.xrefs, decompilation=dec)  # pylint:disable=unused-variable
+    proj.analyses.Proximity(func, cfg.model, cfg.kb.xrefs, decompilation=dec)
 
 
 if __name__ == "__main__":

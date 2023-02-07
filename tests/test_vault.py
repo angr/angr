@@ -155,8 +155,7 @@ class TestVault(unittest.TestCase):
 
         gc.collect()
 
-        p = v.load(ps)
-        # assert not hasattr(p, '_asdf')
+        v.load(ps)
         assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
 
 

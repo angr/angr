@@ -1,7 +1,7 @@
 # pylint:disable=unused-import
 import logging
 from collections import defaultdict
-from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any
+from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any, TYPE_CHECKING
 
 from cle import SymbolType
 import ailment
@@ -19,6 +19,8 @@ from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
 
+if TYPE_CHECKING:
+    from .peephole_optimizations.base import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
 l = logging.getLogger(name=__name__)
 
@@ -135,7 +137,8 @@ class Decompiler(Analysis):
         cache.binop_operators = binop_operators
 
         # convert function blocks to AIL blocks
-        progress_callback = lambda p, **kwargs: self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
+        def progress_callback(p, **kwargs):
+            return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
         if self._regen_clinic or old_clinic is None or self.func.prototype is None:
             clinic = self.project.analyses.Clinic(

@@ -1,9 +1,6 @@
-# pylint:disable=unused-variable
-
 from typing import Dict
 
 import archinfo
-import claripy
 
 import angr
 from angr.sim_type import (
@@ -25,19 +22,6 @@ from angr.sim_type import (
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 
 
-def test_type_annotation():
-    my_ty = angr.sim_type.SimTypeTop()
-    ptr = claripy.BVS("ptr", 32).annotate(
-        angr.type_backend.TypeAnnotation(angr.sim_type.SimTypePointer(my_ty, label=[]))
-    )
-    ptroffset = ptr + 4
-
-    bt = angr.type_backend.TypeBackend()
-    tv = bt.convert(ptroffset)
-    assert tv.ty.pts_to is my_ty
-    assert claripy.is_true(tv.ty.offset == 4)
-
-
 def test_cproto_conversion():
     # A normal function declaration
     cproto_0 = "int main(int argc, char** argv);"
@@ -51,9 +35,9 @@ def test_cproto_conversion():
     assert isinstance(pyproto.returnty, SimTypeInt)
 
     # Directly comparing the strings... how bad can I be?
-    assert (
-        the_str
-        == '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv"]),'
+    assert the_str == (
+        '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer('
+        'SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv"]),'
     )
 
     # A bad function declaration
@@ -73,7 +57,10 @@ def test_cproto_conversion():
 
 def test_cppproto_conversion():
     # a demangled class constructor prototype, without parameter names
-    proto_0 = "std::basic_ifstream<char, std::char_traits<char>>::{ctor}(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>> const&, std::_Ios_Openmode)"
+    proto_0 = (
+        "std::basic_ifstream<char, std::char_traits<char>>::{ctor}(std::__cxx11::basic_string<char, "
+        "std::char_traits<char>, std::allocator<char>> const&, std::_Ios_Openmode)"
+    )
     name, proto, s = convert_cppproto_to_py(proto_0, with_param_names=False)
     assert proto.ctor is True
     assert name == "std::basic_ifstream::__ctor__"
@@ -240,7 +227,8 @@ def test_arg_names():
     nsig = sig.with_arch(angr.archinfo.ArchAMD64())
     assert sig.arg_names == nsig.arg_names, "Function type generated with .with_arch() doesn't have identical arg_names"
 
-    # If for some reason only some of the parameters are named, the list can only be partially not None, but has to match the positions
+    # If for some reason only some of the parameters are named,
+    # the list can only be partially not None, but has to match the positions
     fdef: Dict[str, SimTypeFunction] = angr.types.parse_defns("int f(int param1, int);")
     sig = fdef["f"]
     assert sig.arg_names == ["param1", None]
@@ -308,7 +296,6 @@ def test_bitfield_struct():
 
 
 if __name__ == "__main__":
-    test_type_annotation()
     test_cproto_conversion()
     test_cppproto_conversion()
     test_struct_deduplication()

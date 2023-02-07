@@ -2208,7 +2208,7 @@ class CFGBase(Analysis):
                     else:
                         self._addr_to_function(returning_target, blockaddr_to_function, known_functions)
 
-                to_outside = not blockaddr_to_function[returning_target] is src_function
+                to_outside = blockaddr_to_function[returning_target] is not src_function
 
                 n = self.model.get_any_node(returning_target)
                 if n is None:
@@ -2346,7 +2346,7 @@ class CFGBase(Analysis):
             if called_function is not None and called_function.returning is False:
                 return
 
-            to_outside = not target_function is src_function
+            to_outside = target_function is not src_function
 
             confirmed = called_function is None or called_function.returning is True
             self.kb.functions._add_fakeret_to(

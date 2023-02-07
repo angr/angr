@@ -940,8 +940,8 @@ class RegionIdentifier(Analysis):
         return out_edges
 
     def _remove_node(self, graph: networkx.DiGraph, node):  # pylint:disable=no-self-use
-        in_edges = [(src, dst, data) for (src, dst, data) in graph.in_edges(node, data=True) if not src is node]
-        out_edges = [(src, dst, data) for (src, dst, data) in graph.out_edges(node, data=True) if not dst is node]
+        in_edges = [(src, dst, data) for (src, dst, data) in graph.in_edges(node, data=True) if src is not node]
+        out_edges = [(src, dst, data) for (src, dst, data) in graph.out_edges(node, data=True) if dst is not node]
 
         if len(in_edges) <= 1 and len(out_edges) <= 1:
             # it forms a region by itself :-)
@@ -988,8 +988,8 @@ class RegionIdentifier(Analysis):
                     dst = new_node
                 graph.add_edge(new_node, dst, **data)
 
-        assert not node_a in graph
-        assert not node_b in graph
+        assert node_a not in graph
+        assert node_b not in graph
 
     def _absorb_node(
         self, graph: networkx.DiGraph, node_mommy, node_kiddie, force_multinode=False
@@ -1028,8 +1028,8 @@ class RegionIdentifier(Analysis):
                     dst = new_node
                 graph.add_edge(new_node, dst, **data)
 
-        assert not node_mommy in graph
-        assert not node_kiddie in graph
+        assert node_mommy not in graph
+        assert node_kiddie not in graph
 
     def _ensure_jump_at_loop_exit_ends(self, node: Union[Block, MultiNode]) -> None:
         if isinstance(node, Block):

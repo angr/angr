@@ -1000,7 +1000,8 @@ class SimIROp:
             for lane_args in self.vector_args(args):
                 if self._float:
                     # HACK HACK HACK
-                    # this is such a weird divergence. why do the fp generics take several args and the int generics take a list?
+                    # this is such a weird divergence. why do the fp generics take several args and the int generics
+                    # take a list?
                     result.append(f(*lane_args).raw_to_bv())
                 else:
                     result.append(f(lane_args))

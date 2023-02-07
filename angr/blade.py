@@ -348,7 +348,7 @@ class Blade:
         # if there are conditional exits, we *always* add them into the slice (so if they should not be taken, we do not
         # lose the condition)
         for stmt_idx_, s_ in enumerate(self._get_irsb(run).statements):
-            if not type(s_) is pyvex.IRStmt.Exit:
+            if type(s_) is not pyvex.IRStmt.Exit:
                 continue
             if s_.jumpkind != "Ijk_Boring":
                 continue

@@ -157,13 +157,13 @@ class SimEngineConcrete(SuccessorsMixin):
         :return: True if the concrete target is compliant
         """
         entry_point = concrete_target.read_register("pc")
-        if not type(entry_point) is int:
+        if type(entry_point) is not int:
             l.error("read_register result type is %s, should be <type 'int'>", (type(entry_point)))
             return False
 
         mem_read = concrete_target.read_memory(entry_point, 0x4)
 
-        if not type(mem_read) is bytes:
+        if type(mem_read) is not bytes:
             l.error("read_memory result type is %s, should be <type 'bytes'>", (type(mem_read)))
             return False
 

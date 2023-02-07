@@ -14,10 +14,4 @@ class crazy_scanf(angr.SimProcedure):
         self.inline_call(memcpy, three, src + 6 + 8193, 12)
         self.state.memory.store(three + 11, self.state.solver.BVV(0, 8))
 
-        # if angr.o.SYMBOLIC in self.state.options:
-        #     #crazy_str = "index.asp?authorization=M3NhZG1pbjoyNzk4ODMwMw==&yan=yes\x00"
-        #     #crazy_str = "index.asp?authorization=3sadmin:27988303&yan=yes\x00"
-        #     crazy_str = "authorization=3sadmin:27988303\x00"
-        #     self.state.add_constraints(self.state.memory.load(two, len(crazy_str)) == self.state.solver.BVV(crazy_str))
-
         return self.state.solver.BVV(3)

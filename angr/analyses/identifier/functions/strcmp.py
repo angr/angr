@@ -26,8 +26,7 @@ class strcmp(Func):
 
     def gen_input_output_pair(self):
         l = 5
-        s = rand_str(l, strcmp.non_null)
-        # pylint disable=unused-variable
+        rand_str(l, strcmp.non_null)  # s
 
         return None
 

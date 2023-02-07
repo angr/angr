@@ -11,7 +11,6 @@ from archinfo import Arch
 
 l = logging.getLogger(name=__name__)
 
-import angr  # For type annotations; pylint:disable=unused-import
 import claripy
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor

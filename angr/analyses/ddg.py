@@ -34,7 +34,8 @@ class AST:
         return type(other) is AST and other.op == self.op and other.operands == self.operands
 
     def __repr__(self):
-        _short_repr = lambda a: a.short_repr
+        def _short_repr(a):
+            return a.short_repr
 
         if len(self.operands) == 1:
             return f"{self.op}{_short_repr(self.operands[0])}"
@@ -479,7 +480,8 @@ class DDG(Analysis):
     def __init__(self, cfg, start=None, call_depth=None, block_addrs=None):
         """
         :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it, e.g. by
-                            passing the keep_state=True and state_add_options=angr.options.refs arguments to CFGEmulated.
+                            passing the keep_state=True and state_add_options=angr.options.refs arguments to
+                            CFGEmulated.
         :param start:       An address, Specifies where we start the generation of this data dependence graph.
         :param call_depth:  None or integers. A non-negative integer specifies how deep we would like to track in the
                             call tree. None disables call_depth limit.
@@ -1510,7 +1512,7 @@ class DDG(Analysis):
 
             if dst.block_addr in block_addr_to_func:
                 dst_target_func = block_addr_to_func[dst.block_addr]
-                if not dst_target_func is src_target_func:
+                if dst_target_func is not src_target_func:
                     self._function_data_dependencies[dst_target_func].add_edge(src, dst, **data)
 
     #

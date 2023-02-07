@@ -606,7 +606,10 @@ class SimulationManager:
         :rtype:             SimulationManager
         """
         filter_func = filter_func or (lambda s: True)
-        stash_splitter = lambda states: reversed(self._filter_states(filter_func, states))
+
+        def stash_splitter(states):
+            return reversed(self._filter_states(filter_func, states))
+
         return self.split(stash_splitter, from_stash=from_stash, to_stash=to_stash)
 
     def stash(self, filter_func=None, from_stash="active", to_stash="stashed"):

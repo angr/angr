@@ -62,7 +62,7 @@ class TestFunctionManager(unittest.TestCase):
             None,
         }
 
-        cfg = self.project.analyses.CFGEmulated()  # pylint:disable=unused-variable
+        self.project.analyses.CFGEmulated()
         assert {k for k in self.project.kb.functions.keys() if k < 0x500000} == expected_functions
 
         main = self.project.kb.functions.function(name="main")
@@ -75,7 +75,7 @@ class TestFunctionManager(unittest.TestCase):
         assert main.has_return
 
         rejected = self.project.kb.functions.function(name="rejected")
-        assert rejected.returning == False
+        assert rejected.returning is False
 
         # transition graph
         main_g = main.transition_graph

@@ -1,5 +1,3 @@
-import math
-
 from ailment.expression import Convert, BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase

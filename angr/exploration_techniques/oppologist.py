@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 import claripy
 import functools
 
@@ -52,8 +50,6 @@ class Oppologist(ExplorationTechnique):
 
     @staticmethod
     def _combine_results(*results):
-        all_results = defaultdict(list)
-
         final = SimSuccessors(results[0].addr, results[0].initial_state)
         final.description = "Oppology"
         final.sort = "Oppologist"

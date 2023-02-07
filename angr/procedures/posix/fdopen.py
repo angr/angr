@@ -37,7 +37,7 @@ class fdopen(angr.SimProcedure):
 
         m_strlen = self.inline_call(strlen, m_addr)
         m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness="Iend_BE")
-        mode = self.state.solver.eval(m_expr, cast_to=bytes)
+        self.state.solver.eval(m_expr, cast_to=bytes)
 
         # TODO: handle append and other mode subtleties
 

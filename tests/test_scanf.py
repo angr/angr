@@ -187,7 +187,7 @@ class TestScanf(unittest.TestCase):
         # check the outputs
         total_outputs = 0
         for path in pg.found:
-            test_input = path.posix.dumps(0)
+            path.posix.dumps(0)
             test_output = path.posix.dumps(1)
             if test_output in expected_outputs:
                 assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output

@@ -14,7 +14,6 @@ from ..misc.ux import deprecated
 
 if TYPE_CHECKING:
     from ..knowledge_base import KnowledgeBase
-    import angr
     from ..project import Project
     from typing_extensions import ParamSpec
 

@@ -1,8 +1,6 @@
 # pylint:disable=unused-import
-from ..models import DbKnowledgeBase, DbXRefs
+from ..models import DbXRefs
 from ...knowledge_plugins.xrefs import XRefManager
-from ...knowledge_plugins.cfg import CFGModel
-from ...knowledge_base import KnowledgeBase
 
 
 class XRefsSerializer:

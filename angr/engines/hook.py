@@ -20,7 +20,8 @@ class HooksMixin(SuccessorsMixin, ProcedureMixin):
     """
 
     def _lookup_hook(self, state, procedure):
-        # TODO this is moderately controversial. If the jumpkind was NoHook and the user provided the procedure argument, which takes precedence?
+        # TODO this is moderately controversial. If the jumpkind was NoHook and the user provided the procedure
+        # argument, which takes precedence?
         # tentative guess: passed argument takes priority
         if procedure is not None:
             return procedure
@@ -29,7 +30,7 @@ class HooksMixin(SuccessorsMixin, ProcedureMixin):
         if state.history and state.history.parent and state.history.parent.jumpkind == "Ijk_NoHook":
             return None
 
-        if not type(state._ip) is int and state._ip.symbolic:
+        if type(state._ip) is not int and state._ip.symbolic:
             # symbolic IP is not supported
             return None
 

@@ -117,7 +117,7 @@ def test_smoketest():
     ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
 
     # structure it
-    st = p.analyses[DreamStructurer].prep()(ri.region)  # pylint:disable=unused-variable
+    st = p.analyses[DreamStructurer].prep()(ri.region)
 
     # simplify it
     _ = p.analyses.RegionSimplifier(main_func, st.result)
@@ -140,7 +140,7 @@ def test_smoketest_cm3_firmware():
     ri = p.analyses.RegionIdentifier(main_func, graph=clinic.graph)
 
     # structure it
-    st = p.analyses[DreamStructurer].prep()(ri.region)  # pylint:disable=unused-variable
+    p.analyses[DreamStructurer].prep()(ri.region)
 
 
 def test_simple():

@@ -377,9 +377,21 @@ def test_concrete_transmits():
     pg_unicorn = p.factory.simulation_manager(s_unicorn)
     pg_unicorn.run(n=10)
 
-    assert (
-        pg_unicorn.one_active.posix.dumps(1)
-        == b"1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n"
+    assert pg_unicorn.one_active.posix.dumps(1) == (
+        b"1) Add number to the array\n"
+        b"2) Add random number to the array\n"
+        b"3) Sum numbers\n"
+        b"4) Exit\n"
+        b"Randomness added\n"
+        b"1) Add number to the array\n"
+        b"2) Add random number to the array\n"
+        b"3) Sum numbers\n"
+        b"4) Exit\n"
+        b"  Index: \n"
+        b"1) Add number to the array\n"
+        b"2) Add random number to the array\n"
+        b"3) Sum numbers\n"
+        b"4) Exit\n"
     )
 
 

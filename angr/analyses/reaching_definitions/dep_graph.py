@@ -99,7 +99,6 @@ class DepGraph:
             predecessors = list(graph.predecessors(def_))
 
             result.add_node(def_)
-            edges_and_data = []
             for pred in predecessors:
                 edge_data = graph.get_edge_data(pred, def_)
                 if edge_data is None:
@@ -138,8 +137,9 @@ class DepGraph:
         assert definition in self.nodes(), "The given Definition must be present in the given graph."
 
         known_predecessor_addresses: List[Union[int, claripy.ast.Base]] = list(
+            # Needs https://github.com/python/mypy/issues/6847
             map(
-                lambda definition: definition.atom.addr,  # type: ignore # Needs https://github.com/python/mypy/issues/6847
+                lambda definition: definition.atom.addr,  # type: ignore
                 filter(lambda p: isinstance(p.atom, MemoryLocation), self.predecessors(definition)),
             )
         )

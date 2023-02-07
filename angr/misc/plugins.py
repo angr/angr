@@ -206,10 +206,12 @@ class PluginHub:
 class PluginPreset:
     """
     A plugin preset object contains a mapping from name to a plugin class.
-    A preset can be active on a hub, which will cause it to handle requests for plugins which are not already present on the hub.
+    A preset can be active on a hub, which will cause it to handle requests for plugins which are not already present
+    on the hub.
 
     Unlike Plugins and PluginHubs, instances of PluginPresets are defined on the module level for individual presets.
-    You should register the preset instance with a hub to allow plugins to easily add themselves to the preset without an explicit reference to the preset itself.
+    You should register the preset instance with a hub to allow plugins to easily add themselves to the preset without
+    an explicit reference to the preset itself.
     """
 
     def __init__(self):

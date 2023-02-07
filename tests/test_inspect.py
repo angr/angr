@@ -257,7 +257,6 @@ class TestInspect(unittest.TestCase):
             ),
             auto_load_libs=False,
         )
-        constraints = []
 
         def check_first_symbolic_fork(state):
             succs = state.inspect.sim_successors.successors

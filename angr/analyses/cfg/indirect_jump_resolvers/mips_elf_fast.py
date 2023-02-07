@@ -461,9 +461,11 @@ class MipsElfFastResolver(IndirectJumpResolver):
                             state.inspect.make_breakpoint(
                                 "tmp_write",
                                 when=BP_BEFORE,
-                                condition=lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset: s.scratch.bbl_addr
-                                == bbl_addr_
-                                and s.inspect.tmp_write_num == tmp_offset_,
+                                condition=(
+                                    lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset: s.scratch.bbl_addr
+                                    == bbl_addr_
+                                    and s.inspect.tmp_write_num == tmp_offset_
+                                ),
                                 action=OverwriteTmpValueCallback(gp_value).overwrite_tmp_value,
                             )
                             break

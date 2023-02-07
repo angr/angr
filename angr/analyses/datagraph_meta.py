@@ -5,6 +5,10 @@ from ..sim_procedure import SimProcedure
 l = logging.getLogger(name=__name__)
 
 
+class DataGraphError(Exception):
+    pass
+
+
 class DataGraphMeta:
     def __init__(self):
         self._p = None
@@ -71,7 +75,7 @@ class DataGraphMeta:
         l.debug("--> Branch: running block 0x%x" % irsb.addr)
         block = self._make_block(irsb, live_defs)
         self._imarks.update(block._imarks)
-        if block.stop == True:
+        if block.stop is True:
             # l.debug(" ### Stopping at block 0x%x" % (irsb.addr))
             l.debug(" ### End of path %s" % path)
             return irsb.addr

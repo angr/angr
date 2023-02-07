@@ -670,7 +670,7 @@ class LiveDefinitions:
             if atom.tmp_idx in self.tmps:
                 defs = self.tmps[atom.tmp_idx]
                 for d in defs:
-                    assert not type(d.atom) is Tmp
+                    assert type(d.atom) is not Tmp
                     self.add_use_by_def(d, code_loc)
 
     def add_tmp_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:

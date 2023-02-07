@@ -120,7 +120,8 @@ class SimFileBase(SimStatePlugin):
 
         :param pos:     The offset in the file to read from.
         :param size:    The size to read. May be symbolic.
-        :return:        A tuple of the data read (a bitvector of the length that is the maximum length of the read), the actual size of the read, and the new file position pointer.
+        :return:        A tuple of the data read (a bitvector of the length that is the maximum length of the read),
+                        the actual size of the read, and the new file position pointer.
         """
         raise NotImplementedError
 
@@ -480,10 +481,13 @@ class SimPackets(SimFileBase):
         """
         Read a packet from the stream.
 
-        :param int pos:     The packet number to read from the sequence of the stream. May be None to append to the stream.
+        :param int pos:     The packet number to read from the sequence of the stream. May be None to append to the
+                            stream.
         :param size:        The size to read. May be symbolic.
-        :param short_reads: Whether to replace the size with a symbolic value constrained to less than or equal to the original size. If unspecified, will be chosen based on the state option.
-        :return:            A tuple of the data read (a bitvector of the length that is the maximum length of the read) and the actual size of the read.
+        :param short_reads: Whether to replace the size with a symbolic value constrained to less than or equal to the
+                            original size. If unspecified, will be chosen based on the state option.
+        :return:            A tuple of the data read (a bitvector of the length that is the maximum length of the read)
+                            and the actual size of the read.
         """
         short_reads = kwargs.pop("short_reads", None)
 
@@ -505,7 +509,8 @@ class SimPackets(SimFileBase):
             self.state.add_constraints(realsize <= size)  # assert that the packet fits within the read request
             if not self.state.solver.satisfiable():
                 raise SimFileError(
-                    f"SimPackets could not fit the current packet into the read request of {size} bytes: {self.content[pos]}"
+                    "SimPackets could not fit the current packet into the read "
+                    f"request of {size} bytes: {self.content[pos]}"
                 )
             return self.content[pos] + (pos + 1,)
 
@@ -560,9 +565,11 @@ class SimPackets(SimFileBase):
         """
         Write a packet to the stream.
 
-        :param int pos:     The packet number to write in the sequence of the stream. May be None to append to the stream.
+        :param int pos:     The packet number to write in the sequence of the stream. May be None to append to the
+                            stream.
         :param data:        The data to write, as a string or bitvector.
-        :param size:        The optional size to write. May be symbolic; must be constrained to at most the size of data.
+        :param size:        The optional size to write. May be symbolic; must be constrained to at most the size of
+                            data.
         :return:            The next packet to use after this
         """
         if events:
