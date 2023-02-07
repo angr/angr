@@ -1239,6 +1239,24 @@ class Clinic(Analysis):
 
     @staticmethod
     def _remove_redundant_jump_blocks(ail_graph):
+        def first_conditional_jump(block: ailment.Block) -> Optional[ailment.Stmt.ConditionalJump]:
+            for stmt in block.statements:
+                if isinstance(stmt, ailment.Stmt.ConditionalJump):
+                    return stmt
+            return None
+
+        def patch_conditional_jump_target(cond_jump_stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int):
+            if (
+                isinstance(cond_jump_stmt.true_target, ailment.Expr.Const)
+                and cond_jump_stmt.true_target.value == old_addr
+            ):
+                cond_jump_stmt.true_target.value = new_addr
+            if (
+                isinstance(cond_jump_stmt.false_target, ailment.Expr.Const)
+                and cond_jump_stmt.false_target.value == old_addr
+            ):
+                cond_jump_stmt.false_target.value = new_addr
+
         # note that blocks don't have labels inserted at this point
         for node in list(ail_graph.nodes):
             if (
@@ -1262,16 +1280,10 @@ class Clinic(Analysis):
                                 ):
                                     last_stmt.target.value = succs[0].addr
                                 elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-                                    if (
-                                        isinstance(last_stmt.true_target, ailment.Expr.Const)
-                                        and last_stmt.true_target.value == node.addr
-                                    ):
-                                        last_stmt.true_target.value = succs[0].addr
-                                    if (
-                                        isinstance(last_stmt.false_target, ailment.Expr.Const)
-                                        and last_stmt.false_target.value == node.addr
-                                    ):
-                                        last_stmt.false_target.value = succs[0].addr
+                                    patch_conditional_jump_target(last_stmt, node.addr, succs[0].addr)
+                                first_cond_jump = first_conditional_jump(pred)
+                                if first_cond_jump is not None and first_cond_jump is not last_stmt:
+                                    patch_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
                             ail_graph.add_edge(pred, succs[0])
                         ail_graph.remove_node(node)
 
