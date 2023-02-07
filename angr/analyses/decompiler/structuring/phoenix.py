@@ -467,56 +467,40 @@ class PhoenixStructurer(StructurerBase):
 
         # check if there is an out-going edge from the loop head
         head_succs = list(fullgraph.successors(loop_head))
-        continue_edges: List[Tuple[BaseNode, BaseNode]] = []
-        outgoing_edges = []
         successor = None  # the loop successor
         loop_type = None
         # continue_node either the loop header for while(true) loops or the loop header predecessor for do-while loops
         continue_node = loop_head
-        if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
-            # make sure the head_pred is not already structured
-            _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
-            _, head_block_1 = self._find_node_going_to_dst(loop_head, head_succs[1])
-            if head_block_0 is head_block_1 and head_block_0 is not None:
-                # there is an out-going edge from the loop head
-                # virtualize all other edges
-                loop_type = "while"
-                successor = next(iter(head_succ for head_succ in head_succs if head_succ not in graph))
-                for node in graph.nodes:
-                    succs = list(fullgraph.successors(node))
-                    if loop_head in succs:
-                        continue_edges.append((node, loop_head))
 
-                    outside_succs = [succ for succ in succs if succ not in graph]
-                    for outside_succ in outside_succs:
-                        outgoing_edges.append((node, outside_succ))
+        is_while, result_while = self._refine_cyclic_is_while_loop(graph, fullgraph, loop_head, head_succs)
+        is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head, head_succs)
 
-        # check if there is an out-going edge from the loop tail
-        else:
-            head_preds = list(fullgraph.predecessors(loop_head))
-            if len(head_preds) == 1:
-                head_pred = head_preds[0]
-                head_pred_succs = list(fullgraph.successors(head_pred))
-                if len(head_pred_succs) == 2 and any(nn not in graph for nn in head_pred_succs):
-                    # make sure the head_pred is not already structured
-                    _, src_block_0 = self._find_node_going_to_dst(head_pred, head_pred_succs[0])
-                    _, src_block_1 = self._find_node_going_to_dst(head_pred, head_pred_succs[1])
-                    if src_block_0 is src_block_1 and src_block_0 is not None:
-                        loop_type = "do-while"
-                        # there is an out-going edge from the loop tail
-                        # virtualize all other edges
-                        successor = next(iter(nn for nn in head_pred_succs if nn not in graph))
-                        continue_node = head_pred
-                        for node in graph.nodes:
-                            if node is head_pred:
-                                continue
-                            succs = list(fullgraph.successors(node))
-                            if head_pred in succs:
-                                continue_edges.append((node, head_pred))
+        continue_edges: List[Tuple[BaseNode, BaseNode]] = []
+        outgoing_edges: List = []
 
-                            outside_succs = [succ for succ in succs if succ not in graph]
-                            for outside_succ in outside_succs:
-                                outgoing_edges.append((node, outside_succ))
+        if is_while and is_dowhile:
+            # gotta pick one!
+            # for now, we handle the most common case: both successors exist in the graph of the parent region, and
+            # one successor has a path to the other successor
+            if self._parent_region is not None:
+                succ_while = result_while[-1]
+                succ_dowhile = result_dowhile[-1]
+                if succ_while in self._parent_region.graph and succ_dowhile in self._parent_region.graph:
+                    sorted_nodes = CFGUtils.quasi_topological_sort_nodes(
+                        self._parent_region.graph, loop_heads=[self._parent_region.head]
+                    )
+                    succ_while_idx = sorted_nodes.index(succ_while)
+                    succ_dowhile_idx = sorted_nodes.index(succ_dowhile)
+                    if succ_dowhile_idx < succ_while_idx:
+                        # pick do-while
+                        is_while = False
+
+        if is_while:
+            loop_type = "while"
+            continue_edges, outgoing_edges, continue_node, successor = result_while
+        elif is_dowhile:
+            loop_type = "do-while"
+            continue_edges, outgoing_edges, continue_node, successor = result_dowhile
 
         if loop_type is None:
             # natural loop. select *any* exit edge to determine the successor
@@ -580,9 +564,10 @@ class PhoenixStructurer(StructurerBase):
                         # at the same time, examine if there is an edge that goes from src to the continue node. if so,
                         # we deal with it here as well.
                         continue_node_going_edge = src, continue_node
-                        if continue_node_going_edge in continue_edges and len(continue_edges) > 1:
+                        if continue_node_going_edge in continue_edges:
                             has_continue = True
-                            continue_edges.remove(continue_node_going_edge)
+                            # do not remove the edge from continue_edges since we want to process them later in this
+                            # function.
 
                         # create the "break" node. in fact, we create a jump or a conditional jump, which will be
                         # rewritten to break nodes after (if possible). directly creating break nodes may lead to
@@ -628,17 +613,23 @@ class PhoenixStructurer(StructurerBase):
                                     Const(None, None, continue_node.addr, self.project.arch.bits),
                                 )
                                 cond_node = ConditionNode(
-                                    last_src_stmt.ins_addr, None, break_cond, break_node, false_node=cont_node
+                                    last_src_stmt.ins_addr,
+                                    None,
+                                    break_cond,
+                                    break_node,
                                 )
                                 new_node.nodes[-1] = cond_node
-                                graph.remove_edge(src, continue_node)
-                                fullgraph.remove_edge(src, continue_node)
+                                new_node.nodes.append(cont_node)
+
+                                # we don't remove the edge (src, continue_node) from the graph or full graph. we will
+                                # process them later in this function.
                             else:
                                 # the last statement in src_block is not the conditional jump whose one branch goes to
                                 # the loop head. it probably goes to another block that ends up going to the loop head.
                                 # we don't handle it here.
                                 pass
 
+                        self._remove_last_statement_if_jump(src_block)
                         fullgraph.remove_edge(src, dst)
                         if src_parent is not None:
                             # replace the node in its parent node
@@ -660,6 +651,11 @@ class PhoenixStructurer(StructurerBase):
 
                 else:
                     fullgraph.remove_edge(src, dst)
+                    if fullgraph.in_degree[dst] == 0:
+                        # drop this node
+                        fullgraph.remove_node(dst)
+                        if dst in self._region.successors:
+                            self._region.successors.remove(dst)
 
         if len(continue_edges) > 1:
             # convert all but one (the one that is the farthest from the head, topological-wise) head-going edges into
@@ -691,14 +687,106 @@ class PhoenixStructurer(StructurerBase):
                         graph.remove_edge(src, continue_node)
                     fullgraph.remove_edge(src, continue_node)
                 else:
-                    # virtualize the edge. later it will be replaced with a ContinueNode or a conditional continue
+                    # virtualize the edge.
                     graph.remove_edge(src, continue_node)
                     fullgraph.remove_edge(src, continue_node)
+                    # replace it with the original node plus the continue node
+                    try:
+                        last_stmt = self.cond_proc.get_last_statement(cont_block)
+                    except EmptyBlockNotice:
+                        # meh
+                        last_stmt = None
+                    if last_stmt is not None:
+                        new_cont_node = None
+                        if isinstance(last_stmt, ConditionalJump):
+                            new_cont_node = ContinueNode(last_stmt.ins_addr, continue_node.addr)
+                            if (
+                                isinstance(last_stmt.true_target, Const)
+                                and last_stmt.true_target.value == continue_node.addr
+                            ):
+                                new_cont_node = ConditionNode(
+                                    last_stmt.ins_addr, None, last_stmt.condition, new_cont_node
+                                )
+                            else:
+                                new_cont_node = ConditionNode(
+                                    last_stmt.ins_addr,
+                                    None,
+                                    UnaryOp(None, "Not", last_stmt.condition),
+                                    new_cont_node,
+                                )
+                        elif isinstance(last_stmt, Jump):
+                            new_cont_node = ContinueNode(last_stmt.ins_addr, continue_node.addr)
+
+                        if new_cont_node is not None:
+                            self._remove_last_statement_if_jump(cont_block)
+                            new_node = SequenceNode(src.addr, nodes=[src, new_cont_node])
+                            self.replace_nodes(graph, src, new_node)
+                            self.replace_nodes(fullgraph, src, new_node)
 
         if loop_type == "do-while":
             self.dowhile_known_tail_nodes.add(continue_node)
 
         return bool(outgoing_edges or len(continue_edges) > 1)
+
+    def _refine_cyclic_is_while_loop(
+        self, graph, fullgraph, loop_head, head_succs
+    ) -> Tuple[bool, Optional[Tuple[List, List, BaseNode, BaseNode]]]:
+
+        if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
+            # make sure the head_pred is not already structured
+            _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
+            _, head_block_1 = self._find_node_going_to_dst(loop_head, head_succs[1])
+            if head_block_0 is head_block_1 and head_block_0 is not None:
+                # there is an out-going edge from the loop head
+                # virtualize all other edges
+                continue_edges: List[Tuple[BaseNode, BaseNode]] = []
+                outgoing_edges = []
+                successor = next(iter(head_succ for head_succ in head_succs if head_succ not in graph))
+                for node in graph.nodes:
+                    succs = list(fullgraph.successors(node))
+                    if loop_head in succs:
+                        continue_edges.append((node, loop_head))
+
+                    outside_succs = [succ for succ in succs if succ not in graph]
+                    for outside_succ in outside_succs:
+                        outgoing_edges.append((node, outside_succ))
+
+                return True, (continue_edges, outgoing_edges, loop_head, successor)
+        return False, None
+
+    def _refine_cyclic_is_dowhile_loop(
+        self, graph, fullgraph, loop_head, head_succs
+    ) -> Tuple[bool, Optional[Tuple[List, List, BaseNode, BaseNode]]]:
+
+        # check if there is an out-going edge from the loop tail
+        head_preds = list(fullgraph.predecessors(loop_head))
+        if len(head_preds) == 1:
+            head_pred = head_preds[0]
+            head_pred_succs = list(fullgraph.successors(head_pred))
+            if len(head_pred_succs) == 2 and any(nn not in graph for nn in head_pred_succs):
+                # make sure the head_pred is not already structured
+                _, src_block_0 = self._find_node_going_to_dst(head_pred, head_pred_succs[0])
+                _, src_block_1 = self._find_node_going_to_dst(head_pred, head_pred_succs[1])
+                if src_block_0 is src_block_1 and src_block_0 is not None:
+                    continue_edges: List[Tuple[BaseNode, BaseNode]] = []
+                    outgoing_edges = []
+                    # there is an out-going edge from the loop tail
+                    # virtualize all other edges
+                    successor = next(iter(nn for nn in head_pred_succs if nn not in graph))
+                    continue_node = head_pred
+                    for node in graph.nodes:
+                        if node is head_pred:
+                            continue
+                        succs = list(fullgraph.successors(node))
+                        if head_pred in succs:
+                            continue_edges.append((node, head_pred))
+
+                        outside_succs = [succ for succ in succs if succ not in graph]
+                        for outside_succ in outside_succs:
+                            outgoing_edges.append((node, outside_succ))
+
+                    return True, (continue_edges, outgoing_edges, continue_node, successor)
+        return False, None
 
     def _analyze_acyclic(self) -> bool:
         # match against known schemas

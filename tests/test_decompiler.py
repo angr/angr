@@ -1990,6 +1990,32 @@ class TestDecompiler(unittest.TestCase):
         # goto 400e40 this is the fake goto that can be eliminated if cross-jumping reverter is present
         assert d.codegen.text.count("goto LABEL_400e40;") == 1
 
+    @structuring_algo("phoenix")
+    def test_decompiling_sha384sum_digest_bsd_split_3(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "sha384sum-digest.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["bsd_split_3"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        # there should only be two or even fewer gotos
+        assert d.codegen.text.count("goto ") == 2
+
     @for_all_structuring_algos
     def test_eliminating_stack_canary_reused_stack_chk_fail_call(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")

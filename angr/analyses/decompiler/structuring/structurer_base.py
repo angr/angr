@@ -461,17 +461,34 @@ class StructurerBase(Analysis):
                     node.statements = node.statements[:-1]
             elif isinstance(stmt, ailment.Stmt.ConditionalJump):
                 cond = None
+                other_target = None
                 if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == continue_node_addr:
                     cond = self.cond_proc.claripy_ast_from_ail_condition(stmt.condition)
+                    other_target = stmt.false_target
                 elif (
                     isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value == continue_node_addr
                 ):
                     cond = claripy.Not(self.cond_proc.claripy_ast_from_ail_condition(stmt.condition))
+                    other_target = stmt.true_target
                 if cond is not None:
+                    skip_continue_condition = False
+                    if other_target is not None:
+                        # we need to create a conditional jump if the other_target does not belong to the current node
+                        other_cond = claripy.Not(cond)
+                        jumpout_stmt = ailment.Stmt.Jump(stmt.idx, other_target, **stmt.tags)
+                        jumpout_block = ailment.Block(stmt.ins_addr, 0, statements=[jumpout_stmt])
+                        jumpout_node = ConditionNode(stmt.ins_addr, None, other_cond, jumpout_block)
+                        insert_node(parent, "after", jumpout_node, index, label=label)
+                        index += 1
+                        skip_continue_condition = True
+
                     # create a continue node
                     continue_node = ContinueNode(stmt.ins_addr, continue_node_addr)
-                    # create a condition node
-                    cond_node = ConditionNode(stmt.ins_addr, None, cond, continue_node)
+                    if skip_continue_condition:
+                        cond_node = continue_node
+                    else:
+                        # create a condition node
+                        cond_node = ConditionNode(stmt.ins_addr, None, cond, continue_node)
                     # insert this node to the parent
                     insert_node(parent, "after", cond_node, index, label=label)
                     # remove the current conditional jump statement
