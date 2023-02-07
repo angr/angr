@@ -88,11 +88,11 @@ class SimStatePlugin:
 
         .. code-block:: python
 
-        self.foo.merge(
-            [o.foo for o in others],
-            merge_conditions,
-            common_ancestor=common_ancestor.foo if common_ancestor is not None else None
-        )
+           self.foo.merge(
+               [o.foo for o in others],
+               merge_conditions,
+               common_ancestor=common_ancestor.foo if common_ancestor is not None else None
+           )
 
         During static analysis, merge_conditions can be None, in which case you should use
         ``state.solver.union(values)``.
