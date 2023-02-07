@@ -188,8 +188,12 @@ class GraphRegion:
             if sub_region.successors != updated_sub_region.successors:
                 # some successors are no longer in use - remove them from the graph
                 for succ in sub_region.successors:
+                    real_succs = list(self.graph_with_successors.successors(sub_region))
                     if succ not in updated_sub_region.successors:
-                        self.graph_with_successors.remove_edge(sub_region, succ)
+                        # find the corresponding node in graph_with_successors
+                        real_succ = next(iter(nn for nn in real_succs if nn.addr == succ.addr), None)
+                        if real_succ is not None:
+                            self.graph_with_successors.remove_edge(sub_region, real_succ)
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with)
 
     def replace_region_with_region(self, sub_region: "GraphRegion", replace_with: "GraphRegion"):
