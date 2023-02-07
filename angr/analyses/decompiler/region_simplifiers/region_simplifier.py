@@ -21,10 +21,11 @@ class RegionSimplifier(Analysis):
     Simplifies a given region.
     """
 
-    def __init__(self, func, region, variable_kb=None):
+    def __init__(self, func, region, variable_kb=None, simplify_switches: bool = True):
         self.func = func
         self.region = region
         self.variable_kb = variable_kb
+        self._simplify_switches = simplify_switches
 
         self.result = None
 
@@ -54,12 +55,14 @@ class RegionSimplifier(Analysis):
             r = self._fold_oneuse_expressions(r)
             r = self._remove_empty_nodes(r)
 
-        # Simplify switch expressions
-        r = self._simplify_switch_expressions(r)
-        # Simplify switch clusters
-        r = self._simplify_switch_clusters(r)
-        # Again, remove labels that are not referenced by anything
-        r = self._simplify_labels(r)
+        if self._simplify_switches:
+            # Simplify switch expressions
+            r = self._simplify_switch_expressions(r)
+            # Simplify switch clusters
+            r = self._simplify_switch_clusters(r)
+            # Again, remove labels that are not referenced by anything
+            r = self._simplify_labels(r)
+
         # Remove empty nodes
         r = self._remove_empty_nodes(r)
         # Remove unnecessary else branches if the if branch will always return
