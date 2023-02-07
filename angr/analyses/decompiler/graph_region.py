@@ -175,7 +175,7 @@ class GraphRegion:
 
         return s
 
-    def replace_region(self, sub_region, replace_with):
+    def replace_region(self, sub_region: "GraphRegion", updated_sub_region: "GraphRegion", replace_with):
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception()
@@ -185,6 +185,15 @@ class GraphRegion:
 
         self._replace_node_in_graph(self.graph, sub_region, replace_with)
         if self.graph_with_successors is not None:
+            if sub_region.successors != updated_sub_region.successors:
+                # some successors are no longer in use - remove them from the graph
+                for succ in sub_region.successors:
+                    real_succs = list(self.graph_with_successors.successors(sub_region))
+                    if succ not in updated_sub_region.successors:
+                        # find the corresponding node in graph_with_successors
+                        real_succ = next(iter(nn for nn in real_succs if nn.addr == succ.addr), None)
+                        if real_succ is not None:
+                            self.graph_with_successors.remove_edge(sub_region, real_succ)
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with)
 
     def replace_region_with_region(self, sub_region: "GraphRegion", replace_with: "GraphRegion"):
