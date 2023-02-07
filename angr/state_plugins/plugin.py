@@ -87,6 +87,7 @@ class SimStatePlugin:
         sub-elements' merge methods, e.g.
 
         .. code-block:: python
+
         self.foo.merge(
             [o.foo for o in others],
             merge_conditions,
