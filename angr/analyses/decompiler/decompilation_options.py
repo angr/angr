@@ -36,6 +36,9 @@ class DecompilationOption:
         self.candidate_values = candidate_values
         self.convert = convert
 
+    def __repr__(self):
+        return f"<DecOption [{self.category}] {self.NAME} ({self.cls}.{self.param})>"
+
 
 O = DecompilationOption
 
@@ -70,6 +73,16 @@ options = [
         bool,
         "region_identifier",
         "largest_successor_tree_outside_loop",
+        category="Graph",
+        default_value=True,
+    ),
+    O(
+        "Simplify switches by undoing switch clustering",
+        "Undoing switch clustering that modern compilers employ. Switch clustering will split a switch into "
+        "multiple pieces and transform (or lower) them piece-by-piece for better performance (and lower readability).",
+        bool,
+        "region_simplifier",
+        "simplify_switches",
         category="Graph",
         default_value=True,
     ),

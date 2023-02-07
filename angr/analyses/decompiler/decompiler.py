@@ -204,7 +204,13 @@ class Decompiler(Analysis):
         self._update_progress(80.0, text="Simplifying regions")
 
         # simplify it
-        s = self.project.analyses.RegionSimplifier(self.func, rs.result, kb=self.kb, variable_kb=clinic.variable_kb)
+        s = self.project.analyses.RegionSimplifier(
+            self.func,
+            rs.result,
+            kb=self.kb,
+            variable_kb=clinic.variable_kb,
+            **self.options_to_params(self.options_by_class["region_simplifier"]),
+        )
         seq_node = s.result
         seq_node = self._run_post_structuring_simplification_passes(seq_node, binop_operators=cache.binop_operators)
         self._update_progress(85.0, text="Generating code")
