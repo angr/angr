@@ -2211,7 +2211,7 @@ class TestDecompiler(unittest.TestCase):
 
         # The highest level symptom here is that two variable used are
         # confused and this shows up in the addition types.
-        assert not "Other Possible Types" in d.codegen.text
+        assert "Other Possible Types" not in d.codegen.text
 
         # check that the variable used in free is different from the one used in atoi
         m = re.search(r"free\(([^)]+)", d.codegen.text)

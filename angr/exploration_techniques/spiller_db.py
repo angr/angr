@@ -25,6 +25,3 @@ except ImportError:
     Base = None
     OperationalError = None
     sessionmaker = None
-
-
-__all__ = ["sqlalchemy", "create_engine", "Base", "OperationalError", "sessionmaker"]
