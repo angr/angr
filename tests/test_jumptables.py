@@ -2421,7 +2421,6 @@ class TestJumpTableResolver(unittest.TestCase):
         self._compare(cfg.jump_tables, all_jumptables)
 
     def test_arm_libsoap(self):
-
         # This is the ADDLS type of jump table (IndirectJumpType.JumpTable_AddressComputed) where no actual table is
         # used libsoap.so seems to be compiled from gSOAP, which is an open-source product
 
