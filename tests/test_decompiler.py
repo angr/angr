@@ -2030,6 +2030,23 @@ class TestDecompiler(unittest.TestCase):
         assert "stack_chk_fail" not in d.codegen.text
 
     @structuring_algo("phoenix")
+    def test_decompiling_tr_card_of_complement(self, decompiler_options=None):
+        # this function has a single-block loop (rep stosq). make sure we handle properly without introducing gotos.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tr.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        f = proj.kb.functions["card_of_complement"]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+        assert "goto " not in d.codegen.text
+
+    @structuring_algo("phoenix")
     def test_reverting_switch_lowering_cksum_digest_print_filename(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
