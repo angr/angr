@@ -146,8 +146,9 @@ class GotoSimplifier(SequenceWalker):
             if last_stmt.false_target and isinstance(last_stmt.false_target.value, int):
                 self._handle_irreducible_goto(block, last_stmt, branch_target=False)
 
-    def _handle_irreducible_goto(self, block, goto_stmt: Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump],
-                                 branch_target=None):
+    def _handle_irreducible_goto(
+        self, block, goto_stmt: Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump], branch_target=None
+    ):
         if not self._kb or not self._function:
             l.debug("Unable to store a goto at %#x because simplifier is kb or functionless", block.addr)
             return
