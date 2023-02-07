@@ -163,7 +163,12 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     try:
                         next_comp = self._get_block(next_comp_addr)
                     except MultipleBlocksException:
-                        # multiple blocks :/ we don't support for now
+                        # multiple blocks :/ it's possible that other optimization passes have duplicated the default
+                        # node. check it.
+                        next_comp_many = list(self._get_blocks(next_comp_addr))
+                        if next_comp_many[0] not in variable_comparisons:
+                            cases.append(Case(comp, None, variable, expr, "default", next_comp_addr, None))
+                        # otherwise we don't support it
                         break
                     assert next_comp is not None
                     if next_comp in variable_comparisons:
