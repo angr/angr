@@ -50,7 +50,7 @@ class TestPickle(unittest.TestCase):
         f.close()
 
         # If you do not have a state you cannot write
-        p.factory.entry_state(fs=fs)
+        _ = p.factory.entry_state(fs=fs)
         for f in fs:
             mem = mem_bvv[f]
             fs[f].write(0, mem, MEM_SIZE)
