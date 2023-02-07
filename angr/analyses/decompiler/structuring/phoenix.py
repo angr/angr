@@ -52,8 +52,6 @@ class GraphChangedNotification(Exception):
     schema matching process for the current region restarts.
     """
 
-    pass
-
 
 class PhoenixStructurer(StructurerBase):
     """
@@ -753,7 +751,7 @@ class PhoenixStructurer(StructurerBase):
                 return True, (continue_edges, outgoing_edges, loop_head, successor)
         return False, None
 
-    def _refine_cyclic_is_dowhile_loop(
+    def _refine_cyclic_is_dowhile_loop(  # pylint:disable=unused-argument
         self, graph, fullgraph, loop_head, head_succs
     ) -> Tuple[bool, Optional[Tuple[List, List, BaseNode, BaseNode]]]:
         # check if there is an out-going edge from the loop tail
