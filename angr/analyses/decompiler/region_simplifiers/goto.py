@@ -1,5 +1,5 @@
 # pylint:disable=unused-argument,arguments-differ
-from typing import Set
+from typing import Set, Union
 import logging
 
 import ailment
@@ -118,11 +118,14 @@ class GotoSimplifier(SequenceWalker):
         :param ailment.Block block:
         :return:
         """
+        if not block.statements:
+            return
 
-        if block.statements and isinstance(block.statements[-1], ailment.Stmt.Jump):
-            goto_stmt = block.statements[-1]  # ailment.Stmt.Jump
-            if isinstance(goto_stmt.target, ailment.Expr.Const):
-                goto_target = goto_stmt.target.value
+        last_stmt = block.statements[-1]
+        # goto label;
+        if isinstance(last_stmt, ailment.Stmt.Jump):
+            if isinstance(last_stmt.target, ailment.Expr.Const):
+                goto_target = last_stmt.target.value
                 if successor and goto_target == successor.addr:
                     can_remove = True
                 elif goto_target not in self._node_addrs:
@@ -130,17 +133,35 @@ class GotoSimplifier(SequenceWalker):
                     can_remove = True
                 else:
                     can_remove = False
-                    self._handle_irreducible_goto(block, goto_stmt)
+                    self._handle_irreducible_goto(block, last_stmt)
 
                 if can_remove:
                     # we can remove this statement
                     block.statements = block.statements[:-1]
+        # if {goto label_1;} else {goto label_2;}
+        elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+            if last_stmt.true_target and isinstance(last_stmt.true_target.value, int):
+                self._handle_irreducible_goto(block, last_stmt, branch_target=True)
 
-    def _handle_irreducible_goto(self, block, goto_stmt: ailment.Stmt.Jump):
+            if last_stmt.false_target and isinstance(last_stmt.false_target.value, int):
+                self._handle_irreducible_goto(block, last_stmt, branch_target=False)
+
+    def _handle_irreducible_goto(self, block, goto_stmt: Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump],
+                                 branch_target=None):
         if not self._kb or not self._function:
             l.debug("Unable to store a goto at %#x because simplifier is kb or functionless", block.addr)
             return
 
-        goto = Goto(addr=goto_stmt.ins_addr or block.addr, target_addr=goto_stmt.target.value)
+        # normal Goto Label
+        if branch_target is None:
+            stmt_target = goto_stmt.target
+        # true branch of a conditional jump
+        elif branch_target:
+            stmt_target = goto_stmt.true_target
+        # false branch of a conditional jump
+        else:
+            stmt_target = goto_stmt.true_target
+
+        goto = Goto(addr=goto_stmt.ins_addr or block.addr, target_addr=stmt_target.value)
         l.debug("Storing %r in kb.gotos", goto)
         self._kb.gotos.locations[self._function.addr].add(goto)
