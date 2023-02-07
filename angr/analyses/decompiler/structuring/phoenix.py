@@ -155,19 +155,19 @@ class PhoenixStructurer(StructurerBase):
                     # region
                     l.debug("No progress is made on this acyclic graph with a cyclic ancestor. Give up.")
                     break
-                else:
-                    l.debug("No progress is made. Enter last resort refinement.")
-                    removed_edge = self._last_resort_refinement(
-                        self._region.head,
-                        self._region.graph,
-                        self._region.graph_with_successors
-                        if self._region.graph_with_successors is not None
-                        else networkx.DiGraph(self._region.graph),
-                    )
-                    self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
-                    if not removed_edge:
-                        # cannot make any progress in this region. return the subgraph directly
-                        break
+
+                l.debug("No progress is made. Enter last resort refinement.")
+                removed_edge = self._last_resort_refinement(
+                    self._region.head,
+                    self._region.graph,
+                    self._region.graph_with_successors
+                    if self._region.graph_with_successors is not None
+                    else networkx.DiGraph(self._region.graph),
+                )
+                self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
+                if not removed_edge:
+                    # cannot make any progress in this region. return the subgraph directly
+                    break
 
         if len(self._region.graph.nodes) == 1:
             # successfully structured
