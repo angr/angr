@@ -723,44 +723,45 @@ class InputConcretizeEngine(UberEngine):
         #     print("Time to DEBUG")
         #     import ipdb;ipdb.set_trace()
 
-        no_constraints_solver = claripy.solvers.SolverComposite()
-        no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
-        conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
+        if self.state.solver.symbolic(simplified_addr):
+            no_constraints_solver = claripy.solvers.SolverComposite()
+            no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
+            conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
 
-        if len(conc_addrs) < 5:
-            if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_'):
-                if not self.state.solver.symbolic(simplified_addr):
-                    return result
+            if len(conc_addrs) < 5:
+                save = True
+                if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_'):
+                    if not self.state.solver.symbolic(simplified_addr):
+                        return result
+                    for ast in simplified_addr.leaf_asts():
+                        if isinstance(ast.args[0], str) and not ast.args[0].startswith('precon') and ast.args[0] not in self.state.globals['replaced_asts_str']:
+                            var_ast_list.append(ast)
+                        # if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf') and ast.args[0] not in self.state.globals['replaced_asts_str']:
+                        #     var_ast_list.append(ast)
+                        # elif isinstance(ast.args[0], str) and ast.args[0].startswith('symbolified_expr') and ast.args[0] not in self.state.globals['replaced_asts_str']:
+                        #     self.state.globals['to_use_symbolic_exprs'].append(self.state.globals['expr_loc_map'][ast.args[0]])
+                        #     var_ast_list.append(ast)
 
-                for ast in simplified_addr.leaf_asts():
-                    if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
-                        save = True
-                        var_ast_list.append(ast)
-                    elif isinstance(ast.args[0], str) and ast.args[0].startswith('symbolified_expr'):
-                        self.state.globals['to_use_symbolic_exprs'].append(self.state.globals['expr_loc_map'][ast.args[0]])
-                        save = True
-                        var_ast_list.append(ast)
-
-                if not save:
-                    poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0], 5)
-                    if len(poss_addrs) < 5:
-                        #import ipdb;ipdb.set_trace()
-                        save = True
-
-                        for ast in simplified_addr.leaf_asts():
-                            if self.state.solver.symbolic(ast):
-                                if ast.args[0] not in self.state.globals['replaced_asts_str']:
-                                    var_ast_list.append(ast)
+                    # if not save:
+                    #     poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0], 5)
+                    #     if len(poss_addrs) < 5:
+                    #         #import ipdb;ipdb.set_trace()
+                    #         save = True
+                    #
+                    #         for ast in simplified_addr.leaf_asts():
+                    #             if self.state.solver.symbolic(ast):
+                    #                 if ast.args[0] not in self.state.globals['replaced_asts_str']:
+                    #                     var_ast_list.append(ast)
 
         if len(var_ast_list) > 1:
             print("More than one variables? which one to save.... maybe both")
-            import ipdb;ipdb.set_trace()
+            #import ipdb;ipdb.set_trace()
 
 
         if save:
-            global debug
-            if debug:
-                import ipdb;ipdb.set_trace()
+            # global debug
+            # if debug:
+            #     import ipdb;ipdb.set_trace()
             #create a solver without any constraints and use that to solve. This is equivalent to simplifying it and should not have the same issues that regular symbolic execution/solving with contraints should have
             # no_constraints_solver = claripy.solvers.SolverComposite()
             # no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
@@ -772,7 +773,7 @@ class InputConcretizeEngine(UberEngine):
 
             if len(var_ast_list) > 1:
                 print("More than one variables to constrain at a time................. interesting...")
-                import ipdb;ipdb.set_trace()
+                #import ipdb;ipdb.set_trace()
 
             conc_addr_and_new_constraints = []
             # for conc_addr in conc_addrs:
@@ -860,14 +861,21 @@ def remove_breakpoints(state):
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vsp_reg, prev_unroll_vm_addrs=None, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_input=None, remove_insts=None, constant_prop_func_replacements=None):
+    def __init__(self, vsp_reg, prev_unroll_vm_addrs=None, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_state=None, remove_insts=None, constant_prop_func_replacements=None,semantic_verf_hooks=None):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
         self.vsp_reg = vsp_reg
         self.start_addr = start_addr
-        self.verification_input = verification_input
+        self.verification_state = verification_state
         self.constant_prop_func_replacements = constant_prop_func_replacements
+
+
+        if self.project.arch.bits == 32:
+            start_state.registers.store(start_state.arch.registers['ss'][0], 0)
+
+        start_state_copy_without_bps = start_state.copy()
+
 
         # unroll the loops for the previous VM's
         start_state.globals['vm_vip_regs'] = {}
@@ -885,8 +893,6 @@ class VMDeobfuscation(Analysis):
             start_state.inspect.add_breakpoint('instruction',
                                                BP(BP_BEFORE, instruction=vm_start_addr, action=activate_save_vm_vpc))
 
-        if self.project.arch.bits == 32:
-            start_state.registers.store(start_state.arch.registers['ss'][0], 0)
 
         start_state_copy = start_state.copy()
         cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
@@ -921,10 +927,11 @@ class VMDeobfuscation(Analysis):
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr=start_addr, start_state=None, prev_symbolic_expr_locations_blockwise=None)#start_state=saved_start_state)
         start_state_copy = start_state.copy()
 
-        import ipdb;ipdb.set_trace()
+        # import ipdb;ipdb.set_trace()
 
         global debug
         debug = True
+        cfg = None
         new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(cfg, proj, symbolic_expr_locations_blockwise, start_addr=start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
 
 
@@ -947,17 +954,19 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
 
         start_state_copy = start_state.copy()
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state_copy, start_addr=start_addr,
-                                           input=verification_input)
-        import ipdb;ipdb.set_trace()
+
+        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr)
+        # import ipdb;ipdb.set_trace()
 
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr=start_addr,
                                                                                start_state=None,
                                                                                prev_symbolic_expr_locations_blockwise=symbolic_expr_locations_blockwise)
-        start_state_copy = start_state.copy()
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state_copy, start_addr=start_addr,
-                                           input=verification_input)
+
+        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         import ipdb;ipdb.set_trace()
+        start_state_copy = start_state.copy()
+        #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        # import ipdb;ipdb.set_trace()
 
         # clearing the saved states to save space
         for node in new_cfg.graph.nodes():
@@ -984,8 +993,7 @@ class VMDeobfuscation(Analysis):
 
             new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr,
-                                           input=verification_input)
+        #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
 
@@ -1000,13 +1008,11 @@ class VMDeobfuscation(Analysis):
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join("dae_"+str(i)+"_result.svg"))
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr,
-                                           input=verification_input)
+        #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr,
-                                           input=verification_input)
+        #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
         for i in range(2):
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
@@ -1019,8 +1025,7 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr,
-                                           input=verification_input)
+        #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
         for i in range(8):
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
@@ -1035,8 +1040,7 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr,
-                                           input=verification_input)
+        #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
@@ -1052,7 +1056,7 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, os.path.join("dae_"+str(i)+"_result.svg"))
 
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr, input=verification_input)
+        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
@@ -1068,9 +1072,9 @@ class VMDeobfuscation(Analysis):
                                                starts=(start_addr,),
                                                initial_state=start_state,
                                                max_iterations=1,
-                                               resolve_indirect_jumps=True,
+                                               resolve_indirect_jumps=False,
                                                keep_state=False,
-                                               state_add_options=angr.sim_options.refs | {angr.sim_options.DO_CCALLS},
+                                               state_add_options=angr.sim_options.refs | {angr.sim_options.DO_CCALLS, angr.sim_options.REPLACEMENT_SOLVER},
                                                iropt_level=1,
                                                cfg_fast_graph=cfg_fast_graph,
                                                avoid_runs=avoid_runs,
@@ -1582,15 +1586,69 @@ class VMDeobfuscation(Analysis):
         print("Done")
         return new_model
 
-    def perform_semantic_verification(self, cfg, proj, start_state=None, start_addr=None, input=None):
+    def perform_semantic_verification(self, cfg, proj, start_state=None, start_addr=None,semantic_verf_hooks=None):
         print("Performing semantic verification")
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
         chroot = os.path.dirname(self.project.filename)
 
-        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.DO_CCALLS, angr.sim_options.CONCRETIZE, angr.sim_options.INITIALIZE_ZERO_REGISTERS},
-                                        concrete_fs=True, chroot=chroot, stdin=input)
-        if proj.arch.bits == 32:
-            new_model._nodes_by_addr[self.start_addr][0].input_state.registers.store(new_model._nodes_by_addr[self.start_addr][0].input_state.arch.registers['ss'][0], 0)
+        if semantic_verf_hooks:
+            for symbol_addr, proc in semantic_verf_hooks:
+                if isinstance(symbol_addr, str):
+                    proj.hook_symbol(symbol_addr,proc, replace=True)
+                else:
+                    proj.hook(symbol_addr, proc, replace=True)
+
+        # class myabs(angr.SimProcedure):
+        #     # pylint: disable=arguments-differ
+        #     def run(self, num):
+        #         mask = num >> (proj.arch.sizeof["int"] - 1)
+        #         res = ((num + mask) ^ mask)
+        #         return res
+        #
+        # # proj.hook(0x401040, angr.SIM_PROCEDURES['libc']['printf'](cc=proj.factory._default_cc(start_state.arch),
+        # #                                                           prototype=angr.SIM_LIBRARIES.get('libc.so').get(
+        # #                                                               'printf', proj.arch).prototype), replace=True)
+        # proj.hook_symbol('memset', angr.SIM_PROCEDURES['libc']['memset'](cc=proj.factory._default_cc(start_state.arch),
+        #                                                                  prototype=angr.SIM_LIBRARIES.get(
+        #                                                                      'libc.so').get('memset',
+        #                                                                                     proj.arch).prototype),
+        #                  replace=True)
+        # proj.hook_symbol('memcpy', angr.SIM_PROCEDURES['libc']['memcpy'](cc=proj.factory._default_cc(start_state.arch),
+        #                                                                  prototype=angr.SIM_LIBRARIES.get(
+        #                                                                      'libc.so').get('memcpy',
+        #                                                                                     proj.arch).prototype),
+        #                  replace=True)
+        # proj.hook_symbol('free', angr.SIM_PROCEDURES['libc']['free'](cc=proj.factory._default_cc(start_state.arch),
+        #                                                              prototype=angr.SIM_LIBRARIES.get('libc.so').get(
+        #                                                                  'free', proj.arch).prototype), replace=True)
+        # proj.hook_symbol('realloc',
+        #                  angr.SIM_PROCEDURES['libc']['realloc'](cc=proj.factory._default_cc(start_state.arch),
+        #                                                         prototype=angr.SIM_LIBRARIES.get('libc.so').get(
+        #                                                             'realloc', proj.arch).prototype), replace=True)
+        # proj.hook_symbol('malloc', angr.SIM_PROCEDURES['libc']['malloc'](cc=proj.factory._default_cc(start_state.arch),
+        #                                                                  prototype=angr.SIM_LIBRARIES.get(
+        #                                                                      'libc.so').get('malloc',
+        #                                                                                     proj.arch).prototype),
+        #                  replace=True)
+        # proj.hook_symbol('fopen', angr.SIM_PROCEDURES['libc']['fopen'](cc=proj.factory._default_cc(start_state.arch),
+        #                                                                prototype=angr.SIM_LIBRARIES.get('libc.so').get(
+        #                                                                    'fopen', proj.arch).prototype), replace=True)
+        # proj.hook_symbol('fgetc', angr.SIM_PROCEDURES['libc']['fgetc'](cc=proj.factory._default_cc(start_state.arch),
+        #                                                                prototype=angr.SIM_LIBRARIES.get('libc.so').get(
+        #                                                                    'fgetc', proj.arch).prototype), replace=True)
+        # proj.hook_symbol('abs', myabs(cc=proj.factory._default_cc(start_state.arch), prototype="int abs(int j)"),
+        #                  replace=True)
+
+        if start_state:
+            start_state.options.add(angr.sim_options.CONCRETIZE)
+            start_state.options.add(angr.sim_options.INITIALIZE_ZERO_REGISTERS)
+            start_state.options.add(angr.sim_options.DO_CCALLS)
+            new_model._nodes_by_addr[self.start_addr][0].input_state = start_state
+        else:
+            new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.DO_CCALLS, angr.sim_options.CONCRETIZE, angr.sim_options.INITIALIZE_ZERO_REGISTERS},
+                                            concrete_fs=True, chroot=chroot, stdin=input)
+            if proj.arch.bits == 32:
+                new_model._nodes_by_addr[self.start_addr][0].input_state.registers.store(new_model._nodes_by_addr[self.start_addr][0].input_state.arch.registers['ss'][0], 0)
 
         # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.full_init_state(
         #     args=['./if_test.vmp.exe'],
@@ -1608,6 +1666,14 @@ class VMDeobfuscation(Analysis):
                 print(node)
                 print(final_state.posix.dumps(1))
         print("Done")
+        if semantic_verf_hooks:
+            for symbol_addr, proc in semantic_verf_hooks:
+                if isinstance(symbol_addr, str):
+                    proj.unhook_symbol(symbol_addr)
+                else:
+                    proj.unhook(symbol_addr)
+
+        import ipdb;ipdb.set_trace()
 
     def convert_to_atom(self, vex_inst, tyenv, byte_width):
         if isinstance(vex_inst, pyvex.expr.RdTmp):
@@ -2094,7 +2160,7 @@ class VMDeobfuscation(Analysis):
                 continue
             defs_ = set()
 
-            for values in vs.values.values():
+            for values in vs.values():
                 for value in values:
                     defs_.update(merged_live_defs.extract_defs(value))
 
@@ -2205,7 +2271,7 @@ class VMDeobfuscation(Analysis):
                         else:
                             continue
 
-                        for values in vs.values.values():
+                        for values in vs.values():
                             for value in values:
                                 defs_.update(live_defs.extract_defs(value))
 
@@ -2328,11 +2394,11 @@ class VMDeobfuscation(Analysis):
                         # if code_loc.ins_addr == 0x1400ab26d and code_loc.stmt_idx == 44:
                         #     import ipdb;ipdb.set_trace()
                         for use in result.all_uses_by_code_loc[code_loc]:
-                            use_stmt = node.irsb.statements[use.codeloc.stmt_idx]
-                            tmp_atom = self.convert_to_atom(use_stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
                             if isinstance(use.codeloc, ExternalCodeLocation):
                                 use_node = StatementNode(None, use.codeloc, def_atom=use.atom)
                             else:
+                                use_stmt = node.irsb.statements[use.codeloc.stmt_idx]
+                                tmp_atom = self.convert_to_atom(use_stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
                                 imark_ins_ind = self.find_index_of_IMark(use.codeloc.ins_addr, node.irsb.statements,
                                                                          use.codeloc.stmt_idx)
                                 new_ins_ind_sens_codeloc = IndSensitiveCodeLocation(use.codeloc.block_addr,
@@ -2805,9 +2871,9 @@ class VMDeobfuscation(Analysis):
                                         starts=(start_addr,),
                                         initial_state=start_state,
                                         max_iterations=1,
-                                        resolve_indirect_jumps=True,
+                                        resolve_indirect_jumps=False,
                                         keep_state=False,
-                                        state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
+                                        state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS, angr.sim_options.REPLACEMENT_SOLVER},
                                         iropt_level=1,
                                         cfg_fast_graph=cfg_fast_graph,
                                         avoid_runs=avoid_runs,

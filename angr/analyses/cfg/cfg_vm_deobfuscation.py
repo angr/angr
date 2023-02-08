@@ -1489,7 +1489,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if 'to_use_symbolic_exprs' in job.state.globals:
             self.to_use_symbolic_exprs.update(job.state.globals['to_use_symbolic_exprs'])
 
-        #when we are inside a VM we want to turn context sensitivity off
+        #when we are inside a VM we want to turn context sensitivity off. This decides when VM analysis mode is on/off not data_sensitive variable......... need to remove that
         if 'call_stack_context_sensitivity_on' in job.state.globals:
             if job.state.globals['call_stack_context_sensitivity_on']:
                 self._context_sensitivity_level = 3
@@ -1629,6 +1629,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     # we don't add fake returns when in a vm because it could just be a random call that never returns
                     # don't do this for non vm parts becasue it messes up the callstack, so we just skip all the fakret jobs anyway
                     if successor.globals['call_stack_context_sensitivity_on'] and successor.history.jumpkind == 'Ijk_FakeRet':
+                        continue
+
+                    #add all successors when outside vm
+                    if successor.globals['call_stack_context_sensitivity_on']:
+                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                             successor.scratch.guard,
+                                                             successor.history.jumpkind, True,
+                                                             successor.scratch.exit_stmt_idx,
+                                                             successor.scratch.exit_ins_addr,
+                                                             successor.scratch.source)
                         continue
                     # if successor.history.jumpkind == 'Ijk_FakeRet':
                     #     symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
@@ -2393,6 +2403,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
 
+        new_vm_vpc = None
         # Copy the data offset from the previous job
         if self.data_sensitive:
             if 'cur_vm_vpc' in successor.globals.keys():
