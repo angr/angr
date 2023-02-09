@@ -128,17 +128,18 @@ class MemoryObjectMixin(CooperationBase):
         while True:
             if data.symbolic and data.op == "Concat" and data.size() > size * 8:
                 # Generate new memory object with only size bytes to speed up extracting bytes
-                cur_data_size = 0
+                cur_data_size_bits = 0
+                requested_size_bits = size * 8
                 cur_data = []
-                while cur_data_size < size:
+                while cur_data_size_bits < requested_size_bits:
                     if next_elem_size_left == 0:
                         next_elem_index += 1
 
                     next_elem = data.args[next_elem_index]
                     cur_data.append(next_elem)
-                    next_elem_size_left = next_elem.size() // 8
-                    added_size = min(size - cur_data_size, next_elem.size() // 8)
-                    cur_data_size += added_size
+                    next_elem_size_left = next_elem.size()
+                    added_size = min(requested_size_bits - cur_data_size_bits, next_elem.size())
+                    cur_data_size_bits += added_size
                     next_elem_size_left = next_elem_size_left - added_size
 
                 cur_data = claripy.Concat(*cur_data)
