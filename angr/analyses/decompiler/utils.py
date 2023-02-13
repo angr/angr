@@ -1,7 +1,7 @@
 # pylint:disable=wrong-import-position
 from typing import Optional, Tuple, Any, Union
 
-import networkx as nx
+import networkx
 
 import ailment
 
@@ -256,7 +256,7 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     return new_node
 
 
-def to_ail_supergraph(transition_graph: nx.DiGraph) -> nx.DiGraph:
+def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
     """
     Takes an AIL graph and converts it into a AIL graph that treats calls and redundant jumps
     as parts of a bigger block instead of transitions. Calls to returning functions do not terminate basic blocks.
@@ -266,7 +266,7 @@ def to_ail_supergraph(transition_graph: nx.DiGraph) -> nx.DiGraph:
     :return: A converted super transition graph
     """
     # make a copy of the graph
-    transition_graph = nx.DiGraph(transition_graph)
+    transition_graph = networkx.DiGraph(transition_graph)
 
     while True:
         for src, dst, data in transition_graph.edges(data=True):
@@ -320,7 +320,7 @@ def first_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Stat
 
 
 def last_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Statement]:
-    for stmt in block.statements[::-1]:
+    for stmt in reversed(block.statements):
         if not isinstance(stmt, ailment.Stmt.Label):
             return stmt
     return None
@@ -338,28 +338,12 @@ def first_nonlabel_node(seq: "SequenceNode") -> Optional[Union["BaseNode", ailme
     return None
 
 
-def remove_labels(graph: nx.DiGraph):
-    new_graph = nx.DiGraph()
+def remove_labels(graph: networkx.DiGraph):
+    new_graph = networkx.DiGraph()
     nodes_map = {}
     for node in graph:
         node_copy = node.copy()
         node_copy.statements = [stmt for stmt in node_copy.statements if not isinstance(stmt, ailment.Stmt.Label)]
-        nodes_map[node] = node_copy
-
-    new_graph.add_nodes_from(nodes_map.values())
-    for src, dst in graph.edges:
-        new_graph.add_edge(nodes_map[src], nodes_map[dst])
-
-    return new_graph
-
-
-def add_labels(graph: nx.DiGraph):
-    new_graph = nx.DiGraph()
-    nodes_map = {}
-    for node in graph:
-        lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
-        node_copy = node.copy()
-        node_copy.statements = [lbl] + node_copy.statements
         nodes_map[node] = node_copy
 
     new_graph.add_nodes_from(nodes_map.values())
