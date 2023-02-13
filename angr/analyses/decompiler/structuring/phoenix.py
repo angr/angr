@@ -941,6 +941,7 @@ class PhoenixStructurer(StructurerBase):
 
             # delay this import, since it's cyclic for anyone who uses Structuring in their optimizations
             from ..optimization_passes.lowered_switch_simplifier import LoweredSwitchSimplifier
+
             LoweredSwitchSimplifier.restore_graph(node, last_stmt, graph, full_graph)
             raise GraphChangedNotification()
 
