@@ -18,6 +18,7 @@ from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
+from .utils import remove_labels
 
 if TYPE_CHECKING:
     from .peephole_optimizations.base import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
@@ -195,6 +196,9 @@ class Decompiler(Analysis):
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
         )
+
+        # save the graph before structuring happens (for AIL view)
+        clinic.cc_graph = remove_labels(clinic.copy_graph())
         self._update_progress(75.0, text="Structuring code")
 
         # structure it
