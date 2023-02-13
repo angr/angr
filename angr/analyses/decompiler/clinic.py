@@ -93,6 +93,8 @@ class Clinic(Analysis):
         self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
 
+        self._new_block_addrs = set()
+
         # sanity checks
         if not self.kb.functions:
             l.warning("No function is available in kb.functions. It will lead to a suboptimal conversion result.")
@@ -583,7 +585,7 @@ class Clinic(Analysis):
                             block.statements[-1] = call_stmt
 
                             ret_stmt = ailment.Stmt.Return(None, None, [], **last_stmt.tags)
-                            ret_block = ailment.Block(last_stmt.ins_addr, 1, statements=[ret_stmt])
+                            ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
                             ail_graph.add_edge(block, ret_block)
                         else:
                             stmt = ailment.Stmt.Call(None, target, **last_stmt.tags)
@@ -1356,6 +1358,19 @@ class Clinic(Analysis):
                     return op1, op0
                 return op0, op1  # best-effort guess
         return None, None
+
+    def new_block_addr(self) -> int:
+        """
+        Return a block address that does not conflict with any existing blocks.
+
+        :return:    The block address.
+        """
+        if self._new_block_addrs:
+            new_addr = max(self._new_block_addrs) + 1
+        else:
+            new_addr = max(self.function.block_addrs_set) + 2048
+        self._new_block_addrs.add(new_addr)
+        return new_addr
 
     @staticmethod
     @timethis
