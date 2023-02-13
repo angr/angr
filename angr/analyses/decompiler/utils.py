@@ -319,6 +319,13 @@ def first_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Stat
     return None
 
 
+def last_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Statement]:
+    for stmt in reversed(block.statements):
+        if not isinstance(stmt, ailment.Stmt.Label):
+            return stmt
+    return None
+
+
 def first_nonlabel_node(seq: "SequenceNode") -> Optional[Union["BaseNode", ailment.Block]]:
     for node in seq.nodes:
         if isinstance(node, CodeNode):
@@ -329,6 +336,21 @@ def first_nonlabel_node(seq: "SequenceNode") -> Optional[Union["BaseNode", ailme
             continue
         return node
     return None
+
+
+def remove_labels(graph: networkx.DiGraph):
+    new_graph = networkx.DiGraph()
+    nodes_map = {}
+    for node in graph:
+        node_copy = node.copy()
+        node_copy.statements = [stmt for stmt in node_copy.statements if not isinstance(stmt, ailment.Stmt.Label)]
+        nodes_map[node] = node_copy
+
+    new_graph.add_nodes_from(nodes_map.values())
+    for src, dst in graph.edges:
+        new_graph.add_edge(nodes_map[src], nodes_map[dst])
+
+    return new_graph
 
 
 # delayed import
