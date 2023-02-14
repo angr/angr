@@ -203,7 +203,8 @@ class GraphRegion:
                         # find the corresponding node in graph_with_successors
                         real_succ = next(iter(nn for nn in real_succs if nn.addr == succ.addr), None)
                         if real_succ is not None:
-                            self.graph_with_successors.remove_edge(sub_region, real_succ)
+                            if real_succ not in self.graph:
+                                self.graph_with_successors.remove_edge(sub_region, real_succ)
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with)
 
     def replace_region_with_region(self, sub_region: "GraphRegion", replace_with: "GraphRegion"):
