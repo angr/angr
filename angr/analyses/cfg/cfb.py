@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Set
+from typing import Any, Callable, Optional, Set
 
 import cle
 from cle.backends.externs import KernelObject, ExternObject
@@ -93,9 +93,17 @@ class CFBlanket(Analysis):
     - kernel
     """
 
-    def __init__(self, exclude_region_types: Optional[Set[str]] = None):
+    def __init__(
+        self,
+        exclude_region_types: Optional[Set[str]] = None,
+        on_object_added: Optional[Callable[[int, Any], None]] = None,
+    ):
+        """
+        :param on_object_added: Callable with parameters (addr, obj) called after an object is added to the blanket.
+        """
         self._blanket = SortedDict()
 
+        self._on_object_added_callback = on_object_added
         self._regions = []
         self._exclude_region_types = set() if not exclude_region_types else exclude_region_types
 
@@ -226,6 +234,8 @@ class CFBlanket(Analysis):
         Adds an object `obj` to the blanket at the specified address `addr`
         """
         self._blanket[addr] = obj
+        if self._on_object_added_callback:
+            self._on_object_added_callback(addr, obj)
 
     def add_function(self, func):
         """
