@@ -1,4 +1,5 @@
 import logging
+from typing import Optional, Set
 
 import cle
 from cle.backends.externs import KernelObject, ExternObject
@@ -92,7 +93,7 @@ class CFBlanket(Analysis):
     - kernel
     """
 
-    def __init__(self, exclude_region_types=None):
+    def __init__(self, exclude_region_types: Optional[Set[str]] = None):
         self._blanket = SortedDict()
 
         self._regions = []
