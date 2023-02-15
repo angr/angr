@@ -56,12 +56,12 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                     pass
 
         # ### Only save the constant if it is not touched by the stack
-        stack_touched = False
-        for annotation in result[0].annotations:
-            if isinstance(annotation, StackTouchedAnnotation):
-                import ipdb;ipdb.set_trace()
-                stack_touched = True
-                break
+        # stack_touched = False
+        # for annotation in result[0].annotations:
+        #     if isinstance(annotation, StackTouchedAnnotation):
+        #         import ipdb;ipdb.set_trace()
+        #         stack_touched = True
+        #         break
 
         #symbolize the previously(previous analysis) found non constants and return that
         #if self.project.symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.symbolic_expr_locations_blockwise:
@@ -70,8 +70,6 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 for to_repl_expr in expr_list:
                     if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
                         sym_result = self.state.solver.BVS("symbolified_expr_"+str(hex(codeloc.block_id.addr)), result[0].size())
-                        if sym_result.args[0].startswith("symbolified_expr_0x140116a86"):
-                            import ipdb;ipdb.set_trace()
 
                         #sym_result = annotate_with_new_replacements(start_state, sym_result, )
                         #self.state.preconstrainer.preconstrain(self.state.solver.eval(result[0]), sym_result)
@@ -79,35 +77,39 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                         return [sym_result, result[1]]
 
         ## Do we still need this stack touched thingy?? Not very accurate, we should actually be tracking local variables on the stack, since junk values can always be pushed and popped from the stack
-        if not stack_touched:
+        # if not stack_touched:
 
-            # this is for the new constant propagation that doesn't merge states........... check if its a non constant
-            if not self.state.solver.symbolic(simp_result) and \
-                    expr in self.state.globals['abstract_state']._replacements[code_loc] and \
-                    self.state.globals['abstract_state']._replacements[code_loc][expr].con.value != simp_result.args[0]:
-                del self.state.globals['abstract_state']._replacements[code_loc][expr]
-                self.state.globals['abstract_state'].symbolic_expr_locations[code_loc].append(expr)
+        # this is for the new constant propagation that doesn't merge states........... check if its a non constant
+        if not self.state.solver.symbolic(simp_result) and \
+                expr in self.state.globals['abstract_state']._replacements[code_loc] and \
+                self.state.globals['abstract_state']._replacements[code_loc][expr].con.value != simp_result.args[0]:
 
+            del self.state.globals['abstract_state']._replacements[code_loc][expr]
+            self.state.globals['abstract_state'].symbolic_expr_locations[code_loc].append(expr)
+            sym_result = self.state.solver.BVS("symbolified_expr_" + str(hex(code_loc.block_id.addr)),
+                                               result[0].size())
 
-            elif expr not in self.state.globals['abstract_state']._replacements[code_loc] and not self.state.solver.symbolic(simp_result) \
-                    and not(isinstance(expr, pyvex.expr.Const)):
-                const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
-                if len(simp_result.args) > 2:
-                    print("Hmmm possible need to simplify the expr")
-                    import ipdb;ipdb.set_trace()
-                if isinstance(expr, DataSensitiveRdTmp):
-                    if const_class == pyvex.const.U64:
-                        const_class = DataSensitiveU64
-                    elif const_class == pyvex.const.U32:
-                        const_class = DataSensitiveU32
-                    self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(
-                        const_class(simp_result.args[0], expr.block_id)))
-                else:
-                    self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(const_class(simp_result.args[0])))
-            ### Check if the result is symbolic now, but was constant in some previous iteration and put in the replacements. If so then remove the replacement
-            elif self.state.solver.symbolic(simp_result) and expr in self.state.globals['abstract_state']._replacements[code_loc]:
-                del self.state.globals['abstract_state']._replacements[code_loc][expr]
-                self.state.globals['abstract_state'].symbolic_expr_locations[code_loc].append(expr)
+            return [sym_result, result[1]]
+
+        elif expr not in self.state.globals['abstract_state']._replacements[code_loc] and not self.state.solver.symbolic(simp_result) \
+                and not(isinstance(expr, pyvex.expr.Const)):
+            const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
+            if len(simp_result.args) > 2:
+                print("Hmmm possible need to simplify the expr")
+                import ipdb;ipdb.set_trace()
+            if isinstance(expr, DataSensitiveRdTmp):
+                if const_class == pyvex.const.U64:
+                    const_class = DataSensitiveU64
+                elif const_class == pyvex.const.U32:
+                    const_class = DataSensitiveU32
+                self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(
+                    const_class(simp_result.args[0], expr.block_id)))
+            else:
+                self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(const_class(simp_result.args[0])))
+        ### Check if the result is symbolic now, but was constant in some previous iteration and put in the replacements. If so then remove the replacement
+        elif self.state.solver.symbolic(simp_result) and expr in self.state.globals['abstract_state']._replacements[code_loc]:
+            del self.state.globals['abstract_state']._replacements[code_loc][expr]
+            self.state.globals['abstract_state'].symbolic_expr_locations[code_loc].append(expr)
 
 
         return [simp_result, result[1]]
@@ -244,14 +246,18 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         return result
 
     def _handle_vex_defaultexit(self, expr, jumpkind):
+        # if blockid is None then it's probably some weird VEX instruction and we are still in the same block most likely
         if isinstance(expr, pyvex.expr.RdTmp):
-            self.state.globals['cur_block_id'] = expr.block_id
+            if expr.block_id:
+                self.state.globals['cur_block_id'] = expr.block_id
         else:
-            self.state.globals['cur_block_id'] = expr.con.block_id
+            if expr.con.block_id:
+                self.state.globals['cur_block_id'] = expr.con.block_id
         super()._handle_vex_defaultexit(expr, jumpkind)
 
     def _handle_vex_stmt_Exit(self, stmt):
-        self.state.globals['cur_block_id'] = stmt.dst.block_id
+        if stmt.dst.block_id:
+            self.state.globals['cur_block_id'] = stmt.dst.block_id
         super()._handle_vex_stmt_Exit(stmt)
 
 
@@ -477,6 +483,24 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         self._engine_ail = None
         self._engine= PropagatorEmulatedEngine(project=self.project)
         self._analyze()
+        self._initial_state = None
+        # for block_key, iter in self._node_iterations.items():
+        #     if iter<2:
+        #         if block_key.addr == 0x48139d and block_key.vm_vpc == 4306815:
+        #             print(block_key)
+        #             import ipdb;ipdb.set_trace()
+        #         if block_key.addr == 0x46b038 and block_key.vm_vpc == 4305884:
+        #             print(block_key)
+        #             import ipdb;
+        #             ipdb.set_trace()
+        #         if block_key.addr == 0x40a533 and block_key.vm_vpc == 4305884:
+        #             print(block_key)
+        #             import ipdb;
+        #             ipdb.set_trace()
+        #         if block_key.addr == 0x40a533 and block_key.vm_vpc == 4305884:
+        #             print(block_key)
+        #             import ipdb;
+        #             ipdb.set_trace()
 
     #
     # Main analysis routines
@@ -498,6 +522,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             #state = SimState(arch=self.projct.arch)
             state = PropagatorVEXState(arch=self.project.arch)
             state.concrete_states = [node.input_state]
+        self._initial_state = state
         return state
 
     def _merge_states(self, node, *states):
@@ -519,6 +544,8 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def _run_on_node(self, node, abstract_state):
         print(node)
+        if node.addr == 0x140106fa8:
+            import ipdb;ipdb.set_trace()
 
         # if node.addr == 0x449568 and node.block_id.vm_vpc == 4306815:
         #     import ipdb;ipdb.set_trace()
@@ -563,6 +590,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         #     stats.print_stats()
         #     import ipdb;
         #     ipdb.set_trace()
+        print(sim_successors)
 
         if node.is_simprocedure:
             if len(list(self._graph.successors(node))) > 1 and len(sim_successors.unconstrained_successors) > 0:
@@ -595,6 +623,25 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             symbolic_sim_successors = sim_successors
 
         else:
+            # if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) == 1 and len(list(self._graph.successors(node))) == 1:
+            #     uncon_succ = sim_successors.unconstrained_successors[0]
+            #     new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+            #     new_sim_successors.artifacts = sim_successors.artifacts
+            #     new_sim_successors.engine = sim_successors.engine
+            #     new_sim_successors.processed = sim_successors.processed
+            #     new_sim_successors.description = sim_successors.description
+            #     new_sim_successors.sort = sim_successors.sort
+            #
+            #     new_sim_successors.add_successor(uncon_succ, uncon_succ.scratch.target,
+            #                                      uncon_succ.scratch.guard,
+            #                                      uncon_succ.history.jumpkind, True,
+            #                                      uncon_succ.scratch.exit_stmt_idx,
+            #                                      uncon_succ.scratch.exit_ins_addr,
+            #                                      uncon_succ.scratch.source)
+            #
+            #     sim_successors = new_sim_successors
+            #     sim_successors.artifacts['irsb_direct_next'] = True
+
             if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) == 1:
 
                 new_states = []
@@ -739,7 +786,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
             symbolic_sim_successors = sim_successors
 
-            if node.input_state.globals['cur_block_id'].vm_vpc is not None:
+            if len(sim_successors.all_successors) >1:
                 symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                 symbolic_sim_successors.artifacts = sim_successors.artifacts
                 symbolic_sim_successors.engine = sim_successors.engine
@@ -751,15 +798,15 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                 for successor in sim_successors.all_successors:
                     keep=False
                     for graph_succ in self._graph.successors(node):
-                        if succ.addr == graph_succ.addr:
+                        if successor.addr == graph_succ.addr:
                             keep=True
-                    if keep:
-                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                              successor.scratch.guard,
-                                                              successor.history.jumpkind, True,
-                                                              successor.scratch.exit_stmt_idx,
-                                                              successor.scratch.exit_ins_addr,
-                                                              successor.scratch.source)
+                    # if keep:
+                    #     symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                    #                                           successor.scratch.guard,
+                    #                                           successor.history.jumpkind, True,
+                    #                                           successor.scratch.exit_stmt_idx,
+                    #                                           successor.scratch.exit_ins_addr,
+                    #                                           successor.scratch.source)
 
                     # ## Only add those successors which have symbolic guard or which evaluates to True
                     # # if successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard):
@@ -798,39 +845,40 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                     #         break
                     #
                     # if is_stack_tainted is False and is_data_region_tainted is False:
-                    #     if successor.solver.symbolic(successor.scratch.guard):
-                    #         # special case to deal with preconstrained sp related guards
-                    #         if len(list(successor.scratch.guard.variables)) == 1 and \
-                    #                 list(successor.scratch.guard.variables)[0].startswith("precon_sp"):
-                    #             try:
-                    #                 if successor.solver.eval(successor.scratch.guard):
-                    #                     symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                    #                                                           successor.scratch.guard,
-                    #                                                           successor.history.jumpkind, True,
-                    #                                                           successor.scratch.exit_stmt_idx,
-                    #                                                           successor.scratch.exit_ins_addr,
-                    #                                                           successor.scratch.source)
-                    #             except SimUnsatError:
-                    #                 print("Hmmmmmmmmmmm")
-                    #                 import ipdb;
-                    #                 ipdb.set_trace()
-                    #         else:
-                    #             symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                    #                                                   successor.scratch.guard,
-                    #                                                   successor.history.jumpkind, True,
-                    #                                                   successor.scratch.exit_stmt_idx,
-                    #                                                   successor.scratch.exit_ins_addr,
-                    #                                                   successor.scratch.source)
-                    #
-                    #
-                    #     elif successor.scratch.guard.is_true():
-                    #         # only adding successors that are non-symbolic and true guard
-                    #         symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                    #                                               successor.scratch.guard,
-                    #                                               successor.history.jumpkind, True,
-                    #                                               successor.scratch.exit_stmt_idx,
-                    #                                               successor.scratch.exit_ins_addr,
-                    #                                               successor.scratch.source)
+                    if keep:
+                        if successor.solver.symbolic(successor.scratch.guard):
+                            # special case to deal with preconstrained sp related guards
+                            if len(list(successor.scratch.guard.variables)) == 1 and \
+                                    list(successor.scratch.guard.variables)[0].startswith("precon_sp"):
+                                try:
+                                    if successor.solver.eval(successor.scratch.guard):
+                                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                              successor.scratch.guard,
+                                                                              successor.history.jumpkind, True,
+                                                                              successor.scratch.exit_stmt_idx,
+                                                                              successor.scratch.exit_ins_addr,
+                                                                              successor.scratch.source)
+                                except SimUnsatError:
+                                    print("Hmmmmmmmmmmm")
+                                    import ipdb;
+                                    ipdb.set_trace()
+                            else:
+                                symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                      successor.scratch.guard,
+                                                                      successor.history.jumpkind, True,
+                                                                      successor.scratch.exit_stmt_idx,
+                                                                      successor.scratch.exit_ins_addr,
+                                                                      successor.scratch.source)
+
+
+                        elif successor.scratch.guard.is_true():
+                            # only adding successors that are non-symbolic and true guard
+                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                  successor.scratch.guard,
+                                                                  successor.history.jumpkind, True,
+                                                                  successor.scratch.exit_stmt_idx,
+                                                                  successor.scratch.exit_ins_addr,
+                                                                  successor.scratch.source)
 
         # succ_addrs = []
         # for succ in symbolic_sim_successors.all_successors:
@@ -845,6 +893,8 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         #             new_state.globals['cur_block_id'] = succ.block_id
         #             symbolic_sim_successors.add_successor(new_state, new_state.scratch.target, new_state.scratch.guard, new_state.history.jumpkind)
         #
+        print(symbolic_sim_successors.all_successors)
+        print(symbolic_sim_successors)
         node.final_states = symbolic_sim_successors
         abstract_state.concrete_states = symbolic_sim_successors.all_successors
         self._node_iterations[block_key] += 1
