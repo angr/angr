@@ -1018,10 +1018,13 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
 
         # assign block_id's cause indirect jump block id assignments are sometimes wrong by DataSensistive engine
         for succ_node in self._graph.successors(node):
-            if succ_node.addr == sim_successors.all_successors[0].addr:
-                sim_successors.all_successors[0].globals['cur_block_id'] = succ_node.block_id
+            if succ_node.addr == sim_successors.successors[0].addr:
+                sim_successors.successors[0].globals['cur_block_id'] = succ_node.block_id
 
-        print(sim_successors.all_successors[0].globals['cur_block_id'])
+        print(sim_successors.successors[0].globals['cur_block_id'])
+
+        if len(sim_successors.successors) > 1:
+            import ipdb;ipdb.set_trace()
 
         node.final_states = sim_successors.successors
         #self._node_iterations[block_key] += 1
