@@ -896,14 +896,14 @@ class VMDeobfuscation(Analysis):
 
         start_state_copy = start_state.copy()
         cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
-
+        self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
         for node in cfg.graph.nodes():
             node.input_state = None
             node.final_states = None
 
         folder_name = os.path.dirname(self.project.filename)
-        self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
+        #self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
 
         # removing path terminators, cause...............they causing problems
         cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
@@ -912,20 +912,52 @@ class VMDeobfuscation(Analysis):
      #   cfg = self.new_model_without_fakeret(cfg.graph, proj, 'without_path_fakeret')
 
         cfg = self.keep_only_one_graph(cfg, start_addr)
-        self.draw_graph(cfg, os.path.join(folder_name, "one_graph_input.svg"))
+        #self.draw_graph(cfg, os.path.join(folder_name, "one_graph_input.svg"))
 
         start_state_copy = start_state.copy()
         cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
 
-       # This analysis needs more work
+        # res = proj.analyses.Propagator(func=proj.kb.functions.get_by_addr(0x402350), func_graph=proj.kb.functions.get_by_addr(0x402350).graph)
+        # import ipdb;
+        # ipdb.set_trace()
+        #
+        # sub_nodes = []
+        # done = False
+        # for node in cfg.nodes():
+        #     if node.addr == 0x43aab6 and node.block_id.vm_vpc == 4281418:
+        #         sub_nodes.append(node)
+        #         while True:
+        #             succ = list(cfg.graph.successors(node))
+        #             sub_nodes.append(succ[0])
+        #             node = succ[0]
+        #             if node.addr == 0x47bc28 and node.block_id.vm_vpc == 4358394:
+        #                 sub_nodes.append(node)
+        #                 done = True
+        #                 break
+        #         if done:
+        #             break
+        # sub_graph = cfg.graph.subgraph(sub_nodes).copy()
+        #
+        # sub_graph = self.new_model_graph(sub_graph, proj, 'sub_cfg')
+
+
+
+
+    # This analysis needs more work
        #cfg = self.remove_non_local_variable_dep_branches(cfg, proj, start_state, start_addr, verification_input, cfg_fast_graph, avoid_runs)
 
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         initial_cfg = self.new_model_graph(cfg.graph, proj, 'initial_cfg')
 
+        # new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(sub_graph, proj, start_addr=0x43aab6,
+        #                                                                        start_state=None,
+        #                                                                        prev_symbolic_expr_locations_blockwise=None,
+        #                                                                        vm_vpc=4281418)  # start_state=saved_start_state)
+
         # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr=start_addr, start_state=None, prev_symbolic_expr_locations_blockwise=None)#start_state=saved_start_state)
         start_state_copy = start_state.copy()
+        self.project.kb.cfgs.cfgs = {}
 
         # import ipdb;ipdb.set_trace()
 
@@ -934,6 +966,11 @@ class VMDeobfuscation(Analysis):
         cfg = None
         new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(cfg, proj, symbolic_expr_locations_blockwise, start_addr=start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
 
+        self.project.kb.cfgs.cfgs = {}
+        # clearing the saved states to save space
+        for node in new_cfg.graph.nodes():
+            node.input_state = None
+            node.final_states = None
 
         new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
 
@@ -955,12 +992,19 @@ class VMDeobfuscation(Analysis):
 
         start_state_copy = start_state.copy()
 
-        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr)
+        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         # import ipdb;ipdb.set_trace()
 
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr=start_addr,
                                                                                start_state=None,
-                                                                               prev_symbolic_expr_locations_blockwise=symbolic_expr_locations_blockwise)
+                                                                               prev_symbolic_expr_locations_blockwise=None)
+        self.project.kb.cfgs.cfgs = {}
+
+        # clearing the saved states to save space
+        for node in new_cfg.graph.nodes():
+            node.input_state = None
+            node.final_states = None
+        self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
 
         self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         import ipdb;ipdb.set_trace()
@@ -968,11 +1012,7 @@ class VMDeobfuscation(Analysis):
         #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         # import ipdb;ipdb.set_trace()
 
-        # clearing the saved states to save space
-        for node in new_cfg.graph.nodes():
-            node.input_state = None
-            node.final_states = None
-        self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
+
 
         # # this is a simplification pass to remove all push x, ret to x type of jumps
         new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
@@ -1057,7 +1097,7 @@ class VMDeobfuscation(Analysis):
 
 
         self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-
+        import ipdb;ipdb.set_trace()
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
@@ -1529,7 +1569,7 @@ class VMDeobfuscation(Analysis):
                             if succ.addr == node.irsb.next.con.value:
                                 block_id_for_next = succ.block_id
 
-
+                    # if block_id is None then it's probably some weird VEX instruction......
                     if isinstance(poss_exit_stmt.dst, pyvex.const.U64):
                         new_stmts[ind] = pyvex.stmt.Exit(poss_exit_stmt.guard,
                                                             DataSensitiveU64(poss_exit_stmt.dst.value, branch_block_id),
@@ -1669,9 +1709,14 @@ class VMDeobfuscation(Analysis):
         if semantic_verf_hooks:
             for symbol_addr, proc in semantic_verf_hooks:
                 if isinstance(symbol_addr, str):
-                    proj.unhook_symbol(symbol_addr)
+                    sym = proj.loader.find_symbol(symbol_addr)
+                    if sym.owner is proj.loader._extern_object:
+                        proj.hook_symbol(symbol_addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=proj.factory._default_cc(start_state.arch), prototype=proc.prototype))
+                    else:
+                        proj.unhook_symbol(symbol_addr)
                 else:
-                    proj.unhook(symbol_addr)
+                    proj.hook(symbol_addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=proj.factory._default_cc(start_state.arch), prototype=proc.prototype))
+                    #proj.unhook(symbol_addr)
 
         import ipdb;ipdb.set_trace()
 
@@ -2883,7 +2928,7 @@ class VMDeobfuscation(Analysis):
         return cfg, proj
 
     ####### Constant Propagation
-    def constant_propagation(self, cfg, proj, start_addr, start_state=None,options=None, prev_symbolic_expr_locations_blockwise=None):
+    def constant_propagation(self, cfg, proj, start_addr, start_state=None,options=None, prev_symbolic_expr_locations_blockwise=None, vm_vpc = None):
         self.project.prev_symbolic_expr_locations_blockwise = prev_symbolic_expr_locations_blockwise
         print("Doing constant propagation")
         # old_graph = cfg.graph
@@ -2945,7 +2990,9 @@ class VMDeobfuscation(Analysis):
         ## annotating and preconstraining the stack pointer
         #self.annotate_and_preconstrain_sp(initial_input_state)
 
-        new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
+        for node in new_model._nodes_by_addr[start_addr]:
+            if node.addr == start_addr and node.block_id.vm_vpc == vm_vpc:
+                node.input_state = initial_input_state
         ## find the replacements
 
 
