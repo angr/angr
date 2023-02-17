@@ -40,6 +40,9 @@ class NameResolutionMixin(MemoryMixin):
             if name == "sp" and "sp" not in self.state.arch.registers:
                 sp_reg_name = self.state.arch.register_names[self.state.arch.sp_offset]
                 return self.state.arch.registers[sp_reg_name]
+            if name == "lr" and "lr" not in self.state.arch.registers:
+                lr_reg_name = self.state.arch.register_names[self.state.arch.lr_offset]
+                return self.state.arch.registers[lr_reg_name]
 
             return self.state.arch.registers[name]
         elif name[0] == "*":
