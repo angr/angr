@@ -192,39 +192,21 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         self.has_end = has_end
         self.seekable = seekable
 
-        # this is hacky because we need to work around not having a state yet
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+
         content = _deps_unpack(content)[0]
-        if type(content) is bytes:
-            if concrete is None:
-                concrete = True
-            content = claripy.BVV(content)
-        elif type(content) is str:
-            if concrete is None:
-                concrete = True
-            content = claripy.BVV(content.encode())
-        elif content is None:
-            pass
-        elif isinstance(content, claripy.Bits):
-            if concrete is None and not content.symbolic:
-                concrete = True
-            pass
-        else:
-            raise TypeError("Can't handle SimFile content of type %s" % type(content))
-
         if concrete is None:
-            concrete = False
+            if isinstance(content, bytes):
+                concrete = True
+            elif isinstance(content, claripy.Bits) and not content.symbolic:
+                concrete = True
+            else:
+                concrete = False
+
+        # this is hacky because we need to work around not having a state yet
+        self.__content = content
         self.concrete = concrete
-
-        if content is not None:
-            self.__content = content
-
-            if self._size is None:
-                self._size = len(content) // 8
-        else:
-            if self._size is None:
-                self._size = 0
-                if has_end is None:
-                    self.has_end = False
 
     @property
     def category(self):  # override trying to determine from self.id to allow arbitrary idents
@@ -237,7 +219,25 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         except AttributeError:
             pass
         else:
-            self.store(0, content)
+            if content is not None:
+                if isinstance(content, bytes):
+                    size = len(content)
+                    for idx in range(0, len(content), 0x1000):
+                        chunk = content[idx : idx + 0x1000]
+                        self.store(idx, chunk)
+                elif isinstance(content, claripy.Bits):
+                    size = len(content) // 8
+                    self.store(0, content)
+                else:
+                    raise TypeError(f"Bad type for SimFile content: {type(content)}")
+                self.store(0, content)
+                if self._size is None:
+                    self._size = size
+            else:
+                if self._size is None:
+                    self._size = 0
+                    if self.has_end is None:
+                        self.has_end = False
             del self.__content
 
         if self.has_end is None:
