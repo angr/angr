@@ -1,9 +1,10 @@
 # pylint:disable=line-too-long,multiple-statements
-from typing import Dict, Tuple, List, Optional, Union, Set
+from typing import Dict, Tuple, List, Optional, Union, Set, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
 import networkx
+from sortedcontainers import SortedDict
 
 import pyvex
 from claripy.utils.orderedset import OrderedSet
@@ -21,6 +22,7 @@ from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.procedures.procedure_dict import SIM_PROCEDURES
 from angr.errors import (
+    AngrCFGError,
     SimTranslationError,
     SimMemoryError,
     SimIRSBError,
@@ -33,6 +35,10 @@ from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from angr.analyses import Analysis
 from angr.analyses.stack_pointer_tracker import StackPointerTracker
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
+
+if TYPE_CHECKING:
+    from angr.sim_state import SimState
+
 
 l = logging.getLogger(name=__name__)
 
@@ -51,6 +57,10 @@ class CFGBase(Analysis):
         context_sensitivity_level,
         normalize=False,
         binary=None,
+        objects=None,
+        regions=None,
+        exclude_sparse_regions=True,
+        skip_specific_regions=True,
         force_segment=False,
         base_state=None,
         resolve_indirect_jumps=True,
@@ -67,7 +77,11 @@ class CFGBase(Analysis):
         :param int context_sensitivity_level:       The level of context-sensitivity of this CFG (see documentation for
                                                     further details). It ranges from 0 to infinity.
         :param bool normalize:                      Whether the CFG as well as all Function graphs should be normalized.
-        :param cle.backends.Backend binary:         The binary to recover CFG on. By default the main binary is used.
+        :param cle.backends.Backend binary:         The binary to recover CFG on. By default, the main binary is used.
+        :param objects:                             A list of objects to recover the CFG on. By default, it will recover
+                                                    the CFG of all loaded objects.
+        :param iterable regions:                    A list of tuples in the form of (start address, end address)
+                                                    describing memory regions that the CFG should cover.
         :param bool force_segment:                  Force CFGFast to rely on binary segments instead of sections.
         :param angr.SimState base_state:            A state to use as a backer for all memory loads.
         :param bool resolve_indirect_jumps:         Whether to try to resolve indirect jumps.
@@ -191,6 +205,47 @@ class CFGBase(Analysis):
             self._model = model
         else:
             self._model: CFGModel = self.kb.cfgs.new_model(self.tag)
+
+        # necessary warnings
+        regions_not_specified = regions is None and binary is None and not objects
+        if regions_not_specified and self.project.loader._auto_load_libs and len(self.project.loader.all_objects) > 3:
+            l.warning(
+                '"auto_load_libs" is enabled. With libraries loaded in project, CFG will cover libraries, '
+                "which may take significantly more time than expected. You may reload the binary with "
+                '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
+            )
+
+        if regions is None:
+            if self._skip_unmapped_addrs:
+                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
+            else:
+                if not objects:
+                    objects = self.project.loader.all_objects
+                regions = [(obj.min_addr, obj.max_addr) for obj in objects]
+
+        for start, end in regions:
+            if end < start:
+                raise AngrCFGError("Invalid region bounds (end precedes start)")
+
+        if exclude_sparse_regions:
+            regions = [r for r in regions if not self._is_region_extremely_sparse(*r, base_state=base_state)]
+
+        if skip_specific_regions:
+            if base_state is not None:
+                l.warning("You specified both base_state and skip_specific_regions. They may conflict with each other.")
+            regions = [r for r in regions if not self._should_skip_region(r[0])]
+
+        if not regions and self.project.arch.name != "Soot":
+            raise AngrCFGError(
+                "Regions are empty, or all regions are skipped. You may want to manually specify regions."
+            )
+
+        self._regions_size = sum((end - start) for start, end in regions)
+        self._regions = SortedDict(regions)
+
+        l.debug("CFG recovery covers %d regions:", len(self._regions))
+        for start, end in self._regions.items():
+            l.debug("... %#x - %#x", start, end)
 
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
@@ -543,15 +598,61 @@ class CFGBase(Analysis):
 
         return successors_filtered
 
-    def _is_region_extremely_sparse(self, start, end, base_state=None):
+    # Methods for determining scanning scope
+
+    def _inside_regions(self, address: int) -> bool:
+        """
+        Check if the address is inside any existing region.
+
+        :param int address: Address to check.
+        :return:            True if the address is within one of the memory regions, False otherwise.
+        """
+
+        try:
+            start_addr = next(self._regions.irange(maximum=address, reverse=True))
+        except StopIteration:
+            return False
+        else:
+            return address < self._regions[start_addr]
+
+    def _get_min_addr(self) -> Optional[int]:
+        """
+        Get the minimum address out of all regions. We assume self._regions is sorted.
+
+        :return: The minimum address, or None if there is no such address.
+        """
+
+        if not self._regions:
+            if self.project.arch.name != "Soot":
+                l.error("self._regions is empty or not properly set.")
+            return None
+
+        return next(self._regions.irange())
+
+    def _next_address_in_regions(self, address: int) -> Optional[int]:
+        """
+        Return the next immediate address that is inside any of the regions.
+
+        :param address: The address to start scanning.
+        :return:        The next address that is inside one of the memory regions, or None if there is no such address.
+        """
+
+        if self._inside_regions(address):
+            return address
+
+        try:
+            return next(self._regions.irange(minimum=address, reverse=False))
+        except StopIteration:
+            return None
+
+    def _is_region_extremely_sparse(self, start: int, end: int, base_state: Optional["SimState"] = None) -> bool:
         """
         Check whether the given memory region is extremely sparse, i.e., all bytes are the same value.
 
-        :param int start: The beginning of the region.
-        :param int end:   The end of the region (exclusive).
+        :param start:      The beginning of the region.
+        :param end:        The end of the region (exclusive).
         :param base_state: The base state (optional).
         :return:           True if the region is extremely sparse, False otherwise.
-        :rtype:            bool
         """
 
         all_bytes = None
