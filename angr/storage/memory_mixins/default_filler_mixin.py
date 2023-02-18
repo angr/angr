@@ -47,7 +47,7 @@ class DefaultFillerMixin(MemoryMixin):
             if once("mem_fill_warning"):
                 what = "memory" if is_mem else "register"
                 l.warning(
-                    "The program is accessing %s with an unspecified value. " "This could indicate unwanted behavior.",
+                    "The program is accessing %s with an unspecified value. This could indicate unwanted behavior.",
                     what,
                 )
                 l.warning(

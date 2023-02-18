@@ -178,7 +178,7 @@ class Function(Serializable):
         else:
             if self.project is None:
                 raise ValueError(
-                    "'syscall' must be specified if you do not specify a function manager for this new" " function."
+                    "'syscall' must be specified if you do not specify a function manager for this new function."
                 )
 
             # Determine whether this function is a syscall or not
@@ -190,8 +190,8 @@ class Function(Serializable):
         else:
             if self.project is None:
                 raise ValueError(
-                    "'is_simprocedure' must be specified if you do not specify a function manager for this"
-                    " new function."
+                    "'is_simprocedure' must be specified if you do not specify a function manager for this new "
+                    "function."
                 )
 
             if self.is_syscall or self.project.is_hooked(addr):
@@ -204,7 +204,7 @@ class Function(Serializable):
             # Whether this function is a PLT entry or not is fully relying on the PLT detection in CLE
             if self.project is None:
                 raise ValueError(
-                    "'is_plt' must be specified if you do not specify a function manager for this new" " function."
+                    "'is_plt' must be specified if you do not specify a function manager for this new function."
                 )
 
             self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
@@ -229,7 +229,7 @@ class Function(Serializable):
         else:
             if self.project is None:
                 raise ValueError(
-                    "'returning' must be specified if you do not specify a functio nmnager for this new" " function."
+                    "'returning' must be specified if you do not specify a function manager for this new function."
                 )
 
             self._returning = self._get_initial_returning()

@@ -76,7 +76,7 @@ class HeavyPcodeMixin(
             insn_bytes = self.project.arch.asm(insn_text, addr=successors.addr, thumb=thumb)
             if insn_bytes is None:
                 raise errors.AngrAssemblyError(
-                    "Assembling failed. Please make sure keystone is installed, and the" " assembly string is correct."
+                    "Assembling failed. Please make sure keystone is installed, and the assembly string is correct."
                 )
 
         successors.sort = "IRSB"

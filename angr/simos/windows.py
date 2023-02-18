@@ -362,7 +362,7 @@ class SimWindows(SimOS):
             except Exception as e:
                 # lol no
                 _l.error(
-                    "Got some weirdo error while re-executing %d instructions at %#x " "for exception windup",
+                    "Got some weirdo error while re-executing %d instructions at %#x for exception windup",
                     num_inst,
                     successors.initial_state.addr,
                 )

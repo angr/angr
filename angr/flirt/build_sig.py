@@ -202,19 +202,19 @@ def main():
     parser.add_argument("sig_name", help="Name of the signature (a string inside the signature file)")
     parser.add_argument("sig_path", help="File name of the generated signature")
     parser.add_argument(
-        "--compiler", help="Name of the compiler (e.g., gcc, clang). It will be stored in the meta " "data file."
+        "--compiler", help="Name of the compiler (e.g., gcc, clang). It will be stored in the meta data file."
     )
     parser.add_argument(
-        "--compiler_version", help="Version of the compiler (e.g., 6). It will be stored in the meta " "data file."
+        "--compiler_version", help="Version of the compiler (e.g., 6). It will be stored in the meta data file."
     )
     # parser.add_argument("--platform", help="Name of the platform (e.g., windows/linux/macos). It will be stored in
     # the meta data file.")
     parser.add_argument(
-        "--os", help="Name of the operating system (e.g., ubuntu/debian). It will be stored in the " "meta data file."
+        "--os", help="Name of the operating system (e.g., ubuntu/debian). It will be stored in the meta data file."
     )
     parser.add_argument(
         "--os_version",
-        help="Version of the operating system (e.g., 20.04). It will be stored in the " "meta data file.",
+        help="Version of the operating system (e.g., 20.04). It will be stored in the meta data file.",
     )
     parser.add_argument("--pelf_path", help="Path of pelf")
     parser.add_argument("--sigmake_path", help="Path of sigmake")

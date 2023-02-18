@@ -164,7 +164,7 @@ class Concrete(SimStatePlugin):
                 )
             except SimConcreteRegisterError as exc:
                 l.debug(
-                    "Can't set register %s reason: %s, if this register is not used " "this message can be ignored",
+                    "Can't set register %s reason: %s, if this register is not used this message can be ignored",
                     register_name,
                     exc,
                 )

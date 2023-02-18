@@ -118,7 +118,7 @@ class Callable:
 
         if not ast.ext[0].body.block_items or not isinstance(ast.ext[0].body.block_items[0], pycparser.c_ast.FuncCall):
             raise AngrCallableError(
-                "Error in parsing the given C-style argument string: " "Cannot find the expected function call."
+                "Error in parsing the given C-style argument string: Cannot find the expected function call."
             )
 
         arg_exprs = ast.ext[0].body.block_items[0].args.exprs
