@@ -371,7 +371,7 @@ class CFBlanket(Analysis):
             else:
                 try:
                     _l.debug(
-                        "Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
+                        "Loading bytes from object %s, section %s, segment %s, address %#x.",
                         obj,
                         section,
                         segment,
@@ -411,7 +411,7 @@ class CFBlanket(Analysis):
                     else:
                         try:
                             _l.debug(
-                                "Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
+                                "Loading bytes from object %s, section %s, segment %s, address %#x.",
                                 obj,
                                 section,
                                 segment,
