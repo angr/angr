@@ -664,6 +664,10 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             0,
             normalize=normalize,
             binary=binary,
+            objects=objects,
+            regions=regions,
+            exclude_sparse_regions=exclude_sparse_regions,
+            skip_specific_regions=skip_specific_regions,
             force_segment=force_segment,
             base_state=base_state,
             resolve_indirect_jumps=resolve_indirect_jumps,
@@ -676,19 +680,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         )
 
         # necessary warnings
-        regions_not_specified = regions is None and binary is None and not objects
-        if (
-            self.project.loader._auto_load_libs is True
-            and end is None
-            and len(self.project.loader.all_objects) > 3
-            and regions_not_specified
-        ):
-            l.warning(
-                '"auto_load_libs" is enabled. With libraries loaded in project, CFGFast will cover libraries, '
-                "which may take significantly more time than expected. You may reload the binary with "
-                '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
-            )
-
         if collect_data_references is not None:
             l.warning(
                 '"collect_data_references" is deprecated and will be removed soon. Please use '
@@ -731,40 +722,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         if binary is not None and not objects:
             objects = [binary]
-        regions = regions if regions is not None else None
-
-        if regions is None:
-            if self._skip_unmapped_addrs:
-                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
-            else:
-                if objects:
-                    regions = [(obj.min_addr, obj.max_addr) for obj in objects]
-                else:
-                    regions = [(obj.min_addr, obj.max_addr) for obj in self.project.loader.all_objects]
-
-        if exclude_sparse_regions:
-            new_regions = []
-            for start_, end_ in regions:
-                if not self._is_region_extremely_sparse(start_, end_, base_state=base_state):
-                    new_regions.append((start_, end_))
-            regions = new_regions
-        if skip_specific_regions:
-            if base_state is not None:
-                l.warning("You specified both base_state and skip_specific_regions. They may conflict with each other.")
-            new_regions = []
-            for start_, end_ in regions:
-                if not self._should_skip_region(start_):
-                    new_regions.append((start_, end_))
-            regions = new_regions
-        if not regions and self.project.arch.name != "Soot":
-            raise AngrCFGError(
-                "Regions are empty or all regions are skipped. You may want to manually specify " "regions."
-            )
-        # sort the regions
-        regions = sorted(regions, key=lambda x: x[0])
-        self._regions_size = sum((b - a) for a, b in regions)
-        # initial self._regions as a sorted dict
-        self._regions = SortedDict(regions)
 
         self._pickle_intermediate_results = pickle_intermediate_results
 
@@ -804,10 +761,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._data_type_guessing_handlers = [] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
         self._cfb = cfb
-
-        l.debug("CFG recovery covers %d regions:", len(self._regions))
-        for start_addr in self._regions:
-            l.debug("... %#x - %#x", start_addr, self._regions[start_addr])
 
         # mapping to all known thunks
         self._known_thunks = {}
@@ -916,56 +869,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     #
     # Private methods
     #
-
-    # Methods for determining scanning scope
-
-    def _inside_regions(self, address):
-        """
-        Check if the address is inside any existing region.
-
-        :param int address: Address to check.
-        :return:            True if the address is within one of the memory regions, False otherwise.
-        :rtype:             bool
-        """
-
-        try:
-            start_addr = next(self._regions.irange(maximum=address, reverse=True))
-        except StopIteration:
-            return False
-        else:
-            return address < self._regions[start_addr]
-
-    def _get_min_addr(self):
-        """
-        Get the minimum address out of all regions. We assume self._regions is sorted.
-
-        :return: The minimum address.
-        :rtype:  int
-        """
-
-        if not self._regions:
-            if self.project.arch.name != "Soot":
-                l.error("self._regions is empty or not properly set.")
-            return None
-
-        return next(self._regions.irange())
-
-    def _next_address_in_regions(self, address):
-        """
-        Return the next immediate address that is inside any of the regions.
-
-        :param int address: The address to start scanning.
-        :return:            The next address that is inside one of the memory regions.
-        :rtype:             int
-        """
-
-        if self._inside_regions(address):
-            return address
-
-        try:
-            return next(self._regions.irange(minimum=address, reverse=False))
-        except StopIteration:
-            return None
 
     # Methods for scanning the entire image
 
