@@ -6,6 +6,7 @@ import re
 import string
 from typing import List, Set, Dict, Optional
 from collections import defaultdict, OrderedDict
+from enum import Enum, unique
 
 import networkx
 from sortedcontainers import SortedDict
@@ -409,6 +410,19 @@ class FunctionReturnEdge(FunctionEdge):
 #
 
 
+@unique
+class CFGJobType(Enum):
+    """
+    Defines the type of work of a CFGJob
+    """
+
+    NORMAL = 0
+    FUNCTION_PROLOGUE = 1
+    COMPLETE_SCANNING = 2
+    IFUNC_HINTS = 3
+    DATAREF_HINTS = 4
+
+
 class CFGJob:
     """
     Defines a job to work on during the CFG recovery
@@ -430,12 +444,6 @@ class CFGJob:
         "gp",
     )
 
-    JOB_TYPE_NORMAL = "Normal"
-    JOB_TYPE_FUNCTION_PROLOGUE = "Function-prologue"
-    JOB_TYPE_COMPLETE_SCANNING = "Complete-scanning"
-    JOB_TYPE_IFUNC_HINTS = "ifunc-hints"
-    JOB_TYPE_DATAREF_HINTS = "dataref-hints"
-
     def __init__(
         self,
         addr: int,
@@ -449,7 +457,7 @@ class CFGJob:
         returning_source=None,
         syscall: bool = False,
         func_edges: Optional[List] = None,
-        job_type=JOB_TYPE_NORMAL,
+        job_type: CFGJobType = CFGJobType.NORMAL,
         gp: Optional[int] = None,
     ):
         self.addr = addr
@@ -1185,7 +1193,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         # Create jobs for all starting points
         for sp in sorted_starting_points:
-            job = CFGJob(sp, sp, "Ijk_Boring", job_type=CFGJob.JOB_TYPE_NORMAL)
+            job = CFGJob(sp, sp, "Ijk_Boring", job_type=CFGJobType.NORMAL)
             self._insert_job(job)
             # register the job to function `sp`
             self._register_analysis_job(sp, job)
@@ -1372,7 +1380,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
-                job = CFGJob(prolog_addr, prolog_addr, "Ijk_Boring", job_type=CFGJob.JOB_TYPE_FUNCTION_PROLOGUE)
+                job = CFGJob(prolog_addr, prolog_addr, "Ijk_Boring", job_type=CFGJobType.FUNCTION_PROLOGUE)
                 self._insert_job(job)
                 self._register_analysis_job(prolog_addr, job)
                 return
@@ -1413,7 +1421,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                             addr |= 1
                             # print(f"GUESSING: {hex(addr)} because of function {repr(func)}.")
 
-                job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJob.JOB_TYPE_COMPLETE_SCANNING)
+                job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJobType.COMPLETE_SCANNING)
                 self._insert_job(job)
                 self._register_analysis_job(addr, job)
 
@@ -2426,7 +2434,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         v,
                         v,
                         "Ijk_Boring",
-                        job_type=CFGJob.JOB_TYPE_DATAREF_HINTS,
+                        job_type=CFGJobType.DATAREF_HINTS,
                     )
                     self._pending_jobs.add_job(ce)
                     self._register_analysis_job(v, ce)
@@ -4199,7 +4207,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         return None, None, None, None
                     if assumption.attempted_thumb:
                         switch_mode_on_nodecode = False
-                        if addr % 2 == 1 and cfg_job.job_type == CFGJob.JOB_TYPE_COMPLETE_SCANNING:
+                        if addr % 2 == 1 and cfg_job.job_type == CFGJobType.COMPLETE_SCANNING:
                             # we have attempted THUMB mode. time to try ARM mode instead.
                             if current_function_addr == addr:
                                 current_function_addr &= ~1
@@ -4210,7 +4218,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         else:
                             # we have attempted THUMB mode and failed to decode.
                             if (
-                                cfg_job.job_type == CFGJob.JOB_TYPE_NORMAL
+                                cfg_job.job_type == CFGJobType.NORMAL
                                 and cfg_job.jumpkind in {"Ijk_Boring", "Ijk_FakeRet"}
                                 and cfg_job.src_node is not None
                             ):
@@ -4218,7 +4226,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                             return None, None, None, None
                     elif assumption.attempted_arm:
                         switch_mode_on_nodecode = False
-                        if addr % 2 == 0 and cfg_job.job_type == CFGJob.JOB_TYPE_COMPLETE_SCANNING:
+                        if addr % 2 == 0 and cfg_job.job_type == CFGJobType.COMPLETE_SCANNING:
                             # we have attempted ARM mode. time to try THUMB mode instead.
                             if current_function_addr == addr:
                                 current_function_addr |= 1
@@ -4229,7 +4237,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         else:
                             # we have attempted ARM mode and failed to decode.
                             if (
-                                cfg_job.job_type == CFGJob.JOB_TYPE_NORMAL
+                                cfg_job.job_type == CFGJobType.NORMAL
                                 and cfg_job.jumpkind == "Ijk_Boring"
                                 and cfg_job.src_node is not None
                             ):
@@ -4315,7 +4323,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             except SimTranslationError:
                 nodecode = True
 
-            if cfg_job.job_type == CFGJob.JOB_TYPE_COMPLETE_SCANNING:
+            if cfg_job.job_type == CFGJobType.COMPLETE_SCANNING:
                 # special logic during the complete scanning phase
 
                 if is_arm_arch(self.project.arch):
@@ -4381,7 +4389,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         if cfg_job.jumpkind != "Ijk_Call":
                             self._decoding_assumption_relations.add_edge(src_node_realaddr, real_addr)
                         self._decoding_assumptions[real_addr] = assumption
-                elif cfg_job.job_type in (CFGJob.JOB_TYPE_FUNCTION_PROLOGUE, CFGJob.JOB_TYPE_COMPLETE_SCANNING):
+                elif cfg_job.job_type in (CFGJobType.FUNCTION_PROLOGUE, CFGJobType.COMPLETE_SCANNING):
                     # this is the source of assumptions. it might be wrong!
                     if real_addr in self._decoding_assumptions:
                         # take the existing one and update it
@@ -4597,7 +4605,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                                 sec = self.project.loader.find_section_containing(ref.data_addr)
                                 if sec is not None and sec.is_executable:
                                     job = CFGJob(
-                                        ref.data_addr, ref.data_addr, "Ijk_Call", job_type=CFGJob.JOB_TYPE_IFUNC_HINTS
+                                        ref.data_addr, ref.data_addr, "Ijk_Call", job_type=CFGJobType.IFUNC_HINTS
                                     )
                                     self._insert_job(job)
                                     added_addrs.add(ref.data_addr)
