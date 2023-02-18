@@ -30,7 +30,7 @@ SimStateOptions.register_option(
     "symbolic_ip_max_targets",
     int,
     default=256,
-    description="The maximum number of concrete addresses a symbolic instruction pointer " "can be concretized to.",
+    description="The maximum number of concrete addresses a symbolic instruction pointer can be concretized to.",
 )
 SimStateOptions.register_option(
     "jumptable_symbolic_ip_max_targets",

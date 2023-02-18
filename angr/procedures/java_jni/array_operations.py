@@ -112,7 +112,7 @@ class GetObjectArrayElement(JNISimProcedure):
         if self.state.solver.symbolic(idx):
             idx = self.state.eval(idx)
             l.warning(
-                "Symbolic indices are not supported for object arrays %s. " "Index gets concretized to %s", array, idx
+                "Symbolic indices are not supported for object arrays %s. Index gets concretized to %s", array, idx
             )
 
         # load element and return reference to it
@@ -135,7 +135,7 @@ class SetObjectArrayElement(JNISimProcedure):
         if self.state.solver.symbolic(idx):
             idx = self.state.eval(idx)
             l.warning(
-                "Symbolic indices are not supported for object arrays %s. " "Index gets concretized to %s", array, idx
+                "Symbolic indices are not supported for object arrays %s. Index gets concretized to %s", array, idx
             )
 
         self.state.javavm_memory.store_array_element(array, idx, value)
@@ -177,7 +177,7 @@ class ReleaseArrayElements(JNISimProcedure):
     def run(self, ptr_env, array_, ptr_elems, mode_):
         if self.state.solver.symbolic(mode_):
             l.warning(
-                "Symbolic mode %s in JNI function ReleaseArrayElements" "is not supported and gets concretized.", mode_
+                "Symbolic mode %s in JNI function ReleaseArrayElements is not supported and gets concretized.", mode_
             )
         mode = self.state.solver.min(mode_)  # avoid JNI_ABORT by taking the minimum
 
@@ -230,7 +230,7 @@ class GetArrayRegion(JNISimProcedure):
         if state.solver.symbolic(length):
             midpoint_length = (state.solver.min(length) + state.solver.max(length)) // 2
             state.solver.add(length == midpoint_length)
-            l.warning("Symbolic lengths are currently not supported. " "Length is concretized to a midpoint value.")
+            l.warning("Symbolic lengths are currently not supported. Length is concretized to a midpoint value.")
         return state.solver.eval_one(length)
 
     @staticmethod
@@ -260,8 +260,7 @@ class GetArrayRegion(JNISimProcedure):
             # TODO raise java.lang.ArrayIndexOutOfBoundsException
             #      For now, we just skip this SimProcedure.
             l.error(
-                "Skipping SimProcedure: "
-                "Every combination of start_idx %s and length %s is invalid (array length %s).",
+                "Skipping SimProcedure: Every combination of start_idx %s and length %s is invalid (array length %s).",
                 start_idx,
                 length,
                 array.size,

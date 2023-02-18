@@ -26,7 +26,7 @@ class StateOption:
         # Sanity check
         if not isinstance(self.default, tuple(self.types)):
             raise SimStateOptionsError(
-                "The type of the default value does not match the expected types of this state " "option."
+                "The type of the default value does not match the expected types of this state option."
             )
 
         # Speed optimization

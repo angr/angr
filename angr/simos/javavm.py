@@ -144,7 +144,7 @@ class SimJavaVM(SimOS):
 
         if not self.project.entry and not addr:
             raise ValueError(
-                "Failed to init blank state. Project entry is not set/invalid " "and no address was provided."
+                "Failed to init blank state. Project entry is not set/invalid and no address was provided."
             )
 
         # init state register
@@ -347,7 +347,7 @@ class SimJavaVM(SimOS):
         if to_type in ["float", "double"]:
             if value.symbolic:
                 # TODO extend support for floating point types
-                l.warning("No support for symbolic floating-point arguments." "Value gets concretized.")
+                l.warning("No support for symbolic floating-point arguments. Value gets concretized.")
             value = float(state.solver.eval(value))
             sort = FSORT_FLOAT if to_type == "float" else FSORT_DOUBLE
             return FPV(value, sort)
@@ -422,8 +422,8 @@ class SimJavaVM(SimOS):
                 return symbol.rebased_addr
 
         native_symbols = "\n".join(self.native_symbols.keys())
-        l.warning("No native method found that matches the Soot method '%s'. " "Skipping statement.", soot_method.name)
-        l.debug("Available symbols (prefix + encoded class path + encoded method " "name):\n%s", native_symbols)
+        l.warning("No native method found that matches the Soot method '%s'. Skipping statement.", soot_method.name)
+        l.debug("Available symbols (prefix + encoded class path + encoded method name):\n%s", native_symbols)
         return None
 
     def get_native_type(self, java_type):

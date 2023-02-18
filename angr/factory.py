@@ -328,7 +328,7 @@ class AngrObjectFactory:
             if byte_string is None:
                 # assembly failed
                 raise AngrAssemblyError(
-                    "Assembling failed. Please make sure keystone is installed, and the assembly" " string is correct."
+                    "Assembling failed. Please make sure keystone is installed, and the assembly string is correct."
                 )
 
         if max_size is not None:

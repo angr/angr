@@ -33,7 +33,7 @@ class SimSootExpr_NewArray(SimSootExpr):
         # overwrite size, if it *always* exceeds the maximum
         if True not in size_stays_below_maximum:
             l.warning(
-                "Array size %s always exceeds maximum size. " "It gets overwritten with the maximum %s.",
+                "Array size %s always exceeds maximum size. It gets overwritten with the maximum %s.",
                 array_size,
                 max_array_size,
             )
@@ -42,7 +42,7 @@ class SimSootExpr_NewArray(SimSootExpr):
         # bound size, if it *can* exceeds the maximum
         if True in size_stays_below_maximum and False in size_stays_below_maximum:
             l.warning(
-                "Array size %s can exceed maximum size. " "It gets bounded with the maximum %s.",
+                "Array size %s can exceed maximum size. It gets bounded with the maximum %s.",
                 array_size,
                 max_array_size,
             )

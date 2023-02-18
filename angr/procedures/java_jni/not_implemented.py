@@ -18,9 +18,7 @@ class UnsupportedJNIFunction(JNISimProcedure):
         function_name = jni_functions.keys()[function_idx]
 
         # show warning
-        l.warning(
-            "SimProcedure for JNI function %s is not implemented. " "Returning unconstrained symbol.", function_name
-        )
+        l.warning("SimProcedure for JNI function %s is not implemented. Returning unconstrained symbol.", function_name)
 
         # return unconstrained
         symbol_name = "unconstrained_ret_of_jni_func_%s" % function_name

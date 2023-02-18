@@ -3,7 +3,7 @@ try:
 except ImportError:
     sqlalchemy = None
     raise ImportError(
-        "AngrDB relies on SQLAlchemy. Please install SQLAlchemy first by running:\n" "\tpip install sqlalchemy"
+        "AngrDB relies on SQLAlchemy. Please install SQLAlchemy first by running:\n\tpip install sqlalchemy"
     )
 
 from .db import AngrDB

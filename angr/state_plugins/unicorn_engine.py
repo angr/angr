@@ -170,9 +170,9 @@ class STOP:
     stop_message[STOP_VEX_LIFT_FAILED] = "Failed to lift block to VEX"
     stop_message[STOP_SYMBOLIC_PC] = "Instruction pointer became symbolic"
     stop_message[STOP_SYMBOLIC_READ_ADDR] = "Attempted to read from symbolic address"
-    stop_message[STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED] = (
-        "Attempted to read symbolic data from memory but " "symbolic tracking is disabled"
-    )
+    stop_message[
+        STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED
+    ] = "Attempted to read symbolic data from memory but symbolic tracking is disabled"
     stop_message[STOP_SYMBOLIC_WRITE_ADDR] = "Attempted to write to symbolic address"
     stop_message[STOP_SYMBOLIC_BLOCK_EXIT_CONDITION] = "Guard condition of block's exit statement is symbolic"
     stop_message[STOP_SYMBOLIC_BLOCK_EXIT_TARGET] = "Target of default exit of block is symbolic"

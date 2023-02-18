@@ -135,7 +135,7 @@ class JNISimProcedure(SimProcedure):
         for i in itertools.count():
             str_byte = self.state.memory.load(addr + i, size=1)
             if self.state.solver.symbolic(str_byte):
-                l.error("Loading of strings with symbolic chars is not supported. " "Character %d is concretized.", i)
+                l.error("Loading of strings with symbolic chars is not supported. Character %d is concretized.", i)
             str_byte = self.state.solver.eval(str_byte)
             if str_byte == 0:
                 break

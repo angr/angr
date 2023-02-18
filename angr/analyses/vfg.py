@@ -505,7 +505,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         if not self._cfg.normalized:
             l.warning(
-                "The given CFG is not normalized, which might impact the performance/accuracy of the VFG " "analysis."
+                "The given CFG is not normalized, which might impact the performance/accuracy of the VFG analysis."
             )
 
         # Prepare the state
@@ -1133,7 +1133,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 l.debug("No pending return for the current function %#x. Unwind the stack.", func_addr)
                 if not self._top_function_analysis_task.done:
                     l.warning(
-                        "The top function analysis task is not done yet. This might be a bug. " "Please report to Fish."
+                        "The top function analysis task is not done yet. This might be a bug. Please report to Fish."
                     )
                 # stack unwinding
                 while True:
