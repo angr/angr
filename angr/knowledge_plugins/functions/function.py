@@ -748,6 +748,9 @@ class Function(Serializable):
     def _clear_transition_graph(self):
         self._block_cache = {}
         self._block_sizes = {}
+        self._addr_to_block_node = {}
+        self._local_blocks = {}
+        self._local_block_addrs = set()
         self.startpoint = None
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
