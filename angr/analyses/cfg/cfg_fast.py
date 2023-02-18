@@ -1260,9 +1260,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         starting_points: Set[int] = set()
 
-        # clear all existing functions
-        self.kb.functions.clear()
-
         if self._use_symbols:
             starting_points |= self._function_addresses_from_symbols
 
