@@ -18,13 +18,14 @@ from archinfo import Endness
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
-from ...knowledge_plugins.xrefs import XRef, XRefType
-from ...knowledge_plugins.functions import Function
-from ...misc.ux import deprecated
-from ...codenode import HookNode
-from ... import sim_options as o
-from ...errors import (
+from angr.analyses import AnalysesHub
+from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
+from angr.knowledge_plugins.xrefs import XRef, XRefType
+from angr.knowledge_plugins.functions import Function
+from angr.misc.ux import deprecated
+from angr.codenode import HookNode
+from angr import sim_options as o
+from angr.errors import (
     AngrCFGError,
     AngrSkipJobNotice,
     AngrUnsupportedSyscallError,
@@ -36,8 +37,8 @@ from ...errors import (
     SimError,
     SimIRSBNoDecodeError,
 )
-from ...utils.constants import DEFAULT_STATEMENT
-from ..forward_analysis import ForwardAnalysis
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.analyses.forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .segment_list import SegmentList
@@ -54,8 +55,6 @@ class ContinueScanningNotification(RuntimeError):
     A notification raised by _next_code_addr_core() to indicate no code address is found and _next_code_addr_core()
     should be invoked again.
     """
-
-    pass
 
 
 class ARMDecodingMode:
@@ -1236,10 +1235,9 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
             max_percentage_stage_1 = 50.0
-            percentage = self._seg_list.occupied_size * max_percentage_stage_1 / self._regions_size
-            if percentage > max_percentage_stage_1:
-                percentage = max_percentage_stage_1
-
+            percentage = min(
+                self._seg_list.occupied_size * max_percentage_stage_1 / self._regions_size, max_percentage_stage_1
+            )
             self._update_progress(percentage, cfg=self)
 
     def _intra_analysis(self):
@@ -3018,7 +3016,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # is the address identified by CLE as a PLT stub?
         if self.project.loader.all_elf_objects:
             # restrict this heuristics to ELF files only
-            if not any([addr in obj.reverse_plt for obj in self.project.loader.all_elf_objects]):
+            if not any(addr in obj.reverse_plt for obj in self.project.loader.all_elf_objects):
                 return False
 
         # Make sure the IRSB has statements
@@ -3234,7 +3232,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 and not self._addr_hooked_or_syscall(a.addr)
             ):
                 all_in_edges = self.graph.in_edges(a, data=True)
-                if not any([data["jumpkind"] == "Ijk_Call" for _, _, data in all_in_edges]):
+                if not any(data["jumpkind"] == "Ijk_Call" for _, _, data in all_in_edges):
                     # no one is calling it
                     # this function might be created from linear sweeping
                     a_real_addr = a.addr & 0xFFFF_FFFE if is_arm else a.addr
@@ -3356,7 +3354,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 except SimTranslationError:
                     a = b
                     continue
-                if block.capstone.insns and all([self._is_noop_insn(insn) for insn in block.capstone.insns]):
+                if block.capstone.insns and all(self._is_noop_insn(insn) for insn in block.capstone.insns):
                     # It's a big nop - no function starts with nop
 
                     # add b to indices
@@ -3490,7 +3488,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         unresolvable_target_addrs = (self._unresolvable_jump_target_addr, self._unresolvable_call_target_addr)
 
         has_resolved_targets = any(
-            [node_.addr not in unresolvable_target_addrs for node_ in self.graph.successors(successor)]
+            node_.addr not in unresolvable_target_addrs for node_ in self.graph.successors(successor)
         )
 
         old_out_edges = self.graph.out_edges(node, data=True)
@@ -4647,6 +4645,9 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                             queue.append(succ_addr)
         return to_remove
 
+    def _remove_jobs_by_source_node_addr(self, addr: int):
+        self._remove_job(lambda j: j.src_node is not None and j.src_node.addr == addr)
+
     def _cascading_remove_lifted_blocks(self, addr: int):
         # first let's consider both predecessors and successors
         to_remove = self._extract_node_cluster_by_dependency(addr, include_successors=True)
@@ -4700,8 +4701,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     ij for ij in self._indirect_jumps_to_resolve if ij.addr != existing_node.addr
                 }
 
-                # remove jobs
-                self._remove_job(lambda j: j.src_node is not None and j.src_node.addr == existing_node.addr)
+                self._remove_jobs_by_source_node_addr(existing_node.addr)
 
                 # remove traced addresses
                 self._traced_addresses.discard(assumption.addr)
@@ -4931,7 +4931,5 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         lst = sorted(lst, key=lambda x: x[0])
         return lst
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CFGFast", CFGFast)

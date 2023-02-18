@@ -164,7 +164,7 @@ class CFGBase(Analysis):
 
         # Get all executable memory regions
         self._exec_mem_regions = self._executable_memory_regions(None, self._force_segment)
-        self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
+        self._exec_mem_region_size = sum((end - start) for start, end in self._exec_mem_regions)
 
         # initialize UnresolvableJumpTarget and UnresolvableCallTarget SimProcedure
         # but we do not want to hook the same symbol multiple times
@@ -1031,12 +1031,11 @@ class CFGBase(Analysis):
             # determine where it jumps/returns to
             goout_site_successors = goout_site.successors()
             # Filter out UnresolvableJumpTarget because those don't mean that we actually know where it jumps to
-            known_successors = list(
-                filter(
-                    lambda n: not (isinstance(n, HookNode) and n.sim_procedure == UnresolvableJumpTarget),
-                    goout_site_successors,
-                )
-            )
+            known_successors = [
+                n
+                for n in goout_site_successors
+                if not (isinstance(n, HookNode) and n.sim_procedure == UnresolvableJumpTarget)
+            ]
 
             if not known_successors:
                 # not sure where it jumps to. bail out
@@ -1759,7 +1758,7 @@ class CFGBase(Analysis):
             if not function.endpoints:
                 # Function should have at least one endpoint
                 continue
-            endpoint_addr = max([a.addr for a in function.endpoints])
+            endpoint_addr = max(a.addr for a in function.endpoints)
             the_endpoint = next(a for a in function.endpoints if a.addr == endpoint_addr)
             endpoint_addr += the_endpoint.size
 
@@ -2104,7 +2103,7 @@ class CFGBase(Analysis):
 
         def _has_more_than_one_exit(node_):
             # Do not consider FakeRets as counting as multiple exits here.
-            out_edges = list(filter(lambda x: g.get_edge_data(*x)["jumpkind"] != "Ijk_FakeRet", g.out_edges(node_)))
+            out_edges = [e for e in g.out_edges(node_) if g.get_edge_data(*e)["jumpkind"] != "Ijk_FakeRet"]
             return len(out_edges) > 1
 
         if len(src_function.block_addrs_set) > 10:
@@ -2207,7 +2206,7 @@ class CFGBase(Analysis):
 
                     jumpkind = data.get("jumpkind", "")
                     if not (jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys")):
-                        # Only follow none call edges
+                        # Only follow non call edges
                         if dst not in stack and dst not in traversed:
                             stack.add(dst)
 
@@ -2736,7 +2735,7 @@ class CFGBase(Analysis):
         resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, func_addr, jumpkind)
         if resolved:
             l.debug(
-                "Indirect jump at block %#x is resolved by a timeless indirect jump resolver. " "%d targets found.",
+                "Indirect jump at block %#x is resolved by a timeless indirect jump resolver. %d targets found.",
                 addr,
                 len(resolved_targets),
             )
