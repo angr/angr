@@ -3103,15 +3103,26 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 self.kb.functions.function(target_func_addr, create=True)  # make sure the target function exists
             else:
                 target_func_addr = jump.func_addr if not to_outside else addr
-            func_edge = FunctionTransitionEdge(
-                self._nodes[source_addr], addr, jump.func_addr, to_outside=to_outside, dst_func_addr=target_func_addr
-            )
+            src_node = self._nodes[source_addr]
+            if jump.jumpkind == "Ijk_Call":
+                func_edge = FunctionCallEdge(
+                    src_node,
+                    addr,
+                    src_node.addr + src_node.size,
+                    jump.func_addr,
+                    stmt_idx=jump.stmt_idx,
+                    ins_addr=jump.ins_addr,
+                )
+            else:
+                func_edge = FunctionTransitionEdge(
+                    src_node, addr, jump.func_addr, to_outside=to_outside, dst_func_addr=target_func_addr
+                )
             job = CFGJob(
                 addr,
                 target_func_addr,
                 jump.jumpkind,
                 last_addr=source_addr,
-                src_node=self._nodes[source_addr],
+                src_node=src_node,
                 src_ins_addr=jump.ins_addr,
                 src_stmt_idx=jump.stmt_idx,
                 func_edges=[func_edge],
