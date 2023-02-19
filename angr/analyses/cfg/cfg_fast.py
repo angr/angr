@@ -508,6 +508,8 @@ class CFGJob:
             and self.src_ins_addr == other.src_ins_addr
             and self.returning_source == other.returning_source
             and self.syscall == other.syscall
+            and self.job_type == other.job_type
+            and self.gp == other.gp
         )
 
     def __hash__(self):
@@ -523,6 +525,8 @@ class CFGJob:
                 self.src_ins_addr,
                 self.returning_source,
                 self.syscall,
+                self.job_type,
+                self.gp,
             )
         )
 
