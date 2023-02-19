@@ -199,7 +199,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
         # is there any existing edge on the callgraph?
         edge_data = {"type": "call"}
-        if (
+        if to_addr is not None and (
             function_addr not in self.callgraph
             or to_addr not in self.callgraph[function_addr]
             or edge_data not in self.callgraph[function_addr][to_addr].values()
