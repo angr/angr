@@ -57,15 +57,14 @@ class ConstantResolver(IndirectJumpResolver):
         """
         if isinstance(block.next, pyvex.expr.RdTmp):
             # check if function is completed
-            if func_addr in cfg._completed_functions:
-                func = cfg.functions[func_addr]
-                prop = self.project.analyses.Propagator(
-                    func=func, only_consts=True, completed_funcs=cfg._completed_functions
-                )
-            else:
-                prop = self.project.analyses.Propagator(
-                    block=block, do_binops=False, store_tops=False, vex_cross_insn_opt=True
-                )
+            func = cfg.functions[func_addr]
+            prop = self.project.analyses.Propagator(
+                func=func,
+                only_consts=True,
+                do_binops=True,
+                vex_cross_insn_opt=False,
+                completed_funcs=cfg._completed_functions,
+            )
 
             replacements = prop.replacements
             if replacements:
