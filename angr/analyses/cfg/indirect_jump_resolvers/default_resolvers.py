@@ -47,7 +47,7 @@ DEFAULT_RESOLVERS = {
             ArmElfFastResolver,
         ]
     },
-    "ALL": [ConstantResolver, JumpTableResolver],
+    "ALL": [JumpTableResolver, ConstantResolver],
 }
 
 
