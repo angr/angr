@@ -9,7 +9,7 @@ l = logging.getLogger("angr.tests.test_stack_alignment")
 
 
 def test_alignment():
-    for arch in all_arches:
+    for arch in all_arches():
         if arch.name in DEFAULT_CC and DEFAULT_CC[arch.name] is not SimCCUnknown:
             # There is nothing to test for soot about stack alignment
             if isinstance(arch, ArchSoot):

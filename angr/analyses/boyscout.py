@@ -29,7 +29,7 @@ class BoyScout(Analysis):
         # Retrieve the binary string of main binary
         votes = defaultdict(int)
 
-        for arch in all_arches:
+        for arch in all_arches():
             regexes = set()
             if not arch.function_prologs:
                 continue
