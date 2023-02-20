@@ -10,9 +10,10 @@ import pyvex
 from archinfo.arch_arm import is_arm_arch
 
 from ... import sim_options
+from ...knowledge_plugins.propagations import PropagationModel
 from ...storage.memory_mixins import LabeledMemory
 from ...errors import SimMemoryMissingError
-from ...code_location import CodeLocation  # pylint:disable=unused-import
+from ...code_location import CodeLocation
 from ...storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .. import register_analysis
 from ..analysis import Analysis
@@ -611,24 +612,24 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         vex_cross_insn_opt=False,
         func_addr: Optional[int] = None,
         gp: Optional[int] = None,
+        cache_results: bool = True,
+        key_prefix: Optional[str] = None,
     ):
         if block is None and func is not None:
             # only func is specified. traversing a function
-            graph_visitor = FunctionGraphVisitor(func, func_graph)
+            self.flavor = "function"
         elif block is not None:
             # traversing a block (but func might be specified at the same time to provide extra information, e.g., the
             # value for register t9 for MIPS32/64 binaries)
-            graph_visitor = SingleNodeGraphVisitor(block)
+            self.flavor = "block"
         else:
             raise ValueError("Unsupported analysis target.")
-
-        ForwardAnalysis.__init__(
-            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
-        )
 
         self._base_state = base_state
         self._function = func
         self._func_addr = func_addr if func_addr is not None else (None if func is None else func.addr)
+        self._block = block
+        self._block_addr = block.addr if block is not None else None
         self._max_iterations = max_iterations
         self._load_callback = load_callback
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
@@ -638,12 +639,53 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._store_tops = store_tops
         self._vex_cross_insn_opt = vex_cross_insn_opt
         self._gp = gp
+        self._prop_key_prefix = key_prefix
+        self._cache_results = cache_results
 
-        self._node_iterations = defaultdict(int)
-        self._states = {}
-        self._block_initial_reg_values = {}
-        self.replacements: Optional[defaultdict] = None
-        self.equivalence: Set[Equivalence] = set()
+        self.model: PropagationModel
+
+        if self._cache_results:
+            self.model = self.kb.propagations.get(self.prop_key, None)
+            # TODO: Resume the analysis from the previously unfinished result
+
+        if self.model is None:
+            self.model = PropagationModel(
+                self.prop_key,
+                defaultdict(int),
+                {},
+                {},
+                defaultdict(dict),
+                set(),
+            )
+
+        graph_visitor: Union[SingleNodeGraphVisitor, FunctionGraphVisitor]
+        if self.flavor == "block":
+            graph_visitor = None
+            if self._cache_results:
+                graph_visitor: Optional[SingleNodeGraphVisitor] = self.model.graph_visitor
+
+            if graph_visitor is None:
+                graph_visitor = SingleNodeGraphVisitor(block)
+
+        elif self.flavor == "function":
+            print(f"Propagating for function {self._func_addr:#x}")
+            graph_visitor = None
+            if self._cache_results:
+                graph_visitor: Optional[FunctionGraphVisitor] = self.model.graph_visitor
+                if graph_visitor is not None:
+                    # resume
+                    graph_visitor.resume_with_new_graph(func_graph if func_graph is not None else func.graph)
+
+            if graph_visitor is None:
+                graph_visitor = FunctionGraphVisitor(func, func_graph)
+                self.model.graph_visitor = graph_visitor
+
+        else:
+            raise TypeError(f"Unsupported flavor {self.flavor}")
+
+        ForwardAnalysis.__init__(
+            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
+        )
 
         self._engine_vex = SimEnginePropagatorVEX(project=self.project, arch=self.project.arch)
         self._engine_ail = SimEnginePropagatorAIL(
@@ -657,6 +699,26 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._initial_state = None
 
         self._analyze()
+
+        if self._cache_results:
+            # update the cache
+            self.kb.propagations.update(self.prop_key, self.model)
+
+    @property
+    def prop_key(self) -> Tuple[Optional[str], str, int, bool, bool]:
+        """
+        Gets a key that represents the function and the "flavor" of the propagation result.
+        """
+        addr = self._func_addr if self._func_addr is not None else self._block_addr
+        return self._prop_key_prefix, self.flavor, addr, self._do_binops, self._only_consts
+
+    @property
+    def replacements(self):
+        return self.model.replacements
+
+    @replacements.setter
+    def replacements(self, v):
+        self.model.replacements = v
 
     #
     # Main analysis routines
@@ -809,21 +871,21 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         )
         state.filter_replacements()
 
-        self._node_iterations[block_key] += 1
-        self._states[block_key] = state
+        self.model.node_iterations[block_key] += 1
+        self.model.states[block_key] = state
         if isinstance(state, PropagatorAILState):
-            self._block_initial_reg_values.update(state.block_initial_reg_values)
+            self.model.block_initial_reg_values.update(state.block_initial_reg_values)
 
-        if self.replacements is None:
-            self.replacements = state._replacements
+        if self.model.replacements is None:
+            self.model.replacements = state._replacements
         else:
-            self._merge_replacements(self.replacements, state._replacements)
+            self._merge_replacements(self.model.replacements, state._replacements)
 
-        self.equivalence |= state._equivalence
+        self.model.equivalence |= state._equivalence
 
         # TODO: Clear registers according to calling conventions
 
-        if self._node_iterations[block_key] < self._max_iterations:
+        if self.model.node_iterations[block_key] < self._max_iterations:
             return True, state
         else:
             return False, state
@@ -833,9 +895,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     ):
         if self._only_consts and isinstance(input_state, PropagatorAILState):
             key = node.addr, successor.addr
-            if key in self._block_initial_reg_values:
+            if key in self.model.block_initial_reg_values:
                 input_state: PropagatorAILState = input_state.copy()
-                for reg_atom, reg_value in self._block_initial_reg_values[key]:
+                for reg_atom, reg_value in self.model.block_initial_reg_values[key]:
                     input_state.store_register(
                         reg_atom,
                         PropValue(
@@ -875,29 +937,13 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         """
 
         # Filter replacements and remove all TOP values
-        if self.replacements is not None:
-            for codeloc in list(self.replacements.keys()):
-                rep = {k: v for k, v in self.replacements[codeloc].items() if not PropagatorState.is_top(v)}
-                self.replacements[codeloc] = rep
+        if self.model.replacements is not None:
+            for codeloc in list(self.model.replacements.keys()):
+                rep = {k: v for k, v in self.model.replacements[codeloc].items() if not PropagatorState.is_top(v)}
+                self.model.replacements[codeloc] = rep
 
-        if self._function is not None:
-            if self._check_func_complete(self._function):
-                func_loc = CodeLocation(self._function.addr, None)
-                self.kb.propagations.update(func_loc, self.replacements)
-
-    def _check_prop_kb(self):
-        """
-        Checks, and gets, stored propagations from the KB for the current
-        Propagation state.
-
-        :return:    None or Dict of replacements
-        """
-        replacements = None
-        if self._function is not None:
-            func_loc = CodeLocation(self._function.addr, None)
-            replacements = self.kb.propagations.get(func_loc)
-
-        return replacements
+        if self._cache_results:
+            self.kb.propagations.update(self.prop_key, self.model)
 
     def _analyze(self):
         """
@@ -906,16 +952,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         """
         self._pre_analysis()
 
-        # optimization check
-        stored_replacements = self._check_prop_kb()
-        if stored_replacements is not None:
-            if self.replacements is not None:
-                self.replacements.update(stored_replacements)
-            else:
-                self.replacements = stored_replacements
-
         # normal analysis execution
-        elif self._graph_visitor is None:
+        if self._graph_visitor is None:
             # There is no base graph that we can rely on. The analysis itself should generate successors for the
             # current job.
             # An example is the CFG recovery.

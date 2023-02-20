@@ -11,7 +11,7 @@ from .plugin import KnowledgeBasePlugin
 from .sync import SyncController
 from .patches import PatchManager
 from .key_definitions import KeyDefinitionManager
-from .propagations import Propagations
+from .propagations import PropagationManager
 from .structured_code import StructuredCodeManager
 from .types import TypesStore
 from .gotos import Gotos
