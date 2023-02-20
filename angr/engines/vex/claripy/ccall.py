@@ -1960,7 +1960,7 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 
-def arm64g_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+def arm64g_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we
     # require cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the
     # constraints were created.
@@ -2038,7 +2038,7 @@ def _get_flags(state) -> claripy.ast.bv.BV:
     elif is_arm_arch(state.arch):
         func = armg_calculate_flags_nzcv
     elif state.arch.name == "AARCH64":
-        func = arm64g_calculate_data_nzcv
+        func = arm64g_calculate_flags_nzcv
     else:
         l.warning("No such thing as a flags register for arch %s", state.arch.name)
         return None
