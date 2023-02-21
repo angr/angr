@@ -314,6 +314,9 @@ class CFGBase(Analysis):
                 if not self.project.is_hooked(f.addr):
                     f.normalize()
 
+        # drop all propagation results that start with "cfg_"
+        self.kb.propagations.discard_by_prefix("cfg_intermediate")
+
     def make_copy(self, copy_to):
         """
         Copy self attributes to the new object.

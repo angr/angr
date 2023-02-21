@@ -5,6 +5,10 @@ from .propagation_model import PropagationModel
 
 
 class PropagationManager(KnowledgeBasePlugin):
+    """
+    Manages the results of Propagator, including intermediate results for unfinished Propagation runs.
+    """
+
     def __init__(self, kb):
         self._kb = kb
         self._propagations: Dict[Tuple, PropagationModel] = {}
@@ -48,6 +52,11 @@ class PropagationManager(KnowledgeBasePlugin):
         o._propagations = {}
         for k, v in self._propagations.items():
             o._propagations[k] = v
+
+    def discard_by_prefix(self, prefix: str):
+        for key in list(self._propagations.keys()):
+            if key[0] == prefix:
+                del self._propagations[key]
 
 
 KnowledgeBasePlugin.register_default("propagations", PropagationManager)

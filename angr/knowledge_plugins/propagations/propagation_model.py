@@ -1,4 +1,5 @@
-from typing import Tuple, Dict, Set
+from typing import Tuple, Dict, Set, DefaultDict, Any, Optional
+from collections import defaultdict
 
 from angr.serializable import Serializable
 
@@ -22,18 +23,18 @@ class PropagationModel(Serializable):
     def __init__(
         self,
         prop_key: Tuple,
-        node_iterations: Dict,
-        states: Dict,
-        block_initial_reg_values: Dict,
-        replacements: Dict,
-        equivalence: Set,
+        node_iterations: Optional[DefaultDict[Any, int]] = None,
+        states: Optional[Dict] = None,
+        block_initial_reg_values: Optional[Dict] = None,
+        replacements: Optional[DefaultDict[Any, Dict]] = None,
+        equivalence: Optional[Set] = None,
     ):
         self.key = prop_key
-        self.node_iterations = node_iterations
-        self.states = states
-        self.block_initial_reg_values = block_initial_reg_values
-        self.replacements = replacements
-        self.equivalence = equivalence
+        self.node_iterations = node_iterations if node_iterations is not None else defaultdict(int)
+        self.states = states if states is not None else {}
+        self.block_initial_reg_values = block_initial_reg_values if block_initial_reg_values is not None else {}
+        self.replacements = replacements if replacements is not None else defaultdict(dict)
+        self.equivalence = equivalence if equivalence is not None else set()
 
         self.graph_visitor = None
 

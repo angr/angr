@@ -4,14 +4,17 @@ import logging
 import claripy
 import pyvex
 
-from .resolver import IndirectJumpResolver
+from ....utils.constants import DEFAULT_STATEMENT
 from ....code_location import CodeLocation
+from ....blade import Blade
 from ...propagator import vex_vars
+from .resolver import IndirectJumpResolver
+from .propagator_utils import PropagatorLoadCallback
 
 if TYPE_CHECKING:
     from angr import Block
 
-l = logging.getLogger(name=__name__)
+_l = logging.getLogger(name=__name__)
 
 
 def exists_in_replacements(replacements, block_loc, tmp_var):
@@ -35,7 +38,7 @@ def exists_in_replacements(replacements, block_loc, tmp_var):
 
 class ConstantResolver(IndirectJumpResolver):
     """
-    Resolve an indirect jump by running a contant propagation on the entire function and check if the indirect jump can
+    Resolve an indirect jump by running a constant propagation on the entire function and check if the indirect jump can
     be resolved to a constant value. This resolver must be run after all other more specific resolvers.
     """
 
@@ -66,14 +69,51 @@ class ConstantResolver(IndirectJumpResolver):
         """
         vex_block = block.vex
         if isinstance(vex_block.next, pyvex.expr.RdTmp):
-            # check if function is completed
+            # what does the jump rely on? slice it back and see
+            b = Blade(
+                cfg.graph,
+                addr,
+                -1,
+                cfg=cfg,
+                project=self.project,
+                ignore_bp=False,
+                ignore_sp=False,
+                max_level=3,
+                stop_at_calls=True,
+                cross_insn_opt=True,
+            )
+            stmt_loc = addr, DEFAULT_STATEMENT
+            preds = list(b.slice.predecessors(stmt_loc))
+            while preds:
+                if len(preds) == 1:
+                    # skip all IMarks
+                    pred_addr, stmt_idx = preds[0]
+                    if stmt_idx != DEFAULT_STATEMENT:
+                        block = self.project.factory.block(pred_addr, cross_insn_opt=True).vex
+                        if isinstance(block.statements[stmt_idx], pyvex.IRStmt.IMark):
+                            preds = list(b.slice.predecessors(preds[0]))
+                            continue
+
+                for pred_addr, stmt_idx in preds:
+                    block = self.project.factory.block(pred_addr, cross_insn_opt=True).vex
+                    if stmt_idx != DEFAULT_STATEMENT:
+                        stmt = block.statements[stmt_idx]
+                        if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Load):
+                            # loading from memory - unsupported
+                            return False, []
+                break
+
             func = cfg.functions[func_addr]
+            _l.debug("ConstantResolver: Propagating for %r at %#x.", func, addr)
             prop = self.project.analyses.Propagator(
                 func=func,
                 only_consts=True,
                 do_binops=True,
-                vex_cross_insn_opt=False,
+                vex_cross_insn_opt=True,
                 completed_funcs=cfg._completed_functions,
+                load_callback=PropagatorLoadCallback(self.project).propagator_load_callback,
+                cache_results=True,
+                key_prefix="cfg_intermediate",
             )
 
             replacements = prop.replacements

@@ -26,10 +26,12 @@ class FunctionGraphVisitor(GraphVisitor):
 
         self.reset()
 
-    def resume_with_new_graph(self, graph: networkx.DiGraph) -> None:
+    def resume_with_new_graph(self, graph: networkx.DiGraph) -> bool:
         """
         We can only reasonably reuse existing results if the node index of the already traversed nodes are the same as
         the ones from the new graph. Otherwise, we always restart.
+
+        :return:    True if we are resuming, False if reset() is called.
         """
         # update the graph
         self.graph = graph
@@ -49,7 +51,7 @@ class FunctionGraphVisitor(GraphVisitor):
         if must_restart:
             _l.debug("Failed to resume for function %r.", self.function)
             self.reset()
-            return
+            return False
 
         # update related data structures
         self._sorted_nodes = self._sorted_nodes[: self._node_idx]
@@ -58,6 +60,8 @@ class FunctionGraphVisitor(GraphVisitor):
         for i, n in enumerate(sorted_nodes):
             if i >= self._node_idx:
                 self._node_to_index[n] = i
+
+        return True
 
     def successors(self, node):
         return list(self.graph.successors(node))

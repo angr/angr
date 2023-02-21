@@ -651,11 +651,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if self.model is None:
             self.model = PropagationModel(
                 self.prop_key,
-                defaultdict(int),
-                {},
-                {},
-                defaultdict(dict),
-                set(),
             )
 
         graph_visitor: Union[SingleNodeGraphVisitor, FunctionGraphVisitor]
@@ -668,13 +663,15 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 graph_visitor = SingleNodeGraphVisitor(block)
 
         elif self.flavor == "function":
-            print(f"Propagating for function {self._func_addr:#x}")
             graph_visitor = None
             if self._cache_results:
                 graph_visitor: Optional[FunctionGraphVisitor] = self.model.graph_visitor
                 if graph_visitor is not None:
                     # resume
-                    graph_visitor.resume_with_new_graph(func_graph if func_graph is not None else func.graph)
+                    resumed = graph_visitor.resume_with_new_graph(func_graph if func_graph is not None else func.graph)
+                    if not resumed:
+                        # clean up...
+                        self.model = PropagationModel(self.prop_key)
 
             if graph_visitor is None:
                 graph_visitor = FunctionGraphVisitor(func, func_graph)
