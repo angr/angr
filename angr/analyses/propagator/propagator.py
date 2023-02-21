@@ -645,8 +645,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self.model: PropagationModel = None
 
         if self._cache_results:
+            # Resume the analysis from the previously unfinished result
             self.model = self.kb.propagations.get(self.prop_key, None)
-            # TODO: Resume the analysis from the previously unfinished result
 
         if self.model is None:
             self.model = PropagationModel(
