@@ -33,7 +33,7 @@ class PropagationModel(Serializable):
         self.node_iterations = node_iterations if node_iterations is not None else defaultdict(int)
         self.states = states if states is not None else {}
         self.block_initial_reg_values = block_initial_reg_values if block_initial_reg_values is not None else {}
-        self.replacements = replacements if replacements is not None else defaultdict(dict)
+        self.replacements = replacements
         self.equivalence = equivalence if equivalence is not None else set()
 
         self.graph_visitor = None
