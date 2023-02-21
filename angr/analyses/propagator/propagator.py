@@ -612,7 +612,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         vex_cross_insn_opt=False,
         func_addr: Optional[int] = None,
         gp: Optional[int] = None,
-        cache_results: bool = True,
+        cache_results: bool = False,
         key_prefix: Optional[str] = None,
     ):
         if block is None and func is not None:
@@ -642,7 +642,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._prop_key_prefix = key_prefix
         self._cache_results = cache_results
 
-        self.model: PropagationModel
+        self.model: PropagationModel = None
 
         if self._cache_results:
             self.model = self.kb.propagations.get(self.prop_key, None)

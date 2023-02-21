@@ -314,7 +314,7 @@ class CFGBase(Analysis):
                 if not self.project.is_hooked(f.addr):
                     f.normalize()
 
-        # drop all propagation results that start with "cfg_"
+        # drop all propagation results that start with "cfg_intermediate"
         self.kb.propagations.discard_by_prefix("cfg_intermediate")
 
     def make_copy(self, copy_to):
