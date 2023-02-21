@@ -702,12 +702,12 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self.kb.propagations.update(self.prop_key, self.model)
 
     @property
-    def prop_key(self) -> Tuple[Optional[str], str, int, bool, bool]:
+    def prop_key(self) -> Tuple[Optional[str], str, int, bool, bool, bool]:
         """
         Gets a key that represents the function and the "flavor" of the propagation result.
         """
         addr = self._func_addr if self._func_addr is not None else self._block_addr
-        return self._prop_key_prefix, self.flavor, addr, self._do_binops, self._only_consts
+        return self._prop_key_prefix, self.flavor, addr, self._do_binops, self._only_consts, self._vex_cross_insn_opt
 
     @property
     def replacements(self):

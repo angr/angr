@@ -109,7 +109,7 @@ class ConstantResolver(IndirectJumpResolver):
                 func=func,
                 only_consts=True,
                 do_binops=True,
-                vex_cross_insn_opt=True,
+                vex_cross_insn_opt=False,
                 completed_funcs=cfg._completed_functions,
                 load_callback=PropagatorLoadCallback(self.project).propagator_load_callback,
                 cache_results=True,
