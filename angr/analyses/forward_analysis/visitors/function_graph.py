@@ -37,29 +37,27 @@ class FunctionGraphVisitor(GraphVisitor):
         self.graph = graph
 
         must_restart = False
-        sorted_nodes = list(self.sort_nodes())
-        for i, n in enumerate(sorted_nodes):
-            if i >= self._node_idx:
-                break
-            if n not in self._node_to_index:
-                must_restart = True
-                break
-            if self._node_to_index[n] != i:
-                must_restart = True
-                break
+        new_sorted_nodes = list(self.sort_nodes())
+        # check if new sorted_nodes is an extension of the existing sorted_nodes
+        if len(new_sorted_nodes) < len(self._sorted_nodes):
+            must_restart = True
+        else:
+            must_restart = not new_sorted_nodes[: len(self._sorted_nodes)] == self._sorted_nodes
 
         if must_restart:
-            _l.debug("Failed to resume for function %r.", self.function)
+            _l.debug("Cannot resume for function %r with the new graph.", self.function)
             self.reset()
             return False
 
         # update related data structures
-        self._sorted_nodes = self._sorted_nodes[: self._node_idx]
-        self._sorted_nodes += sorted_nodes[self._node_idx :]
-        self._nodes_set |= set(sorted_nodes[self._node_idx :])
-        for i, n in enumerate(sorted_nodes):
-            if i >= self._node_idx:
+        for i, n in enumerate(new_sorted_nodes):
+            if i >= len(self._sorted_nodes):
                 self._node_to_index[n] = i
+        # update worklist and nodes_set
+        for n in new_sorted_nodes[len(self._sorted_nodes) :]:
+            self.revisit_node(n)
+        # update sorted_nodes in the end
+        self._sorted_nodes = new_sorted_nodes
 
         return True
 
