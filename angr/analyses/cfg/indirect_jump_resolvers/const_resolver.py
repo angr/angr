@@ -52,7 +52,9 @@ class ConstantResolver(IndirectJumpResolver):
 
         return False
 
-    def resolve(self, cfg, addr: int, func_addr: int, block: "Block", jumpkind: str):
+    def resolve(  # pylint:disable=unused-argument
+        self, cfg, addr: int, func_addr: int, block: "Block", jumpkind: str, **kwargs
+    ):
         """
         This function does the actual resolve. Our process is easy:
         Propagate all values inside the function specified, then extract

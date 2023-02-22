@@ -774,7 +774,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return jumpkind in {"Ijk_Boring", "Ijk_Call"}
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind):
+    def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):
         """
         Resolves jump tables.
 
@@ -816,7 +816,9 @@ class JumpTableResolver(IndirectJumpResolver):
             )
 
             l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
-            r, targets = self._resolve(cfg, addr, func, b, cv_manager, potential_call_table=False)
+            r, targets = self._resolve(
+                cfg, addr, func, b, cv_manager, potential_call_table=False, func_graph_complete=func_graph_complete
+            )
             if r:
                 return r, targets
 
@@ -834,7 +836,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 stop_at_calls=True,
                 cross_insn_opt=True,
             )
-            return self._resolve(cfg, addr, func, b, cv_manager, potential_call_table=True)
+            return self._resolve(
+                cfg, addr, func, b, cv_manager, potential_call_table=True, func_graph_complete=func_graph_complete
+            )
 
         return False, None
 
@@ -850,6 +854,7 @@ class JumpTableResolver(IndirectJumpResolver):
         b: Blade,
         cv_manager: Optional[ConstantValueManager],
         potential_call_table: bool = False,
+        func_graph_complete: bool = True,
     ) -> Tuple[bool, Optional[Sequence[int]]]:
         """
         Internal method for resolving jump tables.
@@ -904,7 +909,7 @@ class JumpTableResolver(IndirectJumpResolver):
             return False, None
         preds = list(func.graph.predecessors(curr_node))
         pred_endaddrs = {pred.addr + pred.size for pred in preds}  # handle non-normalized CFGs
-        if not is_arm and not potential_call_table:
+        if func_graph_complete and not is_arm and not potential_call_table:
             # on ARM you can do a single-block jump table...
             if len(pred_endaddrs) == 1:
                 pred_succs = [succ for succ in func.graph.successors(preds[0]) if succ.addr != preds[0].addr]

@@ -18,7 +18,7 @@ class AMD64ElfGotResolver(IndirectJumpResolver):
             return False
         return True
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind):
+    def resolve(self, cfg, addr, func_addr, block, jumpkind, **kwargs):  # pylint:disable=unused-argument
         # Find the address and size of the last instruction
         last_insn_addr = None
         last_insn_size = None

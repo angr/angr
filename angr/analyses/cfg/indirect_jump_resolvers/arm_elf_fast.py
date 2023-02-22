@@ -21,7 +21,7 @@ class ArmElfFastResolver(IndirectJumpResolver):
             return False
         return True
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind):
+    def resolve(self, cfg, addr, func_addr, block, jumpkind, **kwargs):  # pylint:disable=unused-argument
         """
         Resolves the indirect jump in ARM ELF binaries where all internal function calls are performed in the following
         manner:

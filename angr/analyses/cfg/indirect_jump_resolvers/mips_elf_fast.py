@@ -53,7 +53,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
             return False
         return True
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind):
+    def resolve(self, cfg, addr, func_addr, block, jumpkind, **kwargs):  # pylint:disable=unused-argument
         """
         Wrapper for _resolve that slowly increments the max_depth used by Blade for finding sources
         until we can resolve the addr or we reach the default max_depth
