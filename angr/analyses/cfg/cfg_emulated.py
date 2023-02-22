@@ -963,7 +963,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :return: None
         """
 
-        # TODO: Why was the former two conditions there in the first place?
         if self._pending_function_hints:
             self._process_hints(self._analyzed_addrs)
 
@@ -1356,7 +1355,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     self._indirect_jump_resolved(ij, ij.addr, None, resolved_targets)
             else:
                 # Try to resolve this indirect jump using heavier approaches
-                resolved_targets = self._process_one_indirect_jump(ij)
+                resolved_targets = self._process_one_indirect_jump(ij, func_graph_complete=False)
                 successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
 
             if successors:

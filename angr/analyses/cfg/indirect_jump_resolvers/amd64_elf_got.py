@@ -10,6 +10,10 @@ l = logging.getLogger(name=__name__)
 
 
 class AMD64ElfGotResolver(IndirectJumpResolver):
+    """
+    A timeless indirect jump resolver that resolves GOT entries on AMD64 ELF binaries.
+    """
+
     def __init__(self, project):
         super().__init__(project, timeless=True)
 
@@ -18,7 +22,9 @@ class AMD64ElfGotResolver(IndirectJumpResolver):
             return False
         return True
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind):
+    def resolve(  # pylint:disable=unused-argument
+        self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
+    ):
         # Find the address and size of the last instruction
         last_insn_addr = None
         last_insn_size = None

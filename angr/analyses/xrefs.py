@@ -189,13 +189,13 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
             graph_visitor = FunctionGraphVisitor(func, func_graph)
             if replacements is None:
                 prop = self.project.analyses[PropagatorAnalysis].prep()(func=func, func_graph=func_graph)
-                replacements = prop.replacements
+                replacements = prop.model.replacements
         elif block is not None:
             # traversing a block
             graph_visitor = SingleNodeGraphVisitor(block)
             if replacements is None:
                 prop = self.project.analyses[PropagatorAnalysis].prep()(block=block)
-                replacements = prop.replacements
+                replacements = prop.model.replacements
         else:
             raise ValueError("Unsupported analysis target.")
 

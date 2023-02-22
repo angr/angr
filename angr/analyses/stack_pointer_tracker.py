@@ -1,6 +1,6 @@
 # pylint:disable=abstract-method
 
-from typing import Set, List
+from typing import Set, List, Optional, TYPE_CHECKING
 import logging
 
 import pyvex
@@ -11,13 +11,16 @@ from ..knowledge_plugins import Function
 from ..block import BlockNode
 from ..errors import SimTranslationError
 from .analysis import Analysis
-from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 
 try:
     import pypcode
     from angr.engines import pcode
 except ImportError:
     pypcode = None
+
+if TYPE_CHECKING:
+    from angr.block import Block
 
 _l = logging.getLogger(name=__name__)
 
@@ -288,15 +291,21 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     Track the offset of stack pointer at the end of each basic block of a function.
     """
 
-    def __init__(self, func: Function, reg_offsets: Set[int], track_memory=True):
-        if not func.normalized:
-            # Make a copy before normalizing the function
-            func = func.copy()
-            func.normalize()
+    def __init__(
+        self, func: Optional[Function], reg_offsets: Set[int], block: Optional["Block"] = None, track_memory=True
+    ):
+        if func is not None:
+            if not func.normalized:
+                # Make a copy before normalizing the function
+                func = func.copy()
+                func.normalize()
+            graph_visitor = FunctionGraphVisitor(func)
+        elif block is not None:
+            graph_visitor = SingleNodeGraphVisitor(block)
+        else:
+            raise ValueError("StackPointerTracker must work on either a function or a single block.")
 
-        super().__init__(
-            order_jobs=False, allow_merging=True, allow_widening=track_memory, graph_visitor=FunctionGraphVisitor(func)
-        )
+        super().__init__(order_jobs=False, allow_merging=True, allow_widening=track_memory, graph_visitor=graph_visitor)
 
         self.track_mem = track_memory
         self._func = func
@@ -386,16 +395,21 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return Register(offset, size * self.project.arch.byte_width)
 
     def _initial_abstract_state(self, node: BlockNode):
-        if node.addr == self._func.addr:
-            # at the beginning of the function, we set each tracking register to their "initial values"
+        if self._func is None:
+            # in single-block mode, at the beginning of the block, we set each tracking register to their initial values
             initial_regs = {r: OffsetVal(self._get_register(r), 0) for r in self.reg_offsets}
         else:
-            # if we are requesting initial states for blocks that are not the starting point of this function, we are
-            # probably dealing with dangling blocks (those without a predecessor due to CFG recovery failures). Setting
-            # register values to fresh ones will cause problems down the line when merging with normal register values
-            # happen. therefore, we set their values to BOTTOM. these BOTTOMs will be replaced once a merge with normal
-            # blocks happen.
-            initial_regs = {r: BOTTOM for r in self.reg_offsets}
+            # function mode
+            if node.addr == self._func.addr:
+                # at the beginning of the function, we set each tracking register to their "initial values"
+                initial_regs = {r: OffsetVal(self._get_register(r), 0) for r in self.reg_offsets}
+            else:
+                # if we are requesting initial states for blocks that are not the starting point of this function, we
+                # are probably dealing with dangling blocks (those without a predecessor due to CFG recovery failures).
+                # Setting register values to fresh ones will cause problems down the line when merging with normal
+                # register values happen. therefore, we set their values to BOTTOM. these BOTTOMs will be replaced once
+                # a merge with normal blocks happen.
+                initial_regs = {r: BOTTOM for r in self.reg_offsets}
 
         return StackPointerTrackerState(regs=initial_regs, memory={}, is_tracking_memory=self.track_mem).freeze()
 
@@ -548,7 +562,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 except CouldNotResolveException:
                     pass
             # who are we calling?
-            callees = self._find_callees(node)
+            callees = [] if self._func is None else self._find_callees(node)
             if callees:
                 callee_cleanups = [
                     callee

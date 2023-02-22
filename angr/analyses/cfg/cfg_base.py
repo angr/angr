@@ -314,6 +314,9 @@ class CFGBase(Analysis):
                 if not self.project.is_hooked(f.addr):
                     f.normalize()
 
+        # drop all propagation results that start with "cfg_intermediate"
+        self.kb.propagations.discard_by_prefix("cfg_intermediate")
+
     def make_copy(self, copy_to):
         """
         Copy self attributes to the new object.
@@ -2790,12 +2793,17 @@ class CFGBase(Analysis):
 
         return all_targets
 
-    def _process_one_indirect_jump(self, jump):
+    def _process_one_indirect_jump(self, jump: IndirectJump, func_graph_complete: bool = True) -> Set:
         """
         Resolve a given indirect jump.
 
-        :param IndirectJump jump:  The IndirectJump instance.
-        :return:        A set of resolved indirect jump targets (ints).
+        :param jump:                The IndirectJump instance.
+        :param func_graph_complete: True if the function graph is complete at this point (except for this indirect jump
+                                    and all nodes that it dominates). Indirect jump resolvers may use the current
+                                    function graph to perform sanity checks. CFGEmulated sets func_graph_complete to
+                                    False while CFGFast sets it to True (because in CFGFast, indirect jumps are always
+                                    resolved after direct jump jobs are processed).
+        :return:                    A set of resolved indirect jump targets (ints).
         """
 
         resolved = False
@@ -2810,7 +2818,9 @@ class CFGBase(Analysis):
             if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
                 continue
 
-            resolved, targets = resolver.resolve(self, jump.addr, jump.func_addr, block, jump.jumpkind)
+            resolved, targets = resolver.resolve(
+                self, jump.addr, jump.func_addr, block, jump.jumpkind, func_graph_complete=func_graph_complete
+            )
             if resolved:
                 resolved_by = resolver
                 break

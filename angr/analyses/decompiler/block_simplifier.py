@@ -146,7 +146,7 @@ class BlockSimplifier(Analysis):
         # propagator
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
             propagator = self._compute_propagation(block)
-            replacements = list(propagator._states.values())[0]._replacements
+            replacements = list(propagator.model.states.values())[0]._replacements
             if replacements:
                 _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
                 new_block = self._eliminate_self_assignments(new_block)

@@ -9,12 +9,13 @@ NodeType = TypeVar("NodeType")
 
 class GraphVisitor(Generic[NodeType]):
     """
-    A graph visitor takes a node in the graph and returns its successors. Typically it visits a control flow graph, and
-    returns successors of a CFGNode each time. This is the base class of all graph visitors.
+    A graph visitor takes a node in the graph and returns its successors. Typically, it visits a control flow graph,
+    and returns successors of a CFGNode each time. This is the base class of all graph visitors.
     """
 
     __slots__ = (
         "_sorted_nodes",
+        "_worklist",
         "_nodes_set",
         "_node_to_index",
         "_reached_fixedpoint",
@@ -24,7 +25,8 @@ class GraphVisitor(Generic[NodeType]):
     )
 
     def __init__(self):
-        self._sorted_nodes: List[NodeType] = []
+        self._sorted_nodes: List[NodeType] = []  # a list of sorted nodes. do not change until we get a new graph
+        self._worklist: List[NodeType] = []  # a list of nodes that the analysis should work on and finally exhaust
         self._nodes_set: Set[NodeType] = set()
         self._node_to_index: Dict[NodeType, int] = {}
         self._reached_fixedpoint: Set[NodeType] = set()
@@ -107,13 +109,15 @@ class GraphVisitor(Generic[NodeType]):
         """
 
         self._sorted_nodes.clear()
+        self._worklist.clear()
         self._nodes_set.clear()
         self._node_to_index.clear()
         self._reached_fixedpoint.clear()
 
-        for i, n in enumerate(self.sort_nodes()):
+        self._sorted_nodes = list(self.sort_nodes())
+        for i, n in enumerate(self._sorted_nodes):
             self._node_to_index[n] = i
-            binary_insert(self._sorted_nodes, n, lambda elem: self._node_to_index[elem])
+            binary_insert(self._worklist, n, lambda elem: self._node_to_index[elem])
             self._nodes_set.add(n)
 
         self._populate_back_edges()
@@ -125,29 +129,29 @@ class GraphVisitor(Generic[NodeType]):
         :return: A node in the graph.
         """
 
-        if not self._sorted_nodes:
+        if not self._worklist:
             return None
 
         node = None
-        for idx in range(len(self._sorted_nodes)):  # pylint:disable=consider-using-enumerate
-            node_ = self._sorted_nodes[idx]
+        for idx in range(len(self._worklist)):  # pylint:disable=consider-using-enumerate
+            node_ = self._worklist[idx]
             if node_ in self._pending_nodes:
                 if not self._pending_nodes[node_]:
                     # this pending node is cleared - take it
                     node = node_
                     del self._pending_nodes[node_]
-                    del self._sorted_nodes[idx]
+                    del self._worklist[idx]
                     break
                 # try the next node
                 continue
 
             node = node_
-            del self._sorted_nodes[idx]
+            del self._worklist[idx]
             break
 
         if node is None:
             # all nodes are pending... we will just pick the first one
-            node = self._sorted_nodes.pop(0)
+            node = self._worklist.pop(0)
 
         self._nodes_set.discard(node)
 
@@ -198,12 +202,12 @@ class GraphVisitor(Generic[NodeType]):
 
         if include_self:
             if node not in self._nodes_set:
-                binary_insert(self._sorted_nodes, node, lambda elem: self._node_to_index[elem])
+                binary_insert(self._worklist, node, lambda elem: self._node_to_index[elem])
                 self._nodes_set.add(node)
 
         for succ in successors:
             if succ not in self._nodes_set:
-                binary_insert(self._sorted_nodes, succ, lambda elem: self._node_to_index[elem])
+                binary_insert(self._worklist, succ, lambda elem: self._node_to_index[elem])
                 self._nodes_set.add(succ)
 
     def revisit_node(self, node: NodeType) -> None:
@@ -215,7 +219,7 @@ class GraphVisitor(Generic[NodeType]):
         """
 
         if node not in self._nodes_set:
-            binary_insert(self._sorted_nodes, node, lambda elem: self._node_to_index[elem])
+            binary_insert(self._worklist, node, lambda elem: self._node_to_index[elem])
             self._nodes_set.add(node)
 
     def reached_fixedpoint(self, node: NodeType) -> None:

@@ -28,7 +28,7 @@ class IndirectJumpResolver:
 
         raise NotImplementedError()
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind):
+    def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):
         """
         Resolve an indirect jump.
 
@@ -38,6 +38,8 @@ class IndirectJumpResolver:
         :param block:           The basic block. The type is determined by the backend being used. It's pyvex.IRSB if
                                 pyvex is used as the backend.
         :param str jumpkind:    The jumpkind.
+        :param func_graph_complete: True if the function graph is complete at this point (except for nodes that this
+                                indirect jump node dominates).
         :return:                A tuple of a boolean indicating whether the resolution is successful or not, and a list
                                 of resolved targets (ints).
         :rtype:                 tuple

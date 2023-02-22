@@ -7,6 +7,10 @@ l = logging.getLogger(name=__name__)
 
 
 class X86PeIatResolver(IndirectJumpResolver):
+    """
+    A timeless indirect jump resolver for IAT in x86 PEs.
+    """
+
     def __init__(self, project):
         super().__init__(project, timeless=True)
 
@@ -22,7 +26,9 @@ class X86PeIatResolver(IndirectJumpResolver):
             return True
         return False
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind):
+    def resolve(
+        self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
+    ):  # pylint:disable=unused-argument
         slot = self.project.factory.block(addr).capstone.insns[-1].insn.disp
         target = cfg._fast_memory_load_pointer(slot)
         if target is None:

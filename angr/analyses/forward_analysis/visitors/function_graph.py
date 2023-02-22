@@ -1,8 +1,13 @@
 from typing import List, Tuple
+import logging
+
+import networkx
 
 from ....utils.graph import dfs_back_edges
 from ...cfg.cfg_utils import CFGUtils
 from .graph import GraphVisitor, NodeType
+
+_l = logging.getLogger(__name__)
 
 
 class FunctionGraphVisitor(GraphVisitor):
@@ -20,6 +25,41 @@ class FunctionGraphVisitor(GraphVisitor):
             self.graph = graph
 
         self.reset()
+
+    def resume_with_new_graph(self, graph: networkx.DiGraph) -> bool:
+        """
+        We can only reasonably reuse existing results if the node index of the already traversed nodes are the same as
+        the ones from the new graph. Otherwise, we always restart.
+
+        :return:    True if we are resuming, False if reset() is called.
+        """
+        # update the graph
+        self.graph = graph
+
+        must_restart = False
+        new_sorted_nodes = list(self.sort_nodes())
+        # check if new sorted_nodes is an extension of the existing sorted_nodes
+        if len(new_sorted_nodes) < len(self._sorted_nodes):
+            must_restart = True
+        else:
+            must_restart = not new_sorted_nodes[: len(self._sorted_nodes)] == self._sorted_nodes
+
+        if must_restart:
+            _l.debug("Cannot resume for function %r with the new graph.", self.function)
+            self.reset()
+            return False
+
+        # update related data structures
+        for i, n in enumerate(new_sorted_nodes):
+            if i >= len(self._sorted_nodes):
+                self._node_to_index[n] = i
+        # update worklist and nodes_set
+        for n in new_sorted_nodes[len(self._sorted_nodes) :]:
+            self.revisit_node(n)
+        # update sorted_nodes in the end
+        self._sorted_nodes = new_sorted_nodes
+
+        return True
 
     def successors(self, node):
         return list(self.graph.successors(node))

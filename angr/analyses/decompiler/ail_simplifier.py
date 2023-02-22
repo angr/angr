@@ -480,7 +480,7 @@ class AILSimplifier(Analysis):
         simplified = False
 
         prop = self._compute_propagation()
-        if not prop.equivalence:
+        if not prop.model.equivalence:
             return simplified
 
         addr_and_idx_to_block: Dict[Tuple[int, int], Block] = {}
@@ -489,7 +489,7 @@ class AILSimplifier(Analysis):
 
         equivalences: Dict[Any, Set[Equivalence]] = defaultdict(set)
         atom_by_loc = set()
-        for eq in prop.equivalence:
+        for eq in prop.model.equivalence:
             equivalences[eq.atom1].add(eq)
             atom_by_loc.add((eq.codeloc, eq.atom1))
 
@@ -826,7 +826,7 @@ class AILSimplifier(Analysis):
         simplified = False
 
         prop = self._compute_propagation()
-        if not prop.equivalence:
+        if not prop.model.equivalence:
             return simplified
 
         addr_and_idx_to_block: Dict[Tuple[int, int], Block] = {}
@@ -836,7 +836,7 @@ class AILSimplifier(Analysis):
         def_locations_to_remove: Set[CodeLocation] = set()
         updated_use_locations: Set[CodeLocation] = set()
 
-        for eq in prop.equivalence:
+        for eq in prop.model.equivalence:
             eq: Equivalence
 
             # register variable == Call
