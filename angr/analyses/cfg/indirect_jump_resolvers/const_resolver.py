@@ -53,7 +53,7 @@ class ConstantResolver(IndirectJumpResolver):
         return False
 
     def resolve(  # pylint:disable=unused-argument
-        self, cfg, addr: int, func_addr: int, block: "Block", jumpkind: str, **kwargs
+        self, cfg, addr: int, func_addr: int, block: "Block", jumpkind: str, func_graph_complete: bool = True, **kwargs
     ):
         """
         This function does the actual resolve. Our process is easy:

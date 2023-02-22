@@ -11,6 +11,14 @@ _l = logging.getLogger(name=__name__)
 
 
 class ArmElfFastResolver(IndirectJumpResolver):
+    """
+    Resolves the indirect jump in ARM ELF binaries where all internal function calls are performed in the following
+    manner::
+
+        ldr r3, [pc+#0x124]  ; load a constant from the constant_pool
+        blx r3
+    """
+
     def __init__(self, project):
         super().__init__(project, timeless=True)
 
@@ -21,13 +29,11 @@ class ArmElfFastResolver(IndirectJumpResolver):
             return False
         return True
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind, **kwargs):  # pylint:disable=unused-argument
+    def resolve(  # pylint:disable=unused-argument
+        self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
+    ):
         """
-        Resolves the indirect jump in ARM ELF binaries where all internal function calls are performed in the following
-        manner:
-
-        ldr r3, [pc+#0x124]  ; load a constant from the constant_pool
-        blx r3
+        The main resolving function.
 
         :param cfg:             A CFG instance.
         :param int addr:        Address of the IRSB.

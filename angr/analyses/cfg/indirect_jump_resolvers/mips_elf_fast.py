@@ -36,7 +36,7 @@ class OverwriteTmpValueCallback:
 
 class MipsElfFastResolver(IndirectJumpResolver):
     """
-    Indirect Jump Resolver for MIPs
+    A timeless indirect jump resolver for R9-based indirect function calls in MIPS ELFs.
     """
 
     def __init__(self, project):
@@ -53,7 +53,9 @@ class MipsElfFastResolver(IndirectJumpResolver):
             return False
         return True
 
-    def resolve(self, cfg, addr, func_addr, block, jumpkind, **kwargs):  # pylint:disable=unused-argument
+    def resolve(  # pylint:disable=unused-argument
+        self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
+    ):
         """
         Wrapper for _resolve that slowly increments the max_depth used by Blade for finding sources
         until we can resolve the addr or we reach the default max_depth
