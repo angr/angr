@@ -941,6 +941,31 @@ class SimEnginePropagatorAIL(
                     o1_expr if o1_expr is not None else expr.operands[1],
                 ],
                 expr.signed,
+                bits=o0_expr.bits * 2,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
+        return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
+
+    def _ail_handle_Mod(self, expr):
+        o0_value = self._expr(expr.operands[0])
+        o1_value = self._expr(expr.operands[1])
+
+        value = self.state.top(expr.bits)
+        if o0_value is None or o1_value is None:
+            new_expr = expr
+        else:
+            o0_expr = o0_value.one_expr
+            o1_expr = o1_value.one_expr
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Mod",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
                 floating_point=expr.floating_point,
                 rounding_mode=expr.rounding_mode,
                 **expr.tags,

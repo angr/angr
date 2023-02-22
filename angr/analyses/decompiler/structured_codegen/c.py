@@ -1488,7 +1488,7 @@ class CUnaryOp(CExpression):
 
     def _c_repr_chunks_neg(self):
         paren = CClosingObject("(")
-        yield "-", self
+        yield "~", self
         yield "(", paren
         yield from CExpression._try_c_repr_chunks(self.operand)
         yield ")", paren
@@ -1619,6 +1619,7 @@ class CBinaryOp(CExpression):
             "Mull": self._c_repr_chunks_mull,
             "Div": self._c_repr_chunks_div,
             "DivMod": self._c_repr_chunks_divmod,
+            "Mod": self._c_repr_chunks_mod,
             "And": self._c_repr_chunks_and,
             "Xor": self._c_repr_chunks_xor,
             "Or": self._c_repr_chunks_or,
@@ -1688,6 +1689,9 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" / ")
 
     def _c_repr_chunks_divmod(self):
+        yield from self._c_repr_chunks(" /m ")
+
+    def _c_repr_chunks_mod(self):
         yield from self._c_repr_chunks(" % ")
 
     def _c_repr_chunks_and(self):
