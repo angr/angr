@@ -1,5 +1,6 @@
-from typing import List, TYPE_CHECKING
+from typing import List, Generator, TYPE_CHECKING
 import logging
+from collections import defaultdict
 
 import claripy
 
@@ -128,12 +129,15 @@ class DebugVariable(DebugVariableContainer):
 class DebugVariableManager(KnowledgeBasePlugin):
     """
     Structure to manage and access variables with different visibility scopes.
+
+    :ivar _dvar_by_addrs:   A dict that stores collections of variables by their lexical block ranges.
     """
 
     def __init__(self, kb: "KnowledgeBase"):
         super().__init__()
         self._kb: "KnowledgeBase" = kb
         self._dvar_containers = {}
+        self._dvar_by_addrs = defaultdict(set)
 
     def from_name_and_pc(self, var_name: str, pc_addr: int) -> Variable:
         """
@@ -170,6 +174,8 @@ class DebugVariableManager(KnowledgeBasePlugin):
         container = self._dvar_containers[name]
         container[low_pc:high_pc] = cle_var
 
+        self._dvar_by_addrs[(low_pc, high_pc)].add(cle_var)
+
     def __setitem__(self, index, cle_var):
         assert isinstance(index, slice) and isinstance(cle_var, Variable)
         return self.add_variable(cle_var, index.start, index.stop)
@@ -185,6 +191,12 @@ class DebugVariableManager(KnowledgeBasePlugin):
         """
         for v in vlist:
             self.add_variable(v, low_pc, high_pc)
+
+    def variables_in_range(self, low_pc: int, high_pc: int) -> Generator[Variable, None, None]:
+        # FIXME: Speed up this function
+        for (lo, hi), variables in self._dvar_by_addrs.items():
+            if low_pc <= lo and high_pc >= hi:
+                yield from variables
 
     def load_from_dwarf(self, elf_object: ELF = None, cu: CompilationUnit = None):
         """
@@ -214,6 +226,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
                         self.add_variable(cle_var, cu_curr.min_addr, cu_curr.max_addr)
                 for subp in cu_curr.functions.values():
                     for cle_var in subp.local_variables:
+                        cle_var: Variable
                         low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
                         high_pc = cle_var.lexical_block.high_pc + obj.mapped_base
                         self.add_variable(cle_var, low_pc, high_pc)
