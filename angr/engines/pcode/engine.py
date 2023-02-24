@@ -3,7 +3,9 @@ from typing import Optional, Iterable
 import claripy
 import logging
 
+from angr.calling_conventions import DEFAULT_CC, SimRegArg
 from angr.engines.engine import SuccessorsMixin, SimSuccessors
+from angr.misc.ux import once
 from ...utils.constants import DEFAULT_STATEMENT
 from ... import sim_options as o
 from ... import errors
@@ -194,10 +196,31 @@ class HeavyPcodeMixin(
                 exit_jumpkind = ""
 
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
-                exit_state.registers.store(
-                    exit_state.arch.ret_offset,
-                    exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits),
-                )
+                # get the default calling convention for the architecture and retrieve the return value offset
+                if exit_state.arch.name in DEFAULT_CC:
+                    cc = DEFAULT_CC[exit_state.arch.name]
+                    ret_reg = cc.RETURN_VAL
+                    if isinstance(ret_reg, SimRegArg):
+                        ret_offset = exit_state.arch.registers[ret_reg.reg_name][0]
+                        exit_state.registers.store(
+                            ret_offset,
+                            exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits),
+                        )
+                    else:
+                        if once("return_val_is_not_reg"):
+                            l.warning(
+                                "The return value of the default calling convention for architecture %s is not "
+                                "stored in a register. We cannot set the fake return value in Call-less mode. "
+                                "Please report to GitHub.",
+                                exit_state.arch.name,
+                            )
+                else:
+                    if once("missing_default_cc"):
+                        l.warning(
+                            "Default calling convention is not set for architecture %s. We cannot set the fake "
+                            "return value in Call-less mode.",
+                            exit_state.arch.name,
+                        )
                 exit_state.scratch.target = exit_state.solver.BVV(
                     successors.addr + self.state.scratch.irsb.size, exit_state.arch.bits
                 )

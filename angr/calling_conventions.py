@@ -2167,7 +2167,7 @@ DEFAULT_CC: Dict[str, Type[SimCC]] = {
 }
 
 
-def register_default_cc(arch, cc):
+def register_default_cc(arch: str, cc: Type[SimCC]):
     DEFAULT_CC[arch] = cc
 
 
