@@ -1041,8 +1041,9 @@ class Tracer(ExplorationTechnique):
 
         # now remove our breakpoints since other people might not want them
         for s in [last_state, crash_state]:
-            s.inspect.remove_breakpoint("address_concretization", bp1)
-            s.inspect.remove_breakpoint("address_concretization", bp2)
+            if s is not None:
+                s.inspect.remove_breakpoint("address_concretization", bp1)
+                s.inspect.remove_breakpoint("address_concretization", bp2)
 
         return last_state, crash_state
 
