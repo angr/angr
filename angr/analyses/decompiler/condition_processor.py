@@ -668,6 +668,7 @@ class ConditionProcessor:
             "__lshift__": lambda cond_, tags: _binary_op_reduce("Shl", cond_.args, tags),
             "__rshift__": lambda cond_, tags: _binary_op_reduce("Sar", cond_.args, tags),
             "__floordiv__": lambda cond_, tags: _binary_op_reduce("Div", cond_.args, tags),
+            "__mod__": lambda cond_, tags: _binary_op_reduce("Mod", cond_.args, tags),
             "LShR": lambda cond_, tags: _binary_op_reduce("Shr", cond_.args, tags),
             "BVV": lambda cond_, tags: ailment.Expr.Const(None, None, cond_.args[0], cond_.size(), **tags),
             "BoolV": lambda cond_, tags: ailment.Expr.Const(None, None, True, 1, **tags)
@@ -723,7 +724,7 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Const):
-            if condition.value in {True, False}:
+            if condition.value is True or condition.value is False:
                 var = claripy.BoolV(condition.value)
             else:
                 var = claripy.BVV(condition.value, condition.bits)

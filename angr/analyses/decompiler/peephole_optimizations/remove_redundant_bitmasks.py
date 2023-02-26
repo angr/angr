@@ -3,6 +3,7 @@ from ailment.expression import BinaryOp, Convert, Const, ITE
 from .base import PeepholeOptimizationExprBase
 
 _MASKS = {
+    1: 1,
     8: 0xFF,
     16: 0xFFFF,
     32: 0xFFFFFFFF,
@@ -17,17 +18,17 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-        # And(Conv(M->N, expr), full_N_bitmask) ==> Conv(M->N, expr)
+        # And(expr, full_N_bitmask) ==> expr
+        # And(Conv(1->N, expr), bitmask) ==> Conv(1->N, expr)
         # And(Conv(1->N, bool_expr), bitmask) ==> Conv(1->N, bool_expr)
         # And(ITE(?, const_expr, const_expr), bitmask) ==> ITE(?, const_expr, const_expr)
         if expr.op == "And" and isinstance(expr.operands[1], Const):
-            if isinstance(expr.operands[0], Convert):
-                conv_expr = expr.operands[0]
-                if expr.operands[1].value == _MASKS.get(conv_expr.to_bits, None):
-                    return expr.operands[1]
-                if self.is_bool_expr(conv_expr.operand):
-                    # useless masking
-                    return conv_expr
+            inner_expr = expr.operands[0]
+            if expr.operands[1].value == _MASKS.get(inner_expr.bits, None):
+                return inner_expr
+            if isinstance(inner_expr, Convert) and self.is_bool_expr(inner_expr.operand):
+                # useless masking
+                return inner_expr
             if (
                 isinstance(expr.operands[0], ITE)
                 and isinstance(expr.operands[0].iftrue, Const)

@@ -36,4 +36,9 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
                     )
                     return conv_expr
 
+        # expr << 0  ==>  expr
+        # expr >> 0  ==>  expr
+        if expr.op in {"Shl", "Shr", "Sar"} and isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
+            return expr.operands[0]
+
         return None
