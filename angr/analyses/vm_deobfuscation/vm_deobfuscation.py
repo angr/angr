@@ -25,8 +25,12 @@ from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnot
 from ... import BP, BP_BEFORE, BP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
 from ...engines.light.data import SpOffset
+from ...storage.memory_mixins import TopListPagesMemory, DefaultListPagesMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
+from multiprocessing import Process, Queue
+
+
 to_break = False
 #logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
@@ -955,16 +959,55 @@ class VMDeobfuscation(Analysis):
         #                                                                        vm_vpc=4281418)  # start_state=saved_start_state)
 
         # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
-        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr=start_addr, start_state=None, prev_symbolic_expr_locations_blockwise=None)#start_state=saved_start_state)
+
+        # import tracemalloc
+        # tracemalloc.start()
+
+        # q = Queue()
+        # p = Process(target=self.constant_propagation, args=(cfg, proj, start_addr, q), kwargs={'start_state':None, 'prev_symbolic_expr_locations_blockwise':None})
+        # p.start()
+        # # res = q.get()
+        # res = []
+        # while len(res) < 2:
+        #     while not q.empty():
+        #         print("here")
+        #         res.append(q.get())
+        #
+        # new_cfg = res[0]
+        # symbolic_expr_locations_blockwise = res[1]
+        # p.join()
+        # import ipdb;ipdb.set_trace()
+
+        import cProfile, pstats
+        profiler = cProfile.Profile()
+        profiler.enable()
+
+        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None)#start_state=saved_start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
+
+        profiler.disable()
+        stats = pstats.Stats(profiler).sort_stats('tottime')
+        stats.print_stats()
+        import ipdb;ipdb.set_trace()
+
+
+        # snapshot = tracemalloc.take_snapshot()
+        # top_stats = snapshot.statistics('lineno')
+        #
+        # print("[ Top 10 ]")
+        # for stat in top_stats[:10]:
+        #     print(stat)
+
         start_state_copy = start_state.copy()
         self.project.kb.cfgs.cfgs = {}
 
-        # import ipdb;ipdb.set_trace()
+       #import ipdb;ipdb.set_trace()
 
         global debug
         debug = True
         cfg = None
         new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(cfg, proj, symbolic_expr_locations_blockwise, start_addr=start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
+        to_use_symbolic_exprs = None
 
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
@@ -992,10 +1035,23 @@ class VMDeobfuscation(Analysis):
 
         start_state_copy = start_state.copy()
 
-        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-        # import ipdb;ipdb.set_trace()
+        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        import ipdb;ipdb.set_trace()
+        # q = Queue()
+        # p = Process(target=self.constant_propagation, args=(new_cfg, proj, start_addr, q), kwargs={'start_state':None, 'prev_symbolic_expr_locations_blockwise':symbolic_expr_locations_blockwise})
+        # p.start()
+        # # res = q.get()
+        # res = []
+        # while len(res) < 2:
+        #     while not q.empty():
+        #         print("here")
+        #         res.append(q.get())
+        #
+        # new_cfg = res[0]
+        # symbolic_expr_locations_blockwise = res[1]
 
-        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr=start_addr,
+        #p.join()
+        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr, None,
                                                                                start_state=None,
                                                                                prev_symbolic_expr_locations_blockwise=None)
         self.project.kb.cfgs.cfgs = {}
@@ -2928,7 +2984,7 @@ class VMDeobfuscation(Analysis):
         return cfg, proj
 
     ####### Constant Propagation
-    def constant_propagation(self, cfg, proj, start_addr, start_state=None,options=None, prev_symbolic_expr_locations_blockwise=None, vm_vpc = None):
+    def constant_propagation(self, cfg, proj, start_addr, q, start_state=None, options=None, prev_symbolic_expr_locations_blockwise=None, vm_vpc = None, return_symbolic_expr_locations_blockwise=None, new_cfg=None):
         self.project.prev_symbolic_expr_locations_blockwise = prev_symbolic_expr_locations_blockwise
         print("Doing constant propagation")
         # old_graph = cfg.graph
@@ -2945,8 +3001,12 @@ class VMDeobfuscation(Analysis):
             initial_input_state = start_state
         else:
             print("Using blank state!")
-            initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath", add_options={'REPLACEMENT_SOLVER','DO_CCALLS', 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS', 'SYMBOL_FILL_UNCONSTRAINED_MEMORY'})#'REPLACEMENT_SOLVER' removed to test the spped without replacements
-            initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+            # kwargs = {'plugins': {'memory': DefaultListPagesMemory(memory_id="mem")}, 'cle_memory_backer':proj.loader, }#,
+            #                       #'registers': TopListPagesMemory(memory_id="reg")}}
+            initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath", add_options={'REPLACEMENT_SOLVER','DO_CCALLS', 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS', 'SYMBOL_FILL_UNCONSTRAINED_MEMORY', 'TOP_LIST_REGISTERS', 'TOP_LIST_MEMORY'})#'REPLACEMENT_SOLVER' removed to test the spped without replacements
+            #initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+            initial_input_state.register_plugin('partial_symbolic_constraint_solver',angr.state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(), unsafe_replacement=True, auto_replace=True)))
+
             if proj.arch.bits == 32:
                 initial_input_state.registers.store('ss', 0)
 
@@ -3008,20 +3068,38 @@ class VMDeobfuscation(Analysis):
             proj.hook(func_addr, orig_sim_proc)
 
         ## do the actual replacements
-        for key, value in prop.replacements.items():
+        for loc, value in prop.replacements.items():
+            key = loc.block_id
             node = new_model._nodes[key]
             if not node.is_simprocedure:
                 new_stmts = node.irsb.statements
                 if node.addr == 0x44e41b:
                     import ipdb;ipdb.set_trace()
-                for stmt, repl_pair in value.items():
-                    for old, new in repl_pair.items():
+                # for stmt, repl_pair in value.items():
+                #     for old, new in repl_pair.items():
+                #         ## This is for the next expression
+                #         if stmt.stmt_idx == -2:
+                #             node.irsb.next = new
+                #         else:
+                #             new_stmts[stmt.stmt_idx].replace_expression({old: new})
+                for old, new in value.items():
+                    if not angr.analyses.propagator_emulated.propagator_emulated.PropagatorState.is_top(new):
                         ## This is for the next expression
-                        if stmt.stmt_idx == -2:
+                        if loc.stmt_idx == -2:
                             node.irsb.next = new
                         else:
-                            new_stmts[stmt.stmt_idx].replace_expression({old: new})
+                            new_stmts[loc.stmt_idx].replace_expression({old: new})
 
+        tmp_syb_blockwise = defaultdict(dict)
+        for codeloc, expr_list in prop.symbolic_expr_locations_blockwise.items():
+            if codeloc in tmp_syb_blockwise[codeloc.block_id]:
+                tmp_syb_blockwise[codeloc.block_id][codeloc] = tmp_syb_blockwise[codeloc.block_id][codeloc] + expr_list
+            else:
+                tmp_syb_blockwise[codeloc.block_id][codeloc] = expr_list
+
+        prop.symbolic_expr_locations_blockwise = tmp_syb_blockwise
+        # q.put(new_model)
+        # q.put(tmp_syb_blockwise)
         # this is to replace any indirect jumps to a simprocedure with a direct jump, should I do this for all jumps/calls?
         # for node in new_model.graph.nodes():
         #     if not node.is_simprocedure and isinstance(node.irsb.next, pyvex.expr.RdTmp) and len(list(new_model.graph.successors(node))) == 1 and list(new_model.graph.successors(node))[0].is_simprocedure:

@@ -122,6 +122,48 @@ class DefaultListPagesMemory(
     pass
 
 
+class TopListPagesMemory(
+    HexDumperMixin,
+    SmartFindMixin,
+    UnwrapperMixin,
+    NameResolutionMixin,
+    DataNormalizationMixin,
+    SimplificationMixin,
+    ActionsMixinHigh,
+    UnderconstrainedMixin,
+    SizeConcretizationMixin,
+    SizeNormalizationMixin,
+    InspectMixinHigh,
+    AddressConcretizationMixin,
+    # InspectMixinLow,
+    ActionsMixinLow,
+    ConditionalMixin,
+    ConvenientMappingsMixin,
+    DirtyAddrsMixin,
+    # -----
+    StackAllocationMixin,
+    ClemoryBackerMixin,
+    DictBackerMixin,
+    PrivilegedPagingMixin,
+    ListPagesMixin,
+    DefaultFillerMixin,
+    TopMergerMixin,
+    PagedMemoryMixin,
+):
+
+    def _default_value(self, addr, size, **kwargs):
+        # TODO: Make _default_value() a separate Mixin
+
+        if kwargs.get("name", "").startswith("merge_uc_"):
+            # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
+            # create temporary values. we simply return a TOP value here.
+            return self._top_func(size * self.state.arch.byte_width)
+
+        # we never fill default values for non-existent loads
+        #kwargs["fill_missing"] = False
+        return super()._default_value(addr, size, **kwargs)
+
+
 class FastMemory(
     NameResolutionMixin,
     SimpleInterfaceMixin,
@@ -237,6 +279,7 @@ class JavaVmMemory(
 
 
 SimState.register_default("sym_memory", DefaultMemory)
+SimState.register_default("top_list_memory", TopListPagesMemory)
 SimState.register_default("fast_memory", FastMemory)
 SimState.register_default("abs_memory", AbstractMemory)
 SimState.register_default("keyvalue_memory", KeyValueMemory)
