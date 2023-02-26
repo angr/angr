@@ -2171,6 +2171,67 @@ def register_default_cc(arch: str, cc: Type[SimCC]):
     DEFAULT_CC[arch] = cc
 
 
+ARCH_NAME_ALIASES = {
+    "X86": [],
+    "AMD64": ["x86-64", "x86_64"],
+    "ARMEL": [],
+    "ARMHF": [],
+    "ARMCortexM": [],
+    "AARCH64": ["arm64"],
+    "MIPS32": [],
+    "MIPS64": [],
+    "PPC32": ["powerpc32"],
+    "PPC64": ["powerpc64"],
+    "Soot": [],
+    "AVR8": [],
+    "MSP": [],
+    "S390X": [],
+}
+
+ALIAS_TO_ARCH_NAME = {}
+for k, vs in ARCH_NAME_ALIASES.items():
+    for v in vs:
+        ALIAS_TO_ARCH_NAME[v] = k
+
+
+def default_cc(
+    arch: str, platform: Optional[str] = None, language: Optional[str] = None
+) -> Optional[Type[SimCC]]:  # pylint:disable=unused-argument
+    """
+    Return the default calling convention for a given architecture, platform, and language combination.
+
+    :param arch:        The architecture name.
+    :param platform:    The platform name (e.g., "linux").
+    :param language:    The programming language name (e.g., "go").
+    :return:            A default calling convention class if we can find one for the architecture, platform, and
+                        language combination, or None if nothing fits.
+    """
+
+    if arch in DEFAULT_CC:
+        return DEFAULT_CC[arch]
+
+    alias = unify_arch_name(arch)
+    return DEFAULT_CC.get(alias)
+
+
+def unify_arch_name(arch: str) -> str:
+    """
+    Return the unified architecture name.
+
+    :param arch:    The architecture name.
+    :return:        A unified architecture name.
+    """
+
+    if ":" in arch:
+        # Sleigh architecture names
+        chunks = arch.lower().split(":")
+        if len(chunks) >= 3:
+            arch_base, endianness, bits = chunks[:3]
+            arch = f"{arch_base}{bits}"
+
+    return ALIAS_TO_ARCH_NAME.get(arch, arch)
+
+
 SYSCALL_CC: Dict[str, Dict[str, Type[SimCCSyscall]]] = {
     "X86": {
         "default": SimCCX86LinuxSyscall,

@@ -9,7 +9,7 @@ from pyvex.stmt import Put
 from pyvex.expr import RdTmp
 from archinfo.arch_arm import is_arm_arch, ArchARMHF
 
-from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, DefaultCC
+from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc, unify_arch_name
 from ..sim_type import (
     SimTypeInt,
     SimTypeFunction,
@@ -181,7 +181,11 @@ class CallingConventionAnalysis(Analysis):
                         max_analyzing_callsites=1,
                         include_callsite_preds=include_callsite_preds,
                     )
-                    cc = DefaultCC[self.project.arch.name](self.project.arch)
+                    cc_cls = default_cc(self.project.arch.name)
+                    if cc_cls is not None:
+                        cc = cc_cls(self.project.arch)
+                    else:
+                        cc = None
                     prototype = None
                     if callsite_facts:
                         if self.prototype is None:
@@ -230,7 +234,11 @@ class CallingConventionAnalysis(Analysis):
                     include_preds=include_callsite_preds,
                 )
             ]
-            cc = DefaultCC[self.project.arch.name](self.project.arch)
+            cc_cls = default_cc(self.project.arch.name)
+            if cc_cls is not None:
+                cc = cc_cls(self.project.arch)
+            else:
+                cc = None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -286,7 +294,11 @@ class CallingConventionAnalysis(Analysis):
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
             callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
-            cc = DefaultCC[self.project.arch.name](self.project.arch)
+            cc_cls = default_cc(self.project.arch.name)
+            if cc_cls is not None:
+                cc = cc_cls(self.project.arch)
+            else:
+                cc = None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -469,11 +481,11 @@ class CallingConventionAnalysis(Analysis):
             True,  # by default we treat all return values as used
         )
 
-        default_cc_cls = DefaultCC.get(self.project.arch.name, None)
+        default_cc_cls = default_cc(self.project.arch.name)
         if default_cc_cls is not None:
-            default_cc: SimCC = default_cc_cls(self.project.arch)
-            self._analyze_callsite_return_value_uses(default_cc, caller_block_addr, rda, fact)
-            self._analyze_callsite_arguments(default_cc, caller_block_addr, call_insn_addr, rda, fact)
+            cc: SimCC = default_cc_cls(self.project.arch)
+            self._analyze_callsite_return_value_uses(cc, caller_block_addr, rda, fact)
+            self._analyze_callsite_arguments(cc, caller_block_addr, call_insn_addr, rda, fact)
 
         return fact
 
@@ -662,11 +674,12 @@ class CallingConventionAnalysis(Analysis):
         """
 
         arch = self.project.arch
+        arch_name = unify_arch_name(self.project.arch.name)
 
-        if arch.name == "AARCH64":
+        if arch_name == "AARCH64":
             return 16 <= variable.reg < 80  # x0-x7
 
-        elif arch.name == "AMD64":
+        elif arch_name == "AMD64":
             return 24 <= variable.reg < 40 or 64 <= variable.reg < 104  # rcx, rdx  # rsi, rdi, r8, r9, r10
             # 224 <= variable.reg < 480)  # xmm0-xmm7
 
@@ -676,16 +689,16 @@ class CallingConventionAnalysis(Analysis):
             else:
                 return 8 <= variable.reg < 24  # r0-r3
 
-        elif arch.name == "MIPS32":
+        elif arch_name == "MIPS32":
             return 24 <= variable.reg < 40  # a0-a3
 
-        elif arch.name == "MIPS64":
+        elif arch_name == "MIPS64":
             return 48 <= variable.reg < 80 or 112 <= variable.reg < 208  # a0-a3 or t4-t7
 
-        elif arch.name == "PPC32":
+        elif arch_name == "PPC32":
             return 28 <= variable.reg < 60  # r3-r10
 
-        elif arch.name == "X86":
+        elif arch_name == "X86":
             return 8 <= variable.reg < 24 or 160 <= variable.reg < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
 
         else:
