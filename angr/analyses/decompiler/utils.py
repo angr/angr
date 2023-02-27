@@ -234,6 +234,9 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
 
     new_node = node_a.copy() if node_a.addr <= node_b.addr else node_b.copy()
     old_node = node_b if new_node == node_a else node_a
+    # remove jumps in the middle of nodes when merging
+    if isinstance(new_node.statements[-1], ailment.Stmt.Jump):
+        new_node.statements = new_node.statements[:-1]
     new_node.statements += old_node.statements
     new_node.original_size += old_node.original_size
 
