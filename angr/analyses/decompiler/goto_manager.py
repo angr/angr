@@ -1,4 +1,4 @@
-from typing import Dict, Set, Optional
+from typing import Set
 from collections import defaultdict
 
 import ailment

@@ -44,12 +44,12 @@ class GotoSimplifier(SequenceWalker):
         }
         self._function = function
         self._kb = kb
+        self.irreducible_gotos = set()
 
         super().__init__(handlers)
         self._node_addrs: Set[int] = NodeAddressFinder(node).addrs
 
         self.walk(node)
-        self.irreducible_gotos = set()
 
     def _handle_sequencenode(self, node, successor=None, **kwargs):
         """
