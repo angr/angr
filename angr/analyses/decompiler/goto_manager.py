@@ -6,7 +6,8 @@ import ailment
 
 class Goto:
     """
-    Describe the existence of a goto (jump) statement.
+    Describe the existence of a goto (jump) statement. May have multiple gotos with the same address (targets
+    will differ).
     """
 
     def __init__(self, block_addr=None, ins_addr=None, target_addr=None):
