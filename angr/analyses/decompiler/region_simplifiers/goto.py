@@ -14,7 +14,7 @@ from ..structuring.structurer_nodes import (
     CascadingConditionNode,
 )
 from .node_address_finder import NodeAddressFinder
-from ....knowledge_plugins.gotos import Goto
+from ..goto_manager import Goto
 
 
 l = logging.getLogger(name=__name__)
@@ -44,6 +44,7 @@ class GotoSimplifier(SequenceWalker):
         }
         self._function = function
         self._kb = kb
+        self.irreducible_gotos = set()
 
         super().__init__(handlers)
         self._node_addrs: Set[int] = NodeAddressFinder(node).addrs
@@ -149,7 +150,7 @@ class GotoSimplifier(SequenceWalker):
     def _handle_irreducible_goto(
         self, block, goto_stmt: Union[ailment.Stmt.Jump, ailment.Stmt.ConditionalJump], branch_target=None
     ):
-        if not self._kb or not self._function:
+        if not self._function:
             l.debug("Unable to store a goto at %#x because simplifier is kb or functionless", block.addr)
             return
 
@@ -163,6 +164,6 @@ class GotoSimplifier(SequenceWalker):
         else:
             stmt_target = goto_stmt.true_target
 
-        goto = Goto(addr=goto_stmt.ins_addr or block.addr, target_addr=stmt_target.value)
-        l.debug("Storing %r in kb.gotos", goto)
-        self._kb.gotos.locations[self._function.addr].add(goto)
+        goto = Goto(block_addr=block.addr, ins_addr=goto_stmt.ins_addr, target_addr=stmt_target.value)
+        l.debug("Storing %r goto", goto)
+        self.irreducible_gotos.add(goto)

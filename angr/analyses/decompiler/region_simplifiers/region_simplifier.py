@@ -1,5 +1,8 @@
+from typing import Optional
+
 import ailment
 
+from ..goto_manager import GotoManager
 from ....analyses import AnalysesHub
 from ...analysis import Analysis
 from ..empty_node_remover import EmptyNodeRemover
@@ -27,6 +30,7 @@ class RegionSimplifier(Analysis):
         self.variable_kb = variable_kb
         self._simplify_switches = simplify_switches
 
+        self.goto_manager: Optional[GotoManager] = None
         self.result = None
 
         self._simplify()
@@ -171,7 +175,8 @@ class RegionSimplifier(Analysis):
         return region
 
     def _simplify_gotos(self, region):
-        GotoSimplifier(region, function=self.func, kb=self.kb)
+        simplifier = GotoSimplifier(region, function=self.func, kb=self.kb)
+        self.goto_manager = GotoManager(self.func, gotos=simplifier.irreducible_gotos)
         return region
 
     @staticmethod

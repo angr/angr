@@ -219,7 +219,9 @@ class Decompiler(Analysis):
             **self.options_to_params(self.options_by_class["region_simplifier"]),
         )
         seq_node = s.result
-        seq_node = self._run_post_structuring_simplification_passes(seq_node, binop_operators=cache.binop_operators)
+        seq_node = self._run_post_structuring_simplification_passes(
+            seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager
+        )
         self._update_progress(85.0, text="Generating code")
 
         codegen = self.project.analyses.StructuredCodeGenerator(
