@@ -978,18 +978,8 @@ class VMDeobfuscation(Analysis):
         # p.join()
         # import ipdb;ipdb.set_trace()
 
-        import cProfile, pstats
-        profiler = cProfile.Profile()
-        profiler.enable()
-
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None)#start_state=saved_start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
-
-        profiler.disable()
-        stats = pstats.Stats(profiler).sort_stats('tottime')
-        stats.print_stats()
-        import ipdb;ipdb.set_trace()
-
 
         # snapshot = tracemalloc.take_snapshot()
         # top_stats = snapshot.statistics('lineno')
@@ -1035,8 +1025,8 @@ class VMDeobfuscation(Analysis):
 
         start_state_copy = start_state.copy()
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-        import ipdb;ipdb.set_trace()
+        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        # import ipdb;ipdb.set_trace()
         # q = Queue()
         # p = Process(target=self.constant_propagation, args=(new_cfg, proj, start_addr, q), kwargs={'start_state':None, 'prev_symbolic_expr_locations_blockwise':symbolic_expr_locations_blockwise})
         # p.start()
@@ -1062,8 +1052,9 @@ class VMDeobfuscation(Analysis):
             node.final_states = None
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-        import ipdb;ipdb.set_trace()
+        verification_state_copy = verification_state.copy()
+        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy,
+                                           start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
         start_state_copy = start_state.copy()
         #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         # import ipdb;ipdb.set_trace()
@@ -1110,6 +1101,10 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
         #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
+        verification_state_copy = verification_state.copy()
+        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy,
+                                           start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
+
         for i in range(2):
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
@@ -1151,8 +1146,8 @@ class VMDeobfuscation(Analysis):
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join("dae_"+str(i)+"_result.svg"))
 
-
-        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        verification_state_copy = verification_state.copy()
+        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         import ipdb;ipdb.set_trace()
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
@@ -2377,6 +2372,8 @@ class VMDeobfuscation(Analysis):
                                 defs_.update(live_defs.extract_defs(value))
 
                         if d not in defs_:
+                            if d.codeloc.block_id and d.codeloc.block_id.vm_vpc == 5368833408 and d.codeloc.ins_addr == 0x14006a455:
+                                import ipdb;ipdb.set_trace()
                             dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
             new_statements = []
@@ -3068,7 +3065,7 @@ class VMDeobfuscation(Analysis):
             proj.hook(func_addr, orig_sim_proc)
 
         ## do the actual replacements
-        for loc, value in prop.replacements.items():
+        for loc, repl_pair in prop.replacements.items():
             key = loc.block_id
             node = new_model._nodes[key]
             if not node.is_simprocedure:
@@ -3082,7 +3079,7 @@ class VMDeobfuscation(Analysis):
                 #             node.irsb.next = new
                 #         else:
                 #             new_stmts[stmt.stmt_idx].replace_expression({old: new})
-                for old, new in value.items():
+                for old, new in repl_pair.items():
                     if not angr.analyses.propagator_emulated.propagator_emulated.PropagatorState.is_top(new):
                         ## This is for the next expression
                         if loc.stmt_idx == -2:
