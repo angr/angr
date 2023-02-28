@@ -263,6 +263,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         return result
 
     def _handle_vex_defaultexit(self, expr, jumpkind):
+        super()._handle_vex_defaultexit(expr, jumpkind)
         # if blockid is None then it's probably some weird VEX instruction and we are still in the same block most likely
         if isinstance(expr, pyvex.expr.RdTmp):
             if expr.block_id:
@@ -270,12 +271,11 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         else:
             if expr.con.block_id:
                 self.state.globals['cur_block_id'] = expr.con.block_id
-        super()._handle_vex_defaultexit(expr, jumpkind)
 
     def _handle_vex_stmt_Exit(self, stmt):
+        super()._handle_vex_stmt_Exit(stmt)
         if stmt.dst.block_id:
             self.state.globals['cur_block_id'] = stmt.dst.block_id
-        super()._handle_vex_stmt_Exit(stmt)
 
 
 class EmulatedCFGVisitor(GraphVisitor):
@@ -441,8 +441,8 @@ class PropagatorVEXState(PropagatorState):
 
         ## If it is not the same as the previous replacement then it is not a constant and should not be replaced
         elif self._replacements[codeloc][old].con.value != new.con.value:
-            del self._replacements[codeloc][old]
-            #self._replacements[codeloc][old] = TOP
+            import ipdb;ipdb.set_trace()
+            self._replacements[codeloc][old] = self.top(new.size())
 
 # AIL state
 
@@ -660,7 +660,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         #     ipdb.set_trace()
         print(sim_successors)
 
-        if node.is_simprocedure:
+        if False:#node.is_simprocedure:
             if len(list(self._graph.successors(node))) > 1 and len(sim_successors.unconstrained_successors) > 0:
                 # create successors for the sim procedure since it is unconstrained because we are not emulating the sim procedures for constant prop
                 new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
@@ -854,7 +854,8 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
         print(symbolic_sim_successors.all_successors)
         print(symbolic_sim_successors)
-
+        if node.addr == 0x402544:
+            import ipdb;ipdb.set_trace()
         # If we don't do this it won't free the memory..... prolly due to cyclic references
         node.input_state.globals['abstract_state'] = None
         for succ in symbolic_sim_successors.all_successors:
