@@ -123,9 +123,9 @@ class HeavyPcodeMixin(
         if irsb.size == 0:
             if irsb.jumpkind == "Ijk_NoDecode" and not self.state.project.is_hooked(irsb.addr):
                 raise errors.SimIRSBNoDecodeError(
-                    "IR decoding error at %#x. You can hook this instruction with "
+                    "IR decoding error at {:#x}. You can hook this instruction with "
                     "a python replacement using project.hook"
-                    "(%#x, your_function, length=length_of_instruction)." % (self._addr, self._addr)
+                    "({:#x}, your_function, length=length_of_instruction).".format(self._addr, self._addr)
                 )
             raise errors.SimIRSBError("Empty IRSB passed to HeavyPcodeMixin.")
         self.state.scratch.irsb = irsb

@@ -14,9 +14,11 @@ force-exclude = '''
 
 [tool.ruff]
 line-length = 120
+target-version = "py38"
 select = [
 	"E", # pycodestyle errors
 	"F", # pyflakes
+	"UP", # pyupgrade
 	"W", # pycodestyle warnings
 ]
 extend-ignore = [

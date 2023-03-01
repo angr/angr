@@ -686,7 +686,7 @@ class ConditionProcessor:
                 cond_tags = {}
             return _mapping[cond.op](cond, cond_tags)
         raise NotImplementedError(
-            ("Condition variable %s has an unsupported operator %s. Consider implementing.") % (cond, cond.op)
+            f"Condition variable {cond} has an unsupported operator {cond.op}. Consider implementing."
         )
 
     def claripy_ast_from_ail_condition(self, condition) -> claripy.ast.Bool:

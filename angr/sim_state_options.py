@@ -166,8 +166,8 @@ class SimStateOptions:
 
         if type(value) not in o.types:
             raise SimStateOptionsError(
-                "The value '%s' does not have an acceptable type for state option '%s'. "
-                "Accepted types are: %s." % (value, key, str(o.types))
+                "The value '{}' does not have an acceptable type for state option '{}'. "
+                "Accepted types are: {}.".format(value, key, str(o.types))
             )
 
         self._options[o.name] = value
