@@ -14,6 +14,11 @@ force-exclude = '''
 
 [tool.ruff]
 line-length = 120
+select = [
+	"E", # pycodestyle errors
+	"F", # pyflakes
+	"W", # pycodestyle warnings
+]
 extend-ignore = [
 	"E402", # Bottom imports
 	"E741", # Variable names
