@@ -1,5 +1,5 @@
 from .base import SimSootValue
-from ..field_dispatcher import resolve_field
+from angr.engines.soot.field_dispatcher import resolve_field
 
 
 class SimSootValue_StaticFieldRef(SimSootValue):

@@ -5,8 +5,8 @@ from collections import OrderedDict, defaultdict
 
 import ailment
 
-from ..structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode
-from ..sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 
 class CmpOp(enum.Enum):

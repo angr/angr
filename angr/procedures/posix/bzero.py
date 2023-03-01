@@ -1,4 +1,4 @@
-from ..libc import memset
+from angr.procedures.libc import memset
 
 
 class bzero(memset.memset):

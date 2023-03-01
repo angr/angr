@@ -1,4 +1,4 @@
-from ...sim_type import SimType, SimTypeChar, SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypePointer
+from angr.sim_type import SimType, SimTypeChar, SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypePointer
 from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64
 
 

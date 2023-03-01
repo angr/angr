@@ -1,7 +1,7 @@
-from ..plugin import SimStatePlugin
+from angr.state_plugins.plugin import SimStatePlugin
 
-from ...errors import SimMemoryError
-from .. import sim_options as opts
+from angr.errors import SimMemoryError
+from angr.state_plugins import sim_options as opts
 
 import logging
 

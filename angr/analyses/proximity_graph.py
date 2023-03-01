@@ -5,9 +5,9 @@ import networkx
 
 import ailment
 
-from ..codenode import BlockNode
-from ..sim_variable import SimMemoryVariable
-from ..knowledge_plugins.functions import Function
+from angr.codenode import BlockNode
+from angr.sim_variable import SimMemoryVariable
+from angr.knowledge_plugins.functions import Function
 from .analysis import Analysis, AnalysesHub
 from .decompiler.ailblock_walker import AILBlockWalker
 

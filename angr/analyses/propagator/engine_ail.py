@@ -5,9 +5,9 @@ import logging
 import claripy
 from ailment import Stmt, Expr
 
-from ...utils.constants import is_alignment_mask
-from ...engines.light import SimEngineLightAILMixin
-from ...sim_variable import SimStackVariable, SimMemoryVariable
+from angr.utils.constants import is_alignment_mask
+from angr.engines.light import SimEngineLightAILMixin
+from angr.sim_variable import SimStackVariable, SimMemoryVariable
 from .engine_base import SimEnginePropagatorBase
 from .prop_value import PropValue, Detail
 

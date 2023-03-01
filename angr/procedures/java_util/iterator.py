@@ -1,8 +1,8 @@
 import claripy
 import logging
 
-from ..java import JavaSimProcedure
-from ...engines.soot.values import SimSootValue_ThisRef
+from angr.procedures.java import JavaSimProcedure
+from angr.engines.soot.values import SimSootValue_ThisRef
 from .collection import ELEMS, SIZE, INDEX
 
 log = logging.getLogger(name=__name__)

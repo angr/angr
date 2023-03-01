@@ -9,15 +9,15 @@ import ailment
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from ... import sim_options
-from ...knowledge_plugins.propagations import PropagationModel
-from ...storage.memory_mixins import LabeledMemory
-from ...errors import SimMemoryMissingError
-from ...code_location import CodeLocation
-from ...storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
-from .. import register_analysis
-from ..analysis import Analysis
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from angr import sim_options
+from angr.knowledge_plugins.propagations import PropagationModel
+from angr.storage.memory_mixins import LabeledMemory
+from angr.errors import SimMemoryMissingError
+from angr.code_location import CodeLocation
+from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
+from angr.analyses import register_analysis
+from angr.analyses.analysis import Analysis
+from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 from .prop_value import PropValue, Detail

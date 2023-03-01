@@ -1,5 +1,5 @@
-from ..func import Func, TestData
-from ....errors import SimMemoryError
+from angr.analyses.identifier.func import Func, TestData
+from angr.errors import SimMemoryError
 
 
 class malloc(Func):

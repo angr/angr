@@ -1,8 +1,8 @@
 import random
 
-from ....sim_type import SimTypeFunction, SimTypeInt
-from ..func import Func, TestData
-from ..custom_callable import IdentifierCallable
+from angr.sim_type import SimTypeFunction, SimTypeInt
+from angr.analyses.identifier.func import Func, TestData
+from angr.analyses.identifier.custom_callable import IdentifierCallable
 
 
 def rand_str(length, byte_list=None):

@@ -3,7 +3,7 @@ from functools import reduce
 
 from archinfo.arch_arm import is_arm_arch
 
-from ..plugin import KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .cfg_model import CFGModel
 
 

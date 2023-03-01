@@ -2,10 +2,10 @@ from typing import Dict, Tuple, Union, Optional
 
 import claripy
 
-from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
-from ...engines.light import SpOffset
+from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
+from angr.engines.light import SpOffset
 from .heap_address import HeapAddress
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 class Atom:

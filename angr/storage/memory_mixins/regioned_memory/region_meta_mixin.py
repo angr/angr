@@ -3,7 +3,7 @@ from typing import Dict, Tuple, Any
 
 from claripy.vsa import AbstractLocation
 
-from .. import MemoryMixin
+from angr.storage.memory_mixins import MemoryMixin
 
 
 class MemoryRegionMetaMixin(MemoryMixin):

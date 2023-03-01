@@ -5,8 +5,8 @@ import cle
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
 from . import ExplorationTechnique
-from .. import BP_BEFORE, BP_AFTER, sim_options
-from ..errors import AngrTracerError, SimIRSBNoDecodeError
+from angr import BP_BEFORE, BP_AFTER, sim_options
+from angr.errors import AngrTracerError, SimIRSBNoDecodeError
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState
@@ -58,7 +58,7 @@ class RepHook:
         return p.execute(state, None, arguments=e_args)
 
     def run(self, state):
-        from .. import SIM_PROCEDURES  # pylint: disable=import-outside-toplevel
+        from angr import SIM_PROCEDURES  # pylint: disable=import-outside-toplevel
 
         dst = state.regs.edi if state.arch.name == "X86" else state.regs.rdi
 

@@ -1,8 +1,8 @@
 # pylint:disable=unused-argument,arguments-differ
 import ailment
 
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
     CodeNode,
     MultiNode,
@@ -11,8 +11,8 @@ from ..structuring.structurer_nodes import (
     EmptyBlockNotice,
     CascadingConditionNode,
 )
-from ..condition_processor import ConditionProcessor
-from ..utils import insert_node
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.utils import insert_node
 
 
 class IfElseFlattener(SequenceWalker):

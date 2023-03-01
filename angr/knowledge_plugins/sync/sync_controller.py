@@ -9,10 +9,10 @@ StackVariable = None
 StackOffsetType = None
 
 
-from ... import knowledge_plugins
-from ...knowledge_plugins.plugin import KnowledgeBasePlugin
-from ...sim_variable import SimStackVariable
-from ..variables.variable_manager import VariableManagerInternal
+from angr import knowledge_plugins
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.sim_variable import SimStackVariable
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 
 def import_binsync():

@@ -1028,6 +1028,6 @@ from angr.sim_state import SimState
 
 SimState.register_default("solver", SimSolver)
 
-from .. import sim_options as o
+from angr import sim_options as o
 from .inspect import BP_AFTER
-from ..errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
+from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

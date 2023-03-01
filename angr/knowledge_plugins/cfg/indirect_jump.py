@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from ...serializable import Serializable
+from angr.serializable import Serializable
 
 
 class IndirectJumpType:

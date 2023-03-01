@@ -1,4 +1,4 @@
-from ..cgc.random import random as orig_random
+from angr.procedures.cgc.random import random as orig_random
 
 
 class random(orig_random):

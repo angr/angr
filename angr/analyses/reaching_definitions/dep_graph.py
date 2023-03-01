@@ -6,11 +6,11 @@ import networkx
 import claripy
 from cle.loader import Loader
 
-from ...code_location import CodeLocation
-from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
-from ...knowledge_plugins.key_definitions.definition import Definition
-from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
-from ...knowledge_plugins.cfg import CFGModel
+from angr.code_location import CodeLocation
+from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
+from angr.knowledge_plugins.cfg import CFGModel
 from .external_codeloc import ExternalCodeLocation
 
 

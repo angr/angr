@@ -18,6 +18,7 @@ target-version = "py38"
 select = [
 	"E", # pycodestyle errors
 	"F", # pyflakes
+	"TID", # tidy imports
 	"UP", # pyupgrade
 	"W", # pycodestyle warnings
 ]

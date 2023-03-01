@@ -4,8 +4,8 @@ import logging
 import claripy
 import pyvex
 
-from ...engines.light import SimEngineLightVEXMixin
-from ...calling_conventions import DEFAULT_CC, SimRegArg
+from angr.engines.light import SimEngineLightVEXMixin
+from angr.calling_conventions import DEFAULT_CC, SimRegArg
 from .values import Top, Bottom
 from .engine_base import SimEnginePropagatorBase
 from .top_checker_mixin import TopCheckerMixin

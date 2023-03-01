@@ -5,7 +5,7 @@ from cle.backends import Section, Segment
 import pyvex
 import claripy
 
-from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
+from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
 from . import register_analysis, PropagatorAnalysis
 from .analysis import Analysis
 from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis

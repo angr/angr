@@ -9,12 +9,12 @@ import progressbar
 import logging
 import time
 
-from ..misc.plugins import PluginVendor, VendorPreset
-from ..misc.ux import deprecated
+from angr.misc.plugins import PluginVendor, VendorPreset
+from angr.misc.ux import deprecated
 
 if TYPE_CHECKING:
-    from ..knowledge_base import KnowledgeBase
-    from ..project import Project
+    from angr.knowledge_base import KnowledgeBase
+    from angr.project import Project
     from typing_extensions import ParamSpec
 
     AnalysisParams = ParamSpec("AnalysisParams")

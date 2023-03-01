@@ -2,8 +2,8 @@ from itertools import count
 
 import angr
 
-from ... import sim_options as o
-from ...state_plugins.sim_action import SimActionData
+from angr import sim_options as o
+from angr.state_plugins.sim_action import SimActionData
 
 fastpath_data_counter = count()
 

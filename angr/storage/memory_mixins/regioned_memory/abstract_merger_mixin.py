@@ -1,7 +1,7 @@
 import logging
 from typing import Iterable, Tuple, Any
 
-from .. import MemoryMixin
+from angr.storage.memory_mixins import MemoryMixin
 
 l = logging.getLogger(name=__name__)
 

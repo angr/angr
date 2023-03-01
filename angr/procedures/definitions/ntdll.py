@@ -1,6 +1,6 @@
 from . import SimLibrary
-from .. import SIM_PROCEDURES as P
-from ...calling_conventions import SimCCStdcall
+from angr.procedures import SIM_PROCEDURES as P
+from angr.calling_conventions import SimCCStdcall
 
 lib = SimLibrary()
 lib.set_library_names('ntdll.dll')

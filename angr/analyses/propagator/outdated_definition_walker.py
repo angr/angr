@@ -2,8 +2,8 @@ from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from ailment import Block, Stmt, Expr
 
-from ...code_location import CodeLocation
-from ..decompiler.ailblock_walker import AILBlockWalker
+from angr.code_location import CodeLocation
+from angr.analyses.decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
     from .propagator import PropagatorAILState

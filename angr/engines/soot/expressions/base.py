@@ -1,5 +1,5 @@
 from . import translate_expr
-from ..values import translate_value
+from angr.engines.soot.values import translate_value
 
 
 class SimSootExpr:

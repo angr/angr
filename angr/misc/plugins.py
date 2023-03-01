@@ -290,4 +290,4 @@ class VendorPreset(PluginPreset):
 
 
 if TYPE_CHECKING:
-    from ..state_plugins import SimStatePlugin
+    from angr.state_plugins import SimStatePlugin

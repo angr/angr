@@ -6,10 +6,10 @@ import typing
 from archinfo import ArchSoot
 from claripy import BVV, StrSubstr
 
-from ...calling_conventions import DefaultCC
-from ...sim_procedure import SimProcedure
-from ...sim_type import SimTypeFunction
-from ...state_plugins.sim_action_object import SimActionObject
+from angr.calling_conventions import DefaultCC
+from angr.sim_procedure import SimProcedure
+from angr.sim_type import SimTypeFunction
+from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger("angr.procedures.java_jni")
 

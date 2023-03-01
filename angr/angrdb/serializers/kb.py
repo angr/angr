@@ -1,5 +1,5 @@
-from ...knowledge_base import KnowledgeBase
-from ..models import DbKnowledgeBase
+from angr.knowledge_base import KnowledgeBase
+from angr.angrdb.models import DbKnowledgeBase
 from .cfg_model import CFGModelSerializer
 from .funcs import FunctionManagerSerializer
 from .xrefs import XRefsSerializer

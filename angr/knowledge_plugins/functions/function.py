@@ -13,20 +13,20 @@ from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
-from ...codenode import CodeNode, BlockNode, HookNode, SyscallNode
-from ...serializable import Serializable
-from ...errors import AngrValueError, SimEngineError, SimMemoryError
-from ...procedures import SIM_LIBRARIES
-from ...procedures.definitions import SimSyscallLibrary
-from ...protos import function_pb2
-from ...calling_conventions import DEFAULT_CC
+from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode
+from angr.serializable import Serializable
+from angr.errors import AngrValueError, SimEngineError, SimMemoryError
+from angr.procedures import SIM_LIBRARIES
+from angr.procedures.definitions import SimSyscallLibrary
+from angr.protos import function_pb2
+from angr.calling_conventions import DEFAULT_CC
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
 
-from ...sim_type import SimTypeFunction, parse_defns
-from ...calling_conventions import SimCC
-from ...project import Project
+from angr.sim_type import SimTypeFunction, parse_defns
+from angr.calling_conventions import SimCC
+from angr.project import Project
 
 
 class Function(Serializable):

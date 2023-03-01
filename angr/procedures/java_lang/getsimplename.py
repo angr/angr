@@ -1,6 +1,6 @@
 import logging
 
-from ..java import JavaSimProcedure
+from angr.procedures.java import JavaSimProcedure
 from angr.engines.soot.values.strref import SimSootValue_StringRef
 
 l = logging.getLogger(name=__name__)

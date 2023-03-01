@@ -8,11 +8,11 @@ import networkx
 import claripy
 import ailment
 
-from ...utils.lazy_import import lazy_import
-from ...utils import is_pyinstaller
-from ...utils.graph import dominates, inverted_idoms
-from ...block import Block, BlockNode
-from ..cfg.cfg_utils import CFGUtils
+from angr.utils.lazy_import import lazy_import
+from angr.utils import is_pyinstaller
+from angr.utils.graph import dominates, inverted_idoms
+from angr.block import Block, BlockNode
+from angr.analyses.cfg.cfg_utils import CFGUtils
 from .structuring.structurer_nodes import (
     MultiNode,
     EmptyBlockNotice,

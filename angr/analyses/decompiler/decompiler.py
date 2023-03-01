@@ -7,10 +7,10 @@ from cle import SymbolType
 import ailment
 
 from angr.analyses.cfg import CFGFast
-from ...knowledge_base import KnowledgeBase
-from ...sim_variable import SimMemoryVariable
-from ...utils import timethis
-from .. import Analysis, AnalysesHub
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_variable import SimMemoryVariable
+from angr.utils import timethis
+from angr.analyses import Analysis, AnalysesHub
 from .structuring import RecursiveStructurer, DreamStructurer, PhoenixStructurer
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage

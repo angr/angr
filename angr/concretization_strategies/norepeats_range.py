@@ -1,5 +1,5 @@
 from . import SimConcretizationStrategy
-from ..errors import SimMergeError
+from angr.errors import SimMergeError
 
 
 class SimConcretizationStrategyNorepeatsRange(SimConcretizationStrategy):

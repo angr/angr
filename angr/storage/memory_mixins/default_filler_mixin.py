@@ -1,9 +1,9 @@
 import logging
 
 from . import MemoryMixin
-from ... import sim_options as options
-from ...misc.ux import once
-from ...errors import SimMemoryMissingError
+from angr import sim_options as options
+from angr.misc.ux import once
+from angr.errors import SimMemoryMissingError
 
 l = logging.getLogger(__name__)
 

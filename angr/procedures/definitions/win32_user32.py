@@ -1,9 +1,9 @@
 # pylint:disable=line-too-long
 import logging
 
-from ...sim_type import SimTypeFunction,     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat,     SimTypePointer,     SimTypeChar,     SimStruct,     SimTypeFixedSizeArray,     SimTypeBottom,     SimUnion,     SimTypeBool
-from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
-from .. import SIM_PROCEDURES as P
+from angr.sim_type import SimTypeFunction, SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat, SimTypePointer, SimTypeChar, SimStruct, SimTypeFixedSizeArray, SimTypeBottom, SimUnion, SimTypeBool
+from angr.calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
+from angr.procedures import SIM_PROCEDURES as P
 from . import SimLibrary
 
 
@@ -14,7 +14,7 @@ lib = SimLibrary()
 lib.set_default_cc('X86', SimCCStdcall)
 lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
 import archinfo
-from ...calling_conventions import SimCCCdecl
+from angr.calling_conventions import SimCCCdecl
 lib.add('wsprintfA', P['libc']['sprintf'], cc=SimCCCdecl(archinfo.ArchX86()))
 lib.set_library_names("user32.dll")
 prototypes = \

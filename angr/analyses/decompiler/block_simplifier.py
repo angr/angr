@@ -5,14 +5,14 @@ from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 from ailment.statement import Statement, Assignment, Call, Store, Jump
 from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
 
-from ...engines.light.data import SpOffset
-from ...knowledge_plugins.key_definitions.constants import OP_AFTER
-from ...knowledge_plugins.key_definitions import atoms
-from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
-from ...analyses.propagator import PropagatorAnalysis
-from ...analyses.reaching_definitions import ReachingDefinitionsAnalysis
-from ...errors import SimMemoryMissingError
-from .. import Analysis, register_analysis
+from angr.engines.light.data import SpOffset
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.analyses.propagator import PropagatorAnalysis
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+from angr.errors import SimMemoryMissingError
+from angr.analyses import Analysis, register_analysis
 from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 from .ailblock_walker import AILBlockWalker
 

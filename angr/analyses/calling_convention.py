@@ -9,8 +9,8 @@ from pyvex.stmt import Put
 from pyvex.expr import RdTmp
 from archinfo.arch_arm import is_arm_arch, ArchARMHF
 
-from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc, unify_arch_name
-from ..sim_type import (
+from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc, unify_arch_name
+from angr.sim_type import (
     SimTypeInt,
     SimTypeFunction,
     SimType,
@@ -21,14 +21,14 @@ from ..sim_type import (
     SimTypeFloat,
     SimTypeDouble,
 )
-from ..sim_variable import SimStackVariable, SimRegisterVariable
-from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
-from ..knowledge_plugins.key_definitions.tag import ReturnValueTag
-from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
-from ..knowledge_plugins.variables.variable_access import VariableAccessSort
-from ..utils.constants import DEFAULT_STATEMENT
-from .. import SIM_PROCEDURES
+from angr.sim_variable import SimStackVariable, SimRegisterVariable
+from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
+from angr.knowledge_plugins.key_definitions.tag import ReturnValueTag
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
+from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr import SIM_PROCEDURES
 from .reaching_definitions import get_all_definitions
 from .reaching_definitions.external_codeloc import ExternalCodeLocation
 from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
@@ -38,10 +38,10 @@ if TYPE_CHECKING:
     from angr.code_location import CodeLocation
     from angr.analyses.reaching_definitions.dep_graph import DepGraph
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
-    from ..knowledge_plugins.functions import Function
-    from ..knowledge_plugins.cfg import CFGModel
-    from ..knowledge_plugins.key_definitions.uses import Uses
-    from ..knowledge_plugins.key_definitions.definition import Definition
+    from angr.knowledge_plugins.functions import Function
+    from angr.knowledge_plugins.cfg import CFGModel
+    from angr.knowledge_plugins.key_definitions.uses import Uses
+    from angr.knowledge_plugins.key_definitions.definition import Definition
 
 l = logging.getLogger(name=__name__)
 

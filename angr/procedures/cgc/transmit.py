@@ -1,6 +1,6 @@
 import angr
 
-from ... import sim_options as o
+from angr import sim_options as o
 
 
 class transmit(angr.SimProcedure):

@@ -7,12 +7,12 @@ import networkx
 
 import ailment
 
-from ...knowledge_base import KnowledgeBase
-from ...knowledge_plugins.functions import Function
-from ...codenode import BlockNode
-from ...utils import timethis
-from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
-from ...sim_type import (
+from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.functions import Function
+from angr.codenode import BlockNode
+from angr.utils import timethis
+from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
+from angr.sim_type import (
     SimTypeChar,
     SimTypeInt,
     SimTypeLongLong,
@@ -21,13 +21,13 @@ from ...sim_type import (
     SimTypeBottom,
     SimTypeFloat,
 )
-from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
-from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
-from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from .. import Analysis, register_analysis
-from ..cfg.cfg_base import CFGBase
-from ..reaching_definitions import ReachingDefinitionsAnalysis
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.analyses import Analysis, register_analysis
+from angr.analyses.cfg.cfg_base import CFGBase
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .ailblock_walker import AILBlockWalker
 from .optimization_passes import get_default_optimization_passes, OptimizationPassStage

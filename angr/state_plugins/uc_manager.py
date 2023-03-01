@@ -3,7 +3,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 from .plugin import SimStatePlugin
-from ..errors import SimUCManagerAllocationError
+from angr.errors import SimUCManagerAllocationError
 
 
 class SimUCManager(SimStatePlugin):

@@ -2,7 +2,7 @@ import logging
 
 from .base import SimSootExpr
 from .newArray import SimSootExpr_NewArray
-from ..values import SimSootValue_ArrayBaseRef
+from angr.engines.soot.values import SimSootValue_ArrayBaseRef
 
 l = logging.getLogger("angr.engines.soot.expressions.newmultiarray")
 

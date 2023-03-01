@@ -5,7 +5,7 @@ import claripy
 import binascii
 
 from .plugin import SimStatePlugin
-from ..errors import SimStateError
+from angr.errors import SimStateError
 
 l = logging.getLogger(name=__name__)
 

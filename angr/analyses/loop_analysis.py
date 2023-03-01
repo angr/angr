@@ -1,7 +1,7 @@
 import logging
 
-from ..block import SootBlockNode
-from ..errors import AngrLoopAnalysisError
+from angr.block import SootBlockNode
+from angr.errors import AngrLoopAnalysisError
 from . import register_analysis
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, LoopVisitor

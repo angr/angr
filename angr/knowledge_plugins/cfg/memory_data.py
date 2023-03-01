@@ -1,6 +1,6 @@
 # pylint:disable=no-member
-from ...protos import cfg_pb2
-from ...serializable import Serializable
+from angr.protos import cfg_pb2
+from angr.serializable import Serializable
 
 
 class MemoryDataSort:

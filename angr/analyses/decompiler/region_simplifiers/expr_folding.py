@@ -6,9 +6,9 @@ import ailment
 from ailment import Expression, Block
 from ailment.statement import Statement, Assignment, Call
 
-from ..ailblock_walker import AILBlockWalker
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
+from angr.analyses.decompiler.ailblock_walker import AILBlockWalker
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     ConditionNode,
     ConditionalBreakNode,
     LoopNode,

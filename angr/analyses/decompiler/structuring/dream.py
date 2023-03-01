@@ -8,14 +8,14 @@ import networkx
 import claripy
 import ailment
 
-from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
-from ...cfg.cfg_utils import CFGUtils
-from ..graph_region import GraphRegion
-from ..empty_node_remover import EmptyNodeRemover
-from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
-from ..condition_processor import ConditionProcessor
-from ..region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
-from ..utils import (
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.analyses.cfg.cfg_utils import CFGUtils
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
+from angr.analyses.decompiler.utils import (
     extract_jump_targets,
     get_ast_subexprs,
     switch_extract_cmp_bounds,
@@ -1220,4 +1220,4 @@ class DreamStructurer(StructurerBase):
 
 
 # delayed import
-from ..sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position
+from angr.analyses.decompiler.sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position

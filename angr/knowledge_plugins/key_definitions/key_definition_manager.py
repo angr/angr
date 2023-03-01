@@ -1,11 +1,11 @@
 from typing import Dict, Iterable, TYPE_CHECKING
 
-from .. import KnowledgeBasePlugin
+from angr.knowledge_plugins import KnowledgeBasePlugin
 from .rd_model import ReachingDefinitionsModel
 from .constants import OP_BEFORE, OP_AFTER
 
 if TYPE_CHECKING:
-    from ...knowledge_base import KnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 
 class RDAObserverControl:

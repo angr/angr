@@ -1,6 +1,6 @@
 from . import SimHeapLibc
 from .utils import concretize
-from ...errors import SimHeapError
+from angr.errors import SimHeapError
 
 import logging
 

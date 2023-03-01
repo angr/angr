@@ -3,8 +3,8 @@ from typing import List
 
 import cle
 
-from ...errors import AngrCorruptDBError
-from ..models import DbObject
+from angr.errors import AngrCorruptDBError
+from angr.angrdb.models import DbObject
 
 
 class LoaderSerializer:

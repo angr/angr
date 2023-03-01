@@ -4,12 +4,12 @@ from typing import Tuple
 
 import claripy
 
-from ...errors import SimMemoryMissingError
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ... import BP, BP_AFTER
-from ...sim_variable import SimRegisterVariable, SimStackVariable
-from ...code_location import CodeLocation
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from angr.errors import SimMemoryMissingError
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr import BP, BP_AFTER
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
+from angr.code_location import CodeLocation
+from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .annotations import StackLocationAnnotation
 

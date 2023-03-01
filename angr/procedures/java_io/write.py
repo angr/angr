@@ -1,4 +1,4 @@
-from ..java import JavaSimProcedure
+from angr.procedures.java import JavaSimProcedure
 
 
 class Write(JavaSimProcedure):

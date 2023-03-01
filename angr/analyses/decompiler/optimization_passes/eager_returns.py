@@ -9,7 +9,7 @@ import networkx
 from ailment.statement import Jump
 from ailment.expression import Const
 
-from ..condition_processor import ConditionProcessor, EmptyBlockNotice
+from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

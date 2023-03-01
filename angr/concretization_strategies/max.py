@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ..errors import SimSolverError
+from angr.errors import SimSolverError
 from . import SimConcretizationStrategy
 
 

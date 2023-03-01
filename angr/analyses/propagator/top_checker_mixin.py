@@ -1,6 +1,6 @@
 import claripy
 
-from ...engines.light.engine import SimEngineLightMixin
+from angr.engines.light.engine import SimEngineLightMixin
 
 
 class TopCheckerMixin(SimEngineLightMixin):

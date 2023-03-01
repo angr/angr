@@ -50,4 +50,4 @@ class SimEngineSyscall(SuccessorsMixin, ProcedureMixin):
         return self.process_procedure(state, successors, sys_procedure, **kwargs)
 
 
-from ..errors import AngrUnsupportedSyscallError
+from angr.errors import AngrUnsupportedSyscallError

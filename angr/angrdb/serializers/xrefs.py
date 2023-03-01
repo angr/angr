@@ -1,6 +1,6 @@
 # pylint:disable=unused-import
-from ..models import DbXRefs
-from ...knowledge_plugins.xrefs import XRefManager
+from angr.angrdb.models import DbXRefs
+from angr.knowledge_plugins.xrefs import XRefManager
 
 
 class XRefsSerializer:

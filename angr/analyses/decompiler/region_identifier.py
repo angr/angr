@@ -10,9 +10,9 @@ from ailment import Block
 from ailment.statement import ConditionalJump, Jump
 from ailment.expression import Const
 
-from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
-from .. import Analysis, register_analysis
-from ..cfg.cfg_utils import CFGUtils
+from angr.utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
+from angr.analyses import Analysis, register_analysis
+from angr.analyses.cfg.cfg_utils import CFGUtils
 from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor

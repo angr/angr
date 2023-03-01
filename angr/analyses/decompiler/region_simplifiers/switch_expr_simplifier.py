@@ -3,8 +3,8 @@ from collections import OrderedDict
 
 import ailment
 
-from ..structuring.structurer_nodes import SwitchCaseNode
-from ..sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 
 class SwitchExpressionSimplifier(SequenceWalker):

@@ -1,6 +1,6 @@
 import logging
 
-from ..sim_procedure import SimProcedure
+from angr.sim_procedure import SimProcedure
 
 l = logging.getLogger(name=__name__)
 

@@ -2,7 +2,7 @@ from typing import Optional
 
 from ailment import Block, Stmt
 
-from ..decompiler.ailblock_walker import AILBlockWalker
+from angr.analyses.decompiler.ailblock_walker import AILBlockWalker
 
 
 class CallExprFinder(AILBlockWalker):

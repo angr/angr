@@ -1,9 +1,9 @@
 import typing
 
-from ....errors import SimMemoryError
+from angr.errors import SimMemoryError
 
 if typing.TYPE_CHECKING:
-    from .... import Project
+    from angr import Project
 
 
 class IndirectJumpResolver:

@@ -5,7 +5,7 @@ from pypcode import OpCode
 import claripy
 from claripy.ast.bv import BV
 
-from ...errors import AngrError
+from angr.errors import AngrError
 
 # pylint:disable=abstract-method
 

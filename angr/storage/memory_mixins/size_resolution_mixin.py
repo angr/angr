@@ -2,7 +2,7 @@ from typing import Optional
 import logging
 
 from . import MemoryMixin
-from ...errors import SimMemoryLimitError, SimMemoryError, SimUnsatError
+from angr.errors import SimMemoryLimitError, SimMemoryError, SimUnsatError
 
 l = logging.getLogger(__name__)
 

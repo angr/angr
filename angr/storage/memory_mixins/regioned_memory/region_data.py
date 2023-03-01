@@ -1,8 +1,8 @@
 from typing import Optional
 from sortedcontainers import SortedDict
 
-from ....errors import SimRegionMapError
-from ....state_plugins import SimStatePlugin
+from angr.errors import SimRegionMapError
+from angr.state_plugins import SimStatePlugin
 
 
 class AddressWrapper:

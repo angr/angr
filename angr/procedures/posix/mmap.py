@@ -1,5 +1,5 @@
 import angr
-from ...storage.file import SimFileDescriptor
+from angr.storage.file import SimFileDescriptor
 
 import logging
 

@@ -2,9 +2,9 @@ import os
 import binascii
 import logging
 
-from .... import concretization_strategies
-from ....errors import SimUnsatError, SimMemoryAddressError
-from ....engines.soot.values import (
+from angr import concretization_strategies
+from angr.errors import SimUnsatError, SimMemoryAddressError
+from angr.engines.soot.values import (
     SimSootValue_ArrayRef,
     SimSootValue_ArrayBaseRef,
     SimSootValue_InstanceFieldRef,
@@ -13,7 +13,7 @@ from ....engines.soot.values import (
     SimSootValue_StaticFieldRef,
     SimSootValue_StringRef,
 )
-from .. import MemoryMixin
+from angr.storage.memory_mixins import MemoryMixin
 
 
 l = logging.getLogger(name=__name__)
@@ -35,7 +35,7 @@ class JavaVmMemoryMixin(MemoryMixin):
 
         self._stack = [] if stack is None else stack
         # delayed import
-        from .. import KeyValueMemory
+        from angr.storage.memory_mixins import KeyValueMemory
 
         self.heap = KeyValueMemory("mem") if heap is None else heap
         self.vm_static_table = KeyValueMemory("mem") if vm_static_table is None else vm_static_table
@@ -123,7 +123,7 @@ class JavaVmMemoryMixin(MemoryMixin):
             return None
 
     def push_stack_frame(self):
-        from .. import KeyValueMemory
+        from angr.storage.memory_mixins import KeyValueMemory
 
         self._stack.append(KeyValueMemory("mem"))
 

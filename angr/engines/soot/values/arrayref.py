@@ -3,7 +3,7 @@ import logging
 from claripy import And
 
 from . import translate_value
-from ....errors import SimEngineError
+from angr.errors import SimEngineError
 from .base import SimSootValue
 from .constants import SimSootValue_IntConstant
 

@@ -8,11 +8,11 @@ import claripy
 from claripy.annotation import Annotation
 import archinfo
 
-from ...errors import SimMemoryMissingError, SimMemoryError
-from ...storage.memory_mixins import MultiValuedMemory
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...engines.light import SpOffset
-from ...code_location import CodeLocation
+from angr.errors import SimMemoryMissingError, SimMemoryError
+from angr.storage.memory_mixins import MultiValuedMemory
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.engines.light import SpOffset
+from angr.code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp, FunctionCall, ConstantSrc
 from .definition import Definition, Tag
 from .heap_address import HeapAddress

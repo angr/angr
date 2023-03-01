@@ -1,7 +1,7 @@
 import logging
 
-from ...engines.light import SimEngineLight
-from ...errors import SimEngineError
+from angr.engines.light import SimEngineLight
+from angr.errors import SimEngineError
 
 l = logging.getLogger(name=__name__)
 

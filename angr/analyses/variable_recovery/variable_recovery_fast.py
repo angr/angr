@@ -10,14 +10,14 @@ import pyvex
 import ailment
 
 import angr.errors
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...block import Block
-from ...errors import AngrVariableRecoveryError, SimEngineError
-from ...knowledge_plugins import Function
-from ...sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
-from ...engines.vex.claripy.irop import vexop_to_simop
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ..typehoon.typevars import Equivalence, TypeVariable
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.block import Block
+from angr.errors import AngrVariableRecoveryError, SimEngineError
+from angr.knowledge_plugins import Function
+from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
+from angr.engines.vex.claripy.irop import vexop_to_simop
+from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from angr.analyses.typehoon.typevars import Equivalence, TypeVariable
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL

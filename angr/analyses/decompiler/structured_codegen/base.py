@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Set, Union
 from sortedcontainers import SortedDict
 
-from ....sim_variable import SimVariable
+from angr.sim_variable import SimVariable
 
 #
 #   Position Mapping Classes

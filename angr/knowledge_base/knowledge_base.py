@@ -6,16 +6,16 @@ import logging
 from typing import TYPE_CHECKING, TypeVar, Type, Optional
 
 if TYPE_CHECKING:
-    from ..project import Project
-    from ..knowledge_plugins import FunctionManager
-    from ..knowledge_plugins import VariableManager
-    from ..knowledge_plugins import KeyDefinitionManager
-    from ..knowledge_plugins import CFGManager
-    from ..knowledge_plugins import StructuredCodeManager
-    from ..knowledge_plugins import TypesStore
-    from ..knowledge_plugins import PropagationManager
+    from angr.project import Project
+    from angr.knowledge_plugins import FunctionManager
+    from angr.knowledge_plugins import VariableManager
+    from angr.knowledge_plugins import KeyDefinitionManager
+    from angr.knowledge_plugins import CFGManager
+    from angr.knowledge_plugins import StructuredCodeManager
+    from angr.knowledge_plugins import TypesStore
+    from angr.knowledge_plugins import PropagationManager
 
-from ..knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
 
 l = logging.getLogger(name=__name__)
 

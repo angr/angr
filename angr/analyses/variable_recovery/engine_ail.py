@@ -5,11 +5,11 @@ import logging
 import claripy
 import ailment
 
-from ...calling_conventions import SimRegArg
-from ...sim_type import SimTypeFunction, SimTypeBottom
-from ...engines.light import SimEngineLightAILMixin
-from ..typehoon import typeconsts, typevars
-from ..typehoon.lifter import TypeLifter
+from angr.calling_conventions import SimRegArg
+from angr.sim_type import SimTypeFunction, SimTypeBottom
+from angr.engines.light import SimEngineLightAILMixin
+from angr.analyses.typehoon import typeconsts, typevars
+from angr.analyses.typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:

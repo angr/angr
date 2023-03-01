@@ -17,16 +17,16 @@ from ailment.expression import (
     BinaryOp,
 )
 
-from ...errors import SimMemoryMissingError
-from ...engines.light import SpOffset
-from ...code_location import CodeLocation
-from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
-from ...sim_variable import SimStackVariable, SimMemoryVariable
-from ...analyses.propagator.propagator import Equivalence
-from ...knowledge_plugins.key_definitions import atoms
-from ...knowledge_plugins.key_definitions.definition import Definition
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
-from .. import Analysis, AnalysesHub
+from angr.errors import SimMemoryMissingError
+from angr.engines.light import SpOffset
+from angr.code_location import CodeLocation
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.sim_variable import SimStackVariable, SimMemoryVariable
+from angr.analyses.propagator.propagator import Equivalence
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.analyses import Analysis, AnalysesHub
 from .ailblock_walker import AILBlockWalker
 from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker

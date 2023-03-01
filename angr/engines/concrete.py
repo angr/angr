@@ -3,7 +3,7 @@ import threading
 
 from angr.errors import AngrError
 from .engine import SuccessorsMixin
-from ..errors import SimConcreteRegisterError
+from angr.errors import SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
 # l.setLevel(logging.DEBUG)

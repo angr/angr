@@ -3,8 +3,8 @@ import logging
 
 import networkx
 
-from ....utils.graph import dfs_back_edges
-from ...cfg.cfg_utils import CFGUtils
+from angr.utils.graph import dfs_back_edges
+from angr.analyses.cfg.cfg_utils import CFGUtils
 from .graph import GraphVisitor, NodeType
 
 _l = logging.getLogger(__name__)

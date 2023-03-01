@@ -1,7 +1,7 @@
 from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
 
-from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
-from ..analysis import Analysis, AnalysesHub
+from angr.sim_type import SimStruct, SimTypePointer, SimTypeArray
+from angr.analyses.analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array

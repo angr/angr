@@ -1,7 +1,7 @@
 # pylint:disable=import-outside-toplevel
 from typing import Dict, Any, Union, TYPE_CHECKING
 
-from .. import KnowledgeBasePlugin
+from angr.knowledge_plugins import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -25,8 +25,8 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         return self.cached[self._normalize_key(item)]
 
     def __setitem__(self, key, value: Union["DecompilationCache", "BaseStructuredCodeGenerator"]):
-        from ...analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
-        from ...analyses.decompiler.decompilation_cache import DecompilationCache
+        from angr.analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
+        from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 
         nkey = self._normalize_key(key)
 

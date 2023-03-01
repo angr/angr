@@ -7,9 +7,9 @@ from collections import defaultdict
 
 import claripy
 
-from ..utils.mp import mp_context, Initializer
-from ..knowledge_plugins.cfg import CFGModel
-from ..analyses.cfg import CFGUtils
+from angr.utils.mp import mp_context, Initializer
+from angr.knowledge_plugins.cfg import CFGModel
+from angr.analyses.cfg import CFGUtils
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
 
 if TYPE_CHECKING:

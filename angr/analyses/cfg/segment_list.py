@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, Tuple, List
 
-from ...errors import AngrCFGError
+from angr.errors import AngrCFGError
 
 
 l = logging.getLogger(name=__name__)

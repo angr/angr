@@ -3,7 +3,7 @@ import logging
 from typing import Optional, List, Set, Tuple, Union, Callable
 
 from angr.utils.dynamic_dictlist import DynamicDictList
-from .....storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
+from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
 from .cooperation import MemoryObjectSetMixin
 

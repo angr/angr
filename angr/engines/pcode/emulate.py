@@ -5,12 +5,12 @@ from pypcode import OpCode, Varnode, PcodeOp, Translation
 import claripy
 from claripy.ast.bv import BV
 
-from ..engine import SimEngineBase
-from ...utils.constants import DEFAULT_STATEMENT
+from angr.engines.engine import SimEngineBase
+from angr.utils.constants import DEFAULT_STATEMENT
 from .lifter import IRSB
 from .behavior import OpBehavior
-from ...errors import AngrError
-from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.errors import AngrError
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
 
 
 l = logging.getLogger(__name__)

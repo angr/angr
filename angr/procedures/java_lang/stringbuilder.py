@@ -1,8 +1,8 @@
 import claripy
 import logging
 
-from ..java import JavaSimProcedure
-from ...engines.soot.values import SimSootValue_StringRef
+from angr.procedures.java import JavaSimProcedure
+from angr.engines.soot.values import SimSootValue_StringRef
 
 log = logging.getLogger(name=__name__)
 
