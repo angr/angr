@@ -3,7 +3,7 @@ import logging
 from claripy import StringS
 
 from angr.engines.soot.values import SimSootValue_StringRef
-from angr.procedures.java import JavaSimProcedure
+from angr.procedures.java.base import JavaSimProcedure
 
 l = logging.getLogger("angr.procedures.java.scanner.nextLine")
 

@@ -1,4 +1,4 @@
-from . import SimHeapBase
+from .heap_base import SimHeapBase
 
 
 class SimHeapLibc(SimHeapBase):

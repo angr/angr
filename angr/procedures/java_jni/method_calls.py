@@ -3,7 +3,7 @@ from typing import Optional
 
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor, SootArgument, SootMethodDescriptor
 
-from . import JNISimProcedure
+from .base import JNISimProcedure
 from angr.calling_conventions import SimCCSoot
 from angr.engines.soot.method_dispatcher import resolve_method
 

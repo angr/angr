@@ -3,7 +3,7 @@ from angr.knowledge_plugins.loop import Loop
 import logging
 
 import networkx
-from . import Analysis
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 

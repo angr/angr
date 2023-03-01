@@ -1,4 +1,4 @@
-from angr.procedures.java import JavaSimProcedure
+from angr.procedures.java.base import JavaSimProcedure
 
 
 class LoadLibrary(JavaSimProcedure):

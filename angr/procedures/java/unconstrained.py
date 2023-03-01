@@ -1,6 +1,6 @@
 import claripy
 
-from . import JavaSimProcedure
+from .base import JavaSimProcedure
 from angr.engines.soot.values import SimSootValue_ThisRef, SimSootValue_StringRef
 from angr.engines.soot.expressions import SimSootExpr_NewArray
 from angr import sim_options as options

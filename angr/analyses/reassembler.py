@@ -12,7 +12,7 @@ import cle
 import networkx
 import pyvex
 
-from . import Analysis
+from .analysis import Analysis
 from .cfg.cfg_emulated import CFGEmulated
 from .ddg import DDG
 from .cfg.cfg_fast import CFGFast

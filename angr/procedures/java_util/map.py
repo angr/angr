@@ -1,7 +1,7 @@
 import claripy
 import logging
 
-from angr.procedures.java import JavaSimProcedure
+from angr.procedures.java.base import JavaSimProcedure
 from angr.engines.soot.expressions import SimSootExpr_NewArray, SimSootExpr_NullConstant
 from angr.engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef
 from .collection import ELEMS, SIZE

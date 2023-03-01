@@ -3,10 +3,9 @@ import logging
 import re
 from collections import defaultdict
 
+from .analysis import Analysis
 from archinfo import all_arches
 from archinfo.arch_arm import is_arm_arch
-
-from . import Analysis
 
 
 l = logging.getLogger(name=__name__)

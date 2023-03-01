@@ -15,7 +15,8 @@ from angr.knowledge_base import KnowledgeBase
 from angr.errors import AngrError, AngrCFGError
 from angr.sim_manager import SimulationManager
 from angr.utils.graph import shallow_reverse
-from . import Analysis, CFGEmulated
+from .analysis import Analysis
+from .cfg import CFGEmulated
 
 l = logging.getLogger(name=__name__)
 

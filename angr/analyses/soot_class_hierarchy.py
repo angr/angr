@@ -1,7 +1,7 @@
 from angr.analyses import AnalysesHub
 import logging
 
-from . import Analysis
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 

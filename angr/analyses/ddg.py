@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import networkx
 import pyvex
-from . import Analysis
+from .analysis import Analysis
 
 from angr.code_location import CodeLocation
 from angr.errors import SimSolverModeError, SimUnsatError, AngrDDGError

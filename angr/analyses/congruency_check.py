@@ -4,7 +4,7 @@ import logging
 
 import claripy
 
-from . import Analysis
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 # l.setLevel(logging.DEBUG)

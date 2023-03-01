@@ -1,7 +1,7 @@
 from angr.sim_state import SimState
 from angr.errors import SimSolverError
 from angr.state_plugins.plugin import SimStatePlugin
-from . import SimHeapBase
+from .heap_base import SimHeapBase
 
 import logging
 

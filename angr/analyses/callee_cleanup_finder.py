@@ -1,5 +1,5 @@
 from angr.analyses import AnalysesHub
-from . import Analysis
+from .analysis import Analysis
 from angr import SIM_PROCEDURES
 
 import logging

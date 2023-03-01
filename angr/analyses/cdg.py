@@ -6,7 +6,7 @@ import logging
 import networkx
 
 from angr.utils.graph import compute_dominance_frontier, PostDominators, TemporaryNode
-from . import Analysis
+from .analysis import Analysis
 
 _l = logging.getLogger(name=__name__)
 

@@ -3,7 +3,8 @@ import logging
 from collections import defaultdict
 
 import networkx
-from . import Analysis, VFG
+from .analysis import Analysis
+from .vfg import VFG
 
 from angr.code_location import CodeLocation
 from angr.errors import AngrDDGError

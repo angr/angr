@@ -6,7 +6,7 @@ from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
 from .state_plugins import SimStatePlugin
 from .state_plugins.sim_action import SimActionConstraint
-from . import sim_options as o
+import angr.sim_options as o
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
 import functools
 import itertools

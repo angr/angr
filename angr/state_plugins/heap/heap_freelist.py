@@ -1,4 +1,4 @@
-from . import SimHeapLibc
+from .heap_libc import SimHeapLibc
 from .utils import concretize
 from angr.errors import SimHeapError
 

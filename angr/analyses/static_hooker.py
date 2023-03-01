@@ -1,7 +1,7 @@
 from angr.analyses import AnalysesHub
 import logging
 
-from . import Analysis
+from .analysis import Analysis
 
 from angr import SIM_LIBRARIES
 from angr.errors import AngrValueError

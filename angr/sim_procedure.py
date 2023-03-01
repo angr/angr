@@ -1,4 +1,4 @@
-from . import sim_options as o
+import angr.sim_options as o
 from angr.errors import SimProcedureError, SimShadowStackError
 from angr.state_plugins.sim_action import SimActionExit
 from angr.calling_conventions import DEFAULT_CC, SimTypeFunction, SimTypePointer, SimTypeChar, ArgSession

@@ -2,7 +2,7 @@ import pyvex
 
 from angr.utils import looks_like_sql
 from angr.knowledge_plugins.xrefs import XRef
-from . import Analysis, AnalysesHub
+from .analysis import Analysis, AnalysesHub
 
 
 class CodeTags:

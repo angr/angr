@@ -7,7 +7,8 @@ import archinfo
 from archinfo.arch_arm import is_arm_arch
 import claripy
 import networkx
-from . import Analysis, CFGEmulated
+from .analysis import Analysis
+from .cfg import CFGEmulated
 
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils

@@ -1,7 +1,8 @@
 import logging
 
 from angr.analyses import AnalysesHub
-from . import Analysis, CFGFast
+from .analysis import Analysis
+from .cfg import CFGFast
 
 l = logging.getLogger(name=__name__)
 

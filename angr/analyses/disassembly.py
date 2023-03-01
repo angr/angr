@@ -7,7 +7,7 @@ import pyvex
 import archinfo
 from angr.knowledge_plugins import Function
 
-from . import Analysis
+from .analysis import Analysis
 
 from angr.utils.library import get_cpp_function_name
 from angr.utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
