@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 from typing import List, Generator, TYPE_CHECKING, Optional
 import logging
 from collections import defaultdict
@@ -1897,7 +1898,5 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return self._function_node_addrs[function_address]
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VFG", VFG)

@@ -2,17 +2,17 @@
 from functools import wraps
 from typing import Optional, List
 
-binsync_available = None
-binsync = None
-Client = None
-StackVariable = None
-StackOffsetType = None
-
 
 from angr import knowledge_plugins
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.sim_variable import SimStackVariable
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+
+binsync_available = None
+binsync = None
+Client = None
+StackVariable = None
+StackOffsetType = None
 
 
 def import_binsync():

@@ -1,6 +1,6 @@
 import logging
 from .common import condition_to_lambda
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.symbion")
 # l.setLevel(logging.DEBUG)

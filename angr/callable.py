@@ -1,3 +1,4 @@
+from .errors import AngrCallableError, AngrCallableMultistateError
 import pycparser
 
 from .calling_conventions import DEFAULT_CC, SimCC
@@ -137,6 +138,3 @@ class Callable:
                 raise AngrCallableError("Unsupported expression type %s." % type(expr))
 
         return self.__call__(*args)
-
-
-from .errors import AngrCallableError, AngrCallableMultistateError

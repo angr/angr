@@ -1,3 +1,4 @@
+from angr.sim_state import SimState
 import os
 import re
 import logging
@@ -140,7 +141,5 @@ class GDB(SimStatePlugin):
     def copy(self, memo):  # pylint: disable=unused-argument
         return GDB()
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("gdb", GDB)

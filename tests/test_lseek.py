@@ -1,11 +1,10 @@
+from angr import SIM_PROCEDURES
+from angr import SimState, SimPosixError, SimFile
 import unittest
 
 import logging
 
 l = logging.getLogger("angr.tests.syscalls.lseek")
-
-from angr import SIM_PROCEDURES
-from angr import SimState, SimPosixError, SimFile
 
 
 FAKE_ADDR = 0x100000

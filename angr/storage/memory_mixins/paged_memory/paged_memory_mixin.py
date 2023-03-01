@@ -5,7 +5,7 @@ from collections import defaultdict
 
 import claripy
 
-from angr.storage.memory_mixins import MemoryMixin
+from angr.storage.memory_mixins.base import MemoryMixin
 from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
 from angr.errors import SimMemoryError
 

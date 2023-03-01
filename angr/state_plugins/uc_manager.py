@@ -1,9 +1,9 @@
+from angr.sim_state import SimState
 import logging
-
-l = logging.getLogger(name=__name__)
-
 from .plugin import SimStatePlugin
 from angr.errors import SimUCManagerAllocationError
+
+l = logging.getLogger(name=__name__)
 
 
 class SimUCManager(SimStatePlugin):
@@ -79,7 +79,5 @@ class SimUCManager(SimStatePlugin):
         super().set_state(state)
         self._region_base = 0xD0 << (self.state.arch.bits - 8)
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("uc_manager", SimUCManager)

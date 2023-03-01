@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
 
@@ -417,7 +418,5 @@ class VSA_DDG(Analysis):
                 nodes.add(n)
         return nodes
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VSA_DDG", VSA_DDG)

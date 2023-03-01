@@ -5,7 +5,7 @@ from typing import Optional, Any, TYPE_CHECKING
 from ailment.statement import ConditionalJump, Assignment, Statement
 from ailment.expression import Const, ITE, Expression
 
-from angr.analyses import ReachingDefinitionsAnalysis
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from angr.code_location import CodeLocation
 from angr.analyses.decompiler.region_walker import RegionWalker
 from angr.analyses.decompiler.ail_simplifier import AILBlockWalker

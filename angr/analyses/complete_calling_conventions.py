@@ -10,7 +10,9 @@ import claripy
 from angr.utils.mp import mp_context, Initializer
 from angr.knowledge_plugins.cfg import CFGModel
 from angr.analyses.cfg import CFGUtils
-from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
+from .analysis import Analysis, AnalysesHub
+from .variable_recovery import VariableRecoveryFast
+from .calling_convention import CallingConventionAnalysis
 
 if TYPE_CHECKING:
     import networkx
@@ -371,4 +373,4 @@ class CompleteCallingConventionsAnalysis(Analysis):
         return True
 
 
-register_analysis(CompleteCallingConventionsAnalysis, "CompleteCallingConventions")
+AnalysesHub.register_default("CompleteCallingConventions", CompleteCallingConventionsAnalysis)

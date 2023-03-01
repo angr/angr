@@ -4,7 +4,7 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
-from typing import Union, Optional, Iterable, Set, Generator
+from typing import Union, Optional, Iterable, Set, Generator, TYPE_CHECKING
 from typing import Type
 
 from itanium_demangler import parse
@@ -22,11 +22,14 @@ from angr.protos import function_pb2
 from angr.calling_conventions import DEFAULT_CC
 from .function_parser import FunctionParser
 
-l = logging.getLogger(name=__name__)
 
 from angr.sim_type import SimTypeFunction, parse_defns
 from angr.calling_conventions import SimCC
-from angr.project import Project
+
+if TYPE_CHECKING:
+    from angr.project import Project
+
+l = logging.getLogger(name=__name__)
 
 
 class Function(Serializable):
@@ -165,7 +168,7 @@ class Function(Serializable):
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
-        self._project: Optional[Project] = None  # will be initialized upon the first access to self.project
+        self._project: Optional["Project"] = None  # will be initialized upon the first access to self.project
 
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
 
@@ -262,7 +265,7 @@ class Function(Serializable):
         if self._project is None:
             # try to set it from function manager
             if self._function_manager is not None:
-                self._project: Optional[Project] = self._function_manager._kb._project
+                self._project: Optional["Project"] = self._function_manager._kb._project
         return self._project
 
     @property

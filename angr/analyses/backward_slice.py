@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
 
@@ -685,7 +686,5 @@ class BackwardSlice(Analysis):
 
         return cmp_stmt_id, cmp_tmp_id
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BackwardSlice", BackwardSlice)

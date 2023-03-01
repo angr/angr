@@ -25,6 +25,8 @@ class CodeNode:
         return self.size
 
     def __eq__(self, other):
+        from angr.block import Block
+
         if type(other) is Block:  # pylint: disable=unidiomatic-typecheck
             raise TypeError("You do not want to be comparing a CodeNode to a Block")
         return (
@@ -136,6 +138,3 @@ class SyscallNode(HookNode):
 
     def __repr__(self):
         return f"<SyscallNode {self.sim_procedure!r} at {self.addr:#x} (size {self.size})>"
-
-
-from .block import Block

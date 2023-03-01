@@ -1,4 +1,4 @@
-from . import translate_value
+from .util import translate_value
 from .base import SimSootValue
 from angr.engines.soot.field_dispatcher import resolve_field
 

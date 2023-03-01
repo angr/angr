@@ -1,6 +1,7 @@
 from angr.sim_type import SimCppClass, SimTypeCppFunction
-from angr.analyses import AnalysesHub
-from . import Analysis, CFGFast, VtableFinder
+from angr.analyses import Analysis, AnalysesHub
+from .cfg import CFGFast
+from .vtable import VtableFinder
 
 
 class ClassIdentifier(Analysis):

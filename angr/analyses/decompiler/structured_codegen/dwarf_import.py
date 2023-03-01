@@ -3,7 +3,7 @@ import re
 import logging
 from sortedcontainers import SortedList
 
-from angr.analyses import Analysis, register_analysis
+from angr.analyses.analysis import Analysis, AnalysesHub
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
 from angr.knowledge_plugins.functions.function import Function
 
@@ -183,4 +183,4 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
         return result
 
 
-register_analysis(ImportSourceCode, "ImportSourceCode")
+AnalysesHub.register_default("ImportSourceCode", ImportSourceCode)

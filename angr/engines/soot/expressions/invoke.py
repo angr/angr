@@ -1,6 +1,6 @@
 from archinfo.arch_soot import SootArgument, SootMethodDescriptor
 
-from . import translate_expr
+from .base import translate_expr
 from angr.engines.soot.method_dispatcher import resolve_method
 from angr.engines.soot.exceptions import SootMethodNotLoadedException
 from .base import SimSootExpr

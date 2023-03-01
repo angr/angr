@@ -23,9 +23,7 @@ select = [
 	"W", # pycodestyle warnings
 ]
 extend-ignore = [
-	"E402", # Bottom imports
 	"E741", # Variable names
-
 ]
 
 exclude = [
@@ -41,6 +39,7 @@ exclude = [
 	"F601", # TODO: BUG! This hides bugs! See: https://github.com/angr/angr/issues/3685
 	"E501", # No line length check
 	"F401",
+	"E402",
 ]
 "angr/state_plugins/solver.py" = [
 	"E501", # Long docstrings with examples
@@ -48,4 +47,7 @@ exclude = [
 "__init__.py" = [
 	"F401",
 	"F403",
+]
+"angr/__init__.py" = [
+	"E402",
 ]

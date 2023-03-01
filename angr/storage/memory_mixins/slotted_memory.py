@@ -1,6 +1,6 @@
 import claripy
 
-from . import MemoryMixin
+from .base import MemoryMixin
 from .paged_memory.pages.ispo_mixin import ISPOMixin
 from angr.errors import SimMergeError
 

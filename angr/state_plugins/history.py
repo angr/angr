@@ -1,3 +1,6 @@
+from .sim_action import SimAction, SimActionConstraint
+from .sim_event import SimEvent
+from angr.sim_state import SimState
 import operator
 import logging
 import itertools
@@ -539,9 +542,4 @@ class LambdaIterIter(LambdaAttrIter):
             yield from reversed(self._f(hist)) if self._reverse else self._f(hist)
 
 
-from angr.sim_state import SimState
-
 SimState.register_default("history", SimStateHistory)
-
-from .sim_action import SimAction, SimActionConstraint
-from .sim_event import SimEvent

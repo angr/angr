@@ -1,6 +1,6 @@
 import time
 import logging
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 

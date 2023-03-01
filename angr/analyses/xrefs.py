@@ -8,8 +8,8 @@ from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
 from .propagator.vex_vars import VEXTmp
 from .propagator.values import Top
-from . import register_analysis, PropagatorAnalysis
-from .analysis import Analysis
+from . import PropagatorAnalysis
+from .analysis import Analysis, AnalysesHub
 from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
 
 
@@ -254,4 +254,4 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         pass
 
 
-register_analysis(XRefsAnalysis, "XRefs")
+AnalysesHub.register_default("Xrefs", XRefsAnalysis)

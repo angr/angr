@@ -1,4 +1,5 @@
-from . import MemoryMixin
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from .base import MemoryMixin
 
 
 class InspectMixinHigh(MemoryMixin):
@@ -126,6 +127,3 @@ class InspectMixinHigh(MemoryMixin):
             add_constraints = self.state._inspect_getattr("address_concretization_add_constraints", add_constraints)
 
         super()._add_constraints(c, add_constraints=add_constraints, inspect=inspect, **kwargs)
-
-
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER

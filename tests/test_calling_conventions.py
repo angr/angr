@@ -1,3 +1,4 @@
+import os
 from unittest import TestCase
 
 import archinfo
@@ -9,7 +10,6 @@ import logging
 
 l = logging.getLogger("angr.tests.test_simcc")
 
-import os
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

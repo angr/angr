@@ -1,6 +1,6 @@
 from typing import Iterable, Tuple, Any, Callable, Optional
 
-from . import MemoryMixin
+from .base import MemoryMixin
 
 
 class MultiValueMergerMixin(MemoryMixin):

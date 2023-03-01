@@ -3,7 +3,7 @@ from collections import defaultdict
 import logging
 
 from angr.engines.successors import SimSuccessors
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 _l = logging.getLogger(__name__)
 _l.setLevel(logging.DEBUG)

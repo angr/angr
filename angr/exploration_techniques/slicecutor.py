@@ -1,5 +1,5 @@
 from angr.errors import AngrExitError
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 import logging
 

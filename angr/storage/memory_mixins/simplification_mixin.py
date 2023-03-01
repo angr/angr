@@ -1,4 +1,4 @@
-from . import MemoryMixin
+from .base import MemoryMixin
 from angr import sim_options as options
 
 

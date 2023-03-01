@@ -1,7 +1,7 @@
 from difflib import SequenceMatcher
 from collections import Counter
 
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 
 class UniqueSearch(ExplorationTechnique):

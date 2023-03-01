@@ -1,3 +1,4 @@
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from typing import List, Dict, TYPE_CHECKING
 from string import digits as ascii_digits
 import logging
@@ -672,6 +673,3 @@ class ScanfFormatParser(FormatParser):
             FormatParser._MOD_SPEC = mod_spec
 
         return FormatParser._MOD_SPEC
-
-
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError

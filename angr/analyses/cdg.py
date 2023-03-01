@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 from typing import Optional
 
 import logging
@@ -193,7 +194,5 @@ class CDG(Analysis):
                 else:
                     _l.debug("%s is not in post dominator dict.", b2)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CDG", CDG)

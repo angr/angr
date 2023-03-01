@@ -1,4 +1,5 @@
 # pylint:disable=abstract-method,line-too-long,missing-class-docstring
+from .state_plugins import SimState
 from collections import OrderedDict, defaultdict, ChainMap
 import copy
 import re
@@ -3159,5 +3160,5 @@ struct timeval {
 except ImportError:
     pass
 
-from .state_plugins.view import SimMemView
-from .state_plugins import SimState
+# TODO: refactor out this circular import
+from .state_plugins.view import SimMemView  # noqa: E402

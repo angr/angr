@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import itertools
 import logging
 import sys
@@ -3559,7 +3560,5 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CFGEmulated", CFGEmulated)

@@ -1,4 +1,5 @@
 # pylint:disable=wrong-import-position,arguments-differ
+from .codenode import BlockNode, SootBlockNode
 import logging
 from typing import List, Optional, Tuple
 
@@ -484,6 +485,3 @@ class SootBlock:
         stmts = None if self.soot is None else self.soot.statements
         stmts_len = len(stmts) if stmts else 0
         return SootBlockNode(self.addr, stmts_len, stmts=stmts)
-
-
-from .codenode import BlockNode, SootBlockNode

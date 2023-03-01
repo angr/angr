@@ -1,3 +1,7 @@
+from .errors import AngrError
+from .sim_manager import SimulationManager
+from .codenode import HookNode, SyscallNode
+from .block import Block, SootBlock
 import logging
 from typing import List, Optional, Union, overload
 import archinfo
@@ -361,9 +365,3 @@ class AngrObjectFactory:
     _default_cc = None
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
-
-
-from .errors import AngrError
-from .sim_manager import SimulationManager
-from .codenode import HookNode, SyscallNode
-from .block import Block, SootBlock

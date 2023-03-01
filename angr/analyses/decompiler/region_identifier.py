@@ -11,7 +11,7 @@ from ailment.statement import ConditionalJump, Jump
 from ailment.expression import Const
 
 from angr.utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
-from angr.analyses import Analysis, register_analysis
+from angr.analyses import Analysis, AnalysesHub
 from angr.analyses.cfg.cfg_utils import CFGUtils
 from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
 from .graph_region import GraphRegion
@@ -1066,4 +1066,4 @@ class RegionIdentifier(Analysis):
         return [(hex(b.addr) if hasattr(b, "addr") else repr(b)) for b in blocks]
 
 
-register_analysis(RegionIdentifier, "RegionIdentifier")
+AnalysesHub.register_default("RegionIdentifier", RegionIdentifier)

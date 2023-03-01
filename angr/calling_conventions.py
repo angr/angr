@@ -30,8 +30,8 @@ from .sim_type import (
 
 from .state_plugins.sim_action_object import SimActionObject
 
+
 l = logging.getLogger(name=__name__)
-from .engines.soot.engine import SootMixin
 
 
 class PointerWrapper:
@@ -2064,6 +2064,8 @@ class SimCCSoot(SimCC):
     ARG_REGS = []
 
     def setup_callsite(self, state, ret_addr, args, prototype, stack_base=None, alloc_base=None, grow_like_stack=True):
+        from angr.engines.soot.engine import SootMixin
+
         SootMixin.setup_callsite(state, args, ret_addr)
 
     @staticmethod

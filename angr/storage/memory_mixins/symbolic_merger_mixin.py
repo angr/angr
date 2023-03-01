@@ -1,6 +1,6 @@
 from typing import Iterable, Tuple, Any
 
-from . import MemoryMixin
+from .base import MemoryMixin
 
 
 class SymbolicMergerMixin(MemoryMixin):

@@ -1,3 +1,4 @@
+import logging
 import sys
 import random
 import angr
@@ -34,7 +35,6 @@ getchar = make_func("getchar")
 scanf = make_func("scanf")
 wcscmp = make_func("wcscmp")
 
-import logging
 
 l = logging.getLogger("angr.tests.string")
 

@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
 from typing import Union, Optional, Sequence, Tuple, Any
@@ -1280,7 +1281,5 @@ class Disassembly(Analysis):
 
         return "\n".join(buf)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("Disassembly", Disassembly)

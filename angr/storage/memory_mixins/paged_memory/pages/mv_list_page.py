@@ -4,7 +4,7 @@ from typing import Optional, List, Set, Tuple, Union, Callable
 
 from angr.utils.dynamic_dictlist import DynamicDictList
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
-from . import PageBase
+from .page_base import PageBase
 from .cooperation import MemoryObjectSetMixin
 
 

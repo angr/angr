@@ -1,12 +1,12 @@
 # This module contains data structures for handling memory, code, and register references.
+from .sim_action_object import SimActionObject
+from .sim_event import SimEvent
 
 import logging
 
 l = logging.getLogger(name=__name__)
 
 _noneset = frozenset()
-
-from .sim_event import SimEvent
 
 
 class SimAction(SimEvent):
@@ -329,6 +329,3 @@ class SimActionData(SimAction):
         c.condition = self._copy_object(self.condition)
         c.fallback = self._copy_object(self.fallback)
         c.fd = self._copy_object(self.fd)
-
-
-from .sim_action_object import SimActionObject

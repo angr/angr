@@ -2,7 +2,7 @@ from typing import Optional
 
 from angr.state_plugins.sim_action import SimActionData, SimActionObject
 from angr import sim_options as o
-from . import MemoryMixin
+from .base import MemoryMixin
 
 
 class ActionsMixinHigh(MemoryMixin):

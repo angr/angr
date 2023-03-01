@@ -4,9 +4,10 @@ import importlib
 
 import logging
 
-l = logging.getLogger(name=__name__)
-
 from angr.analyses.identifier.func import Func
+
+
+l = logging.getLogger(name=__name__)
 
 # Import all classes under the current directory, and group them based on
 # lib names.

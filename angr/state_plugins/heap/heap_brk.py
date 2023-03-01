@@ -1,3 +1,4 @@
+from angr.sim_state import SimState
 from angr.errors import SimSolverError
 from angr.state_plugins.plugin import SimStatePlugin
 from . import SimHeapBase
@@ -128,7 +129,5 @@ class SimHeapBrk(SimHeapBase):
     def widen(self, others):
         return self._combine(others)
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("heap", SimHeapBrk)

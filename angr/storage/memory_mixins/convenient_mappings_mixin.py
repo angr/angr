@@ -7,7 +7,7 @@ import claripy
 from angr import sim_options as options
 from angr.utils.cowdict import ChainMapCOW
 from angr.errors import SimMemoryError, SimMemoryMissingError
-from . import MemoryMixin
+from .base import MemoryMixin
 
 l = logging.getLogger(name=__name__)
 

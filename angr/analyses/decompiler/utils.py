@@ -1,4 +1,13 @@
 # pylint:disable=wrong-import-position
+from .structuring.structurer_nodes import (
+    MultiNode,
+    BaseNode,
+    CodeNode,
+    SequenceNode,
+    ConditionNode,
+    SwitchCaseNode,
+    CascadingConditionNode,
+)
 from typing import Optional, Tuple, Any, Union
 
 import networkx
@@ -354,15 +363,3 @@ def remove_labels(graph: networkx.DiGraph):
         new_graph.add_edge(nodes_map[src], nodes_map[dst])
 
     return new_graph
-
-
-# delayed import
-from .structuring.structurer_nodes import (
-    MultiNode,
-    BaseNode,
-    CodeNode,
-    SequenceNode,
-    ConditionNode,
-    SwitchCaseNode,
-    CascadingConditionNode,
-)

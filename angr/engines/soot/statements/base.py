@@ -4,7 +4,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.engines.soot.exceptions import IncorrectLocationException
 from angr.engines.soot.expressions import translate_expr
-from angr.engines.soot.values import translate_value
+from angr.engines.soot.values.util import translate_value
 
 l = logging.getLogger("angr.engines.soot.statements.if")
 

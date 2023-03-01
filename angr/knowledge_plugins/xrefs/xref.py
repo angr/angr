@@ -1,3 +1,4 @@
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from typing import Optional
 
 from angr.serializable import Serializable
@@ -145,6 +146,3 @@ class XRef(Serializable):
             xref_type=self.type,
         )
         return cr
-
-
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort

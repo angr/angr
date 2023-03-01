@@ -1,3 +1,4 @@
+from angr.sim_options import ABSTRACT_MEMORY
 import angr
 import logging
 
@@ -32,6 +33,3 @@ class memcpy(angr.SimProcedure):
                 self.state.memory.store(dst_addr, src_mem, size=limit, endness="Iend_BE")
 
         return dst_addr
-
-
-from angr.sim_options import ABSTRACT_MEMORY

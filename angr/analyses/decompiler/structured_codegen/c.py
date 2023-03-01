@@ -32,7 +32,7 @@ from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from angr.analyses import Analysis, register_analysis
+from angr.analyses.analysis import Analysis, AnalysesHub
 from angr.analyses.decompiler.region_identifier import MultiNode
 from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
@@ -3317,4 +3317,4 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
 
 
 StructuredCodeGenerator = CStructuredCodeGenerator
-register_analysis(StructuredCodeGenerator, "StructuredCodeGenerator")
+AnalysesHub.register_default("StructuredCodeGenerator", StructuredCodeGenerator)

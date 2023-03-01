@@ -1,6 +1,5 @@
 from angr.utils.graph import compute_dominance_frontier, Dominators
-from .analysis import Analysis
-from . import register_analysis
+from .analysis import Analysis, AnalysesHub
 
 
 class DominanceFrontier(Analysis):
@@ -36,4 +35,4 @@ class DominanceFrontier(Analysis):
         self.frontiers = dom_frontiers
 
 
-register_analysis(DominanceFrontier, "DominanceFrontier")
+AnalysesHub.register_default("DominanceFrontier", DominanceFrontier)

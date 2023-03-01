@@ -1,6 +1,6 @@
 import claripy
 
-from . import MemoryMixin
+from .base import MemoryMixin
 from angr.errors import SimMemoryError
 
 

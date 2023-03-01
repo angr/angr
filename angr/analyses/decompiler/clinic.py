@@ -25,7 +25,7 @@ from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from angr.analyses import Analysis, register_analysis
+from angr.analyses import Analysis, AnalysesHub
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
@@ -1462,4 +1462,4 @@ class Clinic(Analysis):
         return graph
 
 
-register_analysis(Clinic, "Clinic")
+AnalysesHub.register_default("Clinic", Clinic)

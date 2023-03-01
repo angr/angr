@@ -1,3 +1,5 @@
+from angr.errors import SimPosixError, SimSolverError, SimMergeError, SimMemoryError
+from angr.sim_state import SimState
 import logging
 
 from .plugin import SimStatePlugin
@@ -643,8 +645,4 @@ class SimSystemPosix(SimStatePlugin):
         return self.get_fd(fd).concretize(**kwargs)
 
 
-from angr.sim_state import SimState
-
 SimState.register_default("posix", SimSystemPosix)
-
-from angr.errors import SimPosixError, SimSolverError, SimMergeError, SimMemoryError

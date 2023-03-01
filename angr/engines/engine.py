@@ -1,4 +1,8 @@
 # pylint: disable=no-self-use,unused-private-member
+from .successors import SimSuccessors
+from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.errors import SimException
+from angr import sim_options as o
 
 import abc
 import logging
@@ -204,10 +208,3 @@ class SuccessorsMixin(SimEngine):
         :param kwargs:          Any extra arguments. Do not fail if you are passed unexpected arguments.
         """
         successors.processed = False  # mark failure
-
-
-# pylint:disable=wrong-import-position
-from angr import sim_options as o
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-from .successors import SimSuccessors
-from angr.errors import SimException

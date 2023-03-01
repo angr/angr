@@ -1,4 +1,5 @@
 # pylint:disable=wrong-import-position,wrong-import-order
+from angr.analyses.propagator import PropagatorAnalysis
 from typing import Tuple, Optional, Dict, Sequence, Set, List, TYPE_CHECKING
 import logging
 import functools
@@ -2206,6 +2207,3 @@ class JumpTableResolver(IndirectJumpResolver):
         if vex_block.size == 0:
             return False
         return True
-
-
-from angr.analyses.propagator import PropagatorAnalysis

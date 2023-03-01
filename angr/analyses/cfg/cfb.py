@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import logging
 from typing import Any, Callable, Optional, Set
 
@@ -428,8 +429,6 @@ class CFBlanket(Analysis):
             else:
                 addr = max_addr
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CFB", CFBlanket)
 AnalysesHub.register_default("CFBlanket", CFBlanket)

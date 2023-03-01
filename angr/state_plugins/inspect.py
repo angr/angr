@@ -1,4 +1,6 @@
 # TODO: SimValue being able to compare two symbolics for is_solution
+from .plugin import SimStatePlugin
+from angr.sim_state import SimState
 
 import logging
 
@@ -223,9 +225,6 @@ class BP:
         )
 
 
-from .plugin import SimStatePlugin
-
-
 class SimInspector(SimStatePlugin):
     """
     The breakpoint interface, used to instrument execution. For usage information, look here:
@@ -370,7 +369,5 @@ class SimInspector(SimStatePlugin):
         super().set_state(state)
         state.supports_inspect = True
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("inspect", SimInspector)

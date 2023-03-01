@@ -2,7 +2,7 @@
 import concurrent.futures
 import logging
 
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 from angr.engines.engine import TLSMixin
 from angr.misc.ux import once
 

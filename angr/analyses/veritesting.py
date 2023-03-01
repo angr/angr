@@ -1,3 +1,7 @@
+from angr.sim_options import BYPASS_VERITESTING_EXCEPTIONS
+from claripy import ClaripyError
+from angr.errors import SimValueError, SimSolverModeError, SimError
+from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
 from functools import cmp_to_key
@@ -627,10 +631,4 @@ class Veritesting(Analysis):
         return [(n.addr, n.looping_times) for n in nodes]
 
 
-from angr.analyses import AnalysesHub
-
 AnalysesHub.register_default("Veritesting", Veritesting)
-
-from angr.errors import SimValueError, SimSolverModeError, SimError
-from angr.sim_options import BYPASS_VERITESTING_EXCEPTIONS
-from claripy import ClaripyError

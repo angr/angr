@@ -1,4 +1,5 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
+from angr.analyses.decompiler.sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position
 from typing import Dict, Set, Optional, Any, List, Union, Tuple, OrderedDict as ODict, TYPE_CHECKING
 import logging
 from collections import defaultdict, OrderedDict
@@ -1217,7 +1218,3 @@ class DreamStructurer(StructurerBase):
 
         seq.insert_node(pos, ConditionNode(seq_addr, None, node_0.reaching_condition, new_node_0, new_node_1))
         seq.nodes = [n for n in seq.nodes if n is not None]
-
-
-# delayed import
-from angr.analyses.decompiler.sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position

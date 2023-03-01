@@ -1,3 +1,5 @@
+from angr.sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
+from angr.sim_state import SimState
 from typing import TYPE_CHECKING
 import logging
 
@@ -330,12 +332,8 @@ class StructMode:
             self.__getattr__(k).store(v)
 
 
-from angr.sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
-
 SimMemView.types = ALL_TYPES  # identity purposefully here
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("mem", SimMemView)
 SimState.register_default("regs", SimRegNameView)

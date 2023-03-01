@@ -14,7 +14,7 @@ from angr.sim_options import (
 )
 from angr.state_plugins.sim_action_object import _raw_ast
 from angr.errors import SimMemoryError, SimAbstractMemoryError
-from angr.storage.memory_mixins import MemoryMixin
+from angr.storage.memory_mixins.base import MemoryMixin
 from .region_data import AddressWrapper, RegionMap
 from .abstract_address_descriptor import AbstractAddressDescriptor
 

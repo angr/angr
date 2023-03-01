@@ -1,3 +1,4 @@
+from angr.sim_state import SimState
 import collections
 from itertools import dropwhile
 import logging
@@ -397,7 +398,5 @@ class CallStackAction:
         else:  # pop
             return "<CallStackAction pop, ret site %#x>" % self.ret_site_addr
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("callstack", CallStack)

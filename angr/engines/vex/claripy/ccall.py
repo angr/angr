@@ -1,3 +1,5 @@
+from angr.errors import SimError, SimCCallError
+from angr.sim_options import USE_SIMPLIFIED_CCALLS
 from typing import Dict, Optional
 import logging
 
@@ -2092,7 +2094,3 @@ def _get_nbits(cc_str):
     elif cc_str.endswith("64"):
         nbits = 64
     return nbits
-
-
-from angr.errors import SimError, SimCCallError
-from angr.sim_options import USE_SIMPLIFIED_CCALLS

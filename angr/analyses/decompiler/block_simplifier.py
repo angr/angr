@@ -12,7 +12,7 @@ from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLoca
 from angr.analyses.propagator import PropagatorAnalysis
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from angr.errors import SimMemoryMissingError
-from angr.analyses import Analysis, register_analysis
+from angr.analyses import Analysis, AnalysesHub
 from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 from .ailblock_walker import AILBlockWalker
 
@@ -414,4 +414,4 @@ class BlockSimplifier(Analysis):
         return statements, any_update
 
 
-register_analysis(BlockSimplifier, "AILBlockSimplifier")
+AnalysesHub.register_default("AILBlockSimplifier", BlockSimplifier)

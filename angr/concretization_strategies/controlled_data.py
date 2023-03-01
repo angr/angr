@@ -1,6 +1,6 @@
 from itertools import groupby
 
-from . import SimConcretizationStrategy
+from .base import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyControlledData(SimConcretizationStrategy):

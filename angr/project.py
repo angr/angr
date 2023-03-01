@@ -1,3 +1,8 @@
+from .knowledge_base import KnowledgeBase
+from .analyses.analysis import AnalysesHub
+from .factory import AngrObjectFactory
+from angr.simos import SimOS, os_mapping
+from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
 import logging
 import os
 import types
@@ -798,10 +803,3 @@ class Project:
     @deprecated(replacement="simos")
     def _simos(self):
         return self.simos
-
-
-from .factory import AngrObjectFactory
-from angr.simos import SimOS, os_mapping
-from .analyses.analysis import AnalysesHub
-from .knowledge_base import KnowledgeBase
-from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

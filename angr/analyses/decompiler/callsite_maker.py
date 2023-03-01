@@ -10,7 +10,7 @@ from angr.errors import SimMemoryMissingError
 from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.analyses import Analysis, register_analysis
+from angr.analyses import Analysis, AnalysesHub
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -379,4 +379,4 @@ class CallSiteMaker(Analysis):
         return self._ail_manager.next_atom() if self._ail_manager is not None else None
 
 
-register_analysis(CallSiteMaker, "AILCallSiteMaker")
+AnalysesHub.register_default("AILCallSiteMaker", CallSiteMaker)

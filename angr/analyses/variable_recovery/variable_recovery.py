@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
 from typing import Tuple
@@ -548,7 +549,5 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
                     state.downsize_region(state.stack_region),
                 )
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VariableRecovery", VariableRecovery)

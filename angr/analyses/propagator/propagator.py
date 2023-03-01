@@ -10,12 +10,12 @@ import pyvex
 from archinfo.arch_arm import is_arm_arch
 
 from angr import sim_options
+from angr.analyses.analysis import AnalysesHub
 from angr.knowledge_plugins.propagations import PropagationModel
 from angr.storage.memory_mixins import LabeledMemory
 from angr.errors import SimMemoryMissingError
 from angr.code_location import CodeLocation
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
-from angr.analyses import register_analysis
 from angr.analyses.analysis import Analysis
 from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .engine_vex import SimEnginePropagatorVEX
@@ -998,4 +998,4 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         return merge_occurred
 
 
-register_analysis(PropagatorAnalysis, "Propagator")
+AnalysesHub.register_default("Propagator", PropagatorAnalysis)

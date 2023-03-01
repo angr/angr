@@ -1,3 +1,4 @@
+from angr.sim_state import SimState
 import logging
 import claripy
 
@@ -189,7 +190,5 @@ class SimStatePreconstrainer(SimStatePlugin):
                     else:
                         l.warning("var %s not found in self.variable_map", var)
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("preconstrainer", SimStatePreconstrainer)

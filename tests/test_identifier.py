@@ -1,12 +1,11 @@
 # pylint: disable=missing-class-docstring,disable=no-self-use
+import logging
 import os
 import unittest
 
 import angr
 
 bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
-
-import logging
 
 
 class TestIdentifier(unittest.TestCase):

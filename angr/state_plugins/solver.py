@@ -1,3 +1,9 @@
+import claripy
+from angr.sim_state import SimState
+from angr import sim_options as o
+from .inspect import BP_AFTER
+from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
+import os
 import binascii
 import functools
 import time
@@ -72,8 +78,6 @@ def disable_timing():
     global _timing_enabled
     _timing_enabled = False
 
-
-import os
 
 if os.environ.get("SOLVER_TIMING", False):
     enable_timing()
@@ -191,8 +195,6 @@ def concrete_path_list(f):
 #
 # The main event
 #
-
-import claripy
 
 
 class SimSolver(SimStatePlugin):
@@ -1024,10 +1026,4 @@ class SimSolver(SimStatePlugin):
         return e.variables
 
 
-from angr.sim_state import SimState
-
 SimState.register_default("solver", SimSolver)
-
-from angr import sim_options as o
-from .inspect import BP_AFTER
-from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

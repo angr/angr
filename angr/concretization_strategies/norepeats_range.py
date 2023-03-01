@@ -1,4 +1,4 @@
-from . import SimConcretizationStrategy
+from .base import SimConcretizationStrategy
 from angr.errors import SimMergeError
 
 

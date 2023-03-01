@@ -1,7 +1,7 @@
 import logging
 import claripy
 
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 from .common import condition_to_lambda
 from angr import sim_options
 from angr.state_plugins.sim_event import resource_event

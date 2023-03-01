@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 from typing import TYPE_CHECKING
 import logging
 import re
@@ -2964,7 +2965,5 @@ class Reassembler(Analysis):
         except KeyError:
             return None
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("Reassembler", Reassembler)

@@ -1,5 +1,14 @@
 import logging
 
+from .assign import SimSootStmt_Assign
+from .return_ import SimSootStmt_Return, SimSootStmt_ReturnVoid
+from .identity import SimSootStmt_Identity
+from .goto import SimSootStmt_Goto
+from .invoke import SimSootStmt_Invoke
+from .if_ import SimSootStmt_If
+from .switch import SimSootStmt_TableSwitch, SimSootStmt_LookupSwitch
+from .throw import SimSootStmt_Throw
+
 l = logging.getLogger("angr.engines.soot.statements")
 
 
@@ -18,13 +27,3 @@ def translate_stmt(stmt, state):
     else:
         l.warning("Unsupported Soot statement %s.", stmt_cls_name)
         return None
-
-
-from .assign import SimSootStmt_Assign
-from .return_ import SimSootStmt_Return, SimSootStmt_ReturnVoid
-from .identity import SimSootStmt_Identity
-from .goto import SimSootStmt_Goto
-from .invoke import SimSootStmt_Invoke
-from .if_ import SimSootStmt_If
-from .switch import SimSootStmt_TableSwitch, SimSootStmt_LookupSwitch
-from .throw import SimSootStmt_Throw

@@ -4,7 +4,7 @@ import cle
 
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 from angr import BP_BEFORE, BP_AFTER, sim_options
 from angr.errors import AngrTracerError, SimIRSBNoDecodeError
 

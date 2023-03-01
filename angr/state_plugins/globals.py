@@ -1,3 +1,4 @@
+from angr.sim_state import SimState
 import logging
 
 from .plugin import SimStatePlugin
@@ -56,7 +57,5 @@ class SimStateGlobals(SimStatePlugin):
     def copy(self, memo):  # pylint: disable=unused-argument
         return SimStateGlobals(dict(self._backer))
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("globals", SimStateGlobals)

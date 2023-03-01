@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 from . import Analysis
 from angr import SIM_PROCEDURES
 
@@ -69,7 +70,5 @@ class CalleeCleanupFinder(Analysis):
 
         return None
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CalleeCleanupFinder", CalleeCleanupFinder)

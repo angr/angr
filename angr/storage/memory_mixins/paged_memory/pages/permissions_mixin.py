@@ -1,6 +1,6 @@
 import claripy
 
-from angr.storage.memory_mixins import MemoryMixin
+from angr.storage.memory_mixins.base import MemoryMixin
 
 
 class PermissionsMixin(MemoryMixin):

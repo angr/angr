@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
 
@@ -1681,7 +1682,5 @@ class DDG(Analysis):
 
         return sources
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("DDG", DDG)

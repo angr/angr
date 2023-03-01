@@ -1,7 +1,7 @@
 import claripy
 import logging
 
-from . import MemoryMixin
+from .base import MemoryMixin
 from angr import sim_options as o
 
 l = logging.getLogger(__name__)

@@ -13,7 +13,7 @@ from angr.engines.soot.values import (
     SimSootValue_StaticFieldRef,
     SimSootValue_StringRef,
 )
-from angr.storage.memory_mixins import MemoryMixin
+from angr.storage.memory_mixins.base import MemoryMixin
 
 
 l = logging.getLogger(name=__name__)

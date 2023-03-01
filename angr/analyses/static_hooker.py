@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import logging
 
 from . import Analysis
@@ -45,7 +46,5 @@ class StaticHooker(Analysis):
             else:
                 l.debug("Failed to hook %s at %#x", func.name, func.rebased_addr)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("StaticHooker", StaticHooker)

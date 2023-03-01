@@ -1,3 +1,5 @@
+from angr.sim_state import SimState
+from angr import sim_options as options
 import cle
 import io
 import logging
@@ -290,8 +292,5 @@ class Concrete(SimStatePlugin):
                                 new_reloc.resolve(new_func_symbol)
                                 new_reloc.relocate([])
 
-
-from angr.sim_state import SimState
-from angr import sim_options as options
 
 SimState.register_default("concrete", Concrete)

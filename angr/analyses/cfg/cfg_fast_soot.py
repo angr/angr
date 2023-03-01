@@ -12,10 +12,9 @@ from angr.utils.constants import DEFAULT_STATEMENT
 from angr.errors import AngrCFGError, SimMemoryError, SimEngineError
 from angr.codenode import HookNode, SootBlockNode
 from angr.knowledge_plugins.cfg import CFGNode
-from angr.analyses import register_analysis
+from angr.analyses.analysis import AnalysesHub
 from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
 
-l = logging.getLogger(name=__name__)
 
 try:
     from pysoot.sootir.soot_value import SootLocal
@@ -28,6 +27,8 @@ try:
     PYSOOT_INSTALLED = True
 except ImportError:
     PYSOOT_INSTALLED = False
+
+l = logging.getLogger(name=__name__)
 
 
 class CFGFastSoot(CFGFast):
@@ -667,4 +668,4 @@ class CFGFastSoot(CFGFast):
                 node.function_address = blockaddr_to_function[node.addr].addr
 
 
-register_analysis(CFGFastSoot, "CFGFastSoot")
+AnalysesHub.register_default("CFGFastSoot", CFGFastSoot)

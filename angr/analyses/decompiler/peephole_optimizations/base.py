@@ -1,8 +1,10 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from ailment.expression import BinaryOp, UnaryOp
-from angr.project import Project
 from angr.knowledge_base import KnowledgeBase
+
+if TYPE_CHECKING:
+    from angr.project import Project
 
 
 class PeepholeOptimizationStmtBase:
@@ -15,7 +17,7 @@ class PeepholeOptimizationStmtBase:
         "kb",
         "func_addr",
     )
-    project: Project
+    project: "Project"
     kb: KnowledgeBase
     func_addr: Optional[int]
 
@@ -23,7 +25,7 @@ class PeepholeOptimizationStmtBase:
     DESCRIPTION = "Peephole Optimization - Statement"
     stmt_classes = None
 
-    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int] = None):
+    def __init__(self, project: "Project", kb: KnowledgeBase, func_addr: Optional[int] = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
@@ -42,7 +44,7 @@ class PeepholeOptimizationExprBase:
         "kb",
         "func_addr",
     )
-    project: Project
+    project: "Project"
     kb: KnowledgeBase
     func_addr: Optional[int]
 
@@ -50,7 +52,7 @@ class PeepholeOptimizationExprBase:
     DESCRIPTION = "Peephole Optimization - Expression"
     expr_classes = None
 
-    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int] = None):
+    def __init__(self, project: "Project", kb: KnowledgeBase, func_addr: Optional[int] = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr

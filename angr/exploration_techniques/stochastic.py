@@ -1,7 +1,7 @@
 import random
 from collections import defaultdict
 
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 
 class StochasticSearch(ExplorationTechnique):

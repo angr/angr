@@ -1,6 +1,6 @@
 from typing import Iterable, Dict, Optional
 
-from . import MemoryMixin
+from .base import MemoryMixin
 
 
 class LabelMergerMixin(MemoryMixin):

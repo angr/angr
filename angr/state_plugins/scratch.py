@@ -1,3 +1,10 @@
+from .sim_action import SimActionObject, SimActionData
+from angr.errors import SimValueError, SimMissingTempError
+from angr import sim_options as o
+from .inspect import BP_AFTER, BP_BEFORE
+
+from angr.sim_state import SimState
+
 import logging
 
 import claripy
@@ -165,11 +172,4 @@ class SimStateScratch(SimStatePlugin):
 
 
 # pylint:disable=wrong-import-position
-from .sim_action import SimActionObject, SimActionData
-from angr.errors import SimValueError, SimMissingTempError
-from angr import sim_options as o
-from .inspect import BP_AFTER, BP_BEFORE
-
-from angr.sim_state import SimState
-
 SimState.register_default("scratch", SimStateScratch)

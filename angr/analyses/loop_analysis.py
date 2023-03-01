@@ -2,8 +2,7 @@ import logging
 
 from angr.block import SootBlockNode
 from angr.errors import AngrLoopAnalysisError
-from . import register_analysis
-from .analysis import Analysis
+from .analysis import Analysis, AnalysesHub
 from .forward_analysis import ForwardAnalysis, LoopVisitor
 
 
@@ -349,4 +348,4 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         return True
 
 
-register_analysis(LoopAnalysis, "LoopAnalysis")
+AnalysesHub.register_default("LoopAnalysis", LoopAnalysis)

@@ -7,7 +7,7 @@ from sortedcontainers import SortedDict
 import claripy
 
 from angr.errors import SimMemoryError
-from . import PageBase
+from .page_base import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
 
 

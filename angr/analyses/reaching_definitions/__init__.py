@@ -1,7 +1,7 @@
 from typing import Set, Optional, Union, TYPE_CHECKING
 
 from angr.knowledge_plugins.key_definitions import LiveDefinitions
-from angr.analyses import register_analysis
+from angr.analyses.analysis import AnalysesHub
 from .reaching_definitions import ReachingDefinitionsAnalysis
 
 
@@ -32,4 +32,4 @@ def get_all_definitions(region: "MultiValuedMemory") -> Set["Definition"]:
     return all_defs
 
 
-register_analysis(ReachingDefinitionsAnalysis, "ReachingDefinitions")
+AnalysesHub.register_default("ReachingDefinitions", ReachingDefinitionsAnalysis)

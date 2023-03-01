@@ -1,4 +1,5 @@
 # pylint:disable=wrong-import-position,wrong-import-order
+from angr.analyses import AnalysesHub
 from typing import Optional, List, Tuple
 import logging
 from collections import defaultdict
@@ -549,7 +550,5 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             if adjusted:
                 state.register_region.store(self.project.arch.sp_offset, sp_v)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VariableRecoveryFast", VariableRecoveryFast)

@@ -2,7 +2,7 @@ import itertools
 from typing import Optional, Type, Dict, TYPE_CHECKING
 
 import networkx
-from angr.analyses import Analysis, register_analysis
+from angr.analyses.analysis import Analysis, AnalysesHub
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
@@ -144,4 +144,4 @@ class RecursiveStructurer(Analysis):
         return entries
 
 
-register_analysis(RecursiveStructurer, "RecursiveStructurer")
+AnalysesHub.register_default("RecursiveStructurer", RecursiveStructurer)

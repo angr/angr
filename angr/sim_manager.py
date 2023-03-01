@@ -1,3 +1,4 @@
+from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, Suggestions
 import sys
 import itertools
 import types
@@ -951,6 +952,3 @@ class ErrorRecord:
 
     def __eq__(self, other):
         return self is other or self.state is other
-
-
-from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, Suggestions

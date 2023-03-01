@@ -1,3 +1,5 @@
+import os
+from common import slow_test, bin_location as location
 import angr
 import claripy
 import archinfo
@@ -9,8 +11,6 @@ import logging
 
 l = logging.getLogger("angr_tests")
 
-import os
-from common import slow_test, bin_location as location
 
 addresses_fauxware = {
     "armel": 0x8524,

@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 import logging
 import re
 from collections import defaultdict
@@ -71,7 +72,5 @@ class BoyScout(Analysis):
 
         l.debug("The architecture should be %s with %s", self.arch, self.endianness)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BoyScout", BoyScout)

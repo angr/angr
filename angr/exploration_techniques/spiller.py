@@ -1,7 +1,8 @@
 # pylint:disable=no-member,import-outside-toplevel
+from angr import vaults
 import logging
 
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 
 l = logging.getLogger(name=__name__)
@@ -277,6 +278,3 @@ class Spiller(ExplorationTechnique):
     @staticmethod
     def state_priority(state):
         return id(state)
-
-
-from angr import vaults

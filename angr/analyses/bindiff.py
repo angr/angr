@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
 
-from . import Analysis, CFGEmulated
+from .analysis import Analysis, AnalysesHub
+from .cfg import CFGEmulated
 
 from angr.errors import SimEngineError, SimMemoryError
 
@@ -1245,7 +1246,5 @@ class BinDiff(Analysis):
 
         return matches
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BinDiff", BinDiff)

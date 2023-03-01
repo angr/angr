@@ -9,7 +9,7 @@ from angr.sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, S
 from angr.calling_conventions import DEFAULT_CC
 from angr.knowledge_base import KnowledgeBase
 from angr.errors import AngrDirectorError
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 

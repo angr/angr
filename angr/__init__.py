@@ -63,7 +63,7 @@ from .blade import Blade
 from .simos import SimOS
 from .block import Block
 from .sim_manager import SimulationManager
-from .analyses import Analysis, register_analysis
+from .analyses import Analysis
 from . import analyses
 from . import knowledge_plugins
 from . import exploration_techniques

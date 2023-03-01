@@ -1,3 +1,4 @@
+from .storage.memory_mixins.regioned_memory.region_data import AddressWrapper
 import collections.abc
 import claripy
 from typing import Optional, TYPE_CHECKING
@@ -557,6 +558,3 @@ class SimVariableSet(collections.abc.MutableSet):
         else:
             __import__("ipdb").set_trace()
             raise Exception("WTF is this variable?")
-
-
-from .storage.memory_mixins.regioned_memory.region_data import AddressWrapper

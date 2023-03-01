@@ -1,7 +1,7 @@
 import logging
 import claripy
 
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 from angr.misc.ux import once
 from angr.misc.picklable_lock import PicklableLock
 from angr.state_plugins.sim_action import SimActionConstraint

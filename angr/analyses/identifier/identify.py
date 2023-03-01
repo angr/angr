@@ -1,3 +1,4 @@
+from angr.analyses import AnalysesHub
 from collections import defaultdict
 from itertools import chain
 import logging
@@ -842,7 +843,5 @@ class Identifier(Analysis):
         symbolic_state.regs.bp = input_state.regs.bp
         return symbolic_state
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("Identifier", Identifier)
