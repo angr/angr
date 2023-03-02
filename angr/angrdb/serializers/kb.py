@@ -1,12 +1,13 @@
-from angr.knowledge_base import KnowledgeBase
 from angr.angrdb.models import DbKnowledgeBase
+from angr.knowledge_base import KnowledgeBase
+
 from .cfg_model import CFGModelSerializer
-from .funcs import FunctionManagerSerializer
-from .xrefs import XRefsSerializer
 from .comments import CommentsSerializer
+from .funcs import FunctionManagerSerializer
 from .labels import LabelsSerializer
-from .variables import VariableManagerSerializer
 from .structured_code import StructuredCodeManagerSerializer
+from .variables import VariableManagerSerializer
+from .xrefs import XRefsSerializer
 
 
 class KnowledgeBaseSerializer:

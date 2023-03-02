@@ -1,6 +1,7 @@
 import logging
 
 from angr.engines.soot.expressions.invoke import InvokeBase
+
 from .base import SimSootStmt
 
 l = logging.getLogger("angr.engines.soot.statements.assign")

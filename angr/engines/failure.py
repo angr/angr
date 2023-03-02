@@ -1,8 +1,9 @@
+import logging
+
 from angr.errors import AngrExitError
+
 from .engine import SuccessorsMixin
 from .procedure import ProcedureMixin
-
-import logging
 
 l = logging.getLogger(name=__name__)
 

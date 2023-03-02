@@ -1,8 +1,9 @@
-import claripy
 import logging
 
-from angr.procedures.java.base import JavaSimProcedure
+import claripy
+
 from angr.engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef
+from angr.procedures.java.base import JavaSimProcedure
 
 log = logging.getLogger(name=__name__)
 

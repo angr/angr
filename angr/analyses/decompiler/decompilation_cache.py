@@ -1,4 +1,4 @@
-from typing import Optional, Set, Dict, Tuple, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set, Tuple
 
 from .clinic import Clinic
 from .structured_codegen import BaseStructuredCodeGenerator

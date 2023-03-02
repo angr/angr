@@ -1,5 +1,5 @@
 # pylint:disable=too-many-boolean-expressions
-from ailment.expression import Load, BinaryOp, Register, Const
+from ailment.expression import BinaryOp, Const, Load, Register
 
 from .base import PeepholeOptimizationExprBase
 

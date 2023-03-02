@@ -1,8 +1,10 @@
-from angr.analyses import AnalysesHub
-from angr.knowledge_plugins.loop import Loop
 import logging
 
 import networkx
+
+from angr.analyses import AnalysesHub
+from angr.knowledge_plugins.loop import Loop
+
 from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)

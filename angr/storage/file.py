@@ -1,12 +1,14 @@
-from angr.errors import SimMergeError, SimFileError, SimSolverError
-import claripy
-import logging
 import itertools
+import logging
 
-from .memory_mixins import DefaultMemory
+import claripy
+
+from angr import sim_options
+from angr.errors import SimFileError, SimMergeError, SimSolverError
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.state_plugins.sim_action_object import SimActionObject
-from angr import sim_options
+
+from .memory_mixins import DefaultMemory
 
 l = logging.getLogger(name=__name__)
 

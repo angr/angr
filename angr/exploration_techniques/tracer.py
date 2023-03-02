@@ -1,12 +1,13 @@
-from typing import List, Dict, TYPE_CHECKING
 import logging
-import cle
+from typing import TYPE_CHECKING, Dict, List
 
+import cle
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
-from .exploration_technique import ExplorationTechnique
-from angr import BP_BEFORE, BP_AFTER, sim_options
+from angr import BP_AFTER, BP_BEFORE, sim_options
 from angr.errors import AngrTracerError, SimIRSBNoDecodeError
+
+from .exploration_technique import ExplorationTechnique
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState

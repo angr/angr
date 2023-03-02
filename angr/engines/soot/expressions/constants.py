@@ -2,6 +2,7 @@ from archinfo.arch_soot import SootClassDescriptor, SootNullConstant
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from angr.engines.soot.values import SimSootValue_StringRef
+
 from .base import SimSootExpr
 
 

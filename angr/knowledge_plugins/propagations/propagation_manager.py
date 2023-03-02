@@ -1,6 +1,7 @@
 from typing import Dict, Tuple
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+
 from .propagation_model import PropagationModel
 
 

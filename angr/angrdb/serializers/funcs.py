@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING
 
-from angr.knowledge_plugins import FunctionManager, Function
 from angr.angrdb.models import DbFunction
+from angr.knowledge_plugins import Function, FunctionManager
 
 if TYPE_CHECKING:
-    from angr.knowledge_base import KnowledgeBase
     from angr.angrdb.models import DbKnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 
 class FunctionManagerSerializer:

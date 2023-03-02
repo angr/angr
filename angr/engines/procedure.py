@@ -1,8 +1,10 @@
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-from angr import sim_options as o
-from angr import errors
-from .engine import SuccessorsMixin
 import logging
+
+from angr import errors
+from angr import sim_options as o
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
+from .engine import SuccessorsMixin
 
 l = logging.getLogger(name=__name__)
 

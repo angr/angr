@@ -1,9 +1,9 @@
 # pylint:disable=no-member,import-outside-toplevel
-from angr import vaults
 import logging
 
-from .exploration_technique import ExplorationTechnique
+from angr import vaults
 
+from .exploration_technique import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 
@@ -66,7 +66,7 @@ class PickledStatesDb(PickledStatesBase):
     """
 
     def __init__(self, db_str="sqlite:///:memory:"):
-        from .spiller_db import sqlalchemy, create_engine, Base, OperationalError, sessionmaker
+        from .spiller_db import Base, OperationalError, create_engine, sessionmaker, sqlalchemy
 
         if sqlalchemy is None:
             raise ImportError(

@@ -1,12 +1,12 @@
+import logging
 import os
 from unittest import TestCase
 
 import archinfo
-from angr.calling_conventions import SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64, SimTypeFunction, SimRegArg
-from angr.sim_type import parse_file, SimStructValue
-from angr import Project, load_shellcode
 
-import logging
+from angr import Project, load_shellcode
+from angr.calling_conventions import SimCCSystemVAMD64, SimRegArg, SimTypeFixedSizeArray, SimTypeFunction, SimTypeInt
+from angr.sim_type import SimStructValue, parse_file
 
 l = logging.getLogger("angr.tests.test_simcc")
 

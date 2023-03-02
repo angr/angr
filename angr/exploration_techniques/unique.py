@@ -1,5 +1,5 @@
-from difflib import SequenceMatcher
 from collections import Counter
+from difflib import SequenceMatcher
 
 from .exploration_technique import ExplorationTechnique
 

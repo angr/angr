@@ -1,7 +1,8 @@
 from typing import Set
 
-from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation
+from angr.engines.light import SpOffset
+
 from .atoms import Atom, MemoryLocation, Register
 from .tag import Tag
 

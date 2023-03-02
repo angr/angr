@@ -1,7 +1,8 @@
 import binascii
 
-import pyvex
 import archinfo
+import pyvex
+
 import angr
 
 

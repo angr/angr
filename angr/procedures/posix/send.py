@@ -1,5 +1,4 @@
 import angr
-
 from angr.sim_options import ALLOW_SEND_FAILURES
 
 ######################################

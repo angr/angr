@@ -1,13 +1,13 @@
-import cle
-import pickle
 import gc
 import os
+import pickle
 import unittest
 
 import claripy
+import cle
+
 import angr
 from angr import SimState
-
 
 binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
 

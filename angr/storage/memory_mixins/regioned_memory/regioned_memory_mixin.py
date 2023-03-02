@@ -1,22 +1,23 @@
 import logging
 from itertools import count
-from typing import Dict, Optional, Generator, Union, TYPE_CHECKING, Tuple, Iterable
+from typing import TYPE_CHECKING, Dict, Generator, Iterable, Optional, Tuple, Union
 
 import claripy
-from claripy.ast import Bool, Bits, BV
-from claripy.vsa import StridedInterval, ValueSet, RegionAnnotation
+from claripy.ast import BV, Bits, Bool
+from claripy.vsa import RegionAnnotation, StridedInterval, ValueSet
 
+from angr.errors import SimAbstractMemoryError, SimMemoryError
 from angr.sim_options import (
     AVOID_MULTIVALUED_READS,
     CONSERVATIVE_READ_STRATEGY,
-    KEEP_MEMORY_READS_DISCRETE,
     CONSERVATIVE_WRITE_STRATEGY,
+    KEEP_MEMORY_READS_DISCRETE,
 )
 from angr.state_plugins.sim_action_object import _raw_ast
-from angr.errors import SimMemoryError, SimAbstractMemoryError
 from angr.storage.memory_mixins.base import MemoryMixin
-from .region_data import AddressWrapper, RegionMap
+
 from .abstract_address_descriptor import AbstractAddressDescriptor
+from .region_data import AddressWrapper, RegionMap
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState

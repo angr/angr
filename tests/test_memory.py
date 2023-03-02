@@ -3,21 +3,21 @@ import time
 
 import claripy
 
+from angr import SIM_PROCEDURES, SimState
+from angr import options as o
+from angr.state_plugins import SimLightRegisters, SimSystemPosix
+from angr.storage.file import SimFile
 from angr.storage.memory_mixins import (
-    DataNormalizationMixin,
-    SizeNormalizationMixin,
     AddressConcretizationMixin,
-    UltraPagesMixin,
+    DataNormalizationMixin,
     ListPagesMixin,
-    PagedMemoryMixin,
     MultiValuedMemory,
     MVListPagesMixin,
+    PagedMemoryMixin,
+    SizeNormalizationMixin,
+    UltraPagesMixin,
 )
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr import SimState, SIM_PROCEDURES
-from angr import options as o
-from angr.state_plugins import SimSystemPosix, SimLightRegisters
-from angr.storage.file import SimFile
 
 
 class UltraPageMemory(

@@ -1,6 +1,6 @@
-import tempfile
-import os
 import logging
+import os
+import tempfile
 import unittest
 
 from common import broken

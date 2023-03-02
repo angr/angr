@@ -2,9 +2,9 @@ import logging
 
 from angr.block import SootBlockNode
 from angr.errors import AngrLoopAnalysisError
-from .analysis import Analysis, AnalysesHub
-from .forward_analysis import ForwardAnalysis, LoopVisitor
 
+from .analysis import AnalysesHub, Analysis
+from .forward_analysis import ForwardAnalysis, LoopVisitor
 
 l = logging.getLogger(name=__name__)
 

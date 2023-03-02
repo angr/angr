@@ -1,15 +1,21 @@
 from collections import defaultdict
-from typing import Dict, List, Callable, Optional, Generic, TypeVar, Tuple, Set, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Callable, Dict, Generic, List, Optional, Set, Tuple, TypeVar, Union
 
 import networkx
 
-from .visitors.graph import NodeType
-from angr.analyses.cfg.cfg_job_base import CFGJobBase, BlockID
+from angr.analyses.cfg.cfg_job_base import BlockID, CFGJobBase
+from angr.errors import (
+    AngrDelayJobNotice,
+    AngrForwardAnalysisError,
+    AngrJobMergingFailureNotice,
+    AngrJobWideningFailureNotice,
+    AngrSkipJobNotice,
+)
 from angr.sim_state import SimState
-from angr.errors import AngrForwardAnalysisError
-from angr.errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
 from angr.utils.algo import binary_insert
+
 from .job_info import JobInfo
+from .visitors.graph import NodeType
 
 if TYPE_CHECKING:
     from .visitors.graph import GraphVisitor

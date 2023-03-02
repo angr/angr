@@ -1,5 +1,6 @@
-from .exploration_technique import ExplorationTechnique
 import random
+
+from .exploration_technique import ExplorationTechnique
 
 
 class DFS(ExplorationTechnique):

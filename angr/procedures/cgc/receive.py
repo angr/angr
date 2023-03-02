@@ -1,7 +1,6 @@
 from itertools import count
 
 import angr
-
 from angr import sim_options as o
 from angr.state_plugins.sim_action import SimActionData
 

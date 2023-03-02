@@ -1,8 +1,9 @@
-from typing import Dict, Union
 from itertools import count
+from typing import Dict, Union
 
 from angr import sim_type
 from angr.sim_type import SimType
+
 from . import typeconsts
 from .typeconsts import TypeConstant
 

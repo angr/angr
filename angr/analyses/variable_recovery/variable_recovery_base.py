@@ -1,19 +1,19 @@
-import weakref
-from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict, Any, TYPE_CHECKING
 import logging
+import weakref
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any, Dict, Generator, Iterable, List, Optional, Set, Tuple, Union
 
 import claripy
-from claripy.annotation import Annotation
-from archinfo import Arch
 from ailment.expression import BinaryOp, StackBaseOffset
+from archinfo import Arch
+from claripy.annotation import Annotation
 
-from angr.utils.cowdict import DefaultChainMapCOW
+from angr.analyses.analysis import Analysis
+from angr.analyses.typehoon.typevars import TypeVariable, TypeVariables
 from angr.engines.light import SpOffset
 from angr.sim_variable import SimVariable
 from angr.storage.memory_mixins import MultiValuedMemory
-from angr.analyses.analysis import Analysis
-from angr.analyses.typehoon.typevars import TypeVariables, TypeVariable
+from angr.utils.cowdict import DefaultChainMapCOW
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject

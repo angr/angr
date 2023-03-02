@@ -1,9 +1,9 @@
 # pylint:disable=arguments-differ,unused-argument,no-member
-from typing import Set, Optional
+from typing import Optional, Set
 
 from angr.storage.memory_mixins.base import MemoryMixin
-from .refcount_mixin import RefcountMixin
 
+from .refcount_mixin import RefcountMixin
 
 MAX_HISTORY_DEPTH = 50
 

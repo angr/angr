@@ -2,11 +2,12 @@ import logging
 
 from archinfo.arch_soot import SootAddressTerminator, SootArgument
 
+from angr import sim_options as options
+from angr.engines.soot.method_dispatcher import resolve_method
+
 from .base import SimSootValue
 from .instancefieldref import SimSootValue_InstanceFieldRef
 from .local import SimSootValue_Local
-from angr.engines.soot.method_dispatcher import resolve_method
-from angr import sim_options as options
 
 l = logging.getLogger("angr.engines.soot.values.thisref")
 

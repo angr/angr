@@ -1,5 +1,6 @@
-from angr.engines.soot.values.util import translate_value
 import logging
+
+from angr.engines.soot.values.util import translate_value
 
 l = logging.getLogger(__name__)
 

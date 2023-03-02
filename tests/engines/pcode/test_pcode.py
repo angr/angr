@@ -1,7 +1,8 @@
-from unittest import TestCase, skipUnless, main
 import os
+from unittest import TestCase, main, skipUnless
 
 import archinfo
+
 import angr
 
 try:

@@ -1,13 +1,14 @@
-from typing import Union, List, Dict, Tuple, TYPE_CHECKING, Optional
-from functools import partial
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from functools import partial
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import nampa
 from archinfo.arch_arm import is_arm_arch
 
 from angr.analyses import AnalysesHub
-from angr.flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
+from angr.flirt import FLIRT_SIGNATURES_BY_ARCH, LIBRARY_TO_SIGNATURES, STRING_TO_LIBRARIES, FlirtSignature
+
 from .analysis import Analysis
 
 if TYPE_CHECKING:

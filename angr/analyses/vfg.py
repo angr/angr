@@ -1,34 +1,35 @@
-from angr.analyses import AnalysesHub
-from typing import List, Generator, TYPE_CHECKING, Optional
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING, Generator, List, Optional
 
 import archinfo
-from archinfo.arch_arm import is_arm_arch
 import claripy
 import networkx
-from .analysis import Analysis
-from .cfg import CFGEmulated
+from archinfo.arch_arm import is_arm_arch
 
-from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
-from .cfg.cfg_utils import CFGUtils
-from .forward_analysis import ForwardAnalysis
 from angr import sim_options
-from angr.engines.procedure import ProcedureEngine
+from angr.analyses import AnalysesHub
 from angr.engines import SimSuccessors
+from angr.engines.procedure import ProcedureEngine
 from angr.errors import (
     AngrDelayJobNotice,
+    AngrError,
+    AngrJobMergingFailureNotice,
     AngrSkipJobNotice,
     AngrVFGError,
-    AngrError,
     AngrVFGRestartAnalysisNotice,
-    AngrJobMergingFailureNotice,
-    SimValueError,
-    SimIRSBError,
     SimError,
+    SimIRSBError,
+    SimValueError,
 )
 from angr.procedures import SIM_PROCEDURES
 from angr.state_plugins.callstack import CallStack
+
+from .analysis import Analysis
+from .cfg import CFGEmulated
+from .cfg.cfg_job_base import BlockID, CFGJobBase, FunctionKey
+from .cfg.cfg_utils import CFGUtils
+from .forward_analysis import ForwardAnalysis
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState

@@ -1,15 +1,16 @@
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import time
 from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.orm import sessionmaker
 
-from angr.errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
+from angr.errors import AngrCorruptDBError, AngrDBError, AngrIncompatibleDBError
 from angr.project import Project
+
 from .models import Base, DbInformation
-from .serializers import LoaderSerializer, KnowledgeBaseSerializer
+from .serializers import KnowledgeBaseSerializer, LoaderSerializer
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase

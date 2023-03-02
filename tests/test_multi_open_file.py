@@ -1,7 +1,7 @@
-import angr
+import logging
 import os
 
-import logging
+import angr
 
 l = logging.getLogger("angr.tests.test_multi_open_file")
 

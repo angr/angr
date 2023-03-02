@@ -2,9 +2,10 @@ import logging
 
 from archinfo.arch_soot import SootAddressDescriptor, SootAddressTerminator, SootClassDescriptor
 
-from angr.engines.soot.method_dispatcher import resolve_method
 from angr.engines import UberEngine
+from angr.engines.soot.method_dispatcher import resolve_method
 from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 l = logging.getLogger("angr.state_plugins.javavm_classloader")

@@ -1,5 +1,5 @@
 import logging
-from typing import Iterable, Tuple, Any
+from typing import Any, Iterable, Tuple
 
 from angr.storage.memory_mixins.base import MemoryMixin
 

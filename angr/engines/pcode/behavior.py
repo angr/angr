@@ -1,9 +1,9 @@
 import operator
 from typing import Callable, Iterable, Tuple
 
-from pypcode import OpCode
 import claripy
 from claripy.ast.bv import BV
+from pypcode import OpCode
 
 from angr.errors import AngrError
 

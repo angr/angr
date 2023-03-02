@@ -1,9 +1,9 @@
 # pylint:disable=missing-class-docstring
-from typing import List, Tuple, Any, Optional, Union, OrderedDict as ODict
+from typing import Any, List, Optional, Tuple, Union
+from typing import OrderedDict as ODict
 
-import claripy
 import ailment
-
+import claripy
 
 INDENT_DELTA = 2
 

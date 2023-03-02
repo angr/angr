@@ -1,5 +1,7 @@
-from angr.sim_state import SimState
 import operator
+
+from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 

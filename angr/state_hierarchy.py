@@ -1,11 +1,11 @@
+import gc
+import itertools
 import logging
 import weakref
-import itertools
 from contextlib import contextmanager
-import gc
-import networkx
 
 import claripy
+import networkx
 
 from .misc.picklable_lock import PicklableRLock
 

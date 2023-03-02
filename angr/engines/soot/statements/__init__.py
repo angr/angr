@@ -1,12 +1,12 @@
 import logging
 
 from .assign import SimSootStmt_Assign
-from .return_ import SimSootStmt_Return, SimSootStmt_ReturnVoid
-from .identity import SimSootStmt_Identity
 from .goto import SimSootStmt_Goto
-from .invoke import SimSootStmt_Invoke
+from .identity import SimSootStmt_Identity
 from .if_ import SimSootStmt_If
-from .switch import SimSootStmt_TableSwitch, SimSootStmt_LookupSwitch
+from .invoke import SimSootStmt_Invoke
+from .return_ import SimSootStmt_Return, SimSootStmt_ReturnVoid
+from .switch import SimSootStmt_LookupSwitch, SimSootStmt_TableSwitch
 from .throw import SimSootStmt_Throw
 
 l = logging.getLogger("angr.engines.soot.statements")

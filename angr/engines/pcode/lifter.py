@@ -7,26 +7,27 @@
 
 import copy
 import logging
-from typing import Union, Optional, Iterable, Sequence, Tuple, List
+from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 import archinfo
-from archinfo import ArchARM, ArchPcode
-import pypcode
 import cle
+import pypcode
+from archinfo import ArchARM, ArchPcode
 from cachetools import LRUCache
 
 # FIXME: Reusing these errors from pyvex for compatibility. Eventually these
 # should be refactored to use common error classes.
-from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
+from pyvex.errors import LiftingException, PyVEXError, SkipStatementsError
 
-from .behavior import BehaviorFactory
-from angr.engines.engine import SimEngineBase
-from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
-from angr.sim_state import SimState
-from angr.misc.ux import once
-from angr.errors import SimEngineError, SimTranslationError, SimError
 from angr import sim_options as o
 from angr.block import DisassemblerBlock, DisassemblerInsn
+from angr.engines.engine import SimEngineBase
+from angr.errors import SimEngineError, SimError, SimTranslationError
+from angr.misc.ux import once
+from angr.sim_state import SimState
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
+from .behavior import BehaviorFactory
 
 l = logging.getLogger(__name__)
 

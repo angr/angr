@@ -1,7 +1,8 @@
 import logging
 
-from .base import SimSootStmt
 from archinfo.arch_soot import SootAddressTerminator
+
+from .base import SimSootStmt
 
 l = logging.getLogger(name=__name__)
 

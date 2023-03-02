@@ -2,8 +2,9 @@ import logging
 import os
 import unittest
 
-import angr
 import claripy
+
+import angr
 
 l = logging.getLogger("angr_tests")
 

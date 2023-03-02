@@ -1,5 +1,6 @@
-import angr
 import itertools
+
+import angr
 
 ######################################
 # malloc

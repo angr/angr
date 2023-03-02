@@ -1,15 +1,17 @@
-from angr.sim_state import SimState
-from angr import sim_options as options
-import cle
 import io
 import logging
 import os
 import re
 import struct
 
-from .plugin import SimStatePlugin
+import cle
+from archinfo import ArchAMD64, ArchX86
+
+from angr import sim_options as options
 from angr.errors import SimConcreteRegisterError
-from archinfo import ArchX86, ArchAMD64
+from angr.sim_state import SimState
+
+from .plugin import SimStatePlugin
 
 l = logging.getLogger("state_plugin.concrete")
 # l.setLevel(logging.DEBUG)

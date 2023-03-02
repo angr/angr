@@ -1,7 +1,6 @@
 import logging
 
 from capstone.x86_const import X86_REG_RIP
-
 from pyvex.stmt import IMark
 
 from .resolver import IndirectJumpResolver

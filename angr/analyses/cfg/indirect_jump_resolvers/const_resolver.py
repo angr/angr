@@ -1,15 +1,16 @@
-from typing import TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING
 
 import claripy
 import pyvex
 
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.code_location import CodeLocation
-from angr.blade import Blade
 from angr.analyses.propagator import vex_vars
-from .resolver import IndirectJumpResolver
+from angr.blade import Blade
+from angr.code_location import CodeLocation
+from angr.utils.constants import DEFAULT_STATEMENT
+
 from .propagator_utils import PropagatorLoadCallback
+from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:
     from angr import Block

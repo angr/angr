@@ -1,19 +1,20 @@
-from .errors import AngrVaultError
-from .sim_type import SimType
-from .sim_state import SimState
 import collections.abc
 import contextlib
-import threading
-import tempfile
-import weakref
+import io
 import logging
+import os
 import pickle
 import shelve
+import tempfile
+import threading
 import uuid
-import os
-import io
+import weakref
 
 import claripy
+
+from .errors import AngrVaultError
+from .sim_state import SimState
+from .sim_type import SimType
 
 l = logging.getLogger("angr.vault")
 

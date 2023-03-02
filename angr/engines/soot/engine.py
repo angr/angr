@@ -7,14 +7,15 @@ from archinfo.arch_soot import (
     SootArgument,
     SootMethodDescriptor,
 )
+from cle import CLEError
 
 from angr import sim_options as o
-from angr.errors import SimEngineError, SimTranslationError
-from cle import CLEError
-from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
-from angr.sim_type import SimTypeFunction, parse_type
 from angr.engines.engine import SuccessorsMixin
 from angr.engines.procedure import ProcedureMixin
+from angr.errors import SimEngineError, SimTranslationError
+from angr.sim_type import SimTypeFunction, parse_type
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
 from .statements import SimSootStmt_Return, SimSootStmt_ReturnVoid, translate_stmt
 from .values import SimSootValue_Local, SimSootValue_ParamRef

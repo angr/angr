@@ -1,12 +1,12 @@
-from typing import Set, Dict
 import logging
 from collections import defaultdict
+from typing import Dict, Set
 
-from angr.serializable import Serializable
-from angr.protos import xrefs_pb2
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
-from .xref import XRef, XRefType
+from angr.protos import xrefs_pb2
+from angr.serializable import Serializable
 
+from .xref import XRef, XRefType
 
 l = logging.getLogger(name=__name__)
 

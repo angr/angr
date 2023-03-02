@@ -1,15 +1,14 @@
 # pylint:disable=consider-using-with
-from typing import List, Dict
-import json
-import subprocess
 import argparse
-import tempfile
-import os
 import itertools
+import json
+import os
+import subprocess
+import tempfile
 from collections import defaultdict
+from typing import Dict, List
 
 import angr
-
 
 UNIQUE_STRING_COUNT = 20
 # strings longer than MAX_UNIQUE_STRING_LEN will be truncated

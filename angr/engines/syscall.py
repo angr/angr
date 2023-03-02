@@ -1,7 +1,7 @@
-from angr.errors import AngrUnsupportedSyscallError
-import angr
 import logging
 
+import angr
+from angr.errors import AngrUnsupportedSyscallError
 
 from .engine import SuccessorsMixin
 from .procedure import ProcedureMixin

@@ -1,12 +1,12 @@
 import logging
-import unittest
 import os
+import unittest
 from itertools import count
 
-import archinfo
-import angr
-
 import ailment
+import archinfo
+
+import angr
 
 
 def block_simplify(block):

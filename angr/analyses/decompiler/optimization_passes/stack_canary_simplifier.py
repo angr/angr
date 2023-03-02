@@ -1,11 +1,10 @@
-from typing import Set, Dict
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from typing import Dict, Set
 
 import ailment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-
 
 _l = logging.getLogger(name=__name__)
 

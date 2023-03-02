@@ -1,11 +1,10 @@
+import logging
 import random
 import string
-import logging
 
 import claripy
 
 from angr.analyses.identifier.func import Func, TestData
-
 
 l = logging.getLogger(name=__name__)
 

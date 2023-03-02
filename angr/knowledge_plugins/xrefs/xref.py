@@ -1,8 +1,9 @@
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from typing import Optional
 
-from angr.serializable import Serializable
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.protos import primitives_pb2
+from angr.serializable import Serializable
+
 from .xref_types import XRefType
 
 

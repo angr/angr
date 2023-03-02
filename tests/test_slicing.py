@@ -1,11 +1,10 @@
 #!/usr/bin/env python
+import logging
+import os
 import time
+
 import angr
 from angr.utils.constants import DEFAULT_STATEMENT
-
-import os
-
-import logging
 
 l = logging.getLogger("angr.tests.slicing")
 

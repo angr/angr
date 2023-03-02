@@ -1,12 +1,14 @@
-from contextlib import suppress
-from claripy import BVS
-from angr.storage import SimFile
-import pickle
-import shutil
-import angr
 import gc
 import os
+import pickle
+import shutil
 import unittest
+from contextlib import suppress
+
+from claripy import BVS
+
+import angr
+from angr.storage import SimFile
 
 tests_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

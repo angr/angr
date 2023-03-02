@@ -1,14 +1,14 @@
 import logging
 import re
-from typing import TYPE_CHECKING
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
-from angr.knowledge_base import KnowledgeBase
-from angr.codenode import HookNode
-from angr.sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 from angr import SIM_PROCEDURES
+from angr.codenode import HookNode
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_variable import SimConstantVariable, SimMemoryVariable, SimRegisterVariable, SimStackVariable
 
-from .analysis import Analysis, AnalysesHub
+from .analysis import AnalysesHub, Analysis
 from .cfg import CFGEmulated
 from .ddg import DDG
 

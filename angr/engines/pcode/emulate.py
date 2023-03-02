@@ -1,17 +1,17 @@
 import logging
 from typing import Union
 
-from pypcode import OpCode, Varnode, PcodeOp, Translation
 import claripy
 from claripy.ast.bv import BV
+from pypcode import OpCode, PcodeOp, Translation, Varnode
 
 from angr.engines.engine import SimEngineBase
-from angr.utils.constants import DEFAULT_STATEMENT
-from .lifter import IRSB
-from .behavior import OpBehavior
 from angr.errors import AngrError
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from angr.utils.constants import DEFAULT_STATEMENT
 
+from .behavior import OpBehavior
+from .lifter import IRSB
 
 l = logging.getLogger(__name__)
 

@@ -1,25 +1,12 @@
 # pylint:disable=missing-class-docstring
 import itertools
 from collections import defaultdict
-from typing import Union, Type, Callable
+from typing import Callable, Type, Union
 
 import networkx
 
-from .typevars import (
-    Existence,
-    Equivalence,
-    Subtype,
-    TypeVariable,
-    DerivedTypeVariable,
-    HasField,
-    Add,
-    ConvertTo,
-    IsArray,
-)
 from .typeconsts import (
     BottomType,
-    TopType,
-    TypeConstant,
     Int,
     Int8,
     Int16,
@@ -29,8 +16,21 @@ from .typeconsts import (
     Pointer32,
     Pointer64,
     Struct,
-    int_type,
+    TopType,
+    TypeConstant,
     TypeVariableReference,
+    int_type,
+)
+from .typevars import (
+    Add,
+    ConvertTo,
+    DerivedTypeVariable,
+    Equivalence,
+    Existence,
+    HasField,
+    IsArray,
+    Subtype,
+    TypeVariable,
 )
 
 # lattice for 64-bit binaries

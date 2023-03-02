@@ -1,24 +1,26 @@
-from typing import Tuple, Optional, Callable, Iterable, Dict, TYPE_CHECKING
+import logging
 import queue
 import threading
 import time
-import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING, Callable, Dict, Iterable, Optional, Tuple
 
 import claripy
 
-from angr.utils.mp import mp_context, Initializer
-from angr.knowledge_plugins.cfg import CFGModel
 from angr.analyses.cfg import CFGUtils
-from .analysis import Analysis, AnalysesHub
-from .variable_recovery import VariableRecoveryFast
+from angr.knowledge_plugins.cfg import CFGModel
+from angr.utils.mp import Initializer, mp_context
+
+from .analysis import AnalysesHub, Analysis
 from .calling_convention import CallingConventionAnalysis
+from .variable_recovery import VariableRecoveryFast
 
 if TYPE_CHECKING:
     import networkx
+
     from angr.calling_conventions import SimCC
-    from angr.sim_type import SimTypeFunction
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+    from angr.sim_type import SimTypeFunction
 
 _l = logging.getLogger(name=__name__)
 

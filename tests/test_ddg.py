@@ -1,12 +1,11 @@
 # pylint: disable=missing-class-docstring,disable=no-self-use
-import os
 import logging
+import os
 import time
 import unittest
 
 import angr
 from angr.code_location import CodeLocation
-
 
 l = logging.getLogger("angr.tests.test_ddg")
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")

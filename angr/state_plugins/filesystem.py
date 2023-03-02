@@ -1,11 +1,12 @@
-import os
 import logging
+import os
 from collections import namedtuple
 
-from .plugin import SimStatePlugin
-from angr.storage.file import SimFile
 from angr.errors import SimMergeError
 from angr.misc.ux import once
+from angr.storage.file import SimFile
+
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
 

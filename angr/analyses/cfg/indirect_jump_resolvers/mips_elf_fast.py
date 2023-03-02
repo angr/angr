@@ -1,16 +1,16 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import Dict, Optional, Tuple, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
-import pyvex
 import archinfo
+import pyvex
 
-
-from angr import options, BP_BEFORE
-from angr.blade import Blade
+from angr import BP_BEFORE, options
 from angr.annocfg import AnnotatedCFG
+from angr.blade import Blade
 from angr.exploration_techniques import Slicecutor
 from angr.utils.constants import DEFAULT_STATEMENT
+
 from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:

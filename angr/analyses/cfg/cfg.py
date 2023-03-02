@@ -1,5 +1,6 @@
-from angr.analyses import AnalysesHub
 import sys
+
+from angr.analyses import AnalysesHub
 
 from .cfg_fast import CFGFast
 

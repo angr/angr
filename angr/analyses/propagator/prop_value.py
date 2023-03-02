@@ -1,7 +1,7 @@
-from typing import Dict, Any, Tuple, Iterable, Generator, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Generator, Iterable, Optional, Tuple
 
-import claripy
 import ailment
+import claripy
 
 if TYPE_CHECKING:
     from angr.code_location import CodeLocation

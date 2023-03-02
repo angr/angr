@@ -1,6 +1,7 @@
 # pylint:disable=no-member
-from angr.protos.primitives_pb2 import Edge
 import logging
+
+from angr.protos.primitives_pb2 import Edge
 
 l = logging.getLogger(name=__name__)
 

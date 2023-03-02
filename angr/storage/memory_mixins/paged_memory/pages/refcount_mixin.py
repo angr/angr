@@ -1,5 +1,5 @@
-from angr.storage.memory_mixins.base import MemoryMixin
 from angr.misc import PicklableLock
+from angr.storage.memory_mixins.base import MemoryMixin
 
 
 class RefcountMixin(MemoryMixin):

@@ -1,17 +1,18 @@
 import itertools
-from typing import Optional, Type, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Optional, Type
 
 import networkx
-from angr.analyses.analysis import Analysis, AnalysesHub
-from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
-from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
-from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
-from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
-from .structurer_base import StructurerBase
-from .dream import DreamStructurer
 
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
+from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
+from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
+
+from .dream import DreamStructurer
+from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function

@@ -2,7 +2,6 @@ import logging
 
 from angr.procedures.cgc.transmit import transmit as orig_transmit
 
-
 l = logging.getLogger(name=__name__)
 
 

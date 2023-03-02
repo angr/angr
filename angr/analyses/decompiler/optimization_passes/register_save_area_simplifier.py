@@ -1,13 +1,13 @@
-from typing import List, Tuple, Iterable, Dict
 import logging
+from typing import Dict, Iterable, List, Tuple
 
-import archinfo
 import ailment
+import archinfo
 
 from angr.calling_conventions import SimRegArg
 from angr.code_location import CodeLocation
-from .optimization_pass import OptimizationPass, OptimizationPassStage
 
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
 

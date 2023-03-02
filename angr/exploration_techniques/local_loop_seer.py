@@ -3,7 +3,6 @@ from collections import defaultdict
 
 from .exploration_technique import ExplorationTechnique
 
-
 l = logging.getLogger(name=__name__)
 
 

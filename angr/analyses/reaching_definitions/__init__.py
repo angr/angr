@@ -1,15 +1,15 @@
-from typing import Set, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Set, Union
 
-from angr.knowledge_plugins.key_definitions import LiveDefinitions
 from angr.analyses.analysis import AnalysesHub
-from .reaching_definitions import ReachingDefinitionsAnalysis
+from angr.knowledge_plugins.key_definitions import LiveDefinitions
 
+from .reaching_definitions import ReachingDefinitionsAnalysis
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.key_definitions.definition import Definition
-    from angr.storage.memory_object import SimMemoryObject
     from angr.storage.memory_mixins import MultiValuedMemory
     from angr.storage.memory_mixins.paged_memory.pages import MVListPage
+    from angr.storage.memory_object import SimMemoryObject
 
 
 def get_all_definitions(region: "MultiValuedMemory") -> Set["Definition"]:

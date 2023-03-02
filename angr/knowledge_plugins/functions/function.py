@@ -1,30 +1,26 @@
-import os
-import logging
-import networkx
-import string
 import itertools
+import logging
+import os
+import string
 from collections import defaultdict
-from typing import Union, Optional, Iterable, Set, Generator, TYPE_CHECKING
-from typing import Type
+from typing import TYPE_CHECKING, Generator, Iterable, Optional, Set, Type, Union
 
+import claripy
+import networkx
+from archinfo.arch_arm import get_real_address_if_arm
+from cle.backends.symbol import Symbol
 from itanium_demangler import parse
 
-from cle.backends.symbol import Symbol
-from archinfo.arch_arm import get_real_address_if_arm
-import claripy
-
-from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode
-from angr.serializable import Serializable
+from angr.calling_conventions import DEFAULT_CC, SimCC
+from angr.codenode import BlockNode, CodeNode, HookNode, SyscallNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimSyscallLibrary
 from angr.protos import function_pb2
-from angr.calling_conventions import DEFAULT_CC
-from .function_parser import FunctionParser
-
-
+from angr.serializable import Serializable
 from angr.sim_type import SimTypeFunction, parse_defns
-from angr.calling_conventions import SimCC
+
+from .function_parser import FunctionParser
 
 if TYPE_CHECKING:
     from angr.project import Project

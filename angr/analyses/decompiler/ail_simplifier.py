@@ -1,40 +1,42 @@
-from typing import Set, Dict, List, Tuple, Any, Optional, TYPE_CHECKING
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from ailment.block import Block
-from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump
 from ailment.expression import (
-    Register,
-    Convert,
-    Load,
-    StackBaseOffset,
-    Expression,
-    DirtyExpression,
-    VEXCCallExpression,
-    Tmp,
-    Const,
     BinaryOp,
+    Const,
+    Convert,
+    DirtyExpression,
+    Expression,
+    Load,
+    Register,
+    StackBaseOffset,
+    Tmp,
+    VEXCCallExpression,
 )
+from ailment.statement import Assignment, Call, ConditionalJump, Statement, Store
 
-from angr.errors import SimMemoryMissingError
-from angr.engines.light import SpOffset
-from angr.code_location import CodeLocation
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
-from angr.sim_variable import SimStackVariable, SimMemoryVariable
+from angr.analyses import AnalysesHub, Analysis
 from angr.analyses.propagator.propagator import Equivalence
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.code_location import CodeLocation
+from angr.engines.light import SpOffset
+from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.analyses import Analysis, AnalysesHub
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.sim_variable import SimMemoryVariable, SimStackVariable
+
 from .ailblock_walker import AILBlockWalker
 from .ailgraph_walker import AILGraphWalker
-from .expression_narrower import ExpressionNarrowingWalker
 from .block_simplifier import BlockSimplifier
 from .ccall_rewriters import CCALL_REWRITERS
+from .expression_narrower import ExpressionNarrowingWalker
 
 if TYPE_CHECKING:
     from ailment.manager import Manager
+
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
 
 

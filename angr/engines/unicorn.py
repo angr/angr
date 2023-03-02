@@ -4,14 +4,16 @@ import logging
 
 import archinfo
 
-from angr.errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
-from .engine import SuccessorsMixin
-from .vex.heavy.heavy import VEXEarlyExit
 from angr import sim_options as o
+from angr.errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from angr.misc.ux import once
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
-from angr.state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
+from angr.state_plugins.unicorn_engine import _UC_NATIVE, STOP
+from angr.state_plugins.unicorn_engine import unicorn as uc_module
 from angr.utils.constants import DEFAULT_STATEMENT
+
+from .engine import SuccessorsMixin
+from .vex.heavy.heavy import VEXEarlyExit
 
 # pylint: disable=arguments-differ
 

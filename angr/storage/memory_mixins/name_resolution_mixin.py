@@ -1,6 +1,8 @@
-from angr.errors import SimMemoryError
 import claripy
 from archinfo.arch_arm import is_arm_arch
+
+from angr.errors import SimMemoryError
+
 from .base import MemoryMixin
 
 stn_map = {"st%d" % n: n for n in range(8)}

@@ -3,12 +3,12 @@ import ailment
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    MultiNode,
-    LoopNode,
-    ConditionNode,
     CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
 from angr.analyses.decompiler.utils import is_empty_node
 

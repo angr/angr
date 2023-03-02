@@ -1,10 +1,10 @@
-from angr.knowledge_plugins.loop import Loop
 import logging
 
-from .exploration_technique import ExplorationTechnique
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.loop import Loop
 
+from .exploration_technique import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 

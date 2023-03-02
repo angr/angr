@@ -1,9 +1,9 @@
 import random
 from collections import UserDict
 
-from .plugin import KnowledgeBasePlugin
 from angr.sim_type import ALL_TYPES, TypeRef
 
+from .plugin import KnowledgeBasePlugin
 
 FRUITS = [
     "mango",

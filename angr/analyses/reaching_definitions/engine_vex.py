@@ -1,32 +1,34 @@
-from itertools import chain
-from typing import Optional, Iterable, Set, Union, TYPE_CHECKING, Tuple
 import logging
+from itertools import chain
+from typing import TYPE_CHECKING, Iterable, Optional, Set, Tuple, Union
 
-import pyvex
 import claripy
+import pyvex
 from cle import Symbol
 
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.analyses.reaching_definitions.call_trace import CallTrace
+from angr.calling_conventions import DEFAULT_CC, SimArrayArg, SimCC, SimRegArg, SimStackArg, SimStructArg
+from angr.code_location import CodeLocation
 from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from angr.engines.vex.claripy.datalayer import value as claripy_value
 from angr.engines.vex.claripy.irop import operations as vex_operations
 from angr.errors import SimEngineError, SimMemoryMissingError
-from angr.calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC, SimStructArg, SimArrayArg
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
 from angr.knowledge_plugins.functions import Function
-from angr.knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
-from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, Tmp
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
+from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+from angr.knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
 from angr.knowledge_plugins.key_definitions.undefined import Undefined
-from angr.code_location import CodeLocation
-from angr.analyses.reaching_definitions.call_trace import CallTrace
-from .rd_state import ReachingDefinitionsState
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.utils.constants import DEFAULT_STATEMENT
+
 from .external_codeloc import ExternalCodeLocation
+from .rd_state import ReachingDefinitionsState
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import FunctionManager
+
     from .function_handler import FunctionHandler
 
 

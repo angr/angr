@@ -2,19 +2,17 @@ import logging
 import struct
 from typing import Optional
 
-import angr  # for types
-
 import claripy
 from archinfo import ArchMIPS32, ArchS390X
 
+import angr  # for types
+from angr import sim_options as o
+from angr.calling_conventions import DEFAULT_CC
 from angr.errors import AngrCallableError, AngrCallableMultistateError, AngrSimOSError
+from angr.procedures import SIM_PROCEDURES as P
 from angr.sim_state import SimState
 from angr.state_plugins import SimSystemPosix
-from angr.calling_conventions import DEFAULT_CC
-from angr.procedures import SIM_PROCEDURES as P
-from angr import sim_options as o
-from angr.storage.file import SimFileStream, SimFileBase
-
+from angr.storage.file import SimFileBase, SimFileStream
 
 _l = logging.getLogger(name=__name__)
 

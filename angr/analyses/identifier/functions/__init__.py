@@ -1,11 +1,9 @@
+import importlib
+import logging
 import os
 from collections import defaultdict
-import importlib
-
-import logging
 
 from angr.analyses.identifier.func import Func
-
 
 l = logging.getLogger(name=__name__)
 

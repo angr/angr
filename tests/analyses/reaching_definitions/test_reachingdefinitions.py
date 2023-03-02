@@ -6,21 +6,21 @@ import pickle
 from unittest import TestCase, main
 
 import ailment
+
 import angr
-from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
-from angr.code_location import CodeLocation
+from angr.analyses import CFGFast, CompleteCallingConventionsAnalysis, ReachingDefinitionsAnalysis
+from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
-from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
-from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
-from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
-from angr.utils.constants import DEFAULT_STATEMENT
+from angr.code_location import CodeLocation
+from angr.knowledge_plugins.key_definitions.atoms import GuardUse, MemoryLocation, Register, Tmp
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
+from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions, SpOffset
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_object import SimMemoryObject
+from angr.utils.constants import DEFAULT_STATEMENT
 
 
 class InsnAndNodeObserveTestingUtils:

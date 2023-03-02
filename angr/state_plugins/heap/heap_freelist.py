@@ -1,8 +1,9 @@
-from .heap_libc import SimHeapLibc
-from .utils import concretize
+import logging
+
 from angr.errors import SimHeapError
 
-import logging
+from .heap_libc import SimHeapLibc
+from .utils import concretize
 
 l = logging.getLogger("angr.state_plugins.heap.heap_freelist")
 

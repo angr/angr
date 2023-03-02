@@ -1,14 +1,14 @@
-from typing import Optional
 import logging
+from typing import Optional
 
 import claripy
 import pyvex
 
-from . import irop
-from . import ccall
-from angr.engines.vex.light import VEXMixin
 from angr import errors
 from angr import sim_options as o
+from angr.engines.vex.light import VEXMixin
+
+from . import ccall, irop
 
 l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)

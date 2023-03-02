@@ -1,12 +1,12 @@
+import logging
 from collections import defaultdict
 from typing import Dict, List, Union
-import logging
 
 import networkx
 
-from .utils.constants import DEFAULT_STATEMENT
 from .errors import AngrAnnotatedCFGError, AngrExitError
 from .knowledge_plugins.cfg import CFGNode
+from .utils.constants import DEFAULT_STATEMENT
 
 l = logging.getLogger(name=__name__)
 

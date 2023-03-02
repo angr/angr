@@ -1,9 +1,10 @@
-import claripy
-
 import logging
 import time
 
-from angr import sim_options as o, errors
+import claripy
+
+from angr import errors
+from angr import sim_options as o
 
 l = logging.getLogger(name=__name__)
 

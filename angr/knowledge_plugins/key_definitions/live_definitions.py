@@ -1,19 +1,19 @@
-import weakref
-from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, Any, TYPE_CHECKING
 import logging
-
+import weakref
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any, Dict, Generator, Iterable, Optional, Set, Tuple, Union
 
+import archinfo
 import claripy
 from claripy.annotation import Annotation
-import archinfo
 
-from angr.errors import SimMemoryMissingError, SimMemoryError
+from angr.code_location import CodeLocation
+from angr.engines.light import SpOffset
+from angr.errors import SimMemoryError, SimMemoryMissingError
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.engines.light import SpOffset
-from angr.code_location import CodeLocation
-from .atoms import Atom, Register, MemoryLocation, Tmp, FunctionCall, ConstantSrc
+
+from .atoms import Atom, ConstantSrc, FunctionCall, MemoryLocation, Register, Tmp
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .uses import Uses

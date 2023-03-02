@@ -1,7 +1,7 @@
 import angr
 from angr.procedures.posix.read import read
 from angr.procedures.posix.write import write
-from angr.sim_type import register_types, parse_types
+from angr.sim_type import parse_types, register_types
 
 register_types(
     parse_types(

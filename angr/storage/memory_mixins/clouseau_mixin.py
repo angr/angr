@@ -1,4 +1,5 @@
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
 from .base import MemoryMixin
 
 

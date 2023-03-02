@@ -1,11 +1,11 @@
-from angr.analyses import AnalysesHub
-from typing import Optional
-
 import logging
+from typing import Optional
 
 import networkx
 
-from angr.utils.graph import compute_dominance_frontier, PostDominators, TemporaryNode
+from angr.analyses import AnalysesHub
+from angr.utils.graph import PostDominators, TemporaryNode, compute_dominance_frontier
+
 from .analysis import Analysis
 
 _l = logging.getLogger(name=__name__)

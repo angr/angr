@@ -1,4 +1,4 @@
-from weakref import WeakValueDictionary, WeakKeyDictionary, _IterationGuard
+from weakref import WeakKeyDictionary, WeakValueDictionary, _IterationGuard
 
 
 def copy_wvd(self):

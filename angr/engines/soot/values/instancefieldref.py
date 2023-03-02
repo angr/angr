@@ -1,6 +1,7 @@
-from .util import translate_value
-from .base import SimSootValue
 from angr.engines.soot.field_dispatcher import resolve_field
+
+from .base import SimSootValue
+from .util import translate_value
 
 
 class SimSootValue_InstanceFieldRef(SimSootValue):

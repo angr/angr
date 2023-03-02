@@ -1,12 +1,12 @@
+import ctypes
 from collections import OrderedDict
 
-import angr
 import claripy
-import ctypes
-
 from archinfo import Endness
+
+import angr
 from angr import SimState
-from angr.sim_type import register_types, parse_types, SimStruct, SimTypeNumOffset
+from angr.sim_type import SimStruct, SimTypeNumOffset, parse_types, register_types
 
 
 def test_simple_concrete():

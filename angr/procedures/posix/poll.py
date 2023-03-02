@@ -1,5 +1,6 @@
-import angr
 import select
+
+import angr
 
 ######################################
 # poll

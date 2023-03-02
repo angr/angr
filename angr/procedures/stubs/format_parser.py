@@ -1,11 +1,12 @@
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
-from typing import List, Dict, TYPE_CHECKING
-from string import digits as ascii_digits
 import logging
 import math
+from string import digits as ascii_digits
+from typing import TYPE_CHECKING, Dict, List
+
 import claripy
 
 from angr import sim_type
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr.sim_procedure import SimProcedure
 from angr.storage.file import SimPackets
 

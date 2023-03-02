@@ -2,9 +2,10 @@
 import concurrent.futures
 import logging
 
-from .exploration_technique import ExplorationTechnique
 from angr.engines.engine import TLSMixin
 from angr.misc.ux import once
+
+from .exploration_technique import ExplorationTechnique
 
 l = logging.getLogger(__name__)
 

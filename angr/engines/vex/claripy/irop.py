@@ -1,19 +1,18 @@
 """
 This module contains symbolic implementations of VEX operations.
 """
-from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
-from functools import partial
 import collections
 import itertools
-import operator
-import math
-import re
-
 import logging
+import math
+import operator
+import re
+from functools import partial
 
-
-import pyvex
 import claripy
+import pyvex
+
+from angr.errors import SimOperationError, SimValueError, SimZeroDivisionException, UnsupportedIROpError
 
 l = logging.getLogger(name=__name__)
 

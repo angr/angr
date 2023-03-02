@@ -1,8 +1,9 @@
-from angr.analyses import AnalysesHub
-from .analysis import Analysis
-from angr import SIM_PROCEDURES
-
 import logging
+
+from angr import SIM_PROCEDURES
+from angr.analyses import AnalysesHub
+
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 

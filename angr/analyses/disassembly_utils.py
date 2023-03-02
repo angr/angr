@@ -1,6 +1,6 @@
-import capstone as cs
 import logging
 
+import capstone as cs
 from archinfo.arch_arm import is_arm_arch
 
 from angr.misc.ux import once

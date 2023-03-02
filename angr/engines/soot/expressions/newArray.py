@@ -1,6 +1,7 @@
 import logging
 
 from angr.engines.soot.values import SimSootValue_ArrayBaseRef
+
 from .base import SimSootExpr
 
 l = logging.getLogger("angr.engines.soot.expressions.newarray")

@@ -1,8 +1,9 @@
 import claripy
 
+from angr.errors import SimMergeError
+
 from .base import MemoryMixin
 from .paged_memory.pages.ispo_mixin import ISPOMixin
-from angr.errors import SimMergeError
 
 
 class SlottedMemoryMixin(MemoryMixin):

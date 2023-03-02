@@ -3,7 +3,6 @@ import string
 
 from angr.analyses.identifier.func import Func, TestData
 
-
 BASES = [8, 10, 16]
 
 

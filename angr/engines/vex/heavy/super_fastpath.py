@@ -1,9 +1,9 @@
-import pyvex
 import claripy
+import pyvex
 
 from angr import sim_options as o
-from angr.errors import SimMissingTempError
 from angr.engines.vex.light.slicing import VEXSlicingMixin
+from angr.errors import SimMissingTempError
 
 
 class SuperFastpathMixin(VEXSlicingMixin):

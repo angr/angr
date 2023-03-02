@@ -1,4 +1,4 @@
-from typing import Iterable, Tuple, Any
+from typing import Any, Iterable, Tuple
 
 from .base import MemoryMixin
 

@@ -2,8 +2,7 @@ import logging
 
 from ailment import Expr, Stmt
 
-from angr.engines.light import SimEngineLightAILMixin
-from angr.engines.light import SimEngineLight
+from angr.engines.light import SimEngineLight, SimEngineLightAILMixin
 
 _l = logging.getLogger(name=__name__)
 

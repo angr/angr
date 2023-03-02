@@ -1,20 +1,20 @@
-from typing import Optional, Tuple, Union, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 import networkx
-
 from ailment import Block
+from ailment.expression import BinaryOp, Const, Load, Register
 from ailment.statement import ConditionalJump
-from ailment.expression import BinaryOp, Const, Register, Load
 
 from angr.analyses.cfg.cfg_utils import CFGUtils
-from angr.analyses.decompiler.utils import first_nonlabel_statement, remove_last_statement
 from angr.analyses.decompiler.structuring.structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
-    SequenceNode,
     MultiNode,
+    SequenceNode,
 )
-from .optimization_pass import OptimizationPass, OptimizationPassStage, MultipleBlocksException
+from angr.analyses.decompiler.utils import first_nonlabel_statement, remove_last_statement
+
+from .optimization_pass import MultipleBlocksException, OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable

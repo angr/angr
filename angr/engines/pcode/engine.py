@@ -1,7 +1,7 @@
-from typing import Optional, Iterable
+import logging
+from typing import Iterable, Optional
 
 import claripy
-import logging
 
 from angr.calling_conventions import DEFAULT_CC, SimRegArg
 from angr.engines.engine import SuccessorsMixin, SimSuccessors
@@ -9,8 +9,9 @@ from angr.misc.ux import once
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr import sim_options as o
 from angr import errors
-from .lifter import PcodeLifterEngineMixin, IRSB
+
 from .emulate import PcodeEmulatorMixin
+from .lifter import IRSB, PcodeLifterEngineMixin
 
 l = logging.getLogger(__name__)
 

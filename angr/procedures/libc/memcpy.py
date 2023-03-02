@@ -1,6 +1,7 @@
-from angr.sim_options import ABSTRACT_MEMORY
-import angr
 import logging
+
+import angr
+from angr.sim_options import ABSTRACT_MEMORY
 
 l = logging.getLogger(name=__name__)
 

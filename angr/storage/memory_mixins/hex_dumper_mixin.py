@@ -1,6 +1,7 @@
 import string
 
 from angr.errors import SimValueError
+
 from .base import MemoryMixin
 
 

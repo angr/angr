@@ -1,7 +1,8 @@
-import time
-import os
 import logging
+import os
+import time
 import unittest
+
 import claripy
 
 import angr

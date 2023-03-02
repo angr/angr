@@ -1,35 +1,33 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
 import logging
-from typing import Optional, List, Dict, Type
 from collections import defaultdict
+from typing import Dict, List, Optional, Type
 
-import claripy
 import archinfo
+import claripy
 from archinfo import RegisterName
 
 from .sim_type import (
-    SimType,
-    SimTypeChar,
-    SimTypePointer,
-    SimTypeFixedSizeArray,
-    SimTypeArray,
-    SimTypeString,
-    SimTypeFunction,
-    SimTypeFloat,
-    SimTypeDouble,
-    SimTypeReg,
     SimStruct,
     SimStructValue,
+    SimType,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeDouble,
+    SimTypeFixedSizeArray,
+    SimTypeFloat,
+    SimTypeFunction,
     SimTypeInt,
     SimTypeNum,
-    SimUnion,
-    SimTypeBottom,
-    parse_signature,
+    SimTypePointer,
     SimTypeReference,
+    SimTypeReg,
+    SimTypeString,
+    SimUnion,
+    parse_signature,
 )
-
 from .state_plugins.sim_action_object import SimActionObject
-
 
 l = logging.getLogger(name=__name__)
 

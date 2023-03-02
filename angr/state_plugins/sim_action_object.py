@@ -1,12 +1,12 @@
-from angr.errors import SimActionError
-from . import sim_action
+import functools
 import logging
 
-
 import claripy
-import functools
 
 from angr import sim_options as o
+from angr.errors import SimActionError
+
+from . import sim_action
 
 l = logging.getLogger(name=__name__)
 

@@ -1,7 +1,9 @@
-from angr.sim_state import SimState
 import logging
-from .plugin import SimStatePlugin
+
 from angr.errors import SimUCManagerAllocationError
+from angr.sim_state import SimState
+
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
 

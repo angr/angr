@@ -1,8 +1,9 @@
-import tempfile
+import os
 import pickle
 import shutil
+import tempfile
+
 import angr
-import os
 
 internaltest_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 internaltest_files = [

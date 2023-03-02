@@ -3,7 +3,6 @@ import string
 
 from angr.analyses.identifier.func import Func, TestData
 
-
 digs = string.digits + string.ascii_letters
 
 

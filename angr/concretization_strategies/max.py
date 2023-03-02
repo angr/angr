@@ -1,6 +1,7 @@
 from typing import Optional
 
 from angr.errors import SimSolverError
+
 from .base import SimConcretizationStrategy
 
 

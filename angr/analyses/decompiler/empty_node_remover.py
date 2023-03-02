@@ -1,23 +1,23 @@
 # pylint:disable=unused-argument,no-self-use
 from collections import OrderedDict
 
-import claripy
 import ailment
+import claripy
 
+from .condition_processor import ConditionProcessor
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    LoopNode,
     MultiNode,
     SequenceNode,
-    CodeNode,
-    ConditionNode,
     SwitchCaseNode,
-    ConditionalBreakNode,
-    BreakNode,
-    LoopNode,
-    CascadingConditionNode,
-    ContinueNode,
 )
-from .condition_processor import ConditionProcessor
 
 
 class EmptyNodeRemover:

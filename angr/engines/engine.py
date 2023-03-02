@@ -1,16 +1,17 @@
 # pylint: disable=no-self-use,unused-private-member
-from .successors import SimSuccessors
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-from angr.errors import SimException
-from angr import sim_options as o
-
 import abc
 import logging
 import threading
 from typing import Optional
-import angr
 
 from archinfo.arch_soot import SootAddressDescriptor
+
+import angr
+from angr import sim_options as o
+from angr.errors import SimException
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
+from .successors import SimSuccessors
 
 l = logging.getLogger(name=__name__)
 

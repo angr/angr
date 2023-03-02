@@ -1,8 +1,9 @@
 import os
 import unittest
 
-import angr
 import ailment
+
+import angr
 
 
 # pylint: disable=missing-class-docstring

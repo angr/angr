@@ -1,5 +1,5 @@
-from typing import TypeVar, Generic, List, Collection, Optional, Iterator, Set, Dict, Tuple
 from collections import defaultdict
+from typing import Collection, Dict, Generic, Iterator, List, Optional, Set, Tuple, TypeVar
 
 from angr.misc.ux import deprecated
 from angr.utils.algo import binary_insert

@@ -1,12 +1,12 @@
 # pylint:disable=no-self-use,arguments-renamed
 import enum
-from typing import DefaultDict, Any, List, Union, Dict, Tuple, Set, Optional
 from collections import OrderedDict, defaultdict
+from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
 import ailment
 
-from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode, MultiNode, SequenceNode, SwitchCaseNode
 
 
 class CmpOp(enum.Enum):

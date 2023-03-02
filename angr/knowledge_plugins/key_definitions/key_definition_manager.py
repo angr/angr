@@ -1,8 +1,9 @@
-from typing import Dict, Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Iterable
 
-from angr.knowledge_plugins import KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+
+from .constants import OP_AFTER, OP_BEFORE
 from .rd_model import ReachingDefinitionsModel
-from .constants import OP_BEFORE, OP_AFTER
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase

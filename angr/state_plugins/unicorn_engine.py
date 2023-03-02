@@ -8,18 +8,18 @@ import sys
 import threading
 import time
 
-import cffi  # lmao
-
 import archinfo
+import cffi  # lmao
 import claripy
 import pyvex
-from angr.engines.vex.claripy import ccall
-from angr.sim_state import SimState
 
 from angr import sim_options as options
+from angr.engines.vex.claripy import ccall
 from angr.engines.vex.claripy.irop import operations as irop_ops
 from angr.errors import SimMemoryError, SimSegfaultError, SimUnicornError, SimUnicornUnsupport, SimValueError
 from angr.misc.testing import is_testing
+from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)

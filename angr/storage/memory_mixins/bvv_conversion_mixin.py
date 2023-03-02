@@ -1,7 +1,8 @@
-from angr.errors import SimMemoryError
 import logging
+
 import claripy
 
+from angr.errors import SimMemoryError
 from angr.storage.memory_mixins.base import MemoryMixin
 
 l = logging.getLogger(__name__)

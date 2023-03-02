@@ -2,8 +2,9 @@ import logging
 
 from claripy import StringV, StrLen
 
-from .base import JNISimProcedure
 from angr.engines.soot.values import SimSootValue_StringRef
+
+from .base import JNISimProcedure
 
 l = logging.getLogger("angr.procedures.java_jni.string_operations")
 

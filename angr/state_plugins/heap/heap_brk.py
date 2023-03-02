@@ -1,9 +1,10 @@
-from angr.sim_state import SimState
-from angr.errors import SimSolverError
-from angr.state_plugins.plugin import SimStatePlugin
-from .heap_base import SimHeapBase
-
 import logging
+
+from angr.errors import SimSolverError
+from angr.sim_state import SimState
+from angr.state_plugins.plugin import SimStatePlugin
+
+from .heap_base import SimHeapBase
 
 l = logging.getLogger(__name__)
 

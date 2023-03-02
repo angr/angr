@@ -1,18 +1,17 @@
-from angr.analyses import AnalysesHub
+import logging
 from collections import defaultdict
 from itertools import chain
-import logging
-
-from networkx import NetworkXError
 
 from cle.backends.cgc import CGC
+from networkx import NetworkXError
+
+from angr import options
+from angr.analyses import AnalysesHub, Analysis
+from angr.errors import AngrError, SimEngineError, SimError, SimMemoryError, SimSegfaultError
 
 from .errors import IdentifierException
 from .functions import Functions
 from .runner import Runner
-from angr.analyses import Analysis
-from angr import options
-from angr.errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
 l = logging.getLogger(name=__name__)
 

@@ -1,19 +1,19 @@
 # pylint:disable=unused-argument,no-self-use
-from typing import Dict, Type, Callable, Any, Optional
+from typing import Any, Callable, Dict, Optional, Type
 
 from ailment import Block
-from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
 from ailment.expression import (
-    Load,
-    Expression,
-    BinaryOp,
-    UnaryOp,
-    Convert,
     ITE,
+    BinaryOp,
+    Convert,
     DirtyExpression,
-    VEXCCallExpression,
+    Expression,
+    Load,
     Tmp,
+    UnaryOp,
+    VEXCCallExpression,
 )
+from ailment.statement import Assignment, Call, ConditionalJump, Return, Statement, Store
 
 
 class AILBlockWalkerBase:

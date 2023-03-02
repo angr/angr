@@ -1,13 +1,12 @@
 import itertools
 
 import networkx
-
 import pyvex
 
 from .errors import AngrBladeError, SimTranslationError
 from .knowledge_plugins.cfg import CFGNode
-from .utils.constants import DEFAULT_STATEMENT
 from .slicer import SimSlicer
+from .utils.constants import DEFAULT_STATEMENT
 
 
 class Blade:

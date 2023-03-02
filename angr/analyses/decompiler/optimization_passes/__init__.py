@@ -3,21 +3,20 @@ from typing import Optional, Union
 
 from archinfo import Arch
 
-from .optimization_pass import OptimizationPassStage
-from .stack_canary_simplifier import StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
+from .const_derefs import ConstantDereferencesSimplifier
+from .div_simplifier import DivSimplifier
+from .eager_returns import EagerReturnsSimplifier
 from .expr_op_swapper import ExprOpSwapper
 from .ite_expr_converter import ITEExprConverter
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
-from .multi_simplifier import MultiSimplifier
-from .div_simplifier import DivSimplifier
 from .mod_simplifier import ModSimplifier
-from .eager_returns import EagerReturnsSimplifier
-from .const_derefs import ConstantDereferencesSimplifier
+from .multi_simplifier import MultiSimplifier
+from .optimization_pass import OptimizationPassStage
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier
 from .ret_addr_save_simplifier import RetAddrSaveSimplifier
+from .stack_canary_simplifier import StackCanarySimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
-
 
 _all_optimization_passes = [
     (RegisterSaveAreaSimplifier, True),

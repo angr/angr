@@ -1,7 +1,6 @@
 # pylint:disable=missing-class-docstring
 import angr
-
-from angr.sim_type import SimStruct, SimTypeLong, SimTypeFixedSizeArray, SimTypeShort, SimTypeInt
+from angr.sim_type import SimStruct, SimTypeFixedSizeArray, SimTypeInt, SimTypeLong, SimTypeShort
 
 # struct sysinfo {
 #    long uptime;             /* Seconds since boot */

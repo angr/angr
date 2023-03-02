@@ -1,16 +1,15 @@
+import ctypes
+import datetime
+import gc
 import imp
 import os
 import sys
-import datetime
-import gc
-import ctypes
 
 from .import_hooks import remove_fake_pkg_resources
 
-
 have_gitpython = False
 try:
-    from git import Repo, InvalidGitRepositoryError
+    from git import InvalidGitRepositoryError, Repo
 
     have_gitpython = True
 except ImportError:

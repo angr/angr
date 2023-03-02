@@ -1,11 +1,10 @@
-from unittest import skipUnless
-
+import logging
 import os
-import angr
 import subprocess
 import sys
+from unittest import skipUnless
 
-import logging
+import angr
 
 l = logging.getLogger("angr.tests.test_signed_div")
 

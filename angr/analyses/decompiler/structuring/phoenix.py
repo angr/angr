@@ -1,42 +1,43 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
-from typing import List, Dict, Tuple, Union, Set, Any, DefaultDict, Optional, OrderedDict as ODict, TYPE_CHECKING
-from collections import defaultdict, OrderedDict
 import logging
-
-import networkx
+from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Optional, Set, Tuple, Union
+from typing import OrderedDict as ODict
 
 import claripy
+import networkx
 from ailment.block import Block
-from ailment.statement import Statement, ConditionalJump, Jump, Label
-from ailment.expression import Const, UnaryOp, MultiStatementExpression
+from ailment.expression import Const, MultiStatementExpression, UnaryOp
+from ailment.statement import ConditionalJump, Jump, Label, Statement
 
-from angr.knowledge_plugins.cfg import IndirectJumpType
-from angr.utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from angr.analyses.cfg.cfg_utils import CFGUtils
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.utils import (
-    remove_last_statement,
     extract_jump_targets,
-    switch_extract_cmp_bounds,
-    is_empty_or_label_only_node,
-    has_nonlabel_statements,
     first_nonlabel_statement,
+    has_nonlabel_statements,
+    is_empty_or_label_only_node,
+    remove_last_statement,
+    switch_extract_cmp_bounds,
 )
+from angr.knowledge_plugins.cfg import IndirectJumpType
+from angr.utils.graph import dominates, inverted_idoms, to_acyclic_graph
+
+from .structurer_base import StructurerBase
 from .structurer_nodes import (
-    ConditionNode,
-    SequenceNode,
-    LoopNode,
-    ConditionalBreakNode,
-    BreakNode,
-    ContinueNode,
     BaseNode,
-    MultiNode,
-    SwitchCaseNode,
-    IncompleteSwitchCaseNode,
+    BreakNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
     EmptyBlockNotice,
     IncompleteSwitchCaseHeadStatement,
+    IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
-from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function

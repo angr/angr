@@ -1,16 +1,18 @@
-from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
 
-from angr.sim_type import SimStruct, SimTypePointer, SimTypeArray
-from angr.analyses.analysis import Analysis, AnalysesHub
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
+
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Struct, Pointer, TypeConstant, Array
+from .typeconsts import Array, Pointer, Struct, TypeConstant
 from .typevars import Equivalence
 
 if TYPE_CHECKING:
-    from angr.sim_variable import SimVariable
     from angr.sim_type import SimType
-    from .typevars import TypeVariable, TypeConstraint
+    from angr.sim_variable import SimVariable
+
+    from .typevars import TypeConstraint, TypeVariable
 
 
 class Typehoon(Analysis):

@@ -1,8 +1,8 @@
 # This module contains data structures for handling memory, code, and register references.
+import logging
+
 from .sim_action_object import SimActionObject
 from .sim_event import SimEvent
-
-import logging
 
 l = logging.getLogger(name=__name__)
 

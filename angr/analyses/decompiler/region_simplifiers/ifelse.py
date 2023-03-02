@@ -1,17 +1,17 @@
 # pylint:disable=unused-argument,arguments-differ
 import ailment
 
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
+    CascadingConditionNode,
     CodeNode,
-    MultiNode,
-    LoopNode,
     ConditionNode,
     EmptyBlockNotice,
-    CascadingConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
-from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.utils import insert_node
 
 

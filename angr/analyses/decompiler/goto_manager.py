@@ -1,5 +1,5 @@
-from typing import Set
 from collections import defaultdict
+from typing import Set
 
 import ailment
 

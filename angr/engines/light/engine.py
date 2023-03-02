@@ -1,19 +1,19 @@
 # pylint:disable=no-self-use,isinstance-second-argument-not-valid-type,unused-argument
-from typing import Tuple, Optional, Union, Any
-import struct
-import re
 import logging
+import re
+import struct
+from typing import Any, Optional, Tuple, Union
 
 import ailment
-import pyvex
-import claripy
 import archinfo
+import claripy
+import pyvex
 
-from angr.engines.vex.claripy.datalayer import value as claripy_value
-from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from angr.code_location import CodeLocation
-from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.engine import SimEngine
+from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.engines.vex.claripy.irop import SimOperationError, UnsupportedIROpError, vexop_to_simop
+from angr.utils.constants import DEFAULT_STATEMENT
 
 
 class SimEngineLightMixin:

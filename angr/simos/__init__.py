@@ -3,14 +3,15 @@ Manage OS-level configuration.
 """
 
 from collections import defaultdict
+
 from elftools.elf.descriptions import _DESCR_EI_OSABI
 
+from .cgc import SimCGC
+from .javavm import SimJavaVM
+from .linux import SimLinux
 from .simos import SimOS
 from .userland import SimUserland
-from .linux import SimLinux
-from .cgc import SimCGC
 from .windows import SimWindows
-from .javavm import SimJavaVM
 
 os_mapping = defaultdict(lambda: SimOS)
 

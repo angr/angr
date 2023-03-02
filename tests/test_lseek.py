@@ -1,8 +1,7 @@
-from angr import SIM_PROCEDURES
-from angr import SimState, SimPosixError, SimFile
+import logging
 import unittest
 
-import logging
+from angr import SIM_PROCEDURES, SimFile, SimPosixError, SimState
 
 l = logging.getLogger("angr.tests.syscalls.lseek")
 

@@ -1,8 +1,11 @@
+import os
+from collections import defaultdict
+
+import networkx
+
 from angr.codenode import BlockNode
 from angr.errors import AngrValueError
-import os
-import networkx
-from collections import defaultdict
+
 from .function import Function
 
 

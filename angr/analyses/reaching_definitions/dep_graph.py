@@ -1,16 +1,16 @@
-from typing import Optional, Dict, Set, Iterable, Union, List
 from functools import reduce
-
-import networkx
+from typing import Dict, Iterable, List, Optional, Set, Union
 
 import claripy
+import networkx
 from cle.loader import Loader
 
 from angr.code_location import CodeLocation
+from angr.knowledge_plugins.cfg import CFGModel
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
-from angr.knowledge_plugins.cfg import CFGModel
+
 from .external_codeloc import ExternalCodeLocation
 
 

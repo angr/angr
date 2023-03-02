@@ -1,9 +1,9 @@
 import logging
-import sys
 import random
-import angr
+import sys
 
-from angr import SimState, SIM_LIBRARIES
+import angr
+from angr import SIM_LIBRARIES, SimState
 
 FAKE_ADDR = 0x100000
 

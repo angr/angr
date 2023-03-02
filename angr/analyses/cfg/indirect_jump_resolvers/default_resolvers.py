@@ -1,12 +1,14 @@
 import cle
 
-from . import MipsElfFastResolver
-from . import X86ElfPicPltResolver
-from . import JumpTableResolver
-from . import X86PeIatResolver
-from . import AMD64ElfGotResolver
-from . import ConstantResolver
-from . import ArmElfFastResolver
+from . import (
+    AMD64ElfGotResolver,
+    ArmElfFastResolver,
+    ConstantResolver,
+    JumpTableResolver,
+    MipsElfFastResolver,
+    X86ElfPicPltResolver,
+    X86PeIatResolver,
+)
 
 DEFAULT_RESOLVERS = {
     "X86": {

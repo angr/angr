@@ -1,9 +1,10 @@
-from typing import Tuple, Optional, List, Any
 import logging
+from typing import Any, List, Optional, Tuple
 
 import ailment
 
-from angr.calling_conventions import SimRegArg, DEFAULT_CC
+from angr.calling_conventions import DEFAULT_CC, SimRegArg
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)

@@ -6,18 +6,18 @@ import unittest
 from functools import wraps
 
 import angr
+from angr.analyses import (
+    CallingConventionAnalysis,
+    CFGFast,
+    CompleteCallingConventionsAnalysis,
+    Decompiler,
+    VariableRecoveryFast,
+)
+from angr.analyses.decompiler.decompilation_options import get_structurer_option
+from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import SimTypeInt, SimTypePointer
-from angr.analyses import (
-    VariableRecoveryFast,
-    CallingConventionAnalysis,
-    CompleteCallingConventionsAnalysis,
-    CFGFast,
-    Decompiler,
-)
-from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
-from angr.analyses.decompiler.decompilation_options import get_structurer_option
-from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 l = logging.Logger(__name__)

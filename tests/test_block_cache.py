@@ -1,6 +1,6 @@
 import logging
-import unittest
 import os
+import unittest
 
 import angr
 

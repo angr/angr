@@ -1,24 +1,25 @@
 # pylint:disable=unused-import
 import logging
 from collections import defaultdict
-from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union
 
-from cle import SymbolType
 import ailment
+from cle import SymbolType
 
 from angr.analyses.cfg import CFGFast
+from angr.analyses import AnalysesHub, Analysis
 from angr.knowledge_base import KnowledgeBase
 from angr.sim_variable import SimMemoryVariable
 from angr.utils import timethis
-from angr.analyses import Analysis, AnalysesHub
-from .structuring import RecursiveStructurer, DreamStructurer, PhoenixStructurer
-from .region_identifier import RegionIdentifier
-from .optimization_passes.optimization_pass import OptimizationPassStage
-from .optimization_passes import get_default_optimization_passes
+
 from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
-from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
+from .decompilation_options import DecompilationOption
+from .optimization_passes import get_default_optimization_passes
+from .optimization_passes.optimization_pass import OptimizationPassStage
+from .region_identifier import RegionIdentifier
+from .structuring import DreamStructurer, PhoenixStructurer, RecursiveStructurer
 from .utils import remove_labels
 from .sequence_walker import SequenceWalker
 from .ailblock_walker import AILBlockWalkerBase

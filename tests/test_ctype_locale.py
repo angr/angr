@@ -1,12 +1,12 @@
 # pylint: disable=missing-class-docstring,disable=no-self-use
+import logging
 import os
-import angr
 import subprocess
 import unittest
 
 from common import skip_if_not_linux
 
-import logging
+import angr
 
 l = logging.getLogger("angr.tests.test_ctype_locale")
 

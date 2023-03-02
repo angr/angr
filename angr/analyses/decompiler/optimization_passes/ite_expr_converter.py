@@ -1,16 +1,17 @@
 # pylint:disable=unnecessary-pass
 import logging
-from typing import Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
-from ailment.statement import ConditionalJump, Assignment, Statement
-from ailment.expression import Const, ITE, Expression
+from ailment.expression import ITE, Const, Expression
+from ailment.statement import Assignment, ConditionalJump, Statement
 
-from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
-from angr.code_location import CodeLocation
-from angr.analyses.decompiler.region_walker import RegionWalker
 from angr.analyses.decompiler.ail_simplifier import AILBlockWalker
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.region_walker import RegionWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import EmptyBlockNotice
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+from angr.code_location import CodeLocation
+
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:

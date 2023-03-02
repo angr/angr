@@ -1,14 +1,14 @@
-from typing import TYPE_CHECKING, List, Set, Optional, Tuple
 import logging
+from typing import TYPE_CHECKING, List, Optional, Set, Tuple
 
 from cle import Symbol
 
 l = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from angr.code_location import CodeLocation
     from angr.analyses.reaching_definitions.dep_graph import DepGraph
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
+    from angr.code_location import CodeLocation
 
 
 # pylint: disable=unused-argument, no-self-use

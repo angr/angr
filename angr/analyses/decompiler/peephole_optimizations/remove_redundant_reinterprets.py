@@ -1,6 +1,6 @@
 import struct
 
-from ailment.expression import Reinterpret, Const
+from ailment.expression import Const, Reinterpret
 
 from .base import PeepholeOptimizationExprBase
 

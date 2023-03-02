@@ -1,14 +1,15 @@
 from collections import defaultdict
 
-from cle.loader import MetaELF
-from cle.backends import Section, Segment
-import pyvex
 import claripy
+import pyvex
+from cle.backends import Section, Segment
+from cle.loader import MetaELF
 
 from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
-from .analysis import Analysis, AnalysesHub
+
+from .analysis import AnalysesHub, Analysis
+from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .propagator import PropagatorAnalysis
-from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
 from .propagator.vex_vars import VEXTmp
 
 

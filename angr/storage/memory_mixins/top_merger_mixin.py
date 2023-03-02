@@ -1,4 +1,4 @@
-from typing import Iterable, Tuple, Any, Callable
+from typing import Any, Callable, Iterable, Tuple
 
 from .base import MemoryMixin
 

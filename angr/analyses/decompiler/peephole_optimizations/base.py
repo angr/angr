@@ -1,6 +1,7 @@
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from ailment.expression import BinaryOp, UnaryOp
+
 from angr.knowledge_base import KnowledgeBase
 
 if TYPE_CHECKING:

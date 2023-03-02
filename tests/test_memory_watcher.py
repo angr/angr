@@ -1,11 +1,11 @@
+import logging
 import os
 import sys
-import logging
-
-import angr
 
 import psutil
 from common import bin_location
+
+import angr
 
 
 def test_memory_watcher():

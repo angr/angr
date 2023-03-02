@@ -1,8 +1,9 @@
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
+
+from angr.calling_conventions import SimCC
+from angr.sim_type import SimTypeFunction
 
 from .plugin import KnowledgeBasePlugin
-from angr.sim_type import SimTypeFunction
-from angr.calling_conventions import SimCC
 
 
 class CallsitePrototypes(KnowledgeBasePlugin):

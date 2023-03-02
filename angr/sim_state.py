@@ -1,34 +1,33 @@
-import claripy
-import archinfo
-from archinfo.arch_soot import SootAddressDescriptor
-
-from .misc.plugins import PluginHub, PluginPreset
-from .sim_state_options import SimStateOptions
-from .state_plugins import SimStatePlugin
-from .state_plugins.sim_action import SimActionConstraint
-import angr.sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
+import contextlib
 import functools
 import itertools
-import contextlib
-import weakref
-
 import logging
+import weakref
+from typing import TYPE_CHECKING, Type, TypeVar
 
-from typing import Type, TypeVar, TYPE_CHECKING
-
+import archinfo
+import claripy
 from archinfo import Arch
+from archinfo.arch_soot import SootAddressDescriptor
+
+import angr.sim_options as o
+
+from .errors import SimMergeError, SimSolverModeError, SimStateError, SimValueError
+from .misc.plugins import PluginHub, PluginPreset
+from .sim_state_options import SimStateOptions
+from .state_plugins.plugin import SimStatePlugin
+from .state_plugins.sim_action import SimActionConstraint
 
 if TYPE_CHECKING:
-    from .storage import MemoryMixin
-    from .state_plugins.solver import SimSolver
-    from .state_plugins.posix import SimSystemPosix
-    from .state_plugins.view import SimRegNameView, SimMemView
     from .state_plugins.callstack import CallStack
+    from .state_plugins.history import SimStateHistory
     from .state_plugins.inspect import SimInspector
     from .state_plugins.jni_references import SimStateJNIReferences
+    from .state_plugins.posix import SimSystemPosix
     from .state_plugins.scratch import SimStateScratch
-    from .state_plugins.history import SimStateHistory
+    from .state_plugins.solver import SimSolver
+    from .state_plugins.view import SimMemView, SimRegNameView
+    from .storage import MemoryMixin
 
 l = logging.getLogger(name=__name__)
 

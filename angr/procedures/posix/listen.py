@@ -1,9 +1,9 @@
-import angr
-
 ######################################
 # listen (but not really)
 ######################################
 import logging
+
+import angr
 
 l = logging.getLogger(name=__name__)
 

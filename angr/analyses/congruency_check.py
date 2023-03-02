@@ -1,8 +1,9 @@
-from angr.errors import AngrIncongruencyError
-from angr.analyses import AnalysesHub
 import logging
 
 import claripy
+
+from angr.analyses import AnalysesHub
+from angr.errors import AngrIncongruencyError
 
 from .analysis import Analysis
 

@@ -1,5 +1,6 @@
-from angr.utils.graph import compute_dominance_frontier, Dominators
-from .analysis import Analysis, AnalysesHub
+from angr.utils.graph import Dominators, compute_dominance_frontier
+
+from .analysis import AnalysesHub, Analysis
 
 
 class DominanceFrontier(Analysis):

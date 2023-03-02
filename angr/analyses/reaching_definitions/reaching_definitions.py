@@ -1,30 +1,32 @@
 import logging
-from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Optional, Set, Tuple, Union
 
 import ailment
 import pyvex
-from angr.analyses.forward_analysis.visitors.graph import NodeType
 
-from angr.block import Block
-from angr.knowledge_plugins.cfg.cfg_node import CFGNode
-from angr.codenode import CodeNode
-from angr.engines.light import SimEngineLight
-from angr.knowledge_plugins.functions import Function
-from angr.knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
-from angr.misc.ux import deprecated
 from angr.analyses.analysis import Analysis
 from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.analyses.forward_analysis.visitors.graph import NodeType
+from angr.block import Block
+from angr.codenode import CodeNode
+from angr.engines.light import SimEngineLight
+from angr.knowledge_plugins.cfg.cfg_node import CFGNode
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.key_definitions import LiveDefinitions, ReachingDefinitionsModel
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE, ObservationPointType
+from angr.misc.ux import deprecated
+
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
+from .function_handler import FunctionHandler
 from .rd_state import ReachingDefinitionsState
 from .subject import Subject, SubjectType
-from .function_handler import FunctionHandler
 
 if TYPE_CHECKING:
+    from typing import Iterable, Literal
+
     from .dep_graph import DepGraph
-    from typing import Literal, Iterable
 
     ObservationPoint = Tuple[Literal["insn", "node"], int, ObservationPointType]
 

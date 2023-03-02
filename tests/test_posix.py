@@ -1,7 +1,6 @@
 import sys
 
-
-from angr import SimState, SimFile
+from angr import SimFile, SimState
 
 
 def test_file_create():

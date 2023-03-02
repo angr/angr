@@ -1,5 +1,6 @@
-from angr.analyses import AnalysesHub
 import logging
+
+from angr.analyses import AnalysesHub
 
 from .analysis import Analysis
 

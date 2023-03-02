@@ -1,6 +1,6 @@
 import unittest
 
-from angr import SimState, SimHeapPTMalloc
+from angr import SimHeapPTMalloc, SimState
 
 
 # TODO: Make these tests more architecture-independent (note dependencies of some behavior on chunk metadata size)

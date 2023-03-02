@@ -1,11 +1,12 @@
-from angr.errors import SimPosixError, SimSolverError, SimMergeError, SimMemoryError
-from angr.sim_state import SimState
 import logging
 
-from .plugin import SimStatePlugin
-from .filesystem import SimMount, Stat
-from angr.storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
 from angr import sim_options as options
+from angr.errors import SimMemoryError, SimMergeError, SimPosixError, SimSolverError
+from angr.sim_state import SimState
+from angr.storage.file import Flags, SimFile, SimFileDescriptor, SimFileDescriptorDuplex, SimPacketsStream
+
+from .filesystem import SimMount, Stat
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
 

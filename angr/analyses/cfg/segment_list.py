@@ -1,9 +1,8 @@
 # pylint:disable=no-else-break
 import logging
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 from angr.errors import AngrCFGError
-
 
 l = logging.getLogger(name=__name__)
 

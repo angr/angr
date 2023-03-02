@@ -1,10 +1,12 @@
-import claripy
 import logging
 
-from .plugin import SimStatePlugin
+import claripy
+
+from angr import sim_options as options
 from angr.errors import SimFastMemoryError
 from angr.misc.ux import once
-from angr import sim_options as options
+
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(__name__)
 

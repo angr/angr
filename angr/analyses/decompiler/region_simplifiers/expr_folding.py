@@ -1,24 +1,24 @@
 # pylint:disable=missing-class-docstring,unused-argument
 from collections import defaultdict
-from typing import Optional, Any, Dict, Set, Tuple, Iterable, DefaultDict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, Iterable, Optional, Set, Tuple
 
 import ailment
-from ailment import Expression, Block
-from ailment.statement import Statement, Assignment, Call
+from ailment import Block, Expression
+from ailment.statement import Assignment, Call, Statement
 
 from angr.analyses.decompiler.ailblock_walker import AILBlockWalker
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import (
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
     CascadingConditionNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    LoopNode,
     SwitchCaseNode,
 )
 
 if TYPE_CHECKING:
-    from angr.sim_variable import SimVariable
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+    from angr.sim_variable import SimVariable
 
 
 class LocationBase:

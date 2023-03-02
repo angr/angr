@@ -1,35 +1,36 @@
 # pylint:disable=unused-argument
-from typing import Optional, Dict, Set, List, Any, Union, Tuple, OrderedDict as ODict, TYPE_CHECKING
-from collections import defaultdict, OrderedDict
 import logging
-
-import networkx
+from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
+from typing import OrderedDict as ODict
 
 import ailment
 import claripy
+import networkx
 
 from angr.analyses import Analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.utils import extract_jump_targets, insert_node, remove_last_statement
+
 from .structurer_nodes import (
+    BaseNode,
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    EmptyBlockNotice,
+    LoopNode,
     MultiNode,
     SequenceNode,
     SwitchCaseNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    ContinueNode,
-    BaseNode,
-    CascadingConditionNode,
-    BreakNode,
-    LoopNode,
-    EmptyBlockNotice,
 )
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.functions import Function
     from angr.analyses.decompiler.graph_region import GraphRegion
+    from angr.knowledge_plugins.functions import Function
 
 _l = logging.getLogger(__name__)
 

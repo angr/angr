@@ -1,8 +1,9 @@
 import logging
 
+from archinfo.arch_soot import SootAddressDescriptor
+
 from .engine import SuccessorsMixin
 from .procedure import ProcedureMixin
-from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 

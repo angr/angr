@@ -4,7 +4,6 @@ from archinfo.arch_soot import SootFieldDescriptor
 
 from .exceptions import SootFieldNotLoadedException
 
-
 l = logging.getLogger("angr.engines.soot.field_dispatcher")
 
 

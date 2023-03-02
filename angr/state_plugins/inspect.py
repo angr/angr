@@ -1,8 +1,9 @@
 # TODO: SimValue being able to compare two symbolics for is_solution
-from .plugin import SimStatePlugin
+import logging
+
 from angr.sim_state import SimState
 
-import logging
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
 

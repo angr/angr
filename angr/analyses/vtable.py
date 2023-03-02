@@ -1,6 +1,7 @@
 import logging
 
 from angr.analyses import AnalysesHub
+
 from .analysis import Analysis
 from .cfg import CFGFast
 

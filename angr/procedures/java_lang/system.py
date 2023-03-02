@@ -1,4 +1,5 @@
 import logging
+
 import claripy
 
 from angr.procedures.java.base import JavaSimProcedure

@@ -1,7 +1,8 @@
 import claripy
 
-from .base import MemoryMixin
 from angr.errors import SimSegfaultException
+
+from .base import MemoryMixin
 
 
 class SmartFindMixin(MemoryMixin):

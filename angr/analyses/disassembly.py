@@ -1,23 +1,24 @@
-from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
-from typing import Union, Optional, Sequence, Tuple, Any
+from typing import Any, Optional, Sequence, Tuple, Union
 
-import pyvex
 import archinfo
+import pyvex
+
+from angr.analyses import AnalysesHub
+from angr.block import CapstoneInsn, DisassemblerInsn, SootBlockNode
+from angr.codenode import BlockNode
 from angr.knowledge_plugins import Function
+from angr.utils.formatting import add_edge_to_buffer, ansi_color, ansi_color_enabled
+from angr.utils.library import get_cpp_function_name
 
 from .analysis import Analysis
-
-from angr.utils.library import get_cpp_function_name
-from angr.utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
-from angr.block import DisassemblerInsn, CapstoneInsn, SootBlockNode
-from angr.codenode import BlockNode
 from .disassembly_utils import decode_instruction
 
 try:
-    from angr.engines import pcode
     import pypcode
+
+    from angr.engines import pcode
 
     IRSBType = Union[pyvex.IRSB, pcode.lifter.IRSB]
     IROpObjType = Union[pyvex.stmt.IRStmt, pypcode.PcodeOp]

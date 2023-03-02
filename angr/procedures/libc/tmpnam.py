@@ -1,5 +1,6 @@
-import angr
 import tempfile
+
+import angr
 
 ######################################
 # tmpnam

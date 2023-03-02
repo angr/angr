@@ -1,19 +1,20 @@
-import enum
-import os
-import logging
 import collections
+import enum
+import logging
+import os
 import random
 import struct
 
 import claripy
-from archinfo import ArchX86, ArchAMD64
 import cle.backends
+from archinfo import ArchAMD64, ArchX86
 
-from angr.errors import AngrSimOSError, SimSegfaultException, SimUnsupportedError, SimZeroDivisionException
 from angr import sim_options as o
-from angr.tablespecs import StringTableSpec
+from angr.errors import AngrSimOSError, SimSegfaultException, SimUnsupportedError, SimZeroDivisionException
 from angr.procedures import SIM_LIBRARIES as L
 from angr.procedures.definitions import load_win32api_definitions
+from angr.tablespecs import StringTableSpec
+
 from .simos import SimOS
 
 _l = logging.getLogger(name=__name__)

@@ -1,12 +1,11 @@
 # pylint:disable=import-outside-toplevel
 from functools import wraps
-from typing import Optional, List
-
+from typing import List, Optional
 
 from angr import knowledge_plugins
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
-from angr.sim_variable import SimStackVariable
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.sim_variable import SimStackVariable
 
 binsync_available = None
 binsync = None

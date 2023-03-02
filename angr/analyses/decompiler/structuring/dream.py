@@ -1,44 +1,44 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
-from angr.analyses.decompiler.sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position
-from typing import Dict, Set, Optional, Any, List, Union, Tuple, OrderedDict as ODict, TYPE_CHECKING
 import logging
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
+from typing import OrderedDict as ODict
 
+import ailment
+import claripy
 import networkx
 
-import claripy
-import ailment
-
-from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.analyses.cfg.cfg_utils import CFGUtils
-from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
-from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.graph_region import GraphRegion
+from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
+from angr.analyses.decompiler.sequence_walker import SequenceWalker  # pylint:disable=wrong-import-position
 from angr.analyses.decompiler.utils import (
     extract_jump_targets,
-    get_ast_subexprs,
-    switch_extract_cmp_bounds,
-    remove_last_statement,
     first_nonlabel_node,
+    get_ast_subexprs,
+    remove_last_statement,
+    switch_extract_cmp_bounds,
 )
-from .structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
-    SwitchCaseNode,
-    BreakNode,
-    ContinueNode,
-    MultiNode,
-    CascadingConditionNode,
-    BaseNode,
-    EmptyBlockNotice,
-)
-from .structurer_base import StructurerBase
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 
+from .structurer_base import StructurerBase
+from .structurer_nodes import (
+    BaseNode,
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    EmptyBlockNotice,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function

@@ -2,10 +2,11 @@ import logging
 
 from claripy import And
 
-from .util import translate_value
 from angr.errors import SimEngineError
+
 from .base import SimSootValue
 from .constants import SimSootValue_IntConstant
+from .util import translate_value
 
 l = logging.getLogger("angr.engines.soot.values.arrayref")
 

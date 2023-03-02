@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring
-from typing import Dict, Any, Optional, TYPE_CHECKING
 from itertools import count
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from angr.utils.cowdict import ChainMapCOW
 

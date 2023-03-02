@@ -1,27 +1,28 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
+import logging
 from itertools import chain
 from typing import Iterable, Optional, Tuple
-import logging
 
+import ailment
 import archinfo
 import claripy
-import ailment
 import pyvex
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
+from angr.analyses.reaching_definitions.call_trace import CallTrace
+from angr.calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from angr.engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from angr.errors import SimEngineError, SimMemoryMissingError
-from angr.calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
 from angr.knowledge_plugins.functions import Function
-from angr.analyses.reaching_definitions.call_trace import CallTrace
-from .subject import SubjectType
+from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, Tmp
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
+from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
 from .external_codeloc import ExternalCodeLocation
-from .rd_state import ReachingDefinitionsState
 from .function_handler import FunctionHandler
+from .rd_state import ReachingDefinitionsState
+from .subject import SubjectType
 
 l = logging.getLogger(name=__name__)
 

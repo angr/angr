@@ -1,6 +1,7 @@
-import angr
 import datetime
 import time
+
+import angr
 
 
 class GetSystemTimeAsFileTime(angr.SimProcedure):

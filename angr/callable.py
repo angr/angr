@@ -1,7 +1,7 @@
-from .errors import AngrCallableError, AngrCallableMultistateError
 import pycparser
 
 from .calling_conventions import DEFAULT_CC, SimCC
+from .errors import AngrCallableError, AngrCallableMultistateError
 
 
 class Callable:

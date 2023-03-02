@@ -1,33 +1,33 @@
-from collections import defaultdict, OrderedDict
-from typing import Generator, Dict, Any, Optional, Set, List
-import operator
 import logging
+import operator
+from collections import OrderedDict, defaultdict
+from typing import Any, Dict, Generator, List, Optional, Set
 
+import ailment
+import claripy
 import networkx
 
-import claripy
-import ailment
-
-from angr.utils.lazy_import import lazy_import
+from angr.analyses.cfg.cfg_utils import CFGUtils
+from angr.block import Block, BlockNode
 from angr.utils import is_pyinstaller
 from angr.utils.graph import dominates, inverted_idoms
-from angr.block import Block, BlockNode
-from angr.analyses.cfg.cfg_utils import CFGUtils
+from angr.utils.lazy_import import lazy_import
+
+from .graph_region import GraphRegion
 from .structuring.structurer_nodes import (
-    MultiNode,
-    EmptyBlockNotice,
-    SequenceNode,
-    CodeNode,
-    SwitchCaseNode,
     BreakNode,
+    CascadingConditionNode,
+    CodeNode,
     ConditionalBreakNode,
-    LoopNode,
     ConditionNode,
     ContinueNode,
-    CascadingConditionNode,
+    EmptyBlockNotice,
     IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
-from .graph_region import GraphRegion
 from .utils import first_nonlabel_statement
 
 if is_pyinstaller():

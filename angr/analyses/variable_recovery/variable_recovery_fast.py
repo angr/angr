@@ -1,27 +1,27 @@
 # pylint:disable=wrong-import-position,wrong-import-order
-from angr.analyses import AnalysesHub
-from typing import Optional, List, Tuple
 import logging
 from collections import defaultdict
+from typing import List, Optional, Tuple
 
-import networkx
-
-import claripy
-import pyvex
 import ailment
+import claripy
+import networkx
+import pyvex
 
 import angr.errors
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.block import Block
-from angr.errors import AngrVariableRecoveryError, SimEngineError
-from angr.knowledge_plugins import Function
-from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
-from angr.engines.vex.claripy.irop import vexop_to_simop
+from angr.analyses import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from angr.analyses.typehoon.typevars import Equivalence, TypeVariable
-from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
-from .engine_vex import SimEngineVRVEX
+from angr.block import Block
+from angr.engines.vex.claripy.irop import vexop_to_simop
+from angr.errors import AngrVariableRecoveryError, SimEngineError
+from angr.knowledge_plugins import Function
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
 from .engine_ail import SimEngineVRAIL
+from .engine_vex import SimEngineVRVEX
+from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 
 l = logging.getLogger(name=__name__)
 

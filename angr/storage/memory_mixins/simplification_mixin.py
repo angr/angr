@@ -1,5 +1,6 @@
-from .base import MemoryMixin
 from angr import sim_options as options
+
+from .base import MemoryMixin
 
 
 class SimplificationMixin(MemoryMixin):

@@ -1,21 +1,22 @@
-import functools
-import sys
 import contextlib
+import functools
+import logging
+import sys
+import time
 from collections import defaultdict
 from inspect import Signature
-from typing import TYPE_CHECKING, TypeVar, Type, Generic, Callable, Optional
+from typing import TYPE_CHECKING, Callable, Generic, Optional, Type, TypeVar
 
 import progressbar
-import logging
-import time
 
 from angr.misc.plugins import PluginVendor, VendorPreset
 from angr.misc.ux import deprecated
 
 if TYPE_CHECKING:
+    from typing_extensions import ParamSpec
+
     from angr.knowledge_base import KnowledgeBase
     from angr.project import Project
-    from typing_extensions import ParamSpec
 
     AnalysisParams = ParamSpec("AnalysisParams")
 

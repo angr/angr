@@ -1,9 +1,8 @@
-from angr.state_plugins.plugin import SimStatePlugin
-
-from angr.errors import SimMemoryError
-from angr.state_plugins import sim_options as opts
-
 import logging
+
+import angr.sim_options as opts
+from angr.errors import SimMemoryError
+from angr.state_plugins.plugin import SimStatePlugin
 
 l = logging.getLogger("angr.state_plugins.heap.heap_base")
 

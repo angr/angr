@@ -1,7 +1,7 @@
+import logging
+
 import angr
 from angr.storage.file import SimFileDescriptor
-
-import logging
 
 l = logging.getLogger(name=__name__)
 

@@ -1,4 +1,5 @@
 from typing import Optional
+
 from sortedcontainers import SortedDict
 
 from angr.errors import SimRegionMapError

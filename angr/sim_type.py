@@ -1,10 +1,11 @@
 # pylint:disable=abstract-method,line-too-long,missing-class-docstring
-from .state_plugins import SimState
-from collections import OrderedDict, defaultdict, ChainMap
 import copy
-import re
-from typing import Optional, Dict, Any, Tuple, List, Union
 import logging
+import re
+from collections import ChainMap, OrderedDict, defaultdict
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from .state_plugins import SimState
 
 try:
     import pycparser
@@ -16,11 +17,10 @@ try:
 except ImportError:
     CppHeaderParser = None
 
-from archinfo import Endness
 import claripy
+from archinfo import Endness
 
 from .misc.ux import deprecated
-
 
 l = logging.getLogger(name=__name__)
 
@@ -2650,7 +2650,7 @@ def do_preprocess(defn, include_path=()):
     """
     Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
     """
-    from pycparser.ply import lex, cpp  # pylint:disable=import-outside-toplevel
+    from pycparser.ply import cpp, lex  # pylint:disable=import-outside-toplevel
 
     lexer = lex.lex(cpp)
     p = cpp.Preprocessor(lexer)

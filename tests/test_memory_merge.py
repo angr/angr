@@ -4,19 +4,19 @@ from unittest import TestCase
 
 import claripy
 
-from angr.storage.memory_mixins.paged_memory.pages.history_tracking_mixin import MAX_HISTORY_DEPTH
+from angr import SimState
 from angr.storage.memory_mixins import (
-    DataNormalizationMixin,
-    SizeNormalizationMixin,
     AddressConcretizationMixin,
-    UltraPagesMixin,
+    ConvenientMappingsMixin,
+    DataNormalizationMixin,
     ListPagesMixin,
     PagedMemoryMixin,
+    SizeNormalizationMixin,
     SymbolicMergerMixin,
-    ConvenientMappingsMixin,
+    UltraPage,
+    UltraPagesMixin,
 )
-from angr import SimState
-from angr.storage.memory_mixins import UltraPage
+from angr.storage.memory_mixins.paged_memory.pages.history_tracking_mixin import MAX_HISTORY_DEPTH
 
 
 class UltraPageMemory(

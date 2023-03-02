@@ -1,7 +1,7 @@
-import angr
+import logging
 from collections import namedtuple
 
-import logging
+import angr
 
 l = logging.getLogger(name=__name__)
 

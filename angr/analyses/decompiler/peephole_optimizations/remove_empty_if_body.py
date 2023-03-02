@@ -1,5 +1,5 @@
-from ailment.statement import ConditionalJump
 from ailment.expression import ITE, UnaryOp
+from ailment.statement import ConditionalJump
 
 from .base import PeepholeOptimizationStmtBase
 

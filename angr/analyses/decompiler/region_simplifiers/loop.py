@@ -6,13 +6,13 @@ import ailment
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
+    CascadingConditionNode,
     CodeNode,
-    MultiNode,
-    LoopNode,
     ConditionNode,
     ContinueNode,
-    CascadingConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
 
 

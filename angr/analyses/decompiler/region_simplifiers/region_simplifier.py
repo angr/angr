@@ -2,21 +2,22 @@ from typing import Optional
 
 import ailment
 
-from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses import AnalysesHub
 from angr.analyses.analysis import Analysis
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
+from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
+
+from .cascading_cond_transformer import CascadingConditionTransformer
+from .cascading_ifs import CascadingIfsRemover
+from .expr_folding import ExpressionCounter, ExpressionFolder, ExpressionLocation, StoreStatementFinder
 from .goto import GotoSimplifier
 from .if_ import IfSimplifier
-from .cascading_ifs import CascadingIfsRemover
 from .ifelse import IfElseFlattener
 from .loop import LoopSimplifier
-from .expr_folding import ExpressionCounter, ExpressionFolder, StoreStatementFinder, ExpressionLocation
-from .cascading_cond_transformer import CascadingConditionTransformer
-from .switch_expr_simplifier import SwitchExpressionSimplifier
 from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters
+from .switch_expr_simplifier import SwitchExpressionSimplifier
 
 
 class RegionSimplifier(Analysis):

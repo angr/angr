@@ -1,16 +1,16 @@
-from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
 
 import networkx
 import pyvex
-from .analysis import Analysis
 
-from angr.code_location import CodeLocation
+from angr.analyses import AnalysesHub
 from angr.annocfg import AnnotatedCFG
+from angr.code_location import CodeLocation
 from angr.errors import AngrBackwardSlicingError
 from angr.utils.constants import DEFAULT_STATEMENT
 
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 

@@ -1,5 +1,6 @@
-from .base import MemoryMixin
 from angr.state_plugins.sim_action_object import _raw_ast
+
+from .base import MemoryMixin
 
 
 class UnwrapperMixin(MemoryMixin):

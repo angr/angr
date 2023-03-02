@@ -1,16 +1,15 @@
-from typing import Set, Sequence, Optional, Mapping, Any, TYPE_CHECKING
 import logging
-import unittest
 import os
-
-from common import compile_c, has_32_bit_compiler_support
+import unittest
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Set
 
 import pyvex
+from common import compile_c, has_32_bit_compiler_support
 
 import angr
-from angr.knowledge_plugins.cfg import IndirectJumpType
 from angr.analyses.cfg import CFGFast
 from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
+from angr.knowledge_plugins.cfg import IndirectJumpType
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import IndirectJump

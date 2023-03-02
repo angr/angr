@@ -1,39 +1,39 @@
 # pylint:disable=line-too-long,multiple-statements
-from typing import Dict, Tuple, List, Optional, Union, Set, TYPE_CHECKING
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
+import archinfo
 import networkx
+import pyvex
+from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
+from archinfo.arch_soot import SootAddressDescriptor
+from claripy.utils.orderedset import OrderedSet
+from cle import ELF, PE, Blob, ExternObject, FunctionHintSource, KernelObject, MachO, TLSObject
+from cle.backends import NamedRegion
 from sortedcontainers import SortedDict
 
-import pyvex
-from claripy.utils.orderedset import OrderedSet
-from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource
-from cle.backends import NamedRegion
-import archinfo
-from archinfo.arch_soot import SootAddressDescriptor
-from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
-
-from angr.knowledge_plugins.functions.function_manager import FunctionManager
-from angr.knowledge_plugins.functions.function import Function
-from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
-from angr.misc.ux import deprecated
-from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.procedures.procedure_dict import SIM_PROCEDURES
-from angr.errors import (
-    AngrCFGError,
-    SimTranslationError,
-    SimMemoryError,
-    SimIRSBError,
-    SimEngineError,
-    AngrUnsupportedSyscallError,
-    SimError,
-)
-from angr.codenode import HookNode, BlockNode
-from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from angr.analyses import Analysis
 from angr.analyses.stack_pointer_tracker import StackPointerTracker
+from angr.codenode import BlockNode, HookNode
+from angr.engines.vex.lifter import VEX_IRSB_MAX_INST, VEX_IRSB_MAX_SIZE
+from angr.errors import (
+    AngrCFGError,
+    AngrUnsupportedSyscallError,
+    SimEngineError,
+    SimError,
+    SimIRSBError,
+    SimMemoryError,
+    SimTranslationError,
+)
+from angr.knowledge_plugins.cfg import CFGENode, CFGModel, CFGNode, IndirectJump  # pylint:disable=unused-import
+from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.functions.function_manager import FunctionManager
+from angr.misc.ux import deprecated
+from angr.procedures.procedure_dict import SIM_PROCEDURES
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.utils.constants import DEFAULT_STATEMENT
+
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 if TYPE_CHECKING:

@@ -4,22 +4,22 @@ import archinfo
 
 import angr
 from angr.sim_type import (
+    SimStruct,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeDouble,
+    SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
-    SimTypePointer,
-    SimTypeChar,
-    SimStruct,
-    SimTypeFloat,
-    SimUnion,
-    SimTypeDouble,
-    SimTypeLongLong,
     SimTypeLong,
+    SimTypeLongLong,
     SimTypeNum,
+    SimTypePointer,
     SimTypeReference,
-    SimTypeBottom,
     SimTypeString,
+    SimUnion,
 )
-from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
+from angr.utils.library import convert_cppproto_to_py, convert_cproto_to_py
 
 
 def test_cproto_conversion():

@@ -1,16 +1,14 @@
-from .sim_action import SimActionObject, SimActionData
-from angr.errors import SimValueError, SimMissingTempError
-from angr import sim_options as o
-from .inspect import BP_AFTER, BP_BEFORE
-
-from angr.sim_state import SimState
-
 import logging
 
 import claripy
 
-from .plugin import SimStatePlugin
+from angr import sim_options as o
+from angr.errors import SimMissingTempError, SimValueError
+from angr.sim_state import SimState
 
+from .inspect import BP_AFTER, BP_BEFORE
+from .plugin import SimStatePlugin
+from .sim_action import SimActionData, SimActionObject
 
 l = logging.getLogger(name=__name__)
 

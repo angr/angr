@@ -1,17 +1,16 @@
-from typing import Any, Tuple, Dict, List
-from itertools import count
 import copy
-import logging
 import inspect
+import logging
+from itertools import count
+from typing import Any, Dict, List, Tuple
 
 import networkx
-
-from ailment.statement import Jump
 from ailment.expression import Const
+from ailment.statement import Jump
 
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
-from .optimization_pass import OptimizationPass, OptimizationPassStage
 
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
 

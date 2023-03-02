@@ -1,14 +1,15 @@
-from angr.analyses import AnalysesHub
 import logging
 from collections import defaultdict
 
 import networkx
-from .analysis import Analysis
-from .vfg import VFG
 
+from angr.analyses import AnalysesHub
 from angr.code_location import CodeLocation
 from angr.errors import AngrDDGError
-from angr.sim_variable import SimRegisterVariable, SimMemoryVariable
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable
+
+from .analysis import Analysis
+from .vfg import VFG
 
 l = logging.getLogger(name=__name__)
 

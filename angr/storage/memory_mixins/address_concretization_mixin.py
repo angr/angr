@@ -2,13 +2,14 @@ from typing import List
 
 import claripy
 
-from .base import MemoryMixin
-from angr import sim_options as options
 from angr import concretization_strategies
+from angr import sim_options as options
+from angr.errors import SimMemoryAddressError, SimMemoryError, SimMergeError, SimUnsatError
 from angr.sim_state_options import SimStateOptions
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-from angr.errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.storage.dummy_symbolic_read_value import DUMMY_SYMBOLIC_READ_VALUE
+
+from .base import MemoryMixin
 
 
 class MultiwriteAnnotation(claripy.Annotation):

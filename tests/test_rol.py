@@ -1,7 +1,7 @@
-import os
-import angr
-
 import logging
+import os
+
+import angr
 
 l = logging.getLogger("angr.tests.test_rol")
 

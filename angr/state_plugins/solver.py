@@ -1,19 +1,20 @@
-import claripy
-from angr.sim_state import SimState
-from angr import sim_options as o
-from .inspect import BP_AFTER
-from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
-import os
 import binascii
 import functools
-import time
 import logging
-from typing import Type, TypeVar, overload, Any, Optional
+import os
+import time
+from typing import Any, Optional, Type, TypeVar, overload
 
+import claripy
 from claripy import backend_manager
 
+from angr import sim_options as o
+from angr.errors import SimSolverModeError, SimSolverOptionError, SimUnsatError, SimValueError
+from angr.sim_state import SimState
+
+from .inspect import BP_AFTER
 from .plugin import SimStatePlugin
-from .sim_action_object import ast_stripping_decorator, SimActionObject
+from .sim_action_object import SimActionObject, ast_stripping_decorator
 
 l = logging.getLogger(name=__name__)
 

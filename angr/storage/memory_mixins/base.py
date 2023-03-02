@@ -1,9 +1,9 @@
-from typing import Iterable, Tuple, Dict, Any, Optional
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 import claripy
 
-from angr.state_plugins.plugin import SimStatePlugin
 from angr.errors import SimMemoryError
+from angr.state_plugins.plugin import SimStatePlugin
 
 
 class MemoryMixin(SimStatePlugin):

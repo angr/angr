@@ -5,7 +5,6 @@ import cle
 
 from .resolver import IndirectJumpResolver
 
-
 l = logging.getLogger(name=__name__)
 
 

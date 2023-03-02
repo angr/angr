@@ -1,7 +1,8 @@
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 
 if TYPE_CHECKING:
     from claripy.ast.bv import BV
+
     from angr.state_plugins import SimActionData
 
 

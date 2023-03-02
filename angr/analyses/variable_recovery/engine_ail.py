@@ -1,16 +1,17 @@
 # pylint:disable=arguments-differ,invalid-unary-operand-type
-from typing import Optional, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Optional
 
-import claripy
 import ailment
+import claripy
 
-from angr.calling_conventions import SimRegArg
-from angr.sim_type import SimTypeFunction, SimTypeBottom
-from angr.engines.light import SimEngineLightAILMixin
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.lifter import TypeLifter
-from .engine_base import SimEngineVRBase, RichR
+from angr.calling_conventions import SimRegArg
+from angr.engines.light import SimEngineLightAILMixin
+from angr.sim_type import SimTypeBottom, SimTypeFunction
+
+from .engine_base import RichR, SimEngineVRBase
 
 if TYPE_CHECKING:
     from .variable_recovery_fast import VariableRecoveryFastState

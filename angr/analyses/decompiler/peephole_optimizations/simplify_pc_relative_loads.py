@@ -1,6 +1,7 @@
 from ailment.expression import BinaryOp, Const, Load
 
-from angr.utils.loader import is_pc, is_in_readonly_section, is_in_readonly_segment
+from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment, is_pc
+
 from .base import PeepholeOptimizationExprBase
 
 

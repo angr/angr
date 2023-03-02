@@ -1,20 +1,22 @@
 # pylint:disable=abstract-method
 
-from typing import Set, List, Optional, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, List, Optional, Set
 
 import pyvex
 
-from angr.utils.constants import is_alignment_mask
 from angr.analyses import AnalysesHub
-from angr.knowledge_plugins import Function
 from angr.block import BlockNode
 from angr.errors import SimTranslationError
+from angr.knowledge_plugins import Function
+from angr.utils.constants import is_alignment_mask
+
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 
 try:
     import pypcode
+
     from angr.engines import pcode
 except ImportError:
     pypcode = None

@@ -1,19 +1,18 @@
 import logging
 import math
 import types
-from collections import deque, defaultdict
+from collections import defaultdict, deque
+from typing import TYPE_CHECKING
 
 import networkx
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
 
-from .analysis import Analysis, AnalysesHub
-from .cfg import CFGEmulated
-
 from angr.errors import SimEngineError, SimMemoryError
+
+from .analysis import AnalysesHub, Analysis
+from .cfg import CFGEmulated
 
 # todo include an explanation of the algorithm
 # todo include a method that detects any change other than constants

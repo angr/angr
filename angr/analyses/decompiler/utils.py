@@ -1,18 +1,18 @@
 # pylint:disable=wrong-import-position
-from .structuring.structurer_nodes import (
-    MultiNode,
-    BaseNode,
-    CodeNode,
-    SequenceNode,
-    ConditionNode,
-    SwitchCaseNode,
-    CascadingConditionNode,
-)
-from typing import Optional, Tuple, Any, Union
-
-import networkx
+from typing import Any, Optional, Tuple, Union
 
 import ailment
+import networkx
+
+from .structuring.structurer_nodes import (
+    BaseNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
 
 
 def remove_last_statement(node):

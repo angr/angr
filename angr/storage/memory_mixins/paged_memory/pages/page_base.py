@@ -1,11 +1,12 @@
 import typing
 
 from angr.storage.memory_mixins.base import MemoryMixin
+
 from .cooperation import CooperationBase
-from .ispo_mixin import ISPOMixin
-from .refcount_mixin import RefcountMixin
-from .permissions_mixin import PermissionsMixin
 from .history_tracking_mixin import HistoryTrackingMixin
+from .ispo_mixin import ISPOMixin
+from .permissions_mixin import PermissionsMixin
+from .refcount_mixin import RefcountMixin
 
 
 class PageBase(HistoryTrackingMixin, RefcountMixin, CooperationBase, ISPOMixin, PermissionsMixin, MemoryMixin):

@@ -1,41 +1,42 @@
 import copy
-from collections import defaultdict, namedtuple
 import logging
-from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any, NamedTuple, TYPE_CHECKING
-
-import networkx
+from collections import defaultdict, namedtuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, NamedTuple, Optional, Set, Tuple, Type, Union
 
 import ailment
+import networkx
 
+from angr.analyses import AnalysesHub, Analysis
+from angr.analyses.cfg.cfg_base import CFGBase
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
+from angr.codenode import BlockNode
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
-from angr.codenode import BlockNode
-from angr.utils import timethis
-from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
-from angr.sim_type import (
-    SimTypeChar,
-    SimTypeInt,
-    SimTypeLongLong,
-    SimTypeShort,
-    SimTypeFunction,
-    SimTypeBottom,
-    SimTypeFloat,
-)
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
-from angr.analyses import Analysis, AnalysesHub
-from angr.analyses.cfg.cfg_base import CFGBase
-from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
-from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypeShort,
+)
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
+from angr.utils import timethis
+
 from .ailblock_walker import AILBlockWalker
-from .optimization_passes import get_default_optimization_passes, OptimizationPassStage
+from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .optimization_passes import OptimizationPassStage, get_default_optimization_passes
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+
     from .decompilation_cache import DecompilationCache
-    from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
+    from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 
 l = logging.getLogger(name=__name__)
 

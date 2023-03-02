@@ -1,14 +1,14 @@
-from typing import Optional, Set, List, Tuple, TYPE_CHECKING, Dict
 import logging
-
-import networkx
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 import ailment
+import networkx
 
 from angr.codenode import BlockNode
-from angr.sim_variable import SimMemoryVariable
 from angr.knowledge_plugins.functions import Function
-from .analysis import Analysis, AnalysesHub
+from angr.sim_variable import SimMemoryVariable
+
+from .analysis import AnalysesHub, Analysis
 from .decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:

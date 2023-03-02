@@ -1,8 +1,8 @@
-import random
 import itertools
+import random
 
-from angr.analyses.identifier.func import Func, TestData
 from angr.analyses.identifier.errors import FunctionNotInitialized
+from angr.analyses.identifier.func import Func, TestData
 
 
 def rand_str(length, byte_list=None):

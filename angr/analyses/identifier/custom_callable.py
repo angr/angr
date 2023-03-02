@@ -1,8 +1,7 @@
 import logging
 
-from angr.errors import AngrCallableError, AngrCallableMultistateError
 from angr.calling_conventions import DEFAULT_CC
-
+from angr.errors import AngrCallableError, AngrCallableMultistateError
 
 l = logging.getLogger(name=__name__)
 # l.setLevel("DEBUG")

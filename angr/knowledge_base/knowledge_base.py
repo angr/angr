@@ -1,21 +1,22 @@
 """Representing the artifacts of a project."""
 
-from itertools import count
 import logging
-
-from typing import TYPE_CHECKING, TypeVar, Type, Optional
+from itertools import count
+from typing import TYPE_CHECKING, Optional, Type, TypeVar
 
 if TYPE_CHECKING:
+    from angr.knowledge_plugins import (
+        CFGManager,
+        FunctionManager,
+        KeyDefinitionManager,
+        PropagationManager,
+        StructuredCodeManager,
+        TypesStore,
+        VariableManager,
+    )
     from angr.project import Project
-    from angr.knowledge_plugins import FunctionManager
-    from angr.knowledge_plugins import VariableManager
-    from angr.knowledge_plugins import KeyDefinitionManager
-    from angr.knowledge_plugins import CFGManager
-    from angr.knowledge_plugins import StructuredCodeManager
-    from angr.knowledge_plugins import TypesStore
-    from angr.knowledge_plugins import PropagationManager
 
-from angr.knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin, default_plugins
 
 l = logging.getLogger(name=__name__)
 

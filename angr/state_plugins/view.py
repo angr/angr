@@ -1,11 +1,13 @@
-from angr.sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
-from angr.sim_state import SimState
-from typing import TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING
 
 import claripy
-from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+
+from angr.sim_state import SimState
+from angr.sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
+
 from .plugin import SimStatePlugin
 
 if TYPE_CHECKING:

@@ -1,6 +1,6 @@
-import angr
-
 import itertools
+
+import angr
 
 fdcount = itertools.count()
 

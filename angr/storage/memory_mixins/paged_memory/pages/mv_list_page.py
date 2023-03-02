@@ -1,12 +1,12 @@
 # pylint:disable=abstract-method,arguments-differ
 import logging
-from typing import Optional, List, Set, Tuple, Union, Callable
+from typing import Callable, List, Optional, Set, Tuple, Union
 
+from angr.storage.memory_object import SimLabeledMemoryObject, SimMemoryObject
 from angr.utils.dynamic_dictlist import DynamicDictList
-from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
-from .page_base import PageBase
-from .cooperation import MemoryObjectSetMixin
 
+from .cooperation import MemoryObjectSetMixin
+from .page_base import PageBase
 
 l = logging.getLogger(name=__name__)
 

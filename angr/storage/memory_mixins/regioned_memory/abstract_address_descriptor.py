@@ -1,4 +1,4 @@
-from typing import List, Tuple, Generator
+from typing import Generator, List, Tuple
 
 from claripy.vsa import StridedInterval
 

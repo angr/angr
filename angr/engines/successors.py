@@ -1,16 +1,15 @@
-from angr.calling_conventions import SYSCALL_CC
-from angr.state_plugins.sim_action_object import _raw_ast
-from angr.state_plugins.callstack import CallStack
-from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-from angr.errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
-from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
-from angr import sim_options as o
 import logging
 
 import claripy
-
 from archinfo.arch_soot import ArchSoot
 
+from angr import sim_options as o
+from angr.calling_conventions import SYSCALL_CC
+from angr.errors import AngrSyscallError, AngrUnsupportedSyscallError, SimSolverModeError, SimUnsatError, SimValueError
+from angr.state_plugins.callstack import CallStack
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+from angr.state_plugins.sim_action_object import _raw_ast
+from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
 
 l = logging.getLogger(name=__name__)
 

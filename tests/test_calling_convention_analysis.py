@@ -2,14 +2,15 @@ import logging
 import os
 import unittest
 
-from common import requires_binaries_private
 import archinfo
+from common import requires_binaries_private
+
 import angr
 from angr.calling_conventions import (
-    SimStackArg,
-    SimRegArg,
     SimCCCdecl,
     SimCCSystemVAMD64,
+    SimRegArg,
+    SimStackArg,
 )
 from angr.sim_type import SimTypeFunction
 

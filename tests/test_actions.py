@@ -1,7 +1,7 @@
 import unittest
 
 import angr
-from angr import SimState, SIM_PROCEDURES
+from angr import SIM_PROCEDURES, SimState
 from angr.engines import ProcedureEngine
 
 FAKE_ADDR = 0x100000

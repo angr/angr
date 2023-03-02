@@ -1,15 +1,14 @@
-from angr.analyses import AnalysesHub
 import logging
 from typing import Any, Callable, Optional, Set
 
 import cle
-from cle.backends.externs import KernelObject, ExternObject
+from cle.backends.externs import ExternObject, KernelObject
 from cle.backends.tls.elf_tls import ELFTLSObject
-
 from sortedcontainers import SortedDict
 
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort, MemoryData
+from angr.analyses import AnalysesHub
 from angr.analyses.analysis import Analysis
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 
 _l = logging.getLogger(name=__name__)
 

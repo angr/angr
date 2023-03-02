@@ -5,14 +5,15 @@ import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from angr.errors import SimMemoryMissingError
-from angr.calling_conventions import SimRegArg, SimStackArg, DefaultCC
-from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.analyses.typehoon import typeconsts, typevars
+from angr.calling_conventions import DefaultCC, SimRegArg, SimStackArg
 from angr.engines.light import SimEngineLightVEXMixin
+from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins import Function
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.analyses.typehoon import typevars, typeconsts
-from .engine_base import SimEngineVRBase, RichR
+
+from .engine_base import RichR, SimEngineVRBase
 
 if TYPE_CHECKING:
     from .variable_recovery_base import VariableRecoveryStateBase

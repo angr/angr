@@ -1,18 +1,19 @@
-from typing import Optional, Set, List, Tuple, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, List, Optional, Set, Tuple
 
 import claripy
 
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.engines.light import SimEngineLight, ArithmeticExpression
-from angr.errors import SimEngineError, SimMemoryMissingError
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.analyses.typehoon import typeconsts, typevars
 from angr.code_location import CodeLocation
-from angr.analyses.typehoon import typevars, typeconsts
+from angr.engines.light import ArithmeticExpression, SimEngineLight
+from angr.errors import SimEngineError, SimMemoryMissingError
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 if TYPE_CHECKING:
-    from .variable_recovery_base import VariableRecoveryStateBase
     from angr.knowledge_plugins.variables.variable_manager import VariableManager
+
+    from .variable_recovery_base import VariableRecoveryStateBase
 
 #
 # The base engine used in VariableRecoveryFast

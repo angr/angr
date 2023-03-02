@@ -1,20 +1,21 @@
 # pylint:disable=wrong-import-position,arguments-differ
-from .codenode import BlockNode, SootBlockNode
 import logging
 from typing import List, Optional, Tuple
 
 import pyvex
-from pyvex import IRSB
 from archinfo import ArchARM
+from pyvex import IRSB
+
+from .codenode import BlockNode, SootBlockNode
 
 try:
     from .engines import pcode
 except ImportError:
     pcode = None
 
+from .engines.vex import VEXLifter
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
-from .engines.vex import VEXLifter
 
 l = logging.getLogger(name=__name__)
 

@@ -1,5 +1,5 @@
 import copy
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Tuple
 
 from claripy.vsa import AbstractLocation
 

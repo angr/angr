@@ -1,21 +1,21 @@
 # pylint:disable=unused-argument,arguments-differ
-from typing import Set, Union
 import logging
+from typing import Set, Union
 
 import ailment
 
+from angr.analyses.decompiler.goto_manager import Goto
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    MultiNode,
-    LoopNode,
-    ConditionNode,
     CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
-from .node_address_finder import NodeAddressFinder
-from angr.analyses.decompiler.goto_manager import Goto
 
+from .node_address_finder import NodeAddressFinder
 
 l = logging.getLogger(name=__name__)
 

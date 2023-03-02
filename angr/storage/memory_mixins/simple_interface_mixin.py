@@ -1,7 +1,8 @@
 import claripy
 
-from .base import MemoryMixin
 from angr.errors import SimMemoryError
+
+from .base import MemoryMixin
 
 
 class SimpleInterfaceMixin(MemoryMixin):

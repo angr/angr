@@ -1,19 +1,21 @@
 # pylint:disable=arguments-differ,arguments-renamed,isinstance-second-argument-not-valid-type
-from typing import Optional, Union, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Optional, Union
 
 import claripy
-from ailment import Stmt, Expr
+from ailment import Expr, Stmt
 
-from angr.utils.constants import is_alignment_mask
 from angr.engines.light import SimEngineLightAILMixin
-from angr.sim_variable import SimStackVariable, SimMemoryVariable
+from angr.sim_variable import SimMemoryVariable, SimStackVariable
+from angr.utils.constants import is_alignment_mask
+
 from .engine_base import SimEnginePropagatorBase
-from .prop_value import PropValue, Detail
+from .prop_value import Detail, PropValue
 
 if TYPE_CHECKING:
-    from .propagator import PropagatorAILState
     from angr.code_location import CodeLocation
+
+    from .propagator import PropagatorAILState
 
 l = logging.getLogger(name=__name__)
 

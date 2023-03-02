@@ -1,4 +1,3 @@
-from angr.analyses import AnalysesHub
 import itertools
 import logging
 import sys
@@ -6,46 +5,47 @@ from collections import defaultdict
 from functools import reduce
 from typing import Dict, List
 
-import angr
 import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
 
-from angr import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
+import angr
+from angr import BP, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, procedures
 from angr import options as o
+from angr.analyses import AnalysesHub
+from angr.analyses.backward_slice import BackwardSlice
+from angr.analyses.cdg import CDG
+from angr.analyses.ddg import DDG
+from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.analyses.loopfinder import Loop, LoopFinder
 from angr.codenode import BlockNode
 from angr.engines.procedure import ProcedureEngine
-from angr.exploration_techniques.loop_seer import LoopSeer
-from angr.exploration_techniques.slicecutor import Slicecutor
-from angr.exploration_techniques.explorer import Explorer
-from angr.exploration_techniques.lengthlimiter import LengthLimiter
 from angr.errors import (
     AngrCFGError,
     AngrError,
+    AngrExitError,
     AngrSkipJobNotice,
+    SimEmptyCallStackError,
     SimError,
-    SimValueError,
-    SimSolverModeError,
     SimFastPathError,
     SimIRSBError,
-    AngrExitError,
-    SimEmptyCallStackError,
+    SimSolverModeError,
+    SimValueError,
 )
+from angr.exploration_techniques.explorer import Explorer
+from angr.exploration_techniques.lengthlimiter import LengthLimiter
+from angr.exploration_techniques.loop_seer import LoopSeer
+from angr.exploration_techniques.slicecutor import Slicecutor
+from angr.knowledge_plugins.cfg import CFGENode, IndirectJump
 from angr.sim_state import SimState
 from angr.state_plugins.callstack import CallStack
 from angr.state_plugins.sim_action import SimActionData
-from angr.knowledge_plugins.cfg import CFGENode, IndirectJump
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.analyses.forward_analysis import ForwardAnalysis
+
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_utils import CFGUtils
-
-from angr.analyses.cdg import CDG
-from angr.analyses.ddg import DDG
-from angr.analyses.backward_slice import BackwardSlice
-from angr.analyses.loopfinder import LoopFinder, Loop
 
 l = logging.getLogger(name=__name__)
 

@@ -1,13 +1,13 @@
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from angr.sim_type import (
-    parse_file,
-    parse_cpp_file,
-    normalize_cpp_function_name,
     SimTypeCppFunction,
     SimTypeFd,
-    register_types,
+    normalize_cpp_function_name,
+    parse_cpp_file,
+    parse_file,
     parse_types,
+    register_types,
 )
 
 if TYPE_CHECKING:

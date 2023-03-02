@@ -1,6 +1,7 @@
 import logging
 
 from angr.simos import SimWindows
+
 from .resolver import IndirectJumpResolver
 
 l = logging.getLogger(name=__name__)

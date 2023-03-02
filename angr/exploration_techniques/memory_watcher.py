@@ -1,5 +1,6 @@
-from .exploration_technique import ExplorationTechnique
 import psutil
+
+from .exploration_technique import ExplorationTechnique
 
 
 class MemoryWatcher(ExplorationTechnique):

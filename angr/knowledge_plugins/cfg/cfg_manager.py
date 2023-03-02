@@ -1,9 +1,10 @@
-from typing import Optional
 from functools import reduce
+from typing import Optional
 
 from archinfo.arch_arm import is_arm_arch
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+
 from .cfg_model import CFGModel
 
 

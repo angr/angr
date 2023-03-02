@@ -1,5 +1,5 @@
 # pylint: disable=missing-class-docstring
-from ailment.expression import BinaryOp, Convert, Const
+from ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
 

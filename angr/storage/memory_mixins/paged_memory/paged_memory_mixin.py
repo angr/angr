@@ -1,13 +1,13 @@
-import cffi
-from typing import Tuple, Type, Dict, Optional, Iterable, Set, Any
 import logging
 from collections import defaultdict
+from typing import Any, Dict, Iterable, Optional, Set, Tuple, Type
 
+import cffi
 import claripy
 
-from angr.storage.memory_mixins.base import MemoryMixin
-from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
 from angr.errors import SimMemoryError
+from angr.storage.memory_mixins.base import MemoryMixin
+from angr.storage.memory_mixins.paged_memory.pages import ListPage, MVListPage, PageType, UltraPage
 
 # yeet
 ffi = cffi.FFI()

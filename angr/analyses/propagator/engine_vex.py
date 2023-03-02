@@ -1,15 +1,16 @@
-from typing import TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING
 
 import claripy
 import pyvex
 
-from angr.engines.light import SimEngineLightVEXMixin
 from angr.calling_conventions import DEFAULT_CC, SimRegArg
-from .values import Top, Bottom
+from angr.engines.light import SimEngineLightVEXMixin
+
 from .engine_base import SimEnginePropagatorBase
 from .top_checker_mixin import TopCheckerMixin
-from .vex_vars import VEXReg, VEXTmp, VEXMemVar
+from .values import Bottom, Top
+from .vex_vars import VEXMemVar, VEXReg, VEXTmp
 
 if TYPE_CHECKING:
     from angr.analyses.propagator.propagator import PropagatorVEXState

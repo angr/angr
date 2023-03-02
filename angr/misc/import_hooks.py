@@ -1,7 +1,7 @@
 # pylint:disable=import-outside-toplevel
+import importlib.util
 import os.path
 import sys
-import importlib.util
 from importlib.machinery import ModuleSpec
 
 

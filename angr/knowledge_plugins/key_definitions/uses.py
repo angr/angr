@@ -1,8 +1,8 @@
 # pylint:disable=unsubscriptable-object
-from typing import Set, Optional, Tuple, Any, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional, Set, Tuple, Union
 
-from angr.utils.cowdict import DefaultChainMapCOW
 from angr.code_location import CodeLocation
+from angr.utils.cowdict import DefaultChainMapCOW
 
 if TYPE_CHECKING:
     from .definition import Definition

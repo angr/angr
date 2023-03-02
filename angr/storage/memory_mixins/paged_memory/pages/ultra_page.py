@@ -1,15 +1,14 @@
 # pylint:disable=arguments-differ
 import logging
-from typing import List, Set, Optional, Tuple, Union, Any, Iterable
-
-from sortedcontainers import SortedDict
+from typing import Any, Iterable, List, Optional, Set, Tuple, Union
 
 import claripy
+from sortedcontainers import SortedDict
 
 from angr.errors import SimMemoryError
-from .page_base import PageBase
-from .cooperation import MemoryObjectMixin, SimMemoryObject
 
+from .cooperation import MemoryObjectMixin, SimMemoryObject
+from .page_base import PageBase
 
 l = logging.getLogger(name=__name__)
 

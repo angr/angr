@@ -1,20 +1,22 @@
-import os
 import logging
+import os
 import struct
 
 import claripy
+from archinfo import ArchAArch64, ArchAMD64, ArchARM, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64, ArchX86
 from cle import MetaELF
-from cle.backends.elf.symbol import ELFSymbolType
-from cle.backends.elf.elfcore import ELFCore
 from cle.address_translator import AT
+from cle.backends.elf.elfcore import ELFCore
 from cle.backends.elf.relocation.arm64 import R_AARCH64_TLSDESC
-from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
+from cle.backends.elf.symbol import ELFSymbolType
 
-from angr.tablespecs import StringTableSpec
-from angr.procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
+from angr.errors import AngrSyscallError
+from angr.procedures import SIM_LIBRARIES as L
+from angr.procedures import SIM_PROCEDURES as P
 from angr.state_plugins import SimFilesystem, SimHostFilesystem
 from angr.storage.file import SimFile, SimFileBase
-from angr.errors import AngrSyscallError
+from angr.tablespecs import StringTableSpec
+
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)

@@ -1,14 +1,13 @@
-import sys
-import platform
 import os
-import tempfile
-import subprocess
+import platform
 import shutil
+import subprocess
+import sys
+import tempfile
 
 from common import has_32_bit_compiler_support
 
 import angr
-
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

@@ -1,5 +1,5 @@
 from angr.engines.vex.light import VEXMixin
-from angr.state_plugins import BP_BEFORE, BP_AFTER, NO_OVERRIDE
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 
 
 class SimInspectMixin(VEXMixin):

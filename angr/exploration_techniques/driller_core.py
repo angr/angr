@@ -3,7 +3,6 @@ from itertools import islice
 
 from .exploration_technique import ExplorationTechnique
 
-
 l = logging.getLogger(name=__name__)
 
 

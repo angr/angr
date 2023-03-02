@@ -1,18 +1,17 @@
 # pylint:disable=raise-missing-from
-from typing import Dict, Set, Optional
-import logging
 import collections.abc
-from sortedcontainers import SortedDict
+import logging
+from typing import Dict, Optional, Set
 
 import networkx
-
 from archinfo.arch_soot import SootMethodDescriptor
+from sortedcontainers import SortedDict
 
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+
 from .function import Function
 from .soot_function import SootFunction
-
 
 l = logging.getLogger(name=__name__)
 

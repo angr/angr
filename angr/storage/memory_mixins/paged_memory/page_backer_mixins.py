@@ -1,6 +1,6 @@
-from mmap import mmap
-from typing import Union, List, Generator, Tuple
 import logging
+from mmap import mmap
+from typing import Generator, List, Tuple, Union
 
 import claripy
 import cle

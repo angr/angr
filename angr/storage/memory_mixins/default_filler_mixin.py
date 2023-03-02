@@ -1,9 +1,10 @@
 import logging
 
-from .base import MemoryMixin
 from angr import sim_options as options
-from angr.misc.ux import once
 from angr.errors import SimMemoryMissingError
+from angr.misc.ux import once
+
+from .base import MemoryMixin
 
 l = logging.getLogger(__name__)
 

@@ -1,9 +1,10 @@
 import logging
 from typing import Optional
 
-from .base import JNISimProcedure
 from angr.engines.soot.expressions import SimSootExpr_NewArray
 from angr.engines.soot.values import SimSootValue_ArrayRef
+
+from .base import JNISimProcedure
 
 l = logging.getLogger("angr.procedures.java_jni.array_operations")
 

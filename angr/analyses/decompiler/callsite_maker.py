@@ -1,22 +1,22 @@
-from typing import Optional, List, Tuple, Any, Set, TYPE_CHECKING
 import copy
 import logging
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
 
 import archinfo
-from ailment import Stmt, Expr
+from ailment import Expr, Stmt
 
-from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
+from angr.analyses import AnalysesHub, Analysis
+from angr.calling_conventions import SimCC, SimRegArg, SimStackArg
 from angr.errors import SimMemoryMissingError
-from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
-from angr.calling_conventions import SimRegArg, SimStackArg, SimCC
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.analyses import Analysis, AnalysesHub
+from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
+from angr.sim_type import SimTypeBottom, SimTypeChar, SimTypeInt, SimTypePointer
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
-    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
     from angr.knowledge_plugins.key_definitions.definition import Definition
+    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
+    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 l = logging.getLogger(name=__name__)

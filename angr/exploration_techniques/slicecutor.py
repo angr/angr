@@ -1,7 +1,8 @@
-from angr.errors import AngrExitError
-from .exploration_technique import ExplorationTechnique
-
 import logging
+
+from angr.errors import AngrExitError
+
+from .exploration_technique import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 

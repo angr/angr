@@ -3,9 +3,9 @@ import os
 from unittest import TestCase, main
 
 import claripy
+
 import angr
 from angr import options as o
-
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

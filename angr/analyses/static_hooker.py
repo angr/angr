@@ -1,10 +1,10 @@
-from angr.analyses import AnalysesHub
 import logging
 
-from .analysis import Analysis
-
 from angr import SIM_LIBRARIES
+from angr.analyses import AnalysesHub
 from angr.errors import AngrValueError
+
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 

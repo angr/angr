@@ -1,16 +1,17 @@
-from typing import Optional
 from collections import defaultdict
+from typing import Optional
 
 import claripy
 import pyvex
 
-from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
-from .propagator.vex_vars import VEXTmp
-from .propagator.values import Top
+from angr.knowledge_plugins.xrefs import XRef, XRefType
+
+from .analysis import AnalysesHub, Analysis
+from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .propagator import PropagatorAnalysis
-from .analysis import Analysis, AnalysesHub
-from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
+from .propagator.values import Top
+from .propagator.vex_vars import VEXTmp
 
 
 class SimEngineXRefsVEX(

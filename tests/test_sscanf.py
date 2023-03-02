@@ -1,11 +1,10 @@
+import logging
 import os
-import angr
 import subprocess
 import sys
-
 import unittest
 
-import logging
+import angr
 
 l = logging.getLogger("angr.tests.sscanf")
 
