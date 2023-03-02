@@ -19,6 +19,7 @@ select = [
 	"E", # pycodestyle errors
 	"F", # pyflakes
 	# "I", # isort
+	"INP", # prevent implicit namespace packages
 	"TID", # tidy imports
 	"UP", # pyupgrade
 	"W", # pycodestyle warnings
@@ -43,6 +44,9 @@ exclude = [
 "angr/state_plugins/solver.py" = [
 	"E501", # Long docstrings with examples
  ]
+"docs/conf.py" = [
+	"INP001",
+]
 "__init__.py" = [
 	"F401",
 	"F403",
