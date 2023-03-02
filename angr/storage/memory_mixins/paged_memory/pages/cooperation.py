@@ -125,8 +125,9 @@ class MemoryObjectMixin(CooperationBase):
             next_elem_index = 0
 
         size = yield
+        max_size = kwargs.get("max_size", size)
         while True:
-            if data.symbolic and data.op == "Concat" and data.size() > size * 8:
+            if data.symbolic and data.op == "Concat" and data.size() > max_size:
                 # Generate new memory object with only size bytes to speed up extracting bytes
                 cur_data_size_bits = 0
                 requested_size_bits = size * 8
