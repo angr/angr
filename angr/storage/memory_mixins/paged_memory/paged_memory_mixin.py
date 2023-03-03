@@ -175,7 +175,7 @@ class PagedMemoryMixin(MemoryMixin):
         # l.debug("%s.store(%#x, %s, %s)", self.id, addr, data, endness)
 
         pageno, pageoff = self._divide_addr(addr)
-        sub_gen = self.PAGE_TYPE._decompose_objects(addr, data, endness, memory=self, **kwargs)
+        sub_gen = self.PAGE_TYPE._decompose_objects(addr, data, endness, memory=self, max_size=self.page_size, **kwargs)
         next(sub_gen)
 
         # fasttrack basic case
