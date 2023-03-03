@@ -2,8 +2,11 @@ import logging
 import re
 from collections import defaultdict
 
-from . import Analysis
 from archinfo import all_arches
+from archinfo.arch_arm import is_arm_arch
+
+from . import Analysis
+
 
 l = logging.getLogger(name=__name__)
 
@@ -45,7 +48,10 @@ class BoyScout(Analysis):
                     for mo in regex.finditer(data):
                         position = mo.start() + start_
                         if position % arch.instruction_alignment == 0:
-                            votes[(arch.name, arch.memory_endness)] += 1
+                            if is_arm_arch(arch):
+                                votes[("ARM", arch.memory_endness)] += 1
+                            else:
+                                votes[(arch.name, arch.memory_endness)] += 1
 
             l.debug("%s %s hits %d times", arch.name, arch.memory_endness, votes[(arch.name, arch.memory_endness)])
 
