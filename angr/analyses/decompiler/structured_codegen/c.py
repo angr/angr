@@ -2829,7 +2829,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 args.append(new_arg)
 
         ret_expr = None
-        if stmt.ret_expr is not None:
+        if not is_expr and stmt.ret_expr is not None:
             ret_expr = self._handle(stmt.ret_expr)
 
         result = CFunctionCall(
