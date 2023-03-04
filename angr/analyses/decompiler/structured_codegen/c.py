@@ -1437,13 +1437,7 @@ class CUnaryOp(CExpression):
         if operand.type is not None:
             var_type = unpack_typeref(operand.type)
             if op == "Reference":
-                if isinstance(var_type, SimTypePointer) and isinstance(
-                    var_type.pts_to, (SimTypeArray, SimTypeFixedSizeArray)
-                ):
-                    # special case: &array
-                    self._type = var_type
-                else:
-                    self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
+                self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
             elif op == "Dereference":
                 if isinstance(var_type, SimTypePointer):
                     self._type = unpack_typeref(var_type.pts_to)
