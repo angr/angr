@@ -360,14 +360,24 @@ class CallingConventionAnalysis(Analysis):
         func = self.kb.functions[caller_addr]
         subgraph = self._generate_callsite_subgraph(func, caller_block_addr, include_preds=include_preds)
 
+        observation_points: List = [("insn", call_insn_addr, OP_BEFORE), ("node", caller_block_addr, OP_AFTER)]
+
+        # find the return site
+        caller_block = next(iter(bb for bb in subgraph if bb.addr == caller_block_addr))
+        return_site_block = next(iter(subgraph.successors(caller_block)), None)
+        if return_site_block is not None:
+            observation_points.append(("node", return_site_block.addr, OP_AFTER))
+
         rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
             func,
             func_graph=subgraph,
-            observation_points=[("insn", call_insn_addr, OP_BEFORE), ("node", caller_block_addr, OP_AFTER)],
+            observation_points=observation_points,
             function_handler=DummyFunctionHandler(),
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        fact = self._collect_callsite_fact(caller_block_addr, call_insn_addr, rda.model)
+        fact = self._collect_callsite_fact(
+            caller_block_addr, call_insn_addr, None if return_site_block is None else return_site_block.addr, rda.model
+        )
         return fact
 
     def _extract_and_analyze_callsites(
@@ -475,6 +485,7 @@ class CallingConventionAnalysis(Analysis):
         self,
         caller_block_addr: int,
         call_insn_addr: int,
+        return_site_addr: int,
         rda: ReachingDefinitionsModel,
     ) -> CallSiteFact:
         fact = CallSiteFact(
@@ -484,16 +495,17 @@ class CallingConventionAnalysis(Analysis):
         default_cc_cls = default_cc(self.project.arch.name)
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
-            self._analyze_callsite_return_value_uses(cc, caller_block_addr, rda, fact)
+            self._analyze_callsite_return_value_uses(cc, return_site_addr, rda, fact)
             self._analyze_callsite_arguments(cc, caller_block_addr, call_insn_addr, rda, fact)
 
         return fact
 
     def _analyze_callsite_return_value_uses(
-        self, default_cc: SimCC, caller_block_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
+        self, default_cc: SimCC, return_site_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
-        state = rda.observed_results[("node", caller_block_addr, OP_AFTER)]
-        all_defs: Set["Definition"] = get_all_definitions(state.register_definitions)
+        all_defs: Set["Definition"] = set(
+            def_ for def_ in rda.all_uses._uses_by_definition.keys() if def_.codeloc.block_addr == return_site_addr
+        )
         all_uses: "Uses" = rda.all_uses
 
         # determine if the return value is used
@@ -575,8 +587,11 @@ class CallingConventionAnalysis(Analysis):
             return None
 
         # is the return value used anywhere?
-        if facts and all(fact.return_value_used is False for fact in facts):
-            proto.returnty = None
+        if facts:
+            if all(fact.return_value_used is False for fact in facts):
+                proto.returnty = None
+            else:
+                proto.returnty = SimTypeInt().with_arch(self.project.arch)
 
         if update_arguments == UpdateArgumentsOption.AlwaysUpdate or (
             update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and not proto.args
