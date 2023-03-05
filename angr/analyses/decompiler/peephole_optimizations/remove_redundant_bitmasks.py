@@ -12,6 +12,10 @@ _MASKS = {
 
 
 class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
+    """
+    Remove redundant bitmasking operations.
+    """
+
     __slots__ = ()
 
     NAME = "Remove redundant bitmasks"

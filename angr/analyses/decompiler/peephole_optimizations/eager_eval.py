@@ -22,7 +22,8 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             return self._optimize_unaryop(expr)
         return None
 
-    def _optimize_binaryop(self, expr: BinaryOp):
+    @staticmethod
+    def _optimize_binaryop(expr: BinaryOp):
         if expr.op == "Add":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
                 mask = (2 << expr.bits) - 1
@@ -122,7 +123,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
                 return expr.operands[0]
 
-    def _optimize_unaryop(self, expr: UnaryOp):
+        return None
+
+    @staticmethod
+    def _optimize_unaryop(expr: UnaryOp):
         if expr.op == "Neg" and isinstance(expr.operand, Const):
             const_a = expr.operand.value
             mask = (2**expr.bits) - 1

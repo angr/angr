@@ -502,7 +502,7 @@ class CallingConventionAnalysis(Analysis):
         return fact
 
     def _analyze_callsite_return_value_uses(
-        self, default_cc: SimCC, return_site_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
+        self, cc: SimCC, return_site_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
         all_defs: Set["Definition"] = {
             def_
@@ -514,7 +514,7 @@ class CallingConventionAnalysis(Analysis):
         all_uses: "Uses" = rda.all_uses
 
         # determine if the return value is used
-        return_val = default_cc.RETURN_VAL
+        return_val = cc.RETURN_VAL
         if return_val is not None and isinstance(return_val, SimRegArg):
             return_reg_offset, _ = self.project.arch.registers[return_val.reg_name]
 
@@ -538,7 +538,7 @@ class CallingConventionAnalysis(Analysis):
 
     def _analyze_callsite_arguments(
         self,
-        default_cc: SimCC,
+        cc: SimCC,
         caller_block_addr: int,
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
@@ -563,9 +563,9 @@ class CallingConventionAnalysis(Analysis):
             if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)
         }
 
-        arg_session = default_cc.arg_session(SimTypeInt().with_arch(self.project.arch))
+        arg_session = cc.arg_session(SimTypeInt().with_arch(self.project.arch))
         for _ in range(30):  # at most 30 arguments
-            arg_loc = default_cc.next_arg(arg_session, SimTypeInt().with_arch(self.project.arch))
+            arg_loc = cc.next_arg(arg_session, SimTypeInt().with_arch(self.project.arch))
             if isinstance(arg_loc, SimRegArg):
                 reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
                 # is it initialized?

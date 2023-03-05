@@ -1,4 +1,4 @@
-# pylint:disable=line-too-long,missing-class-docstring
+# pylint:disable=line-too-long,missing-class-docstring,no-self-use
 import logging
 from typing import Optional, List, Dict, Type
 from collections import defaultdict
@@ -2194,9 +2194,9 @@ for k, vs in ARCH_NAME_ALIASES.items():
         ALIAS_TO_ARCH_NAME[v] = k
 
 
-def default_cc(
+def default_cc(  # pylint:disable=unused-argument
     arch: str, platform: Optional[str] = None, language: Optional[str] = None
-) -> Optional[Type[SimCC]]:  # pylint:disable=unused-argument
+) -> Optional[Type[SimCC]]:
     """
     Return the default calling convention for a given architecture, platform, and language combination.
 

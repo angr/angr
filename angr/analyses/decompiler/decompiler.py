@@ -443,10 +443,10 @@ class Decompiler(Analysis):
     def find_data_references_and_update_memory_data(self, seq_node: "SequenceNode"):
         const_values: Set[int] = set()
 
-        def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):
+        def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
             const_values.add(expr.value)
 
-        def _handle_block(block: ailment.Block, **kwargs):
+        def _handle_block(block: ailment.Block, **kwargs):  # pylint:disable=unused-argument
             block_walker = AILBlockWalkerBase(
                 expr_handlers={
                     ailment.Expr.Const: _handle_Const,

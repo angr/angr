@@ -4,6 +4,10 @@ from .base import PeepholeOptimizationExprBase
 
 
 class RemoveRedundantITEComparisons(PeepholeOptimizationExprBase):
+    """
+    Remove redundant ITE comparisons.
+    """
+
     __slots__ = ()
 
     NAME = "Remove redundant ITE comparisons"
