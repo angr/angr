@@ -35,7 +35,7 @@ opcode_to_generic_name = {
     # OpCode.INT_SCARRY        : '',
     # OpCode.INT_SBORROW       : '',
     # OpCode.INT_2COMP         : '',
-    # OpCode.INT_NEGATE        : '',
+    OpCode.INT_NEGATE: "Neg",
     OpCode.INT_XOR: "Xor",
     OpCode.INT_AND: "And",
     OpCode.INT_OR: "Or",
@@ -60,9 +60,9 @@ opcode_to_generic_name = {
     # OpCode.FLOAT_LESSEQUAL   : '',
     # OpCode.FLOAT_NAN         : '',
     # OpCode.FLOAT_ADD         : '',
-    # OpCode.FLOAT_DIV         : '',
-    # OpCode.FLOAT_MULT        : '',
-    # OpCode.FLOAT_SUB         : '',
+    OpCode.FLOAT_DIV: "Div",
+    OpCode.FLOAT_MULT: "Mul",
+    OpCode.FLOAT_SUB: "Sub",
     # OpCode.FLOAT_NEG         : '',
     # OpCode.FLOAT_ABS         : '',
     # OpCode.FLOAT_SQRT        : '',
@@ -128,6 +128,8 @@ class PCodeIRSBConverter(Converter):
             OpCode.SEGMENTOP: self._convert_segment_op,
             OpCode.CPOOLREF: self._convert_cpool_ref,
             OpCode.NEW: self._convert_new,
+            OpCode.FLOAT_INT2FLOAT: self._convert_int2float,
+            OpCode.FLOAT_FLOAT2FLOAT: self._convert_float2float,
         }
 
         manager.tyenv = None
@@ -202,14 +204,14 @@ class PCodeIRSBConverter(Converter):
             out = BinaryOp(self._manager.next_atom(), op, [in1, in2], signed, ins_addr=self._manager.ins_addr)
 
         # Zero-extend 1-bit results
-        zextend_ops = [
+        zextend_ops = {
             OpCode.INT_EQUAL,
             OpCode.INT_NOTEQUAL,
             OpCode.INT_SLESS,
             OpCode.INT_SLESSEQUAL,
             OpCode.INT_LESS,
             OpCode.INT_LESSEQUAL,
-        ]
+        }
         if opcode in zextend_ops:
             out = Convert(self._manager.next_atom(), 1, self._current_op.output.size * 8, False, out)
 
@@ -423,7 +425,16 @@ class PCodeIRSBConverter(Converter):
         dest_addr = self._current_op.inputs[0].get_addr()
         if dest_addr.is_constant:
             raise NotImplementedError("p-code relative branch not supported yet")
+
+        # special handling: if the previous statement is a ConditionalJump with a None destination address, then we
+        # back-patch the previous statement
         dest = Const(self._manager.next_atom(), None, dest_addr.offset, self._manager.arch.bits)
+        if self._statements:
+            last_stmt = self._statements[-1]
+            if isinstance(last_stmt, ConditionalJump) and last_stmt.false_target is None:
+                last_stmt.false_target = dest
+                return
+
         stmt = Jump(self._statement_idx, dest, ins_addr=self._manager.ins_addr)
         self._statements.append(stmt)
 
@@ -439,10 +450,7 @@ class PCodeIRSBConverter(Converter):
         cval = Const(self._manager.next_atom(), None, 0, cond.bits)
         condition = BinaryOp(self._manager.next_atom(), "CmpNE", [cond, cval], signed=False)
         dest = Const(self._manager.next_atom(), None, dest_addr, self._manager.arch.bits)
-        fallthru = Const(
-            self._manager.next_atom(), None, self._manager.ins_addr + self._current_ins.length, self._manager.arch.bits
-        )
-        stmt = ConditionalJump(self._statement_idx, condition, dest, fallthru, ins_addr=self._manager.ins_addr)
+        stmt = ConditionalJump(self._statement_idx, condition, dest, None, ins_addr=self._manager.ins_addr)
         self._statements.append(stmt)
 
     def _convert_ret(self) -> None:
@@ -503,6 +511,40 @@ class PCodeIRSBConverter(Converter):
             vex_block_addr=self._manager.block_addr,
             vex_stmt_idx=DEFAULT_STATEMENT,
         )
+        self._statements.append(stmt)
+
+    def _convert_int2float(self) -> None:
+        """
+        Convert INT2FLOAT operation.
+        """
+        out = self._current_op.output
+        inp = Convert(
+            self._manager.next_atom(),
+            self._current_op.inputs[0].size * 8,
+            out.size * 8,
+            True,
+            self._get_value(self._current_op.inputs[0]),
+            from_type=Convert.TYPE_INT,
+            to_type=Convert.TYPE_FP,
+        )
+        stmt = self._set_value(out, inp)
+        self._statements.append(stmt)
+
+    def _convert_float2float(self) -> None:
+        """
+        Convert FLOAT2FLOAT operation.
+        """
+        out = self._current_op.output
+        inp = Convert(
+            self._manager.next_atom(),
+            self._current_op.inputs[0].size * 8,
+            out.size * 8,
+            True,
+            self._get_value(self._current_op.inputs[0]),
+            from_type=Convert.TYPE_FP,
+            to_type=Convert.TYPE_FP,
+        )
+        stmt = self._set_value(out, inp)
         self._statements.append(stmt)
 
     def _convert_callother(self) -> None:

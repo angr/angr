@@ -184,7 +184,7 @@ class VEXExprConverter(Converter):
             operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
 
         signed = False
-        if op_name in {"CmpLE", "CmpLT", "CmpGE", "CmpGT", "Div", "DivMod", "Mul", "Mull"}:
+        if op_name in {"CmpLE", "CmpLT", "CmpGE", "CmpGT", "Div", "DivMod", "Mod", "Mul", "Mull"}:
             if op.is_signed:
                 signed = True
         if op_name == "Cmp" and op._float:

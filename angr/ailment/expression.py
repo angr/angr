@@ -467,6 +467,7 @@ class BinaryOp(Op):
         "Div": "/",
         "DivF": "/",
         "DivMod": "/m",
+        "Mod": "%",
         "Xor": "^",
         "And": "&",
         "LogicalAnd": "&&",
@@ -522,6 +523,12 @@ class BinaryOp(Op):
             )
             + 1
         )
+
+        # special handling of initialization with signed op names
+        if op and op.endswith("s"):
+            op = op[:-1]
+            signed = True
+
         super().__init__(idx, depth, op, **kwargs)
 
         assert len(operands) == 2
