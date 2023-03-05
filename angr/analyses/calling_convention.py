@@ -23,6 +23,7 @@ from ..sim_type import (
 )
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
+from ..knowledge_plugins.key_definitions.tag import ReturnValueTag
 from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
 from ..knowledge_plugins.variables.variable_access import VariableAccessSort
@@ -504,7 +505,11 @@ class CallingConventionAnalysis(Analysis):
         self, default_cc: SimCC, return_site_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
         all_defs: Set["Definition"] = {
-            def_ for def_ in rda.all_uses._uses_by_definition.keys() if def_.codeloc.block_addr == return_site_addr
+            def_
+            for def_ in rda.all_uses._uses_by_definition.keys()
+            if (
+                def_.codeloc.block_addr == return_site_addr or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
+            )
         }
         all_uses: "Uses" = rda.all_uses
 
@@ -520,6 +525,7 @@ class CallingConventionAnalysis(Analysis):
                 )
             except StopIteration:
                 return_def = None
+                fact.return_value_used = False
 
             if return_def is not None:
                 # is it used?
