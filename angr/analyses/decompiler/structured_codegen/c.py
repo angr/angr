@@ -2499,6 +2499,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # step 1 is split expr into a sum of terms, each of which is a product of a constant stride and an index
         # also identify the "kernel", the root of the expression
         constant, terms = o_constant, list(o_terms)
+        if constant < 0:
+            constant = -constant  # TODO: This may not be correct. investigate later
+
         i = 0
         kernel = None
         while i < len(terms):
