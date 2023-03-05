@@ -25,6 +25,7 @@ from .ailblock_walker import AILBlockWalkerBase
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
+    from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from .structuring.structurer_nodes import SequenceNode
 
 l = logging.getLogger(name=__name__)
