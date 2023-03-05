@@ -503,9 +503,9 @@ class CallingConventionAnalysis(Analysis):
     def _analyze_callsite_return_value_uses(
         self, default_cc: SimCC, return_site_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
-        all_defs: Set["Definition"] = set(
+        all_defs: Set["Definition"] = {
             def_ for def_ in rda.all_uses._uses_by_definition.keys() if def_.codeloc.block_addr == return_site_addr
-        )
+        }
         all_uses: "Uses" = rda.all_uses
 
         # determine if the return value is used

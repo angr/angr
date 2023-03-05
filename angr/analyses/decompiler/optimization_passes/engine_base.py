@@ -217,7 +217,15 @@ class SimplifierAILEngine(
             mask = (2**expr.to_bits) - 1
             value &= mask
             return Expr.Const(expr.idx, operand_expr.variable, value, expr.to_bits, **expr.tags)
-        elif type(operand_expr) is Expr.BinaryOp and operand_expr.op in {"Mul", "Shl", "Div", "DivMod", "Mod", "Add", "Sub"}:
+        elif type(operand_expr) is Expr.BinaryOp and operand_expr.op in {
+            "Mul",
+            "Shl",
+            "Div",
+            "DivMod",
+            "Mod",
+            "Add",
+            "Sub",
+        }:
             if isinstance(operand_expr.operands[1], Expr.Const):
                 if (
                     isinstance(operand_expr.operands[0], Expr.Register)

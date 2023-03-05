@@ -440,7 +440,6 @@ class Decompiler(Analysis):
         return codegen
 
     def find_data_references_and_update_memory_data(self, seq_node: "SequenceNode"):
-
         const_values: Set[int] = set()
 
         def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):

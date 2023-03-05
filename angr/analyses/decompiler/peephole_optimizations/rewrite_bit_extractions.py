@@ -16,7 +16,6 @@ class RewriteBitExtractions(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp):
-
         if expr.op == "And" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
             raw_expr = expr.operands[0]
             bit_offset = 0
