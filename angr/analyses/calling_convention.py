@@ -182,17 +182,19 @@ class CallingConventionAnalysis(Analysis):
                         include_callsite_preds=include_callsite_preds,
                     )
                     cc = DefaultCC[self.project.arch.name](self.project.arch)
-                    if self.prototype is None:
-                        proto = SimTypeFunction([], None)
-                    else:
-                        proto = self.prototype
-                    prototype = self._adjust_prototype(
-                        proto,
-                        callsite_facts,
-                        update_arguments=UpdateArgumentsOption.AlwaysUpdate,
-                    )
-                    if prototype.args:
-                        break
+                    prototype = None
+                    if callsite_facts:
+                        if self.prototype is None:
+                            proto = SimTypeFunction([], None)
+                        else:
+                            proto = self.prototype
+                        prototype = self._adjust_prototype(
+                            proto,
+                            callsite_facts,
+                            update_arguments=UpdateArgumentsOption.AlwaysUpdate,
+                        )
+                        if prototype.args:
+                            break
                 self.cc = cc
                 self.prototype = prototype
             return
