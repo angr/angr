@@ -2057,6 +2057,24 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
         assert "goto " not in d.codegen.text
 
+    @for_all_structuring_algos
+    def test_decompiling_functions_with_unknown_simprocedures(self, decompiler_options=None):
+        # angr does not have function signatures for cgc_allocate (and other cgc_*) functions, which means we will never
+        # be able to infer the function prototype for these functions. We must not incorrectly assume these functions
+        # do not take any arguments.
+        bin_path = os.path.join(test_location, "i386", "cgc_HIGHCOO.elf")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
+        f = proj.kb.functions["cgc_recv_haiku"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        cgc_allocate_call = re.search(r"cgc_allocate\(([^()]+)\)", d.codegen.text)
+        assert cgc_allocate_call is not None, "Expect a call to cgc_allocate(), found None"
+        comma_count = cgc_allocate_call.group(1).count(",")
+        assert comma_count == 1, f"Expect cgc_allocate() to have two arguments, found {comma_count + 1}"
+
     @structuring_algo("phoenix")
     def test_reverting_switch_lowering_cksum_digest_print_filename(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cksum-digest.o")
