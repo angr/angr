@@ -1772,6 +1772,7 @@ class Reassembler(Analysis):
         self._inserted_asm_before_label = defaultdict(list)
         self._inserted_asm_after_label = defaultdict(list)
         self._removed_instructions = set()
+        self._extra_memory_regions = [(0x4347C000, 0x4347C000 + 0x1000)]
 
         self._initialize()
 
@@ -2444,7 +2445,7 @@ class Reassembler(Analysis):
             normalize=True,
             resolve_indirect_jumps=True,
             data_references=True,
-            extra_memory_regions=[(0x4347C000, 0x4347C000 + 0x1000)],
+            extra_memory_regions=self._extra_memory_regions,
             data_type_guessing_handlers=[
                 self._sequence_handler,
                 self._cgc_extended_application_handler,
@@ -2704,12 +2705,11 @@ class Reassembler(Analysis):
             return True
         return False
 
-    @staticmethod
-    def _is_pointer(cfg, ptr):
+    def _is_pointer(self, cfg, ptr):
         if (
             cfg.project.loader.find_section_containing(ptr) is not None
             or cfg.project.loader.find_segment_containing(ptr) is not None
-            or (cfg._extra_memory_regions and next(((a < ptr < b) for (a, b) in cfg._extra_memory_regions), None))
+            or (self._extra_memory_regions and next(((a < ptr < b) for (a, b) in self._extra_memory_regions), None))
         ):
             return True
         return False
