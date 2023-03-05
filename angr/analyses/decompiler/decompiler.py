@@ -6,6 +6,7 @@ from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any,
 from cle import SymbolType
 import ailment
 
+from angr.analyses.cfg import CFGFast
 from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
 from ...utils import timethis
@@ -19,9 +20,13 @@ from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
 from .utils import remove_labels
+from .sequence_walker import SequenceWalker
+from .ailblock_walker import AILBlockWalkerBase
 
 if TYPE_CHECKING:
-    from .peephole_optimizations.base import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
+    from angr.knowledge_plugins.cfg.cfg_model import CFGModel
+    from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
+    from .structuring.structurer_nodes import SequenceNode
 
 l = logging.getLogger(name=__name__)
 
@@ -41,7 +46,7 @@ class Decompiler(Analysis):
     def __init__(
         self,
         func,
-        cfg=None,
+        cfg: Optional[Union["CFGFast", "CFGModel"]] = None,
         options=None,
         optimization_passes=None,
         sp_tracker_track_memory=True,
@@ -55,9 +60,10 @@ class Decompiler(Analysis):
         binop_operators=None,
         decompile=True,
         regen_clinic=True,
+        update_memory_data: bool = True,
     ):
         self.func = func
-        self._cfg = cfg
+        self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
         self._options = options
         if optimization_passes is None:
             self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
@@ -74,6 +80,7 @@ class Decompiler(Analysis):
         self._ite_exprs = ite_exprs
         self._binop_operators = binop_operators
         self._regen_clinic = regen_clinic
+        self._update_memory_data = update_memory_data
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
@@ -223,6 +230,10 @@ class Decompiler(Analysis):
             seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager
         )
         self._update_progress(85.0, text="Generating code")
+
+        # update memory data
+        if self._cfg is not None and self._update_memory_data:
+            self.find_data_references_and_update_memory_data(seq_node)
 
         codegen = self.project.analyses.StructuredCodeGenerator(
             self.func,
@@ -428,6 +439,41 @@ class Decompiler(Analysis):
         codegen.reload_variable_types()
 
         return codegen
+
+    def find_data_references_and_update_memory_data(self, seq_node: "SequenceNode"):
+        const_values: Set[int] = set()
+
+        def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
+            const_values.add(expr.value)
+
+        def _handle_block(block: ailment.Block, **kwargs):  # pylint:disable=unused-argument
+            block_walker = AILBlockWalkerBase(
+                expr_handlers={
+                    ailment.Expr.Const: _handle_Const,
+                }
+            )
+            block_walker.walk(block)
+
+        seq_walker = SequenceWalker(
+            handlers={
+                ailment.Block: _handle_block,
+            },
+            update_seqnode_in_place=False,
+        )
+        seq_walker.walk(seq_node)
+
+        added_memory_data_addrs = []
+        for data_addr in const_values:
+            if data_addr in self._cfg.memory_data:
+                continue
+            if not self.project.loader.find_loadable_containing(data_addr):
+                continue
+            if self._cfg.add_memory_data(data_addr, None):
+                added_memory_data_addrs.append(data_addr)
+
+        self._cfg.tidy_data_references(
+            memory_data_addrs=added_memory_data_addrs,
+        )
 
     @staticmethod
     def options_to_params(options: List[Tuple[DecompilationOption, Any]]) -> Dict[str, Any]:

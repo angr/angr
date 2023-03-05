@@ -1437,13 +1437,7 @@ class CUnaryOp(CExpression):
         if operand.type is not None:
             var_type = unpack_typeref(operand.type)
             if op == "Reference":
-                if isinstance(var_type, SimTypePointer) and isinstance(
-                    var_type.pts_to, (SimTypeArray, SimTypeFixedSizeArray)
-                ):
-                    # special case: &array
-                    self._type = var_type
-                else:
-                    self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
+                self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
             elif op == "Dereference":
                 if isinstance(var_type, SimTypePointer):
                     self._type = unpack_typeref(var_type.pts_to)
@@ -1488,7 +1482,7 @@ class CUnaryOp(CExpression):
 
     def _c_repr_chunks_neg(self):
         paren = CClosingObject("(")
-        yield "-", self
+        yield "~", self
         yield "(", paren
         yield from CExpression._try_c_repr_chunks(self.operand)
         yield ")", paren
@@ -1619,6 +1613,7 @@ class CBinaryOp(CExpression):
             "Mull": self._c_repr_chunks_mull,
             "Div": self._c_repr_chunks_div,
             "DivMod": self._c_repr_chunks_divmod,
+            "Mod": self._c_repr_chunks_mod,
             "And": self._c_repr_chunks_and,
             "Xor": self._c_repr_chunks_xor,
             "Or": self._c_repr_chunks_or,
@@ -1688,6 +1683,9 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" / ")
 
     def _c_repr_chunks_divmod(self):
+        yield from self._c_repr_chunks(" /m ")
+
+    def _c_repr_chunks_mod(self):
         yield from self._c_repr_chunks(" % ")
 
     def _c_repr_chunks_and(self):
@@ -2501,6 +2499,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # step 1 is split expr into a sum of terms, each of which is a product of a constant stride and an index
         # also identify the "kernel", the root of the expression
         constant, terms = o_constant, list(o_terms)
+        if constant < 0:
+            constant = -constant  # TODO: This may not be correct. investigate later
+
         i = 0
         kernel = None
         while i < len(terms):
@@ -2831,7 +2832,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 args.append(new_arg)
 
         ret_expr = None
-        if stmt.ret_expr is not None:
+        if not is_expr and stmt.ret_expr is not None:
             ret_expr = self._handle(stmt.ret_expr)
 
         result = CFunctionCall(

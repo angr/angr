@@ -91,7 +91,9 @@ _ail2claripy_op_mapping = {
     "Sub": lambda expr, conv, _: conv(expr.operands[0]) - conv(expr.operands[1]),
     "Mul": lambda expr, conv, _: conv(expr.operands[0]) * conv(expr.operands[1]),
     "Div": lambda expr, conv, _: conv(expr.operands[0]) / conv(expr.operands[1]),
+    "Mod": lambda expr, conv, _: conv(expr.operands[0]) % conv(expr.operands[1]),
     "Not": lambda expr, conv, _: claripy.Not(conv(expr.operand)),
+    "Neg": lambda expr, conv, _: ~conv(expr.operand),
     "Xor": lambda expr, conv, _: conv(expr.operands[0]) ^ conv(expr.operands[1]),
     "And": lambda expr, conv, _: conv(expr.operands[0]) & conv(expr.operands[1]),
     "Or": lambda expr, conv, _: conv(expr.operands[0]) | conv(expr.operands[1]),
@@ -640,7 +642,7 @@ class ConditionProcessor:
 
         _mapping = {
             "Not": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
-            "Neg": lambda cond_, tags: _unary_op_reduce("Neg", cond_.args[0], tags),
+            "__invert__": lambda cond_, tags: _unary_op_reduce("Neg", cond_.args[0], tags),
             "And": lambda cond_, tags: _binary_op_reduce("LogicalAnd", cond_.args, tags),
             "Or": lambda cond_, tags: _binary_op_reduce("LogicalOr", cond_.args, tags),
             "__le__": lambda cond_, tags: _binary_op_reduce("CmpLE", cond_.args, tags, signed=True),
@@ -666,6 +668,7 @@ class ConditionProcessor:
             "__lshift__": lambda cond_, tags: _binary_op_reduce("Shl", cond_.args, tags),
             "__rshift__": lambda cond_, tags: _binary_op_reduce("Sar", cond_.args, tags),
             "__floordiv__": lambda cond_, tags: _binary_op_reduce("Div", cond_.args, tags),
+            "__mod__": lambda cond_, tags: _binary_op_reduce("Mod", cond_.args, tags),
             "LShR": lambda cond_, tags: _binary_op_reduce("Shr", cond_.args, tags),
             "BVV": lambda cond_, tags: ailment.Expr.Const(None, None, cond_.args[0], cond_.size(), **tags),
             "BoolV": lambda cond_, tags: ailment.Expr.Const(None, None, True, 1, **tags)
@@ -721,7 +724,7 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Const):
-            if condition.value in {True, False}:
+            if condition.value is True or condition.value is False:
                 var = claripy.BoolV(condition.value)
             else:
                 var = claripy.BVV(condition.value, condition.bits)

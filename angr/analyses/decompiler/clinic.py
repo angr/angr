@@ -440,6 +440,24 @@ class Clinic(Analysis):
 
                 if cc.cc is not None and cc.prototype is not None:
                     self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype, manual=False)
+                    if func_graph is not None and cc.prototype.returnty is not None:
+                        # patch the AIL call statement if we can find one
+                        callsite_ail_block: ailment.Block = next(
+                            iter(bb for bb in func_graph if bb.addr == callsite.addr), None
+                        )
+                        if callsite_ail_block is not None and callsite_ail_block.statements:
+                            last_stmt = callsite_ail_block.statements[-1]
+                            if isinstance(last_stmt, ailment.Stmt.Call) and last_stmt.ret_expr is None:
+                                if isinstance(cc.cc.RETURN_VAL, SimRegArg):
+                                    reg_offset, reg_size = self.project.arch.registers[cc.cc.RETURN_VAL.reg_name]
+                                    last_stmt.ret_expr = ailment.Expr.Register(
+                                        None,
+                                        None,
+                                        reg_offset,
+                                        reg_size * 8,
+                                        ins_addr=callsite_ins_addr,
+                                        reg_name=cc.cc.RETURN_VAL.reg_name,
+                                    )
 
         # finally, recovery the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
@@ -1171,7 +1189,7 @@ class Clinic(Analysis):
                 expr.variable = var
                 expr.variable_offset = offset
             else:
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
         elif type(expr) is ailment.Expr.Convert:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)

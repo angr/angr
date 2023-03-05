@@ -21,7 +21,7 @@ class ReachingDefinitionsModel:
 
     def __repr__(self):
         return "<RDModel{} with {} observations>".format(
-            "[func %#x]" if self.func_addr is not None else "",
+            f"[func {self.func_addr:#x}]" if self.func_addr is not None else "",
             len(self.observed_results),
         )
 

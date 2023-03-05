@@ -9,7 +9,7 @@ from pyvex.stmt import Put
 from pyvex.expr import RdTmp
 from archinfo.arch_arm import is_arm_arch, ArchARMHF
 
-from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, DefaultCC
+from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc, unify_arch_name
 from ..sim_type import (
     SimTypeInt,
     SimTypeFunction,
@@ -23,6 +23,7 @@ from ..sim_type import (
 )
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
+from ..knowledge_plugins.key_definitions.tag import ReturnValueTag
 from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
 from ..knowledge_plugins.variables.variable_access import VariableAccessSort
@@ -181,7 +182,11 @@ class CallingConventionAnalysis(Analysis):
                         max_analyzing_callsites=1,
                         include_callsite_preds=include_callsite_preds,
                     )
-                    cc = DefaultCC[self.project.arch.name](self.project.arch)
+                    cc_cls = default_cc(self.project.arch.name)
+                    if cc_cls is not None:
+                        cc = cc_cls(self.project.arch)
+                    else:
+                        cc = None
                     prototype = None
                     if callsite_facts:
                         if self.prototype is None:
@@ -230,7 +235,11 @@ class CallingConventionAnalysis(Analysis):
                     include_preds=include_callsite_preds,
                 )
             ]
-            cc = DefaultCC[self.project.arch.name](self.project.arch)
+            cc_cls = default_cc(self.project.arch.name)
+            if cc_cls is not None:
+                cc = cc_cls(self.project.arch)
+            else:
+                cc = None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -286,7 +295,11 @@ class CallingConventionAnalysis(Analysis):
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
             callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
-            cc = DefaultCC[self.project.arch.name](self.project.arch)
+            cc_cls = default_cc(self.project.arch.name)
+            if cc_cls is not None:
+                cc = cc_cls(self.project.arch)
+            else:
+                cc = None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -348,14 +361,24 @@ class CallingConventionAnalysis(Analysis):
         func = self.kb.functions[caller_addr]
         subgraph = self._generate_callsite_subgraph(func, caller_block_addr, include_preds=include_preds)
 
+        observation_points: List = [("insn", call_insn_addr, OP_BEFORE), ("node", caller_block_addr, OP_AFTER)]
+
+        # find the return site
+        caller_block = next(iter(bb for bb in subgraph if bb.addr == caller_block_addr))
+        return_site_block = next(iter(subgraph.successors(caller_block)), None)
+        if return_site_block is not None:
+            observation_points.append(("node", return_site_block.addr, OP_AFTER))
+
         rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
             func,
             func_graph=subgraph,
-            observation_points=[("insn", call_insn_addr, OP_BEFORE), ("node", caller_block_addr, OP_AFTER)],
+            observation_points=observation_points,
             function_handler=DummyFunctionHandler(),
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        fact = self._collect_callsite_fact(caller_block_addr, call_insn_addr, rda.model)
+        fact = self._collect_callsite_fact(
+            caller_block_addr, call_insn_addr, None if return_site_block is None else return_site_block.addr, rda.model
+        )
         return fact
 
     def _extract_and_analyze_callsites(
@@ -463,29 +486,35 @@ class CallingConventionAnalysis(Analysis):
         self,
         caller_block_addr: int,
         call_insn_addr: int,
+        return_site_addr: int,
         rda: ReachingDefinitionsModel,
     ) -> CallSiteFact:
         fact = CallSiteFact(
             True,  # by default we treat all return values as used
         )
 
-        default_cc_cls = DefaultCC.get(self.project.arch.name, None)
+        default_cc_cls = default_cc(self.project.arch.name)
         if default_cc_cls is not None:
-            default_cc: SimCC = default_cc_cls(self.project.arch)
-            self._analyze_callsite_return_value_uses(default_cc, caller_block_addr, rda, fact)
-            self._analyze_callsite_arguments(default_cc, caller_block_addr, call_insn_addr, rda, fact)
+            cc: SimCC = default_cc_cls(self.project.arch)
+            self._analyze_callsite_return_value_uses(cc, return_site_addr, rda, fact)
+            self._analyze_callsite_arguments(cc, caller_block_addr, call_insn_addr, rda, fact)
 
         return fact
 
     def _analyze_callsite_return_value_uses(
-        self, default_cc: SimCC, caller_block_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
+        self, cc: SimCC, return_site_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
-        state = rda.observed_results[("node", caller_block_addr, OP_AFTER)]
-        all_defs: Set["Definition"] = get_all_definitions(state.register_definitions)
+        all_defs: Set["Definition"] = {
+            def_
+            for def_ in rda.all_uses._uses_by_definition.keys()
+            if (
+                def_.codeloc.block_addr == return_site_addr or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
+            )
+        }
         all_uses: "Uses" = rda.all_uses
 
         # determine if the return value is used
-        return_val = default_cc.RETURN_VAL
+        return_val = cc.RETURN_VAL
         if return_val is not None and isinstance(return_val, SimRegArg):
             return_reg_offset, _ = self.project.arch.registers[return_val.reg_name]
 
@@ -496,6 +525,7 @@ class CallingConventionAnalysis(Analysis):
                 )
             except StopIteration:
                 return_def = None
+                fact.return_value_used = False
 
             if return_def is not None:
                 # is it used?
@@ -508,7 +538,7 @@ class CallingConventionAnalysis(Analysis):
 
     def _analyze_callsite_arguments(
         self,
-        default_cc: SimCC,
+        cc: SimCC,
         caller_block_addr: int,
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
@@ -533,9 +563,9 @@ class CallingConventionAnalysis(Analysis):
             if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)
         }
 
-        arg_session = default_cc.arg_session(SimTypeInt().with_arch(self.project.arch))
+        arg_session = cc.arg_session(SimTypeInt().with_arch(self.project.arch))
         for _ in range(30):  # at most 30 arguments
-            arg_loc = default_cc.next_arg(arg_session, SimTypeInt().with_arch(self.project.arch))
+            arg_loc = cc.next_arg(arg_session, SimTypeInt().with_arch(self.project.arch))
             if isinstance(arg_loc, SimRegArg):
                 reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
                 # is it initialized?
@@ -563,8 +593,11 @@ class CallingConventionAnalysis(Analysis):
             return None
 
         # is the return value used anywhere?
-        if facts and all(fact.return_value_used is False for fact in facts):
-            proto.returnty = None
+        if facts:
+            if all(fact.return_value_used is False for fact in facts):
+                proto.returnty = None
+            else:
+                proto.returnty = SimTypeInt().with_arch(self.project.arch)
 
         if update_arguments == UpdateArgumentsOption.AlwaysUpdate or (
             update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and not proto.args
@@ -662,11 +695,12 @@ class CallingConventionAnalysis(Analysis):
         """
 
         arch = self.project.arch
+        arch_name = unify_arch_name(self.project.arch.name)
 
-        if arch.name == "AARCH64":
+        if arch_name == "AARCH64":
             return 16 <= variable.reg < 80  # x0-x7
 
-        elif arch.name == "AMD64":
+        elif arch_name == "AMD64":
             return 24 <= variable.reg < 40 or 64 <= variable.reg < 104  # rcx, rdx  # rsi, rdi, r8, r9, r10
             # 224 <= variable.reg < 480)  # xmm0-xmm7
 
@@ -676,16 +710,16 @@ class CallingConventionAnalysis(Analysis):
             else:
                 return 8 <= variable.reg < 24  # r0-r3
 
-        elif arch.name == "MIPS32":
+        elif arch_name == "MIPS32":
             return 24 <= variable.reg < 40  # a0-a3
 
-        elif arch.name == "MIPS64":
+        elif arch_name == "MIPS64":
             return 48 <= variable.reg < 80 or 112 <= variable.reg < 208  # a0-a3 or t4-t7
 
-        elif arch.name == "PPC32":
+        elif arch_name == "PPC32":
             return 28 <= variable.reg < 60  # r3-r10
 
-        elif arch.name == "X86":
+        elif arch_name == "X86":
             return 8 <= variable.reg < 24 or 160 <= variable.reg < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
 
         else:

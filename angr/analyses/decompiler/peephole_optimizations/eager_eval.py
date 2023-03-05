@@ -1,6 +1,6 @@
 from math import gcd
 
-from ailment.expression import BinaryOp, Const
+from ailment.expression import BinaryOp, UnaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
 
@@ -13,15 +13,26 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Eager expression evaluation"
-    expr_classes = (BinaryOp,)
+    expr_classes = (BinaryOp, UnaryOp)
 
-    def optimize(self, expr: BinaryOp):
-        if expr.op == "Add" and isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
-            mask = (2 << expr.bits) - 1
-            new_expr = Const(
-                expr.idx, None, (expr.operands[0].value + expr.operands[1].value) & mask, expr.bits, **expr.tags
-            )
-            return new_expr
+    def optimize(self, expr):
+        if isinstance(expr, BinaryOp):
+            return self._optimize_binaryop(expr)
+        elif isinstance(expr, UnaryOp):
+            return self._optimize_unaryop(expr)
+        return None
+
+    @staticmethod
+    def _optimize_binaryop(expr: BinaryOp):
+        if expr.op == "Add":
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                mask = (2 << expr.bits) - 1
+                new_expr = Const(
+                    expr.idx, None, (expr.operands[0].value + expr.operands[1].value) & mask, expr.bits, **expr.tags
+                )
+                return new_expr
+            if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
+                return expr.operands[0]
         elif expr.op == "Sub" and isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
             mask = (2 << expr.bits) - 1
             new_expr = Const(
@@ -29,9 +40,14 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             )
             return new_expr
 
-        elif expr.op == "And" and isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
-            new_expr = Const(expr.idx, None, (expr.operands[0].value & expr.operands[1].value), expr.bits, **expr.tags)
-            return new_expr
+        elif expr.op == "And":
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                new_expr = Const(
+                    expr.idx, None, (expr.operands[0].value & expr.operands[1].value), expr.bits, **expr.tags
+                )
+                return new_expr
+            if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
+                return Const(expr.idx, None, 0, expr.bits, **expr.tags)
 
         elif expr.op == "Mul" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
             return expr.operands[0]
@@ -100,5 +116,21 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 mask = (2**expr0.bits) - 1
                 new_expr = Const(expr0.idx, None, (const_a << expr1.value) & mask, expr0.bits, **expr0.tags)
                 return new_expr
+
+        elif expr.op == "Or":
+            if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
+                return expr.operands[1]
+            if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
+                return expr.operands[0]
+
+        return None
+
+    @staticmethod
+    def _optimize_unaryop(expr: UnaryOp):
+        if expr.op == "Neg" and isinstance(expr.operand, Const):
+            const_a = expr.operand.value
+            mask = (2**expr.bits) - 1
+            new_expr = Const(expr.idx, None, (~const_a) & mask, expr.bits, **expr.tags)
+            return new_expr
 
         return None

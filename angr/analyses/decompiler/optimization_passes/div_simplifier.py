@@ -30,7 +30,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                 and isinstance(operand_expr.operands[1], Expr.Const)
                 and isinstance(operand_expr.operands[0], Expr.BinaryOp)
             ):
-                if operand_expr.operands[0].op in {"Shr", "DivMod"} and isinstance(
+                if operand_expr.operands[0].op in {"Shr", "Mod"} and isinstance(
                     operand_expr.operands[0].operands[1], Expr.Const
                 ):
                     if operand_expr.operands[0].op == "Shr":
@@ -56,7 +56,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         if (
             isinstance(operand_1, Expr.Const)
             and isinstance(operand_0, Expr.BinaryOp)
-            and operand_0.op == "DivMod"
+            and operand_0.op == "Mod"
             and isinstance(operand_0.operands[1], Expr.Const)
         ):
             divisor = operand_0.operands[1].value * pow(2, operand_1.value)
@@ -65,7 +65,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             isinstance(operand_1, Expr.Const)
             and isinstance(operand_0, Expr.Convert)
             and isinstance(operand_0.operand, Expr.BinaryOp)
-            and operand_0.operand.op == "DivMod"
+            and operand_0.operand.op == "Mod"
             and isinstance(operand_0.operand.operands[1], Expr.Const)
         ):
             divisor = operand_0.operand.operands[1].value * pow(2, operand_1.value)
@@ -84,7 +84,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                     X = operand_0.operand.operands[0]
                 elif isinstance(operand_0.operand.operands[0], Expr.BinaryOp) and operand_0.operand.operands[0].op in {
                     "Shr",
-                    "DivMod",
+                    "Mod",
                 }:
                     C = operand_0.operand.operands[1].value
                     Z = operand_1.value
@@ -168,7 +168,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             elif (
                 isinstance(operand_0.operands[0], Expr.BinaryOp)
                 and isinstance(operand_0.operands[0].operands[1], Expr.Const)
-                and operand_0.operands[0].op in {"Shr", "DivMod"}
+                and operand_0.operands[0].op in {"Shr", "Mod"}
             ):
                 X = operand_0.operands[0].operands[0]
                 V = 0
@@ -179,7 +179,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                     ndigits = 5
                 C = operand_0.operands[1].value
                 Y = operand_0.operands[0].operands[1].value
-                if operand_0.operands[0].op == "DivMod":
+                if operand_0.operands[0].op == "Mod":
                     Y = int(math.log2(operand_0.operands[0].operands[1].value))
                 Z = operand_1.value
                 divisor = self._check_divisor(pow(2, Y + Z + V), C, ndigits)
@@ -218,9 +218,9 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             isinstance(operand_1, Expr.Const)
             and isinstance(operand_0, Expr.BinaryOp)
             and isinstance(operand_0.operands[1], Expr.Const)
-            and operand_0.op in {"DivMod", "Shr"}
+            and operand_0.op in {"Mod", "Shr"}
         ):
-            if operand_0.op == "DivMod":
+            if operand_0.op == "Mod":
                 Y = int(math.log2(operand_0.operands[1].value))
             else:
                 Y = operand_0.operands[1].value
@@ -240,9 +240,9 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             and isinstance(operand_0, Expr.Convert)
             and isinstance(operand_0.operand, Expr.BinaryOp)
             and isinstance(operand_0.operand.operands[1], Expr.Const)
-            and operand_0.operand.op in {"DivMod", "Shr"}
+            and operand_0.operand.op in {"Mod", "Shr"}
         ):
-            if operand_0.operand.op == "DivMod":
+            if operand_0.operand.op == "Mod":
                 Y = int(math.log2(operand_0.operand.operands[1].value))
             else:
                 Y = operand_0.operand.operands[1].value
@@ -263,7 +263,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         if (
             isinstance(operand_1, Expr.Const)
             and isinstance(operand_0, Expr.BinaryOp)
-            and operand_0.op in {"Div", "DivMod"}
+            and operand_0.op in {"Div", "Mod"}
             and isinstance(operand_0.operands[1], Expr.Const)
         ):
             new_const_value = operand_1.value * operand_0.operands[1].value

@@ -396,15 +396,15 @@ class SimEngineVRAIL(
         to_size = r1.bits
 
         if expr.floating_point:
-            remainder = self.state.top(to_size)
+            quotient = self.state.top(to_size)
         else:
             if expr.signed:
-                remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+                quotient = claripy.SDiv(r0.data, claripy.SignExt(from_size - to_size, r1.data))
             else:
-                remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
+                quotient = r0.data / claripy.ZeroExt(from_size - to_size, r1.data)
 
         return RichR(
-            remainder,
+            quotient,
             # | typevar=r0.typevar,  # FIXME: Handle typevars for Div
         )
 
@@ -436,6 +436,27 @@ class SimEngineVRAIL(
         return RichR(
             r,
             # | typevar=r0.typevar,  # FIXME: Handle typevars for DivMod
+        )
+
+    def _ail_handle_Mod(self, expr):
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+        from_size = expr.bits
+        to_size = r1.bits
+
+        if expr.floating_point:
+            remainder = self.state.top(to_size)
+        else:
+            if expr.signed:
+                remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+            else:
+                remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
+
+        return RichR(
+            remainder,
+            # | typevar=r0.typevar,  # FIXME: Handle typevars for Mod
         )
 
     def _ail_handle_Xor(self, expr):

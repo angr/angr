@@ -41,7 +41,7 @@ class ASubADivConstMulConst(PeepholeOptimizationExprBase):
 
                 if a0.likes(a1) and mul_const.value == div_const.value:
                     operands = [a0, div_const]
-                    mod = BinaryOp(expr.idx, "DivMod", operands, False, bits=a0.bits, **expr.tags)
+                    mod = BinaryOp(expr.idx, "Mod", operands, False, bits=a0.bits, **expr.tags)
                     if conv_expr is not None:
                         mod = Convert(
                             conv_expr.idx,
