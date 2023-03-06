@@ -2174,8 +2174,8 @@ def register_default_cc(arch: str, cc: Type[SimCC]):
 
 
 ARCH_NAME_ALIASES = {
-    "X86": [],
-    "AMD64": ["x86-64", "x86_64"],
+    "X86": ["x8632"],
+    "AMD64": ["x86-64", "x86_64", "x8664"],
     "ARMEL": [],
     "ARMHF": [],
     "ARMCortexM": [],
