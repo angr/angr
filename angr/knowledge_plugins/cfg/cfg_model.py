@@ -567,7 +567,7 @@ class CFGModel(Serializable):
         """
 
         # Make sure all memory data entries cover all data sections
-        keys = memory_data_addrs if memory_data_addrs is not None else sorted(self.memory_data.keys())
+        keys = sorted(memory_data_addrs) if memory_data_addrs is not None else sorted(self.memory_data.keys())
 
         for i, data_addr in enumerate(keys):
             data = self.memory_data[data_addr]
