@@ -3286,7 +3286,10 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         obj = super().handle_CTypeCast(obj)
         inner = cls.collapse(obj.dst_type, obj.expr)
         if inner is not obj.expr:
+            obj.src_type = inner.type
             obj.expr = inner
+        if obj.src_type == obj.dst_type or qualifies_for_implicit_cast(obj.src_type, obj.dst_type):
+            return obj.expr
         return obj
 
 
