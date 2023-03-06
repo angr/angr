@@ -1285,6 +1285,13 @@ class TestDecompiler(unittest.TestCase):
         line_mod_7 = [line for line in lines if re.search(r"v\d+ % 7", line)]
         assert len(line_mod_7) == 2
 
+        # make sure all "connection_infos" are followed by a square bracket
+        # we don't allow bizarre expressions like (&connection_infos)[1234]...
+        assert "connection_infos" in d.codegen.text
+        for line in lines:
+            for m in re.finditer(r"connection_infos", line):
+                assert line[m.end()] == "["
+
     @for_all_structuring_algos
     def test_decompiling_fmt_get_space(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
