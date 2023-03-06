@@ -2273,7 +2273,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
         return SimTypeNum(n * self.project.arch.byte_width, signed=signed).with_arch(self.project.arch)
 
-    def _variable(self, variable: SimVariable, fallback_type_size: Optional[int]):
+    def _variable(self, variable: SimVariable, fallback_type_size: Optional[int]) -> CVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
         # TODO: for each variable it links into the fucking ail. then we can remove fallback_type_size.
         unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
@@ -2286,7 +2286,23 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._variables_in_use[variable] = cvar
         return cvar
 
-    def _access_reference(self, expr: CExpression, data_type: SimType):
+    def _get_variable_reference(self, cvar: CVariable) -> CExpression:
+        """
+        Return a reference to a CVariable instance with special handling of arrays and array pointers.
+
+        :param cvar:    The CVariable object.
+        :return:        A reference to a CVariable object.
+        """
+
+        if isinstance(cvar.type, (SimTypeArray, SimTypeFixedSizeArray)):
+            return cvar
+        if isinstance(cvar.type, SimTypePointer) and isinstance(
+            cvar.type.pts_to, (SimTypeArray, SimTypeFixedSizeArray)
+        ):
+            return cvar
+        return CUnaryOp("Reference", cvar, codegen=self)
+
+    def _access_reference(self, expr: CExpression, data_type: SimType) -> CExpression:
         result = self._access(expr, data_type, True)
         if isinstance(result, CUnaryOp) and result.op == "Dereference":
             result = result.operand
@@ -2294,7 +2310,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             result = CUnaryOp("Reference", result, codegen=self)
         return result
 
-    def _access_constant_offset_reference(self, expr: CExpression, offset: int, data_type: Optional[SimType]):
+    def _access_constant_offset_reference(
+        self, expr: CExpression, offset: int, data_type: Optional[SimType]
+    ) -> CExpression:
         result = self._access_constant_offset(expr, offset, data_type or SimTypeBottom(), True)
         if isinstance(result, CTypeCast) and data_type is None:
             result = result.expr
@@ -2784,9 +2802,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
 
-            cdst = self._access_constant_offset(
-                CUnaryOp("Reference", cvar, codegen=self), offset, cdata.type, True, negotiate
-            )
+            cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
         else:
             addr_expr = self._handle(stmt.addr)
             cdst = self._access(addr_expr, cdata.type, True, negotiate)
@@ -2973,7 +2989,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
             offset = getattr(expr, "reference_variable_offset", 0)
-            return self._access_constant_offset_reference(CUnaryOp("Reference", cvar, codegen=self), offset, None)
+            return self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
         return CConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
@@ -2989,7 +3005,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if expr.variable is not None:
             cvar = self._variable(expr.variable, None)
             return self._access_constant_offset_reference(
-                CUnaryOp("Reference", cvar, codegen=self), expr.variable_offset or 0, None
+                self._get_variable_reference(cvar), expr.variable_offset or 0, None
             )
 
         lhs = self._handle(expr.operands[0])
@@ -3070,7 +3086,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             var_thing.tags = dict(expr.tags)
             if "def_at" in var_thing.tags and "ins_addr" not in var_thing.tags:
                 var_thing.tags["ins_addr"] = var_thing.tags["def_at"].ins_addr
-            return CUnaryOp("Reference", var_thing, codegen=self)
+            return self._get_variable_reference(var_thing)
 
         # FIXME
         stack_base = CFakeVariable("stack_base", SimTypePointer(SimTypeBottom()), codegen=self)
@@ -3265,10 +3281,16 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         return obj
 
     @classmethod
-    def handle_CTypeCast(cls, obj):
+    def handle_CTypeCast(cls, obj: CTypeCast):
         # note that the expression that this method returns may no longer be a CTypeCast
         obj = super().handle_CTypeCast(obj)
-        return cls.collapse(obj.dst_type, obj.expr)
+        inner = cls.collapse(obj.dst_type, obj.expr)
+        if inner is not obj.expr:
+            obj.src_type = inner.type
+            obj.expr = inner
+        if obj.src_type == obj.dst_type or qualifies_for_implicit_cast(obj.src_type, obj.dst_type):
+            return obj.expr
+        return obj
 
 
 class FieldReferenceCleanup(CStructuredCodeWalker):

@@ -1129,9 +1129,9 @@ class TestDecompiler(unittest.TestCase):
         assert len(stmts) == 5
         assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
         assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
-        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.operand.variable == stmts[2].lhs.variable
+        assert stmts[4].lhs.operand.expr.variable == stmts[2].lhs.variable
+        assert stmts[4].rhs.operand.expr.variable == stmts[0].lhs.variable
+        assert dw.condition.lhs.operand.expr.variable == stmts[2].lhs.variable
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
@@ -1284,6 +1284,13 @@ class TestDecompiler(unittest.TestCase):
         assert len(line_assignment_mod_7) == 1
         line_mod_7 = [line for line in lines if re.search(r"v\d+ % 7", line)]
         assert len(line_mod_7) == 2
+
+        # make sure all "connection_infos" are followed by a square bracket
+        # we don't allow bizarre expressions like (&connection_infos)[1234]...
+        assert "connection_infos" in d.codegen.text
+        for line in lines:
+            for m in re.finditer(r"connection_infos", line):
+                assert line[m.end()] == "["
 
     @for_all_structuring_algos
     def test_decompiling_fmt_get_space(self, decompiler_options=None):
@@ -2209,7 +2216,11 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert "goto" not in d.codegen.text
-        assert re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text) is not None
+        assert (
+            re.search(r"if \(\(unsigned int\)v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text)
+            is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text) is not None
+        )
 
     @for_all_structuring_algos
     def test_complex_stack_offset_calculation(self, decompiler_options=None):
