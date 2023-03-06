@@ -2216,7 +2216,11 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert "goto" not in d.codegen.text
-        assert re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text) is not None
+        assert (
+            re.search(r"if \(\(unsigned int\)v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text)
+            is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text) is not None
+        )
 
     @for_all_structuring_algos
     def test_complex_stack_offset_calculation(self, decompiler_options=None):
