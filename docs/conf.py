@@ -30,6 +30,7 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for autodoc -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#configuration
 autoclass_content = "class"
 autodoc_default_options = {
     "members": True,
@@ -42,6 +43,7 @@ autodoc_inherit_docstrings = True
 autodoc_typehints = "both"
 
 # -- Options for coverage ----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/extensions/coverage.html
 coverage_write_headline = False
 
 coverage_ignore_classes = [
