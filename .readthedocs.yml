@@ -14,4 +14,4 @@ build:
       - pip install git+https://github.com/angr/cle.git
       - pip install git+https://github.com/angr/claripy.git
       - pip install git+https://github.com/angr/ailment.git
-      - pip install --no-build-isolation .[docs]
+      - pip install --no-build-isolation .[angrdb,docs,pcode]
