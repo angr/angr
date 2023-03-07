@@ -33,7 +33,6 @@ class RewriteBitExtractions(PeepholeOptimizationExprBase):
                     Const(None, None, 0, expr.bits),
                     **expr.tags,
                 )
-                # return Convert(expr.idx, 1, expr.bits, False, bitoffset2exprs[bit_offset], **expr.tags)
 
         return None
 

@@ -109,6 +109,9 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 new_expr = Const(expr0.idx, None, (const_a >> expr1.value) & mask, expr0.bits, **expr0.tags)
                 return new_expr
 
+            if expr.op == "Shr" and expr.operands[0].bits <= expr.operands[1].value:
+                return Const(expr.idx, None, 0, expr.operands[0].bits, **expr.tags)
+
         elif expr.op == "Shl" and isinstance(expr.operands[1], Const):
             expr0, expr1 = expr.operands
             if isinstance(expr0, Const):
@@ -121,6 +124,8 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
                 return expr.operands[1]
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
+                return expr.operands[0]
+            if expr.operands[0].likes(expr.operands[1]):
                 return expr.operands[0]
 
         return None
