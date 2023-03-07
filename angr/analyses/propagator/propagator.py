@@ -34,7 +34,7 @@ class PropagatorState:
     __slots__ = (
         "arch",
         "gpr_size",
-        "_prop_count",
+        "_expr_used_locs",
         "_only_consts",
         "_replacements",
         "_equivalence",
@@ -52,7 +52,7 @@ class PropagatorState:
         project=None,
         replacements=None,
         only_consts=False,
-        prop_count=None,
+        expr_used_locs=None,
         equivalence=None,
         store_tops=True,
         gp=None,
@@ -61,7 +61,7 @@ class PropagatorState:
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
         # propagation count of each expression
-        self._prop_count = defaultdict(int) if prop_count is None else prop_count
+        self._expr_used_locs = defaultdict(set) if expr_used_locs is None else expr_used_locs
         self._only_consts = only_consts
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
@@ -217,7 +217,7 @@ class PropagatorVEXState(PropagatorState):
         local_variables=None,
         replacements=None,
         only_consts=False,
-        prop_count=None,
+        expr_used_locs=None,
         do_binops=True,
         store_tops=True,
         gp=None,
@@ -227,7 +227,7 @@ class PropagatorVEXState(PropagatorState):
             project=project,
             replacements=replacements,
             only_consts=only_consts,
-            prop_count=prop_count,
+            expr_used_locs=expr_used_locs,
             store_tops=store_tops,
             gp=gp,
         )
@@ -256,7 +256,7 @@ class PropagatorVEXState(PropagatorState):
             registers=self._registers.copy(),
             local_variables=self._stack_variables.copy(),
             replacements=self._replacements.copy(),
-            prop_count=self._prop_count.copy(),
+            expr_used_locs=self._expr_used_locs.copy(),
             only_consts=self._only_consts,
             do_binops=self.do_binops,
             store_tops=self._store_tops,
@@ -352,7 +352,7 @@ class PropagatorAILState(PropagatorState):
         project=None,
         replacements=None,
         only_consts=False,
-        prop_count=None,
+        expr_used_locs=None,
         equivalence=None,
         stack_variables=None,
         registers=None,
@@ -364,7 +364,7 @@ class PropagatorAILState(PropagatorState):
             project=project,
             replacements=replacements,
             only_consts=only_consts,
-            prop_count=prop_count,
+            expr_used_locs=expr_used_locs,
             equivalence=equivalence,
             gp=gp,
         )
@@ -402,7 +402,7 @@ class PropagatorAILState(PropagatorState):
             self.arch,
             project=self.project,
             replacements=self._replacements.copy(),
-            prop_count=self._prop_count.copy(),
+            expr_used_locs=self._expr_used_locs.copy(),
             only_consts=self._only_consts,
             equivalence=self._equivalence.copy(),
             stack_variables=self._stack_variables.copy(),
@@ -541,8 +541,8 @@ class PropagatorAILState(PropagatorState):
             and isinstance(new, ailment.Expr.Expression)
             and not isinstance(new, ailment.Expr.Const)
         ):
-            self._prop_count[new] += 1
-            prop_count = self._prop_count[new]
+            self._expr_used_locs[new].add(codeloc)
+            prop_count = len(self._expr_used_locs[new])
 
         if (
             prop_count <= 1
@@ -562,7 +562,7 @@ class PropagatorAILState(PropagatorState):
 
         for old, new in self._replacements.items():
             if isinstance(new, ailment.Expr.Expression) and not isinstance(new, ailment.Expr.Const):
-                if self._prop_count[new] > 1:
+                if len(self._expr_used_locs[new]) > 1:
                     # do not propagate this expression
                     to_remove.add(old)
 
