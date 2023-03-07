@@ -26,7 +26,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     def _optimize_binaryop(expr: BinaryOp):
         if expr.op == "Add":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
-                mask = (2 << expr.bits) - 1
+                mask = (1 << expr.bits) - 1
                 new_expr = Const(
                     expr.idx, None, (expr.operands[0].value + expr.operands[1].value) & mask, expr.bits, **expr.tags
                 )
@@ -34,7 +34,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
                 return expr.operands[0]
         elif expr.op == "Sub" and isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
-            mask = (2 << expr.bits) - 1
+            mask = (1 << expr.bits) - 1
             new_expr = Const(
                 expr.idx, None, (expr.operands[0].value - expr.operands[1].value) & mask, expr.bits, **expr.tags
             )
