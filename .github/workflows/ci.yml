@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: 3.8
       - name: Install
-        run: >
+        run: |
           pip install -U pip "setuptools>=59" wheel "unicorn==2.0.1.post1"
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
