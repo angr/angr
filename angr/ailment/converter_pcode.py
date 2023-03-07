@@ -450,7 +450,18 @@ class PCodeIRSBConverter(Converter):
         cval = Const(self._manager.next_atom(), None, 0, cond.bits)
         condition = BinaryOp(self._manager.next_atom(), "CmpNE", [cond, cval], signed=False)
         dest = Const(self._manager.next_atom(), None, dest_addr, self._manager.arch.bits)
-        stmt = ConditionalJump(self._statement_idx, condition, dest, None, ins_addr=self._manager.ins_addr)
+        if self._current_ins.ops[-1] is self._current_op:
+            # if the cbranch op is the last op, then we need to generate a fallthru target
+            fallthru = Const(
+                self._manager.next_atom(),
+                None,
+                self._manager.ins_addr + self._current_ins.length,
+                self._manager.arch.bits,
+            )
+        else:
+            # there will be a Jump statement that follows the cbranch
+            fallthru = None
+        stmt = ConditionalJump(self._statement_idx, condition, dest, fallthru, ins_addr=self._manager.ins_addr)
         self._statements.append(stmt)
 
     def _convert_ret(self) -> None:
