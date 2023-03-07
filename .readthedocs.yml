@@ -8,6 +8,7 @@ build:
     python: "3.8"
   jobs:
     post_create_environment:
+      - pip install "setuptools>=59" wheel "unicorn==2.0.1.post1"
       - pip install git+https://github.com/angr/archinfo.git
       - pip install git+https://github.com/angr/pyvex.git
       - pip install git+https://github.com/angr/cle.git
