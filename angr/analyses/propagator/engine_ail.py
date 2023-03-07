@@ -632,7 +632,7 @@ class SimEnginePropagatorAIL(
             value = self.state.top(expr.bits)
         else:
             if o0_value.value.concrete and o1_value.value.concrete:
-                value = o0_value.value + o1_value.value
+                value = (o0_value.value + o1_value.value) & ((1 << self.arch.bits) - 1)
             else:
                 value = self.state.top(expr.bits)
 
@@ -665,7 +665,7 @@ class SimEnginePropagatorAIL(
             value = self.state.top(expr.bits)
         else:
             if o0_value.value.concrete and o1_value.value.concrete:
-                value = o0_value.value - o1_value.value
+                value = (o0_value.value - o1_value.value) & ((1 << self.arch.bits) - 1)
             else:
                 value = self.state.top(expr.bits)
 
