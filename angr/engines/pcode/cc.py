@@ -2,7 +2,15 @@ import logging
 
 from archinfo import ArchPcode
 
-from ...calling_conventions import SimCC, SimRegArg, SimStackArg, DEFAULT_CC, register_default_cc, SimCCUnknown
+from ...calling_conventions import (
+    SimCC,
+    SimRegArg,
+    SimStackArg,
+    DEFAULT_CC,
+    register_default_cc,
+    SimCCUnknown,
+    default_cc,
+)
 
 
 l = logging.getLogger(__name__)
@@ -74,7 +82,8 @@ class SimCCPowerPC(SimCC):
 
 def register_pcode_arch_default_cc(arch: ArchPcode):
     if arch.name not in DEFAULT_CC:
-        cc = {
+        # we have a bunch of manually specified mappings
+        manual_cc_mapping = {
             "68000:BE:32:default": SimCCM68k,
             "RISCV:LE:64:RV64G": SimCCRISCV,
             "RISCV:LE:64:RV64GC": SimCCRISCV,
@@ -82,7 +91,17 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
             "SuperH4:LE:32:default": SimCCSH4,
             "pa-risc:BE:32:default": SimCCPARISC,
             "PowerPC:BE:32:e200": SimCCPowerPC,
-        }.get(arch.name, SimCCUnknown)
+        }
+        if arch.name in manual_cc_mapping:
+            # first attempt: manually specified mappings
+            cc = manual_cc_mapping[arch.name]
+        else:
+            # second attempt: see if there is a calling convention for a similar architecture defined in angr
+            cc = default_cc(arch.name)
+            if cc is None:
+                # third attempt: use SimCCUnknown
+                cc = SimCCUnknown
+
         if cc is SimCCUnknown:
             l.warning("Unknown default cc for arch %s", arch.name)
         register_default_cc(arch.name, cc)
