@@ -44,6 +44,11 @@ autodoc_typehints = "both"
 # -- Options for coverage ----------------------------------------------------
 coverage_write_headline = False
 
+coverage_ignore_classes = [
+    "angr.analyses.decompiler.structured_codegen.c.StructuredCodeGenerator",  # Alias to CStructuredCodeGenerator
+    "angr.sim_type.SimTypeFixedSizeArray",  # Alias to SimTypeArray
+]
+
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
