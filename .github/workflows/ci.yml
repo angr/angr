@@ -21,12 +21,13 @@ jobs:
           python-version: 3.8
       - name: Install
         run: >
+          pip install -U pip "setuptools>=59" wheel "unicorn==2.0.1.post1"
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
           pip install git+https://github.com/angr/cle.git
           pip install git+https://github.com/angr/clairpy.git
           pip install git+https://github.com/angr/ailment.git
-          pip install --no-build-isolation .[docs]
+          pip install --no-build-isolation .[angrdb,docs,pcode]
       - name: Build docs
         run: cd docs && make html
       - name: Build coverage
