@@ -112,6 +112,7 @@ class SimEngineRDAIL(
 
     def _handle_Stmt(self, stmt):
         if self.state.analysis:
+            self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_BEFORE)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
         handler = self._stmt_handlers.get(type(stmt), None)
@@ -122,6 +123,7 @@ class SimEngineRDAIL(
             self.l.warning("Unsupported statement type %s.", type(stmt).__name__)
 
         if self.state.analysis:
+            self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_AFTER)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     def _expr(self, expr):

@@ -166,7 +166,9 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions is not None:
             return self._reaching_definitions
         rd = self.project.analyses.ReachingDefinitions(
-            subject=self.func, func_graph=self.func_graph, observe_callback=self._simplify_function_rd_observe_callback
+            subject=self.func,
+            func_graph=self.func_graph,
+            observe_all=True,  # observe_callback=self._simplify_function_rd_observe_callback
         )
         self._reaching_definitions = rd
         return rd
@@ -181,7 +183,11 @@ class AILSimplifier(Analysis):
         if self._propagator is not None:
             return self._propagator
         prop = self.project.analyses.Propagator(
-            func=self.func, func_graph=self.func_graph, gp=self._gp, only_consts=self._only_consts
+            func=self.func,
+            func_graph=self.func_graph,
+            gp=self._gp,
+            only_consts=self._only_consts,
+            reaching_definitions=self._compute_reaching_definitions(),
         )
         self._propagator = prop
         return prop

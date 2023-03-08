@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, Union, List, DefaultDict
+from typing import Set, Optional, Any, Tuple, Union, List, DefaultDict, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -21,6 +21,9 @@ from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNode
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 from .prop_value import PropValue, Detail
+
+if TYPE_CHECKING:
+    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
 
 
 _l = logging.getLogger(name=__name__)
@@ -614,6 +617,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         gp: Optional[int] = None,
         cache_results: bool = False,
         key_prefix: Optional[str] = None,
+        reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
     ):
         if block is None and func is not None:
             # only func is specified. traversing a function
@@ -641,6 +645,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._gp = gp
         self._prop_key_prefix = key_prefix
         self._cache_results = cache_results
+        self._reaching_definitions = reaching_definitions
 
         self.model: PropagationModel = None
 
@@ -684,12 +689,15 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
         )
 
-        self._engine_vex = SimEnginePropagatorVEX(project=self.project, arch=self.project.arch)
+        self._engine_vex = SimEnginePropagatorVEX(
+            project=self.project, arch=self.project.arch, reaching_definitions=self._reaching_definitions
+        )
         self._engine_ail = SimEnginePropagatorAIL(
             arch=self.project.arch,
             stack_pointer_tracker=self._stack_pointer_tracker,
             # We only propagate tmps within the same block. This is because the lifetime of tmps is one block only.
             propagate_tmps=block is not None,
+            reaching_definitions=self._reaching_definitions,
         )
 
         # optimization: skip state copying for the initial state

@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Set, Optional, TYPE_CHECKING
+from typing import Dict, Tuple, Set, Union, Optional, TYPE_CHECKING
 
 from .uses import Uses
 from .live_definitions import LiveDefinitions
@@ -15,7 +15,7 @@ class ReachingDefinitionsModel:
 
     def __init__(self, func_addr: Optional[int] = None):
         self.func_addr = func_addr  # do not use. only for pretty-printing
-        self.observed_results: Dict[Tuple[str, int, int], LiveDefinitions] = {}
+        self.observed_results: Dict[Tuple[str, Union[int, Tuple[int, int]], int], LiveDefinitions] = {}
         self.all_definitions: Set["Definition"] = set()
         self.all_uses = Uses()
 

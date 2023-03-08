@@ -2,11 +2,15 @@ from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from ailment import Block, Stmt, Expr
 
+from ...errors import SimMemoryMissingError
 from ...code_location import CodeLocation
 from ..decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
+    from archinfo import Arch
     from .propagator import PropagatorAILState
+    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+    from angr.knowledge_plugins.key_definitions import LiveDefinitions
 
 
 class OutdatedDefinitionWalker(AILBlockWalker):
@@ -18,15 +22,23 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self,
         expr,
         expr_defat: CodeLocation,
+        livedefs_defat: "LiveDefinitions",
+        current_loc: CodeLocation,
+        livedefs_currentloc: "LiveDefinitions",
         state: "PropagatorAILState",
+        arch: "Arch",
         avoid: Optional[Expr.Expression] = None,
         extract_offset_to_sp: Callable = None,
     ):
         super().__init__()
         self.expr = expr
         self.expr_defat = expr_defat
+        self.livedefs_defat = livedefs_defat
+        self.current_loc = current_loc
+        self.livedefs_currentloc = livedefs_currentloc
         self.state = state
         self.avoid = avoid
+        self.arch = arch
         self.extract_offset_to_sp = extract_offset_to_sp
         self.expr_handlers[Expr.Register] = self._handle_Register
         self.expr_handlers[Expr.Load] = self._handle_Load
@@ -52,22 +64,27 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         ):
             self.out_dated = True
         else:
-            v = self.state.load_register(reg_expr)
-            if v is not None:
-                for detail in v.offset_and_details.values():
-                    if detail.expr is None:
-                        self.out_dated = True
-                        break
-                    if isinstance(detail.expr, Expr.Expression) and detail.expr.has_atom(reg_expr, identity=False):
-                        self.out_dated = True
-                        break
-                    if isinstance(detail.expr, Expr.TaggedObject):
-                        if not (
-                            detail.def_at == self.expr_defat
-                            or self._check_store_precedes_load(detail.def_at, self.expr_defat)
-                        ):
-                            self.out_dated = True
-                            break
+            # is the used register still alive at this point?
+            try:
+                reg_vals: "MultiValues" = self.livedefs_defat.register_definitions.load(
+                    reg_expr.reg_offset, size=reg_expr.size, endness=self.arch.register_endness
+                )
+                defs_defat = list(self.livedefs_defat.extract_defs_from_mv(reg_vals))
+            except SimMemoryMissingError:
+                defs_defat = []
+
+            try:
+                reg_vals: "MultiValues" = self.livedefs_currentloc.register_definitions.load(
+                    reg_expr.reg_offset, size=reg_expr.size, endness=self.arch.register_endness
+                )
+                defs_currentloc = list(self.livedefs_currentloc.extract_defs_from_mv(reg_vals))
+            except SimMemoryMissingError:
+                defs_currentloc = []
+
+            codelocs_defat = set(def_.codeloc for def_ in defs_defat)
+            codelocs_currentloc = set(def_.codeloc for def_ in defs_currentloc)
+            if codelocs_defat != codelocs_currentloc:
+                self.out_dated = True
 
     @staticmethod
     def _check_store_precedes_load(store_defat: Optional[CodeLocation], load_defat: Optional[CodeLocation]) -> bool:
@@ -125,9 +142,11 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                     pass
                 else:
                     for details in curr_stackvar.offset_and_details.values():
-                        if details.def_at is None or not self._check_store_precedes_load(
-                            details.def_at, self.expr_defat
-                        ):
+                        if details.def_at is None:
+                            # not sure where the variable was defined - assume it's ok
+                            # breakpoint()
+                            pass
+                        elif not self._check_store_precedes_load(details.def_at, self.expr_defat):
                             self.out_dated = True
                             break
                     if not self.out_dated:
