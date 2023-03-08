@@ -46,7 +46,7 @@ autodoc_typehints = "both"
 # https://www.sphinx-doc.org/en/master/usage/extensions/coverage.html
 coverage_write_headline = False
 
-coverage_ignore_classes = [
+coverage_ignore_pyobjects = [
     "angr.analyses.decompiler.structured_codegen.c.StructuredCodeGenerator",  # Alias to CStructuredCodeGenerator
     "angr.sim_type.SimTypeFixedSizeArray",  # Alias to SimTypeArray
 ]
