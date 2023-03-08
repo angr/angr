@@ -9,7 +9,7 @@ import datetime
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "angr"
-project_copyright = f"{datetime.datetime.now().year}, The angr Project"
+project_copyright = f"{datetime.datetime.now().year}, The angr Project contributors"
 author = "The angr Project"
 
 # -- General configuration ---------------------------------------------------
