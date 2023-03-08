@@ -998,6 +998,11 @@ class VMDeobfuscation(Analysis):
         cfg = None
         new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(cfg, proj, symbolic_expr_locations_blockwise, start_addr=start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
         to_use_symbolic_exprs = None
+        symbolic_expr_locations_blockwise=None
+
+        import gc
+        gc.collect()
+        import ipdb;ipdb.set_trace()
 
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
@@ -1041,10 +1046,16 @@ class VMDeobfuscation(Analysis):
         # symbolic_expr_locations_blockwise = res[1]
 
         #p.join()
+        import gc
+        gc.collect()
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr, None,
                                                                                start_state=None,
                                                                                prev_symbolic_expr_locations_blockwise=None)
+        symbolic_expr_locations_blockwise = None
         self.project.kb.cfgs.cfgs = {}
+
+        import gc
+        gc.collect()
 
         # clearing the saved states to save space
         for node in new_cfg.graph.nodes():
@@ -3002,7 +3013,8 @@ class VMDeobfuscation(Analysis):
             #                       #'registers': TopListPagesMemory(memory_id="reg")}}
             initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath", add_options={'REPLACEMENT_SOLVER','DO_CCALLS', 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS', 'SYMBOL_FILL_UNCONSTRAINED_MEMORY', 'TOP_LIST_REGISTERS', 'TOP_LIST_MEMORY'})#'REPLACEMENT_SOLVER' removed to test the spped without replacements
             #initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
-            initial_input_state.register_plugin('partial_symbolic_constraint_solver',angr.state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(), unsafe_replacement=True, auto_replace=True)))
+
+            initial_input_state.register_plugin('partial_symbolic_constraint_solver',angr.state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(), unsafe_replacement=True, auto_replace=False))) #auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
 
             if proj.arch.bits == 32:
                 initial_input_state.registers.store('ss', 0)
@@ -3016,6 +3028,7 @@ class VMDeobfuscation(Analysis):
 
             initial_input_state.globals['concretized_load_addr_dict'] = {}
             initial_input_state.globals['replaced_asts_str'] = {}
+            initial_input_state.globals['existing_mba_split_constraints'] = []
 
         ####### Adding breakpoints
         def annotate_stack_read_value(state):
