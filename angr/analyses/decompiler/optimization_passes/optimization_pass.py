@@ -1,11 +1,9 @@
 # pylint:disable=unused-argument
-from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING
 from enum import Enum
-
-import networkx  # pylint:disable=unused-import
+from typing import TYPE_CHECKING, Dict, Generator, Optional, Set, Tuple
 
 import ailment
-
+import networkx  # pylint:disable=unused-import
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function

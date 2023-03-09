@@ -3,8 +3,9 @@ import subprocess
 import sys
 import unittest
 
+from common import bin_location, slow_test
+
 import angr
-from common import slow_test, bin_location
 
 
 class TestStrtol(unittest.TestCase):

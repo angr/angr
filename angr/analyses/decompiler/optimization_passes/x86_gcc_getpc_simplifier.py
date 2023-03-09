@@ -1,5 +1,5 @@
-from typing import Tuple, List, Any
 import logging
+from typing import Any, List, Tuple
 
 import ailment
 

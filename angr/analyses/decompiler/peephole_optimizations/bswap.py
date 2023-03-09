@@ -1,6 +1,6 @@
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
-from ailment.expression import BinaryOp, Const, Expression, Convert
+from ailment.expression import BinaryOp, Const, Convert, Expression
 from ailment.statement import Call
 
 from .base import PeepholeOptimizationExprBase

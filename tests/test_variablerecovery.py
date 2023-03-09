@@ -1,11 +1,10 @@
-import os
 import logging
+import os
 import unittest
 
 import angr
-from angr.sim_variable import SimStackVariable, SimRegisterVariable
 from angr.knowledge_plugins.variables import VariableType
-
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
 
 l = logging.getLogger("test_variablerecovery")
 

@@ -1,4 +1,6 @@
-from . import MemoryMixin
+from angr.state_plugins.sim_action_object import _raw_ast
+
+from .base import MemoryMixin
 
 
 class UnwrapperMixin(MemoryMixin):
@@ -21,6 +23,3 @@ class UnwrapperMixin(MemoryMixin):
 
     def copy_contents(self, dst, src, size, condition=None, **kwargs):
         return super().copy_contents(_raw_ast(dst), _raw_ast(src), _raw_ast(size), _raw_ast(condition), **kwargs)
-
-
-from ...state_plugins.sim_action_object import _raw_ast

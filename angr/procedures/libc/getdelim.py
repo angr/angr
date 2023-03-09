@@ -1,7 +1,8 @@
-import angr
+import logging
+
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
-import logging
+import angr
 
 l = logging.getLogger(name=__name__)
 

@@ -2,13 +2,13 @@
 import os
 import unittest
 
-import angr
-import pyvex
-import claripy
 import archinfo
+import claripy
+import pyvex
 
-from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
-from angr.engines import ProcedureEngine, HeavyVEXMixin, SimInspectMixin
+import angr
+from angr import BP_AFTER, BP_BEFORE, SIM_PROCEDURES, SimState, concretization_strategies
+from angr.engines import HeavyVEXMixin, ProcedureEngine, SimInspectMixin
 
 
 class InspectEngine(SimInspectMixin, HeavyVEXMixin):

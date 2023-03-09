@@ -1,11 +1,11 @@
 import operator
 from typing import Callable, Iterable, Tuple
 
-from pypcode import OpCode
 import claripy
 from claripy.ast.bv import BV
+from pypcode import OpCode
 
-from ...errors import AngrError
+from angr.errors import AngrError
 
 # pylint:disable=abstract-method
 

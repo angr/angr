@@ -1,8 +1,7 @@
 import logging
 
-from ..func import Func, TestData
-from ..errors import IdentifierException
-
+from angr.analyses.identifier.errors import IdentifierException
+from angr.analyses.identifier.func import Func, TestData
 
 l = logging.getLogger(name=__name__)
 

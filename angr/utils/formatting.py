@@ -1,6 +1,5 @@
 import sys
-from typing import Sequence, Optional, Callable
-
+from typing import Callable, Optional, Sequence
 
 if sys.platform == "win32":
     import colorama  # pylint:disable=import-error

@@ -1,6 +1,6 @@
-from typing import NamedTuple, Optional, Callable, List, Dict, Any
 import multiprocessing
 import platform
+from typing import Any, Callable, Dict, List, NamedTuple, Optional
 
 
 class Closure(NamedTuple):

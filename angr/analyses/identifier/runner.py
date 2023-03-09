@@ -1,17 +1,16 @@
-import random
 import logging
 import os
+import random
 
 import claripy
 
-from ... import sim_options as so
-from ... import SIM_LIBRARIES
-from ... import BP_BEFORE, BP_AFTER
-from ...storage.file import SimFile, SimFileDescriptor
-from ...state_plugins import SimSystemPosix
-from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError, SimError
-from .custom_callable import IdentifierCallable
+from angr import BP_AFTER, BP_BEFORE, SIM_LIBRARIES
+from angr import sim_options as so
+from angr.errors import AngrCallableError, AngrCallableMultistateError, AngrError, SimError
+from angr.state_plugins import SimSystemPosix
+from angr.storage.file import SimFile, SimFileDescriptor
 
+from .custom_callable import IdentifierCallable
 
 l = logging.getLogger(name=__name__)
 

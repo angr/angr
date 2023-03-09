@@ -1,6 +1,7 @@
 import logging
 
-from . import JNISimProcedure, jni_functions
+from .base import JNISimProcedure
+from .function_table import jni_functions
 
 l = logging.getLogger("angr.procedures.java_jni.NotImplemented")
 

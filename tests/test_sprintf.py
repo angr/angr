@@ -1,10 +1,10 @@
-import angr
-
 import logging
+import os
+
+import angr
 
 l = logging.getLogger("angr_tests.dataflowgraph")
 
-import os
 
 test_location = os.path.dirname(os.path.realpath(__file__))
 

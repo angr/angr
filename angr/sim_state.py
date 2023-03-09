@@ -1,23 +1,35 @@
+import contextlib
 import functools
 import itertools
-import contextlib
-import weakref
-
 import logging
+import weakref
+from typing import TYPE_CHECKING, Type, TypeVar
 
-from typing import Type, TypeVar, TYPE_CHECKING
-
-from archinfo import Arch
-
-l = logging.getLogger(name=__name__)
-
-import claripy
 import archinfo
+import claripy
+from archinfo import Arch
 from archinfo.arch_soot import SootAddressDescriptor
 
+import angr.sim_options as o
+
+from .errors import SimMergeError, SimSolverModeError, SimStateError, SimValueError
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
-from .state_plugins import SimStatePlugin
+from .state_plugins.plugin import SimStatePlugin
+from .state_plugins.sim_action import SimActionConstraint
+
+if TYPE_CHECKING:
+    from .state_plugins.callstack import CallStack
+    from .state_plugins.history import SimStateHistory
+    from .state_plugins.inspect import SimInspector
+    from .state_plugins.jni_references import SimStateJNIReferences
+    from .state_plugins.posix import SimSystemPosix
+    from .state_plugins.scratch import SimStateScratch
+    from .state_plugins.solver import SimSolver
+    from .state_plugins.view import SimMemView, SimRegNameView
+    from .storage import MemoryMixin
+
+l = logging.getLogger(name=__name__)
 
 
 def arch_overrideable(f):
@@ -498,6 +510,8 @@ class SimState(PluginHub):
             else:
                 constraints = args
 
+            from .state_plugins.inspect import BP_AFTER, BP_BEFORE
+
             self._inspect("constraints", BP_BEFORE, added_constraints=constraints)
             constraints = self._inspect_getattr("added_constraints", constraints)
             added = self.solver.add(*constraints)
@@ -724,6 +738,8 @@ class SimState(PluginHub):
             plugin_common_ancestor = (
                 common_ancestor.plugins[p] if (common_ancestor is not None and p in common_ancestor.plugins) else None
             )
+            from .state_plugins.history import SimStateHistory
+
             if (
                 plugin_common_ancestor is None
                 and plugin_class is SimStateHistory
@@ -985,21 +1001,3 @@ class SimState(PluginHub):
 
 default_state_plugin_preset = PluginPreset()
 SimState.register_preset("default", default_state_plugin_preset)
-
-from .state_plugins.history import SimStateHistory
-from .state_plugins.inspect import BP_AFTER, BP_BEFORE
-from .state_plugins.sim_action import SimActionConstraint
-
-from . import sim_options as o
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
-
-# Type imports for annotations
-if TYPE_CHECKING:
-    from .storage import MemoryMixin
-    from .state_plugins.solver import SimSolver
-    from .state_plugins.posix import SimSystemPosix
-    from .state_plugins.view import SimRegNameView, SimMemView
-    from .state_plugins.callstack import CallStack
-    from .state_plugins.inspect import SimInspector
-    from .state_plugins.jni_references import SimStateJNIReferences
-    from .state_plugins.scratch import SimStateScratch

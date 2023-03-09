@@ -1,4 +1,4 @@
-from . import MemoryMixin
+from .base import MemoryMixin
 
 
 class DirtyAddrsMixin(MemoryMixin):

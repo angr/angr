@@ -1,19 +1,20 @@
-from typing import Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
+
 from .ailblock_walker import AILBlockWalkerBase
 
 if TYPE_CHECKING:
+    from ailment.block import Block
     from ailment.expression import (
-        Expression,
+        ITE,
         BinaryOp,
+        Convert,
+        DirtyExpression,
+        Expression,
         Load,
         UnaryOp,
-        Convert,
-        ITE,
-        DirtyExpression,
         VEXCCallExpression,
     )
     from ailment.statement import Call, Statement
-    from ailment.block import Block
 
 
 class ExpressionNarrowingWalker(AILBlockWalkerBase):

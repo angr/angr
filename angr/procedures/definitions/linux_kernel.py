@@ -1,9 +1,8 @@
 import logging
 from typing import Dict
 
-from ...sim_type import SimTypeFunction, SimTypePointer, SimTypeLong, SimStruct, SimTypeInt, SimTypeChar, \
-    SimTypeBottom, SimTypeFd, SimTypeLongLong
-from .. import SIM_PROCEDURES as P
+from angr.sim_type import SimTypeFunction, SimTypePointer, SimTypeLong, SimStruct, SimTypeInt, SimTypeChar, SimTypeBottom, SimTypeFd, SimTypeLongLong
+from angr.procedures import SIM_PROCEDURES as P
 from . import SimSyscallLibrary
 
 _l = logging.getLogger(__name__)

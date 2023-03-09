@@ -1,11 +1,14 @@
+import functools
 import logging
 
-l = logging.getLogger(name=__name__)
-
 import claripy
-import functools
 
-from .. import sim_options as o
+from angr import sim_options as o
+from angr.errors import SimActionError
+
+from . import sim_action
+
+l = logging.getLogger(name=__name__)
 
 # pylint:disable=unidiomatic-typecheck
 
@@ -143,6 +146,3 @@ def make_methods():
 
 
 make_methods()
-
-from ..errors import SimActionError
-from . import sim_action

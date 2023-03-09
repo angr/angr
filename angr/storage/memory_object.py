@@ -1,5 +1,6 @@
 import claripy
-from ..errors import SimMemoryError
+
+from angr.errors import SimMemoryError
 
 
 def obj_bit_size(o):

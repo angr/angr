@@ -1,7 +1,7 @@
 import claripy
 
-from .structuring.structurer_nodes import ConditionNode, CodeNode
 from .sequence_walker import SequenceWalker
+from .structuring.structurer_nodes import CodeNode, ConditionNode
 
 
 class JumpTableEntryConditionRewriter(SequenceWalker):

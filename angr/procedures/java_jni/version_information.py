@@ -1,4 +1,4 @@
-from . import JNISimProcedure
+from .base import JNISimProcedure
 
 # pylint: disable=arguments-differ,unused-argument
 

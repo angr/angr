@@ -1,11 +1,10 @@
-from ..plugin import SimStatePlugin
-from .heap_freelist import SimHeapFreelist, Chunk
-from .utils import concretize
-
-from ...errors import SimHeapError, SimMergeError, SimSolverError
-
-
 import logging
+
+from angr.errors import SimHeapError, SimMergeError, SimSolverError
+from angr.state_plugins.plugin import SimStatePlugin
+
+from .heap_freelist import Chunk, SimHeapFreelist
+from .utils import concretize
 
 l = logging.getLogger("angr.state_plugins.heap.heap_ptmalloc")
 sml = logging.getLogger("angr.state_plugins.symbolic_memory")

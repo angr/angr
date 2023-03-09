@@ -1,10 +1,11 @@
-from typing import List, Tuple
 import logging
+from typing import List, Tuple
 
 import networkx
 
-from ....utils.graph import dfs_back_edges
-from ...cfg.cfg_utils import CFGUtils
+from angr.analyses.cfg.cfg_utils import CFGUtils
+from angr.utils.graph import dfs_back_edges
+
 from .graph import GraphVisitor, NodeType
 
 _l = logging.getLogger(__name__)

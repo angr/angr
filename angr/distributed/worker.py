@@ -1,13 +1,12 @@
-from typing import Dict
-import time
-import multiprocessing
 import logging
+import multiprocessing
 import sys
+import time
+from typing import Dict
 
+from angr.exploration_techniques import Bucketizer, ExplorationTechnique
 from angr.utils.mp import Initializer
-from ..exploration_techniques import ExplorationTechnique, Bucketizer
-from ..vaults import VaultDirShelf
-
+from angr.vaults import VaultDirShelf
 
 _l = logging.getLogger(__name__)
 _l.setLevel(logging.INFO)
@@ -87,7 +86,10 @@ class Worker:
     def run(self, initializer: Initializer):
         initializer.initialize()
 
-        from ..exploration_techniques.spiller import Spiller, PickledStatesDb  # pylint:disable=import-outside-toplevel
+        from angr.exploration_techniques.spiller import (
+            PickledStatesDb,
+            Spiller,
+        )
 
         _l.debug("Worker %d starts running...", self.worker_id)
         if self._recursion_limit is not None and self._recursion_limit != sys.getrecursionlimit():

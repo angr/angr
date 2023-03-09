@@ -9,8 +9,10 @@
 #
 # If these tests break, contact @subwire (or, likely, he will find you)
 
-from common import bin_priv_location, slow_test
 import os
+
+from common import bin_priv_location, slow_test
+
 import angr
 
 

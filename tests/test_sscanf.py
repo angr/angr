@@ -1,14 +1,13 @@
-import angr
+import logging
+import os
 import subprocess
 import sys
-
 import unittest
 
-import logging
+import angr
 
 l = logging.getLogger("angr.tests.sscanf")
 
-import os
 
 test_location = os.path.dirname(os.path.realpath(__file__))
 

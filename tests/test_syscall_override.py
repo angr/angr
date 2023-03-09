@@ -1,6 +1,7 @@
+import logging
 import os
 import unittest
-import logging
+
 from common import broken
 
 import angr

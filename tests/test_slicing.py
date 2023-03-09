@@ -1,15 +1,13 @@
 #!/usr/bin/env python
-
 import logging
-
-l = logging.getLogger("angr.tests.slicing")
-
+import os
 import time
+
 import angr
 from angr.utils.constants import DEFAULT_STATEMENT
 
-# Load the tests
-import os
+l = logging.getLogger("angr.tests.slicing")
+
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

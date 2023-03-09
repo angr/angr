@@ -1,7 +1,8 @@
-import claripy
 import logging
 
-from ..java import JavaSimProcedure
+import claripy
+
+from angr.procedures.java.base import JavaSimProcedure
 
 log = logging.getLogger(name=__name__)
 

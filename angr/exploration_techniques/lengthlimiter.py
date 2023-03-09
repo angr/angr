@@ -1,4 +1,4 @@
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 
 class LengthLimiter(ExplorationTechnique):

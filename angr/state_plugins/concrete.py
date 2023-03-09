@@ -1,13 +1,17 @@
-import cle
 import io
 import logging
 import os
 import re
 import struct
 
+import cle
+from archinfo import ArchAMD64, ArchX86
+
+from angr import sim_options as options
+from angr.errors import SimConcreteRegisterError
+from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
-from ..errors import SimConcreteRegisterError
-from archinfo import ArchX86, ArchAMD64
 
 l = logging.getLogger("state_plugin.concrete")
 # l.setLevel(logging.DEBUG)
@@ -290,8 +294,5 @@ class Concrete(SimStatePlugin):
                                 new_reloc.resolve(new_func_symbol)
                                 new_reloc.relocate([])
 
-
-from ..sim_state import SimState
-from .. import sim_options as options
 
 SimState.register_default("concrete", Concrete)

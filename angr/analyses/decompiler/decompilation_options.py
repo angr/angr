@@ -1,6 +1,6 @@
 # decompilation options
-from typing import Optional, List, Callable
 from collections import defaultdict
+from typing import Callable, List, Optional
 
 from .structuring import structurer_class_from_name
 

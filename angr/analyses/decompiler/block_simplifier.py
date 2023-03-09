@@ -1,25 +1,27 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
-from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable, Optional, Set, Tuple, Type, Union
 
-from ailment.statement import Statement, Assignment, Call, Store, Jump
-from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
+from ailment.expression import Const, Convert, Expression, Load, Register, Tmp
+from ailment.statement import Assignment, Call, Jump, Statement, Store
 
-from ...engines.light.data import SpOffset
-from ...knowledge_plugins.key_definitions.constants import OP_AFTER
-from ...knowledge_plugins.key_definitions import atoms
-from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
-from ...analyses.propagator import PropagatorAnalysis
-from ...analyses.reaching_definitions import ReachingDefinitionsAnalysis
-from ...errors import SimMemoryMissingError
-from .. import Analysis, register_analysis
-from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
+from angr.analyses import AnalysesHub, Analysis
+from angr.analyses.propagator import PropagatorAnalysis
+from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.engines.light.data import SpOffset
+from angr.errors import SimMemoryMissingError
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
+
 from .ailblock_walker import AILBlockWalker
+from .peephole_optimizations import EXPR_OPTS, STMT_OPTS, PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 
 if TYPE_CHECKING:
-    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions, Definition
     from ailment.block import Block
+
+    from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 _l = logging.getLogger(name=__name__)
@@ -414,4 +416,4 @@ class BlockSimplifier(Analysis):
         return statements, any_update
 
 
-register_analysis(BlockSimplifier, "AILBlockSimplifier")
+AnalysesHub.register_default("AILBlockSimplifier", BlockSimplifier)

@@ -2,8 +2,8 @@ import logging
 
 from archinfo.arch_soot import SootAddressDescriptor
 
-from ...errors import SimValueError, SimSolverModeError
-from ...state_plugins.callstack import CallStack
+from angr.errors import SimSolverModeError, SimValueError
+from angr.state_plugins.callstack import CallStack
 
 l = logging.getLogger(name=__name__)
 

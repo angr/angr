@@ -1,27 +1,26 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
-import weakref
-from typing import Set, Optional, Any, Tuple, Union, List, DefaultDict
-from collections import defaultdict
 import logging
+import weakref
+from collections import defaultdict
+from typing import Any, DefaultDict, List, Optional, Set, Tuple, Union
 
-import claripy
 import ailment
+import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from ... import sim_options
-from ...knowledge_plugins.propagations import PropagationModel
-from ...storage.memory_mixins import LabeledMemory
-from ...errors import SimMemoryMissingError
-from ...code_location import CodeLocation
-from ...storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
-from .. import register_analysis
-from ..analysis import Analysis
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from .engine_vex import SimEnginePropagatorVEX
-from .engine_ail import SimEnginePropagatorAIL
-from .prop_value import PropValue, Detail
+from angr import sim_options
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from angr.code_location import CodeLocation
+from angr.errors import SimMemoryMissingError
+from angr.knowledge_plugins.propagations import PropagationModel
+from angr.storage.memory_mixins import LabeledMemory
+from angr.storage.memory_object import SimLabeledMemoryObject, SimMemoryObject
 
+from .engine_ail import SimEnginePropagatorAIL
+from .engine_vex import SimEnginePropagatorVEX
+from .prop_value import Detail, PropValue
 
 _l = logging.getLogger(name=__name__)
 
@@ -998,4 +997,4 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         return merge_occurred
 
 
-register_analysis(PropagatorAnalysis, "Propagator")
+AnalysesHub.register_default("Propagator", PropagatorAnalysis)

@@ -1,5 +1,6 @@
-import angr
 import os
+
+import angr
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), "..", "..", "binaries", "tests", "")
 

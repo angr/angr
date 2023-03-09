@@ -1,5 +1,5 @@
 # pylint:disable=unused-argument
-from typing import Set, Tuple, Optional
+from typing import Optional, Set, Tuple
 
 import ailment
 

@@ -1,6 +1,6 @@
 import random
 
-from ..func import Func, TestData
+from angr.analyses.identifier.func import Func, TestData
 
 
 class strlen(Func):

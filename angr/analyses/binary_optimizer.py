@@ -1,14 +1,16 @@
 import logging
 import re
-from typing import TYPE_CHECKING
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
-from angr.knowledge_base import KnowledgeBase
-from angr.codenode import HookNode
-from angr.sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 from angr import SIM_PROCEDURES
+from angr.codenode import HookNode
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_variable import SimConstantVariable, SimMemoryVariable, SimRegisterVariable, SimStackVariable
 
-from . import Analysis, CFGEmulated, DDG
+from .analysis import AnalysesHub, Analysis
+from .cfg import CFGEmulated
+from .ddg import DDG
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
@@ -677,7 +679,5 @@ class BinaryOptimizer(Analysis):
                 da = DeadAssignment(reg)
                 self.dead_assignments.append(da)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BinaryOptimizer", BinaryOptimizer)

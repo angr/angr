@@ -1,12 +1,17 @@
 # pylint: disable=no-self-use,unused-private-member
-
 import abc
 import logging
 import threading
 from typing import Optional
-import angr
 
 from archinfo.arch_soot import SootAddressDescriptor
+
+import angr
+from angr import sim_options as o
+from angr.errors import SimException
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
+
+from .successors import SimSuccessors
 
 l = logging.getLogger(name=__name__)
 
@@ -204,10 +209,3 @@ class SuccessorsMixin(SimEngine):
         :param kwargs:          Any extra arguments. Do not fail if you are passed unexpected arguments.
         """
         successors.processed = False  # mark failure
-
-
-# pylint:disable=wrong-import-position
-from .. import sim_options as o
-from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from .successors import SimSuccessors
-from ..errors import SimException

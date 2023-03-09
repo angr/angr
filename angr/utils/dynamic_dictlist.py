@@ -1,6 +1,5 @@
 import platform
-from typing import Optional, Union, Dict, List, Generic, TypeVar
-
+from typing import Dict, Generic, List, Optional, TypeVar, Union
 
 # Ref: https://github.com/angr/angr/pull/3471#issuecomment-1236515950
 if platform.python_implementation() == "PyPy":

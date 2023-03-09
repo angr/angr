@@ -1,10 +1,9 @@
 import logging
-from typing import Optional, List, Set
+from typing import List, Optional, Set
 
 import networkx
 
 from .structuring.structurer_nodes import MultiNode
-
 
 l = logging.getLogger(name=__name__)
 

@@ -1,6 +1,5 @@
-import os
 import math
-
+import os
 from unittest import TestCase, main
 
 import angr

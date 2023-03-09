@@ -1,14 +1,13 @@
-import angr
+import logging
+import os
 import subprocess
 import sys
+from unittest import skipUnless
 
-import logging
+import angr
 
 l = logging.getLogger("angr.tests.test_signed_div")
 
-from unittest import skipUnless
-
-import os
 
 test_location = os.path.dirname(os.path.realpath(__file__))
 

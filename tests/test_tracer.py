@@ -1,8 +1,8 @@
+import logging
 import os
 import sys
-import logging
 
-from common import bin_location, do_trace, load_cgc_pov, slow_test, skip_if_not_linux
+from common import bin_location, do_trace, load_cgc_pov, skip_if_not_linux, slow_test
 
 import angr
 

@@ -1,14 +1,14 @@
 # pylint:disable=missing-class-docstring,no-self-use,wrong-import-order
-import os
 import logging
+import os
 import unittest
 
 import archinfo
+from common import slow_test
+
 import angr
 from angr.analyses.cfg.cfg_fast import SegmentList
-from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
-
-from common import slow_test
+from angr.knowledge_plugins.cfg import CFGModel, CFGNode, MemoryDataSort
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 

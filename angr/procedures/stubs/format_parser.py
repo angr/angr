@@ -1,12 +1,14 @@
-from typing import List, Dict, TYPE_CHECKING
-from string import digits as ascii_digits
 import logging
 import math
+from string import digits as ascii_digits
+from typing import TYPE_CHECKING, Dict, List
+
 import claripy
 
-from ... import sim_type
-from ...sim_procedure import SimProcedure
-from ...storage.file import SimPackets
+from angr import sim_type
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
+from angr.sim_procedure import SimProcedure
+from angr.storage.file import SimPackets
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
@@ -561,7 +563,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
+        from angr.procedures import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
 
         strtol = SIM_PROCEDURES["libc"]["strtol"]
 
@@ -572,7 +574,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
+        from angr.procedures import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
 
         strlen = SIM_PROCEDURES["libc"]["strlen"]
 
@@ -672,6 +674,3 @@ class ScanfFormatParser(FormatParser):
             FormatParser._MOD_SPEC = mod_spec
 
         return FormatParser._MOD_SPEC
-
-
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError

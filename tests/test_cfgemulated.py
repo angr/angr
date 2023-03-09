@@ -1,11 +1,10 @@
-import time
-import pickle
-import networkx
-
 import logging
 import os
+import pickle
+import time
 import unittest
 
+import networkx
 from common import broken
 
 import angr

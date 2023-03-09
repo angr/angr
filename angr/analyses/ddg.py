@@ -3,17 +3,19 @@ from collections import defaultdict
 
 import networkx
 import pyvex
-from . import Analysis
 
-from ..code_location import CodeLocation
-from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
-from ..sim_variable import (
-    SimRegisterVariable,
-    SimMemoryVariable,
-    SimTemporaryVariable,
+from angr.analyses import AnalysesHub
+from angr.code_location import CodeLocation
+from angr.errors import AngrDDGError, SimSolverModeError, SimUnsatError
+from angr.sim_variable import (
     SimConstantVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
     SimStackVariable,
+    SimTemporaryVariable,
 )
+
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 
@@ -1681,7 +1683,5 @@ class DDG(Analysis):
 
         return sources
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("DDG", DDG)

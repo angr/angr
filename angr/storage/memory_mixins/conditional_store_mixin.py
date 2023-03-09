@@ -1,6 +1,6 @@
 import claripy
 
-from . import MemoryMixin
+from .base import MemoryMixin
 
 
 class ConditionalMixin(MemoryMixin):

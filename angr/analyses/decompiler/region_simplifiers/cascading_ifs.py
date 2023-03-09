@@ -1,16 +1,16 @@
 # pylint:disable=unused-argument,arguments-differ
 import ailment
 
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    MultiNode,
-    LoopNode,
-    ConditionNode,
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
-from ..utils import is_empty_node
+from angr.analyses.decompiler.utils import is_empty_node
 
 
 class CascadingIfsRemover(SequenceWalker):

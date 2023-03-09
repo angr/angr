@@ -1,34 +1,36 @@
 # pylint:disable=wrong-import-position,wrong-import-order
-from typing import Tuple, Optional, Dict, Sequence, Set, List, TYPE_CHECKING
-import logging
 import functools
-from collections import defaultdict, OrderedDict
+import logging
+from collections import OrderedDict, defaultdict
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, Tuple
 
-import pyvex
 import claripy
+import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from .... import sim_options as o
-from .... import BP, BP_BEFORE, BP_AFTER
-from ....misc.ux import once
-from ....code_location import CodeLocation
-from ....concretization_strategies import SimConcretizationStrategyAny
-from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
-from ....engines.vex.claripy import ccall
-from ....engines.light import SimEngineLightVEXMixin, SimEngineLight, SpOffset, RegisterOffset
-from ....errors import AngrError, SimError
-from ....blade import Blade
-from ....annocfg import AnnotatedCFG
-from ....exploration_techniques.slicecutor import Slicecutor
-from ....exploration_techniques.local_loop_seer import LocalLoopSeer
-from ....exploration_techniques.explorer import Explorer
-from ....utils.constants import DEFAULT_STATEMENT
-from ...propagator.vex_vars import VEXReg
-from .resolver import IndirectJumpResolver
+from angr import BP, BP_AFTER, BP_BEFORE
+from angr import sim_options as o
+from angr.analyses.propagator import PropagatorAnalysis
+from angr.analyses.propagator.vex_vars import VEXReg
+from angr.annocfg import AnnotatedCFG
+from angr.blade import Blade
+from angr.code_location import CodeLocation
+from angr.concretization_strategies import SimConcretizationStrategyAny
+from angr.engines.light import RegisterOffset, SimEngineLight, SimEngineLightVEXMixin, SpOffset
+from angr.engines.vex.claripy import ccall
+from angr.errors import AngrError, SimError
+from angr.exploration_techniques.explorer import Explorer
+from angr.exploration_techniques.local_loop_seer import LocalLoopSeer
+from angr.exploration_techniques.slicecutor import Slicecutor
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.misc.ux import once
+from angr.utils.constants import DEFAULT_STATEMENT
+
 from .propagator_utils import PropagatorLoadCallback
+from .resolver import IndirectJumpResolver
 
 try:
-    from ....engines import pcode
+    from angr.engines import pcode
 except ImportError:
     pcode = None
 
@@ -2206,6 +2208,3 @@ class JumpTableResolver(IndirectJumpResolver):
         if vex_block.size == 0:
             return False
         return True
-
-
-from angr.analyses.propagator import PropagatorAnalysis

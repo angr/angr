@@ -1,6 +1,6 @@
-from typing import Iterable, Tuple, Any, Callable
+from typing import Any, Callable, Iterable, Tuple
 
-from . import MemoryMixin
+from .base import MemoryMixin
 
 
 class TopMergerMixin(MemoryMixin):

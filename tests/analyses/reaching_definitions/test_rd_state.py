@@ -1,7 +1,6 @@
 import os
 import random
-
-from unittest import mock, TestCase
+from unittest import TestCase, mock
 
 import archinfo
 
@@ -9,7 +8,6 @@ from angr.analyses.reaching_definitions.heap_allocator import HeapAllocator
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import SubjectType
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
-
 
 TESTS_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 

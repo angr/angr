@@ -1,6 +1,6 @@
-from . import ExplorationTechnique
+from angr.sim_options import EFFICIENT_STATE_MERGING
 
-from ..sim_options import EFFICIENT_STATE_MERGING
+from .exploration_technique import ExplorationTechnique
 
 
 class Veritesting(ExplorationTechnique):

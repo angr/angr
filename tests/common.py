@@ -1,13 +1,12 @@
+import logging
 import os
 import pickle
-import sys
-import logging
 import subprocess
+import sys
 from functools import lru_cache
-from typing import Optional, Sequence
 from tempfile import NamedTemporaryFile
-
-from unittest import skipIf, skipUnless, skip, SkipTest
+from typing import Optional, Sequence
+from unittest import SkipTest, skip, skipIf, skipUnless
 
 l = logging.getLogger("angr.tests.common")
 

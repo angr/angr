@@ -1,4 +1,4 @@
-from ..java import JavaSimProcedure
+from angr.procedures.java.base import JavaSimProcedure
 
 
 class NextInt(JavaSimProcedure):

@@ -1,45 +1,37 @@
-# pylint:disable=wrong-import-position
-from .analysis import Analysis, AnalysesHub
-
-
-def register_analysis(cls, name):
-    AnalysesHub.register_default(name, cls)
-
-
-from .cfg import CFGFast, CFGEmulated, CFG, CFGArchOptions, CFGFastSoot
-from .cdg import CDG
-from .ddg import DDG
-from .vfg import VFG
-from .boyscout import BoyScout
-
+from .analysis import AnalysesHub, Analysis
 from .backward_slice import BackwardSlice
-from .veritesting import Veritesting
-from .vsa_ddg import VSA_DDG
-from .bindiff import BinDiff
-from .loopfinder import LoopFinder
-from .congruency_check import CongruencyCheck
-from .static_hooker import StaticHooker
-from .reassembler import Reassembler
 from .binary_optimizer import BinaryOptimizer
-from .disassembly import Disassembly
-from .variable_recovery import VariableRecovery, VariableRecoveryFast
-from .identifier import Identifier
+from .bindiff import BinDiff
+from .boyscout import BoyScout
 from .callee_cleanup_finder import CalleeCleanupFinder
-from .reaching_definitions import ReachingDefinitionsAnalysis
 from .calling_convention import CallingConventionAnalysis
-from .code_tagging import CodeTagging
-from .stack_pointer_tracker import StackPointerTracker
-from .dominance_frontier import DominanceFrontier
-from .data_dep import DataDependencyGraphAnalysis
-from .decompiler import Decompiler
-from .soot_class_hierarchy import SootClassHierarchy
-from .propagator import PropagatorAnalysis
-from .xrefs import XRefsAnalysis
-from .init_finder import InitializationFinder
-from .complete_calling_conventions import CompleteCallingConventionsAnalysis
-from .typehoon import Typehoon
-from .proximity_graph import ProximityGraphAnalysis
-from .vtable import VtableFinder
-from .find_objects_static import StaticObjectFinder
+from .cdg import CDG
+from .cfg import CFG, CFGArchOptions, CFGEmulated, CFGFast, CFGFastSoot
 from .class_identifier import ClassIdentifier
+from .code_tagging import CodeTagging
+from .complete_calling_conventions import CompleteCallingConventionsAnalysis
+from .congruency_check import CongruencyCheck
+from .data_dep import DataDependencyGraphAnalysis
+from .ddg import DDG
+from .decompiler import Decompiler
+from .disassembly import Disassembly
+from .dominance_frontier import DominanceFrontier
+from .find_objects_static import StaticObjectFinder
 from .flirt import FlirtAnalysis
+from .identifier import Identifier
+from .init_finder import InitializationFinder
+from .loopfinder import LoopFinder
+from .propagator import PropagatorAnalysis
+from .proximity_graph import ProximityGraphAnalysis
+from .reaching_definitions import ReachingDefinitionsAnalysis
+from .reassembler import Reassembler
+from .soot_class_hierarchy import SootClassHierarchy
+from .stack_pointer_tracker import StackPointerTracker
+from .static_hooker import StaticHooker
+from .typehoon import Typehoon
+from .variable_recovery import VariableRecovery, VariableRecoveryFast
+from .veritesting import Veritesting
+from .vfg import VFG
+from .vsa_ddg import VSA_DDG
+from .vtable import VtableFinder
+from .xrefs import XRefsAnalysis

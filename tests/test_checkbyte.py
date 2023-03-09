@@ -1,11 +1,11 @@
 import logging
+import os
 import unittest
 
 import angr
 
 l = logging.getLogger("angr.tests")
 
-import os
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

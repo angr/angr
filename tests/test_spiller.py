@@ -1,9 +1,11 @@
+import gc
+import os
+import unittest
+
+import claripy
+
 import angr
 from angr.exploration_techniques.spiller import Spiller
-import os
-import gc
-import unittest
-import claripy
 
 
 def _bin(*s):

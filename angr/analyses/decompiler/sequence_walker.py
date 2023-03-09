@@ -3,17 +3,18 @@ from collections import OrderedDict
 
 import ailment
 
-from ...errors import UnsupportedNodeTypeError
+from angr.errors import UnsupportedNodeTypeError
+
 from .structuring.structurer_nodes import (
-    MultiNode,
-    CodeNode,
-    SequenceNode,
-    ConditionNode,
-    SwitchCaseNode,
-    LoopNode,
     CascadingConditionNode,
+    CodeNode,
     ConditionalBreakNode,
+    ConditionNode,
     IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
 )
 
 

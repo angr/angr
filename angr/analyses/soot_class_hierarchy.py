@@ -1,6 +1,8 @@
 import logging
 
-from . import Analysis
+from angr.analyses import AnalysesHub
+
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 
@@ -277,7 +279,5 @@ class SootClassHierarchy(Analysis):
 
         return targets
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("SootClassHierarchy", SootClassHierarchy)

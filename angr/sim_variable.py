@@ -1,9 +1,11 @@
 import collections.abc
+from typing import TYPE_CHECKING, Optional
+
 import claripy
-from typing import Optional, TYPE_CHECKING
 
 from .protos import variables_pb2 as pb2
 from .serializable import Serializable
+from .storage.memory_mixins.regioned_memory.region_data import AddressWrapper
 
 if TYPE_CHECKING:
     import archinfo
@@ -557,6 +559,3 @@ class SimVariableSet(collections.abc.MutableSet):
         else:
             __import__("ipdb").set_trace()
             raise Exception("WTF is this variable?")
-
-
-from .storage.memory_mixins.regioned_memory.region_data import AddressWrapper

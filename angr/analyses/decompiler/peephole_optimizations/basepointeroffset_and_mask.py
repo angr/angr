@@ -1,4 +1,4 @@
-from ailment.expression import BinaryOp, BasePointerOffset, Const
+from ailment.expression import BasePointerOffset, BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
 

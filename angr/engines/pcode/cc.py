@@ -2,7 +2,7 @@ import logging
 
 from archinfo import ArchPcode
 
-from ...calling_conventions import (
+from angr.calling_conventions import (
     SimCC,
     SimRegArg,
     SimStackArg,

@@ -1,11 +1,12 @@
 # Disable some pylint warnings: no-self-use, missing-docstring
 # pylint: disable=R0201, C0111
 
-import os
 import logging
-
+import os
 import unittest
+
 import claripy
+
 import angr
 
 l = logging.getLogger("angr.tests.getenv")

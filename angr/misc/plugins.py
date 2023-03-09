@@ -1,8 +1,7 @@
-from typing import Type, Dict, Optional, List, TYPE_CHECKING
+import logging
+from typing import TYPE_CHECKING, Dict, List, Optional, Type
 
 from angr.errors import AngrNoPluginError
-
-import logging
 
 l = logging.getLogger(name=__name__)
 
@@ -290,4 +289,4 @@ class VendorPreset(PluginPreset):
 
 
 if TYPE_CHECKING:
-    from ..state_plugins import SimStatePlugin
+    from angr.state_plugins import SimStatePlugin

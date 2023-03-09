@@ -1,8 +1,8 @@
 # pylint:disable=missing-class-docstring
-from typing import Dict, Any, Optional, TYPE_CHECKING
 from itertools import count
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from ...utils.cowdict import ChainMapCOW
+from angr.utils.cowdict import ChainMapCOW
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable

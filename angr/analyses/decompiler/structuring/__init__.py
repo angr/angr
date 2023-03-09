@@ -4,7 +4,6 @@ from .dream import DreamStructurer
 from .phoenix import PhoenixStructurer
 from .recursive_structurer import RecursiveStructurer
 
-
 STRUCTURER_CLASSES = {
     "dream": DreamStructurer,
     "phoenix": PhoenixStructurer,

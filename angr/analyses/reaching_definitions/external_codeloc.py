@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from ...code_location import CodeLocation
+from angr.code_location import CodeLocation
 
 
 class ExternalCodeLocation(CodeLocation):

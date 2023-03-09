@@ -1,9 +1,10 @@
 import claripy
 
-from . import JavaSimProcedure
-from ...engines.soot.values import SimSootValue_ThisRef, SimSootValue_StringRef
-from ...engines.soot.expressions import SimSootExpr_NewArray
-from ... import sim_options as options
+from angr import sim_options as options
+from angr.engines.soot.expressions import SimSootExpr_NewArray
+from angr.engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef
+
+from .base import JavaSimProcedure
 
 
 class UnconstrainedMethod(JavaSimProcedure):

@@ -1,57 +1,59 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
-from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
-from collections import defaultdict
 import logging
+from collections import defaultdict
 from functools import reduce
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from ailment import Block, Expr, Stmt, Tmp
-from ailment.expression import StackBaseOffset, BinaryOp
+from ailment.expression import BinaryOp, StackBaseOffset
 
-from ....sim_type import (
-    SimTypeLongLong,
-    SimTypeInt,
-    SimTypeShort,
-    SimTypeChar,
-    SimTypePointer,
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.structuring.structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    LoopNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
+from angr.errors import UnsupportedNodeTypeError
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.sim_type import (
     SimStruct,
     SimType,
-    SimTypeBottom,
     SimTypeArray,
-    SimTypeFunction,
-    SimTypeFloat,
+    SimTypeBottom,
+    SimTypeChar,
     SimTypeDouble,
-    TypeRef,
-    SimTypeNum,
     SimTypeFixedSizeArray,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
     SimTypeLength,
+    SimTypeLongLong,
+    SimTypeNum,
+    SimTypePointer,
     SimTypeReg,
+    SimTypeShort,
+    TypeRef,
 )
-from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
-from ....utils.constants import is_alignment_mask
-from ....utils.library import get_cpp_function_name
-from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
-from ....errors import UnsupportedNodeTypeError
-from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from ... import Analysis, register_analysis
-from ..region_identifier import MultiNode
-from ..structuring.structurer_nodes import (
-    SequenceNode,
-    CodeNode,
-    ConditionNode,
-    ConditionalBreakNode,
-    LoopNode,
-    BreakNode,
-    SwitchCaseNode,
-    ContinueNode,
-    CascadingConditionNode,
-)
+from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimTemporaryVariable, SimVariable
+from angr.utils.constants import is_alignment_mask
+from angr.utils.library import get_cpp_function_name
+from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
+
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
     import archinfo
+
     import angr
-    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.knowledge_plugins.functions import Function
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 
 l = logging.getLogger(name=__name__)
@@ -3317,4 +3319,4 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
 
 
 StructuredCodeGenerator = CStructuredCodeGenerator
-register_analysis(StructuredCodeGenerator, "StructuredCodeGenerator")
+AnalysesHub.register_default("StructuredCodeGenerator", StructuredCodeGenerator)

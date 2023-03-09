@@ -1,6 +1,11 @@
 import os
-import networkx
 from collections import defaultdict
+
+import networkx
+
+from angr.codenode import BlockNode
+from angr.errors import AngrValueError
+
 from .function import Function
 
 
@@ -125,7 +130,3 @@ class SootFunction(Function):
             if isinstance(node, BlockNode):
                 if node.addr not in self._addr_to_block_node:
                     self._addr_to_block_node[node.addr] = node
-
-
-from ...codenode import BlockNode
-from ...errors import AngrValueError

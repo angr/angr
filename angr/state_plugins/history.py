@@ -1,15 +1,19 @@
-import operator
-import logging
-import itertools
 import contextlib
+import itertools
+import logging
+import operator
 from typing import Optional
 
 import claripy
 from claripy.ast.bv import BV
 
+from angr import sim_options
+from angr.sim_state import SimState
+from angr.state_plugins.sim_action import SimActionObject
+
 from .plugin import SimStatePlugin
-from .. import sim_options
-from ..state_plugins.sim_action import SimActionObject
+from .sim_action import SimAction, SimActionConstraint
+from .sim_event import SimEvent
 
 l = logging.getLogger(name=__name__)
 
@@ -539,9 +543,4 @@ class LambdaIterIter(LambdaAttrIter):
             yield from reversed(self._f(hist)) if self._reverse else self._f(hist)
 
 
-from angr.sim_state import SimState
-
 SimState.register_default("history", SimStateHistory)
-
-from .sim_action import SimAction, SimActionConstraint
-from .sim_event import SimEvent

@@ -1,7 +1,7 @@
 # pylint:disable=no-member
 import time
-from functools import wraps
 from collections import defaultdict
+from functools import wraps
 
 TIMING = False
 PRINT = False

@@ -1,6 +1,6 @@
 import sys
 
-from angr import SimState, SimFile, SIM_PROCEDURES
+from angr import SIM_PROCEDURES, SimFile, SimState
 
 
 def test_pwrite():

@@ -3,10 +3,10 @@ import os
 import archinfo
 
 import angr
-from angr.procedures.definitions.user32 import lib
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar
-from angr.engines.successors import SimSuccessors
 from angr.calling_conventions import SimCCStdcall, SimStackArg
+from angr.engines.successors import SimSuccessors
+from angr.procedures.definitions.user32 import lib
+from angr.sim_type import SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
 
 binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

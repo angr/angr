@@ -1,9 +1,9 @@
-import capstone as cs
 import logging
 
+import capstone as cs
 from archinfo.arch_arm import is_arm_arch
 
-from ..misc.ux import once
+from angr.misc.ux import once
 
 l = logging.getLogger(name=__name__)
 

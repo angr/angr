@@ -1,13 +1,20 @@
 import binascii
 import functools
-import time
 import logging
-from typing import Type, TypeVar, overload, Any, Optional
+import os
+import time
+from typing import Any, Optional, Type, TypeVar, overload
 
+import claripy
 from claripy import backend_manager
 
+from angr import sim_options as o
+from angr.errors import SimSolverModeError, SimSolverOptionError, SimUnsatError, SimValueError
+from angr.sim_state import SimState
+
+from .inspect import BP_AFTER
 from .plugin import SimStatePlugin
-from .sim_action_object import ast_stripping_decorator, SimActionObject
+from .sim_action_object import SimActionObject, ast_stripping_decorator
 
 l = logging.getLogger(name=__name__)
 
@@ -72,8 +79,6 @@ def disable_timing():
     global _timing_enabled
     _timing_enabled = False
 
-
-import os
 
 if os.environ.get("SOLVER_TIMING", False):
     enable_timing()
@@ -191,8 +196,6 @@ def concrete_path_list(f):
 #
 # The main event
 #
-
-import claripy
 
 
 class SimSolver(SimStatePlugin):
@@ -1024,10 +1027,4 @@ class SimSolver(SimStatePlugin):
         return e.variables
 
 
-from angr.sim_state import SimState
-
 SimState.register_default("solver", SimSolver)
-
-from .. import sim_options as o
-from .inspect import BP_AFTER
-from ..errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

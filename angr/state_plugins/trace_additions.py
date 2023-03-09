@@ -15,9 +15,9 @@ before being printed.
 import logging
 import string
 
-import angr
 import claripy
 
+import angr
 
 l = logging.getLogger(name=__name__)
 

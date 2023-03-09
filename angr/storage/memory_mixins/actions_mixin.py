@@ -1,8 +1,9 @@
 from typing import Optional
 
-from ...state_plugins.sim_action import SimActionData, SimActionObject
-from ... import sim_options as o
-from . import MemoryMixin
+from angr import sim_options as o
+from angr.state_plugins.sim_action import SimActionData, SimActionObject
+
+from .base import MemoryMixin
 
 
 class ActionsMixinHigh(MemoryMixin):

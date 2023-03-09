@@ -1,9 +1,9 @@
 import pyvex
 
-from .heavy import HeavyVEXMixin
-
-from angr.state_plugins.sim_action import SimActionObject, SimActionData, SimActionExit, SimActionOperation
 from angr import sim_options as o
+from angr.state_plugins.sim_action import SimActionData, SimActionExit, SimActionObject, SimActionOperation
+
+from .heavy import HeavyVEXMixin
 
 
 class TrackActionsMixin(HeavyVEXMixin):

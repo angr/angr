@@ -2,10 +2,11 @@ import logging
 
 from claripy import And
 
-from . import translate_value
-from ....errors import SimEngineError
+from angr.errors import SimEngineError
+
 from .base import SimSootValue
 from .constants import SimSootValue_IntConstant
+from .util import translate_value
 
 l = logging.getLogger("angr.engines.soot.values.arrayref")
 
@@ -107,9 +108,9 @@ class SimSootValue_ArrayRef(SimSootValue):
         # raise exception, if index is *always* invalid
         if True not in idx_stays_within_bounds:
             raise SimEngineError(
-                "Access of %s[%s] (length %s) is always invalid. "
+                "Access of {}[{}] (length {}) is always invalid. "
                 "Cannot continue w/o raising java.lang.ArrayIndexOutOfBoundsException."
-                "" % (array.id, idx, length)
+                "".format(array.id, idx, length)
             )
 
         # bound index and/or length, if there are *some* invalid values

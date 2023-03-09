@@ -2,6 +2,7 @@
 # All variables with names of all caps will be registered as a state option to SimStateOptions.
 
 import string
+
 from .sim_state_options import SimStateOptions
 
 # This option controls whether or not constraints are tracked in the analysis.

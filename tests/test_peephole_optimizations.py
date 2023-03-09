@@ -1,9 +1,10 @@
 # pylint:disable=missing-class-docstring,no-self-use
 import os
-
 import unittest
-import archinfo
+
 import ailment
+import archinfo
+
 import angr
 from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences
 

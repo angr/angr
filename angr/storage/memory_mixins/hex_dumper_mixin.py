@@ -1,7 +1,8 @@
 import string
 
-from ...errors import SimValueError
-from . import MemoryMixin
+from angr.errors import SimValueError
+
+from .base import MemoryMixin
 
 
 class HexDumperMixin(MemoryMixin):

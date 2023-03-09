@@ -1,20 +1,26 @@
 import logging
 import os
-import types
-from io import BytesIO, IOBase
 import pickle
 import string
+import types
 from collections import defaultdict
+from io import BytesIO, IOBase
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import archinfo
-from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
-from .sim_procedure import SimProcedure
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
-from .misc.ux import deprecated
+from angr.simos import SimOS, os_mapping
+
+from .analyses.analysis import AnalysesHub
 from .errors import AngrNoPluginError
+from .factory import AngrObjectFactory
+from .knowledge_base import KnowledgeBase
+from .misc.ux import deprecated
+from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
+from .sim_procedure import SimProcedure
 
 l = logging.getLogger(name=__name__)
 
@@ -798,10 +804,3 @@ class Project:
     @deprecated(replacement="simos")
     def _simos(self):
         return self.simos
-
-
-from .factory import AngrObjectFactory
-from angr.simos import SimOS, os_mapping
-from .analyses.analysis import AnalysesHub
-from .knowledge_base import KnowledgeBase
-from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

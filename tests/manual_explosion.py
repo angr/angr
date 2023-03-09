@@ -1,9 +1,8 @@
-import angr
+import os
 import resource
 import time
 
-import os
-
+import angr
 
 b = angr.Project(
     os.path.join(os.path.dirname(__file__), "..", "..", "binaries-private", "cgc_scored_event_2", "cgc", "0b32aa01_01")

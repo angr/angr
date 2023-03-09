@@ -1,10 +1,10 @@
-import angr
-
 import logging
+import os
+
+import angr
 
 l = logging.getLogger("angr.tests.test_rol")
 
-import os
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

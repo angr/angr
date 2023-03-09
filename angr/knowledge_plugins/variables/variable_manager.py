@@ -1,35 +1,35 @@
-from typing import Set, List, Tuple, Dict, Union, Optional, TYPE_CHECKING
 import logging
 from collections import defaultdict
-from itertools import count, chain
+from itertools import chain, count
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 import networkx
-
+from claripy.utils.orderedset import OrderedSet
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
-from claripy.utils.orderedset import OrderedSet
 
-from ...protos import variables_pb2
-from ...serializable import Serializable
-from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
-from ...sim_type import (
-    TypeRef,
-    SimType,
+from angr.keyed_region import KeyedRegion
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.knowledge_plugins.types import TypesStore
+from angr.protos import variables_pb2
+from angr.serializable import Serializable
+from angr.sim_type import (
     SimStruct,
-    SimTypePointer,
+    SimType,
     SimTypeBottom,
     SimTypeChar,
-    SimTypeShort,
     SimTypeInt,
     SimTypeLong,
+    SimTypePointer,
+    SimTypeShort,
+    TypeRef,
 )
-from ...keyed_region import KeyedRegion
-from ..plugin import KnowledgeBasePlugin
-from ..types import TypesStore
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
+
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
-    from ...knowledge_base import KnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 l = logging.getLogger(name=__name__)
 

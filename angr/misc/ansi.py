@@ -1,6 +1,5 @@
-from typing import Union
 from enum import Enum, unique
-
+from typing import Union
 
 _ansi_prefix = "\x1b["
 

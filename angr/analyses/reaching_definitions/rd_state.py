@@ -1,28 +1,29 @@
-from typing import Optional, Iterable, Set, Generator, Tuple, Any, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Any, Generator, Iterable, Optional, Set, Tuple
 
 import archinfo
 import claripy
 
-from ...analyses.reaching_definitions.call_trace import CallTrace
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...storage.memory_mixins import MultiValuedMemory
-from ...knowledge_plugins.key_definitions import LiveDefinitions
-from ...knowledge_plugins.key_definitions.atoms import (
+from angr.analyses.reaching_definitions.call_trace import CallTrace
+from angr.calling_conventions import SimCC, SimRegArg, SimStackArg
+from angr.code_location import CodeLocation
+from angr.engines.light import SpOffset
+from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.key_definitions import LiveDefinitions
+from angr.knowledge_plugins.key_definitions.atoms import (
     Atom,
-    GuardUse,
-    Register,
-    MemoryLocation,
-    FunctionCall,
     ConstantSrc,
+    FunctionCall,
+    GuardUse,
+    MemoryLocation,
+    Register,
 )
-from ...knowledge_plugins.functions.function import Function
-from ...knowledge_plugins.key_definitions.definition import Definition
-from ...knowledge_plugins.key_definitions.environment import Environment
-from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
-from ...calling_conventions import SimCC, SimRegArg, SimStackArg
-from ...engines.light import SpOffset
-from ...code_location import CodeLocation
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.environment import Environment
+from angr.knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
+from angr.storage.memory_mixins import MultiValuedMemory
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
 from .external_codeloc import ExternalCodeLocation
 from .heap_allocator import HeapAllocator
 from .subject import Subject, SubjectType

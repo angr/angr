@@ -1,8 +1,8 @@
+import logging
+
 import angr
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 from angr.storage.memory_mixins.regioned_memory.abstract_address_descriptor import AbstractAddressDescriptor
-
-import logging
 
 l = logging.getLogger(name=__name__)
 

@@ -1,10 +1,13 @@
-from typing import Dict, Optional
 import logging
+from typing import Dict, Optional
 
 import claripy
 from archinfo.arch_arm import is_arm_arch
-from angr.state_plugins.sim_action_object import _raw_ast, SimActionObject
+
 from angr import errors
+from angr.errors import SimCCallError, SimError
+from angr.sim_options import USE_SIMPLIFIED_CCALLS
+from angr.state_plugins.sim_action_object import SimActionObject, _raw_ast
 
 l = logging.getLogger(name=__name__)
 # l.setLevel(logging.DEBUG)
@@ -2092,7 +2095,3 @@ def _get_nbits(cc_str):
     elif cc_str.endswith("64"):
         nbits = 64
     return nbits
-
-
-from angr.errors import SimError, SimCCallError
-from angr.sim_options import USE_SIMPLIFIED_CCALLS

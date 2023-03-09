@@ -1,32 +1,31 @@
-import os
-import logging
-import networkx
-import string
 import itertools
+import logging
+import os
+import string
 from collections import defaultdict
-from typing import Union, Optional, Iterable, Set, Generator
-from typing import Type
+from typing import TYPE_CHECKING, Generator, Iterable, Optional, Set, Type, Union
 
+import claripy
+import networkx
+from archinfo.arch_arm import get_real_address_if_arm
+from cle.backends.symbol import Symbol
 from itanium_demangler import parse
 
-from cle.backends.symbol import Symbol
-from archinfo.arch_arm import get_real_address_if_arm
-import claripy
+from angr.calling_conventions import DEFAULT_CC, SimCC
+from angr.codenode import BlockNode, CodeNode, HookNode, SyscallNode
+from angr.errors import AngrValueError, SimEngineError, SimMemoryError
+from angr.procedures import SIM_LIBRARIES
+from angr.procedures.definitions import SimSyscallLibrary
+from angr.protos import function_pb2
+from angr.serializable import Serializable
+from angr.sim_type import SimTypeFunction, parse_defns
 
-from ...codenode import CodeNode, BlockNode, HookNode, SyscallNode
-from ...serializable import Serializable
-from ...errors import AngrValueError, SimEngineError, SimMemoryError
-from ...procedures import SIM_LIBRARIES
-from ...procedures.definitions import SimSyscallLibrary
-from ...protos import function_pb2
-from ...calling_conventions import DEFAULT_CC
 from .function_parser import FunctionParser
 
-l = logging.getLogger(name=__name__)
+if TYPE_CHECKING:
+    from angr.project import Project
 
-from ...sim_type import SimTypeFunction, parse_defns
-from ...calling_conventions import SimCC
-from ...project import Project
+l = logging.getLogger(name=__name__)
 
 
 class Function(Serializable):
@@ -165,7 +164,7 @@ class Function(Serializable):
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
-        self._project: Optional[Project] = None  # will be initialized upon the first access to self.project
+        self._project: Optional["Project"] = None  # will be initialized upon the first access to self.project
 
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
 
@@ -262,7 +261,7 @@ class Function(Serializable):
         if self._project is None:
             # try to set it from function manager
             if self._function_manager is not None:
-                self._project: Optional[Project] = self._function_manager._kb._project
+                self._project: Optional["Project"] = self._function_manager._kb._project
         return self._project
 
     @property

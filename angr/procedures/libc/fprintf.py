@@ -1,8 +1,8 @@
 import logging
 
-from angr.procedures.stubs.format_parser import FormatParser
-
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
+
+from angr.procedures.stubs.format_parser import FormatParser
 
 l = logging.getLogger(name=__name__)
 

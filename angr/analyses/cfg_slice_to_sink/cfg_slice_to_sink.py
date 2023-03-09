@@ -1,5 +1,5 @@
-from typing import Optional, Set, Any, List
 from functools import reduce
+from typing import Any, List, Optional, Set
 
 from .transitions import merge_transitions
 

@@ -1,10 +1,9 @@
 import logging
+from typing import List, Union
 
-from typing import Union, List
-
-from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
-from ...knowledge_plugins.key_definitions.unknown_size import UnknownSize
-from ...knowledge_plugins.key_definitions.undefined import Undefined
+from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
+from angr.knowledge_plugins.key_definitions.undefined import Undefined
+from angr.knowledge_plugins.key_definitions.unknown_size import UnknownSize
 
 _l = logging.getLogger(name=__name__)
 

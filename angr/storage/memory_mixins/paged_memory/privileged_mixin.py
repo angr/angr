@@ -1,3 +1,6 @@
+from angr import sim_options as o
+from angr.errors import SimSegfaultException
+
 from .paged_memory_mixin import PagedMemoryMixin
 
 
@@ -30,7 +33,3 @@ class PrivilegedPagingMixin(PagedMemoryMixin):
             raise SimSegfaultException(pageno * self.page_size, "unmapped")
 
         return super()._initialize_page(pageno, **kwargs)
-
-
-from angr.errors import SimSegfaultException
-from angr import sim_options as o

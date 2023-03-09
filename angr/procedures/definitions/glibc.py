@@ -1,14 +1,8 @@
 # pylint:disable=line-too-long
 import logging
 
-from ...sim_type import SimTypeFunction, \
-    SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat, \
-    SimTypePointer, \
-    SimTypeChar, \
-    SimTypeFixedSizeArray, \
-    SimTypeBottom, \
-    ALL_TYPES
-from .. import SIM_PROCEDURES as P
+from angr.sim_type import SimTypeFunction, SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat, SimTypePointer, SimTypeChar, SimTypeFixedSizeArray, SimTypeBottom, ALL_TYPES
+from angr.procedures import SIM_PROCEDURES as P
 from . import SimLibrary
 
 

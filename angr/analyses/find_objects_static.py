@@ -2,12 +2,15 @@ from collections import defaultdict
 
 import claripy
 
-from ..analyses import AnalysesHub
-from ..analyses.reaching_definitions.function_handler import FunctionHandler
-from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
-from ..storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from . import Analysis, VtableFinder, CFGFast, ReachingDefinitionsAnalysis
+from angr.analyses.reaching_definitions.function_handler import FunctionHandler
+from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
+from .analysis import AnalysesHub, Analysis
+from .cfg import CFGFast
+from .reaching_definitions import ReachingDefinitionsAnalysis
+from .vtable import VtableFinder
 
 
 class PossibleObject:

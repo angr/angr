@@ -1,8 +1,10 @@
-from angr.errors import SimSolverError
-from ..plugin import SimStatePlugin
-from . import SimHeapBase
-
 import logging
+
+from angr.errors import SimSolverError
+from angr.sim_state import SimState
+from angr.state_plugins.plugin import SimStatePlugin
+
+from .heap_base import SimHeapBase
 
 l = logging.getLogger(__name__)
 
@@ -128,7 +130,5 @@ class SimHeapBrk(SimHeapBase):
     def widen(self, others):
         return self._combine(others)
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("heap", SimHeapBrk)

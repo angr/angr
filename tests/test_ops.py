@@ -1,5 +1,6 @@
-import angr
 import claripy
+
+import angr
 
 # all the input values were generated via
 # [random.randrange(256) for _ in range(16)]

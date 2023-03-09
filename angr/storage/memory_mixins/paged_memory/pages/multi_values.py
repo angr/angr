@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Set, Generator, Tuple
+from typing import Dict, Generator, Optional, Set, Tuple
 
 import claripy
 

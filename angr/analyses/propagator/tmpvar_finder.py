@@ -1,6 +1,6 @@
 from ailment.expression import Expression, Tmp
 
-from ..decompiler.ailblock_walker import AILBlockWalkerBase
+from angr.analyses.decompiler.ailblock_walker import AILBlockWalkerBase
 
 
 class TmpvarFinder(AILBlockWalkerBase):

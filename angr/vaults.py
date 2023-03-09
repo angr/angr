@@ -1,16 +1,20 @@
 import collections.abc
 import contextlib
-import threading
-import tempfile
-import weakref
+import io
 import logging
+import os
 import pickle
 import shelve
+import tempfile
+import threading
 import uuid
-import os
-import io
+import weakref
 
 import claripy
+
+from .errors import AngrVaultError
+from .sim_state import SimState
+from .sim_type import SimType
 
 l = logging.getLogger("angr.vault")
 
@@ -92,6 +96,8 @@ class Vault(collections.abc.MutableMapping):
             claripy.ast.Bits,
         }
         self.module_dedup = set()  # {'claripy', 'angr', 'archinfo', 'pyvex' } # cle causes recursion
+        from angr import Project
+
         self.uuid_dedup = {SimState, Project}
         self.unsafe_key_baseclasses = {claripy.ast.Base, SimType}
 
@@ -362,9 +368,3 @@ class VaultDirShelf(VaultDict):
             else:
                 s.add(n[: n.rfind(".")])  # remove the suffix
         return s
-
-
-from .errors import AngrVaultError
-from .project import Project
-from .sim_type import SimType
-from .sim_state import SimState

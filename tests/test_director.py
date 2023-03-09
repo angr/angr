@@ -1,10 +1,10 @@
 # pylint: disable=missing-class-docstring,disable=no-self-use
-import os
 import logging
+import os
 import unittest
 
 import angr
-from angr.sim_type import SimTypePointer, SimTypeChar
+from angr.sim_type import SimTypeChar, SimTypePointer
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 

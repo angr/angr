@@ -1,4 +1,4 @@
-from typing import Callable, List, Any, Optional
+from typing import Any, Callable, List, Optional
 
 
 def binary_insert(lst: List, elem: Any, key: Callable, lo: int = 0, hi: Optional[int] = None) -> None:

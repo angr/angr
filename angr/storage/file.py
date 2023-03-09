@@ -1,11 +1,14 @@
-import claripy
-import logging
 import itertools
+import logging
+
+import claripy
+
+from angr import sim_options
+from angr.errors import SimFileError, SimMergeError, SimSolverError
+from angr.state_plugins.plugin import SimStatePlugin
+from angr.state_plugins.sim_action_object import SimActionObject
 
 from .memory_mixins import DefaultMemory
-from ..state_plugins.plugin import SimStatePlugin
-from ..state_plugins.sim_action_object import SimActionObject
-from .. import sim_options
 
 l = logging.getLogger(name=__name__)
 
@@ -1192,6 +1195,3 @@ class SimPacketsSlots(SimFileBase):
 
     def widen(self, _):
         raise SimMergeError("Widening the filesystem is unsupported")
-
-
-from ..errors import SimMergeError, SimFileError, SimSolverError

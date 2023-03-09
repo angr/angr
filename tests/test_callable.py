@@ -1,16 +1,18 @@
-import angr
-import claripy
-import archinfo
-import unittest
-from angr.sim_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt, parse_defns
-from angr.errors import AngrCallableMultistateError
-
 import logging
+import os
+import unittest
+
+import archinfo
+import claripy
+from common import bin_location as location
+from common import slow_test
+
+import angr
+from angr.errors import AngrCallableMultistateError
+from angr.sim_type import SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer, parse_defns
 
 l = logging.getLogger("angr_tests")
 
-import os
-from common import slow_test, bin_location as location
 
 addresses_fauxware = {
     "armel": 0x8524,

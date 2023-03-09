@@ -1,4 +1,4 @@
-from ailment.expression import BinaryOp, Const, UnaryOp, Convert
+from ailment.expression import BinaryOp, Const, Convert, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 

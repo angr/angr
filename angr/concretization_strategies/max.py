@@ -1,7 +1,8 @@
 from typing import Optional
 
-from ..errors import SimSolverError
-from . import SimConcretizationStrategy
+from angr.errors import SimSolverError
+
+from .base import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyMax(SimConcretizationStrategy):

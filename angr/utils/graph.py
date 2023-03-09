@@ -1,6 +1,6 @@
-from typing import Tuple, Optional, Dict, List
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from typing import Dict, List, Optional, Tuple
 
 import networkx
 

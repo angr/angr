@@ -1,15 +1,15 @@
 import logging
 from collections import defaultdict
 
+import claripy
 import networkx
 
-import claripy
+from angr.calling_conventions import DEFAULT_CC
+from angr.errors import AngrDirectorError
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_type import SimType, SimTypeChar, SimTypePointer, SimTypeReg, SimTypeString
 
-from ..sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, SimTypeReg
-from ..calling_conventions import DEFAULT_CC
-from ..knowledge_base import KnowledgeBase
-from ..errors import AngrDirectorError
-from . import ExplorationTechnique
+from .exploration_technique import ExplorationTechnique
 
 l = logging.getLogger(name=__name__)
 

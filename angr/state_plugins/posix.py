@@ -1,9 +1,12 @@
 import logging
 
-from .plugin import SimStatePlugin
+from angr import sim_options as options
+from angr.errors import SimMemoryError, SimMergeError, SimPosixError, SimSolverError
+from angr.sim_state import SimState
+from angr.storage.file import Flags, SimFile, SimFileDescriptor, SimFileDescriptorDuplex, SimPacketsStream
+
 from .filesystem import SimMount, Stat
-from ..storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
-from .. import sim_options as options
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
 
@@ -643,8 +646,4 @@ class SimSystemPosix(SimStatePlugin):
         return self.get_fd(fd).concretize(**kwargs)
 
 
-from angr.sim_state import SimState
-
 SimState.register_default("posix", SimSystemPosix)
-
-from ..errors import SimPosixError, SimSolverError, SimMergeError, SimMemoryError

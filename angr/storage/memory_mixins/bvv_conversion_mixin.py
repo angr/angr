@@ -1,7 +1,9 @@
 import logging
+
 import claripy
 
-from angr.storage.memory_mixins import MemoryMixin
+from angr.errors import SimMemoryError
+from angr.storage.memory_mixins.base import MemoryMixin
 
 l = logging.getLogger(__name__)
 
@@ -69,6 +71,3 @@ class DataNormalizationMixin(MemoryMixin):
                 raise TypeError("Bad value passed to memory", thing) from None
             else:
                 return raw_to_bv()
-
-
-from ...errors import SimMemoryError

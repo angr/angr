@@ -1,6 +1,6 @@
 import logging
 
-from . import JNISimProcedure
+from .base import JNISimProcedure
 
 l = logging.getLogger("angr.procedures.java_jni.global_and_local_references")
 

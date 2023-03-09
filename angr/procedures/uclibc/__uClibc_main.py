@@ -1,4 +1,4 @@
-from ..glibc.__libc_start_main import __libc_start_main as fucker
+from angr.procedures.glibc.__libc_start_main import __libc_start_main as fucker
 
 
 ######################################

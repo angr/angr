@@ -4,14 +4,19 @@ from functools import cmp_to_key
 from typing import Tuple
 
 import networkx
+from claripy import ClaripyError
 
-from .. import SIM_PROCEDURES
-from .. import options as o
-from ..knowledge_base import KnowledgeBase
-from ..errors import AngrError, AngrCFGError
-from ..sim_manager import SimulationManager
-from ..utils.graph import shallow_reverse
-from . import Analysis, CFGEmulated
+from angr import SIM_PROCEDURES
+from angr import options as o
+from angr.analyses import AnalysesHub
+from angr.errors import AngrCFGError, AngrError, SimError, SimSolverModeError, SimValueError
+from angr.knowledge_base import KnowledgeBase
+from angr.sim_manager import SimulationManager
+from angr.sim_options import BYPASS_VERITESTING_EXCEPTIONS
+from angr.utils.graph import shallow_reverse
+
+from .analysis import Analysis
+from .cfg import CFGEmulated
 
 l = logging.getLogger(name=__name__)
 
@@ -627,10 +632,4 @@ class Veritesting(Analysis):
         return [(n.addr, n.looping_times) for n in nodes]
 
 
-from angr.analyses import AnalysesHub
-
 AnalysesHub.register_default("Veritesting", Veritesting)
-
-from ..errors import SimValueError, SimSolverModeError, SimError
-from ..sim_options import BYPASS_VERITESTING_EXCEPTIONS
-from claripy import ClaripyError

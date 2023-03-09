@@ -1,8 +1,9 @@
-from typing import Optional
 import logging
+from typing import Optional
 
-from . import MemoryMixin
-from ...errors import SimMemoryLimitError, SimMemoryError, SimUnsatError
+from angr.errors import SimMemoryError, SimMemoryLimitError, SimUnsatError
+
+from .base import MemoryMixin
 
 l = logging.getLogger(__name__)
 

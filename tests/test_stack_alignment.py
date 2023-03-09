@@ -1,9 +1,11 @@
 import logging
 import os
 
+from archinfo import ArchAMD64, ArchSoot, all_arches
+
+from angr import Project, SimState
+from angr import sim_options as o
 from angr.calling_conventions import DEFAULT_CC, SimCCUnknown
-from angr import SimState, sim_options as o, Project
-from archinfo import all_arches, ArchAMD64, ArchSoot
 
 l = logging.getLogger("angr.tests.test_stack_alignment")
 

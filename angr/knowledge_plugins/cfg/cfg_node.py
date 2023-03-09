@@ -1,19 +1,20 @@
-import traceback
 import logging
-from typing import TYPE_CHECKING, Union, Optional
+import traceback
+from typing import TYPE_CHECKING, Optional, Union
 
-from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
+from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
-from angr.serializable import Serializable
-from angr.protos import cfg_pb2
 from angr.errors import AngrError, SimError
+from angr.protos import cfg_pb2
+from angr.serializable import Serializable
 
 if TYPE_CHECKING:
-    from .cfg_model import CFGModel
     import angr
+
+    from .cfg_model import CFGModel
 
 _l = logging.getLogger(__name__)
 

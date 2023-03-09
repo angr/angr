@@ -1,6 +1,6 @@
 import logging
 import weakref
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from sortedcontainers import SortedDict
 
@@ -379,7 +379,7 @@ class KeyedRegion:
         # delayed import
         from .knowledge_plugins.key_definitions.unknown_size import (
             UnknownSize,
-        )  # pylint:disable=import-outside-toplevel
+        )
 
         if isinstance(size, UnknownSize):
             return self._canonical_size

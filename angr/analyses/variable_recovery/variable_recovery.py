@@ -4,14 +4,16 @@ from typing import Tuple
 
 import claripy
 
-from ...errors import SimMemoryMissingError
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ... import BP, BP_AFTER
-from ...sim_variable import SimRegisterVariable, SimStackVariable
-from ...code_location import CodeLocation
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
+from angr import BP, BP_AFTER
+from angr.analyses import AnalysesHub
+from angr.analyses.forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from angr.code_location import CodeLocation
+from angr.errors import SimMemoryMissingError
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
 from .annotations import StackLocationAnnotation
+from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 
 l = logging.getLogger(name=__name__)
 
@@ -548,7 +550,5 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
                     state.downsize_region(state.stack_region),
                 )
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VariableRecovery", VariableRecovery)

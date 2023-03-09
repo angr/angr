@@ -1,11 +1,11 @@
+import logging
 import os
 import string
-import logging
-
 import unittest
 
-import angr
 import claripy
+
+import angr
 
 l = logging.getLogger("angr.tests.scanf")
 test_location = os.path.dirname(os.path.realpath(__file__))

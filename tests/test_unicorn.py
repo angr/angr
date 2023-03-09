@@ -3,10 +3,10 @@ import os
 import pickle
 import re
 
+from common import slow_test
+
 import angr
 from angr import options as so
-
-from common import slow_test
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..")
 

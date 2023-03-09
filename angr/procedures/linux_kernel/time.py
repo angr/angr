@@ -1,5 +1,6 @@
-import angr
 import time as _time
+
+import angr
 
 
 class time(angr.SimProcedure):

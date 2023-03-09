@@ -1,9 +1,11 @@
-import claripy
 import logging
 
-from ..java import JavaSimProcedure
-from ...engines.soot.expressions import SimSootExpr_NewArray, SimSootExpr_NullConstant
-from ...engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef
+import claripy
+
+from angr.engines.soot.expressions import SimSootExpr_NewArray, SimSootExpr_NullConstant
+from angr.engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef
+from angr.procedures.java.base import JavaSimProcedure
+
 from .collection import ELEMS, SIZE
 
 log = logging.getLogger(name=__name__)

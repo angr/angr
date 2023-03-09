@@ -1,19 +1,20 @@
 """
 This module contains symbolic implementations of VEX operations.
 """
-from functools import partial
 import collections
 import itertools
-import operator
-import math
-import re
-
 import logging
+import math
+import operator
+import re
+from functools import partial
+
+import claripy
+import pyvex
+
+from angr.errors import SimOperationError, SimValueError, SimZeroDivisionException, UnsupportedIROpError
 
 l = logging.getLogger(name=__name__)
-
-import pyvex
-import claripy
 
 #
 # The more sane approach
@@ -1272,7 +1273,5 @@ def vexop_to_simop(op, extended=True, fp=True):
         raise UnsupportedIROpError("Floating point support disabled")
     return res
 
-
-from angr.errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
 
 make_operations()

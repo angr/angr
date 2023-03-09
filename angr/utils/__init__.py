@@ -1,9 +1,6 @@
-from .timing import timethis
-from . import graph
-from . import constants
-from . import enums_conv
-from . import lazy_import
+from . import constants, enums_conv, graph, lazy_import
 from .env import is_pyinstaller
+from .timing import timethis
 
 
 def looks_like_sql(s: str) -> bool:

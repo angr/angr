@@ -5,8 +5,10 @@ from collections import defaultdict
 from archinfo import all_arches
 from archinfo.arch_arm import is_arm_arch
 
-from . import Analysis
 
+from angr.analyses import AnalysesHub
+
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 
@@ -71,7 +73,5 @@ class BoyScout(Analysis):
 
         l.debug("The architecture should be %s with %s", self.arch, self.endianness)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BoyScout", BoyScout)

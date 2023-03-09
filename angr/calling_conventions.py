@@ -1,37 +1,35 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
 import logging
-from typing import Optional, List, Dict, Type
 from collections import defaultdict
+from typing import Dict, List, Optional, Type
 
-import claripy
 import archinfo
+import claripy
 from archinfo import RegisterName
 
 from .sim_type import (
-    SimType,
-    SimTypeChar,
-    SimTypePointer,
-    SimTypeFixedSizeArray,
-    SimTypeArray,
-    SimTypeString,
-    SimTypeFunction,
-    SimTypeFloat,
-    SimTypeDouble,
-    SimTypeReg,
     SimStruct,
     SimStructValue,
+    SimType,
+    SimTypeArray,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeDouble,
+    SimTypeFixedSizeArray,
+    SimTypeFloat,
+    SimTypeFunction,
     SimTypeInt,
     SimTypeNum,
-    SimUnion,
-    SimTypeBottom,
-    parse_signature,
+    SimTypePointer,
     SimTypeReference,
+    SimTypeReg,
+    SimTypeString,
+    SimUnion,
+    parse_signature,
 )
-
 from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
-from .engines.soot.engine import SootMixin
 
 
 class PointerWrapper:
@@ -2064,6 +2062,8 @@ class SimCCSoot(SimCC):
     ARG_REGS = []
 
     def setup_callsite(self, state, ret_addr, args, prototype, stack_base=None, alloc_base=None, grow_like_stack=True):
+        from angr.engines.soot.engine import SootMixin
+
         SootMixin.setup_callsite(state, args, ret_addr)
 
     @staticmethod

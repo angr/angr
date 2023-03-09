@@ -1,9 +1,9 @@
 import copy
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Tuple
 
 from claripy.vsa import AbstractLocation
 
-from .. import MemoryMixin
+from angr.storage.memory_mixins.base import MemoryMixin
 
 
 class MemoryRegionMetaMixin(MemoryMixin):

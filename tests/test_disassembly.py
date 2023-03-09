@@ -3,7 +3,7 @@ from unittest import TestCase, main
 
 import angr
 from angr.analyses import Disassembly
-from angr.analyses.disassembly import MemoryOperand, Instruction
+from angr.analyses.disassembly import Instruction, MemoryOperand
 
 
 class TestDisassembly(TestCase):

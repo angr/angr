@@ -1,13 +1,11 @@
-from typing import Dict, Tuple
-
 import logging
-import time
+import multiprocessing
 import os
 import tempfile
-import multiprocessing
+import time
+from typing import Dict, Tuple
 
 from .worker import Worker
-
 
 _l = logging.getLogger(__name__)
 _l.setLevel(logging.INFO)

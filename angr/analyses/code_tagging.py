@@ -1,8 +1,9 @@
 import pyvex
 
-from ..utils import looks_like_sql
-from ..knowledge_plugins.xrefs import XRef
-from . import Analysis, AnalysesHub
+from angr.knowledge_plugins.xrefs import XRef
+from angr.utils import looks_like_sql
+
+from .analysis import AnalysesHub, Analysis
 
 
 class CodeTags:

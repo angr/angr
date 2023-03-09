@@ -3,6 +3,7 @@ import os.path
 import unittest
 
 from common import bin_location
+
 import angr
 
 

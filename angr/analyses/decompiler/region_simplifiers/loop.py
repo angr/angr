@@ -4,15 +4,15 @@ from typing import Dict, List
 
 import ailment
 
-from ..sequence_walker import SequenceWalker
-from ..structuring.structurer_nodes import (
-    SequenceNode,
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structuring.structurer_nodes import (
+    CascadingConditionNode,
     CodeNode,
-    MultiNode,
-    LoopNode,
     ConditionNode,
     ContinueNode,
-    CascadingConditionNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
 )
 
 

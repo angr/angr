@@ -1,4 +1,4 @@
-from ailment.expression import Load, Const
+from ailment.expression import Const, Load
 
 from .base import PeepholeOptimizationExprBase
 

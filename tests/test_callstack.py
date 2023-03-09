@@ -1,7 +1,6 @@
 import logging
 import unittest
 
-
 from angr.state_plugins.callstack import CallStack
 
 l = logging.getLogger("angr.tests.test_callstack")

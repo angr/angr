@@ -1,15 +1,15 @@
-from typing import Dict, Any, TYPE_CHECKING
 import json
 import pickle
+from typing import TYPE_CHECKING, Any, Dict
 
-from ...analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-from ...analyses.decompiler.decompilation_cache import DecompilationCache
-from ...knowledge_plugins import StructuredCodeManager
-from ..models import DbStructuredCode
+from angr.analyses.decompiler.decompilation_cache import DecompilationCache
+from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from angr.angrdb.models import DbStructuredCode
+from angr.knowledge_plugins import StructuredCodeManager
 
 if TYPE_CHECKING:
-    from angr.knowledge_base import KnowledgeBase
     from angr.angrdb.models import DbKnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 
 class StructuredCodeManagerSerializer:

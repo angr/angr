@@ -1,8 +1,7 @@
-import os
 import importlib
 import logging
-from typing import Optional, Callable
-
+import os
+from typing import Callable, Optional
 
 l = logging.getLogger(name=__name__)
 

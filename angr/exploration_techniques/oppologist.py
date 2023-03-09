@@ -1,17 +1,16 @@
-import claripy
 import functools
-
 import logging
 
+import claripy
+
+from angr import sim_options
+from angr.engines.successors import SimSuccessors
+from angr.errors import AngrError, SimCCallError, SimError, SimUnsupportedError
+
+from .exploration_technique import ExplorationTechnique
+
 l = logging.getLogger(name=__name__)
-
-from ..errors import AngrError, SimError, SimUnsupportedError, SimCCallError
-from .. import sim_options
-from ..engines.successors import SimSuccessors
-
 exc_list = (AngrError, SimError, claripy.ClaripyError, TypeError, ValueError, ArithmeticError, MemoryError)
-
-from . import ExplorationTechnique
 
 
 class Oppologist(ExplorationTechnique):

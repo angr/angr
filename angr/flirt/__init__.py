@@ -1,10 +1,10 @@
 # This submodule stores and manages FLIRT signatures
 
-from typing import Set, List, Dict, Optional
-import os
 import json
-from collections import defaultdict
 import logging
+import os
+from collections import defaultdict
+from typing import Dict, List, Optional, Set
 
 import nampa
 

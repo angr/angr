@@ -1,8 +1,8 @@
-from typing import Dict, Tuple, Union, Set
+from typing import Dict, Set, Tuple, Union
 
 import claripy
 
-from .undefined import Undefined, UNDEFINED
+from .undefined import UNDEFINED, Undefined
 
 
 class Environment:

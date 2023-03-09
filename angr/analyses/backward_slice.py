@@ -3,13 +3,14 @@ from collections import defaultdict
 
 import networkx
 import pyvex
-from . import Analysis
 
-from ..code_location import CodeLocation
-from ..annocfg import AnnotatedCFG
-from ..errors import AngrBackwardSlicingError
-from ..utils.constants import DEFAULT_STATEMENT
+from angr.analyses import AnalysesHub
+from angr.annocfg import AnnotatedCFG
+from angr.code_location import CodeLocation
+from angr.errors import AngrBackwardSlicingError
+from angr.utils.constants import DEFAULT_STATEMENT
 
+from .analysis import Analysis
 
 l = logging.getLogger(name=__name__)
 
@@ -685,7 +686,5 @@ class BackwardSlice(Analysis):
 
         return cmp_stmt_id, cmp_tmp_id
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("BackwardSlice", BackwardSlice)

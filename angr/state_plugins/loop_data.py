@@ -1,9 +1,10 @@
-import logging
 import copy
+import logging
 from collections import defaultdict
 
-from .plugin import SimStatePlugin
+from angr.sim_state import SimState
 
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
 
@@ -86,7 +87,5 @@ class SimStateLoopData(SimStatePlugin):
             current_loop=list(self.current_loop),
         )
 
-
-from angr.sim_state import SimState
 
 SimState.register_default("loop_data", SimStateLoopData)

@@ -1,8 +1,9 @@
 import logging
 
+from angr.errors import SimMemoryError, SimSegfaultException
+from angr.sim_options import STRICT_PAGE_ACCESS
+
 from .paged_memory_mixin import PagedMemoryMixin
-from ....errors import SimSegfaultException, SimMemoryError
-from ....sim_options import STRICT_PAGE_ACCESS
 
 l = logging.getLogger(__name__)
 

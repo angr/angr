@@ -1,33 +1,32 @@
 import logging
-
 from collections import defaultdict
+from copy import copy
 from typing import List
 
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 from sortedcontainers import SortedDict
-from copy import copy
 
-from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
+from angr.analyses.analysis import AnalysesHub
+from angr.codenode import HookNode, SootBlockNode
+from angr.errors import AngrCFGError, SimEngineError, SimMemoryError
+from angr.knowledge_plugins.cfg import CFGNode
+from angr.utils.constants import DEFAULT_STATEMENT
 
-from ...utils.constants import DEFAULT_STATEMENT
-from ...errors import AngrCFGError, SimMemoryError, SimEngineError
-from ...codenode import HookNode, SootBlockNode
-from ...knowledge_plugins.cfg import CFGNode
-from .. import register_analysis
-from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
-
-l = logging.getLogger(name=__name__)
+from .cfg_fast import CFGFast, CFGJob, FunctionTransitionEdge, PendingJobs
 
 try:
-    from pysoot.sootir.soot_value import SootLocal
-    from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
     from pysoot.sootir.soot_expr import (
-        SootStaticInvokeExpr,
         SootInvokeExpr,
+        SootStaticInvokeExpr,
     )
+    from pysoot.sootir.soot_statement import AssignStmt, GotoStmt, IfStmt, InvokeStmt
+    from pysoot.sootir.soot_value import SootLocal
 
     PYSOOT_INSTALLED = True
 except ImportError:
     PYSOOT_INSTALLED = False
+
+l = logging.getLogger(name=__name__)
 
 
 class CFGFastSoot(CFGFast):
@@ -667,4 +666,4 @@ class CFGFastSoot(CFGFast):
                 node.function_address = blockaddr_to_function[node.addr].addr
 
 
-register_analysis(CFGFastSoot, "CFGFastSoot")
+AnalysesHub.register_default("CFGFastSoot", CFGFastSoot)

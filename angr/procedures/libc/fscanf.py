@@ -1,6 +1,6 @@
-from angr.procedures.stubs.format_parser import ScanfFormatParser
-
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
+
+from angr.procedures.stubs.format_parser import ScanfFormatParser
 
 
 class fscanf(ScanfFormatParser):

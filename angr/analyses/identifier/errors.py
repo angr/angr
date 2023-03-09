@@ -1,4 +1,4 @@
-from ...errors import AngrAnalysisError
+from angr.errors import AngrAnalysisError
 
 
 class IdentifierException(AngrAnalysisError):

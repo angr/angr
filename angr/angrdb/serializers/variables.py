@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING
 
-from ...knowledge_plugins import VariableManager
-from ...knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from ..models import DbVariableCollection
+from angr.angrdb.models import DbVariableCollection
+from angr.knowledge_plugins import VariableManager
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 if TYPE_CHECKING:
-    from angr.knowledge_base import KnowledgeBase
     from angr.angrdb.models import DbKnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 
 class VariableManagerSerializer:

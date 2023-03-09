@@ -1,5 +1,5 @@
-from archinfo.arch_arm import is_arm_arch
 import cle
+from archinfo.arch_arm import is_arm_arch
 
 from .plugin import KnowledgeBasePlugin
 

@@ -1,5 +1,5 @@
-from .. import engines
-from ..errors import SimError, AngrError, AngrExplorationTechniqueError
+from angr import engines
+from angr.errors import AngrError, AngrExplorationTechniqueError, SimError
 
 
 def condition_to_lambda(condition, default=False):

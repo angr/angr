@@ -1,25 +1,27 @@
-from typing import TYPE_CHECKING
 import logging
 import re
 import string
 import struct
 from collections import defaultdict
 from itertools import count
+from typing import TYPE_CHECKING
 
 import capstone
 import cle
 import networkx
 import pyvex
 
-from . import Analysis
+from angr.analyses import AnalysesHub
+from angr.codenode import CodeNode
+from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.functions import Function
+from angr.sim_variable import SimMemoryVariable, SimTemporaryVariable
+
+from .analysis import Analysis
 from .cfg.cfg_emulated import CFGEmulated
-from .ddg import DDG
 from .cfg.cfg_fast import CFGFast
-from ..codenode import CodeNode
-from ..knowledge_plugins.cfg.memory_data import MemoryDataSort
-from ..knowledge_plugins.functions import Function
-from ..knowledge_base import KnowledgeBase
-from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
+from .ddg import DDG
 
 if TYPE_CHECKING:
     from .cfg import CFGNode
@@ -2964,7 +2966,5 @@ class Reassembler(Analysis):
         except KeyError:
             return None
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("Reassembler", Reassembler)

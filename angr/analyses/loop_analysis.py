@@ -1,11 +1,10 @@
 import logging
 
-from ..block import SootBlockNode
-from ..errors import AngrLoopAnalysisError
-from . import register_analysis
-from .analysis import Analysis
-from .forward_analysis import ForwardAnalysis, LoopVisitor
+from angr.block import SootBlockNode
+from angr.errors import AngrLoopAnalysisError
 
+from .analysis import AnalysesHub, Analysis
+from .forward_analysis import ForwardAnalysis, LoopVisitor
 
 l = logging.getLogger(name=__name__)
 
@@ -349,4 +348,4 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
         return True
 
 
-register_analysis(LoopAnalysis, "LoopAnalysis")
+AnalysesHub.register_default("LoopAnalysis", LoopAnalysis)

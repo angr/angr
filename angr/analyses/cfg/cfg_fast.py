@@ -4,46 +4,45 @@ import logging
 import math
 import re
 import string
-from typing import List, Set, Dict, Optional
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from enum import Enum, unique
-
-import networkx
-from sortedcontainers import SortedDict
+from typing import Dict, List, Optional, Set
 
 import claripy
 import cle
+import networkx
 import pyvex
-from cle.address_translator import AT
 from archinfo import Endness
+from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
 from archinfo.arch_soot import SootAddressDescriptor
-from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
+from cle.address_translator import AT
+from sortedcontainers import SortedDict
 
-from angr.analyses import AnalysesHub
-from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
-from angr.knowledge_plugins.xrefs import XRef, XRefType
-from angr.knowledge_plugins.functions import Function
-from angr.misc.ux import deprecated
-from angr.codenode import HookNode
 from angr import sim_options as o
+from angr.analyses import AnalysesHub
+from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.codenode import HookNode
 from angr.errors import (
     AngrCFGError,
     AngrSkipJobNotice,
     AngrUnsupportedSyscallError,
     SimEngineError,
-    SimMemoryError,
-    SimTranslationError,
-    SimValueError,
-    SimOperationError,
     SimError,
     SimIRSBNoDecodeError,
+    SimMemoryError,
+    SimOperationError,
+    SimTranslationError,
+    SimValueError,
 )
+from angr.knowledge_plugins.cfg import CFGNode, IndirectJump, IndirectJumpType, MemoryData, MemoryDataSort
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.xrefs import XRef, XRefType
+from angr.misc.ux import deprecated
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.analyses.forward_analysis import ForwardAnalysis
+
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .segment_list import SegmentList
-
 
 VEX_IRSB_MAX_SIZE = 400
 

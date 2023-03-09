@@ -1,16 +1,17 @@
-from typing import Optional
 from collections import defaultdict
+from typing import Optional
 
 import claripy
 import pyvex
 
-from ..knowledge_plugins.xrefs import XRef, XRefType
-from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
-from .propagator.vex_vars import VEXTmp
+from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
+from angr.knowledge_plugins.xrefs import XRef, XRefType
+
+from .analysis import AnalysesHub, Analysis
+from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from .propagator import PropagatorAnalysis
 from .propagator.values import Top
-from . import register_analysis, PropagatorAnalysis
-from .analysis import Analysis
-from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
+from .propagator.vex_vars import VEXTmp
 
 
 class SimEngineXRefsVEX(
@@ -254,4 +255,4 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
         pass
 
 
-register_analysis(XRefsAnalysis, "XRefs")
+AnalysesHub.register_default("Xrefs", XRefsAnalysis)

@@ -1,7 +1,7 @@
-from typing import Dict, Tuple, Set, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
 
-from .uses import Uses
 from .live_definitions import LiveDefinitions
+from .uses import Uses
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.key_definitions.definition import Definition

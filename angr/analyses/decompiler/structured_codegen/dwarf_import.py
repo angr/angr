@@ -1,12 +1,13 @@
+import logging
 import os
 import re
-import logging
+
 from sortedcontainers import SortedList
 
-from ... import Analysis, register_analysis
-from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
-from ....knowledge_plugins.functions.function import Function
+from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.knowledge_plugins.functions.function import Function
 
+from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
 
 l = logging.getLogger(__name__)
 
@@ -183,4 +184,4 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
         return result
 
 
-register_analysis(ImportSourceCode, "ImportSourceCode")
+AnalysesHub.register_default("ImportSourceCode", ImportSourceCode)

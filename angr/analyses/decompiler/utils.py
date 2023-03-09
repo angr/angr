@@ -1,9 +1,18 @@
 # pylint:disable=wrong-import-position
-from typing import Optional, Tuple, Any, Union
-
-import networkx
+from typing import Any, Optional, Tuple, Union
 
 import ailment
+import networkx
+
+from .structuring.structurer_nodes import (
+    BaseNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
 
 
 def remove_last_statement(node):
@@ -354,15 +363,3 @@ def remove_labels(graph: networkx.DiGraph):
         new_graph.add_edge(nodes_map[src], nodes_map[dst])
 
     return new_graph
-
-
-# delayed import
-from .structuring.structurer_nodes import (
-    MultiNode,
-    BaseNode,
-    CodeNode,
-    SequenceNode,
-    ConditionNode,
-    SwitchCaseNode,
-    CascadingConditionNode,
-)

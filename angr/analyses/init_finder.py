@@ -1,14 +1,15 @@
 from collections import defaultdict
 
-from cle.loader import MetaELF
-from cle.backends import Section, Segment
-import pyvex
 import claripy
+import pyvex
+from cle.backends import Section, Segment
+from cle.loader import MetaELF
 
-from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
-from . import register_analysis, PropagatorAnalysis
-from .analysis import Analysis
-from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
+from angr.engines.light import SimEngineLight, SimEngineLightVEXMixin
+
+from .analysis import AnalysesHub, Analysis
+from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from .propagator import PropagatorAnalysis
 from .propagator.vex_vars import VEXTmp
 
 
@@ -256,5 +257,5 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
         pass
 
 
-register_analysis(InitializationFinder, "InitializationFinder")
-register_analysis(InitializationFinder, "InitFinder")
+AnalysesHub.register_default("InitializationFinder", InitializationFinder)
+AnalysesHub.register_default("InitFinder", InitializationFinder)

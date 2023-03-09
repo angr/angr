@@ -1,5 +1,5 @@
-from typing import Tuple, Dict, Set, DefaultDict, Any, Optional
 from collections import defaultdict
+from typing import Any, DefaultDict, Dict, Optional, Set, Tuple
 
 from angr.serializable import Serializable
 
