@@ -1,5 +1,6 @@
 from . import SimConcretizationStrategy
 
+
 class SimConcretizationStrategyAnyNamed(SimConcretizationStrategy):
     """
     Concretization strategy that returns any single solution and creates a BVS at the resulting address.

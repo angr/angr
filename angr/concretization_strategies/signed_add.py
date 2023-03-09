@@ -1,5 +1,6 @@
 from . import SimConcretizationStrategy
 
+
 class SimConcretizationStrategySignedAdd(SimConcretizationStrategy):
     """
     Concretization strategy that changes additions of big offsets to substractions of small offsets.
@@ -16,7 +17,7 @@ class SimConcretizationStrategySignedAdd(SimConcretizationStrategy):
                 addr.args = (addr.args[1], addr.args[0])
             if addr.args[0].symbolic and addr.args[1].singlevalued:
                 # Check if negative argument
-                if memory.state.solver.is_true(addr.args[1] >= 1 << (addr.args[1].size()-1)):
+                if memory.state.solver.is_true(addr.args[1] >= 1 << (addr.args[1].size() - 1)):
                     new_arg = (1 << addr.args[1].size()) - memory.state.solver.eval(addr.args[1])
                     if new_arg < self._substraction_limit:
                         addr.op = "__sub__"
