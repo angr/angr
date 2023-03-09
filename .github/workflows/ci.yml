@@ -10,3 +10,32 @@ on:
 jobs:
   ci:
     uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
+  docs:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+      - name: Install
+        run: |
+          pip install -U pip "setuptools>=59" wheel "unicorn==2.0.1.post1"
+          pip install git+https://github.com/angr/archinfo.git
+          pip install git+https://github.com/angr/pyvex.git
+          pip install git+https://github.com/angr/cle.git
+          pip install git+https://github.com/angr/claripy.git
+          pip install git+https://github.com/angr/ailment.git
+          pip install --no-build-isolation .[angrdb,docs,pcode]
+      - name: Build docs
+        run: cd docs && make html
+      - name: Build coverage
+        run: cd docs && make coverage
+      - name: Test coverage
+        run: >
+          if [ -s docs/_build/coverage/python.txt ]; then
+            echo "Doc coverage is missing for the for:"
+            cat docs/_build/coverage/python.txt
+            exit 1
+          fi

@@ -31,3 +31,4 @@ dist
 .vscode/
 *.db
 *.dylib
+docs/_build
