@@ -11,7 +11,8 @@ class Detail:
     """
     A companion class used together with PropValue. It describes stored information at each offset (in bytes).
 
-    :ivar def_at:   Where this expression is defined, or None if it was never defined in the first place.
+    :ivar def_at:   Where this expression is defined, or None if it was never explicitly defined in the current block
+                    or the current function.
     """
 
     __slots__ = ("size", "expr", "def_at")

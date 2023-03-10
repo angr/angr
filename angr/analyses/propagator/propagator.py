@@ -546,19 +546,11 @@ class PropagatorAILState(PropagatorState):
             if codeloc in self._replacements and old in self._replacements[codeloc]:
                 self._replacements[codeloc][old] = self.top(1)  # placeholder
             return
-        if (
-            codeloc in self._replacements
-            and old in self._replacements[codeloc]
-            and self._replacements[codeloc][old] != new
-        ):
-            # eliminate the past propagation of this expression
-            self._replacements[codeloc][old] = self.top(1)  # placeholder
-            return
 
         # count-based propagation rule only matters when we are performing a full-function copy propagation
         if self._max_prop_expr_occurrence == 0:
             if isinstance(old, ailment.Expr.Tmp):
-                super().add_replacement(codeloc, old, new)
+                self._replacements[codeloc][old] = new
         else:
             prop_count = 0
             if (
@@ -570,7 +562,7 @@ class PropagatorAILState(PropagatorState):
                 prop_count = len(self._expr_used_locs[new])
 
             if (
-                prop_count < self._max_prop_expr_occurrence
+                prop_count <= self._max_prop_expr_occurrence
                 or isinstance(new, ailment.Expr.StackBaseOffset)
                 or (
                     isinstance(old, ailment.Expr.Register)
@@ -578,7 +570,7 @@ class PropagatorAILState(PropagatorState):
                 )
             ):
                 # we can propagate this expression
-                super().add_replacement(codeloc, old, new)
+                self._replacements[codeloc][old] = new
             else:
                 # eliminate the past propagation of this expression
                 for codeloc_ in self._replacements:
@@ -671,6 +663,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._prop_key_prefix = key_prefix
         self._cache_results = cache_results
         self._reaching_definitions = reaching_definitions
+        self._initial_codeloc: CodeLocation
+        if self.flavor == "function":
+            self._initial_codeloc = CodeLocation(self._func_addr, stmt_idx=0, ins_addr=self._func_addr)
+        else:  # flavor == "block"
+            self._initial_codeloc = CodeLocation(self._block_addr, stmt_idx=0, ins_addr=self._block_addr)
 
         self.model: PropagationModel = None
 
@@ -782,7 +779,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             spoffset_var = ailment.Expr.StackBaseOffset(None, self.project.arch.bits, 0)
             sp_value = PropValue(
                 claripy.BVV(0x7FFF_FF00, self.project.arch.bits),
-                offset_and_details={0: Detail(self.project.arch.bytes, spoffset_var, None)},
+                offset_and_details={0: Detail(self.project.arch.bytes, spoffset_var, self._initial_codeloc)},
             )
             state.store_register(
                 ailment.Expr.Register(None, None, self.project.arch.sp_offset, self.project.arch.bits),
@@ -818,7 +815,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         reg_expr,
                         PropValue(
                             claripy.BVV(self._func_addr, 64),
-                            offset_and_details={0: Detail(8, reg_value, CodeLocation(0, 0))},
+                            offset_and_details={0: Detail(8, reg_value, self._initial_codeloc)},
                         ),
                     )
                 else:
@@ -838,7 +835,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         reg_expr,
                         PropValue(
                             claripy.BVV(self._func_addr, 32),
-                            offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))},
+                            offset_and_details={0: Detail(4, reg_value, self._initial_codeloc)},
                         ),
                     )
                 else:
@@ -854,7 +851,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 reg_value = ailment.Expr.Const(None, None, 0, 32)
                 state.store_register(
                     reg_expr,
-                    PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))}),
+                    PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, self._initial_codeloc)}),
                 )
             else:
                 state.store_register(  # pylint:disable=too-many-function-args
@@ -888,6 +885,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if state is not self._initial_state:
             # make a copy of the state if it's not the initial state
             state = state.copy()
+            state._replacements.clear()
+            state._equivalence.clear()
         else:
             # clear self._initial_state so that we *do not* run this optimization again!
             self._initial_state = None
@@ -937,7 +936,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         reg_atom,
                         PropValue(
                             claripy.BVV(reg_value.value, reg_value.bits),
-                            offset_and_details={0: Detail(reg_atom.size, reg_value, None)},
+                            offset_and_details={0: Detail(reg_atom.size, reg_value, self._initial_codeloc)},
                         ),
                     )
                 return input_state
@@ -1004,6 +1003,13 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
     @staticmethod
     def _merge_replacements(replacements_0, replacements_1) -> bool:
+        """
+        The replacement merging logic is special: replacements_1 is the newer replacement result and replacement_0 is
+        the older result waiting to be updated. When both replacements_1 and replacement_0 have a non-top value for the
+        same variable and code location, we will update the slot in replacement_0 with the value from replacement_1.
+
+        :return:            Whether merging has happened.
+        """
         merge_occurred = False
         for loc, vars_ in replacements_1.items():
             if loc not in replacements_0:
@@ -1022,16 +1028,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         elif (
                             isinstance(replacements_0[loc][var], claripy.ast.Base) or isinstance(repl, claripy.ast.Base)
                         ) and replacements_0[loc][var] is not repl:
-                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
-                            replacements_0[loc][var] = t
+                            replacements_0[loc][var] = repl
                             merge_occurred = True
                         elif (
                             not isinstance(replacements_0[loc][var], claripy.ast.Base)
                             and not isinstance(repl, claripy.ast.Base)
                             and replacements_0[loc][var] != repl
                         ):
-                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
-                            replacements_0[loc][var] = t
+                            replacements_0[loc][var] = repl
                             merge_occurred = True
         return merge_occurred
 

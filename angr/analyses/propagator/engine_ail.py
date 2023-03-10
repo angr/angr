@@ -362,15 +362,6 @@ class SimEnginePropagatorAIL(
                         l.debug("Add a replacement: %s with %s", expr, result_expr)
                         self.state.add_replacement(self._codeloc(), expr, result_expr)
 
-            if len(all_subexprs) == 1 and outdated:
-                # replace the existing value
-                subexpr = all_subexprs[0]
-                if isinstance(subexpr, Expr.Register):
-                    v = PropValue.from_value_and_details(
-                        self.state.top(expr.bits), subexpr.size, subexpr, self._codeloc()
-                    )
-                    self.state.store_register(subexpr, v)
-
             if not replaced:
                 l.debug("Add a replacement: %s with TOP", expr)
                 self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits))
@@ -1074,6 +1065,7 @@ class SimEnginePropagatorAIL(
             return True
 
         if expr_defat is None:
+            # the definition originates outside the current node or function
             l.warning("Unknown where the expression is defined. Assume the definition is out-dated.")
             return True
 
