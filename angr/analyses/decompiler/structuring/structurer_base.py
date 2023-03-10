@@ -150,6 +150,8 @@ class StructurerBase(Analysis):
             walker = SequenceWalker(handlers=handlers)
             for case_node in cases.values():
                 walker.walk(case_node)
+            if default is not None:
+                walker.walk(default)
 
             if not goto_addrs:
                 # there is no Goto statement - perfect
