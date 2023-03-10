@@ -13,10 +13,16 @@ class SimConcretizationStrategyLogging(SimConcretizationStrategy):
         if answers is not None:
             if self._is_read_strategy:
                 logging.debug(
-                    "Read strategy %s on %s gave [%s]", type(self._strategy).__name__, addr, ", ".join([hex(answer) for answer in answers])
+                    "Read strategy %s on %s gave [%s]",
+                    type(self._strategy).__name__,
+                    addr,
+                    ", ".join([hex(answer) for answer in answers]),
                 )
             else:
                 logging.debug(
-                    "Write strategy %s on %s gave [%s]", type(self._strategy).__name__, addr, ", ".join([hex(answer) for answer in answers])
+                    "Write strategy %s on %s gave [%s]",
+                    type(self._strategy).__name__,
+                    addr,
+                    ", ".join([hex(answer) for answer in answers]),
                 )
         return answers
