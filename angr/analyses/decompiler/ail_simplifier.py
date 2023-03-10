@@ -152,12 +152,20 @@ class AILSimplifier(Analysis):
             self._clear_cache()
 
         if self._unify_vars:
+            _l.debug("Removing dead assignments")
+            r = self._remove_dead_assignments()
+            if r:
+                _l.debug("... dead assignments removed")
+                self.simplified = True
+                self._rebuild_func_graph()
+
             _l.debug("Unifying local variables")
             r = self._unify_local_variables()
             if r:
                 _l.debug("... local variables unified")
                 self.simplified = True
                 self._rebuild_func_graph()
+
             # _fold_call_exprs() may set self._calls_to_remove, which will be honored in _remove_dead_assignments()
             _l.debug("Folding call expressions")
             r = self._fold_call_exprs()
