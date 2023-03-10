@@ -3,6 +3,10 @@ from . import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyLogging(SimConcretizationStrategy):
+    """
+    Concretization strategy that logs concretization results from another strategy.
+    """
+    
     def __init__(self, strategy: SimConcretizationStrategy, is_read_strategy: bool):
         super().__init__()
         self._strategy = strategy
