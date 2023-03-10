@@ -549,7 +549,11 @@ class PropagatorAILState(PropagatorState):
 
         # count-based propagation rule only matters when we are performing a full-function copy propagation
         if self._max_prop_expr_occurrence == 0:
-            if isinstance(old, ailment.Expr.Tmp):
+            if (
+                isinstance(old, ailment.Expr.Tmp)
+                or isinstance(old, ailment.Expr.Register)
+                and old.reg_offset in {self.arch.sp_offset, self.arch.bp_offset}
+            ):
                 self._replacements[codeloc][old] = new
         else:
             prop_count = 0
