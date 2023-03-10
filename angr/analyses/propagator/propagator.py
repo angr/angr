@@ -546,6 +546,14 @@ class PropagatorAILState(PropagatorState):
             if codeloc in self._replacements and old in self._replacements[codeloc]:
                 self._replacements[codeloc][old] = self.top(1)  # placeholder
             return
+        if (
+            codeloc in self._replacements
+            and old in self._replacements[codeloc]
+            and self._replacements[codeloc][old] != new
+        ):
+            # eliminate the past propagation of this expression
+            self._replacements[codeloc][old] = self.top(1)  # placeholder
+            return
 
         # count-based propagation rule only matters when we are performing a full-function copy propagation
         if self._max_prop_expr_occurrence == 0:
