@@ -1,22 +1,22 @@
-from . import SimConcretizationStrategy
 import logging
+from . import SimConcretizationStrategy
 
 
 class SimConcretizationStrategyLogging(SimConcretizationStrategy):
-    def __init__(self, strategy: SimConcretizationStrategy, is_read: bool):
+    def __init__(self, strategy: SimConcretizationStrategy, is_read_strategy: bool):
         super().__init__()
         self._strategy = strategy
-        self._is_read = is_read
+        self._is_read_strategy = is_read_strategy
 
     def _concretize(self, memory, addr, **kwargs):
         answers = self._strategy._concretize(memory, addr, **kwargs)
         if answers is not None:
-            if self._is_read:
+            if self._is_read_strategy:
                 logging.debug(
-                    f"Read strategy {type(self._strategy).__name__} on {addr} gave [{', '.join(map(hex, answers))}]"
+                    "Read strategy %s on %s gave [%s]", type(self._strategy).__name__, addr, ", ".join([hex(answer) for answer in answers])
                 )
             else:
                 logging.debug(
-                    f"Write strategy {type(self._strategy).__name__} on {addr} gave [{', '.join(map(hex, answers))}]"
+                    "Write strategy %s on %s gave [%s]", type(self._strategy).__name__, addr, ", ".join([hex(answer) for answer in answers])
                 )
         return answers

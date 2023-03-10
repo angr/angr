@@ -22,4 +22,3 @@ class SimConcretizationStrategySignedAdd(SimConcretizationStrategy):
                     if new_arg < self._substraction_limit:
                         addr.op = "__sub__"
                         addr.args = (addr.args[0], memory.state.solver.BVV(new_arg, addr.args[1].size()))
-        return None
