@@ -81,8 +81,8 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             except SimMemoryMissingError:
                 defs_currentloc = []
 
-            codelocs_defat = set(def_.codeloc for def_ in defs_defat)
-            codelocs_currentloc = set(def_.codeloc for def_ in defs_currentloc)
+            codelocs_defat = {def_.codeloc for def_ in defs_defat}
+            codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
             if codelocs_defat != codelocs_currentloc:
                 self.out_dated = True
 

@@ -27,7 +27,7 @@ from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from .. import Analysis, AnalysesHub
-from .ailblock_walker import AILBlockWalker
+from .ailblock_walker import AILBlockWalkerBase, AILBlockWalker
 from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
 from .block_simplifier import BlockSimplifier
@@ -61,6 +61,25 @@ class AILBlockTempCollector(AILBlockWalker):
     def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> None:
         if isinstance(expr, Tmp):
             self.temps.add(expr)
+
+
+class ExpressionCounter(AILBlockWalkerBase):
+    """
+    Count the occurrence of subexpr in expr.
+    """
+
+    def __init__(self, stmt, subexpr):
+        super().__init__()
+        self.subexpr = subexpr
+        self.count = 0
+        self.walk_statement(stmt)
+
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
+    ) -> Any:
+        if expr == self.subexpr:
+            self.count += 1
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class AILSimplifier(Analysis):
@@ -919,6 +938,11 @@ class AILSimplifier(Analysis):
                     if src.bits != dst.bits:
                         dst = Convert(None, dst.bits, src.bits, False, dst)
                 else:
+                    continue
+
+                # ensure what we are going to replace only appears once
+                expr_ctr = ExpressionCounter(stmt, src)
+                if expr_ctr.count > 1:
                     continue
 
                 replaced, new_block = self._replace_expr_and_update_block(

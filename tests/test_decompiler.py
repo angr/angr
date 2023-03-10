@@ -562,7 +562,7 @@ class TestDecompiler(unittest.TestCase):
         assert "free(NULL" not in code and "free(0" not in code
 
         # return values are either 0xffffffff or -1
-        assert " = 4294967295;" in code or " = -1;" in code
+        assert "return 4294967295;" in code or "return -1;" in code
 
         # the while loop containing puts("Empty title"); must have both continue and break
         for i, line in enumerate(code_lines):
@@ -2144,13 +2144,15 @@ class TestDecompiler(unittest.TestCase):
         )
         self._print_decompilation_result(d)
 
-        # the following ideal case requires a reimplementation of copy propagation
-        # assert d.codegen.text.count("switch ") == 2
-        # assert d.codegen.text.count("case 92:") == 2
-        # assert d.codegen.text.count("case 0:") == 1
-        # assert "goto" not in d.codegen.text
-        assert d.codegen.text.count("switch ") == 1
-        assert d.codegen.text.count("case 92:") == 1
+        assert d.codegen.text.count("switch ") == 2
+        assert d.codegen.text.count("case 92:") == 2
+        assert d.codegen.text.count("case 0:") == 1
+        assert "goto" not in d.codegen.text
+        # TODO: the following check requires angr decompiler to implement assignment de-duplication
+        # assert d.codegen.text.count("case 110:") == 1
+        # TODO: the following check requires angr decompiler correctly support rewriting gotos inside nested loops and
+        # switch-cases into break nodes.
+        # assert d.codegen.text.count("break;") == 5
 
     @structuring_algo("phoenix")
     def test_reverting_switch_clustering_and_lowering_cat_main(self, decompiler_options=None):

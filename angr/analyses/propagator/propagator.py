@@ -44,6 +44,7 @@ class PropagatorState:
         "project",
         "_store_tops",
         "_gp",
+        "_max_prop_expr_occurrence",
         "__weakref__",
     )
 
@@ -59,6 +60,7 @@ class PropagatorState:
         equivalence=None,
         store_tops=True,
         gp=None,
+        max_prop_expr_occurrence: int = 1,
     ):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
@@ -69,6 +71,7 @@ class PropagatorState:
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
         self._store_tops = store_tops
+        self._max_prop_expr_occurrence = max_prop_expr_occurrence
 
         # architecture-specific information
         self._gp: Optional[int] = gp  # Value of gp for MIPS32 and 64 binaries
@@ -224,6 +227,7 @@ class PropagatorVEXState(PropagatorState):
         do_binops=True,
         store_tops=True,
         gp=None,
+        max_prop_expr_occurrence: int = 1,
     ):
         super().__init__(
             arch,
@@ -233,6 +237,7 @@ class PropagatorVEXState(PropagatorState):
             expr_used_locs=expr_used_locs,
             store_tops=store_tops,
             gp=gp,
+            max_prop_expr_occurrence=max_prop_expr_occurrence,
         )
         self.do_binops = do_binops
         self._registers = (
@@ -264,6 +269,7 @@ class PropagatorVEXState(PropagatorState):
             do_binops=self.do_binops,
             store_tops=self._store_tops,
             gp=self._gp,
+            max_prop_expr_occurrence=self._max_prop_expr_occurrence,
         )
 
         return cp
@@ -361,6 +367,7 @@ class PropagatorAILState(PropagatorState):
         registers=None,
         gp=None,
         block_initial_reg_values=None,
+        max_prop_expr_occurrence: int = 1,
     ):
         super().__init__(
             arch,
@@ -370,6 +377,7 @@ class PropagatorAILState(PropagatorState):
             expr_used_locs=expr_used_locs,
             equivalence=equivalence,
             gp=gp,
+            max_prop_expr_occurrence=max_prop_expr_occurrence,
         )
 
         self._stack_variables = (
@@ -413,6 +421,7 @@ class PropagatorAILState(PropagatorState):
             block_initial_reg_values=self.block_initial_reg_values.copy(),
             # drop tmps
             gp=self._gp,
+            max_prop_expr_occurrence=self._max_prop_expr_occurrence,
         )
 
         return rd
@@ -538,27 +547,35 @@ class PropagatorAILState(PropagatorState):
                 self._replacements[codeloc][old] = self.top(1)  # placeholder
             return
 
-        prop_count = 0
-        if (
-            not isinstance(old, ailment.Expr.Tmp)
-            and isinstance(new, ailment.Expr.Expression)
-            and not isinstance(new, ailment.Expr.Const)
-        ):
-            self._expr_used_locs[new].add(codeloc)
-            prop_count = len(self._expr_used_locs[new])
-
-        if (
-            prop_count <= 1
-            or isinstance(new, ailment.Expr.StackBaseOffset)
-            or (isinstance(old, ailment.Expr.Register) and self.arch.is_artificial_register(old.reg_offset, old.size))
-        ):
-            # we can propagate this expression
-            super().add_replacement(codeloc, old, new)
+        # count-based propagation rule only matters when we are performing a full-function copy propagation
+        if self._max_prop_expr_occurrence == 0:
+            if isinstance(old, ailment.Expr.Tmp):
+                super().add_replacement(codeloc, old, new)
         else:
-            # eliminate the past propagation of this expression
-            for codeloc_ in self._replacements:
-                if old in self._replacements[codeloc_]:
-                    self._replacements[codeloc_][old] = self.top(1)
+            prop_count = 0
+            if (
+                not isinstance(old, ailment.Expr.Tmp)
+                and isinstance(new, ailment.Expr.Expression)
+                and not isinstance(new, ailment.Expr.Const)
+            ):
+                self._expr_used_locs[new].add(codeloc)
+                prop_count = len(self._expr_used_locs[new])
+
+            if (
+                prop_count < self._max_prop_expr_occurrence
+                or isinstance(new, ailment.Expr.StackBaseOffset)
+                or (
+                    isinstance(old, ailment.Expr.Register)
+                    and self.arch.is_artificial_register(old.reg_offset, old.size)
+                )
+            ):
+                # we can propagate this expression
+                super().add_replacement(codeloc, old, new)
+            else:
+                # eliminate the past propagation of this expression
+                for codeloc_ in self._replacements:
+                    if old in self._replacements[codeloc_]:
+                        self._replacements[codeloc_][old] = self.top(1)
 
     def filter_replacements(self):
         to_remove = set()
@@ -747,7 +764,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if isinstance(node, ailment.Block):
             # AIL
             state = PropagatorAILState(
-                self.project.arch, project=self.project, only_consts=self._only_consts, gp=self._gp
+                self.project.arch,
+                project=self.project,
+                only_consts=self._only_consts,
+                gp=self._gp,
+                max_prop_expr_occurrence=1 if self.flavor == "function" else 0,
             )
             ail = True
             spoffset_var = ailment.Expr.StackBaseOffset(None, self.project.arch.bits, 0)
@@ -768,6 +789,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 do_binops=self._do_binops,
                 store_tops=self._store_tops,
                 gp=self._gp,
+                max_prop_expr_occurrence=1 if self.flavor == "function" else 0,
             )
             spoffset_var = self._engine_vex.sp_offset(0)
             ail = False

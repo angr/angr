@@ -1,4 +1,5 @@
 from typing import Optional, Tuple, Union, TYPE_CHECKING
+from collections import defaultdict
 import logging
 
 import networkx
@@ -85,6 +86,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
 
         graph_copy = networkx.DiGraph(self._graph)
         self.out_graph = graph_copy
+        node_to_heads = defaultdict(set)
 
         for _, cases in variable_to_cases.items():
             original_nodes = [case.original_node for case in cases if case.value != "default"]
@@ -111,7 +113,28 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 for succ in successors:
                     if succ not in original_nodes:
                         graph_copy.add_edge(new_head, succ)
+                        node_to_heads[succ].add(new_head)
                 graph_copy.remove_node(onode)
+
+        # find shared case nodes and make copies of them
+        # note that this only solves cases where *one* node is shared between switch-cases. a more general solution
+        # requires jump threading reverter.
+        for succ_node, heads in node_to_heads.items():
+            if len(heads) > 1:
+                # each head gets a copy of the node!
+                node_successors = list(graph_copy.successors(succ_node))
+                next_id = 0 if succ_node.idx is None else succ_node.idx + 1
+                graph_copy.remove_node(succ_node)
+                for head in heads:
+                    node_copy = succ_node.copy()
+                    node_copy.idx = next_id
+                    next_id += 1
+                    graph_copy.add_edge(head, node_copy)
+                    for succ in node_successors:
+                        if succ is succ_node:
+                            graph_copy.add_edge(node_copy, node_copy)
+                        else:
+                            graph_copy.add_edge(node_copy, succ)
 
     def _find_cascading_switch_variable_comparisons(self):
         sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self._graph)
