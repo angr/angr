@@ -25,7 +25,7 @@ class ConvConstMullAShift(PeepholeOptimizationExprBase):
                     ndigits = 5 if V == 32 else 6
                     divisor = self._check_divisor(pow(2, V), C, ndigits)
                     if divisor is not None:
-                        new_const = Const(None, None, divisor, V)
+                        new_const = Const(None, None, divisor, X.bits)
                         new_div = BinaryOp(inner.idx, "Div", [X, new_const], inner.signed, **inner.tags)
                         return new_div
 
@@ -54,7 +54,7 @@ class ConvConstMullAShift(PeepholeOptimizationExprBase):
                             ndigits = 5 if V == 32 else 6
                             divisor = self._check_divisor(pow(2, V), C, ndigits)
                             if divisor is not None:
-                                new_const = Const(None, None, divisor, V)
+                                new_const = Const(None, None, divisor, X.bits)
                                 new_div = BinaryOp(
                                     expr0.operands[0].idx,
                                     "Div",
