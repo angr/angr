@@ -363,7 +363,6 @@ class ReachingDefinitionsAnalysis(
 
         if isinstance(stmt, pyvex.stmt.IRStmt):
             # it's an angr block
-            vex_block = block.vex
             self.observed_results[key] = state.live_definitions.copy()
         elif isinstance(stmt, ailment.Stmt.Statement):
             # it's an AIL block
