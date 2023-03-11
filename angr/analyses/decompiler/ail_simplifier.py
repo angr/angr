@@ -158,6 +158,7 @@ class AILSimplifier(Analysis):
                 _l.debug("... dead assignments removed")
                 self.simplified = True
                 self._rebuild_func_graph()
+                self._clear_cache()
 
             _l.debug("Unifying local variables")
             r = self._unify_local_variables()
