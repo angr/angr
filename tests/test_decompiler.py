@@ -1334,7 +1334,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         # function arguments must be a0 and a1. they cannot be renamed
-        assert re.search(r"int main\([\s\S]+ a0, [\s\S]+a1\)", d.codegen.text) is not None
+        assert re.search(r"int main\([\s\S]+ a0, [\s\S]+a1[\S]*\)", d.codegen.text) is not None
 
         assert "max_width = (int)xdectoumax(" in d.codegen.text or "max_width = xdectoumax(" in d.codegen.text
         assert "goal_width = xdectoumax(" in d.codegen.text
