@@ -714,6 +714,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             raise TypeError(f"Unsupported flavor {self.flavor}")
 
+        self._expr_used_locs = defaultdict(set)
+
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
         )
@@ -923,6 +925,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self._merge_replacements(self.model.replacements, state._replacements)
 
         self.model.equivalence |= state._equivalence
+        for expr, used_locs in state._expr_used_locs.items():
+            self._expr_used_locs[expr] |= used_locs
 
         # TODO: Clear registers according to calling conventions
 
@@ -980,11 +984,23 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         # Filter replacements and remove all TOP values
         if self.model.replacements is not None:
             for codeloc in list(self.model.replacements.keys()):
-                rep = {k: v for k, v in self.model.replacements[codeloc].items() if not PropagatorState.is_top(v)}
-                self.model.replacements[codeloc] = rep
+                filtered_rep = {}
+                for k, v in self.model.replacements[codeloc].items():
+                    if isinstance(v, claripy.ast.Base):
+                        # claripy expressions
+                        if not PropagatorState.is_top(v):
+                            filtered_rep[k] = v
+                    else:
+                        # ailment expressions
+                        if len(self._expr_used_locs[v]) <= 1:
+                            filtered_rep[k] = v
+                self.model.replacements[codeloc] = filtered_rep
 
         if self._cache_results:
             self.kb.propagations.update(self.prop_key, self.model)
+
+        # clean up
+        self._expr_used_locs = defaultdict(set)
 
     def _analyze(self):
         """
