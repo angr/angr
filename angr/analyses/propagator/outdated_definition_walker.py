@@ -47,27 +47,25 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self.out_dated = False
 
     # pylint:disable=unused-argument
-    def _handle_Tmp(
-        self, expr_idx: int, tmp_expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]
-    ):
-        if self.avoid is not None and tmp_expr.likes(self.avoid):
+    def _handle_Tmp(self, expr_idx: int, expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
+        if self.avoid is not None and expr.likes(self.avoid):
             self.out_dated = True
 
     # pylint:disable=unused-argument
     def _handle_Register(
-        self, expr_idx: int, reg_expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]
+        self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]
     ):
         if (
             self.avoid is not None
             and isinstance(self.avoid, Expr.Register)
-            and (reg_expr.likes(self.avoid) or self._reg_overlap(reg_expr, self.avoid))
+            and (expr.likes(self.avoid) or self._reg_overlap(expr, self.avoid))
         ):
             self.out_dated = True
         else:
             # is the used register still alive at this point?
             try:
                 reg_vals: "MultiValues" = self.livedefs_defat.register_definitions.load(
-                    reg_expr.reg_offset, size=reg_expr.size, endness=self.arch.register_endness
+                    expr.reg_offset, size=expr.size, endness=self.arch.register_endness
                 )
                 defs_defat = list(self.livedefs_defat.extract_defs_from_mv(reg_vals))
             except SimMemoryMissingError:
@@ -75,7 +73,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
 
             try:
                 reg_vals: "MultiValues" = self.livedefs_currentloc.register_definitions.load(
-                    reg_expr.reg_offset, size=reg_expr.size, endness=self.arch.register_endness
+                    expr.reg_offset, size=expr.size, endness=self.arch.register_endness
                 )
                 defs_currentloc = list(self.livedefs_currentloc.extract_defs_from_mv(reg_vals))
             except SimMemoryMissingError:
@@ -87,9 +85,9 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 self.out_dated = True
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
-        if self.avoid is not None and (
+        if self.avoid is not None and (  # pylint:disable=consider-using-in
             expr == self.avoid or expr.addr == self.avoid
-        ):  # pylint:disable=consider-using-in
+        ):
             self.out_dated = True
         elif isinstance(expr.addr, Expr.StackBaseOffset):
             sp_offset = self.extract_offset_to_sp(expr.addr)
