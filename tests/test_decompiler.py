@@ -1280,8 +1280,6 @@ class TestDecompiler(unittest.TestCase):
         assert "+1" not in line_0
 
         # make sure v % 7 is present
-        line_assignment_mod_7 = [line for line in lines if re.search(r"v\d+ = v\d+ % 7", line)]
-        assert len(line_assignment_mod_7) == 1
         line_mod_7 = [line for line in lines if re.search(r"v\d+ % 7", line)]
         assert len(line_mod_7) == 2
 

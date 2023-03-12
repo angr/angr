@@ -145,8 +145,22 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 self.out_dated = True
 
         else:
-            # the address is not concrete - we check the address instead
+            # the address is not concrete - we check the address first
             super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+            # then if the address expression is up-to-date, we check the global store
+            if not self.out_dated:
+                if (
+                    self.state.global_stores
+                    and not all(
+                        self._check_store_precedes_load(CodeLocation(store_block_addr, store_stmt_idx), self.expr_defat)
+                        for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores
+                    )
+                    or self.state.last_stack_store is not None
+                    and not self._check_store_precedes_load(
+                        CodeLocation(*self.state.last_stack_store[:2]), self.expr_defat
+                    )
+                ):
+                    self.out_dated = True
 
     def _handle_VEXCCallExpression(
         self, expr_idx: int, expr: Expr.VEXCCallExpression, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]
@@ -165,3 +179,12 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         if reg1.reg_offset <= reg0.reg_offset < reg1.reg_offset + reg1.size:
             return True
         return False
+
+    @staticmethod
+    def _check_store_precedes_load(store_defat: Optional[CodeLocation], load_defat: Optional[CodeLocation]) -> bool:
+        """
+        Check if store precedes load based on their AIL statement IDs.
+        """
+        if store_defat is None or load_defat is None:
+            return True
+        return store_defat.block_addr == load_defat.block_addr and store_defat.stmt_idx <= load_defat.stmt_idx
