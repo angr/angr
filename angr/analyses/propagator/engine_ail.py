@@ -1,5 +1,5 @@
 # pylint:disable=arguments-differ,arguments-renamed,isinstance-second-argument-not-valid-type
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Optional, Union, Tuple, TYPE_CHECKING
 import logging
 
 import claripy
@@ -73,7 +73,7 @@ class SimEnginePropagatorAIL(
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
-            if isinstance(stmt.src, (Expr.Convert)) and isinstance(stmt.src.operand, Stmt.Call):
+            elif isinstance(stmt.src, (Expr.Convert)) and isinstance(stmt.src.operand, Stmt.Call):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
 
@@ -283,7 +283,10 @@ class SimEnginePropagatorAIL(
             for detail in tmp.offset_and_details.values():
                 if detail.expr is None:
                     continue
-                if self.is_using_outdated_def(detail.expr, detail.def_at, self._codeloc(), avoid=expr):
+                outdated_, has_avoid_ = self.is_using_outdated_def(
+                    detail.expr, detail.def_at, self._codeloc(), avoid=expr
+                )
+                if outdated_ or has_avoid_:
                     outdated = True
                     break
 
@@ -370,7 +373,10 @@ class SimEnginePropagatorAIL(
             for _, detail in new_expr.offset_and_details.items():
                 if detail.expr is None:
                     break
-                if self.is_using_outdated_def(detail.expr, detail.def_at, self._codeloc(), avoid=expr):
+                outdated_, has_avoid_ = self.is_using_outdated_def(
+                    detail.expr, detail.def_at, self._codeloc(), avoid=expr
+                )
+                if outdated_ or has_avoid_:
                     outdated = True
                     break
 
@@ -426,9 +432,10 @@ class SimEnginePropagatorAIL(
                         and var.value._model_concrete.value == self.state._gp
                     ):
                         if var.one_expr is not None:
-                            if not self.is_using_outdated_def(
+                            outdated, has_avoid = self.is_using_outdated_def(
                                 var.one_expr, var.one_defat, self._codeloc(), avoid=expr.addr
-                            ):
+                            )
+                            if outdated or has_avoid:
                                 l.debug("Add a replacement: %s with %s", expr, var.one_expr)
                                 self.state.add_replacement(self._codeloc(), expr, var.one_expr)
                         else:
@@ -1084,17 +1091,17 @@ class SimEnginePropagatorAIL(
         expr_defat: Optional["CodeLocation"],
         current_loc: "CodeLocation",
         avoid: Optional[Expr.Expression] = None,
-    ) -> bool:
+    ) -> Tuple[bool, bool]:
         if self._reaching_definitions is None:
             l.warning(
                 "Reaching definition information is not provided to propagator. Assume the definition is out-dated."
             )
-            return True
+            return True, False
 
         if expr_defat is None:
             # the definition originates outside the current node or function
             l.warning("Unknown where the expression is defined. Assume the definition is out-dated.")
-            return True
+            return True, False
 
         key_defat = "stmt", (expr_defat.block_addr, expr_defat.stmt_idx), OP_AFTER
         if key_defat not in self._reaching_definitions.observed_results:
@@ -1103,7 +1110,7 @@ class SimEnginePropagatorAIL(
                 "out-dated.",
                 expr_defat.ins_addr,
             )
-            return True
+            return True, False
 
         key_currloc = "stmt", (current_loc.block_addr, current_loc.stmt_idx), OP_BEFORE
         if key_currloc not in self._reaching_definitions.observed_results:
@@ -1112,7 +1119,7 @@ class SimEnginePropagatorAIL(
                 "out-dated.",
                 current_loc.ins_addr,
             )
-            return True
+            return True, False
 
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
@@ -1128,7 +1135,7 @@ class SimEnginePropagatorAIL(
             extract_offset_to_sp=self.extract_offset_to_sp,
         )
         walker.walk_expression(expr)
-        return walker.out_dated
+        return walker.out_dated, walker.has_avoid
 
     @staticmethod
     def has_tmpexpr(expr: Expr.Expression) -> bool:

@@ -1171,5 +1171,19 @@ class AILSimplifier(Analysis):
 
         return False
 
+    @staticmethod
+    def _expression_has_call_exprs(expr: Expression) -> bool:
+        def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
+            raise HasCallNotification()
+
+        walker = AILBlockWalker()
+        walker.expr_handlers[Call] = _handle_callexpr
+        try:
+            walker.walk_expression(expr)
+        except HasCallNotification:
+            return True
+
+        return False
+
 
 AnalysesHub.register_default("AILSimplifier", AILSimplifier)

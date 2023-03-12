@@ -174,7 +174,7 @@ class PropagatorState:
 
             if state._equivalence != o._equivalence:
                 merge_occurred = True
-            state._equivalence |= o._equivalence
+                state._equivalence |= o._equivalence
 
         return state, merge_occurred
 

@@ -45,11 +45,12 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self.expr_handlers[Expr.Tmp] = self._handle_Tmp
         self.expr_handlers[Expr.VEXCCallExpression] = self._handle_VEXCCallExpression
         self.out_dated = False
+        self.has_avoid = False
 
     # pylint:disable=unused-argument
     def _handle_Tmp(self, expr_idx: int, expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
         if self.avoid is not None and expr.likes(self.avoid):
-            self.out_dated = True
+            self.has_avoid = True
 
     # pylint:disable=unused-argument
     def _handle_Register(
@@ -60,36 +61,37 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             and isinstance(self.avoid, Expr.Register)
             and (expr.likes(self.avoid) or self._reg_overlap(expr, self.avoid))
         ):
+            self.has_avoid = True
+
+        # is the used register still alive at this point?
+        try:
+            reg_vals: "MultiValues" = self.livedefs_defat.register_definitions.load(
+                expr.reg_offset, size=expr.size, endness=self.arch.register_endness
+            )
+            defs_defat = list(self.livedefs_defat.extract_defs_from_mv(reg_vals))
+        except SimMemoryMissingError:
+            defs_defat = []
+
+        try:
+            reg_vals: "MultiValues" = self.livedefs_currentloc.register_definitions.load(
+                expr.reg_offset, size=expr.size, endness=self.arch.register_endness
+            )
+            defs_currentloc = list(self.livedefs_currentloc.extract_defs_from_mv(reg_vals))
+        except SimMemoryMissingError:
+            defs_currentloc = []
+
+        codelocs_defat = {def_.codeloc for def_ in defs_defat}
+        codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
+        if not (codelocs_defat and codelocs_currentloc and codelocs_defat == codelocs_currentloc):
             self.out_dated = True
-        else:
-            # is the used register still alive at this point?
-            try:
-                reg_vals: "MultiValues" = self.livedefs_defat.register_definitions.load(
-                    expr.reg_offset, size=expr.size, endness=self.arch.register_endness
-                )
-                defs_defat = list(self.livedefs_defat.extract_defs_from_mv(reg_vals))
-            except SimMemoryMissingError:
-                defs_defat = []
-
-            try:
-                reg_vals: "MultiValues" = self.livedefs_currentloc.register_definitions.load(
-                    expr.reg_offset, size=expr.size, endness=self.arch.register_endness
-                )
-                defs_currentloc = list(self.livedefs_currentloc.extract_defs_from_mv(reg_vals))
-            except SimMemoryMissingError:
-                defs_currentloc = []
-
-            codelocs_defat = {def_.codeloc for def_ in defs_defat}
-            codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
-            if not (codelocs_defat and codelocs_currentloc and codelocs_defat.issubset(codelocs_currentloc)):
-                self.out_dated = True
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
         if self.avoid is not None and (  # pylint:disable=consider-using-in
             expr == self.avoid or expr.addr == self.avoid
         ):
-            self.out_dated = True
-        elif isinstance(expr.addr, Expr.StackBaseOffset):
+            self.has_avoid = True
+
+        if isinstance(expr.addr, Expr.StackBaseOffset):
             sp_offset = self.extract_offset_to_sp(expr.addr)
 
             if sp_offset is not None:
@@ -113,14 +115,12 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 codelocs_defat = {def_.codeloc for def_ in defs_defat}
                 codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
 
-                if not (codelocs_defat and codelocs_currentloc and codelocs_defat.issubset(codelocs_currentloc)):
-                    # we use issubset() because Propagator does not always see all definitions of a variable because
-                    # (Propagator tracks only one value of each variable while RDA tracks many).
-                    self.out_dated = True
                 if not codelocs_defat and not codelocs_currentloc:
                     # fallback
                     if not self._check_store_precedes_load(self.expr_defat, self.current_loc):
                         self.out_dated = True
+                elif not (codelocs_defat and codelocs_currentloc and codelocs_defat == codelocs_currentloc):
+                    self.out_dated = True
 
             else:
                 # in cases where expr.addr cannot be resolved to a concrete stack offset, we play safe and assume
@@ -148,7 +148,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             codelocs_defat = {def_.codeloc for def_ in defs_defat}
             codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
 
-            if not codelocs_defat.issubset(codelocs_currentloc):
+            if codelocs_defat != codelocs_currentloc:
                 self.out_dated = True
 
         else:
@@ -174,10 +174,9 @@ class OutdatedDefinitionWalker(AILBlockWalker):
     ):
         if self.avoid is not None:
             if any(op == self.avoid for op in expr.operands):
-                self.out_dated = True
+                self.has_avoid = True
 
-        if not self.out_dated:
-            super()._handle_VEXCCallExpression(expr_idx, expr, stmt_idx, stmt, block)
+        super()._handle_VEXCCallExpression(expr_idx, expr, stmt_idx, stmt, block)
 
     @staticmethod
     def _reg_overlap(reg0: Expr.Register, reg1: Expr.Register) -> bool:
