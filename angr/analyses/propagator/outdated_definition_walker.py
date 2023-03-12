@@ -81,7 +81,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
 
             codelocs_defat = {def_.codeloc for def_ in defs_defat}
             codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
-            if (not codelocs_defat and not codelocs_currentloc) or codelocs_defat != codelocs_currentloc:
+            if not (codelocs_defat and codelocs_currentloc and codelocs_defat.issubset(codelocs_currentloc)):
                 self.out_dated = True
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
@@ -113,8 +113,15 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 codelocs_defat = {def_.codeloc for def_ in defs_defat}
                 codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
 
-                if (not codelocs_defat and not codelocs_currentloc) or codelocs_defat != codelocs_currentloc:
+                if not (codelocs_defat and codelocs_currentloc and codelocs_defat.issubset(codelocs_currentloc)):
+                    # we use issubset() because Propagator does not always see all definitions of a variable because
+                    # (Propagator tracks only one value of each variable while RDA tracks many).
                     self.out_dated = True
+                if not codelocs_defat and not codelocs_currentloc:
+                    # fallback
+                    if not self._check_store_precedes_load(self.expr_defat, self.current_loc):
+                        self.out_dated = True
+
             else:
                 # in cases where expr.addr cannot be resolved to a concrete stack offset, we play safe and assume
                 # it's outdated
@@ -141,7 +148,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             codelocs_defat = {def_.codeloc for def_ in defs_defat}
             codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
 
-            if (not codelocs_defat and not codelocs_currentloc) or codelocs_defat != codelocs_currentloc:
+            if not codelocs_defat.issubset(codelocs_currentloc):
                 self.out_dated = True
 
         else:

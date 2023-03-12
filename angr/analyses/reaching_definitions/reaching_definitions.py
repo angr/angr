@@ -66,6 +66,7 @@ class ReachingDefinitionsAnalysis(
         dep_graph: Optional["DepGraph"] = None,
         observe_callback=None,
         canonical_size=8,
+        stack_pointer_tracker=None,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -150,7 +151,11 @@ class ReachingDefinitionsAnalysis(
             function_handler=self._function_handler,
         )
         self._engine_ail = SimEngineRDAIL(
-            self.project, self._call_stack, self._maximum_local_call_depth, function_handler=self._function_handler
+            self.project,
+            self._call_stack,
+            self._maximum_local_call_depth,
+            function_handler=self._function_handler,
+            stack_pointer_tracker=stack_pointer_tracker,
         )
 
         self._visited_blocks: Set[Any] = visited_blocks or set()

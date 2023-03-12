@@ -126,6 +126,7 @@ class BlockSimplifier(Analysis):
             self._reaching_definitions = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
                 subject=block,
                 track_tmps=True,
+                stack_pointer_tracker=self._stack_pointer_tracker,
                 observe_all=True,  # observation_points=[("node", block.addr, OP_AFTER)]
             )
         return self._reaching_definitions

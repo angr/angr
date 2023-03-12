@@ -81,6 +81,9 @@ class SimEnginePropagatorAIL(
                 self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, src.one_expr, self._codeloc()
             else:
                 self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
+
+            if dst.reg_offset == self.arch.sp_offset:
+                self.state._sp_adjusted = True
         else:
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
@@ -188,6 +191,30 @@ class SimEnginePropagatorAIL(
                 self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
             else:
                 l.warning("Unsupported ret_expr type %s.", expr_stmt.ret_expr.__class__)
+
+        if self.state._sp_adjusted:
+            # stack pointers still exist in the block. so we must emulate the return of the call
+            if self.arch.call_pushes_ret:
+                sp_reg = Expr.Register(None, None, self.arch.sp_offset, self.arch.bits)
+                sp_value = self.state.load_register(sp_reg)
+                if sp_value is not None and 0 in sp_value.offset_and_details and len(sp_value.offset_and_details) == 1:
+                    sp_expr = sp_value.offset_and_details[0].expr
+                    if isinstance(sp_expr, Expr.StackBaseOffset):
+                        sp_expr_new = sp_expr.copy()
+                        sp_expr_new.offset += self.arch.bytes
+                    else:
+                        sp_expr_new = sp_expr + self.arch.bytes
+                    sp_value_new = PropValue(
+                        sp_value.value + self.arch.bytes,
+                        offset_and_details={
+                            0: Detail(
+                                sp_value.offset_and_details[0].size,
+                                sp_expr_new,
+                                self._codeloc(),
+                            )
+                        },
+                    )
+                    self.state.store_register(sp_reg, sp_value_new)
 
     def _ail_handle_ConditionalJump(self, stmt):
         condition = self._expr(stmt.condition)

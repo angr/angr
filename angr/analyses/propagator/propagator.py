@@ -353,6 +353,7 @@ class PropagatorAILState(PropagatorState):
         "last_stack_store",
         "global_stores",
         "block_initial_reg_values",
+        "_sp_adjusted",
     )
 
     def __init__(
@@ -368,6 +369,7 @@ class PropagatorAILState(PropagatorState):
         gp=None,
         block_initial_reg_values=None,
         max_prop_expr_occurrence: int = 1,
+        sp_adjusted: bool = False,
     ):
         super().__init__(
             arch,
@@ -396,6 +398,7 @@ class PropagatorAILState(PropagatorState):
         self.block_initial_reg_values: DefaultDict[
             Tuple[int, int], List[Tuple[ailment.Expr.Register, ailment.Expr.Const]]
         ] = (defaultdict(list) if block_initial_reg_values is None else block_initial_reg_values)
+        self._sp_adjusted: bool = sp_adjusted
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
@@ -422,6 +425,7 @@ class PropagatorAILState(PropagatorState):
             # drop tmps
             gp=self._gp,
             max_prop_expr_occurrence=self._max_prop_expr_occurrence,
+            sp_adjusted=self._sp_adjusted,
         )
 
         return rd
