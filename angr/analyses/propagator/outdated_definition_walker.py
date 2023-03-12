@@ -83,7 +83,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
 
             codelocs_defat = {def_.codeloc for def_ in defs_defat}
             codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
-            if codelocs_defat != codelocs_currentloc:
+            if (not codelocs_defat and not codelocs_currentloc) or codelocs_defat != codelocs_currentloc:
                 self.out_dated = True
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
@@ -115,7 +115,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 codelocs_defat = {def_.codeloc for def_ in defs_defat}
                 codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
 
-                if codelocs_defat != codelocs_currentloc:
+                if (not codelocs_defat and not codelocs_currentloc) or codelocs_defat != codelocs_currentloc:
                     self.out_dated = True
             else:
                 # in cases where expr.addr cannot be resolved to a concrete stack offset, we play safe and assume
@@ -143,7 +143,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             codelocs_defat = {def_.codeloc for def_ in defs_defat}
             codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
 
-            if codelocs_defat != codelocs_currentloc:
+            if (not codelocs_defat and not codelocs_currentloc) or codelocs_defat != codelocs_currentloc:
                 self.out_dated = True
 
         else:

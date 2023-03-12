@@ -667,7 +667,7 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # adding a single value to a multivalue
             if expr0.count() == 1 and 0 in expr0:
-                if all(v.concrete for v in expr0[0]):
+                if all(v.concrete or self.state.is_stack_address(v) for v in expr0[0]):
                     vs = {v + expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
@@ -678,7 +678,7 @@ class SimEngineRDAIL(
                     r = MultiValues(offset_to_values={0: vs})
         else:
             # adding two single values together
-            if expr0_v.concrete and expr1_v.concrete:
+            if (expr0_v.concrete or self.state.is_stack_address(expr0_v)) and expr1_v.concrete:
                 r = MultiValues(expr0_v + expr1_v)
 
         if r is None:
@@ -700,7 +700,7 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # subtracting a single value from a multivalue
             if expr0.count() == 1 and 0 in expr0:
-                if all(v.concrete for v in expr0[0]):
+                if all(v.concrete or self.state.is_stack_address(v) for v in expr0[0]):
                     vs = {v - expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
@@ -710,7 +710,7 @@ class SimEngineRDAIL(
                     vs = {expr0_v - v for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
-            if expr0_v.concrete and expr1_v.concrete:
+            if (expr0_v.concrete or self.state.is_stack_address(expr0_v)) and expr1_v.concrete:
                 r = MultiValues(expr0_v - expr1_v)
 
         if r is None:
