@@ -14,6 +14,7 @@ from ailment.expression import (
     VEXCCallExpression,
     Tmp,
     Register,
+    Const,
 )
 
 
@@ -42,6 +43,7 @@ class AILBlockWalkerBase:
             VEXCCallExpression: self._handle_VEXCCallExpression,
             Tmp: self._handle_Tmp,
             Register: self._handle_Register,
+            Const: self._handle_Const,
         }
 
         self.stmt_handlers: Dict[Type, Callable] = stmt_handlers if stmt_handlers else _default_stmt_handlers
@@ -142,6 +144,9 @@ class AILBlockWalkerBase:
         pass
 
     def _handle_Register(self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement, block: Optional[Block]):
+        pass
+
+    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Optional[Block]):
         pass
 
     def _handle_DirtyExpression(

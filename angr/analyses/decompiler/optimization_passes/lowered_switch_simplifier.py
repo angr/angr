@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Union, TYPE_CHECKING
+from typing import Optional, Tuple, Union, List, DefaultDict, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -6,15 +6,16 @@ import networkx
 
 from ailment import Block
 from ailment.statement import ConditionalJump
-from ailment.expression import BinaryOp, Const, Register, Load
+from ailment.expression import Expression, BinaryOp, Const, Register, Load
 
 from ...cfg.cfg_utils import CFGUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
+from ..ailblock_walker import AILBlockWalkerBase
 from .optimization_pass import OptimizationPass, OptimizationPassStage, MultipleBlocksException
 
 if TYPE_CHECKING:
-    from ....sim_variable import SimVariable
+    from ailment.expression import UnaryOp, Convert
 
 _l = logging.getLogger(name=__name__)
 
@@ -27,7 +28,7 @@ class Case:
     __slots__ = (
         "original_node",
         "node_type",
-        "variable",
+        "variable_hash",
         "expr",
         "value",
         "target",
@@ -35,11 +36,11 @@ class Case:
     )
 
     def __init__(
-        self, original_node, node_type: Optional[str], variable, expr, value: Union[int, str], target, next_addr
+        self, original_node, node_type: Optional[str], variable_hash, expr, value: Union[int, str], target, next_addr
     ):
         self.original_node = original_node
         self.node_type = node_type
-        self.variable = variable
+        self.variable_hash = variable_hash
         self.expr = expr
         self.value = value
         self.target = target
@@ -49,6 +50,61 @@ class Case:
         if self.value == "default":
             return f"Case default@{self.target:#x}"
         return f"Case {repr(self.original_node)}@{self.target:#x}: {self.expr} == {self.value}"
+
+    def __eq__(self, other):
+        if not isinstance(other, Case):
+            return False
+        return (
+            self.original_node == other.original_node
+            and self.node_type == other.node_type
+            and self.variable_hash == other.variable_hash
+            and self.value == other.value
+            and self.target == other.target
+            and self.next_addr == other.next_addr
+        )
+
+    def __hash__(self):
+        return hash(
+            (Case, self.original_node, self.node_type, self.variable_hash, self.value, self.target, self.next_addr)
+        )
+
+
+class StableVarExprHasher(AILBlockWalkerBase):
+    """
+    Obtain a stable hash of an AIL expression with respect to all variables and all operations applied on variables.
+    """
+    def __init__(self, expr: Expression):
+        super().__init__()
+        self.expr = expr
+        self._hash_lst = []
+
+        self.walk_expression(expr)
+        self.hash = hash(tuple(self._hash_lst))
+
+    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Optional[Block]):
+        if hasattr(expr, "variable"):
+            self._hash_lst.append(expr.variable)
+        else:
+            super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt, block: Optional[Block]):
+        self._hash_lst.append("Load")
+        super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt, block: Optional[Block]):
+        self._hash_lst.append(expr.op)
+        super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_UnaryOp(self, expr_idx: int, expr: "UnaryOp", stmt_idx: int, stmt, block: Optional[Block]):
+        self._hash_lst.append(expr.op)
+        super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt, block: Optional[Block]):
+        self._hash_lst.append((expr.value, expr.bits))
+
+    def _handle_Convert(self, expr_idx: int, expr: "Convert", stmt_idx: int, stmt, block: Optional[Block]):
+        self._hash_lst.append((expr.to_bits))
+        super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class LoweredSwitchSimplifier(OptimizationPass):
@@ -79,42 +135,43 @@ class LoweredSwitchSimplifier(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-        variable_to_cases = self._find_cascading_switch_variable_comparisons()
+        variablehash_to_cases = self._find_cascading_switch_variable_comparisons()
 
-        if not variable_to_cases:
+        if not variablehash_to_cases:
             return
 
         graph_copy = networkx.DiGraph(self._graph)
         self.out_graph = graph_copy
         node_to_heads = defaultdict(set)
 
-        for _, cases in variable_to_cases.items():
-            original_nodes = [case.original_node for case in cases if case.value != "default"]
-            original_head: Block = original_nodes[0]
-            original_nodes = original_nodes[1:]
+        for _, caselists in variablehash_to_cases.items():
+            for cases in caselists:
+                original_nodes = [case.original_node for case in cases if case.value != "default"]
+                original_head: Block = original_nodes[0]
+                original_nodes = original_nodes[1:]
 
-            case_addrs = {(case.original_node, case.value, case.target, case.next_addr) for case in cases}
+                case_addrs = {(case.original_node, case.value, case.target, case.next_addr) for case in cases}
 
-            expr = cases[0].expr
+                expr = cases[0].expr
 
-            # create a fake switch-case head node
-            switch_stmt = IncompleteSwitchCaseHeadStatement(
-                original_head.statements[-1].idx, expr, case_addrs, ins_addr=original_head.statements[-1].ins_addr
-            )
-            new_head = original_head.copy()
-            # replace the last instruction of the head node with switch_node
-            new_head.statements[-1] = switch_stmt
-            # update the block
-            self._update_block(original_head, new_head)
+                # create a fake switch-case head node
+                switch_stmt = IncompleteSwitchCaseHeadStatement(
+                    original_head.statements[-1].idx, expr, case_addrs, ins_addr=original_head.statements[-1].ins_addr
+                )
+                new_head = original_head.copy()
+                # replace the last instruction of the head node with switch_node
+                new_head.statements[-1] = switch_stmt
+                # update the block
+                self._update_block(original_head, new_head)
 
-            # add edges between the head and case nodes
-            for onode in original_nodes:
-                successors = list(graph_copy.successors(onode))
-                for succ in successors:
-                    if succ not in original_nodes:
-                        graph_copy.add_edge(new_head, succ)
-                        node_to_heads[succ].add(new_head)
-                graph_copy.remove_node(onode)
+                # add edges between the head and case nodes
+                for onode in original_nodes:
+                    successors = list(graph_copy.successors(onode))
+                    for succ in successors:
+                        if succ not in original_nodes:
+                            graph_copy.add_edge(new_head, succ)
+                            node_to_heads[succ].add(new_head)
+                    graph_copy.remove_node(onode)
 
         # find shared case nodes and make copies of them
         # note that this only solves cases where *one* node is shared between switch-cases. a more general solution
@@ -149,27 +206,27 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 variable_comparisons[node] = ("b",) + r
                 continue
 
-        variable_to_cases = {}
+        varhash_to_caselists: DefaultDict[int, List[List[Case]]] = defaultdict(list)
 
         for head in variable_comparisons:
             cases = []
             last_comp = None
             comp = head
             while True:
-                comp_type, variable, expr, value, target, next_addr = variable_comparisons[comp]
+                comp_type, variable_hash, expr, value, target, next_addr = variable_comparisons[comp]
                 if cases:
-                    last_var = cases[-1].variable
+                    last_varhash = cases[-1].variable_hash
                 else:
-                    last_var = None
-                if last_var is None or last_var == variable:
+                    last_varhash = None
+                if last_varhash is None or last_varhash == variable_hash:
                     if target == comp.addr:
                         # invalid
                         break
-                    cases.append(Case(comp, comp_type, variable, expr, value, target, next_addr))
+                    cases.append(Case(comp, comp_type, variable_hash, expr, value, target, next_addr))
                 else:
                     # new variable!
                     if last_comp is not None:
-                        cases.append(Case(last_comp, None, last_var, None, "default", comp.addr, None))
+                        cases.append(Case(last_comp, None, last_varhash, None, "default", comp.addr, None))
                     break
 
                 if comp is not head:
@@ -190,7 +247,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                         # node. check it.
                         next_comp_many = list(self._get_blocks(next_comp_addr))
                         if next_comp_many[0] not in variable_comparisons:
-                            cases.append(Case(comp, None, variable, expr, "default", next_comp_addr, None))
+                            cases.append(Case(comp, None, variable_hash, expr, "default", next_comp_addr, None))
                         # otherwise we don't support it
                         break
                     assert next_comp is not None
@@ -198,50 +255,61 @@ class LoweredSwitchSimplifier(OptimizationPass):
                         last_comp = comp
                         comp = next_comp
                         continue
-                    cases.append(Case(comp, None, variable, expr, "default", next_comp_addr, None))
+                    cases.append(Case(comp, None, variable_hash, expr, "default", next_comp_addr, None))
                 break
 
             if cases:
-                v = cases[-1].variable
-                if v not in variable_to_cases or len(variable_to_cases[v]) < len(cases):
-                    variable_to_cases[v] = cases
+                v = cases[-1].variable_hash
+                for idx, existing_cases in list(enumerate(varhash_to_caselists[v])):
+                    if self.cases_issubset(existing_cases, cases):
+                        varhash_to_caselists[v][idx] = cases
+                        break
+                    elif self.cases_issubset(cases, existing_cases):
+                        break
+                else:
+                    varhash_to_caselists[v].append(cases)
 
-        for v, cases in list(variable_to_cases.items()):
-            # filter: there should be at least two non-default cases
-            if len([case for case in cases if case.value != "default"]) < 2:
-                del variable_to_cases[v]
-                continue
+        for v, caselists in list(varhash_to_caselists.items()):
+            for idx, cases in list(enumerate(caselists)):
+                # filter: there should be at least two non-default cases
+                if len([case for case in cases if case.value != "default"]) < 2:
+                    caselists[idx] = None
+                    continue
 
-            # filter: no type-a node after the first case node
-            if any(case for case in cases[1:] if case.value != "default" and case.node_type == "a"):
-                del variable_to_cases[v]
-                continue
+                # filter: no type-a node after the first case node
+                if any(case for case in cases[1:] if case.value != "default" and case.node_type == "a"):
+                    caselists[idx] = None
+                    continue
 
-            # filter: each case is only reachable from a case node
-            all_case_nodes = {case.original_node for case in cases}
-            skipped = False
-            for case in cases:
-                target_nodes = [succ for succ in self._graph.successors(case.original_node) if succ.addr == case.target]
-                if len(target_nodes) != 1:
-                    del variable_to_cases[v]
-                    skipped = True
-                    break
-                target_node = target_nodes[0]
-                nonself_preds = {pred for pred in self._graph.predecessors(target_node) if pred.addr == case.target}
-                if not nonself_preds.issubset(all_case_nodes):
-                    del variable_to_cases[v]
-                    skipped = True
-                    break
+                # filter: each case is only reachable from a case node
+                all_case_nodes = {case.original_node for case in cases}
+                skipped = False
+                for case in cases:
+                    target_nodes = [
+                        succ for succ in self._graph.successors(case.original_node) if succ.addr == case.target
+                    ]
+                    if len(target_nodes) != 1:
+                        caselists[idx] = None
+                        skipped = True
+                        break
+                    target_node = target_nodes[0]
+                    nonself_preds = {pred for pred in self._graph.predecessors(target_node) if pred.addr == case.target}
+                    if not nonself_preds.issubset(all_case_nodes):
+                        caselists[idx] = None
+                        skipped = True
+                        break
 
-            if skipped:
-                continue
+                if skipped:
+                    continue
 
-        return variable_to_cases
+            varhash_to_caselists[v] = [cl for cl in caselists if cl is not None]
+
+        return varhash_to_caselists
 
     @staticmethod
     def _find_switch_variable_comparison_type_a(
         node,
-    ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int, int]]:
+    ) -> Optional[Tuple[int, Expression, int, int, int]]:
         # the type a is the last statement is a var == constant comparison, but
         # there is more than one non-label statement in the block
 
@@ -255,12 +323,8 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 ):
                     cond = stmt.condition
                     if isinstance(cond, BinaryOp):
-                        if (
-                            isinstance(cond.operands[0], (Register, Load))
-                            and cond.operands[0].variable is not None
-                            and isinstance(cond.operands[1], Const)
-                        ):
-                            variable = cond.operands[0].variable
+                        if isinstance(cond.operands[1], Const):
+                            variable_hash = StableVarExprHasher(cond.operands[0]).hash
                             value = cond.operands[1].value
                             if cond.op == "CmpEQ":
                                 target = stmt.true_target.value
@@ -270,14 +334,14 @@ class LoweredSwitchSimplifier(OptimizationPass):
                                 next_node_addr = stmt.true_target.value
                             else:
                                 return None
-                            return variable, cond.operands[0], value, target, next_node_addr
+                            return variable_hash, cond.operands[0], value, target, next_node_addr
 
         return None
 
     @staticmethod
     def _find_switch_variable_comparison_type_b(
         node,
-    ) -> Optional[Tuple["SimVariable", Union[Register, Load], int, int, int]]:
+    ) -> Optional[Tuple[int, Expression, int, int, int]]:
         # the type b is the last statement is a var == constant comparison, and
         # there is only one non-label statement
 
@@ -291,12 +355,8 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 ):
                     cond = stmt.condition
                     if isinstance(cond, BinaryOp):
-                        if (
-                            isinstance(cond.operands[0], (Register, Load))
-                            and cond.operands[0].variable is not None
-                            and isinstance(cond.operands[1], Const)
-                        ):
-                            variable = cond.operands[0].variable
+                        if isinstance(cond.operands[1], Const):
+                            variable_hash = StableVarExprHasher(cond.operands[0]).hash
                             value = cond.operands[1].value
                             if cond.op == "CmpEQ":
                                 target = stmt.true_target.value
@@ -306,7 +366,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                                 next_node_addr = stmt.true_target.value
                             else:
                                 return None
-                            return variable, cond.operands[0], value, target, next_node_addr
+                            return variable_hash, cond.operands[0], value, target, next_node_addr
 
         return None
 
@@ -369,3 +429,16 @@ class LoweredSwitchSimplifier(OptimizationPass):
 
         # all good - remove the last statement in node
         remove_last_statement(node)
+
+    @staticmethod
+    def cases_issubset(cases_0: List[Case], cases_1: List[Case]) -> bool:
+        """
+        Test if cases_0 is a subset of cases_1.
+        """
+
+        if len(cases_0) > len(cases_1):
+            return False
+        for case in cases_0:
+            if case not in cases_1:
+                return False
+        return True
