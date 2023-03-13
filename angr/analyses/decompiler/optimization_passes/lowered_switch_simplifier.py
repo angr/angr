@@ -6,7 +6,7 @@ import networkx
 
 from ailment import Block
 from ailment.statement import ConditionalJump
-from ailment.expression import Expression, BinaryOp, Const, Register, Load
+from ailment.expression import Expression, BinaryOp, Const, Load
 
 from ...cfg.cfg_utils import CFGUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
@@ -265,7 +265,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     if self.cases_issubset(existing_cases, cases):
                         varhash_to_caselists[v][idx] = cases
                         break
-                    elif self.cases_issubset(cases, existing_cases):
+                    if self.cases_issubset(cases, existing_cases):
                         break
                 else:
                     varhash_to_caselists[v].append(cases)
