@@ -153,24 +153,7 @@ class PropagatorState:
         merge_occurred = False
 
         for o in others:
-            for loc, vars_ in o._replacements.items():
-                if loc not in state._replacements:
-                    state._replacements[loc] = vars_.copy()
-                    merge_occurred = True
-                else:
-                    for var, repl in vars_.items():
-                        if var not in state._replacements[loc]:
-                            state._replacements[loc][var] = repl
-                            merge_occurred = True
-                        else:
-                            if self.is_top(repl) or self.is_top(state._replacements[loc][var]):
-                                t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
-                                state._replacements[loc][var] = t
-                                merge_occurred = True
-                            elif state._replacements[loc][var] != repl:
-                                t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
-                                state._replacements[loc][var] = t
-                                merge_occurred = True
+            merge_occurred |= PropagatorAnalysis.merge_replacements(state._replacements, o._replacements)
 
             if state._equivalence != o._equivalence:
                 merge_occurred = True
@@ -912,7 +895,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if self.model.replacements is None:
             self.model.replacements = state._replacements
         else:
-            self._merge_replacements(self.model.replacements, state._replacements)
+            self.merge_replacements(self.model.replacements, state._replacements)
 
         self.model.equivalence |= state._equivalence
         for expr, used_locs in state._expr_used_locs.items():
@@ -1015,7 +998,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._post_analysis()
 
     @staticmethod
-    def _merge_replacements(replacements_0, replacements_1) -> bool:
+    def merge_replacements(replacements_0, replacements_1) -> bool:
         """
         The replacement merging logic is special: replacements_1 is the newer replacement result and replacement_0 is
         the older result waiting to be updated. When both replacements_1 and replacement_0 have a non-top value for the
