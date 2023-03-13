@@ -34,7 +34,12 @@ class SimEngineRDAIL(
     state: ReachingDefinitionsState
 
     def __init__(
-        self, project, call_stack, maximum_local_call_depth, function_handler: Optional[FunctionHandler] = None
+        self,
+        project,
+        call_stack,
+        maximum_local_call_depth,
+        function_handler: Optional[FunctionHandler] = None,
+        stack_pointer_tracker=None,
     ):
         super().__init__()
         self.project = project
@@ -43,6 +48,7 @@ class SimEngineRDAIL(
         self._function_handler = function_handler
         self._visited_blocks = None
         self._dep_graph = None
+        self._stack_pointer_tracker = stack_pointer_tracker
 
         self._stmt_handlers = {
             ailment.Stmt.Assignment: self._ail_handle_Assignment,
@@ -112,6 +118,7 @@ class SimEngineRDAIL(
 
     def _handle_Stmt(self, stmt):
         if self.state.analysis:
+            self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_BEFORE)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
         handler = self._stmt_handlers.get(type(stmt), None)
@@ -122,6 +129,7 @@ class SimEngineRDAIL(
             self.l.warning("Unsupported statement type %s.", type(stmt).__name__)
 
         if self.state.analysis:
+            self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_AFTER)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     def _expr(self, expr):
@@ -154,9 +162,8 @@ class SimEngineRDAIL(
             self.state.kill_and_add_definition(reg, self._codeloc(), src)
 
             if dst.reg_offset == self.arch.sp_offset:
+                self.state._sp_adjusted = True
                 # TODO: Special logic that frees all definitions above the current stack pointer
-                pass
-
         else:
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
@@ -333,6 +340,18 @@ class SimEngineRDAIL(
             self.state.kill_definitions(Register(*self.arch.registers["cc_dep2"]))
             self.state.kill_definitions(Register(*self.arch.registers["cc_ndep"]))
 
+        if self.state._sp_adjusted:
+            # stack pointers still exist in the block. so we must emulate the return of the call
+            if self.arch.call_pushes_ret:
+                sp_mv: MultiValues = self.state.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
+                sp_v = sp_mv.one_value()
+                if sp_v is not None:
+                    self.state.register_definitions.store(
+                        self.arch.sp_offset,
+                        sp_v + self.arch.bytes,
+                        size=self.arch.bytes,
+                    )
+
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
         codeloc = self._codeloc()
 
@@ -436,6 +455,17 @@ class SimEngineRDAIL(
         reg_offset = expr.reg_offset
         size = expr.size
         # bits = size * 8
+
+        # Special handling for SP and BP
+        if self._stack_pointer_tracker is not None:
+            if reg_offset == self.arch.sp_offset:
+                sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
+                if sb_offset is not None:
+                    return MultiValues(v=self.state._initial_stack_pointer() + sb_offset)
+            elif reg_offset == self.arch.bp_offset:
+                sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
+                if sb_offset is not None:
+                    return MultiValues(v=self.state._initial_stack_pointer() + sb_offset)
 
         reg_atom = Register(reg_offset, size)
 
@@ -665,7 +695,7 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # adding a single value to a multivalue
             if expr0.count() == 1 and 0 in expr0:
-                if all(v.concrete for v in expr0[0]):
+                if all(v.concrete or self.state.is_stack_address(v) for v in expr0[0]):
                     vs = {v + expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
@@ -676,7 +706,7 @@ class SimEngineRDAIL(
                     r = MultiValues(offset_to_values={0: vs})
         else:
             # adding two single values together
-            if expr0_v.concrete and expr1_v.concrete:
+            if (expr0_v.concrete or self.state.is_stack_address(expr0_v)) and expr1_v.concrete:
                 r = MultiValues(expr0_v + expr1_v)
 
         if r is None:
@@ -698,7 +728,7 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # subtracting a single value from a multivalue
             if expr0.count() == 1 and 0 in expr0:
-                if all(v.concrete for v in expr0[0]):
+                if all(v.concrete or self.state.is_stack_address(v) for v in expr0[0]):
                     vs = {v - expr1_v for v in expr0[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
@@ -708,7 +738,7 @@ class SimEngineRDAIL(
                     vs = {expr0_v - v for v in expr1[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
-            if expr0_v.concrete and expr1_v.concrete:
+            if (expr0_v.concrete or self.state.is_stack_address(expr0_v)) and expr1_v.concrete:
                 r = MultiValues(expr0_v - expr1_v)
 
         if r is None:

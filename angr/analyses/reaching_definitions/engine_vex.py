@@ -108,11 +108,13 @@ class SimEngineRDVEX(
 
     def _handle_Stmt(self, stmt):
         if self.state.analysis:
+            self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_BEFORE)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
         super()._handle_Stmt(stmt)
 
         if self.state.analysis:
+            self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_AFTER)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     def _handle_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):

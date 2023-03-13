@@ -1,5 +1,5 @@
 # pylint:disable=arguments-differ,arguments-renamed,isinstance-second-argument-not-valid-type
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Optional, Union, Tuple, TYPE_CHECKING
 import logging
 
 import claripy
@@ -8,6 +8,7 @@ from ailment import Stmt, Expr
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable, SimMemoryVariable
+from ..reaching_definitions.reaching_definitions import OP_BEFORE, OP_AFTER
 from .engine_base import SimEnginePropagatorBase
 from .prop_value import PropValue, Detail
 
@@ -72,7 +73,7 @@ class SimEnginePropagatorAIL(
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
-            if isinstance(stmt.src, (Expr.Convert)) and isinstance(stmt.src.operand, Stmt.Call):
+            elif isinstance(stmt.src, (Expr.Convert)) and isinstance(stmt.src.operand, Stmt.Call):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
 
@@ -80,6 +81,9 @@ class SimEnginePropagatorAIL(
                 self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, src.one_expr, self._codeloc()
             else:
                 self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
+
+            if dst.reg_offset == self.arch.sp_offset:
+                self.state._sp_adjusted = True
         else:
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
@@ -188,6 +192,30 @@ class SimEnginePropagatorAIL(
             else:
                 l.warning("Unsupported ret_expr type %s.", expr_stmt.ret_expr.__class__)
 
+        if self.state._sp_adjusted:
+            # stack pointers still exist in the block. so we must emulate the return of the call
+            if self.arch.call_pushes_ret:
+                sp_reg = Expr.Register(None, None, self.arch.sp_offset, self.arch.bits)
+                sp_value = self.state.load_register(sp_reg)
+                if sp_value is not None and 0 in sp_value.offset_and_details and len(sp_value.offset_and_details) == 1:
+                    sp_expr = sp_value.offset_and_details[0].expr
+                    if isinstance(sp_expr, Expr.StackBaseOffset):
+                        sp_expr_new = sp_expr.copy()
+                        sp_expr_new.offset += self.arch.bytes
+                    else:
+                        sp_expr_new = sp_expr + self.arch.bytes
+                    sp_value_new = PropValue(
+                        sp_value.value + self.arch.bytes,
+                        offset_and_details={
+                            0: Detail(
+                                sp_value.offset_and_details[0].size,
+                                sp_expr_new,
+                                self._codeloc(),
+                            )
+                        },
+                    )
+                    self.state.store_register(sp_reg, sp_value_new)
+
     def _ail_handle_ConditionalJump(self, stmt):
         condition = self._expr(stmt.condition)
         if stmt.true_target is not None:
@@ -255,7 +283,10 @@ class SimEnginePropagatorAIL(
             for detail in tmp.offset_and_details.values():
                 if detail.expr is None:
                     continue
-                if self.is_using_outdated_def(detail.expr, detail.def_at, avoid=expr):
+                outdated_, has_avoid_ = self.is_using_outdated_def(
+                    detail.expr, detail.def_at, self._codeloc(), avoid=expr
+                )
+                if outdated_ or has_avoid_:
                     outdated = True
                     break
 
@@ -342,7 +373,10 @@ class SimEnginePropagatorAIL(
             for _, detail in new_expr.offset_and_details.items():
                 if detail.expr is None:
                     break
-                if self.is_using_outdated_def(detail.expr, detail.def_at, avoid=expr):
+                outdated_, has_avoid_ = self.is_using_outdated_def(
+                    detail.expr, detail.def_at, self._codeloc(), avoid=expr
+                )
+                if outdated_ or has_avoid_:
                     outdated = True
                     break
 
@@ -398,7 +432,10 @@ class SimEnginePropagatorAIL(
                         and var.value._model_concrete.value == self.state._gp
                     ):
                         if var.one_expr is not None:
-                            if not self.is_using_outdated_def(var.one_expr, var.one_defat, avoid=expr.addr):
+                            outdated, has_avoid = self.is_using_outdated_def(
+                                var.one_expr, var.one_defat, self._codeloc(), avoid=expr.addr
+                            )
+                            if outdated or has_avoid:
                                 l.debug("Add a replacement: %s with %s", expr, var.one_expr)
                                 self.state.add_replacement(self._codeloc(), expr, var.one_expr)
                         else:
@@ -1049,15 +1086,56 @@ class SimEnginePropagatorAIL(
     #
 
     def is_using_outdated_def(
-        self, expr: Expr.Expression, expr_defat: "CodeLocation", avoid: Optional[Expr.Expression] = None
-    ) -> bool:
+        self,
+        expr: Expr.Expression,
+        expr_defat: Optional["CodeLocation"],
+        current_loc: "CodeLocation",
+        avoid: Optional[Expr.Expression] = None,
+    ) -> Tuple[bool, bool]:
+        if self._reaching_definitions is None:
+            l.warning(
+                "Reaching definition information is not provided to propagator. Assume the definition is out-dated."
+            )
+            return True, False
+
+        if expr_defat is None:
+            # the definition originates outside the current node or function
+            l.warning("Unknown where the expression is defined. Assume the definition is out-dated.")
+            return True, False
+
+        key_defat = "stmt", (expr_defat.block_addr, expr_defat.stmt_idx), OP_AFTER
+        if key_defat not in self._reaching_definitions.observed_results:
+            l.warning(
+                "Required reaching definition state at instruction address %#x is not found. Assume the definition is "
+                "out-dated.",
+                expr_defat.ins_addr,
+            )
+            return True, False
+
+        key_currloc = "stmt", (current_loc.block_addr, current_loc.stmt_idx), OP_BEFORE
+        if key_currloc not in self._reaching_definitions.observed_results:
+            l.warning(
+                "Required reaching definition state at instruction address %#x is not found. Assume the definition is "
+                "out-dated.",
+                current_loc.ins_addr,
+            )
+            return True, False
+
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
         walker = OutdatedDefinitionWalker(
-            expr, expr_defat, self.state, avoid=avoid, extract_offset_to_sp=self.extract_offset_to_sp
+            expr,
+            expr_defat,
+            self._reaching_definitions.observed_results[key_defat],
+            current_loc,
+            self._reaching_definitions.observed_results[key_currloc],
+            self.state,
+            self.arch,
+            avoid=avoid,
+            extract_offset_to_sp=self.extract_offset_to_sp,
         )
         walker.walk_expression(expr)
-        return walker.out_dated
+        return walker.out_dated, walker.has_avoid
 
     @staticmethod
     def has_tmpexpr(expr: Expr.Expression) -> bool:

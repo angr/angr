@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from .dep_graph import DepGraph
     from typing import Literal, Iterable
 
-    ObservationPoint = Tuple[Literal["insn", "node"], int, ObservationPointType]
+    ObservationPoint = Tuple[Literal["insn", "node", "stmt"], Union[int, Tuple[int, int]], ObservationPointType]
 
 l = logging.getLogger(name=__name__)
 
@@ -66,6 +66,7 @@ class ReachingDefinitionsAnalysis(
         dep_graph: Optional["DepGraph"] = None,
         observe_callback=None,
         canonical_size=8,
+        stack_pointer_tracker=None,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -150,7 +151,11 @@ class ReachingDefinitionsAnalysis(
             function_handler=self._function_handler,
         )
         self._engine_ail = SimEngineRDAIL(
-            self.project, self._call_stack, self._maximum_local_call_depth, function_handler=self._function_handler
+            self.project,
+            self._call_stack,
+            self._maximum_local_call_depth,
+            function_handler=self._function_handler,
+            stack_pointer_tracker=stack_pointer_tracker,
         )
 
         self._visited_blocks: Set[Any] = visited_blocks or set()
@@ -319,6 +324,51 @@ class ReachingDefinitionsAnalysis(
                 idx = vex_block.statements.index(stmt)
                 if idx == len(vex_block.statements) - 1 or type(vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
                     self.observed_results[key] = state.live_definitions.copy()
+        elif isinstance(stmt, ailment.Stmt.Statement):
+            # it's an AIL block
+            self.observed_results[key] = state.live_definitions.copy()
+
+    def stmt_observe(
+        self,
+        stmt_idx: int,
+        stmt: Union[ailment.Stmt.Statement, pyvex.stmt.IRStmt],
+        block: Union[Block, ailment.Block],
+        state: ReachingDefinitionsState,
+        op_type: ObservationPointType,
+    ) -> None:
+        """
+
+        :param stmt_idx:
+        :param stmt:
+        :param block:
+        :param state:
+        :param op_type:
+        :return:
+        """
+
+        key = None
+        observe = False
+
+        if self._observe_all:
+            observe = True
+            key: ObservationPoint = ("stmt", (block.addr, stmt_idx), op_type)
+        elif self._observation_points is not None:
+            key: ObservationPoint = ("stmt", (block.addr, stmt_idx), op_type)
+            if key in self._observation_points:
+                observe = True
+        elif self._observe_callback is not None:
+            observe = self._observe_callback(
+                "stmt", stmt_idx=stmt_idx, stmt=stmt, block=block, state=state, op_type=op_type
+            )
+            if observe:
+                key: ObservationPoint = ("stmt", (block.addr, stmt_idx), op_type)
+
+        if not observe:
+            return
+
+        if isinstance(stmt, pyvex.stmt.IRStmt):
+            # it's an angr block
+            self.observed_results[key] = state.live_definitions.copy()
         elif isinstance(stmt, ailment.Stmt.Statement):
             # it's an AIL block
             self.observed_results[key] = state.live_definitions.copy()

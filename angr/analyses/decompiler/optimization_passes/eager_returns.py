@@ -42,7 +42,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         "ARMEL",
     ]
     PLATFORMS = ["cgc", "linux"]
-    STAGE = OptimizationPassStage.BEFORE_REGION_IDENTIFICATION
+    STAGE = OptimizationPassStage.AFTER_AIL_GRAPH_CREATION
     NAME = "Duplicate return blocks to reduce goto statements"
     DESCRIPTION = inspect.cleandoc(__doc__[: __doc__.index(":ivar")])  # pylint:disable=unsubscriptable-object
 

@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, Union, List, DefaultDict
+from typing import Set, Optional, Any, Tuple, Union, List, Dict, DefaultDict, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -22,6 +22,11 @@ from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 from .prop_value import PropValue, Detail
 
+if TYPE_CHECKING:
+    from archinfo import Arch
+    from angr.project import Project
+    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
+
 
 _l = logging.getLogger(name=__name__)
 
@@ -29,6 +34,17 @@ _l = logging.getLogger(name=__name__)
 class PropagatorState:
     """
     Describes the base state used in Propagator.
+
+    :ivar arch:             Architecture of the binary.
+    :ivar gp:               alue of the global pointer for MIPS binaries.
+    :ivar _replacements:    Stores expressions to replace, keyed by CodeLocation instances
+    :ivar _equivalence:      Stores equivalence constraints that Propagator discovers during the analysis.
+    :ivar _only_consts:     Only track constants.
+    :ivar _expr_used_locs:  A dict keyed by expressions and valued by CodeLocations where the expression is used.
+    :ivar _max_prop_expr_occurrence:    The upperbound for the number of occurrences of an expression for Propagator
+                            to propagate that expression to new locations (and replace the original expression).
+                            Setting it to 0 disables this limit, which means Propagator will always propagate
+                            expressions regardless of how many times it has been propagated.
     """
 
     __slots__ = (
@@ -41,6 +57,7 @@ class PropagatorState:
         "project",
         "_store_tops",
         "_gp",
+        "_max_prop_expr_occurrence",
         "__weakref__",
     )
 
@@ -48,14 +65,15 @@ class PropagatorState:
 
     def __init__(
         self,
-        arch,
-        project=None,
-        replacements=None,
-        only_consts=False,
-        expr_used_locs=None,
-        equivalence=None,
-        store_tops=True,
-        gp=None,
+        arch: "Arch",
+        project: Optional["Project"] = None,
+        replacements: Optional[DefaultDict[CodeLocation, Dict]] = None,
+        only_consts: bool = False,
+        expr_used_locs: Optional[DefaultDict[Any, Set[CodeLocation]]] = None,
+        equivalence: Optional[Set["Equivalence"]] = None,
+        store_tops: bool = True,
+        gp: Optional[int] = None,
+        max_prop_expr_occurrence: int = 1,
     ):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
@@ -66,6 +84,7 @@ class PropagatorState:
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
         self._store_tops = store_tops
+        self._max_prop_expr_occurrence = max_prop_expr_occurrence
 
         # architecture-specific information
         self._gp: Optional[int] = gp  # Value of gp for MIPS32 and 64 binaries
@@ -147,28 +166,11 @@ class PropagatorState:
         merge_occurred = False
 
         for o in others:
-            for loc, vars_ in o._replacements.items():
-                if loc not in state._replacements:
-                    state._replacements[loc] = vars_.copy()
-                    merge_occurred = True
-                else:
-                    for var, repl in vars_.items():
-                        if var not in state._replacements[loc]:
-                            state._replacements[loc][var] = repl
-                            merge_occurred = True
-                        else:
-                            if self.is_top(repl) or self.is_top(state._replacements[loc][var]):
-                                t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
-                                state._replacements[loc][var] = t
-                                merge_occurred = True
-                            elif state._replacements[loc][var] != repl:
-                                t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
-                                state._replacements[loc][var] = t
-                                merge_occurred = True
+            merge_occurred |= PropagatorAnalysis.merge_replacements(state._replacements, o._replacements)
 
             if state._equivalence != o._equivalence:
                 merge_occurred = True
-            state._equivalence |= o._equivalence
+                state._equivalence |= o._equivalence
 
         return state, merge_occurred
 
@@ -221,6 +223,7 @@ class PropagatorVEXState(PropagatorState):
         do_binops=True,
         store_tops=True,
         gp=None,
+        max_prop_expr_occurrence: int = 1,
     ):
         super().__init__(
             arch,
@@ -230,6 +233,7 @@ class PropagatorVEXState(PropagatorState):
             expr_used_locs=expr_used_locs,
             store_tops=store_tops,
             gp=gp,
+            max_prop_expr_occurrence=max_prop_expr_occurrence,
         )
         self.do_binops = do_binops
         self._registers = (
@@ -261,6 +265,7 @@ class PropagatorVEXState(PropagatorState):
             do_binops=self.do_binops,
             store_tops=self._store_tops,
             gp=self._gp,
+            max_prop_expr_occurrence=self._max_prop_expr_occurrence,
         )
 
         return cp
@@ -344,6 +349,7 @@ class PropagatorAILState(PropagatorState):
         "last_stack_store",
         "global_stores",
         "block_initial_reg_values",
+        "_sp_adjusted",
     )
 
     def __init__(
@@ -358,6 +364,8 @@ class PropagatorAILState(PropagatorState):
         registers=None,
         gp=None,
         block_initial_reg_values=None,
+        max_prop_expr_occurrence: int = 1,
+        sp_adjusted: bool = False,
     ):
         super().__init__(
             arch,
@@ -367,6 +375,7 @@ class PropagatorAILState(PropagatorState):
             expr_used_locs=expr_used_locs,
             equivalence=equivalence,
             gp=gp,
+            max_prop_expr_occurrence=max_prop_expr_occurrence,
         )
 
         self._stack_variables = (
@@ -385,6 +394,7 @@ class PropagatorAILState(PropagatorState):
         self.block_initial_reg_values: DefaultDict[
             Tuple[int, int], List[Tuple[ailment.Expr.Register, ailment.Expr.Const]]
         ] = (defaultdict(list) if block_initial_reg_values is None else block_initial_reg_values)
+        self._sp_adjusted: bool = sp_adjusted
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
@@ -410,6 +420,8 @@ class PropagatorAILState(PropagatorState):
             block_initial_reg_values=self.block_initial_reg_values.copy(),
             # drop tmps
             gp=self._gp,
+            max_prop_expr_occurrence=self._max_prop_expr_occurrence,
+            sp_adjusted=self._sp_adjusted,
         )
 
         return rd
@@ -531,43 +543,45 @@ class PropagatorAILState(PropagatorState):
 
         if self.is_top(new):
             # eliminate the past propagation of this expression
-            if codeloc in self._replacements and old in self._replacements[codeloc]:
-                self._replacements[codeloc][old] = self.top(1)  # placeholder
+            self._replacements[codeloc][old] = self.top(1)  # placeholder
             return
 
-        prop_count = 0
-        if (
-            not isinstance(old, ailment.Expr.Tmp)
-            and isinstance(new, ailment.Expr.Expression)
-            and not isinstance(new, ailment.Expr.Const)
-        ):
-            self._expr_used_locs[new].add(codeloc)
-            prop_count = len(self._expr_used_locs[new])
-
-        if (
-            prop_count <= 1
-            or isinstance(new, ailment.Expr.StackBaseOffset)
-            or (isinstance(old, ailment.Expr.Register) and self.arch.is_artificial_register(old.reg_offset, old.size))
-        ):
-            # we can propagate this expression
-            super().add_replacement(codeloc, old, new)
+        # count-based propagation rule only matters when we are performing a full-function copy propagation
+        if self._max_prop_expr_occurrence == 0:
+            if (
+                isinstance(old, ailment.Expr.Tmp)
+                or isinstance(old, ailment.Expr.Register)
+                and old.reg_offset in {self.arch.sp_offset, self.arch.bp_offset}
+            ):
+                self._replacements[codeloc][old] = new
         else:
-            # eliminate the past propagation of this expression
-            for codeloc_ in self._replacements:
-                if old in self._replacements[codeloc_]:
-                    self._replacements[codeloc_][old] = self.top(1)
+            prop_count = 0
+            if (
+                not isinstance(old, ailment.Expr.Tmp)
+                and isinstance(new, ailment.Expr.Expression)
+                and not isinstance(new, ailment.Expr.Const)
+            ):
+                # FIXME: We should find the definition in the RDA result and use the definition as the key
+                self._expr_used_locs[new].add(codeloc)
+                prop_count = len(self._expr_used_locs[new])
 
-    def filter_replacements(self):
-        to_remove = set()
-
-        for old, new in self._replacements.items():
-            if isinstance(new, ailment.Expr.Expression) and not isinstance(new, ailment.Expr.Const):
-                if len(self._expr_used_locs[new]) > 1:
-                    # do not propagate this expression
-                    to_remove.add(old)
-
-        for old in to_remove:
-            del self._replacements[old]
+            if (  # pylint:disable=too-many-boolean-expressions
+                prop_count <= self._max_prop_expr_occurrence
+                or isinstance(new, ailment.Expr.StackBaseOffset)
+                or isinstance(new, ailment.Expr.Convert)
+                and isinstance(new.operand, ailment.Expr.StackBaseOffset)
+                or (
+                    isinstance(old, ailment.Expr.Register)
+                    and self.arch.is_artificial_register(old.reg_offset, old.size)
+                )
+            ):
+                # we can propagate this expression
+                self._replacements[codeloc][old] = new
+            else:
+                # eliminate the past propagation of this expression
+                for codeloc_ in self._replacements:
+                    if old in self._replacements[codeloc_]:
+                        self._replacements[codeloc_][old] = self.top(1)
 
     def add_equivalence(self, codeloc, old, new):
         eq = Equivalence(codeloc, old, new)
@@ -614,6 +628,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         gp: Optional[int] = None,
         cache_results: bool = False,
         key_prefix: Optional[str] = None,
+        reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
     ):
         if block is None and func is not None:
             # only func is specified. traversing a function
@@ -641,6 +656,12 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._gp = gp
         self._prop_key_prefix = key_prefix
         self._cache_results = cache_results
+        self._reaching_definitions = reaching_definitions
+        self._initial_codeloc: CodeLocation
+        if self.flavor == "function":
+            self._initial_codeloc = CodeLocation(self._func_addr, stmt_idx=0, ins_addr=self._func_addr)
+        else:  # flavor == "block"
+            self._initial_codeloc = CodeLocation(self._block_addr, stmt_idx=0, ins_addr=self._block_addr)
 
         self.model: PropagationModel = None
 
@@ -680,16 +701,21 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             raise TypeError(f"Unsupported flavor {self.flavor}")
 
+        self._expr_used_locs = defaultdict(set)
+
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
         )
 
-        self._engine_vex = SimEnginePropagatorVEX(project=self.project, arch=self.project.arch)
+        self._engine_vex = SimEnginePropagatorVEX(
+            project=self.project, arch=self.project.arch, reaching_definitions=self._reaching_definitions
+        )
         self._engine_ail = SimEnginePropagatorAIL(
             arch=self.project.arch,
             stack_pointer_tracker=self._stack_pointer_tracker,
             # We only propagate tmps within the same block. This is because the lifetime of tmps is one block only.
             propagate_tmps=block is not None,
+            reaching_definitions=self._reaching_definitions,
         )
 
         # optimization: skip state copying for the initial state
@@ -739,13 +765,17 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if isinstance(node, ailment.Block):
             # AIL
             state = PropagatorAILState(
-                self.project.arch, project=self.project, only_consts=self._only_consts, gp=self._gp
+                self.project.arch,
+                project=self.project,
+                only_consts=self._only_consts,
+                gp=self._gp,
+                max_prop_expr_occurrence=1 if self.flavor == "function" else 0,
             )
             ail = True
             spoffset_var = ailment.Expr.StackBaseOffset(None, self.project.arch.bits, 0)
             sp_value = PropValue(
                 claripy.BVV(0x7FFF_FF00, self.project.arch.bits),
-                offset_and_details={0: Detail(self.project.arch.bytes, spoffset_var, None)},
+                offset_and_details={0: Detail(self.project.arch.bytes, spoffset_var, self._initial_codeloc)},
             )
             state.store_register(
                 ailment.Expr.Register(None, None, self.project.arch.sp_offset, self.project.arch.bits),
@@ -760,6 +790,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 do_binops=self._do_binops,
                 store_tops=self._store_tops,
                 gp=self._gp,
+                max_prop_expr_occurrence=1 if self.flavor == "function" else 0,
             )
             spoffset_var = self._engine_vex.sp_offset(0)
             ail = False
@@ -780,7 +811,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         reg_expr,
                         PropValue(
                             claripy.BVV(self._func_addr, 64),
-                            offset_and_details={0: Detail(8, reg_value, CodeLocation(0, 0))},
+                            offset_and_details={0: Detail(8, reg_value, self._initial_codeloc)},
                         ),
                     )
                 else:
@@ -800,7 +831,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         reg_expr,
                         PropValue(
                             claripy.BVV(self._func_addr, 32),
-                            offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))},
+                            offset_and_details={0: Detail(4, reg_value, self._initial_codeloc)},
                         ),
                     )
                 else:
@@ -816,7 +847,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 reg_value = ailment.Expr.Const(None, None, 0, 32)
                 state.store_register(
                     reg_expr,
-                    PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))}),
+                    PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, self._initial_codeloc)}),
                 )
             else:
                 state.store_register(  # pylint:disable=too-many-function-args
@@ -850,6 +881,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if state is not self._initial_state:
             # make a copy of the state if it's not the initial state
             state = state.copy()
+            state._equivalence.clear()
         else:
             # clear self._initial_state so that we *do not* run this optimization again!
             self._initial_state = None
@@ -876,9 +908,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if self.model.replacements is None:
             self.model.replacements = state._replacements
         else:
-            self._merge_replacements(self.model.replacements, state._replacements)
+            self.merge_replacements(self.model.replacements, state._replacements)
 
         self.model.equivalence |= state._equivalence
+        for expr, used_locs in state._expr_used_locs.items():
+            self._expr_used_locs[expr] |= used_locs
 
         # TODO: Clear registers according to calling conventions
 
@@ -899,7 +933,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         reg_atom,
                         PropValue(
                             claripy.BVV(reg_value.value, reg_value.bits),
-                            offset_and_details={0: Detail(reg_atom.size, reg_value, None)},
+                            offset_and_details={0: Detail(reg_atom.size, reg_value, self._initial_codeloc)},
                         ),
                     )
                 return input_state
@@ -936,11 +970,23 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         # Filter replacements and remove all TOP values
         if self.model.replacements is not None:
             for codeloc in list(self.model.replacements.keys()):
-                rep = {k: v for k, v in self.model.replacements[codeloc].items() if not PropagatorState.is_top(v)}
-                self.model.replacements[codeloc] = rep
+                filtered_rep = {}
+                for k, v in self.model.replacements[codeloc].items():
+                    if isinstance(v, claripy.ast.Base):
+                        # claripy expressions
+                        if not PropagatorState.is_top(v):
+                            filtered_rep[k] = v
+                    else:
+                        # AIL expressions
+                        if not PropagatorAILState.is_top(v):
+                            filtered_rep[k] = v
+                self.model.replacements[codeloc] = filtered_rep
 
         if self._cache_results:
             self.kb.propagations.update(self.prop_key, self.model)
+
+        # clean up
+        self._expr_used_locs = defaultdict(set)
 
     def _analyze(self):
         """
@@ -965,7 +1011,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._post_analysis()
 
     @staticmethod
-    def _merge_replacements(replacements_0, replacements_1) -> bool:
+    def merge_replacements(replacements_0, replacements_1) -> bool:
+        """
+        The replacement merging logic is special: replacements_1 is the newer replacement result and replacement_0 is
+        the older result waiting to be updated. When both replacements_1 and replacement_0 have a non-top value for the
+        same variable and code location, we will update the slot in replacement_0 with the value from replacement_1.
+
+        :return:            Whether merging has happened or not.
+        """
         merge_occurred = False
         for loc, vars_ in replacements_1.items():
             if loc not in replacements_0:
@@ -984,16 +1037,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         elif (
                             isinstance(replacements_0[loc][var], claripy.ast.Base) or isinstance(repl, claripy.ast.Base)
                         ) and replacements_0[loc][var] is not repl:
-                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
-                            replacements_0[loc][var] = t
+                            replacements_0[loc][var] = repl
                             merge_occurred = True
                         elif (
                             not isinstance(replacements_0[loc][var], claripy.ast.Base)
                             and not isinstance(repl, claripy.ast.Base)
                             and replacements_0[loc][var] != repl
                         ):
-                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
-                            replacements_0[loc][var] = t
+                            replacements_0[loc][var] = repl
                             merge_occurred = True
         return merge_occurred
 

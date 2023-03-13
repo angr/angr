@@ -74,6 +74,7 @@ class ReachingDefinitionsState:
         "_environment",
         "_track_calls",
         "_track_consts",
+        "_sp_adjusted",
     )
 
     def __init__(
@@ -89,6 +90,7 @@ class ReachingDefinitionsState:
         canonical_size: int = 8,
         heap_allocator: HeapAllocator = None,
         environment: Environment = None,
+        sp_adjusted: bool = False,
     ):
         # handy short-hands
         self.arch = arch
@@ -98,6 +100,7 @@ class ReachingDefinitionsState:
         self._track_consts = track_consts
         self.analysis = analysis
         self._canonical_size: int = canonical_size
+        self._sp_adjusted: bool = sp_adjusted
 
         if live_definitions is None:
             # the first time this state is created. initialize it
@@ -153,7 +156,10 @@ class ReachingDefinitionsState:
         return self.live_definitions.is_stack_address(addr)
 
     def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
-        return self.live_definitions.get_stack_offset(addr)
+        offset = self.live_definitions.get_stack_offset(addr)
+        if offset is not None:
+            return self._to_signed(offset)
+        return None
 
     def _initial_stack_pointer(self):
         if self.arch.bits == 32:
@@ -162,6 +168,12 @@ class ReachingDefinitionsState:
             return claripy.BVS("stack_base", 64, explicit_name=True)
         else:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+
+    def _to_signed(self, n):
+        if n >= 2 ** (self.arch.bits - 1):
+            # convert it to a negative number
+            return n - 2**self.arch.bits
+        return n
 
     def annotate_with_def(self, symvar: claripy.ast.Base, definition: Definition) -> claripy.ast.Base:
         """
@@ -353,6 +365,7 @@ class ReachingDefinitionsState:
             canonical_size=self._canonical_size,
             heap_allocator=self.heap_allocator,
             environment=self._environment,
+            sp_adjusted=self._sp_adjusted,
         )
 
         return rd

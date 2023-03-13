@@ -27,7 +27,7 @@ from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from .. import Analysis, AnalysesHub
-from .ailblock_walker import AILBlockWalker
+from .ailblock_walker import AILBlockWalkerBase, AILBlockWalker
 from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
 from .block_simplifier import BlockSimplifier
@@ -61,6 +61,25 @@ class AILBlockTempCollector(AILBlockWalker):
     def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> None:
         if isinstance(expr, Tmp):
             self.temps.add(expr)
+
+
+class ExpressionCounter(AILBlockWalkerBase):
+    """
+    Count the occurrence of subexpr in expr.
+    """
+
+    def __init__(self, stmt, subexpr):
+        super().__init__()
+        self.subexpr = subexpr
+        self.count = 0
+        self.walk_statement(stmt)
+
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
+    ) -> Any:
+        if expr == self.subexpr:
+            self.count += 1
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class AILSimplifier(Analysis):
@@ -133,12 +152,21 @@ class AILSimplifier(Analysis):
             self._clear_cache()
 
         if self._unify_vars:
+            _l.debug("Removing dead assignments")
+            r = self._remove_dead_assignments()
+            if r:
+                _l.debug("... dead assignments removed")
+                self.simplified = True
+                self._rebuild_func_graph()
+                self._clear_cache()
+
             _l.debug("Unifying local variables")
             r = self._unify_local_variables()
             if r:
                 _l.debug("... local variables unified")
                 self.simplified = True
                 self._rebuild_func_graph()
+
             # _fold_call_exprs() may set self._calls_to_remove, which will be honored in _remove_dead_assignments()
             _l.debug("Folding call expressions")
             r = self._fold_call_exprs()
@@ -166,7 +194,9 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions is not None:
             return self._reaching_definitions
         rd = self.project.analyses.ReachingDefinitions(
-            subject=self.func, func_graph=self.func_graph, observe_callback=self._simplify_function_rd_observe_callback
+            subject=self.func,
+            func_graph=self.func_graph,
+            observe_all=True,  # observe_callback=self._simplify_function_rd_observe_callback
         )
         self._reaching_definitions = rd
         return rd
@@ -181,7 +211,11 @@ class AILSimplifier(Analysis):
         if self._propagator is not None:
             return self._propagator
         prop = self.project.analyses.Propagator(
-            func=self.func, func_graph=self.func_graph, gp=self._gp, only_consts=self._only_consts
+            func=self.func,
+            func_graph=self.func_graph,
+            gp=self._gp,
+            only_consts=self._only_consts,
+            reaching_definitions=self._compute_reaching_definitions(),
         )
         self._propagator = prop
         return prop
@@ -915,6 +949,11 @@ class AILSimplifier(Analysis):
                 else:
                     continue
 
+                # ensure what we are going to replace only appears once
+                expr_ctr = ExpressionCounter(stmt, src)
+                if expr_ctr.count > 1:
+                    continue
+
                 replaced, new_block = self._replace_expr_and_update_block(
                     the_block, u.stmt_idx, stmt, the_def, u, src, dst
                 )
@@ -1127,6 +1166,20 @@ class AILSimplifier(Analysis):
         walker.expr_handlers[Call] = _handle_callexpr
         try:
             walker.walk_statement(stmt)
+        except HasCallNotification:
+            return True
+
+        return False
+
+    @staticmethod
+    def _expression_has_call_exprs(expr: Expression) -> bool:
+        def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
+            raise HasCallNotification()
+
+        walker = AILBlockWalker()
+        walker.expr_handlers[Call] = _handle_callexpr
+        try:
+            walker.walk_expression(expr)
         except HasCallNotification:
             return True
 

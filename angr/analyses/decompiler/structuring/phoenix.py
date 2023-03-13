@@ -11,6 +11,7 @@ from ailment.statement import Statement, ConditionalJump, Jump, Label
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from ....knowledge_plugins.cfg import IndirectJumpType
+from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
@@ -924,6 +925,18 @@ class PhoenixStructurer(StructurerBase):
             graph,
             full_graph,
         )
+        if node_default_addr is not None and node_default is None:
+            # the default node is not found. it's likely the node has been structured and is part of another construct
+            # (e.g., inside another switch-case). we need to create a default node that jumps to the other node
+            jmp_to_default_node = Jump(
+                None,
+                Const(None, None, node_default_addr, self.project.arch.bits),
+                None,
+                ins_addr=SWITCH_MISSING_DEFAULT_NODE_ADDR,
+            )
+            node_default = Block(SWITCH_MISSING_DEFAULT_NODE_ADDR, 0, statements=[jmp_to_default_node])
+            graph.add_edge(node, node_default)
+            full_graph.add_edge(node, node_default)
         r = self._make_switch_cases_core(
             node,
             self.cond_proc.claripy_ast_from_ail_condition(last_stmt.switch_variable),
@@ -1262,9 +1275,10 @@ class PhoenixStructurer(StructurerBase):
             # for all out edges going to head, we ensure there is a goto at the end of each corresponding case node
             for out_src, out_dst in out_edges:
                 if out_dst is head:
-                    case_node: SequenceNode = [
-                        nn for nn in list(cases.values()) + [node_default] if nn.addr == out_src.addr
-                    ][0]
+                    all_case_nodes = list(cases.values())
+                    if node_default is not None:
+                        all_case_nodes.append(node_default)
+                    case_node: SequenceNode = [nn for nn in all_case_nodes if nn.addr == out_src.addr][0]
                     case_node_last_stmt = self.cond_proc.get_last_statement(case_node)
                     if not isinstance(case_node_last_stmt, Jump):
                         jump_stmt = Jump(

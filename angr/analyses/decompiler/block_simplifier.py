@@ -117,13 +117,21 @@ class BlockSimplifier(Analysis):
                 block=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
+                reaching_definitions=self._compute_reaching_definitions(block),
             )
         return self._propagator
 
     def _compute_reaching_definitions(self, block):
+        def observe_callback(ob_type, addr=None, op_type=None, **kwargs) -> bool:  # pylint:disable=unused-argument
+            return ob_type == "stmt" or ob_type == "node" and addr == block.addr and op_type == OP_AFTER
+
         if self._reaching_definitions is None:
             self._reaching_definitions = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
-                subject=block, track_tmps=True, observation_points=[("node", block.addr, OP_AFTER)]
+                subject=block,
+                track_tmps=True,
+                stack_pointer_tracker=self._stack_pointer_tracker,
+                observe_all=False,
+                observe_callback=observe_callback,
             )
         return self._reaching_definitions
 
@@ -146,7 +154,8 @@ class BlockSimplifier(Analysis):
         # propagator
         if nonconstant_stmts >= 2 and has_propagatable_assignments:
             propagator = self._compute_propagation(block)
-            replacements = list(propagator.model.states.values())[0]._replacements
+            prop_state = list(propagator.model.states.values())[0]
+            replacements = prop_state._replacements
             if replacements:
                 _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
                 new_block = self._eliminate_self_assignments(new_block)
@@ -256,7 +265,7 @@ class BlockSimplifier(Analysis):
             return block
 
         rd = self._compute_reaching_definitions(block)
-        live_defs: "LiveDefinitions" = rd.one_result
+        live_defs: "LiveDefinitions" = rd.observed_results[("node", block.addr, OP_AFTER)]
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
@@ -310,7 +319,7 @@ class BlockSimplifier(Analysis):
 
         used_tmps = set()
         # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well
-        for tmp, used_locs in rd.one_result.tmp_uses.items():
+        for tmp, used_locs in live_defs.tmp_uses.items():
             used_at = {loc.stmt_idx for loc in used_locs}
             if used_at.issubset(dead_defs_stmt_idx):
                 continue

@@ -150,6 +150,8 @@ class StructurerBase(Analysis):
             walker = SequenceWalker(handlers=handlers)
             for case_node in cases.values():
                 walker.walk(case_node)
+            if default is not None:
+                walker.walk(default)
 
             if not goto_addrs:
                 # there is no Goto statement - perfect
@@ -171,8 +173,26 @@ class StructurerBase(Analysis):
                         # remove the last statement
                         block.statements = block.statements[:-1]
 
+        def _handle_Loop(node: LoopNode, parent=None, index=0, label=None):
+            # if a node inside this loop node has a goto that goes to the end of the outer switch-case, we will
+            # convert the goto into a break node, and then add a break node at the end of this switch-case.
+            # of course, this only works if all nodes either end with a return or a goto that goes to the end of the
+            # outer switch-case. we detect it first.
+            # TODO: Implement the above logic
+            return walker._handle_Loop(node, parent=parent, index=index, label=label)
+
+        def _handle_SwitchCase(node: SwitchCaseNode, parent=None, index=0, label=None):
+            # if a node inside this switch-case has a goto that goes to the end of the outer switch-case, we will
+            # convert the goto into a break node, and then add a break node at the end of this switch-case.
+            # of course, this only works if all nodes either end with a return or a goto that goes to the end of the
+            # outer switch-case. we detect it first.
+            # TODO: Implement the above logic
+            return walker._handle_SwitchCase(node, parent=parent, index=index, label=label)
+
         handlers = {
             ailment.Block: _rewrite_gotos,
+            LoopNode: _handle_Loop,
+            SwitchCaseNode: _handle_SwitchCase,
         }
 
         walker = SequenceWalker(handlers=handlers)
