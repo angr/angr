@@ -122,7 +122,7 @@ class TestReachingDefinitions(TestCase):
                     "stack_definitions": self._extract_all_definitions_from_storage(x[1].stack_definitions),
                     "memory_definitions": self._extract_all_definitions_from_storage(x[1].memory_definitions),
                 },
-                rda.observed_results.items(),
+                [(k, v) for k, v in rda.observed_results.items() if k[0] != "stmt"],
             )
             return list(sorted(unsorted_result, key=lambda x: x["key"]))
 
