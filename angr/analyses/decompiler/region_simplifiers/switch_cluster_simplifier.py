@@ -5,6 +5,7 @@ from collections import OrderedDict, defaultdict
 
 import ailment
 
+from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ..structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode
 from ..sequence_walker import SequenceWalker
 
@@ -298,7 +299,22 @@ def simplify_switch_clusters(
             continue
 
         # there is at most one default node
-        default_node_addrs = {r.node.default_node.addr for r in switch_regions if r.node.default_node is not None}
+        default_node_addrs = set()
+        for r in switch_regions:
+            if r.node.default_node is not None:
+                dn = r.node.default_node
+                if dn.addr == SWITCH_MISSING_DEFAULT_NODE_ADDR:
+                    # parse the jump target out of the manually created default node
+                    if (
+                        isinstance(dn, ailment.Block)
+                        and isinstance(dn.statements[-1], ailment.Stmt.Jump)
+                        and isinstance(dn.statements[-1].target, ailment.Expr.Const)
+                    ):
+                        default_node_addrs.add(dn.statements[-1].target.value)
+                    else:
+                        default_node_addrs.add(dn.addr)
+                else:
+                    default_node_addrs.add(dn.addr)
         if len(default_node_addrs) > 1:
             continue
 

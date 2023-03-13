@@ -552,7 +552,7 @@ class PropagatorAILState(PropagatorState):
                 self._expr_used_locs[new].add(codeloc)
                 prop_count = len(self._expr_used_locs[new])
 
-            if (
+            if (  # pylint:disable=too-many-boolean-expressions
                 prop_count <= self._max_prop_expr_occurrence
                 or isinstance(new, ailment.Expr.StackBaseOffset)
                 or isinstance(new, ailment.Expr.Convert)

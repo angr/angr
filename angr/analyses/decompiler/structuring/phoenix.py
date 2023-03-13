@@ -11,6 +11,7 @@ from ailment.statement import Statement, ConditionalJump, Jump, Label
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from ....knowledge_plugins.cfg import IndirectJumpType
+from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
 from ...cfg.cfg_utils import CFGUtils
 from ..sequence_walker import SequenceWalker
@@ -928,9 +929,12 @@ class PhoenixStructurer(StructurerBase):
             # the default node is not found. it's likely the node has been structured and is part of another construct
             # (e.g., inside another switch-case). we need to create a default node that jumps to the other node
             jmp_to_default_node = Jump(
-                None, Const(None, None, node_default_addr, self.project.arch.bits), None, ins_addr=0xFFFF_FFFE
+                None,
+                Const(None, None, node_default_addr, self.project.arch.bits),
+                None,
+                ins_addr=SWITCH_MISSING_DEFAULT_NODE_ADDR,
             )
-            node_default = Block(0xFFFF_FFFE, 0, statements=[jmp_to_default_node])
+            node_default = Block(SWITCH_MISSING_DEFAULT_NODE_ADDR, 0, statements=[jmp_to_default_node])
             graph.add_edge(node, node_default)
             full_graph.add_edge(node, node_default)
         r = self._make_switch_cases_core(
