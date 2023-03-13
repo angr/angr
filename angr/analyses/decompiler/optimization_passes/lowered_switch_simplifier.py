@@ -73,6 +73,7 @@ class StableVarExprHasher(AILBlockWalkerBase):
     """
     Obtain a stable hash of an AIL expression with respect to all variables and all operations applied on variables.
     """
+
     def __init__(self, expr: Expression):
         super().__init__()
         self.expr = expr
@@ -103,7 +104,7 @@ class StableVarExprHasher(AILBlockWalkerBase):
         self._hash_lst.append((expr.value, expr.bits))
 
     def _handle_Convert(self, expr_idx: int, expr: "Convert", stmt_idx: int, stmt, block: Optional[Block]):
-        self._hash_lst.append((expr.to_bits))
+        self._hash_lst.append(expr.to_bits)
         super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 
 
