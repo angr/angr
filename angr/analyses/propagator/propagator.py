@@ -3,6 +3,7 @@ import weakref
 from typing import Set, Optional, Any, Tuple, Union, List, Dict, DefaultDict, TYPE_CHECKING
 from collections import defaultdict
 import logging
+import time
 
 import claripy
 import ailment
@@ -629,6 +630,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         cache_results: bool = False,
         key_prefix: Optional[str] = None,
         reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
+        profiling: bool = False,
     ):
         if block is None and func is not None:
             # only func is specified. traversing a function
@@ -639,6 +641,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self.flavor = "block"
         else:
             raise ValueError("Unsupported analysis target.")
+
+        start = time.perf_counter_ns() / 1000000
 
         self._base_state = base_state
         self._function = func
@@ -673,6 +677,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self.model = PropagationModel(
                 self.prop_key,
             )
+            cache_used = False
+        else:
+            cache_used = True
 
         graph_visitor: Union[SingleNodeGraphVisitor, FunctionGraphVisitor]
         if self.flavor == "block":
@@ -701,8 +708,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             raise TypeError(f"Unsupported flavor {self.flavor}")
 
-        self._expr_used_locs = defaultdict(set)
-
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
         )
@@ -721,11 +726,26 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         # optimization: skip state copying for the initial state
         self._initial_state = None
 
+        # performance counters
+        self._analyzed_states: int = 0
+        self._analyzed_statements: int = 0
+
         self._analyze()
 
         if self._cache_results:
             # update the cache
             self.kb.propagations.update(self.prop_key, self.model)
+
+        if profiling:
+            elapsed = time.perf_counter_ns() / 1000000 - start
+            if self.flavor == "function":
+                _l.warning("%r:", self._function)
+            else:
+                _l.warning("%r:", self._block)
+            _l.warning("  Time elapsed: %s milliseconds", elapsed)
+            _l.warning("  Cache used: %s", cache_used)
+            _l.warning("  Analyzed states: %d", self._analyzed_states)
+            _l.warning("  Analyzed statements: %d", self._analyzed_statements)
 
     @property
     def prop_key(self) -> Tuple[Optional[str], str, int, bool, bool, bool]:
@@ -864,6 +884,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         return merged_state, not merge_occurred
 
     def _run_on_node(self, node, state):
+        self._analyzed_states += 1
+
         if isinstance(node, ailment.Block):
             block = node
             block_key = (node.addr, node.idx)
@@ -911,8 +933,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self.merge_replacements(self.model.replacements, state._replacements)
 
         self.model.equivalence |= state._equivalence
-        for expr, used_locs in state._expr_used_locs.items():
-            self._expr_used_locs[expr] |= used_locs
 
         # TODO: Clear registers according to calling conventions
 
@@ -984,9 +1004,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         if self._cache_results:
             self.kb.propagations.update(self.prop_key, self.model)
-
-        # clean up
-        self._expr_used_locs = defaultdict(set)
 
     def _analyze(self):
         """
