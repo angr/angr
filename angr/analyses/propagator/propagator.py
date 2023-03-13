@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, Union, List, DefaultDict, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, Union, List, Dict, DefaultDict, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -23,6 +23,8 @@ from .engine_ail import SimEnginePropagatorAIL
 from .prop_value import PropValue, Detail
 
 if TYPE_CHECKING:
+    from archinfo import Arch
+    from angr.project import Project
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
 
 
@@ -32,6 +34,17 @@ _l = logging.getLogger(name=__name__)
 class PropagatorState:
     """
     Describes the base state used in Propagator.
+
+    :ivar arch:             Architecture of the binary.
+    :ivar gp:               alue of the global pointer for MIPS binaries.
+    :ivar _replacements:    Stores expressions to replace, keyed by CodeLocation instances
+    :ivar _equivalence:      Stores equivalence constraints that Propagator discovers during the analysis.
+    :ivar _only_consts:     Only track constants.
+    :ivar _expr_used_locs:  A dict keyed by expressions and valued by CodeLocations where the expression is used.
+    :ivar _max_prop_expr_occurrence:    The upperbound for the number of occurrences of an expression for Propagator
+                            to propagate that expression to new locations (and replace the original expression).
+                            Setting it to 0 disables this limit, which means Propagator will always propagate
+                            expressions regardless of how many times it has been propagated.
     """
 
     __slots__ = (
@@ -52,14 +65,14 @@ class PropagatorState:
 
     def __init__(
         self,
-        arch,
-        project=None,
-        replacements=None,
-        only_consts=False,
-        expr_used_locs=None,
-        equivalence=None,
-        store_tops=True,
-        gp=None,
+        arch: "Arch",
+        project: Optional["Project"] = None,
+        replacements: Optional[DefaultDict[CodeLocation, Dict]] = None,
+        only_consts: bool = False,
+        expr_used_locs: Optional[DefaultDict[Any, Set[CodeLocation]]] = None,
+        equivalence: Optional[Set["Equivalence"]] = None,
+        store_tops: bool = True,
+        gp: Optional[int] = None,
         max_prop_expr_occurrence: int = 1,
     ):
         self.arch = arch
@@ -1004,7 +1017,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         the older result waiting to be updated. When both replacements_1 and replacement_0 have a non-top value for the
         same variable and code location, we will update the slot in replacement_0 with the value from replacement_1.
 
-        :return:            Whether merging has happened.
+        :return:            Whether merging has happened or not.
         """
         merge_occurred = False
         for loc, vars_ in replacements_1.items():
