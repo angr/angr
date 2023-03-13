@@ -565,12 +565,15 @@ class PropagatorAILState(PropagatorState):
                 and isinstance(new, ailment.Expr.Expression)
                 and not isinstance(new, ailment.Expr.Const)
             ):
+                # FIXME: We should find the definition in the RDA result and use the definition as the key
                 self._expr_used_locs[new].add(codeloc)
                 prop_count = len(self._expr_used_locs[new])
 
             if (
                 prop_count <= self._max_prop_expr_occurrence
                 or isinstance(new, ailment.Expr.StackBaseOffset)
+                or isinstance(new, ailment.Expr.Convert)
+                and isinstance(new.operand, ailment.Expr.StackBaseOffset)
                 or (
                     isinstance(old, ailment.Expr.Register)
                     and self.arch.is_artificial_register(old.reg_offset, old.size)
@@ -583,18 +586,6 @@ class PropagatorAILState(PropagatorState):
                 for codeloc_ in self._replacements:
                     if old in self._replacements[codeloc_]:
                         self._replacements[codeloc_][old] = self.top(1)
-
-    def filter_replacements(self):
-        to_remove = set()
-
-        for old, new in self._replacements.items():
-            if isinstance(new, ailment.Expr.Expression) and not isinstance(new, ailment.Expr.Const):
-                if len(self._expr_used_locs[new]) > 1:
-                    # do not propagate this expression
-                    to_remove.add(old)
-
-        for old in to_remove:
-            del self._replacements[old]
 
     def add_equivalence(self, codeloc, old, new):
         eq = Equivalence(codeloc, old, new)
@@ -991,8 +982,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                         if not PropagatorState.is_top(v):
                             filtered_rep[k] = v
                     else:
-                        # ailment expressions
-                        if len(self._expr_used_locs[v]) <= 1:
+                        # AIL expressions
+                        if not PropagatorAILState.is_top(v):
                             filtered_rep[k] = v
                 self.model.replacements[codeloc] = filtered_rep
 
