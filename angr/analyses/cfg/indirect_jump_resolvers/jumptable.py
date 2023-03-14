@@ -753,8 +753,10 @@ class JumpTableResolver(IndirectJumpResolver):
     table cannot be determined, a *guess* will be made based on how many entries in the table *appear* valid.
     """
 
-    def __init__(self, project):
+    def __init__(self, project, resolve_calls: bool = True):
         super().__init__(project, timeless=False)
+
+        self.resolve_calls = resolve_calls
 
         self._bss_regions = None
         # the maximum number of resolved targets. Will be initialized from CFG.
@@ -772,7 +774,11 @@ class JumpTableResolver(IndirectJumpResolver):
                 l.warning("JumpTableResolver does not support P-Code IR yet; CFG may be incomplete.")
             return False
 
-        return jumpkind in {"Ijk_Boring", "Ijk_Call"}
+        if jumpkind == "Ijk_Boring":
+            return True
+        if self.resolve_calls and jumpkind == "Ijk_Call":
+            return True
+        return False
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):
         """
@@ -1507,7 +1513,11 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 block = self.project.factory.block(block_addr, cross_insn_opt=True, backup_state=self.base_state)
                 stmt_whitelist = annotatedcfg.get_whitelisted_statements(block_addr)
-                engine.process(state, block=block, whitelist=stmt_whitelist)
+                try:
+                    engine.process(state, block=block, whitelist=stmt_whitelist)
+                except (claripy.errors.ClaripyError, SimError, AngrError):
+                    # anything can happen
+                    break
 
                 if state.is_jumptable:
                     return state.stmts_to_instrument, state.regs_to_initialize
