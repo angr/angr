@@ -9,7 +9,6 @@ from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
 from angr.serializable import Serializable
 from angr.protos import cfg_pb2
-from angr.errors import AngrError, SimError
 
 if TYPE_CHECKING:
     from .cfg_model import CFGModel
