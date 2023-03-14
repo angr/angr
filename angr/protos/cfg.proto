@@ -10,6 +10,7 @@ message CFGNode {
     uint32          size = 2; // Size of the node
     repeated int64  block_id = 3; // A unique identifier of the node
     bool            returning = 4; // If it is a call node, does it return?
+    repeated uint64 instr_addrs = 5; // Instruction addresses
 }
 
 message CFG {

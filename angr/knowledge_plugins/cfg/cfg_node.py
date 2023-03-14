@@ -9,7 +9,6 @@ from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
 from angr.serializable import Serializable
 from angr.protos import cfg_pb2
-from angr.errors import AngrError, SimError
 
 if TYPE_CHECKING:
     from .cfg_model import CFGModel
@@ -214,6 +213,7 @@ class CFGNode(Serializable):
         obj = self._get_cmsg()
         obj.ea = self.addr
         obj.size = self.size
+        obj.instr_addrs.extend(self.instruction_addrs)
         if self.block_id is not None:
             if type(self.block_id) is int:
                 obj.block_id.append(self.block_id)  # pylint:disable=no-member
@@ -228,21 +228,18 @@ class CFGNode(Serializable):
         else:
             block_id = cmsg.block_id[0]
 
+        if not cmsg.instr_addrs:
+            instruction_addrs = None
+        else:
+            instruction_addrs = list(cmsg.instr_addrs)
+
         obj = cls(
             cmsg.ea,
             cmsg.size,
             cfg=cfg,
             block_id=block_id,
+            instruction_addrs=instruction_addrs,
         )
-        if cfg is not None:
-            # fill in self.instruction_addrs
-            proj = cfg.project
-            try:
-                obj.instruction_addrs = proj.factory.block(obj.addr, size=obj.size).instruction_addrs
-            except (AngrError, SimError):
-                # maybe this is a SimProcedure but not a block. ignore
-                # TODO: We should serialize information including is_simprocedure
-                pass
         return obj
 
     #
