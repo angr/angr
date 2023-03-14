@@ -608,6 +608,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         nodecode_window_size=512,
         nodecode_threshold=0.3,
         nodecode_step=16483,
+        indirect_calls_always_return: Optional[bool] = None,
         start=None,  # deprecated
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
@@ -655,6 +656,11 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                                         binaries.
         :param skip_unmapped_addrs:     Ignore all branches into unmapped regions. True by default. You may want to set
                                         it to False if you are analyzing manually patched binaries or malware samples.
+        :param indirect_calls_always_return:    Should CFG assume indirect calls must return or not. Assuming indirect
+                                        calls must return will significantly reduce the number of constant propagation
+                                        runs, but may reduce the overall CFG recovery precision when facing
+                                        non-returning indirect calls. By default, we only assume indirect calls always
+                                        return for large binaries (the main object > 50KB).
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -669,6 +675,20 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         """
 
         ForwardAnalysis.__init__(self, allow_merging=False)
+
+        if start is not None or end is not None:
+            l.warning(
+                '"start" and "end" are deprecated and will be removed soon. Please use "regions" to specify one '
+                "or more memory regions instead."
+            )
+            if regions is None:
+                regions = [(start, end)]
+            else:
+                l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
+
+        if binary is not None and not objects:
+            objects = [binary]
+
         CFGBase.__init__(
             self,
             "fast",
@@ -704,16 +724,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             )
             cross_references = extra_cross_references
 
-        if start is not None or end is not None:
-            l.warning(
-                '"start" and "end" are deprecated and will be removed soon. Please use "regions" to specify one '
-                "or more memory regions instead."
-            )
-            if regions is None:
-                regions = [(start, end)]
-            else:
-                l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
-
         # data references collection and force smart scan mst be enabled at the same time. otherwise decoding errors
         # caused by decoding data will lead to incorrect cascading re-lifting, which is suboptimal
         if force_smart_scan and not data_references:
@@ -731,9 +741,6 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             )
             force_complete_scan = False
 
-        if binary is not None and not objects:
-            objects = [binary]
-
         self._pickle_intermediate_results = pickle_intermediate_results
 
         self._use_symbols = symbols
@@ -746,6 +753,11 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._nodecode_window_size = nodecode_window_size
         self._nodecode_threshold = nodecode_threshold
         self._nodecode_step = nodecode_step
+        self._indirect_calls_always_return = indirect_calls_always_return
+
+        if self._indirect_calls_always_return is None:
+            # heuristics
+            self._indirect_calls_always_return = self._regions_size >= 50_000
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
@@ -2137,23 +2149,31 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         return jobs
 
     def _create_job_call(
-        self, addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, target_addr, jumpkind, is_syscall=False
+        self,
+        addr: int,
+        irsb: pyvex.IRSB,
+        cfg_node: CFGNode,
+        stmt_idx: int,
+        ins_addr: int,
+        current_function_addr: int,
+        target_addr: Optional[int],
+        jumpkind: str,
+        is_syscall: bool = False,
     ) -> List[CFGJob]:
         """
         Generate a CFGJob for target address, also adding to _pending_entries
         if returning to succeeding position (if irsb arg is populated)
 
-        :param int addr:            Address of the predecessor node
-        :param pyvex.IRSB irsb:     IRSB of the predecessor node
-        :param CFGNode cfg_node:    The CFGNode instance of the predecessor node
-        :param int stmt_idx:        ID of the source statement
-        :param int ins_addr:        Address of the source instruction
-        :param int current_function_addr: Address of the current function
-        :param int target_addr:     Destination of the call
-        :param str jumpkind:        The jumpkind of the edge going to this node
-        :param bool is_syscall:     Is the jump kind (and thus this) a system call
-        :return:                    A list of CFGJobs
-        :rtype:                     list
+        :param addr:            Address of the predecessor node
+        :param irsb:            IRSB of the predecessor node
+        :param cfg_node:        The CFGNode instance of the predecessor node
+        :param stmt_idx:        ID of the source statement
+        :param ins_addr:        Address of the source instruction
+        :param current_function_addr: Address of the current function
+        :param target_addr:     Destination of the call
+        :param jumpkind:        The jumpkind of the edge going to this node
+        :param is_syscall:      Is the jump kind (and thus this) a system call
+        :return:                A list of CFGJobs
         """
 
         jobs: List[CFGJob] = []
@@ -2257,17 +2277,18 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if callee_might_return:
             func_edges = []
             if return_site is not None:
-                call_returning: Optional[bool] = None
+                call_returning: Optional[bool]
                 if callee_function is not None:
                     call_returning = self._is_call_returning(cfg_node, callee_function.addr)
                 else:
-                    pass
+                    call_returning = True if self._indirect_calls_always_return else None
 
                 if call_returning is True:
                     fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=True)
                     func_edges.append(fakeret_edge)
-                    ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
-                    func_edges.append(ret_edge)
+                    if new_function_addr is not None:
+                        ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
+                        func_edges.append(ret_edge)
 
                     # Also, keep tracing from the return site
                     ce = CFGJob(

@@ -890,7 +890,10 @@ class TestCfgfast(unittest.TestCase):
     def test_kepler_server_armhf(self):
         binary_path = os.path.join(test_location, "armhf", "kepler_server")
         proj = angr.Project(binary_path, auto_load_libs=False)
-        cfg = proj.analyses.CFG(normalize=True)
+        cfg = proj.analyses.CFG(
+            normalize=True,
+            indirect_calls_always_return=False,
+        )
 
         func_main = cfg.kb.functions[0x10329]
         assert func_main.returning is False
