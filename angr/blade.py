@@ -18,35 +18,37 @@ class Blade:
 
     def __init__(
         self,
-        graph,
-        dst_run,
-        dst_stmt_idx,
-        direction="backward",
+        graph: networkx.DiGraph,
+        dst_run: int,
+        dst_stmt_idx: int,
+        direction: str = "backward",
         project=None,
         cfg=None,
-        ignore_sp=False,
-        ignore_bp=False,
+        ignore_sp: bool = False,
+        ignore_bp: bool = False,
         ignored_regs=None,
-        max_level=3,
+        max_level: int = 3,
         base_state=None,
-        stop_at_calls=False,
+        stop_at_calls: bool = False,
         cross_insn_opt=False,
         max_predecessors: int = 10,
+        include_imarks: bool = True,
     ):
         """
-        :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
+        :param graph:                   A graph representing the control flow graph. Note that it does not take
                                         angr.analyses.CFGEmulated or angr.analyses.CFGFast.
-        :param int dst_run:             An address specifying the target SimRun.
-        :param int dst_stmt_idx:        The target statement index. -1 means executing until the last statement.
-        :param str direction:           'backward' or 'forward' slicing. Forward slicing is not yet supported.
+        :param dst_run:                 An address specifying the target SimRun.
+        :param dst_stmt_idx:            The target statement index. -1 means executing until the last statement.
+        :param direction:               'backward' or 'forward' slicing. Forward slicing is not yet supported.
         :param angr.Project project:    The project instance.
         :param angr.analyses.CFGBase cfg: the CFG instance. It will be made mandatory later.
-        :param bool ignore_sp:          Whether the stack pointer should be ignored in dependency tracking. Any
+        :param ignore_sp:               Whether the stack pointer should be ignored in dependency tracking. Any
                                         dependency from/to stack pointers will be ignored if this options is True.
-        :param bool ignore_bp:          Whether the base pointer should be ignored or not.
-        :param int  max_level:          The maximum number of blocks that we trace back for.
-        :param int stop_at_calls:       Limit slicing within a single function. Do not proceed when encounters a call
+        :param ignore_bp:               Whether the base pointer should be ignored or not.
+        :param max_level:               The maximum number of blocks that we trace back for.
+        :param stop_at_calls:           Limit slicing within a single function. Do not proceed when encounters a call
                                         edge.
+        :param include_imarks:          Should IMarks (instruction boundaries) be included in the slice.
         :return: None
         """
 
@@ -60,6 +62,7 @@ class Blade:
         self._stop_at_calls = stop_at_calls
         self._cross_insn_opt = cross_insn_opt
         self._max_predecessors = max_predecessors
+        self._include_imarks = include_imarks
 
         self._slice = networkx.DiGraph()
 
@@ -290,6 +293,7 @@ class Blade:
                 "irsb_addr": self._get_irsb(self._dst_run).addr,
                 "prev": prev,
             },
+            include_imarks=self._include_imarks,
         )
         regs = slicer.final_regs
         if self._ignore_sp and self.project.arch.sp_offset in regs:
@@ -370,6 +374,7 @@ class Blade:
             target_stack_offsets=stack_offsets,
             inslice_callback=self._inslice_callback,
             inslice_callback_infodict=infodict,
+            include_imarks=self._include_imarks,
         )
 
         if not infodict["has_statement"]:

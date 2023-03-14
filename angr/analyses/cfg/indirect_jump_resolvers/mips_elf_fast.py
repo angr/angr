@@ -19,7 +19,21 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-# hit_case_0, hit_case_1, miss = 0, 0, 0
+PROFILING = False
+HITS_CASE_0, HITS_CASE_1, MISSES = 0, 0, 0
+
+
+def enable_profiling():
+    global PROFILING, HITS_CASE_0, HITS_CASE_1, MISSES
+    PROFILING = True
+    HITS_CASE_0 = 0
+    HITS_CASE_1 = 0
+    MISSES = 0
+
+
+def disable_profiling():
+    global PROFILING
+    PROFILING = False
 
 
 class OverwriteTmpValueCallback:
@@ -88,6 +102,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
         :rtype: tuple
         """
 
+        global HITS_CASE_0, HITS_CASE_1, MISSES
+
         project = self.project
 
         b = Blade(
@@ -102,6 +118,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
             cross_insn_opt=False,
             stop_at_calls=True,
             max_level=max_level,
+            include_imarks=False,
         )
 
         func = cfg.kb.functions.function(addr=func_addr)
@@ -117,22 +134,23 @@ class MipsElfFastResolver(IndirectJumpResolver):
             l.warning("Failed to determine value of register gp for function %#x.", func.addr)
             return False, []
 
-        # global hit_case_0, hit_case_1, miss
-
         if gp_value is not None:
             target = self._try_handle_simple_case_0(gp_value, b)
             if target is not None:
-                # hit_case_0 += 1
-                # print(f"hit/miss: {hit_case_0 + hit_case_1}/{miss}, {hit_case_0}|{hit_case_1}")
+                if PROFILING:
+                    HITS_CASE_0 += 1
+                    # print(f"hit/miss: {HITS_CASE_0 + HITS_CASE_1}/{MISSES}, {HITS_CASE_0}|{HITS_CASE_1}")
                 return True, [target]
             target = self._try_handle_simple_case_1(gp_value, b)
             if target is not None:
-                # hit_case_1 += 1
-                # print(f"hit/miss: {hit_case_0 + hit_case_1}/{miss}, {hit_case_0}|{hit_case_1}")
+                if PROFILING:
+                    HITS_CASE_1 += 1
+                    # print(f"hit/miss: {HITS_CASE_0 + HITS_CASE_1}/{MISSES}, {HITS_CASE_0}|{HITS_CASE_1}")
                 return True, [target]
 
-        # miss += 1
-        # print(f"hit/miss: {hit_case_0 + hit_case_1}/{miss}, {hit_case_0}|{hit_case_1}")
+        if PROFILING:
+            MISSES += 1
+            # print(f"hit/miss: {HITS_CASE_0 + HITS_CASE_1}/{MISSES}, {HITS_CASE_0}|{HITS_CASE_1}")
 
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
         if not sources:

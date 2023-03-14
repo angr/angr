@@ -7,6 +7,7 @@ import archinfo
 import angr
 from angr.analyses.cfg.cfg_fast import SegmentList
 from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
+from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 
 from common import slow_test
 
@@ -215,6 +216,16 @@ class TestCfgfast(unittest.TestCase):
 
         self.cfg_fast_functions_check("mips", "fauxware", functions, function_features)
         self.cfg_fast_edges_check("mips", "fauxware", return_edges)
+
+    def test_mips_elf_fast_indirect_jump_resolver(self):
+        bin_path = os.path.join(test_location, "mips", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        # enable profiling for MipsElfFast
+        # FIXME: The result might be different if other test cases that run in parallel mess with the profiling setting
+        mips_elf_fast.enable_profiling()
+        _ = proj.analyses.CFG()
+        mips_elf_fast.disable_profiling()
+        assert mips_elf_fast.HITS_CASE_0 >= 10
 
     def test_cfg_loop_unrolling(self):
         edges = {
