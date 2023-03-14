@@ -31,6 +31,8 @@ def remove_last_statement(node):
             stmt = remove_last_statement(node.true_node)
         else:
             raise NotImplementedError("More than one last statement exist")
+    elif type(node) is LoopNode:
+        stmt = remove_last_statement(node.sequence_node)
     else:
         raise NotImplementedError()
 
@@ -365,4 +367,5 @@ from .structuring.structurer_nodes import (
     ConditionNode,
     SwitchCaseNode,
     CascadingConditionNode,
+    LoopNode,
 )
