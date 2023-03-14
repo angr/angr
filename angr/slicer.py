@@ -37,6 +37,7 @@ class SimSlicer:
         target_stack_offsets=None,
         inslice_callback=None,
         inslice_callback_infodict=None,
+        include_imarks: bool = True,
     ):
         self._arch = arch
         self._statements = statements
@@ -45,6 +46,7 @@ class SimSlicer:
         self._target_stack_offsets = target_stack_offsets if target_stack_offsets is not None else set()
 
         self._inslice_callback = inslice_callback
+        self._include_imarks = include_imarks
 
         # It could be accessed publicly
         self.inslice_callback_infodict = inslice_callback_infodict
@@ -232,7 +234,7 @@ class SimSlicer:
 
     def _backward_handler_stmt_IMark(self, stmt, state) -> bool:  # pylint:disable=unused-argument
         # include all IMark statements
-        return True
+        return self._include_imarks
 
     def _backward_handler_stmt_WrTmp(self, stmt, state):
         tmp = stmt.tmp
