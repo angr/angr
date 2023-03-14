@@ -43,6 +43,7 @@ from angr.analyses.forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .segment_list import SegmentList
+from .indirect_jump_resolvers.jumptable import JumpTableResolver
 
 
 VEX_IRSB_MAX_SIZE = 400
@@ -609,6 +610,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         nodecode_threshold=0.3,
         nodecode_step=16483,
         indirect_calls_always_return: Optional[bool] = None,
+        jumptable_resolver_resolves_calls: Optional[bool] = None,
         start=None,  # deprecated
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
@@ -660,7 +662,12 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                                         calls must return will significantly reduce the number of constant propagation
                                         runs, but may reduce the overall CFG recovery precision when facing
                                         non-returning indirect calls. By default, we only assume indirect calls always
-                                        return for large binaries (the main object > 50KB).
+                                        return for large binaries (region > 50KB).
+        :param jumptable_resolver_resolves_calls: Whether JumpTableResolver should resolve indirect calls or not. Most
+                                        indirect calls in C++ binaries or UEFI binaries cannot be resolved using jump
+                                        table resolver and must be resolved using their specific resolvers. By default,
+                                        we will only disable JumpTableResolver from resolving indirect calls for large
+                                        binaries (region > 50 KB).
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -754,10 +761,18 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._nodecode_threshold = nodecode_threshold
         self._nodecode_step = nodecode_step
         self._indirect_calls_always_return = indirect_calls_always_return
+        self._jumptable_resolver_resolve_calls = jumptable_resolver_resolves_calls
 
         if self._indirect_calls_always_return is None:
             # heuristics
             self._indirect_calls_always_return = self._regions_size >= 50_000
+
+        if self._jumptable_resolver_resolve_calls is None:
+            # heuristics
+            self._jumptable_resolver_resolve_calls = self._regions_size < 50_000
+        for ijr in self.indirect_jump_resolvers:
+            if isinstance(ijr, JumpTableResolver):
+                ijr.resolve_calls = self._jumptable_resolver_resolve_calls
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
