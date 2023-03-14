@@ -1,4 +1,4 @@
-# pylint:disable=too-many-boolean-expressions
+# pylint:disable=too-many-boolean-expressions,global-statement
 from typing import Dict, Optional, Tuple, TYPE_CHECKING
 import logging
 
