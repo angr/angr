@@ -2300,5 +2300,6 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 0
 
+
 if __name__ == "__main__":
     unittest.main()
