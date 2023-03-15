@@ -165,6 +165,13 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 # update the block
                 self._update_block(original_head, new_head)
 
+                # sanity check that no switch head points to either itself
+                # or to any if-head that was merged into the new switch head; this
+                # would result in a successor node no longer being present in the graph
+                if any(onode not in graph_copy for onode in original_nodes):
+                    self.out_graph = None
+                    return
+
                 # add edges between the head and case nodes
                 for onode in original_nodes:
                     successors = list(graph_copy.successors(onode))

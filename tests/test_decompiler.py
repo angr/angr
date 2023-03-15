@@ -2274,6 +2274,32 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 1
 
+    @for_all_structuring_algos
+    def test_no_switch_case_touch_touch(self, decompiler_options=None):
+        # node 0x40015b is an if-node that is merged into a switch case node with other if-node's that
+        # have it as a successor, resulting in a switch that point's to its old heads; in this case,
+        # the switch should not exist at all AND not crash
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "touch_touch_no_switch.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["touch"]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("switch") == 0
+
 
 if __name__ == "__main__":
     unittest.main()
