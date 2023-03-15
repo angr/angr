@@ -2015,7 +2015,7 @@ class PhoenixStructurer(StructurerBase):
                 elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst_addr:
                     return True
             elif isinstance(last_stmt, IncompleteSwitchCaseHeadStatement):
-                if any(case_addr == dst_addr for _, case_addr in last_stmt.case_addrs):
+                if any(case_addr == dst_addr for _, _, _, case_addr in last_stmt.case_addrs):
                     return True
             return False
 
