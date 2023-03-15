@@ -280,7 +280,8 @@ class SimEnginePropagatorAIL(
             # check if this new_expr uses any expression that has been overwritten
             all_subexprs = list(tmp.all_exprs())
             outdated = False
-            for detail in tmp.offset_and_details.values():
+            offset_and_details = tmp.offset_and_details or {}
+            for detail in offset_and_details.values():
                 if detail.expr is None:
                     continue
                 outdated_, has_avoid_ = self.is_using_outdated_def(
@@ -289,6 +290,10 @@ class SimEnginePropagatorAIL(
                 if outdated_ or has_avoid_:
                     outdated = True
                     break
+
+            if not offset_and_details:
+                l.warning("Tmp expression has no details or offsets")
+                return tmp
 
             if None in all_subexprs or outdated:
                 top = self.state.top(expr.size * self.arch.byte_width)
