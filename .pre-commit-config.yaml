@@ -46,6 +46,7 @@ repos:
     rev: v2.2.0
     hooks:
     -   id: setup-cfg-fmt
+        args: ["--include-version-classifiers"]
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
