@@ -38,13 +38,12 @@ Now, let's talk about what happens on the edge of this function! When entering
 the function, where do the values that go into the arguments come from? You can
 define your ``run()`` function with however many arguments you like, and the
 SimProcedure runtime will automatically extract from the program state those
-arguments for you, via a `calling convention
-<structured_data.md#working-with-calling-conventions>`, and call your run
-function with them. Similarly, when you return a value from the run function, it
-is placed into the state (again, according to the calling convention), and the
-actual control-flow action of returning from a function is performed, which
-depending on the architecture may involve jumping to the link register or
-jumping to the result of a stack pop.
+arguments for you, via a :ref:`calling convention <Working with Calling
+Conventions>`, and call your run function with them. Similarly, when you return
+a value from the run function, it is placed into the state (again, according to
+the calling convention), and the actual control-flow action of returning from a
+function is performed, which depending on the architecture may involve jumping
+to the link register or jumping to the result of a stack pop.
 
 It should be clear at this point that the SimProcedure we just wrote is meant to
 totally replace whatever function it is hooked over top of. In fact, the
@@ -93,11 +92,9 @@ You can return a native number, a bitvector, or a SimActionObject.
 When you want to write a procedure that deals with floating point numbers, you
 will need to specify the calling convention manually. It's not too hard, just
 provide a cc to the hook: ```cc = project.factory.cc_from_arg_kinds((True,
-True), ret_fp=True)``
-<http://angr.io/api-doc/angr.html#angr.factory.AngrObjectFactory.cc_from_arg_kinds>`_
-and ``project.hook(address, ProcedureClass(cc=mycc))`` This method for passing
-in a calling convention works for all calling conventions, so if angr's
-autodetected one isn't right, you can fix that.
+True), ret_fp=True)`` and ``project.hook(address, ProcedureClass(cc=mycc))``
+This method for passing in a calling convention works for all calling
+conventions, so if angr's autodetected one isn't right, you can fix that.
 
 Control Flow
 ------------
@@ -128,11 +125,10 @@ do that, you'll need to work directly with the SimSuccessors object for the
 current execution step.
 
 The interface for this is ```self.successors.add_successor(state, addr, guard,
-jumpkind)``
-<http://angr.io/api-doc/angr.html#angr.engines.successors.SimSuccessors.add_successor>`_.
-All of these parameters should have an obvious meaning if you've followed along
-so far. Keep in mind that the state you pass in will NOT be copied and WILL be
-mutated, so be sure to make a copy beforehand if there will be more work to do!
+jumpkind)``. All of these parameters should have an obvious meaning if you've
+followed along so far. Keep in mind that the state you pass in will NOT be
+copied and WILL be mutated, so be sure to make a copy beforehand if there will
+be more work to do!
 
 SimProcedure Continuations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

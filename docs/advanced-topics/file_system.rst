@@ -40,7 +40,7 @@ normal file descriptors!
 
 You may access the mapping from file descriptor number to file descriptor object
 in ``state.posix.fd``. The file descriptor API may be found `here
-<http://angr.io/api-doc/angr.html#angr.storage.file.SimFileDescriptorBase>`.
+<http://angr.io/api-doc/angr.html#angr.storage.file.SimFileDescriptorBase>`_.
 
 Just tell me how to do what I want to do!
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -49,7 +49,7 @@ Okay okay!!
 
 To create a SimFile, you should just create an instance of the class you want to
 use. Refer to the `API docs
-<http://angr.io/api-doc/angr.html#module-angr.storage.file>` for the full
+<http://angr.io/api-doc/angr.html#module-angr.storage.file>`_ for the full
 instructions.
 
 Let's go through a few illustrative examples, which cover how you can work with
@@ -271,7 +271,7 @@ it in the filesystem or serve stdin/stdout from it.
 The simulated filesystem is the ``state.fs`` plugin. You can store, load, and
 delete files from the filesystem, with the ``insert``, ``get``, and ``delete``
 methods. Refer to the `api docs
-<http://angr.io/api-doc/angr.html#module-angr.state_plugins.filesystem>` for
+<http://angr.io/api-doc/angr.html#module-angr.state_plugins.filesystem>`_ for
 details.
 
 So to make our file available as ``/tmp/myfile``:

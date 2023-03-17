@@ -110,7 +110,7 @@ Case 3, out-of-tree development, loose integration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Finally, if you don't want to mess with SimLibraries at all, you can do things
-purely on the project level with ```hook_symbol``
+purely on the project level with `hook_symbol
 <http://angr.io/api-doc/angr.html#angr.project.Project.hook_symbol>`_.
 
 Syscalls
@@ -137,7 +137,7 @@ and adds them to the library, then adds several syscall number mappings,
 including separate mappings for ``mips-o32``, ``mips-n32``, and ``mips-n64``.
 
 In order for syscalls to be supported in the first place, the project's SimOS
-must inherit from ```SimUserland``
+must inherit from `SimUserland
 <http://angr.io/api-doc/angr.html#angr.simos.userland.SimUserland>`_, itself a
 SimOS subclass. This requires the class to call SimUserland's constructor with a
 super() call that includes the ``syscall_library`` keyword argument, specifying
@@ -158,7 +158,7 @@ be refactored. The current situation requires that ``angr.SYSCALL_CC`` be a map
 of maps ``{arch_name: {os_name: cc_cls}}``, where ``os_name`` is the value of
 project.simos.name, and each of the calling convention classes must include an
 extra method called ``syscall_number`` which takes a state and return the
-current syscall number. Look at the bottom of ```calling_conventions.py``
+current syscall number. Look at the bottom of `calling_conventions.py
 <https://github.com/angr/angr/blob/master/angr/calling_conventions.py>`_ to
 learn more about it. Not very object-oriented at all...
 

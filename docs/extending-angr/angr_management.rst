@@ -89,7 +89,7 @@ state" container actually contains one of these containers. The result of this
 is that UI elements can either subscribe to the current state, no matter
 
 A full list of standard ObjectContainers that can be found in the `instance
-``init__`` method
+__init__ method
 <https://github.com/angr/angr-management/blob/master/angrmanagement/data/instance.py>`_.
 There are more containers floating around for synchronizing on non-global
 elements - for example, the current state of the disassembly view is

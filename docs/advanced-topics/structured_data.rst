@@ -183,8 +183,6 @@ behavior, like ``p.factory.call_state``, or...
 Callables
 ---------
 
-:raw-html-m2r:`<a name=callables></a>`
-
 Callables are a Foreign Functions Interface (FFI) for symbolic execution. Basic
 callable usage is to create one with ``myfunc = p.factory.callable(addr)``, and
 then call it! ``result = myfunc(args, ...)`` When you call the callable, angr

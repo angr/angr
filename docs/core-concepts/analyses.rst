@@ -18,7 +18,7 @@ Built-in Analyses
      - Description
    * - CFGFast
      - Constructs a fast *Control Flow Graph* of the program
-   * - :ref:`CFGEmulated <Control-flow Graph Recovery (CFG)`_
+   * - CFGEmulated
      - Constructs an accurate *Control Flow Graph* of the program
    * - VFG
      - Performs VSA on every function of the program, creating a *Value Flow
@@ -26,9 +26,9 @@ Built-in Analyses
    * - DDG
      - Calculates a *Data Dependency Graph*, allowing one to determine what
        statements a given value depends on
-   * - :ref:`BackwardSlice <Backward Slicing>`_
+   * - BackwardSlice
      - Computes a *Backward Slice* of a program with respect to a certain target
-   * - :ref:`Identifier <Identifier>`_
+   * - Identifier
      - Identifies common library functions in CGC binaries
    * - More!
      - angr has quite a few analyses, most of which work! If you'd like to know

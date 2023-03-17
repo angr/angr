@@ -186,7 +186,7 @@ are analyzing java bytecode, in which case it is very important.
 can't be used. It attempts to lift bytes from the current address into an IRSB,
 and then executes that IRSB symbolically. There are a huge number of parameters
 that can control this process, so I will merely link to the `API reference
-<http://angr.io/api-doc/angr.html#angr.engines.vex.engine.SimEngineVEX.process>`
+<http://angr.io/api-doc/angr.html#angr.engines.vex.engine.SimEngineVEX.process>`_
 describing them.
 
 The exact process by which SimEngineVEX digs into an IRSB is a little

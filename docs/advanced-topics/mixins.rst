@@ -77,7 +77,7 @@ inheritence can be found `here
 Mixins in Claripy Solvers
 -------------------------
 
-yan please write something here
+.. todo:: Write this section
 
 Mixins in angr Engines
 ----------------------
@@ -214,4 +214,4 @@ must pass down any types you receive as return values from below.
 Mixins in the memory model
 --------------------------
 
-audrey please write something here. or fish, I'm not picky
+.. todo:: write this section

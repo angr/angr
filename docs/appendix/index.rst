@@ -8,6 +8,7 @@ Appendix
    faq
    ops
    options
+   more-examples
    changelog
    migration-9.1
    migration-8

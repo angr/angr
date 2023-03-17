@@ -157,13 +157,13 @@ Widening
 There is another kind of merging called *widening* which takes several states
 and produces a more general state. It is used during static analysis.
 
-.. todo:: @FISH PLEASE EXPLAIN WHAT THIS MEANS
+.. todo:: Explain what this means
 
 Serialization
 -------------
 
 In order to support serialization of states which contain your plugin, you
-should implement the ``getstate__``/``setstate__`` magic method pair. Keep
+should implement the ``__getstate__``/``__setstate__`` magic method pair. Keep
 in mind the following guidelines:
 
 
