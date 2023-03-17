@@ -1,5 +1,5 @@
-:mod:`angr` --- Analysis and Coordination
-=========================================
+API Reference
+=============
 
 .. automodule:: angr
 

@@ -17,6 +17,7 @@ author = "The angr Project"
 
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosectionlabel",
     "sphinx.ext.autosummary",
     "sphinx.ext.coverage",
     "sphinx.ext.napoleon",
@@ -51,6 +52,9 @@ coverage_ignore_pyobjects = [
     "angr.sim_type.SimTypeFixedSizeArray",  # Alias to SimTypeArray
 ]
 
+# -- Options for todos -------------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/extensions/todo.html
+todo_include_todos = True
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
