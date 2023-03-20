@@ -1061,6 +1061,7 @@ class CFunctionCall(CStatement, CExpression):
     func(arg0, arg1)
 
     :ivar Function callee_func:  The function getting called.
+    :ivar is_expr:  True if the return value of the function is written to ret_expr; Essentially, ret_expr = call().
     """
 
     __slots__ = (
@@ -1108,7 +1109,13 @@ class CFunctionCall(CStatement, CExpression):
         else:
             raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
-    def c_repr_chunks(self, indent=0, asexpr=False):
+    def c_repr_chunks(self, indent=0, asexpr: bool = False):
+        """
+
+        :param indent:  Number of whitespace indentation characters.
+        :param asexpr:  True if this call is used as an expression (which means we will skip the generation of
+                        semicolons and newlines at the end of the call).
+        """
         indent_str = self.indent_str(indent=indent)
         yield indent_str, None
 
@@ -1135,7 +1142,7 @@ class CFunctionCall(CStatement, CExpression):
 
         yield ")", paren
 
-        if not self.is_expr:
+        if not self.is_expr and not asexpr:
             yield ";", self
             if not self.returning:
                 yield " /* do not return */", self
