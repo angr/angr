@@ -2300,6 +2300,17 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 0
 
+    @for_all_structuring_algos
+    def test_function_return_loc_fmt(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options
+        )
+        self._print_decompilation_result(d)
+
 
 if __name__ == "__main__":
     unittest.main()
