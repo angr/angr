@@ -94,6 +94,6 @@ repos:
     -   id: check-docstring-first
 
 -   repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.254
+    rev: v0.0.257
     hooks:
     - id: ruff
