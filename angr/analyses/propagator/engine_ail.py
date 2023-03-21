@@ -10,7 +10,7 @@ from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ..reaching_definitions.reaching_definitions import OP_BEFORE, OP_AFTER
 from .engine_base import SimEnginePropagatorBase
-from .prop_value import PropValue, Detail
+from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
 
 if TYPE_CHECKING:
     from .propagator import PropagatorAILState

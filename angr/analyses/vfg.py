@@ -10,7 +10,7 @@ from . import Analysis, CFGEmulated
 
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
-from .forward_analysis import ForwardAnalysis
+from angr.analyses import ForwardAnalysis
 from .. import sim_options
 from ..engines.procedure import ProcedureEngine
 from ..engines import SimSuccessors

@@ -15,7 +15,7 @@ from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveD
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
 from ...misc.ux import deprecated
 from ..analysis import Analysis
-from ..forward_analysis import ForwardAnalysis
+from angr.analyses import ForwardAnalysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
@@ -32,7 +32,7 @@ l = logging.getLogger(name=__name__)
 
 
 class ReachingDefinitionsAnalysis(
-    ForwardAnalysis[ReachingDefinitionsState, NodeType], Analysis
+    ForwardAnalysis[ReachingDefinitionsState, NodeType, object, object], Analysis
 ):  # pylint:disable=abstract-method
     """
     ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a

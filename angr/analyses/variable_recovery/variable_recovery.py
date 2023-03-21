@@ -9,7 +9,7 @@ from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ... import BP, BP_AFTER
 from ...sim_variable import SimRegisterVariable, SimStackVariable
 from ...code_location import CodeLocation
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from angr.analyses import ForwardAnalysis, visitors
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .annotations import StackLocationAnnotation
 
@@ -447,7 +447,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
         :param knowledge.Function func:  The function to analyze.
         """
 
-        function_graph_visitor = FunctionGraphVisitor(func)
+        function_graph_visitor = visitors.FunctionGraphVisitor(func)
 
         VariableRecoveryBase.__init__(self, func, max_iterations, store_live_variables)
         ForwardAnalysis.__init__(

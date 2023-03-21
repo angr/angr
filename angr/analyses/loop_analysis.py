@@ -4,7 +4,7 @@ from ..block import SootBlockNode
 from ..errors import AngrLoopAnalysisError
 from . import register_analysis
 from .analysis import Analysis
-from .forward_analysis import ForwardAnalysis, LoopVisitor
+from angr.analyses import ForwardAnalysis, visitors
 
 
 l = logging.getLogger(name=__name__)
@@ -231,7 +231,7 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
     """
 
     def __init__(self, loop, defuse):
-        visitor = LoopVisitor(loop)
+        visitor = visitors.LoopVisitor(loop)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=visitor)
 
         self.loop = loop

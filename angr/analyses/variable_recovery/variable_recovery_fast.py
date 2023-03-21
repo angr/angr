@@ -16,7 +16,7 @@ from ...errors import AngrVariableRecoveryError, SimEngineError
 from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
 from ...engines.vex.claripy.irop import vexop_to_simop
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from angr.analyses import ForwardAnalysis, visitors
 from ..typehoon.typevars import Equivalence, TypeVariable
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
@@ -251,7 +251,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                 except KeyError:
                     pass
 
-        function_graph_visitor = FunctionGraphVisitor(func, graph=func_graph)
+        function_graph_visitor = visitors.FunctionGraphVisitor(func, graph=func_graph)
 
         # Make sure the function is not empty
         if not func.block_addrs_set or func.startpoint is None:

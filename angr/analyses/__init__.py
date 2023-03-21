@@ -6,6 +6,8 @@ def register_analysis(cls, name):
     AnalysesHub.register_default(name, cls)
 
 
+from .forward_analysis import ForwardAnalysis, visitors
+from .propagator import PropagatorAnalysis
 from .cfg import CFGFast, CFGEmulated, CFG, CFGArchOptions, CFGFastSoot
 from .cdg import CDG
 from .ddg import DDG
@@ -33,7 +35,6 @@ from .dominance_frontier import DominanceFrontier
 from .data_dep import DataDependencyGraphAnalysis
 from .decompiler import Decompiler
 from .soot_class_hierarchy import SootClassHierarchy
-from .propagator import PropagatorAnalysis
 from .xrefs import XRefsAnalysis
 from .init_finder import InitializationFinder
 from .complete_calling_conventions import CompleteCallingConventionsAnalysis

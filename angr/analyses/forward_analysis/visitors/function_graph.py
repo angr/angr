@@ -3,8 +3,7 @@ import logging
 
 import networkx
 
-from ....utils.graph import dfs_back_edges
-from ...cfg.cfg_utils import CFGUtils
+from angr.utils.graph import dfs_back_edges, GraphUtils
 from .graph import GraphVisitor, NodeType
 
 _l = logging.getLogger(__name__)
@@ -68,7 +67,7 @@ class FunctionGraphVisitor(GraphVisitor):
         return list(self.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
+        sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self.graph)
 
         if nodes is not None:
             sorted_nodes = [n for n in sorted_nodes if n in set(nodes)]

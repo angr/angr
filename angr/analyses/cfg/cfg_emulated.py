@@ -36,7 +36,7 @@ from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
 from ...knowledge_plugins.cfg import CFGENode, IndirectJump
 from ...utils.constants import DEFAULT_STATEMENT
-from ..forward_analysis import ForwardAnalysis
+from angr.analyses import ForwardAnalysis
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_utils import CFGUtils

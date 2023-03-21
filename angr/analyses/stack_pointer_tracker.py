@@ -11,7 +11,7 @@ from ..knowledge_plugins import Function
 from ..block import BlockNode
 from ..errors import SimTranslationError
 from .analysis import Analysis
-from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from angr.analyses import ForwardAnalysis, visitors
 
 try:
     import pypcode
@@ -299,9 +299,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 # Make a copy before normalizing the function
                 func = func.copy()
                 func.normalize()
-            graph_visitor = FunctionGraphVisitor(func)
+            graph_visitor = visitors.FunctionGraphVisitor(func)
         elif block is not None:
-            graph_visitor = SingleNodeGraphVisitor(block)
+            graph_visitor = visitors.SingleNodeGraphVisitor(block)
         else:
             raise ValueError("StackPointerTracker must work on either a function or a single block.")
 

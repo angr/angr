@@ -22,7 +22,7 @@ from ...engines.light import SpOffset
 from ...code_location import CodeLocation
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
-from ...analyses.propagator.propagator import Equivalence
+from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE

@@ -41,13 +41,15 @@ class SimEngineLightMixin:
         """
         raise NotImplementedError()
 
-    def sp_offset(self, offset: int):
-        base = claripy.BVS("SpOffset", self.arch.bits, explicit_name=True)
+    @staticmethod
+    def sp_offset(bits: int, offset: int):
+        base = claripy.BVS("SpOffset", bits, explicit_name=True)
         if offset:
             base += offset
         return base
 
-    def extract_offset_to_sp(self, spoffset_expr: claripy.ast.Base) -> Optional[int]:
+    @staticmethod
+    def extract_offset_to_sp(spoffset_expr: claripy.ast.Base) -> Optional[int]:
         """
         Extract the offset to the original stack pointer.
 
