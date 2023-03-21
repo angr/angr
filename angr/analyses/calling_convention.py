@@ -563,9 +563,10 @@ class CallingConventionAnalysis(Analysis):
             if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)
         }
 
-        arg_session = cc.arg_session(SimTypeInt().with_arch(self.project.arch))
+        default_type_cls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
+        arg_session = cc.arg_session(default_type_cls().with_arch(self.project.arch))
         for _ in range(30):  # at most 30 arguments
-            arg_loc = cc.next_arg(arg_session, SimTypeInt().with_arch(self.project.arch))
+            arg_loc = cc.next_arg(arg_session, default_type_cls().with_arch(self.project.arch))
             if isinstance(arg_loc, SimRegArg):
                 reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
                 # is it initialized?
