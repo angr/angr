@@ -558,7 +558,7 @@ class CallingConventionAnalysis(Analysis):
                 defs_by_reg_offset[d.offset].append(d)
         defined_reg_offsets = set(defs_by_reg_offset.keys())
         defs_by_stack_offset = {
-            -d.atom.addr.offset: d
+            d.atom.addr.offset: d
             for d in all_stack_defs
             if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)
         }
