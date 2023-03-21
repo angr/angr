@@ -108,12 +108,22 @@ class CodeLocation:
 
     def __lt__(self, other):
         if self.block_addr != other.block_addr:
+            if self.block_addr is None and other.block_addr is not None:
+                return True
+            elif self.block_addr is not None and other.block_addr is None:
+                return False
+            # elif self.block_addr is not None and other.block_addr is not None:
             return self.block_addr < other.block_addr
+        if self.stmt_idx != other.stmt_idx:
+            if self.stmt_idx is None and other.stmt_idx is not None:
+                return True
+            elif self.stmt_idx is not None and other.stmt_idx is None:
+                return False
+            # elif self.stmt_idx is not None and other.stmt_idx is not None
+            return self.stmt_idx < other.stmt_idx
         if self.ins_addr is not None and other.ins_addr is not None:
             if self.ins_addr != other.ins_addr:
                 return self.ins_addr < other.ins_addr
-        if self.stmt_idx != other.stmt_idx:
-            return self.stmt_idx < other.stmt_idx
         return False
 
     def __hash__(self):
