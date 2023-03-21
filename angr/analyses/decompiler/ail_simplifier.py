@@ -248,7 +248,7 @@ class AILSimplifier(Analysis):
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
         rd = self._compute_reaching_definitions()
-        sorted_defs = sorted(rd.all_definitions, key=lambda d: (d.codeloc.block_addr, d.codeloc.stmt_idx), reverse=True)
+        sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
         for def_ in sorted_defs:
             if isinstance(def_.atom, atoms.Register):
                 needs_narrowing, to_size, use_exprs = self._narrowing_needed(def_, rd, addr_and_idx_to_block)
