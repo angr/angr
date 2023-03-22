@@ -334,6 +334,19 @@ class LiveDefinitions:
             return self.get_stack_address(values[0])
 
         return self.get_stack_address(sp_v)
+    
+    def get_sp_offset(self) -> int:
+        """
+        Return the offset of the stack pointer.
+        """
+        sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
+        sp_v = sp_values.one_value()
+        if sp_v is None:
+            values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
+            assert len({self.get_stack_offset(v) for v in values}) == 1
+            return self.get_stack_offset(values[0])
+
+        return self.get_stack_offset(sp_v)
 
     def get_stack_address(self, offset: claripy.ast.Base) -> Optional[int]:
         offset = self.get_stack_offset(offset)

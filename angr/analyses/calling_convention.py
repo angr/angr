@@ -557,11 +557,20 @@ class CallingConventionAnalysis(Analysis):
             ):
                 defs_by_reg_offset[d.offset].append(d)
         defined_reg_offsets = set(defs_by_reg_offset.keys())
-        defs_by_stack_offset = {
-            d.atom.addr.offset: d
-            for d in all_stack_defs
-            if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)
-        }
+        if self.project.arch.bits in [32, 64]:
+            # Calculate the relative distances between the stack pointer at the callsite and the stack definitions
+            sp_offset = state.get_sp_offset()
+            defs_by_stack_offset = {
+                d.atom.addr.offset - sp_offset: d
+                for d in all_stack_defs
+                if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)
+            }
+        else:
+            defs_by_stack_offset = {
+                -d.atom.addr.offset: d
+                for d in all_stack_defs
+                if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)
+            }
 
         default_type_cls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
         arg_session = cc.arg_session(default_type_cls().with_arch(self.project.arch))
