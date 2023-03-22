@@ -334,7 +334,7 @@ class LiveDefinitions:
             return self.get_stack_address(values[0])
 
         return self.get_stack_address(sp_v)
-    
+
     def get_sp_offset(self) -> int:
         """
         Return the offset of the stack pointer.
