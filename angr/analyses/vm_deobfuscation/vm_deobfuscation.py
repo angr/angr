@@ -977,8 +977,15 @@ class VMDeobfuscation(Analysis):
         # symbolic_expr_locations_blockwise = res[1]
         # p.join()
         # import ipdb;ipdb.set_trace()
+        # import cProfile, pstats
+        # profiler = cProfile.Profile()
+        # profiler.enable()
 
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None)#start_state=saved_start_state)
+        # profiler.disable()
+        # stats = pstats.Stats(profiler).sort_stats('tottime')
+        # stats.print_stats()
+        # import ipdb;ipdb.set_trace()
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
 
         # snapshot = tracemalloc.take_snapshot()
@@ -3108,46 +3115,7 @@ class VMDeobfuscation(Analysis):
                 tmp_syb_blockwise[codeloc.block_id][codeloc] = expr_list
 
         prop.symbolic_expr_locations_blockwise = tmp_syb_blockwise
-        # q.put(new_model)
-        # q.put(tmp_syb_blockwise)
-        # this is to replace any indirect jumps to a simprocedure with a direct jump, should I do this for all jumps/calls?
-        # for node in new_model.graph.nodes():
-        #     if not node.is_simprocedure and isinstance(node.irsb.next, pyvex.expr.RdTmp) and len(list(new_model.graph.successors(node))) == 1 and list(new_model.graph.successors(node))[0].is_simprocedure:
-        #         if self.project.arch.bits == 32:
-        #             node.irsb.next = pyvex.expr.Const(DataSensitiveU32(list(new_model.graph.successors(node))[0].addr,
-        #                                                                list(new_model.graph.successors(node))[0].block_id))
-        #         elif self.project.arch.bits == 64:
-        #             node.irsb.next = pyvex.expr.Const(DataSensitiveU64(list(new_model.graph.successors(node))[0].addr,
-        #                                                                list(new_model.graph.successors(node))[0].block_id))
-        #     # we are changin the jumpkinds that are IjK_Ret to Ijk_Call so that _process_block_end() in RDA treats the sim_procedures as a function
-        #     if not node.is_simprocedure and len(list(new_model.graph.successors(node))) == 1 and list(new_model.graph.successors(node))[0].is_simprocedure:
-        #         if node.irsb.jumpkind == 'Ijk_Ret':
-        #             node.irsb.jumpkind = 'Ijk_Call'
 
-        ### Clearing the states for the newly created graph (or should I create a new copy again)
-        # new_model = self.new_model_graph(new_cfg_graph, proj, "temporary2")
-
-        # ## Setting the input state for the first node(need to automate this)
-        # if start_state:
-        #     initial_input_state = start_state
-        # else:
-        #     initial_input_state = proj.factory.blank_state(addr=start_addr,
-        #                                                    mode='fastpath',
-        #                                                    add_options=angr.sim_options.refs | {
-        #                                                    angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
-        #new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-
-        # initial_input_state = proj.factory.blank_state(addr=self.start_addr,
-        #                                                mode='fastpath', )
-        #
-        # initial_input_state.options.remove('REPLACEMENT_SOLVER')
-       # new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
-
-        #Run the emulation on the new graph to update the state attributes
-        # new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=False, max_iterations=1,
-        #                                     vm_vpc_addr=vm_vpc_addr)
-
-        ### Returning a new CFGVMDeobfuscation object with the updated graph
         print("Done")
         return new_model, prop.symbolic_expr_locations_blockwise
 
