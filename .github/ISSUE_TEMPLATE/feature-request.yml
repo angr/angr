@@ -1,0 +1,35 @@
+name: Request a feature
+description: Request a new feature for angr
+labels: [enhancement,needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to submit this feature request!
+
+        Before submitting this feature request, please check the following:
+        * Have you checked that you are running the latest versions of angr and its components? angr is rapidly-evolving!
+        * Have you checked the [documentation](https://docs.angr.io/) to see if this feature exists already?
+        * Have you [searched existing issues](https://github.com/angr/angr/issues?q=is%3Aissue+label%3Aenhancement+) to see if this feature has been requested before?
+
+        Please note: The angr suite is maintained by a small team. While we cannot guarantee any timeliness for fixes and enhancements, we will do our best. For more real-time help with angr, from us and the community, join our [Slack](https://angr.io/invite/).
+
+  - type: textarea
+    attributes:
+      label: Description
+      description: |
+        Brief description of the desired feature. If the feature is intended to solve some problem, please clearly describe the problem, including any relevant binaries, etc.
+
+        **Tip:** You can attach files to the issue by first clicking on the textarea to select it, then dragging & dropping the file onto the textarea.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Alternatives
+      description: Possible alternative solutions or features that you have considered.
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Any other context or screenshots about the feature request.

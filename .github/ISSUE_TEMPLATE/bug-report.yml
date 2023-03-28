@@ -1,0 +1,42 @@
+name: Report a bug
+description: Report a bug in angr
+labels: [bug,needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to submit this bug report!
+
+        Before submitting this bug report, please check the following, which may resolve your issue:
+        * Have you checked that you are running the latest versions of angr and its components? angr is rapidly-evolving!
+        * Have you [searched existing issues](https://github.com/angr/angr/issues?q=is%3Aopen+is%3Aissue+label%3Abug) to see if this bug has been reported before?
+        * Have you checked the [documentation](https://docs.angr.io/)?
+        * Have you checked the [FAQ](https://docs.angr.io/introductory-errata/faq)?
+
+        **Important:** If this bug is a security vulnerability, please submit it privately. See our [security policy](https://github.com/angr/angr/blob/master/SECURITY.md) for more details.
+
+        Please note: The angr suite is maintained by a small team. While we cannot guarantee any timeliness for fixes and enhancements, we will do our best. For more real-time help with angr, from us and the community, join our [Slack](https://angr.io/invite/).
+
+  - type: textarea
+    attributes:
+      label: Description
+      description: Brief description of the bug, with any relevant log messages.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Steps to reproduce the bug
+      description: |
+        If appropriate, include both a **script to reproduce the bug**, and if possible **attach the binary used**.
+
+        **Tip:** You can attach files to the issue by first clicking on the textarea to select it, then dragging & dropping the file onto the textarea.
+  - type: textarea
+    attributes:
+      label: Environment
+      description: Many common issues are caused by problems with the local Python environment. Before submitting, double-check that your versions of all modules in the angr suite (angr, cle, pyvex, ...) are up to date and include the output of `python -m angr.misc.bug_report` here.
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Any additional context about the problem.

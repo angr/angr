@@ -1,0 +1,24 @@
+name: Ask a question
+description: Ask a question about angr
+labels: [question,needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you have a question about angr, that is not a bug report or a feature request, you can ask it here. For more real-time help with angr, from us and the community, join our [Slack](https://angr.io/invite/).
+
+        Before submitting this question, please check the following, which may answer your question:
+        * Have you checked the [documentation](https://docs.angr.io/)?
+        * Have you checked the [FAQ](https://docs.angr.io/introductory-errata/faq)?
+        * Have you checked our library of [examples](https://github.com/angr/angr-doc/tree/master/examples)?
+        * Have you [searched existing issues](https://github.com/angr/angr/issues?q=is%3Aissue+label%3Aquestion) to see if this question has been answered before?
+        * Have you checked that you are running the latest versions of angr and its components. angr is rapidly-evolving!
+
+        Please note: The angr suite is maintained by a small team. While we cannot guarantee any timeliness for fixes and enhancements, we will do our best.
+
+  - type: textarea
+    attributes:
+      label: Question
+      description:
+    validations:
+      required: true
