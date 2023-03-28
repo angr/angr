@@ -871,7 +871,7 @@ class RegionIdentifier(Analysis):
                 full_graph.add_edge(src, dst, **data)
                 if src in loop_nodes:
                     subgraph.add_edge(src, dst, **data)
-                elif src is region:
+                elif src == region:
                     subgraph.add_edge(head, dst, **data)
                 elif src in normal_entries:
                     # graph.add_edge(src, region, **data)
@@ -887,9 +887,9 @@ class RegionIdentifier(Analysis):
                 full_graph.add_edge(src, dst, **data)
                 if dst in loop_nodes:
                     subgraph.add_edge(src, dst, **data)
-                elif dst is region:
+                elif dst == region:
                     subgraph.add_edge(src, head, **data)
-                elif dst is normal_exit_node:
+                elif dst == normal_exit_node:
                     region_outedges.append((node, dst))
                     # graph.add_edge(region, dst, **data)
                     delayed_edges.append((region, dst, data))
