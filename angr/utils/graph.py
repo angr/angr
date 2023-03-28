@@ -146,7 +146,7 @@ def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
         traversed.add(node)
 
         for _, succ, data in graph.out_edges(node, data=True):
-            if go.has_edge(node, succ):
+            if g0.has_edge(node, succ):
                 continue
 
             g0.add_edge(node, succ, **data)
