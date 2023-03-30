@@ -5,9 +5,10 @@ from collections import defaultdict
 from inspect import Signature
 from typing import TYPE_CHECKING, TypeVar, Type, Generic, Callable, Optional
 
-import progressbar
 import logging
 import time
+
+import rich.progress
 
 from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
@@ -146,25 +147,6 @@ class AnalysisFactory(Generic[A]):
         return r
 
 
-class StatusBar(progressbar.widgets.WidgetBase):
-    """
-    Implements a progressbar component for displaying raw text.
-    """
-
-    def __init__(self, width: Optional[int] = 40):
-        super().__init__()
-        self.status: str = ""
-        self.width = width
-
-    def __call__(self, progress, data, **kwargs):  # pylint:disable=unused-argument
-        if self.width is None:
-            return self.status
-        if len(self.status) < self.width:
-            return self.status.ljust(self.width, " ")
-        else:
-            return self.status[: self.width]
-
-
 class Analysis:
     """
     This class represents an analysis on the program.
@@ -189,18 +171,16 @@ class Analysis:
     _progress_callback = None
     _show_progressbar = False
     _progressbar = None
-    _statusbar: Optional[StatusBar] = None
+    _task = None
 
     _PROGRESS_WIDGETS = [
-        progressbar.Percentage(),
-        " ",
-        progressbar.Bar(),
-        " ",
-        progressbar.Timer(),
-        " ",
-        progressbar.ETA(),
-        " ",
-        StatusBar(),
+        rich.progress.TaskProgressColumn(),
+        rich.progress.BarColumn(),
+        rich.progress.TextColumn("Elapsed Time:"),
+        rich.progress.TimeElapsedColumn(),
+        rich.progress.TextColumn("Time:"),
+        rich.progress.TimeRemainingColumn(),
+        rich.progress.TextColumn("{task.description}")
     ]
 
     @contextlib.contextmanager
@@ -224,8 +204,10 @@ class Analysis:
         :return: None
         """
 
-        self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, max_value=10000 * 100).start()
-        self._statusbar = self._progressbar.widgets[-1]
+        self._progressbar = rich.progress.Progress(*self._PROGRESS_WIDGETS)
+        self._task = self._progressbar.add_task(total=100, description="")
+
+        self._progressbar.start()
 
     def _update_progress(self, percentage, text=None, **kwargs):
         """
@@ -241,10 +223,10 @@ class Analysis:
             if self._progressbar is None:
                 self._initialize_progressbar()
 
-            self._progressbar.update(percentage * 10000)
+            self._progressbar.update(self._task, completed=percentage)
 
-        if text is not None and self._statusbar is not None:
-            self._statusbar.status = text
+        if text is not None and self._progressbar:
+            self._progressbar.update(self._task, description=text)
 
         if self._progress_callback is not None:
             self._progress_callback(percentage, text=text, **kwargs)  # pylint:disable=not-callable
@@ -259,8 +241,8 @@ class Analysis:
             if self._progressbar is None:
                 self._initialize_progressbar()
             if self._progressbar is not None:
-                self._progressbar.finish()
-                # Remove the progressbar object so it will not be pickled
+                self._progressbar.update(self._task, completed=100)
+                self._progressbar.stop()
                 self._progressbar = None
 
         if self._progress_callback is not None:
