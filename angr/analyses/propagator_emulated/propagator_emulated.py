@@ -8,7 +8,9 @@ import networkx
 import ailment
 import claripy
 import pyvex
+from ..propagator.top_checker_mixin import TopCheckerMixin
 from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveRdTmp, DataSensitiveU64, DataSensitiveU32
+from ...engines.light import SimEngineLightVEXMixin
 from ...errors import SimUnsatError, SimValueError
 from ...code_location import CodeLocation
 from ...engines import HeavyVEXMixin
@@ -35,11 +37,133 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def check_args_is_top(self, expr):
+        for arg in expr.args:
+            resulting_arg = super()._handle_vex_expr(arg)
+            if PropagatorState.is_top(resulting_arg[0]):
+                return True, resulting_arg[1]
+
+        return False, resulting_arg[1]
+
+
+    def _handle_vex_expr_Binop(self, expr: pyvex.IRExpr.Binop):
+        result = self.check_args_is_top(expr)
+
+        if result[0]:
+            return PropagatorState.top(expr.result_size(self.state.scratch.irsb.tyenv)), result[1]
+
+        r = super()._handle_vex_expr_Binop(expr)
+        # print(expr.op, r)
+        return r
+
+    def _handle_vex_expr_Triop(self, expr: pyvex.expr.Unop):
+        import ipdb;ipdb.set_trace()
+        r = super()._handle_vex_expr_Triop(expr)
+        # print(expr.op, r)
+        return r
+
+    def _handle_vex_expr_Qop(self, expr: pyvex.expr.Unop):
+        import ipdb;ipdb.set_trace()
+        r = super()._handle_vex_expr_Qop(expr)
+        # print(expr.op, r)
+        return r
+
     def is_symbolized(self, expr):
         if 'symbolified_expr' in expr.variables:
             return True
         else:
             return False
+#     def _handle_vex_expr(self, expr: pyvex.expr.IRExpr):
+#         # if self.state.scratch.ins_addr == 0x1400d2186 and self.state.scratch.stmt_idx == 5 and self.state.globals['cur_block_id'].vm_vpc == 5368832359:
+#         #     import ipdb;ipdb.set_trace()
+#         result = super()._handle_vex_expr(expr)
+#         simp_result = result[0]
+#         code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['cur_block_id'])
+#
+#         cur_abstract_state = self.state.globals['abstract_state']()
+#
+#
+#         # if self.state.solver.symbolic(result[0]):
+#         #     self.state.globals['abstract_state'].symbolic_expr_locations[code_loc].append(expr)
+#         # else:
+#         if self.state.solver.symbolic(result[0]):
+#             skip = False
+#             for var in result[0].variables:
+#                 if var.startswith('precon_sp'):
+#                     skip = True
+#                     break
+#             # if cur_abstract_state.is_top(result[0]):
+#             #     skip = True
+#
+#             if not skip:
+#                 try:
+#                     eval_result = self.state.partial_symbolic_constraint_solver.eval_one(result[0])
+#                     simp_result = claripy.BVV(eval_result, result[0].size())
+#                 except SimValueError:
+#                     pass
+#
+#         # ### Only save the constant if it is not touched by the stack
+#         # stack_touched = False
+#         # for annotation in result[0].annotations:
+#         #     if isinstance(annotation, StackTouchedAnnotation):
+#         #         import ipdb;ipdb.set_trace()
+#         #         stack_touched = True
+#         #         break
+#
+#         #symbolize the previously(previous analysis) found non constants and return that
+#         #if self.project.symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.symbolic_expr_locations_blockwise:
+#         if not self.state.solver.symbolic(result[0]) and self.project.prev_symbolic_expr_locations_blockwise and self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
+#             for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
+#                 for to_repl_expr in expr_list:
+#                     if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
+#                         sym_result = self.state.solver.BVS("symbolified_expr", result[0].size())
+#
+#                         #sym_result = annotate_with_new_replacements(start_state, sym_result, )
+#                         #self.state.preconstrainer.preconstrain(self.state.solver.eval(result[0]), sym_result)
+#                         new_result = sym_result
+#                         return [sym_result, result[1]]
+#
+#         ## Do we still need this stack touched thingy?? Not very accurate, we should actually be tracking local variables on the stack, since junk values can always be pushed and popped from the stack
+#         # if not stack_touched:
+#
+#         # this is for the new constant propagation that doesn't merge states........... check if its a non constant
+#         if not self.state.solver.symbolic(simp_result) and \
+#                 expr in cur_abstract_state._replacements[code_loc] and \
+#                 not cur_abstract_state.is_top(cur_abstract_state._replacements[code_loc][expr]) and \
+#                 cur_abstract_state._replacements[code_loc][expr].con.value != simp_result.args[0]:
+# #            import ipdb;ipdb.set_trace()
+#
+#             #del self.state.globals['abstract_state']._replacements[code_loc][expr]
+#             cur_abstract_state._replacements[code_loc][expr] = cur_abstract_state.top(simp_result.size())
+#             # cur_abstract_state.symbolic_expr_locations[code_loc].append(expr)
+#             sym_result = cur_abstract_state._replacements[code_loc][expr]#self.state.solver.BVS("symbolified_expr", result[0].size(), explicit_name=True)
+#
+#             #return [sym_result, result[1]]
+#
+#         elif expr not in cur_abstract_state._replacements[code_loc] and not self.state.solver.symbolic(simp_result) \
+#                 and not(isinstance(expr, pyvex.expr.Const)):
+#             const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
+#             if len(simp_result.args) > 2:
+#                 print("Hmmm possible need to simplify the expr")
+#                 import ipdb;ipdb.set_trace()
+#             if isinstance(expr, DataSensitiveRdTmp):
+#                 if const_class == pyvex.const.U64:
+#                     const_class = DataSensitiveU64
+#                 elif const_class == pyvex.const.U32:
+#                     const_class = DataSensitiveU32
+#                 cur_abstract_state.add_replacement(code_loc, expr, pyvex.expr.Const(
+#                     const_class(simp_result.args[0], expr.block_id)))
+#             else:
+#                 cur_abstract_state.add_replacement(code_loc, expr, pyvex.expr.Const(const_class(simp_result.args[0])))
+#         ### Check if the result is symbolic now, but was constant in some previous iteration and put in the replacements. If so then remove the replacement
+#         elif self.state.solver.symbolic(simp_result) and expr in cur_abstract_state._replacements[code_loc] and not cur_abstract_state.is_top(cur_abstract_state._replacements[code_loc][expr]):
+#             #del cur_abstract_state._replacements[code_loc][expr]
+#             cur_abstract_state._replacements[code_loc][expr] = cur_abstract_state.top(simp_result.size())
+#             # cur_abstract_state.symbolic_expr_locations[code_loc].append(expr)
+#
+#
+#         return [simp_result, result[1]]
+
     def _handle_vex_expr(self, expr: pyvex.expr.IRExpr):
         # if self.state.scratch.ins_addr == 0x1400d2186 and self.state.scratch.stmt_idx == 5 and self.state.globals['cur_block_id'].vm_vpc == 5368832359:
         #     import ipdb;ipdb.set_trace()
@@ -59,65 +183,24 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 if var.startswith('precon_sp'):
                     skip = True
                     break
+            # We don't us this because MBA's also have TOP, so it prevents it from solving the MBAs
             # if cur_abstract_state.is_top(result[0]):
             #     skip = True
 
             if not skip:
                 try:
-                    import cProfile, pstats
-                    profiler = cProfile.Profile()
-                    profiler.enable()
+                    ## Get hte MBA replaceed version
+                    #simp_result = self.state.partial_symbolic_constraint_solver._solver._replacement(result[0])
                     eval_result = self.state.partial_symbolic_constraint_solver.eval_one(result[0])
-                    profiler.disable()
-                    stats = pstats.Stats(profiler).sort_stats('tottime')
-                    if stats.total_tt > 15:
-                        stats.print_stats()
-                        import ipdb;
-                        ipdb.set_trace()
                     simp_result = claripy.BVV(eval_result, result[0].size())
                 except SimValueError:
                     pass
+        # if self.state.globals["cur_block_id"].vm_vpc == 5368833404 and self.state.scratch.ins_addr == 0x140042D7D:
+        #     import ipdb;ipdb.set_trace()
 
-        # ### Only save the constant if it is not touched by the stack
-        # stack_touched = False
-        # for annotation in result[0].annotations:
-        #     if isinstance(annotation, StackTouchedAnnotation):
-        #         import ipdb;ipdb.set_trace()
-        #         stack_touched = True
-        #         break
-
-        #symbolize the previously(previous analysis) found non constants and return that
-        #if self.project.symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.symbolic_expr_locations_blockwise:
-        if not self.state.solver.symbolic(result[0]) and self.project.prev_symbolic_expr_locations_blockwise and self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
-            for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
-                for to_repl_expr in expr_list:
-                    if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
-                        sym_result = self.state.solver.BVS("symbolified_expr", result[0].size())
-
-                        #sym_result = annotate_with_new_replacements(start_state, sym_result, )
-                        #self.state.preconstrainer.preconstrain(self.state.solver.eval(result[0]), sym_result)
-                        new_result = sym_result
-                        return [sym_result, result[1]]
-
-        ## Do we still need this stack touched thingy?? Not very accurate, we should actually be tracking local variables on the stack, since junk values can always be pushed and popped from the stack
-        # if not stack_touched:
-
-        # this is for the new constant propagation that doesn't merge states........... check if its a non constant
-        if not self.state.solver.symbolic(simp_result) and \
-                expr in cur_abstract_state._replacements[code_loc] and \
-                not cur_abstract_state.is_top(cur_abstract_state._replacements[code_loc][expr]) and \
-                cur_abstract_state._replacements[code_loc][expr].con.value != simp_result.args[0]:
-#            import ipdb;ipdb.set_trace()
-
-            #del self.state.globals['abstract_state']._replacements[code_loc][expr]
+        if expr in cur_abstract_state._replacements[code_loc] and (cur_abstract_state.is_top(simp_result) or self.state.solver.symbolic(simp_result)):
             cur_abstract_state._replacements[code_loc][expr] = cur_abstract_state.top(simp_result.size())
-            # cur_abstract_state.symbolic_expr_locations[code_loc].append(expr)
-            sym_result = cur_abstract_state._replacements[code_loc][expr]#self.state.solver.BVS("symbolified_expr", result[0].size(), explicit_name=True)
-
-            #return [sym_result, result[1]]
-
-        elif expr not in cur_abstract_state._replacements[code_loc] and not self.state.solver.symbolic(simp_result) \
-                and not(isinstance(expr, pyvex.expr.Const)):
+        elif expr not in cur_abstract_state._replacements[code_loc] and not self.state.solver.symbolic(simp_result) and not(isinstance(expr, pyvex.expr.Const)) and not cur_abstract_state.is_top(simp_result):
             const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
             if len(simp_result.args) > 2:
                 print("Hmmm possible need to simplify the expr")
@@ -131,12 +214,6 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                     const_class(simp_result.args[0], expr.block_id)))
             else:
                 cur_abstract_state.add_replacement(code_loc, expr, pyvex.expr.Const(const_class(simp_result.args[0])))
-        ### Check if the result is symbolic now, but was constant in some previous iteration and put in the replacements. If so then remove the replacement
-        elif self.state.solver.symbolic(simp_result) and expr in cur_abstract_state._replacements[code_loc] and not cur_abstract_state.is_top(cur_abstract_state._replacements[code_loc][expr]):
-            #del cur_abstract_state._replacements[code_loc][expr]
-            cur_abstract_state._replacements[code_loc][expr] = cur_abstract_state.top(simp_result.size())
-            # cur_abstract_state.symbolic_expr_locations[code_loc].append(expr)
-
 
         return [simp_result, result[1]]
 
@@ -144,22 +221,15 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         #simplified_addr = self.state.solver.simplify(addr[0])
         #simplified_addr=self.state.solver.simplify(addr[0])
+        if self.state.globals["cur_block_id"].vm_vpc == 5368833174 and self.state.scratch.ins_addr == 0x140042D7D:
+            import ipdb;ipdb.set_trace()
 
         simplified_addr = addr[0]
         # if PropagatorState.is_top(addr[0]):
         #     import ipdb;ipdb.set_trace()
         if self.state.solver.symbolic(addr[0]):
             try:
-                import cProfile, pstats
-                profiler = cProfile.Profile()
-                profiler.enable()
                 simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr[0])
-                profiler.disable()
-                stats = pstats.Stats(profiler).sort_stats('tottime')
-                if stats.total_tt > 15:
-                    stats.print_stats()
-                    import ipdb;
-                    ipdb.set_trace()
             except SimValueError:
                 pass
         result = super()._perform_vex_expr_Load((simplified_addr, addr[1]), ty, endness, **kwargs)
@@ -293,6 +363,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 import ipdb;
                 ipdb.set_trace()
             else:
+                import ipdb;ipdb.set_trace()
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1]))
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], claripy.If(state_split_cond, loaded_values[0], loaded_values[1]))
@@ -422,7 +493,7 @@ class PropagatorState:
         """
         # if bits in PropagatorState._tops:
         #     return PropagatorState._tops[bits]
-        r = claripy.BVS("TOP", bits)#, explicit_name=True)
+        r = claripy.BVS("TOP", bits, explicit_name=True)
         if r.args[0] == "TOP_6274_32":
             import ipdb;ipdb.set_trace()
 
@@ -488,12 +559,12 @@ class PropagatorVEXState(PropagatorState):
         return "<PropagatorVEXState>"
 
     def copy(self):
-        new_replacements = defaultdict(dict)
-        for loc, vars_ in self._replacements.items():
-            new_replacements[loc] = vars_.copy()
-
-        return PropagatorVEXState(self.arch, replacements=new_replacements)
-        # return PropagatorVEXState(self.arch, replacements=self._replacements.copy())
+        # new_replacements = defaultdict(dict)
+        # for loc, vars_ in self._replacements.items():
+        #     new_replacements[loc] = vars_.copy()
+        #
+        # return PropagatorVEXState(self.arch, replacements=new_replacements)
+        return PropagatorVEXState(self.arch, replacements=self._replacements.copy())
 
     def merge(self, node, *all_states):
         #here we merge the input states and the input replacements
@@ -794,19 +865,21 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             return False, abstract_state
 
         if abstract_state is not self._initial_state:
-            print("copying state")
             # make a copy of the state if it's not the initial state
-            abstract_state = abstract_state.copy()
-            print("done")
+            if node.block_id in self._states:
+                prev_replacements = self._states[node.block_id]._replacements
+                abstract_state = PropagatorVEXState(arch=self.project.arch, replacements=prev_replacements)
+            else:
+                abstract_state = PropagatorVEXState(arch=self.project.arch)
 
-            # clear previous saved abstract states
-            if len(list(self.graph.predecessors(node))) == 1:
-                for pred in self.graph.predecessors(node):
-                    if len(list(self.graph.predecessors(pred))) > 1:
-                        continue
-                    else:
-                        self._states[pred.block_id] = None
-                        self._input_states[pred] = None
+            # # clear previous saved abstract states
+            # if len(list(self.graph.predecessors(node))) == 1:
+            #     for pred in self.graph.predecessors(node):
+            #         if len(list(self.graph.predecessors(pred))) > 1:
+            #             continue
+            #         else:
+            #             self._states[pred.block_id] = None
+            #             self._input_states[pred] = None
 
 
         else:
@@ -1135,24 +1208,12 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                 succ.globals['abstract_state'] = None
             #node.input_state.globals['cur_block_id'] = block_key
 
-            prev_abstract_state = None
-
-            if not changed:
-                if block_key in self._states and self._states[block_key]:
-                    prev_abstract_state = self._states[block_key]
-                    # the comparision order matters
-                    changed = self._changed(prev_abstract_state._replacements, abstract_state._replacements)
-                else:
-                    # It's the first time exploring this node
-                    changed = True
-
-            if changed is False:
-                merge_res = self._merge_replacements(self.replacements, abstract_state._replacements)
+            self._merge_replacements(self.replacements, abstract_state._replacements)
 
             for succ in symbolic_sim_successors.all_successors:
                 all_successors[succ.regs.ip].append(succ)
 
-        print("replacemtns: "+str(len(abstract_state._replacements)))
+        print("replacemtns: "+str(len(self.replacements)))
         print("symb locs: "+str(len(self.symbolic_expr_locations_blockwise)))
 
         #trying to merge same addr successors, this is part of the late mergning strategy
@@ -1180,16 +1241,40 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         abstract_state.concrete_states = merged_state_collection
         self._node_iterations[block_key] += 1
         # this stores the last merged/normal state
-        self._states[block_key] = abstract_state
         #self.replacements[block_key] = abstract_state._replacements
 
         print(self._node_iterations[block_key])
         print("Changed: "+str(changed))
 
+        if node.block_id in self._states and len(list(self.graph.predecessors(node))) > 1:
+            changed = self.compare_concrete_states(abstract_state, self._states[node.block_id])
+        else:
+            changed = True
+
+        self._states[block_key] = abstract_state
+
         if changed:
             return True, abstract_state
         else:
             return False, abstract_state
+
+    def compare_concrete_states(self, abstract_state0, abstract_state1):
+        changed = False
+
+        if len(abstract_state1.concrete_states) == len(abstract_state0.concrete_states) and len(abstract_state1.concrete_states) == 1:
+            all_plugins = set(abstract_state1.concrete_states[0].plugins.keys())
+            for p in all_plugins:
+                if p in ["memory","registers"]:
+                    plugin0 = abstract_state0.concrete_states[0].plugins[p]
+                    plugin1 = abstract_state1.concrete_states[0].plugins[p]
+                    changed_pages = plugin1.changed_pages(plugin0)
+                    if len(changed_pages) != 0:
+                        return True
+                    else:
+                        import ipdb;ipdb.set_trace()
+
+
+        return changed
 
     def _changed(self, replacements_0, replacements_1):
         #return not(replacements_1 == replacements_0)
