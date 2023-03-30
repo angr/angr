@@ -981,7 +981,7 @@ class VMDeobfuscation(Analysis):
         # profiler = cProfile.Profile()
         # profiler.enable()
 
-        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None)#start_state=saved_start_state)
+        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)#start_state=saved_start_state)
         # profiler.disable()
         # stats = pstats.Stats(profiler).sort_stats('tottime')
         # stats.print_stats()
@@ -1057,7 +1057,7 @@ class VMDeobfuscation(Analysis):
         gc.collect()
         new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr, None,
                                                                                start_state=None,
-                                                                               prev_symbolic_expr_locations_blockwise=None)
+                                                                               prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
         symbolic_expr_locations_blockwise = None
         self.project.kb.cfgs.cfgs = {}
 
@@ -2999,7 +2999,7 @@ class VMDeobfuscation(Analysis):
         return cfg, proj
 
     ####### Constant Propagation
-    def constant_propagation(self, cfg, proj, start_addr, q, start_state=None, options=None, prev_symbolic_expr_locations_blockwise=None, vm_vpc = None, return_symbolic_expr_locations_blockwise=None, new_cfg=None):
+    def constant_propagation(self, cfg, proj, start_addr, q, start_state=None, options=None, prev_symbolic_expr_locations_blockwise=None, vm_vpc = None, return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs = None):
         self.project.prev_symbolic_expr_locations_blockwise = prev_symbolic_expr_locations_blockwise
         print("Doing constant propagation")
         # old_graph = cfg.graph
