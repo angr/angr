@@ -180,7 +180,7 @@ class Analysis:
         rich.progress.TimeElapsedColumn(),
         rich.progress.TextColumn("Time:"),
         rich.progress.TimeRemainingColumn(),
-        rich.progress.TextColumn("{task.description}")
+        rich.progress.TextColumn("{task.description}"),
     ]
 
     @contextlib.contextmanager
