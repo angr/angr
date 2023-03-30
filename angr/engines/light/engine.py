@@ -366,7 +366,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
                 return getattr(self, handler)(expr, vector_size, vector_count)
             return getattr(self, handler)(expr)
         else:
-            self.l.error("Unsupported Binop %s.", expr.op)
+            self.l.warning("Unsupported Binop %s.", expr.op)
 
         return None
 
