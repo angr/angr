@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, TypeVar, Type, Generic, Callable, Optional
 import logging
 import time
 
-import rich.progress
+from rich import progress
 
 from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
@@ -159,7 +159,7 @@ class Analysis:
                                         progress.
     :ivar bool _show_progressbar: If a progressbar should be shown during the analysis. It's independent from
                                     _progress_callback.
-    :ivar progressbar.ProgressBar _progressbar: The progress bar object.
+    :ivar progress.Progress _progressbar: The progress bar object.
     """
 
     project: "Project" = None
@@ -174,13 +174,13 @@ class Analysis:
     _task = None
 
     _PROGRESS_WIDGETS = [
-        rich.progress.TaskProgressColumn(),
-        rich.progress.BarColumn(),
-        rich.progress.TextColumn("Elapsed Time:"),
-        rich.progress.TimeElapsedColumn(),
-        rich.progress.TextColumn("Time:"),
-        rich.progress.TimeRemainingColumn(),
-        rich.progress.TextColumn("{task.description}"),
+        progress.TaskProgressColumn(),
+        progress.BarColumn(),
+        progress.TextColumn("Elapsed Time:"),
+        progress.TimeElapsedColumn(),
+        progress.TextColumn("Time:"),
+        progress.TimeRemainingColumn(),
+        progress.TextColumn("{task.description}"),
     ]
 
     @contextlib.contextmanager
@@ -204,7 +204,7 @@ class Analysis:
         :return: None
         """
 
-        self._progressbar = rich.progress.Progress(*self._PROGRESS_WIDGETS)
+        self._progressbar = progress.Progress(*self._PROGRESS_WIDGETS)
         self._task = self._progressbar.add_task(total=100, description="")
 
         self._progressbar.start()
