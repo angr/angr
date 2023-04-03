@@ -417,8 +417,12 @@ class SimEngineRDVEX(
             elif self.state.is_heap_address(addr):
                 # Load data from the heap
                 heap_offset = self.state.get_heap_offset(addr)
-                vs: MultiValues = self.state.heap_definitions.load(heap_offset, size=size, endness=endness)
-                defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                try:
+                    vs: MultiValues = self.state.heap_definitions.load(heap_offset, size=size, endness=endness)
+                    defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                except SimMemoryMissingError:
+                    continue
+
                 self.state.add_heap_use_by_defs(defs, self._codeloc())
                 result = result.merge(vs) if result is not None else vs
 
