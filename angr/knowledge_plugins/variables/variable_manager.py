@@ -819,10 +819,21 @@ class VariableManagerInternal(Serializable):
                             # parse each location
                             for lo, hi, loc in dv.location:
                                 if lo <= ins_addr < hi and loc is not None:
-                                    if loc.loc_type == VariableLocationType.Register and isinstance(var, SimRegisterVariable) and self.manager._kb._project.arch.registers[_REG_NAMES_x64[loc.relative_addr]][0] == var.reg:
+                                    if (
+                                        loc.loc_type == VariableLocationType.Register
+                                        and isinstance(var, SimRegisterVariable)
+                                        and self.manager._kb._project.arch.registers[_REG_NAMES_x64[loc.relative_addr]][
+                                            0
+                                        ]
+                                        == var.reg
+                                    ):
                                         var.name = dv.name
                                         unified_var.name = dv.name
-                                    if loc.loc_type == VariableLocationType.Stack and isinstance(var, SimStackVariable) and loc.relative_addr == var.offset + func_cfa:
+                                    if (
+                                        loc.loc_type == VariableLocationType.Stack
+                                        and isinstance(var, SimStackVariable)
+                                        and loc.relative_addr == var.offset + func_cfa
+                                    ):
                                         var.name = dv.name
                                         unified_var.name = dv.name
 
