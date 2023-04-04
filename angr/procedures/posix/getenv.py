@@ -25,7 +25,7 @@ class getenv(angr.SimProcedure):
             return self.state.solver.BVS(b"getenv__" + name, self.state.arch.bits, key=("api", "getenv", name.decode()))
 
         while True:
-            m_line = self.state.memory.load(p, self.state.arch.byte_width, endness=self.arch.memory_endness)
+            m_line = self.state.memory.load(p, self.state.arch.bytes, endness=self.arch.memory_endness)
             if self.state.solver.eval(m_line, cast_to=int) == 0:
                 break
             line_len = self.inline_call(strlen, m_line)
