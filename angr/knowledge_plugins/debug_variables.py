@@ -195,7 +195,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
     def variables_in_range(self, low_pc: int, high_pc: int) -> Generator[Variable, None, None]:
         # FIXME: Speed up this function
         for (lo, hi), variables in self._dvar_by_addrs.items():
-            if low_pc <= lo and high_pc >= hi:
+            if lo <= low_pc and hi >= high_pc:
                 yield from variables
 
     def load_from_dwarf(self, elf_object: ELF = None, cu: CompilationUnit = None):
@@ -227,9 +227,14 @@ class DebugVariableManager(KnowledgeBasePlugin):
                 for subp in cu_curr.functions.values():
                     for cle_var in subp.local_variables:
                         cle_var: Variable
-                        low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
-                        high_pc = cle_var.lexical_block.high_pc + obj.mapped_base
-                        self.add_variable(cle_var, low_pc, high_pc)
+
+                        if cle_var.location is None:
+                            low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
+                            high_pc = cle_var.lexical_block.high_pc + obj.mapped_base
+                            self.add_variable(cle_var, low_pc, high_pc)
+                        else:
+                            for low_pc, high_pc, _ in cle_var.location:
+                                self.add_variable(cle_var, low_pc, high_pc)
 
 
 KnowledgeBasePlugin.register_default("dvars", DebugVariableManager)

@@ -3,10 +3,12 @@ import logging
 from collections import defaultdict
 from itertools import count, chain
 
+from elftools.dwarf.descriptions import _REG_NAMES_x64, _REG_NAMES_x86, _REG_NAMES_AArch64
+import ailment.expression
 import networkx
 
 from cle.backends.elf.compilation_unit import CompilationUnit
-from cle.backends.elf.variable import Variable
+from cle.backends.elf.variable import Variable, StackVariable, RegisterVariable, VariableLocationType
 from claripy.utils.orderedset import OrderedSet
 
 from ...protos import variables_pb2
@@ -755,6 +757,74 @@ class VariableManagerInternal(Serializable):
                 continue
             var.name = f"a{idx}"
             var._hash = None
+
+    def map_variable_names_from_debug_info(self, equivalence_classes, dvars):
+        if not self._unified_variables:
+            return
+
+        # TODO: Handle duplicated variable names
+
+        # determine initial activation record offset of the function
+        func_cfa = 0
+        for cft in self.manager._kb._project.loader.main_object.decoded_cft:
+            if cft.table:
+                rule = cft.table[0]
+                if "pc" in rule and "cfa" in rule and rule["pc"] == self.func_addr:
+                    func_cfa = -rule["cfa"].offset
+                    break
+
+        # for each variable, we first calculate its possible alternatives (in terms of AIL registers). this is because
+        # the merge of variables during optimization will cause us to optimize away some variables.
+        var2alternatives = defaultdict(set)
+
+        for var, unified_var in self._variables_to_unified_variables.items():
+            # where is the variable used?
+            accesses = self.get_variable_accesses(var)
+
+            for acc in accesses:
+                for equ_class in equivalence_classes:
+                    matched = False
+                    for ins_addr, atom in equ_class:
+                        if ins_addr == acc.location.ins_addr:
+                            if isinstance(atom, ailment.expression.Register) and isinstance(var, SimRegisterVariable):
+                                if atom.reg_offset == var.reg:
+                                    matched = True
+                                    break
+                    if matched:
+                        for ins_addr, atom in equ_class:
+                            var2alternatives[var].add((ins_addr, atom))
+                        break
+
+        # next, for each variable, match it (and if it has alternatives, each of its alternatives) to a debug variable
+        # TODO: use alternatives
+        for var, unified_var in self._variables_to_unified_variables.items():
+            accesses = self.get_variable_accesses(var)
+
+            for access in accesses:
+                ins_addr = access.location.ins_addr
+                if ins_addr is None:
+                    continue
+                debug_vars = list(dvars.variables_in_range(ins_addr, ins_addr + 16))
+                # further filter by location
+                for dv in debug_vars:
+                    if not dv.external:
+                        if isinstance(dv, RegisterVariable) and isinstance(var, SimRegisterVariable):
+                            var.name = dv.name
+                            unified_var.name = dv.name
+                        elif isinstance(dv, StackVariable) and isinstance(var, SimStackVariable):
+                            if dv.relative_addr == var.offset + func_cfa:
+                                var.name = dv.name
+                                unified_var.name = dv.name
+                        elif isinstance(dv, Variable) and dv.location is not None:
+                            # parse each location
+                            for lo, hi, loc in dv.location:
+                                if lo <= ins_addr < hi and loc is not None:
+                                    if loc.loc_type == VariableLocationType.Register and isinstance(var, SimRegisterVariable) and self.manager._kb._project.arch.registers[_REG_NAMES_x64[loc.relative_addr]][0] == var.reg:
+                                        var.name = dv.name
+                                        unified_var.name = dv.name
+                                    if loc.loc_type == VariableLocationType.Stack and isinstance(var, SimStackVariable) and loc.relative_addr == var.offset + func_cfa:
+                                        var.name = dv.name
+                                        unified_var.name = dv.name
 
     def _register_struct_type(self, ty: SimStruct, name: Optional[str] = None) -> TypeRef:
         if not name:

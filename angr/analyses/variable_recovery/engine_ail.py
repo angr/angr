@@ -56,7 +56,12 @@ class SimEngineVRAIL(
 
     def _ail_handle_Store(self, stmt: ailment.Stmt.Store):
         addr_r = self._expr(stmt.addr)
+
+        old_reference_spoffset = self._reference_spoffset
+        self._reference_spoffset = True
         data = self._expr(stmt.data)
+        self._reference_spoffset = old_reference_spoffset
+
         size = stmt.size
         self._store(addr_r, data, size, stmt=stmt)
 

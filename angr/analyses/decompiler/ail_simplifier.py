@@ -36,6 +36,7 @@ from .ccall_rewriters import CCALL_REWRITERS
 if TYPE_CHECKING:
     from ailment.manager import Manager
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
+    from .replacement_recorder import ReplacementRecorder
 
 
 _l = logging.getLogger(__name__)
@@ -99,11 +100,13 @@ class AILSimplifier(Analysis):
         narrow_expressions=False,
         only_consts=False,
         fold_callexprs_into_conditions=False,
+        replacement_recorder: Optional["ReplacementRecorder"] = None,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions = None
         self._propagator = None
+        self._replacement_recorder = replacement_recorder
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_arg_offsets = stack_arg_offsets
@@ -289,6 +292,7 @@ class AILSimplifier(Analysis):
                                 },
                                 replace_assignment_dsts=True,
                                 replace_loads=True,
+                                replacement_recorder=self._replacement_recorder,
                             )
                         elif isinstance(stmt, Call):
                             tags = dict(stmt.ret_expr.tags)
@@ -303,7 +307,9 @@ class AILSimplifier(Analysis):
                                 **tags,
                             )
                             r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
+                                the_block,
+                                {def_.codeloc: {stmt.ret_expr: new_retexpr}},
+                                replacement_recorder=self._replacement_recorder,
                             )
                         if not r:
                             # couldn't replace the definition...
@@ -361,7 +367,9 @@ class AILSimplifier(Analysis):
                                 )
 
                             r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {use_loc: {use_expr_1: new_use_expr_1}}
+                                the_block,
+                                {use_loc: {use_expr_1: new_use_expr_1}},
+                                replacement_recorder=self._replacement_recorder,
                             )
                         elif len(use_expr_tpl) == 1:
                             if use_expr_0.size > new_use_expr_0.size:
@@ -375,7 +383,9 @@ class AILSimplifier(Analysis):
                                 )
 
                             r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {use_loc: {use_expr_0: new_use_expr_0}}
+                                the_block,
+                                {use_loc: {use_expr_0: new_use_expr_0}},
+                                replacement_recorder=self._replacement_recorder,
                             )
                         else:
                             _l.warning("Nothing to replace at %s.", use_loc)
@@ -494,7 +504,9 @@ class AILSimplifier(Analysis):
         replaced = False
         for (block_addr, block_idx), reps in replacements_by_block_addrs_and_idx.items():
             block = blocks_by_addr_and_idx[(block_addr, block_idx)]
-            r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp)
+            r, new_block = BlockSimplifier._replace_and_build(
+                block, reps, gp=self._gp, replacement_recorder=self._replacement_recorder
+            )
             replaced |= r
             self.blocks[block] = new_block
 
