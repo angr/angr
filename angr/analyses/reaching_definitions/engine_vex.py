@@ -583,7 +583,7 @@ class SimEngineRDVEX(
         elif expr0_v is not None and expr1_v is None:
             # adding a single value to a multivalue
             if expr1.count() == 1 and 0 in expr1:
-                vs = {v.sign_extend(expr0_v.size() - v.size()) + expr0_v for v in expr1[0]}
+                vs = {expr0_v + v.sign_extend(expr0_v.size() - v.size()) for v in expr1[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # adding two single values together
