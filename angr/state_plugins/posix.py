@@ -345,7 +345,7 @@ class SimSystemPosix(SimStatePlugin):
                     if options.ANY_FILE_MIGHT_EXIST in self.state.options:
                         # keep result symbolic, might be either -1 or a positive fd if file exist
                         result = self.state.solver.BVS(
-                            "fd_%s" % ident, self.state.arch.sizeof['int'], key=("file", ident, "fd"), eternal=True
+                            "fd_%s" % ident, self.state.arch.sizeof["int"], key=("file", ident, "fd"), eternal=True
                         )
                         return result
                     return None
