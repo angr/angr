@@ -2633,7 +2633,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Handlers
     #
 
-    def _handle(self, node, is_expr: bool = True):
+    def _handle(self, node, is_expr: bool = True, lvalue: bool = False):
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
 
@@ -2643,15 +2643,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 # special case for Call
                 converted = handler(node, is_expr=is_expr)
             else:
-                converted = handler(node)
+                converted = handler(node, lvalue=lvalue)
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
-    def _handle_Code(self, node):
+    def _handle_Code(self, node, **kwargs):
         return self._handle(node.node, is_expr=False)
 
-    def _handle_Sequence(self, seq):
+    def _handle_Sequence(self, seq, **kwargs):
         lines = []
 
         for node in seq.nodes:
@@ -2662,7 +2662,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CStatements(lines, codegen=self) if len(lines) > 1 else lines[0]
 
-    def _handle_Loop(self, loop_node):
+    def _handle_Loop(self, loop_node, **kwargs):
         tags = {"ins_addr": loop_node.addr}
 
         if loop_node.sort == "while":
@@ -2692,7 +2692,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             raise NotImplementedError()
 
-    def _handle_Condition(self, condition_node: ConditionNode):
+    def _handle_Condition(self, condition_node: ConditionNode, **kwargs):
         tags = {"ins_addr": condition_node.addr}
 
         condition_and_nodes = [
@@ -2712,7 +2712,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
         return code
 
-    def _handle_CascadingCondition(self, cond_node: CascadingConditionNode):
+    def _handle_CascadingCondition(self, cond_node: CascadingConditionNode, **kwargs):
         tags = {"ins_addr": cond_node.addr}
 
         condition_and_nodes = [
@@ -2728,17 +2728,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
         return code
 
-    def _handle_ConditionalBreak(self, node):
+    def _handle_ConditionalBreak(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
 
         return CIfBreak(self._handle(node.condition), tags=tags, codegen=self)
 
-    def _handle_Break(self, node):
+    def _handle_Break(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
 
         return CBreak(tags=tags, codegen=self)
 
-    def _handle_MultiNode(self, node):
+    def _handle_MultiNode(self, node, **kwargs):
         lines = []
 
         for n in node.nodes:
@@ -2747,7 +2747,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CStatements(lines, codegen=self) if len(lines) > 1 else lines[0]
 
-    def _handle_SwitchCase(self, node):
+    def _handle_SwitchCase(self, node, **kwargs):
         """
 
         :param SwitchCaseNode node:
@@ -2761,12 +2761,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         switch_case = CSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
         return switch_case
 
-    def _handle_Continue(self, node):
+    def _handle_Continue(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
 
         return CContinue(tags=tags, codegen=self)
 
-    def _handle_AILBlock(self, node):
+    def _handle_AILBlock(self, node, **kwargs):
         """
 
         :param Block node:
@@ -2789,7 +2789,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # AIL statement handlers
     #
 
-    def _handle_Stmt_Store(self, stmt: Stmt.Store):
+    def _handle_Stmt_Store(self, stmt: Stmt.Store, **kwargs):
         cdata = self._handle(stmt.data)
 
         if cdata.type.size != stmt.size * self.project.arch.byte_width:
@@ -2816,13 +2816,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Assignment(self, stmt):
-        cdst = self._handle(stmt.dst)
-        csrc = self._handle(stmt.src)
+    def _handle_Stmt_Assignment(self, stmt, **kwargs):
+        cdst = self._handle(stmt.dst, lvalue=True)
+        csrc = self._handle(stmt.src, lvalue=False)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False):
+    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
             if not isinstance(stmt.target, str):
@@ -2879,10 +2879,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return result
 
-    def _handle_Stmt_Jump(self, stmt: Stmt.Jump):
+    def _handle_Stmt_Jump(self, stmt: Stmt.Jump, **kwargs):
         return CGoto(self._handle(stmt.target), stmt.target_idx, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_ConditionalJump(self, stmt: Stmt.ConditionalJump):
+    def _handle_Stmt_ConditionalJump(self, stmt: Stmt.ConditionalJump, **kwargs):
         else_node = (
             None
             if stmt.false_target is None
@@ -2896,7 +2896,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
         return ifelse
 
-    def _handle_Stmt_Return(self, stmt: Stmt.Return):
+    def _handle_Stmt_Return(self, stmt: Stmt.Return, **kwargs):
         if not stmt.ret_exprs:
             return CReturn(None, tags=stmt.tags, codegen=self)
         elif len(stmt.ret_exprs) == 1:
@@ -2908,7 +2908,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             ret_expr = stmt.ret_exprs[0]
             return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Label(self, stmt: Stmt.Label):
+    def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
         clabel = CLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
         self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
         return clabel
@@ -2917,13 +2917,26 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # AIL expression handlers
     #
 
-    def _handle_Expr_Register(self, expr: Expr.Register):
+    def _handle_Expr_Register(self, expr: Expr.Register, lvalue: bool = False, **kwargs):
+        def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
+            if old_ty.size == proposed_ty.size:
+                # we do not allow returning a struct for a primitive type
+                if not (isinstance(proposed_ty, SimStruct) and not isinstance(old_ty, SimStruct)):
+                    return proposed_ty
+            return old_ty
+
         if expr.variable:
-            return self._variable(expr.variable, expr.size)
+            cvar = self._variable(expr.variable, None)
+            if expr.variable.size == expr.size:
+                return cvar
+            offset = 0 if expr.variable_offset is None else expr.variable_offset
+            # FIXME: The type should be associated to the register expression itself
+            type_ = self.default_simtype_from_size(expr.size)
+            return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
         else:
             return CRegister(expr, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_Load(self, expr: Expr.Load):
+    def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
         ty = self.default_simtype_from_size(expr.size)
 
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
@@ -2942,11 +2955,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         addr_expr = self._handle(expr.addr)
         return self._access(addr_expr, ty, False, negotiate)
 
-    def _handle_Expr_Tmp(self, expr: Tmp):
+    def _handle_Expr_Tmp(self, expr: Tmp, **kwargs):
         l.warning("FIXME: Leftover Tmp expressions are found.")
         return self._variable(SimTemporaryVariable(expr.tmp_idx), expr.size)
 
-    def _handle_Expr_Const(self, expr, type_=None, reference_values=None, variable=None):
+    def _handle_Expr_Const(self, expr, type_=None, reference_values=None, variable=None, **kwargs):
         inline_string = False
 
         if reference_values is None:
@@ -3000,7 +3013,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_UnaryOp(self, expr):
+    def _handle_Expr_UnaryOp(self, expr, **kwargs):
         return CUnaryOp(
             expr.op,
             self._handle(expr.operand),
@@ -3008,7 +3021,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
         )
 
-    def _handle_Expr_BinaryOp(self, expr: BinaryOp):
+    def _handle_Expr_BinaryOp(self, expr: BinaryOp, **kwargs):
         if expr.variable is not None:
             cvar = self._variable(expr.variable, None)
             return self._access_constant_offset_reference(
@@ -3027,7 +3040,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
 
-    def _handle_Expr_Convert(self, expr: Expr.Convert):
+    def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         if 64 >= expr.to_bits > 32:
             dst_type = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
@@ -3050,15 +3063,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_Dirty(self, expr):
+    def _handle_Expr_Dirty(self, expr, **kwargs):
         return CDirtyExpression(expr, codegen=self)
 
-    def _handle_Expr_ITE(self, expr: Expr.ITE):
+    def _handle_Expr_ITE(self, expr: Expr.ITE, **kwargs):
         return CITE(
             self._handle(expr.cond), self._handle(expr.iftrue), self._handle(expr.iffalse), tags=expr.tags, codegen=self
         )
 
-    def _handle_Reinterpret(self, expr: Expr.Reinterpret):
+    def _handle_Reinterpret(self, expr: Expr.Reinterpret, **kwargs):
         def _to_type(bits, typestr):
             if typestr == "I":
                 if bits == 32:
@@ -3082,12 +3095,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         dst_type = _to_type(expr.to_bits, expr.to_type)
         return CTypeCast(src_type, dst_type, self._handle(expr.operand), tags=expr.tags, codegen=self)
 
-    def _handle_MultiStatementExpression(self, expr: Expr.MultiStatementExpression):
+    def _handle_MultiStatementExpression(self, expr: Expr.MultiStatementExpression, **kwargs):
         cstmts = CStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)
         cexpr = self._handle(expr.expr)
         return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset):
+    def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         if expr.variable is not None:
             var_thing = self._variable(expr.variable, expr.size)
             var_thing.tags = dict(expr.tags)

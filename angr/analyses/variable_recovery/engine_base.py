@@ -264,10 +264,23 @@ class SimEngineVRBase(SimEngineLight):
         self._reference(richr, codeloc, src=src)
 
         # handle register writes
-        existing_vars = self.variable_manager[self.func_addr].find_variables_by_atom(
+
+        # first check if there is an existing variable for the atom at this location already
+        existing_vars: Set[Tuple[SimVariable, int]] = self.variable_manager[self.func_addr].find_variables_by_atom(
             self.block.addr, self.stmt_idx, dst
         )
-        existing_vars: Set[Tuple[SimVariable, int]]
+        if not existing_vars:
+            # next check if we are overwriting *part* of an existing variable
+            addr_and_variables = set()
+            try:
+                vs: MultiValues = self.state.register_region.load(offset, size=size, endness=self.arch.register_endness)
+                for values in vs.values():
+                    for value in values:
+                        addr_and_variables.update(self.state.extract_variables(value))
+            except SimMemoryMissingError:
+                pass
+            existing_vars = {(av[1], av[0]) for av in addr_and_variables}
+
         if not existing_vars:
             variable = SimRegisterVariable(
                 offset,
