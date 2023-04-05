@@ -333,6 +333,7 @@ class SimSystemPosix(SimStatePlugin):
             fd = preferred_fd
         else:
             fd = self._pick_fd()
+        result = fd
 
         flags = self.state.solver.eval(flags)
         writing = (flags & Flags.O_ACCMODE) in (Flags.O_RDWR, Flags.O_WRONLY)
@@ -344,11 +345,11 @@ class SimSystemPosix(SimStatePlugin):
                 if options.ALL_FILES_EXIST not in self.state.options:
                     if options.ANY_FILE_MIGHT_EXIST in self.state.options:
                         # keep result symbolic, might be either -1 or a positive fd if file exist
-                        result = self.state.solver.BVS(
-                            "fd_%s" % ident, self.state.arch.sizeof['int'], key=("file", ident, "fd"), eternal=True
-                        )
-                        return result
-                    return None
+                        file_exists = self.state.solver.BoolS("file_exists_%s" % ident, explicit_name=True)
+                        m1 = self.state.solver.BVV(-1, self.state.arch.sizeof['int'])
+                        result = self.state.solver.If(file_exists, fd, m1)
+                    else:
+                        return None
                 l.warning("Trying to open unknown file %s - created a symbolic file since ALL_FILES_EXIST is set", name)
                 simfile = SimFile(
                     name,
@@ -365,7 +366,7 @@ class SimSystemPosix(SimStatePlugin):
         simfd = SimFileDescriptor(simfile, flags)
         simfd.set_state(self.state)
         self.fd[fd] = simfd
-        return fd
+        return result
 
     def open_socket(self, ident):
         fd = self._pick_fd()
