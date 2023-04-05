@@ -76,6 +76,9 @@ UNKNOWN_FILES_HAVE_EOF = FILES_HAVE_EOF
 # Attempting to open an unkown file will result in creating it with a symbolic length
 ALL_FILES_EXIST = "ALL_FILES_EXIST"
 
+# Unknown files might or might not exist
+ANY_FILE_MIGHT_EXIST = "ANY_FILE_MIGHT_EXIST"
+
 # Reads from devices will have a symbolic size
 SHORT_READS = "SHORT_READS"
 
