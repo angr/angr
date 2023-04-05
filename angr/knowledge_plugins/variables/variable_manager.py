@@ -3,7 +3,6 @@ import logging
 from collections import defaultdict
 from itertools import count, chain
 
-from elftools.dwarf.descriptions import _REG_NAMES_x64, _REG_NAMES_x86, _REG_NAMES_AArch64
 import ailment.expression
 import networkx
 
@@ -797,6 +796,17 @@ class VariableManagerInternal(Serializable):
 
         # next, for each variable, match it (and if it has alternatives, each of its alternatives) to a debug variable
         # TODO: use alternatives
+
+        dwarf_regs = self.manager._kb._project.arch.dwarf_registers
+        regs = self.manager._kb._project.arch.registers
+        MAX_INSN_SIZE = 16  # TODO: Handle other architectures
+
+        if not dwarf_regs:
+            l.warning(
+                "DWARF registers is not set for architecture %s. Please report to GitHub.",
+                self.manager._kb._project.arch.name,
+            )
+
         for var, unified_var in self._variables_to_unified_variables.items():
             accesses = self.get_variable_accesses(var)
 
@@ -804,38 +814,44 @@ class VariableManagerInternal(Serializable):
                 ins_addr = access.location.ins_addr
                 if ins_addr is None:
                     continue
-                debug_vars = list(dvars.variables_in_range(ins_addr, ins_addr + 16))
+                debug_vars = [
+                    dv for dv in dvars.variables_in_range(ins_addr, ins_addr + MAX_INSN_SIZE) if not dv.external
+                ]
                 # further filter by location
                 for dv in debug_vars:
-                    if not dv.external:
-                        if isinstance(dv, RegisterVariable) and isinstance(var, SimRegisterVariable):
+                    if (
+                        isinstance(dv, RegisterVariable)
+                        and isinstance(var, SimRegisterVariable)
+                        and dv.relative_addr is not None
+                        and 0 <= dv.relative_addr < len(dwarf_regs)
+                        and regs[dwarf_regs[dv.relative_addr]][0] == var.reg
+                    ):
+                        var.name = dv.name
+                        unified_var.name = dv.name
+                    elif isinstance(dv, StackVariable) and isinstance(var, SimStackVariable):
+                        if dv.relative_addr == var.offset + func_cfa:
                             var.name = dv.name
                             unified_var.name = dv.name
-                        elif isinstance(dv, StackVariable) and isinstance(var, SimStackVariable):
-                            if dv.relative_addr == var.offset + func_cfa:
-                                var.name = dv.name
-                                unified_var.name = dv.name
-                        elif isinstance(dv, Variable) and dv.location is not None:
-                            # parse each location
-                            for lo, hi, loc in dv.location:
-                                if lo <= ins_addr < hi and loc is not None:
-                                    if (
-                                        loc.loc_type == VariableLocationType.Register
-                                        and isinstance(var, SimRegisterVariable)
-                                        and self.manager._kb._project.arch.registers[_REG_NAMES_x64[loc.relative_addr]][
-                                            0
-                                        ]
-                                        == var.reg
-                                    ):
-                                        var.name = dv.name
-                                        unified_var.name = dv.name
-                                    if (
-                                        loc.loc_type == VariableLocationType.Stack
-                                        and isinstance(var, SimStackVariable)
-                                        and loc.relative_addr == var.offset + func_cfa
-                                    ):
-                                        var.name = dv.name
-                                        unified_var.name = dv.name
+                    elif isinstance(dv, Variable) and dv.location is not None:
+                        # parse each location
+                        for lo, hi, loc in dv.location:
+                            if lo <= ins_addr < hi and loc is not None:
+                                if (
+                                    loc.loc_type == VariableLocationType.Register
+                                    and isinstance(var, SimRegisterVariable)
+                                    and loc.relative_addr is not None
+                                    and 0 <= loc.relative_addr < len(dwarf_regs)
+                                    and regs[dwarf_regs[loc.relative_addr]][0] == var.reg
+                                ):
+                                    var.name = dv.name
+                                    unified_var.name = dv.name
+                                if (
+                                    loc.loc_type == VariableLocationType.Stack
+                                    and isinstance(var, SimStackVariable)
+                                    and loc.relative_addr == var.offset + func_cfa
+                                ):
+                                    var.name = dv.name
+                                    unified_var.name = dv.name
 
     def _register_struct_type(self, ty: SimStruct, name: Optional[str] = None) -> TypeRef:
         if not name:
