@@ -981,7 +981,7 @@ class VMDeobfuscation(Analysis):
         # profiler = cProfile.Profile()
         # profiler.enable()
 
-        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)#start_state=saved_start_state)
+        new_cfg, symbolic_expr_locations_blockwise = self.symbolizer(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)#start_state=saved_start_state)
         # profiler.disable()
         # stats = pstats.Stats(profiler).sort_stats('tottime')
         # stats.print_stats()
@@ -1171,6 +1171,117 @@ class VMDeobfuscation(Analysis):
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
+
+    def symbolizer(self, cfg, proj, start_addr, q, start_state=None, options=None,
+                             prev_symbolic_expr_locations_blockwise=None, vm_vpc=None,
+                             return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None):
+        self.project.prev_symbolic_expr_locations_blockwise = prev_symbolic_expr_locations_blockwise
+        print("Doing constant propagation")
+        # old_graph = cfg.graph
+        # new_model = self.new_model_graph(old_graph, proj, "temporary1")
+        # new_cfg_graph = new_model.graph
+        new_model = cfg
+        new_cfg_graph = cfg.graph
+
+        ## Setting the input state for the first node(need to automate this)
+        if start_addr == None:
+            main = proj.loader.main_object.get_symbol("main")
+            start_addr = main.rebased_addr
+        if start_state:
+            initial_input_state = start_state
+        else:
+            print("Using blank state!")
+            # kwargs = {'plugins': {'memory': DefaultListPagesMemory(memory_id="mem")}, 'cle_memory_backer':proj.loader, }#,
+            #                       #'registers': TopListPagesMemory(memory_id="reg")}}
+            initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath",
+                                                           add_options={'REPLACEMENT_SOLVER', 'DO_CCALLS',
+                                                                        'SYMBOL_FILL_UNCONSTRAINED_REGISTERS',
+                                                                        'SYMBOL_FILL_UNCONSTRAINED_MEMORY',
+                                                                        'TOP_LIST_REGISTERS_SYMBOLIZER',
+                                                                        'TOP_LIST_MEMORY_SYMBOLIZER'})  # 'REPLACEMENT_SOLVER' removed to test the spped without replacements
+            # initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+
+            initial_input_state.register_plugin('partial_symbolic_constraint_solver',
+                                                angr.state_plugins.solver.SimSolver(
+                                                    claripy.solvers.SolverReplacement(claripy.Solver(),
+                                                                                      unsafe_replacement=True,
+                                                                                      auto_replace=False)))  # auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
+
+            if proj.arch.bits == 32:
+                initial_input_state.registers.store('ss', 0)
+
+            # preconstrain the stack pointer
+            actual_stack_end = initial_input_state.solver.eval(initial_input_state.regs.sp)
+            initial_input_state.regs.sp = initial_input_state.solver.BVS("precon_sp", 64)
+            initial_input_state.preconstrainer.preconstrain(actual_stack_end, initial_input_state.regs.sp)
+
+            initial_input_state.partial_symbolic_constraint_solver.add(initial_input_state.regs.sp == actual_stack_end)
+
+            initial_input_state.globals['concretized_load_addr_dict'] = {}
+            initial_input_state.globals['replaced_asts_str'] = {}
+            initial_input_state.globals['existing_mba_split_constraints'] = []
+            initial_input_state.globals['mba_locs'] = {}
+
+        ####### Adding breakpoints
+        def annotate_stack_read_value(state):
+            is_stack_touched = False
+            if not isinstance(state.inspect.mem_read_address, int):
+                for annotation in state.inspect.mem_read_address.annotations:
+                    if isinstance(annotation, StackTouchedAnnotation):
+                        is_stack_touched = True
+                        break
+            if is_stack_touched:
+                state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr,
+                                                                             StackTouchedAnnotation(1))
+
+        initial_input_state.inspect.add_breakpoint('mem_read',
+                                                   BP(
+                                                       BP_AFTER,
+                                                       action=annotate_stack_read_value
+                                                   ))
+
+        def preconstrain_return_value(state):
+            if state.inspect.simprocedure_name == "malloc" and state.inspect.simprocedure_result is not None and not state.solver.symbolic(
+                    state.inspect.simprocedure_result):
+                value = state.solver.eval(state.inspect.simprocedure_result)
+                state.inspect.simprocedure_result = state.solver.BVS("return_val", 64)
+                state.preconstrainer.preconstrain(value, state.inspect.simprocedure_result)
+            return
+
+        ### preconstraining return values of library calls like malloc
+        initial_input_state.inspect.add_breakpoint('simprocedure', BP(BP_AFTER, action=preconstrain_return_value))
+
+        ## annotating and preconstraining the stack pointer
+        # self.annotate_and_preconstrain_sp(initial_input_state)
+
+        for node in new_model._nodes_by_addr[start_addr]:
+            if node.addr == start_addr and node.block_id.vm_vpc == vm_vpc:
+                node.input_state = initial_input_state
+        ## find the replacements
+
+        # replacing the printf hook with unconstrained return just for constant prop, since it get's a symbolic fmt str poitner
+        for func_addr, orig_sim_proc, repl_sim_proc in self.constant_prop_func_replacements:
+            proj.unhook(func_addr)
+            proj.hook(func_addr, repl_sim_proc)
+
+        prop = proj.analyses.Symbolizer(graph=new_cfg_graph, iropt_level=1, start=start_addr, max_iterations=2)
+
+        for func_addr, orig_sim_proc, repl_sim_proc in self.constant_prop_func_replacements:
+            proj.unhook(func_addr)
+            proj.hook(func_addr, orig_sim_proc)
+
+
+        tmp_syb_blockwise = defaultdict(dict)
+        for codeloc, expr_list in prop.symbolic_expr_locations_blockwise.items():
+            if codeloc in tmp_syb_blockwise[codeloc.block_id]:
+                tmp_syb_blockwise[codeloc.block_id][codeloc] = tmp_syb_blockwise[codeloc.block_id][codeloc] + expr_list
+            else:
+                tmp_syb_blockwise[codeloc.block_id][codeloc] = expr_list
+
+        prop.symbolic_expr_locations_blockwise = tmp_syb_blockwise
+
+        print("Done")
+        return new_model, prop.symbolic_expr_locations_blockwise
 
     def symbolify_exprs(self, cfg, proj, symbolic_expr_locations_blockwise, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None):
         start_state.globals['to_use_symbolic_exprs'] = []
@@ -3018,7 +3129,7 @@ class VMDeobfuscation(Analysis):
             print("Using blank state!")
             # kwargs = {'plugins': {'memory': DefaultListPagesMemory(memory_id="mem")}, 'cle_memory_backer':proj.loader, }#,
             #                       #'registers': TopListPagesMemory(memory_id="reg")}}
-            initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath", add_options={'REPLACEMENT_SOLVER','DO_CCALLS', 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS', 'SYMBOL_FILL_UNCONSTRAINED_MEMORY', 'TOP_LIST_REGISTERS', 'TOP_LIST_MEMORY'})#'REPLACEMENT_SOLVER' removed to test the spped without replacements
+            initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath", add_options={'REPLACEMENT_SOLVER','DO_CCALLS', 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS', 'SYMBOL_FILL_UNCONSTRAINED_MEMORY', 'TOP_LIST_REGISTERS_CONSTANT_PROP', 'TOP_LIST_MEMORY_CONSTANT_PROP'})#'REPLACEMENT_SOLVER' removed to test the spped without replacements
             #initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
 
             initial_input_state.register_plugin('partial_symbolic_constraint_solver',angr.state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(), unsafe_replacement=True, auto_replace=False))) #auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
