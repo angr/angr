@@ -801,6 +801,11 @@ class VariableManagerInternal(Serializable):
         regs = self.manager._kb._project.arch.registers
         MAX_INSN_SIZE = 16  # TODO: Handle other architectures
 
+        def _get_reg_offset(reg_name_may_not_exist: str) -> Optional[int]:
+            if reg_name_may_not_exist not in regs:
+                return None
+            return regs[reg_name_may_not_exist][0]
+
         if not dwarf_regs:
             l.warning(
                 "DWARF registers is not set for architecture %s. Please report to GitHub.",
@@ -824,7 +829,7 @@ class VariableManagerInternal(Serializable):
                         and isinstance(var, SimRegisterVariable)
                         and dv.relative_addr is not None
                         and 0 <= dv.relative_addr < len(dwarf_regs)
-                        and regs[dwarf_regs[dv.relative_addr]][0] == var.reg
+                        and _get_reg_offset(dwarf_regs[dv.relative_addr]) == var.reg
                     ):
                         var.name = dv.name
                         unified_var.name = dv.name
@@ -841,7 +846,7 @@ class VariableManagerInternal(Serializable):
                                     and isinstance(var, SimRegisterVariable)
                                     and loc.relative_addr is not None
                                     and 0 <= loc.relative_addr < len(dwarf_regs)
-                                    and regs[dwarf_regs[loc.relative_addr]][0] == var.reg
+                                    and _get_reg_offset(dwarf_regs[loc.relative_addr]) == var.reg
                                 ):
                                     var.name = dv.name
                                     unified_var.name = dv.name
