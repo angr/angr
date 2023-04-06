@@ -2931,7 +2931,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return cvar
             offset = 0 if expr.variable_offset is None else expr.variable_offset
             # FIXME: The type should be associated to the register expression itself
-            type_ = self.default_simtype_from_size(expr.size)
+            type_ = self.default_simtype_from_size(expr.size, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
         else:
             return CRegister(expr, tags=expr.tags, codegen=self)
