@@ -205,6 +205,13 @@ class SimEngineVRAIL(
             if self.project.loader.find_segment_containing(expr.value) is not None:
                 r = self._load_from_global(expr.value, 1, expr=expr)
                 ty = r.typevar
+            elif expr.value == 0:
+                # this can be viewed as a NULL
+                ty = (
+                    typeconsts.Pointer64(typeconsts.TopType())
+                    if self.arch.bits == 64
+                    else typeconsts.Pointer32(typeconsts.TopType())
+                )
             else:
                 ty = typeconsts.int_type(expr.size * self.state.arch.byte_width)
             v = claripy.BVV(expr.value, expr.size * self.state.arch.byte_width)
