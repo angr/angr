@@ -279,7 +279,7 @@ class SimEngineVRBase(SimEngineLight):
                         addr_and_variables.update(self.state.extract_variables(value))
             except SimMemoryMissingError:
                 pass
-            existing_vars = {(av[1], av[0]) for av in addr_and_variables}
+            existing_vars = {(av[1], av[0]) for av in addr_and_variables if av[1].size > size}
 
         if not existing_vars:
             variable = SimRegisterVariable(
@@ -875,4 +875,7 @@ class SimEngineVRBase(SimEngineLight):
             r_value = next(iter(value_list[0]))
         else:
             r_value = self.state.top(size * self.arch.byte_width)  # fall back to top
+        if var is not None and var.size != size:
+            # ignore the variable and the associated type if we are only reading part of the variable
+            return RichR(r_value, variable=var)
         return RichR(r_value, variable=var, typevar=typevar)
