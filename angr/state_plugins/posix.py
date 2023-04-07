@@ -424,10 +424,10 @@ class SimSystemPosix(SimStatePlugin):
         """
         Same behavior as get_fd(fd), only the result is a concrete integer fd instead of a SimFileDescriptor.
         """
-
+        if isinstance(fd, int):
+            return fd
         try:
-            zero = self.state.solver.BVV(0, self.state.arch.sizeof["int"])
-            concr_fd = self.state.solver.eval_one(fd, extra_constraints=(self.state.solver.SGE(fd, zero),))
+            concr_fd = self.state.solver.eval_one(fd, extra_constraints=(self.state.solver.SGE(fd, 0),))
             return concr_fd
         except SimSolverError:
             pass
@@ -466,7 +466,7 @@ class SimSystemPosix(SimStatePlugin):
         return True
 
     def fstat(self, fd):
-        stat, result = self.fstat_with_result(fd)
+        stat, _ = self.fstat_with_result(fd)
         return stat
 
     def fstat_with_result(self, fd):
