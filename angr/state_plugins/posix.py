@@ -459,8 +459,13 @@ class SimSystemPosix(SimStatePlugin):
         except SimPosixError:
             return False
 
+        try:
+            simfd = self.fd[concr_fd]
+        except IndexError:
+            return False
+
         self.state.history.add_event("fs_close", fd=concr_fd, close_idx=len(self.closed_fds))
-        self.closed_fds.append((concr_fd, self.fd[concr_fd]))
+        self.closed_fds.append((concr_fd, simfd))
 
         del self.fd[concr_fd]
         return True
