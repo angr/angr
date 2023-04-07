@@ -29,7 +29,7 @@ from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotat
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
-
+from ...storage import SimMemoryObject
 
 debug=False
 
@@ -137,13 +137,19 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
             import ipdb;ipdb.set_trace()
 
         loc_key = str(self.state.globals['cur_block_id']) + str(hex(self.state.scratch.ins_addr))
-        if loc_key in self.state.globals['mba_locs']:
-            import ipdb;ipdb.set_trace()
-            result_tup, addr_tup = self.state.globals['mba_locs'][loc_key]
-            self.state.registers.store(self.state.arch.registers[addr_tup[0]][0], addr_tup[1])
-            temp_no = self.state.scratch.irsb.statements[self.state.scratch.stmt_idx].data.addr.tmp
-            self.state.scratch.temps[temp_no] = addr_tup[1]
-            return result_tup[1], None
+        # if loc_key in self.state.globals['mba_locs']:
+        #     import ipdb;ipdb.set_trace()
+        #     result_tup, addr_tup = self.state.globals['mba_locs'][loc_key]
+        #     self.state.registers.store(self.state.arch.registers[addr_tup[0]][0], addr_tup[1])
+        #     temp_no = self.state.scratch.irsb.statements[self.state.scratch.stmt_idx].data.addr.tmp
+        #     self.state.scratch.temps[temp_no] = addr_tup[1]
+        #
+        #     ## update the unique mba_split_cond
+        #     state_split_cond = claripy.BoolS('mba_state_split_cond')
+        #     new_result_tup = (result_tup[0], claripy.If(state_split_cond, result_tup[1].args[1], result_tup[1].args[2]))
+        #     new_addr_tup = (addr_tup[0], claripy.If(state_split_cond, addr_tup[1].args[1], addr_tup[1].args[2]))
+        #     self.state.globals['mba_locs'][loc_key] = [new_result_tup, new_addr_tup]
+        #     return result_tup[1], None
 
         simplified_addr = addr[0]
         # if PropagatorState.is_top(addr[0]):
@@ -299,6 +305,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 res=re.search('(.*), .*\[(.*)\]',op_str)
 
                 loc_key = str(self.state.globals['cur_block_id']) + str(hex(self.state.scratch.ins_addr))
+                state_split_cond = claripy.BoolS('mba_state_split_cond')
                 self.state.globals['mba_locs'][loc_key] = [(res.groups()[0], claripy.If(state_split_cond, loaded_values[0], loaded_values[1])), (res.groups()[1], claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1]))]
 
 
@@ -442,6 +449,10 @@ class PropagatorState:
         """
         if isinstance(expr, str) and expr == "TOP":
             return True
+        else:
+            for var in expr.variables:
+                if var.startswith("TOP"):
+                    return True
         return False
 
     def _get_weakref(self):
@@ -581,9 +592,9 @@ class PropagatorVEXState(PropagatorState):
                         merged_replacements[loc][var] = repl
                         merge_occurred = True
                     else:
-                        if PropagatorState.is_top(repl) and PropagatorState.is_top(merged_replacements[loc][var]):
+                        if self.is_top_str(repl) and self.is_top_str(merged_replacements[loc][var]):
                             continue
-                        elif PropagatorState.is_top(repl) or PropagatorState.is_top(merged_replacements[loc][var]):
+                        elif self.is_top_str(repl) or self.is_top_str(merged_replacements[loc][var]):
                             merged_replacements[loc][var] = "TOP"
                             merge_occurred = True
 
@@ -593,6 +604,11 @@ class PropagatorVEXState(PropagatorState):
                             merge_occurred = True
 
         return merged_replacements, merge_occurred
+
+    def is_top_str(self, repl):
+        if isinstance(repl, str) and repl == "TOP":
+            return True
+        return False
 
 
 # AIL state
@@ -682,6 +698,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         self.replacements = {}
         self.symbolic_expr_locations_blockwise = {}
         self._engine_ail = None
+        self._prev_input_states = { }
         self._engine= PropagatorEmulatedEngine(project=self.project)
         self._analyze()
         self._initial_state = None
@@ -699,7 +716,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         #Get all the symbolic locations
         for loc, vars_ in self.replacements.items():
             for var, repl in vars_.items():
-                if PropagatorState.is_top(repl):
+                if self.is_top_str(repl):
                     if loc in self.symbolic_expr_locations_blockwise:
                         self.symbolic_expr_locations_blockwise[loc].append(var)
                     else:
@@ -740,6 +757,20 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     def _pre_job_handling(self, job):
         pass
 
+    @staticmethod
+    def _mo_cmp(
+        mo_self,
+        mo_other,
+        addr: int,
+        size: int,
+    ):  # pylint:disable=unused-argument
+        # comparing bytes from two sets of memory objects
+        # we don't need to resort to byte-level comparison. object-level is good enough.
+        if PropagatorState.is_top(mo_self.object) and PropagatorState.is_top(mo_other.object):
+            return True
+
+        return None
+
     def _initial_abstract_state(self, node):
         if not node.input_state:
             # This is for nodes that do not have any concrete state yet
@@ -777,6 +808,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
     def _run_on_node(self, node, abstract_state):
         print(node)
+        if str(node) == "<CFGENode 0x140061ee8 ()vm-vpc:5368833178 [2]>":
+            import ipdb;ipdb.set_trace()
 
         concrete_states = abstract_state.get_concrete_state(node.block_id)
         if len(concrete_states) == 0:
@@ -784,20 +817,42 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             # didn't find any state going here
             return False, abstract_state
 
-        if abstract_state is not self._initial_state:
-            print("copying state")
-            # make a copy of the state if it's not the initial state
-            abstract_state = abstract_state.copy()
-            print("done")
+        if node.block_id in self._prev_input_states and len(list(self.graph.predecessors(node))) > 1:
+            # right now we assume only one concrete state
+            changed = self.compare_concrete_states(concrete_states[0], self._prev_input_states[node.block_id])
+        else:
+            changed = True
 
-            # clear previous saved abstract states
-            if len(list(self.graph.predecessors(node))) == 1:
-                for pred in self.graph.predecessors(node):
-                    if len(list(self.graph.predecessors(pred))) > 1:
-                        continue
-                    else:
-                        self._states[pred.block_id] = None
-                        self._input_states[pred] = None
+        if len(concrete_states) == 1:
+            self._prev_input_states[node.block_id] = concrete_states[0]
+        else:
+            import ipdb;ipdb.set_trace()
+
+        if not changed:
+            return False, abstract_state
+
+        # if abstract_state is not self._initial_state:
+        #     print("copying state")
+        #     # make a copy of the state if it's not the initial state
+        #     abstract_state = abstract_state.copy()
+        #     print("done")
+        #
+        #     # clear previous saved abstract states
+        #     if len(list(self.graph.predecessors(node))) == 1:
+        #         for pred in self.graph.predecessors(node):
+        #             if len(list(self.graph.predecessors(pred))) > 1:
+        #                 continue
+        #             else:
+        #                 self._states[pred.block_id] = None
+        #                 self._input_states[pred] = None
+
+        if abstract_state is not self._initial_state:
+            # make a copy of the state if it's not the initial state
+            if node.block_id in self._states:
+                prev_replacements = self._states[node.block_id]._replacements
+                abstract_state = PropagatorVEXState(arch=self.project.arch, replacements=prev_replacements)
+            else:
+                abstract_state = PropagatorVEXState(arch=self.project.arch)
 
 
 
@@ -974,6 +1029,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
                         else:
+                            import ipdb;
+                            ipdb.set_trace()
                             new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                             new_sim_successors.artifacts = sim_successors.artifacts
                             new_sim_successors.engine = sim_successors.engine
@@ -1126,22 +1183,27 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 succ.globals['abstract_state'] = None
             # node.input_state.globals['cur_block_id'] = block_key
 
-            prev_abstract_state = None
-
-            if not changed:
-                if block_key in self._states and self._states[block_key]:
-                    prev_abstract_state = self._states[block_key]
-                    # the comparision order matters
-                    changed = self._changed(prev_abstract_state._replacements, abstract_state._replacements)
-                else:
-                    # It's the first time exploring this node
-                    changed = True
-
-            if changed is False:
-                merge_res = self._merge_replacements(self.replacements, abstract_state._replacements)
+            self._merge_replacements(self.replacements, abstract_state._replacements)
 
             for succ in symbolic_sim_successors.all_successors:
                 all_successors[succ.regs.ip].append(succ)
+
+            prev_abstract_state = None
+
+            # if not changed:
+            #     if block_key in self._states and self._states[block_key]:
+            #         prev_abstract_state = self._states[block_key]
+            #         # the comparision order matters
+            #         changed = self._changed(prev_abstract_state._replacements, abstract_state._replacements)
+            #     else:
+            #         # It's the first time exploring this node
+            #         changed = True
+            #
+            # if changed is False:
+            #     merge_res = self._merge_replacements(self.replacements, abstract_state._replacements)
+
+            # for succ in symbolic_sim_successors.all_successors:
+            #     all_successors[succ.regs.ip].append(succ)
 
         print("replacemtns: "+str(len(self.replacements)))
         print("symb locs: "+str(len(self.symbolic_expr_locations_blockwise)))
@@ -1183,45 +1245,119 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         self._states[block_key] = abstract_state
 
-        if changed:
-            return True, abstract_state
-        else:
-            return False, abstract_state
+        return True, abstract_state
 
-    def compare_concrete_states(self, abstract_state0, abstract_state1):
+        # if changed:
+        #     return True, abstract_state
+        # else:
+        #     return False, abstract_state
+
+    def compare_concrete_states(self, conc_state0, conc_state1):
         changed = False
 
-        if len(abstract_state1.concrete_states) == len(abstract_state0.concrete_states) and len(abstract_state1.concrete_states) == 1:
-            all_plugins = set(abstract_state1.concrete_states[0].plugins.keys())
-            for p in all_plugins:
-                if p in ["memory","registers"]:
-                    plugin0 = abstract_state0.concrete_states[0].plugins[p]
-                    plugin1 = abstract_state1.concrete_states[0].plugins[p]
-                    changed_pages = plugin1.changed_pages(plugin0)
-
-
-                    if len(changed_pages) != 0:
-                        for changed_page, changed_offsets in changed_pages.items():
-                            if changed_offsets is None:
-                                changed_pages_and_offsets[changed_page] = None
-                            elif changed_page not in changed_pages_and_offsets:  # changed_offsets is a set of offsets (ints)
-                                # update our dict
-                                changed_pages_and_offsets[changed_page] = changed_offsets
-                            elif changed_pages_and_offsets[changed_page] is None:  # changed_page in our dict
-                                # in at least one `other` memory can we not determine the changed offsets
-                                # do nothing
-                                pass
-                            else:
-                                # union changed_offsets with known ones
-                                changed_pages_and_offsets[changed_page] = changed_pages_and_offsets[changed_page].union(
-                                    changed_offsets
-                                )
-                        return True
-                    else:
-                        import ipdb;ipdb.set_trace()
+        # if len(conc_state1.concrete_states) == len(conc_state0.concrete_states) and len(conc_state1.concrete_states) == 1:
+        all_plugins = set(conc_state1.plugins.keys())
+        for p in all_plugins:
+            if p in ["memory","registers"]:
+                plugin0 = conc_state0.plugins[p]
+                plugin1 = conc_state1.plugins[p]
+                changed_pages = self.changed_pages(plugin1, plugin0)
+                if len(changed_pages) != 0:
+                    return True
+                else:
+                    import ipdb;ipdb.set_trace()
 
 
         return changed
+
+    def changed_pages(self,plugin0, plugin1):
+        my_pages = set(plugin0._pages)
+        other_pages = set(plugin1._pages)
+        intersection = my_pages.intersection(other_pages)
+        difference = my_pages.symmetric_difference(other_pages)
+        changes= {d: None for d in difference}
+
+        for pageno in intersection:
+            my_page = plugin0._pages[pageno]
+            other_page = plugin1._pages[pageno]
+
+            if (my_page is None) ^ (other_page is None):
+                changes[pageno] = None
+            elif my_page is None:
+                pass
+            elif my_page is other_page:
+                pass
+            else:
+                changed_offsets = self.changed_bytes(my_page, other_page, page_addr=pageno * plugin0.page_size)
+                if changed_offsets:
+                    changes[pageno] = changed_offsets
+
+        return changes
+
+    def changed_bytes(self, cur_page, other: "ListPage", page_addr: int = None):
+        candidates = None
+        if candidates is None:
+            candidates = set()
+            if cur_page.sinkhole is None:
+                candidates |= cur_page.stored_offset
+            else:
+                for i in range(len(cur_page.content)):
+                    if cur_page._contains(i, page_addr):
+                        candidates.add(i)
+
+            if other.sinkhole is None:
+                candidates |= other.stored_offset
+            else:
+                for i in range(len(other.content)):
+                    if other._contains(i, page_addr):
+                        candidates.add(i)
+
+        byte_width = 8  # TODO: Introduce self.state if we want to use self.state.arch.byte_width
+        differences = set()
+        for c in candidates:
+            s_contains = cur_page._contains(c, page_addr)
+            o_contains = other._contains(c, page_addr)
+            if not s_contains and o_contains:
+                differences.add(c)
+            elif s_contains and not o_contains:
+                differences.add(c)
+            else:
+                if cur_page.content[c] is None:
+                    cur_page.content[c] = SimMemoryObject(
+                        cur_page.sinkhole.bytes_at(page_addr + c, 1),
+                        page_addr + c,
+                        byte_width=byte_width,
+                        endness="Iend_BE",
+                    )
+                if other.content[c] is None:
+
+                    other.content[c] = SimMemoryObject(
+                        other.sinkhole.bytes_at(page_addr + c, 1),
+                        page_addr + c,
+                        byte_width=byte_width,
+                        endness="Iend_BE",
+                    )
+
+                if s_contains and cur_page.content[c] != other.content[c]:
+                    same = None
+                    if self._mo_cmp is not None:
+                        same = self._mo_cmp(cur_page.content[c], other.content[c], page_addr + c, 1)
+                    if same is None:
+                        # Try to see if the bytes are equal
+                        self_byte = cur_page.content[c].bytes_at(page_addr + c, 1)
+                        other_byte = other.content[c].bytes_at(page_addr + c, 1)
+                    #    same = self_byte is other_byte
+                    # Ashwin added this to remove the problem that arises from comparing same valued asts with different(only hash is different) annotations
+                        if not (self_byte == other_byte).is_true():
+                            differences.add(c)
+
+                    if same is False:
+                        differences.add(c)
+                else:
+                    # this means the byte is in neither memory
+                    pass
+
+        return differences
 
     def _changed(self, replacements_0, replacements_1):
         return not(replacements_1 == replacements_0)
@@ -1255,9 +1391,9 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                         replacements_0[loc][var] = repl
                         merge_occurred = True
                     else:
-                        if PropagatorState.is_top(repl) and PropagatorState.is_top(replacements_0[loc][var]):
+                        if self.is_top_str(repl) and self.is_top_str(replacements_0[loc][var]):
                             continue
-                        elif PropagatorState.is_top(repl) or PropagatorState.is_top(replacements_0[loc][var]):
+                        elif self.is_top_str(repl) or self.is_top_str(replacements_0[loc][var]):
                             replacements_0[loc][var] = "TOP"
                             merge_occurred = True
 
@@ -1266,6 +1402,12 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                             merge_occurred = True
 
         return merge_occurred
+
+    def is_top_str(self, repl):
+        if isinstance(repl, str) and repl == "TOP":
+            return True
+        return False
+
 
     def _intra_analysis(self):
         pass
