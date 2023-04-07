@@ -348,15 +348,16 @@ class SimSystemPosix(SimStatePlugin):
                         return None
                 else:
                     file_exists = True
-                    l.warning("Trying to open unknown file %s - created a symbolic file since ALL_FILES_EXIST is set",
-                              name)
+                    l.warning(
+                        "Trying to open unknown file %s - created a symbolic file since ALL_FILES_EXIST is set", name
+                    )
                 simfile = SimFile(
                     name,
                     ident=ident,
                     size=self.state.solver.BVS(
                         "filesize_%s" % ident, self.state.arch.bits, key=("file", ident, "filesize"), eternal=True
                     ),
-                    file_exists = file_exists
+                    file_exists=file_exists,
                 )
             else:
                 simfile = SimFile(name, ident=ident)
@@ -369,9 +370,8 @@ class SimSystemPosix(SimStatePlugin):
         if self.state.solver.is_true(simfd.file_exists):
             return fd
         else:
-            m1 = self.state.solver.BVV(-1, self.state.arch.sizeof['int'])
+            m1 = self.state.solver.BVV(-1, self.state.arch.sizeof["int"])
             return self.state.solver.If(simfd.file_exists, fd, m1)
-
 
     def open_socket(self, ident):
         fd = self._pick_fd()
@@ -426,7 +426,7 @@ class SimSystemPosix(SimStatePlugin):
         """
 
         try:
-            zero = self.state.solver.BVV(0, self.state.arch.sizeof['int'])
+            zero = self.state.solver.BVV(0, self.state.arch.sizeof["int"])
             concr_fd = self.state.solver.eval_one(fd, extra_constraints=(self.state.solver.SGE(fd, zero),))
             return concr_fd
         except SimSolverError:
@@ -508,24 +508,27 @@ class SimSystemPosix(SimStatePlugin):
             ino = 0
 
         # return this weird bogus zero value to keep code paths in libc simple :\
-        return Stat(
-            self.state.solver.BVV(0, 64),  # st_dev
-            self.state.solver.BVV(ino, 64),  # st_ino
-            self.state.solver.BVV(0, 64),  # st_nlink
-            mode,  # st_mode
-            self.state.solver.BVV(0, 32),  # st_uid (lol root)
-            self.state.solver.BVV(0, 32),  # st_gid
-            self.state.solver.BVV(0, 64),  # st_rdev
-            size,  # st_size
-            self.state.solver.BVV(0x400, 64),  # st_blksize
-            self.state.solver.BVV(0, 64),  # st_blocks
-            self.state.solver.BVV(0, 64),  # st_atime
-            self.state.solver.BVV(0, 64),  # st_atimensec
-            self.state.solver.BVV(0, 64),  # st_mtime
-            self.state.solver.BVV(0, 64),  # st_mtimensec
-            self.state.solver.BVV(0, 64),  # st_ctime
-            self.state.solver.BVV(0, 64),  # st_ctimensec
-        ), result
+        return (
+            Stat(
+                self.state.solver.BVV(0, 64),  # st_dev
+                self.state.solver.BVV(ino, 64),  # st_ino
+                self.state.solver.BVV(0, 64),  # st_nlink
+                mode,  # st_mode
+                self.state.solver.BVV(0, 32),  # st_uid (lol root)
+                self.state.solver.BVV(0, 32),  # st_gid
+                self.state.solver.BVV(0, 64),  # st_rdev
+                size,  # st_size
+                self.state.solver.BVV(0x400, 64),  # st_blksize
+                self.state.solver.BVV(0, 64),  # st_blocks
+                self.state.solver.BVV(0, 64),  # st_atime
+                self.state.solver.BVV(0, 64),  # st_atimensec
+                self.state.solver.BVV(0, 64),  # st_mtime
+                self.state.solver.BVV(0, 64),  # st_mtimensec
+                self.state.solver.BVV(0, 64),  # st_ctime
+                self.state.solver.BVV(0, 64),  # st_ctimensec
+            ),
+            result,
+        )
 
     def sigmask(self, sigsetsize=None):
         """
