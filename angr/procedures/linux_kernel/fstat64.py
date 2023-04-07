@@ -7,7 +7,7 @@ import angr
 
 class fstat64(angr.SimProcedure):
     def run(self, fd, stat_buf):  # pylint:disable=arguments-differ
-        stat = self.state.posix.fstat(fd)
+        stat, result = self.state.posix.fstat(fd)
         # TODO: make arch-neutral
         if self.arch.name == "X86":
             self._store_i386(stat_buf, stat)
@@ -21,7 +21,7 @@ class fstat64(angr.SimProcedure):
             self._store_arm(stat_buf, stat)
         else:
             raise angr.errors.SimProcedureError("Unsupported fstat64 arch: %s" % self.arch.name)
-        return 0
+        return result
 
     def _store_arm(self, stat_buf, stat):
         def store(offset, val):
