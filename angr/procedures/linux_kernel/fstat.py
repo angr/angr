@@ -5,7 +5,7 @@ import angr
 
 class fstat(angr.SimProcedure):
     def run(self, fd, stat_buf):
-        stat, result = self.state.posix.fstat(fd)
+        stat, result = self.state.posix.fstat_with_result(fd)
         if self.state.arch.name == "AMD64":
             self._store_amd64(stat_buf, stat)
         elif self.state.arch.name == "PPC64":

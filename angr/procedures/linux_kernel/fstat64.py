@@ -7,7 +7,7 @@ import angr
 
 class fstat64(angr.SimProcedure):
     def run(self, fd, stat_buf):  # pylint:disable=arguments-differ
-        stat, result = self.state.posix.fstat(fd)
+        stat, result = self.state.posix.fstat_with_result(fd)
         # TODO: make arch-neutral
         if self.arch.name == "X86":
             self._store_i386(stat_buf, stat)

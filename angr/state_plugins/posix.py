@@ -465,7 +465,11 @@ class SimSystemPosix(SimStatePlugin):
         del self.fd[concr_fd]
         return True
 
-    def fstat(self, fd):  # pylint:disable=unused-argument
+    def fstat(self, fd):
+        stat, result = self.fstat_with_result(fd)
+        return stat
+
+    def fstat_with_result(self, fd):
         # sizes are AMD64-specific for symbolic files for now
         mount = None
         mode = None
