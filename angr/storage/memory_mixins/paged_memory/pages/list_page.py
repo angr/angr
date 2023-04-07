@@ -296,8 +296,8 @@ class ListPage(MemoryObjectMixin, PageBase):
                         if not (self_byte == other_byte).is_true():
                             differences.add(c)
 
-                    # if same is False:
-                    #     differences.add(c)
+                    if same is False:
+                        differences.add(c)
                 else:
                     # this means the byte is in neither memory
                     pass

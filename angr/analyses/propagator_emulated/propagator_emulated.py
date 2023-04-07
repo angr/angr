@@ -198,7 +198,15 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         # if self.state.globals["cur_block_id"].vm_vpc == 5368833404 and self.state.scratch.ins_addr == 0x140042D7D:
         #     import ipdb;ipdb.set_trace()
 
-        if expr in cur_abstract_state._replacements[code_loc] and (cur_abstract_state.is_top(simp_result) or self.state.solver.symbolic(simp_result)):
+        #### This is to deal with the late merging non constants
+        if not self.state.solver.symbolic(simp_result) and \
+                expr in cur_abstract_state._replacements[code_loc] and \
+                not cur_abstract_state.is_top(cur_abstract_state._replacements[code_loc][expr]) and \
+                cur_abstract_state._replacements[code_loc][expr].con.value != simp_result.args[0]:
+
+            cur_abstract_state._replacements[code_loc][expr] = cur_abstract_state.top(simp_result.size())
+
+        elif expr in cur_abstract_state._replacements[code_loc] and (cur_abstract_state.is_top(simp_result) or self.state.solver.symbolic(simp_result)):
             cur_abstract_state._replacements[code_loc][expr] = cur_abstract_state.top(simp_result.size())
         elif expr not in cur_abstract_state._replacements[code_loc] and not self.state.solver.symbolic(simp_result) and not(isinstance(expr, pyvex.expr.Const)) and not cur_abstract_state.is_top(simp_result):
             const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
@@ -1055,6 +1063,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
                         else:
+                            import ipdb;ipdb.set_trace()
                             new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                             new_sim_successors.artifacts = sim_successors.artifacts
                             new_sim_successors.engine = sim_successors.engine
