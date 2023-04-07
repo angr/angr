@@ -3,6 +3,7 @@ import angr
 from ...storage.file import Flags
 from .fstat import fstat
 
+
 class stat(fstat):
     def run(self, p_addr, stat_buf):
         # open tempory fd
