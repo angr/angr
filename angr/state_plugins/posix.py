@@ -440,7 +440,7 @@ class SimSystemPosix(SimStatePlugin):
                 raise SimPosixError("Something went wrong trying to open implicit temp")
         else:
             # cannot check result since value might be symbolic
-            self.open(new_filename, Flags.O_RDONLY, preferrred_fd=concr_fd)
+            self.open(new_filename, Flags.O_RDONLY, preferred_fd=concr_fd)
         l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", concr_fd, new_filename)
 
         return concr_fd
