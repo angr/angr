@@ -366,7 +366,7 @@ class SimSystemPosix(SimStatePlugin):
         simfd = SimFileDescriptor(simfile, flags)
         simfd.set_state(self.state)
         self.fd[fd] = simfd
-        if simfd.file_exists.is_true():
+        if self.state.solver.is_true(simfd.file_exists):
             return fd
         else:
             m1 = self.state.solver.BVV(-1, self.state.arch.sizeof['int'])
@@ -434,11 +434,14 @@ class SimSystemPosix(SimStatePlugin):
 
         new_filename = b"/tmp/angr_implicit_%d" % self.autotmp_counter
         self.autotmp_counter += 1
-        l.warning("Tried to look up a symbolic fd - constrained and opened %s", new_filename)
+        concr_fd = self._pick_fd()
         if writing:
-            self.open(new_filename, Flags.O_RDWR)
+            if self.open(new_filename, Flags.O_RDWR, preferred_fd=concr_fd) != concr_fd:
+                raise SimPosixError("Something went wrong trying to open implicit temp")
         else:
-            self.open(new_filename, Flags.O_RDONLY)
+            # cannot check result since value might be symbolic
+            self.open(new_filename, Flags.O_RDONLY, preferrred_fd=concr_fd)
+        l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", concr_fd, new_filename)
 
         return concr_fd
 
@@ -496,7 +499,7 @@ class SimSystemPosix(SimStatePlugin):
             )
             if sim_file is not None:
                 size = sim_file.size
-                if not sim_file.file_exists.is_true():
+                if not self.state.solver.is_true(sim_file.file_exists):
                     zero = self.state.solver.BVV(0, 64)
                     m1 = self.state.solver.BVV(-1, 64)
                     result = self.state.solver.If(sim_file.file_exists, zero, m1)
