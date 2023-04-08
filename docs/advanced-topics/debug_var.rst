@@ -19,7 +19,7 @@ Overall it looks like this:
 .. code-block::
 
    # compile your binary with debug information
-      gcc -g -o debug_var debug_var.c
+   gcc -g -o debug_var debug_var.c
 
 .. code-block:: python
 
