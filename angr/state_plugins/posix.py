@@ -436,11 +436,13 @@ class SimSystemPosix(SimStatePlugin):
         self.autotmp_counter += 1
         concr_fd = self._pick_fd()
         if writing:
-            if self.open(new_filename, Flags.O_RDWR, preferred_fd=concr_fd) != concr_fd:
+            opened_fd = self.open(new_filename, Flags.O_RDWR, preferred_fd=concr_fd)
+            if opened_fd != concr_fd:
                 raise SimPosixError("Something went wrong trying to open implicit temp")
         else:
             # cannot check result since value might be symbolic
-            self.open(new_filename, Flags.O_RDONLY, preferred_fd=concr_fd)
+            opened_fd = self.open(new_filename, Flags.O_RDONLY, preferred_fd=concr_fd)
+        self.state.add_constraints(fd == opened_fd)
         l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", concr_fd, new_filename)
 
         return concr_fd
