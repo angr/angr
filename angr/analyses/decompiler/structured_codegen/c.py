@@ -1,4 +1,4 @@
-# pylint:disable=missing-class-docstring,too-many-boolean-expressions
+# pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument
 from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
 from collections import defaultdict
 import logging
@@ -2360,7 +2360,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if base_type is None:
             # well, not much we can do
             if data_type is None:
-                raise Exception("CStructuredCodeGenerator programming error: no type whatsoever for dereference")
+                raise TypeError("CStructuredCodeGenerator programming error: no type whatsoever for dereference")
             if offset:
                 expr = CBinaryOp("Add", expr, CConstant(offset, SimTypeInt(), codegen=self), codegen=self)
             return CUnaryOp(
