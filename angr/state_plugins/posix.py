@@ -506,7 +506,6 @@ class SimSystemPosix(SimStatePlugin):
             else:
                 result = -1
 
-
         # if it is mounted, let the filesystem figure out the stat
         if guest_path is not None and mount is not None:
             stat = mount._get_stat(guest_path, dereference=True)
