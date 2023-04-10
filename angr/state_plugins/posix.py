@@ -453,24 +453,20 @@ class SimSystemPosix(SimStatePlugin):
         Closes the given file descriptor (an AST).
         Returns whether the operation succeeded (a concrete boolean)
         """
-        # TODO: A concrete boolean result makes no sense when working with a symbolic fd.
-        # Change the behavior and return type to something better!
         try:
-            concr_fd = self.get_concrete_fd(fd, writing=False)
-            # NOTE: Removed except with l.error("Trying to close a symbolic file descriptor")
-            # since closing an unconstrained symbolic fd might still "succeed".
-        except SimPosixError:
+            fd = self.state.solver.eval_one(fd)
+        except SimSolverError:
+            l.error("Trying to close a symbolic file descriptor")
             return False
 
-        try:
-            simfd = self.fd[concr_fd]
-        except KeyError:
+        if fd not in self.fd:
+            l.info("Trying to close an unopened file descriptor")
             return False
 
-        self.state.history.add_event("fs_close", fd=concr_fd, close_idx=len(self.closed_fds))
-        self.closed_fds.append((concr_fd, simfd))
+        self.state.history.add_event("fs_close", fd=fd, close_idx=len(self.closed_fds))
+        self.closed_fds.append((fd, self.fd[fd]))
 
-        del self.fd[concr_fd]
+        del self.fd[fd]
         return True
 
     def fstat(self, fd):
