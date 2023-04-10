@@ -313,22 +313,21 @@ class SimSystemPosix(SimStatePlugin):
         :param flags:           File operation flags, a bitfield of constants from open(2), as an AST
         :param preferred_fd:    Assign this fd if it's not already claimed.
         :return:                The file descriptor number allocated (maps through posix.get_fd to a SimFileDescriptor)
-                                or None if the open fails.
+                                or -1 if the open fails.
 
         ``mode`` from open(2) is unsupported at present.
         """
 
         if len(name) == 0:
-            return None
+            return -1
         if type(name) is str:
             name = name.encode()
 
         # FIXME: HACK
         if self.uid != 0 and name.startswith(b"/var/run"):
-            return None
+            return -1
 
         # TODO: speed this up (editor's note: ...really? this is fine)
-        fd = None
         if preferred_fd is not None and preferred_fd not in self.fd:
             fd = preferred_fd
         else:
@@ -345,7 +344,7 @@ class SimSystemPosix(SimStatePlugin):
                     if options.ANY_FILE_MIGHT_EXIST in self.state.options:
                         file_exists = self.state.solver.BoolS("file_exists_%s" % ident, explicit_name=True)
                     else:
-                        return None
+                        return -1
                 else:
                     file_exists = True
                     l.warning(
@@ -362,7 +361,7 @@ class SimSystemPosix(SimStatePlugin):
             else:
                 simfile = SimFile(name, ident=ident)
             if not self.state.fs.insert(name, simfile):
-                return None
+                return -1
 
         simfd = SimFileDescriptor(simfile, flags)
         simfd.set_state(self.state)
@@ -418,6 +417,8 @@ class SimSystemPosix(SimStatePlugin):
         Set writing to False if no write-access is planned (i.e. fd is read-only).
         """
         concr_fd = self.get_concrete_fd(fd, writing=writing)
+        if concr_fd < 0:
+            return None
         return self.fd.get(concr_fd)
 
     def get_concrete_fd(self, fd, writing=True):
@@ -436,11 +437,13 @@ class SimSystemPosix(SimStatePlugin):
         self.autotmp_counter += 1
         concr_fd = self._pick_fd()
         if writing:
-            if self.open(new_filename, Flags.O_RDWR, preferred_fd=concr_fd) != concr_fd:
+            opened_fd = self.open(new_filename, Flags.O_RDWR, preferred_fd=concr_fd)
+            if opened_fd != concr_fd:
                 raise SimPosixError("Something went wrong trying to open implicit temp")
         else:
             # cannot check result since value might be symbolic
-            self.open(new_filename, Flags.O_RDONLY, preferred_fd=concr_fd)
+            opened_fd = self.open(new_filename, Flags.O_RDONLY, preferred_fd=concr_fd)
+        self.state.add_constraints(fd == opened_fd)
         l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", concr_fd, new_filename)
 
         return concr_fd
@@ -474,22 +477,39 @@ class SimSystemPosix(SimStatePlugin):
         stat, _ = self.fstat_with_result(fd)
         return stat
 
-    def fstat_with_result(self, fd):
+    def fstat_with_result(self, sim_fd):
         # sizes are AMD64-specific for symbolic files for now
+        fd = None
         mount = None
         mode = None
         guest_path = None
-        sim_file = None
-        result = 0
 
-        fd_desc = self.state.posix.get_fd(fd)
+        try:
+            fd = self.state.solver.eval_one(sim_fd)
+            if fd < 0:
+                fd = None
+        except SimSolverError:
+            pass
+        if fd is not None:
+            fd_desc = self.state.posix.get_fd(fd)
 
-        # a fd can be SimFileDescriptorDuplex which is not backed by a file
-        if isinstance(fd_desc, SimFileDescriptor):
-            sim_file = fd_desc.file
-            mount = self.state.fs.get_mountpoint(sim_file.name)[0]  # TODO this is wrong. .name starts with file://
-            if mount is not None:
-                guest_path = mount.lookup(sim_file)
+            # a fd can be SimFileDescriptorDuplex which is not backed by a file
+            if isinstance(fd_desc, SimFileDescriptor):
+                sim_file = fd_desc.file
+                mount = self.state.fs.get_mountpoint(sim_file.name)[0]  # TODO this is wrong. .name starts with file://
+                if mount:
+                    guest_path = mount.lookup(sim_file)
+            result = 0
+        else:
+            if options.ALL_FILES_EXIST not in self.state.options:
+                if options.ANY_FILE_MIGHT_EXIST in self.state.options:
+                    m1 = self.state.solver.BVV(-1, self.state.arch.bits)
+                    result = self.state.solver.If(self.state.solver.BoolS("file_exists"), 0, m1)
+                else:
+                    result = 0
+            else:
+                result = -1
+
 
         # if it is mounted, let the filesystem figure out the stat
         if guest_path is not None and mount is not None:
@@ -501,19 +521,15 @@ class SimSystemPosix(SimStatePlugin):
             ino = stat.st_ino
         else:
             # now we know it is not mounted, do the same as before
-            mode = (
-                self.state.solver.BVS("st_mode", 32, key=("api", "fstat", "st_mode"))
-                if self.state.solver.is_true(fd > 2)
-                else self.state.solver.BVV(0, 32)
-            )
-            if sim_file is not None:
-                size = sim_file.size
-                if not self.state.solver.is_true(sim_file.file_exists):
-                    zero = self.state.solver.BVV(0, 64)
-                    m1 = self.state.solver.BVV(-1, 64)
-                    result = self.state.solver.If(sim_file.file_exists, zero, m1)
+            if not fd:
+                mode = self.state.solver.BVS("st_mode", 32, key=("api", "fstat", "st_mode"))
             else:
-                size = self.state.solver.BVS("st_size", 64, key=("api", "fstat", "st_size"))  # st_size
+                mode = (
+                    self.state.solver.BVS("st_mode", 32, key=("api", "fstat", "st_mode"))
+                    if fd > 2
+                    else self.state.solver.BVV(0, 32)
+                )
+            size = self.state.solver.BVS("st_size", 64, key=("api", "fstat", "st_size"))  # st_size
             ino = 0
 
         # return this weird bogus zero value to keep code paths in libc simple :\

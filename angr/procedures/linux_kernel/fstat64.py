@@ -1,5 +1,7 @@
 import angr
 
+import claripy
+
 # these structs can be easily-ish pulled out of qemu/linux-user/syscall_defs.h
 # TODO FIXME XXX THESE ARE NOT CORRECT
 # we need to actually properly define the data sizes returned from posix.fstat, since they may change from arch to arch
@@ -8,6 +10,8 @@ import angr
 class fstat64(angr.SimProcedure):
     def run(self, fd, stat_buf):  # pylint:disable=arguments-differ
         stat, result = self.state.posix.fstat_with_result(fd)
+        if claripy.is_true(result == -1):
+            return -1
         # TODO: make arch-neutral
         if self.arch.name == "X86":
             self._store_i386(stat_buf, stat)
