@@ -1,6 +1,5 @@
-import angr
-
 import claripy
+import angr
 
 # TODO see comment in fstat64
 
