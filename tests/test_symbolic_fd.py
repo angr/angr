@@ -12,8 +12,8 @@ class TestSymbolicFd(unittest.TestCase):
     def test_symbolic_fd(self):
         project = angr.Project(os.path.join(test_location, "x86_64", "symbolic_fd"))
 
-        find = lambda s: s.posix.dumps(1) == b'c0de\n'
-        avoid = lambda s: s.posix.dumps(1) == b'nothing\n'
+        find = lambda s: s.posix.dumps(1) == b"c0de\n"
+        avoid = lambda s: s.posix.dumps(1) == b"nothing\n"
 
         for method_name in ("stat_test", "fstat_test", "open_test", "fopen_test", "fdopen_test"):
             addr = project.loader.find_symbol(method_name).rebased_addr
