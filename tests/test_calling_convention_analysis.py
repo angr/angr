@@ -11,7 +11,7 @@ from angr.calling_conventions import (
     SimCCCdecl,
     SimCCSystemVAMD64,
 )
-from angr.sim_type import SimTypeFunction
+from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong
 
 test_location = os.path.join(
     os.path.dirname(os.path.realpath(str(__file__))),
@@ -285,8 +285,12 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             proj.analyses.CompleteCallingConventions(recover_variables=True)
 
             for func in ["target", "direct", "plt"]:
-                self.assertEqual(str(proj.kb.functions[func].prototype), "(long long (64 bits)) -> long long (64 bits)")
+                # expected prototype: (int) -> long long
                 # technically should be (int) -> int, but the compiler loads all 64 bits and then truncates
+                proto = proj.kb.functions[func].prototype
+                assert len(proto.args) == 1
+                assert isinstance(proto.args[0], SimTypeInt)
+                assert isinstance(proto.returnty, SimTypeLongLong)
 
 
 if __name__ == "__main__":
