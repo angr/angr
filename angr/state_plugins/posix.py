@@ -481,13 +481,18 @@ class SimSystemPosix(SimStatePlugin):
         mode = None
         guest_path = None
 
-        if self.state.solver.satisfiable(extra_constraints=(self.state.solver.SGE(sim_fd, 0),)):
+        # set fd to the value of sim_fd, if positive and unique
+        if isinstance(sim_fd, int):
+            if sim_fd >= 0:
+                fd = sim_fd
+        elif self.state.solver.satisfiable(extra_constraints=(self.state.solver.SGE(sim_fd, 0),)):
             try:
                 fd = self.state.solver.eval_one(sim_fd)
                 if fd < 0:
                     fd = None
             except SimSolverError:
                 pass
+
         if fd is not None:
             fd_desc = self.state.posix.get_fd(fd)
 
