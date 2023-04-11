@@ -27,6 +27,7 @@ def mode_to_flag(mode):
 
     return all_modes[mode]
 
+
 def writing(mode):
     # TODO improve this: handle mode = strings
     if mode[-1] == b"b":  # lol who uses windows
@@ -43,7 +44,6 @@ def writing(mode):
         raise angr.SimProcedureError("unsupported file open mode %s" % mode)
 
     return all_modes[mode]
-
 
 
 class fdopen(angr.SimProcedure):
