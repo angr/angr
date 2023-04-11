@@ -133,8 +133,12 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         #simplified_addr = self.state.solver.simplify(addr[0])
         #simplified_addr=self.state.solver.simplify(addr[0])
-        if self.state.globals["cur_block_id"].vm_vpc == 5368833174 and self.state.scratch.ins_addr == 0x140042D7D:
-            import ipdb;ipdb.set_trace()
+        # if self.state.globals["cur_block_id"].vm_vpc == 5368833174 and self.state.scratch.ins_addr == 0x140042D7D:
+        #     import ipdb;ipdb.set_trace()
+
+        # if self.state.globals["cur_block_id"].vm_vpc == 4358398 and self.state.scratch.ins_addr == 0x45F580:
+        #     import ipdb;
+        #     ipdb.set_trace()
 
         loc_key = str(self.state.globals['cur_block_id']) + str(hex(self.state.scratch.ins_addr))
         # if loc_key in self.state.globals['mba_locs']:
@@ -290,7 +294,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 import ipdb;
                 ipdb.set_trace()
             else:
-                import ipdb;ipdb.set_trace()
+                # import ipdb;ipdb.set_trace()
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1]))
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], claripy.If(state_split_cond, loaded_values[0], loaded_values[1]))
@@ -305,8 +309,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 res=re.search('(.*), .*\[(.*)\]',op_str)
 
                 loc_key = str(self.state.globals['cur_block_id']) + str(hex(self.state.scratch.ins_addr))
-                state_split_cond = claripy.BoolS('mba_state_split_cond')
-                self.state.globals['mba_locs'][loc_key] = [(res.groups()[0], claripy.If(state_split_cond, loaded_values[0], loaded_values[1])), (res.groups()[1], claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1]))]
+                new_state_split_cond = claripy.BoolS('mba_state_split_cond')
+                self.state.globals['mba_locs'][loc_key] = [(res.groups()[0], claripy.If(new_state_split_cond, loaded_values[0], loaded_values[1])), (res.groups()[1], claripy.If(new_state_split_cond, conc_addrs[0], conc_addrs[1]))]
 
 
                 ## This to add addrs which are of the following form mba+offset, mba+4
@@ -435,6 +439,7 @@ class PropagatorState:
         # if bits in PropagatorState._tops:
         #     return PropagatorState._tops[bits]
         r = claripy.BVS("TOP", bits)#, explicit_name=True)
+
 
         # PropagatorState._tops[bits] = r
         return r
@@ -705,22 +710,21 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         #Merge all replacements from nodes that do not have any successors
         for node in graph.nodes():
-            succs = graph.successors(node)
-            if len(list(succs)) == 0:
-                ## end points which are not reachable are skippe from replacements collections
-                if node.block_id in self._states:
-                    cur_abstract_state = self._states[node.block_id]
-                    self._merge_replacements(self.replacements, cur_abstract_state._replacements)
-                    print(node)
+            ## end points which are not reachable are skippe from replacements collections
+            if node.block_id in self._states:
+                cur_abstract_state = self._states[node.block_id]
+                self.replacements[node.block_id] = cur_abstract_state._replacements
 
         #Get all the symbolic locations
-        for loc, vars_ in self.replacements.items():
-            for var, repl in vars_.items():
-                if self.is_top_str(repl):
-                    if loc in self.symbolic_expr_locations_blockwise:
-                        self.symbolic_expr_locations_blockwise[loc].append(var)
-                    else:
-                        self.symbolic_expr_locations_blockwise[loc] = [var]
+        self.symbolic_expr_locations_blockwise = defaultdict(dict)
+        for block_id, repls in self.replacements.items():
+            for codeloc, exprs_repls in repls.items():
+                for expr, repl in exprs_repls.items():
+                    if self.is_top_str(repl):
+                        if codeloc in self.symbolic_expr_locations_blockwise[block_id]:
+                            self.symbolic_expr_locations_blockwise[block_id][codeloc].append(expr)
+                        else:
+                            self.symbolic_expr_locations_blockwise[block_id][codeloc] = [expr]
 
 
         for key,value in self._states.items():
@@ -757,6 +761,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     def _pre_job_handling(self, job):
         pass
 
+    ## This mo_cmp is just to check fixed point
     @staticmethod
     def _mo_cmp(
         mo_self,
@@ -808,8 +813,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
     def _run_on_node(self, node, abstract_state):
         print(node)
-        if str(node) == "<CFGENode 0x140061ee8 ()vm-vpc:5368833178 [2]>":
-            import ipdb;ipdb.set_trace()
+        # if str(node) == "<CFGENode 0x140061ee8 ()vm-vpc:5368833178 [2]>":
+        #     import ipdb;ipdb.set_trace()
 
         concrete_states = abstract_state.get_concrete_state(node.block_id)
         if len(concrete_states) == 0:
@@ -817,16 +822,22 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             # didn't find any state going here
             return False, abstract_state
 
-        if node.block_id in self._prev_input_states and len(list(self.graph.predecessors(node))) > 1:
+        if node.block_id in self._prev_input_states and len(list(self.graph.predecessors(node))) > 1 and len(concrete_states) == 1:
+            if len(self._prev_input_states[node.block_id]) > 1:
+                import ipdb;ipdb.set_trace()
             # right now we assume only one concrete state
-            changed = self.compare_concrete_states(concrete_states[0], self._prev_input_states[node.block_id])
+            changed = self.compare_concrete_states(concrete_states[0], self._prev_input_states[node.block_id][0])
+        elif node.block_id in self._prev_input_states and len(concrete_states) == 1 and concrete_states[0].globals['same_sp_merged']:
+            if len(self._prev_input_states[node.block_id]) > 1:
+                import ipdb;ipdb.set_trace()
+            concrete_states[0].globals['same_sp_merged'] = False
+            # right now we assume only one concrete state
+            changed = self.compare_concrete_states(concrete_states[0], self._prev_input_states[node.block_id][0])
         else:
             changed = True
 
-        if len(concrete_states) == 1:
-            self._prev_input_states[node.block_id] = concrete_states[0]
-        else:
-            import ipdb;ipdb.set_trace()
+        self._prev_input_states[node.block_id] = concrete_states
+
 
         if not changed:
             return False, abstract_state
@@ -1124,6 +1135,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 symbolic_sim_successors = sim_successors
 
                 if len(sim_successors.all_successors) >1:
+                    print("Before:removing succs")
+                    print(sim_successors.all_successors)
                     symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                     symbolic_sim_successors.artifacts = sim_successors.artifacts
                     symbolic_sim_successors.engine = sim_successors.engine
@@ -1183,7 +1196,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 succ.globals['abstract_state'] = None
             # node.input_state.globals['cur_block_id'] = block_key
 
-            self._merge_replacements(self.replacements, abstract_state._replacements)
+            #self._merge_replacements(self.replacements, abstract_state._replacements)
 
             for succ in symbolic_sim_successors.all_successors:
                 all_successors[succ.regs.ip].append(succ)
@@ -1221,6 +1234,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                                                   'regs', 'solver', 'callstack', 'history', 'fs', 'scratch',
                                                                   'memory', 'registers', 'libc',
                                                                   'partial_symbolic_constraint_solver'])
+                    merged_stuff[0].globals["same_sp_merged"] = True
 
                     merged_state_collection.append(merged_stuff[0])
 
@@ -1264,9 +1278,6 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 changed_pages = self.changed_pages(plugin1, plugin0)
                 if len(changed_pages) != 0:
                     return True
-                else:
-                    import ipdb;ipdb.set_trace()
-
 
         return changed
 
