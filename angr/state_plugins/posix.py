@@ -481,12 +481,13 @@ class SimSystemPosix(SimStatePlugin):
         mode = None
         guest_path = None
 
-        try:
-            fd = self.state.solver.eval_one(sim_fd)
-            if fd < 0:
-                fd = None
-        except SimSolverError:
-            pass
+        if self.state.solver.satisfiable(extra_constraints=(self.state.solver.SGE(sim_fd, 0),)):
+            try:
+                fd = self.state.solver.eval_one(sim_fd)
+                if fd < 0:
+                    fd = None
+            except SimSolverError:
+                pass
         if fd is not None:
             fd_desc = self.state.posix.get_fd(fd)
 
@@ -503,9 +504,9 @@ class SimSystemPosix(SimStatePlugin):
                     m1 = self.state.solver.BVV(-1, self.state.arch.bits)
                     result = self.state.solver.If(self.state.solver.BoolS("file_exists"), 0, m1)
                 else:
-                    result = 0
+                    result = -1
             else:
-                result = -1
+                result = 0
 
         # if it is mounted, let the filesystem figure out the stat
         if guest_path is not None and mount is not None:
