@@ -44,7 +44,7 @@ class fopen(angr.SimProcedure):
         # TODO: handle append
         fd = self.state.posix.open(path, mode_to_flag(mode))
 
-        if fd is None:
+        if fd is None or self.state.solver.is_true(fd == -1):
             # if open failed return NULL
             return 0
         else:
@@ -54,9 +54,13 @@ class fopen(angr.SimProcedure):
             file_struct_ptr = self.inline_call(malloc, io_file_data["size"]).ret_expr
 
             # Write the fd
-            fd_bvv = self.state.solver.BVV(fd, 4 * 8)  # int
+            size = 4  # int
             self.state.memory.store(
-                file_struct_ptr + io_file_data["fd"], fd_bvv, endness=self.state.arch.memory_endness
+                file_struct_ptr + io_file_data["fd"], fd, size=size, endness=self.state.arch.memory_endness
             )
 
-            return file_struct_ptr
+            if self.state.solver.is_true(fd != -1):
+                return file_struct_ptr
+            else:
+                null = self.state.solver.BVV(0, self.state.arch.bits)
+                return self.state.solver.If(fd != -1, file_struct_ptr, null)
