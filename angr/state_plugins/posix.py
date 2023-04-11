@@ -453,11 +453,12 @@ class SimSystemPosix(SimStatePlugin):
         Closes the given file descriptor (an AST).
         Returns whether the operation succeeded (a concrete boolean)
         """
-        try:
-            fd = self.state.solver.eval_one(fd)
-        except SimSolverError:
-            l.error("Trying to close a symbolic file descriptor")
-            return False
+        if not isinstance(fd, int):
+            try:
+                fd = self.state.solver.eval_one(fd, extra_constraints=(self.state.solver.SGE(fd, 0),))
+            except SimSolverError:
+                l.error("Trying to close a symbolic file descriptor")
+                return False
 
         if fd not in self.fd:
             l.info("Trying to close an unopened file descriptor")
