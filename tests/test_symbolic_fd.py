@@ -10,8 +10,10 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 def find(s):
     return s.posix.dumps(1) == b"c0de\n"
 
+
 def avoid(s):
     return s.posix.dumps(1) == b"nothing\n"
+
 
 class TestSymbolicFd(unittest.TestCase):
     def test_symbolic_fd(self):
