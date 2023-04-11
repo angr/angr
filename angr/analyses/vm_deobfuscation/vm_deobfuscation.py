@@ -1009,7 +1009,6 @@ class VMDeobfuscation(Analysis):
 
         import gc
         gc.collect()
-        import ipdb;ipdb.set_trace()
 
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
@@ -1055,9 +1054,10 @@ class VMDeobfuscation(Analysis):
         #p.join()
         import gc
         gc.collect()
-        new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr, None,
-                                                                               start_state=None,
-                                                                               prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
+        # new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr, None,
+        #                                                                        start_state=None,
+        #                                                                        prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
+        new_cfg, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)#start_state=saved_start_state)
         symbolic_expr_locations_blockwise = None
         self.project.kb.cfgs.cfgs = {}
 
@@ -1075,7 +1075,7 @@ class VMDeobfuscation(Analysis):
                                            start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
         start_state_copy = start_state.copy()
         #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-        # import ipdb;ipdb.set_trace()
+        import ipdb;ipdb.set_trace()
 
 
 
@@ -1174,7 +1174,7 @@ class VMDeobfuscation(Analysis):
 
     def symbolizer(self, cfg, proj, start_addr, q, start_state=None, options=None,
                              prev_symbolic_expr_locations_blockwise=None, vm_vpc=None,
-                             return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None):
+                             return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None, do_replacements=False):
         self.project.prev_symbolic_expr_locations_blockwise = prev_symbolic_expr_locations_blockwise
         print("Doing constant propagation")
         # old_graph = cfg.graph
@@ -1221,6 +1221,7 @@ class VMDeobfuscation(Analysis):
             initial_input_state.globals['replaced_asts_str'] = {}
             initial_input_state.globals['existing_mba_split_constraints'] = []
             initial_input_state.globals['mba_locs'] = {}
+            initial_input_state.globals['same_sp_merged'] = False
 
         ####### Adding breakpoints
         def annotate_stack_read_value(state):
@@ -1270,15 +1271,30 @@ class VMDeobfuscation(Analysis):
             proj.unhook(func_addr)
             proj.hook(func_addr, orig_sim_proc)
 
+        if do_replacements:
+            for key, value in prop.replacements.items():
+                node = new_model._nodes[key]
+                if not node.is_simprocedure:
+                    new_stmts = node.irsb.statements
 
-        tmp_syb_blockwise = defaultdict(dict)
-        for codeloc, expr_list in prop.symbolic_expr_locations_blockwise.items():
-            if codeloc in tmp_syb_blockwise[codeloc.block_id]:
-                tmp_syb_blockwise[codeloc.block_id][codeloc] = tmp_syb_blockwise[codeloc.block_id][codeloc] + expr_list
-            else:
-                tmp_syb_blockwise[codeloc.block_id][codeloc] = expr_list
+                    for stmt, repl_pair in value.items():
+                        for old, new in repl_pair.items():
+                            if not(isinstance(new, str) and new == "TOP"):
+                                ## This is for the next expression
+                                if stmt.stmt_idx == -2:
+                                    node.irsb.next = new
+                                else:
+                                    new_stmts[stmt.stmt_idx].replace_expression({old: new})
 
-        prop.symbolic_expr_locations_blockwise = tmp_syb_blockwise
+
+        # tmp_syb_blockwise = defaultdict(dict)
+        # for codeloc, expr_list in prop.symbolic_expr_locations_blockwise.items():
+        #     if codeloc in tmp_syb_blockwise[codeloc.block_id]:
+        #         tmp_syb_blockwise[codeloc.block_id][codeloc] = tmp_syb_blockwise[codeloc.block_id][codeloc] + expr_list
+        #     else:
+        #         tmp_syb_blockwise[codeloc.block_id][codeloc] = expr_list
+        #
+        # prop.symbolic_expr_locations_blockwise = tmp_syb_blockwise
 
         print("Done")
         return new_model, prop.symbolic_expr_locations_blockwise
@@ -2535,7 +2551,7 @@ class VMDeobfuscation(Analysis):
             if new_statements != node.irsb.statements:
                 changed = True
             # Dealing with empty blocks i.e. removing them
-            if len(new_statements) == 0:
+            if len(new_statements) == 0 and len(dsa_new_model.graph.successors(node)) >0:
                 succ = dsa_new_model.graph.successors(node)
                 succ = next(succ)
                 preds = dsa_new_model.graph.predecessors(node)
