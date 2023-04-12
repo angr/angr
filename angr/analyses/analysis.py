@@ -94,30 +94,30 @@ class KnownAnalysesPlugin(typing.Protocl):
     from .variable_recovery import VariableRecoveryFast
     from .variable_recovery import VariableRecovery
 
-    Identifier: Identifier
-    CalleeCleanupFinder: CalleeCleanupFinder
-    VSA_DDG: VSA_DDG
-    CDG: CDG
-    BinDiff: BinDiff
-    CFGEmulated: CFGEmulated
-    CFB: CFBlanket
-    CFBlanket: CFBlanket
-    CFG: CFG
-    CFGFast: CFGFast
-    StaticHooker: StaticHooker
-    DDG: DDG
-    CongruencyCheck: CongruencyCheck
-    Reassembler: Reassembler
-    BackwardSlice: BackwardSlice
-    BinaryOptimizer: BinaryOptimizer
-    VFG: VFG
-    LoopFinder: LoopFinder
-    Disassembly: Disassembly
-    Veritesting: Veritesting
-    CodeTagging: CodeTagging
-    BoyScout: BoyScout
-    VariableRecoveryFast: VariableRecoveryFast
-    VariableRecovery: VariableRecovery
+    Identifier: Type[Identifier]
+    CalleeCleanupFinder: Type[CalleeCleanupFinder]
+    VSA_DDG: Type[VSA_DDG]
+    CDG: Type[CDG]
+    BinDiff: Type[BinDiff]
+    CFGEmulated: Type[CFGEmulated]
+    CFB: Type[CFBlanket]
+    CFBlanket: Type[CFBlanket]
+    CFG: Type[CFG]
+    CFGFast: Type[CFGFast]
+    StaticHooker: Type[StaticHooker]
+    DDG: Type[DDG]
+    CongruencyCheck: Type[CongruencyCheck]
+    Reassembler: Type[Reassembler]
+    BackwardSlice: Type[BackwardSlice]
+    BinaryOptimizer: Type[BinaryOptimizer]
+    VFG: Type[VFG]
+    LoopFinder: Type[LoopFinder]
+    Disassembly: Type[Disassembly]
+    Veritesting: Type[Veritesting]
+    CodeTagging: Type[CodeTagging]
+    BoyScout: Type[BoyScout]
+    VariableRecoveryFast: Type[VariableRecoveryFast]
+    VariableRecovery: Type[VariableRecovery]
 
 
 class AnalysesHub(PluginVendor, KnownAnalysesPlugin):
