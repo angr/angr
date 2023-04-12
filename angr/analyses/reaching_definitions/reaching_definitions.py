@@ -448,6 +448,7 @@ class ReachingDefinitionsAnalysis(
 
         # update all definitions and all uses
         self.all_definitions |= state.all_definitions
+        state.downsize()
         for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
 

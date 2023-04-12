@@ -566,6 +566,12 @@ class SimTypePointer(SimTypeReg):
         return f"{self.pts_to}*"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
+        # if pts_to is SimTypeBottom, we return a void*
+        if isinstance(self.pts_to, SimTypeBottom):
+            out = "void*"
+            if name is None:
+                return out
+            return f"{out} {name}"
         # if it points to an array, we do not need to add a *
         deref_chr = "*" if not isinstance(self.pts_to, SimTypeArray) else ""
         name_with_deref = deref_chr if name is None else f"{deref_chr}{name}"
