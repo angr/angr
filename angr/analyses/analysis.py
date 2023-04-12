@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, TypeVar, Type, Generic, Callable, Optional
 
 import logging
 import time
+import typing
 
 from rich import progress
 
@@ -68,7 +69,58 @@ class AnalysisLogEntry:
 A = TypeVar("A", bound="Analysis")
 
 
-class AnalysesHub(PluginVendor):
+class KnownAnalysesPlugin(typing.Protocl):
+    from .identifier import Identifier
+    from .callee_cleanup_finder import CalleeCleanupFinder
+    from .vsa_ddg import VSA_DDG
+    from .cdg import CDG
+    from .bindiff import BinDiff
+    from .cfg import CFGEmulated
+    from .cfg import CFBlanket
+    from .cfg import CFG
+    from .cfg import CFGFast
+    from .static_hooker import StaticHooker
+    from .ddg import DDG
+    from .congruency_check import CongruencyCheck
+    from .reassembler import Reassembler
+    from .backward_slice import BackwardSlice
+    from .binary_optimizer import BinaryOptimizer
+    from .vfg import VFG
+    from .loopfinder import LoopFinder
+    from .disassembly import Disassembly
+    from .veritesting import Veritesting
+    from .code_tagging import CodeTagging
+    from .boyscout import BoyScout
+    from .variable_recovery import VariableRecoveryFast
+    from .variable_recovery import VariableRecovery
+
+    Identifier: Identifier
+    CalleeCleanupFinder: CalleeCleanupFinder
+    VSA_DDG: VSA_DDG
+    CDG: CDG
+    BinDiff: BinDiff
+    CFGEmulated: CFGEmulated
+    CFB: CFBlanket
+    CFBlanket: CFBlanket
+    CFG: CFG
+    CFGFast: CFGFast
+    StaticHooker: StaticHooker
+    DDG: DDG
+    CongruencyCheck: CongruencyCheck
+    Reassembler: Reassembler
+    BackwardSlice: BackwardSlice
+    BinaryOptimizer: BinaryOptimizer
+    VFG: VFG
+    LoopFinder: LoopFinder
+    Disassembly: Disassembly
+    Veritesting: Veritesting
+    CodeTagging: CodeTagging
+    BoyScout: BoyScout
+    VariableRecoveryFast: VariableRecoveryFast
+    VariableRecovery: VariableRecovery
+
+
+class AnalysesHub(PluginVendor, KnownAnalysesPlugin):
     """
     This class contains functions for all the registered and runnable analyses,
     """
