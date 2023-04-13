@@ -69,7 +69,7 @@ class AnalysisLogEntry:
 A = TypeVar("A", bound="Analysis")
 
 
-class KnownAnalysesPlugin(typing.Protocl):
+class KnownAnalysesPlugin(typing.Protocol):
     from .identifier import Identifier
     from .callee_cleanup_finder import CalleeCleanupFinder
     from .vsa_ddg import VSA_DDG
