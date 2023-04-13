@@ -1130,6 +1130,8 @@ _libc_decls = \
         "endprotoent": SimTypeFunction([], SimTypeBottom(label="void")),
         # int socket (int NAMESPACE, int STYLE, int PROTOCOL);
         "socket": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["namespace", "style", "protocol"]),
+        # int inet_pton(int af, const char *restrict src, void *restrict dst)
+        "inet_pton": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeInt(signed=True), arg_names=["family", "src", "dst"]),
         # int shutdown (int SOCKET, int HOW);
         "shutdown": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["socket", "how"]),
         # int socketpair (int NAMESPACE, int STYLE, int PROTOCOL, int FILEDES[2]);
