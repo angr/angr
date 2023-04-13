@@ -64,7 +64,7 @@ def internaltest_cfgfast(p):
 
 
 def internaltest_project(fpath):
-    tpath = tempfile.mkstemp()[1]
+    tfile_descriptor, tpath = tempfile.mkstemp()
     shutil.copy(fpath, tpath)
 
     p = angr.Project(tpath, auto_load_libs=False)
