@@ -310,7 +310,7 @@ class VaultShelf(VaultDict):
     """
 
     def __init__(self, path=None):
-        self._path = tempfile.mktemp() if path is None else path
+        self._path = tempfile.mkstemp()[1] if path is None else path
         s = shelve.open(self._path, protocol=-1)
         super().__init__(s)
 
