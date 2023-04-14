@@ -921,9 +921,24 @@ class ITE(Expression):
         )
 
     def replace(self, old_expr, new_expr):
-        cond_replaced, new_cond = self.cond.replace(old_expr, new_expr)
-        iffalse_replaced, new_iffalse = self.iffalse.replace(old_expr, new_expr)
-        iftrue_replaced, new_iftrue = self.iftrue.replace(old_expr, new_expr)
+        if self.cond == old_expr:
+            cond_replaced = True
+            new_cond = new_expr
+        else:
+            cond_replaced, new_cond = self.cond.replace(old_expr, new_expr)
+
+        if self.iffalse == old_expr:
+            iffalse_replaced = True
+            new_iffalse = new_expr
+        else:
+            iffalse_replaced, new_iffalse = self.iffalse.replace(old_expr, new_expr)
+
+        if self.iftrue == old_expr:
+            iftrue_replaced = True
+            new_iftrue = new_expr
+        else:
+            iftrue_replaced, new_iftrue = self.iftrue.replace(old_expr, new_expr)
+
         replaced = cond_replaced or iftrue_replaced or iffalse_replaced
 
         if replaced:
