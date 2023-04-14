@@ -64,6 +64,8 @@ class Clinic(Analysis):
         must_struct: Optional[Set[str]] = None,
         variable_kb=None,
         reset_variable_names=False,
+        use_debug_variable_names=True,
+        use_debug_variable_types=True,
         cache: Optional["DecompilationCache"] = None,
     ):
         if not func.normalized:
@@ -93,6 +95,8 @@ class Clinic(Analysis):
         self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
         self._replacement_recorder = ReplacementRecorder()
+        self._use_debug_variable_names = use_debug_variable_names
+        self._use_debug_variable_types = use_debug_variable_types
 
         self._new_block_addrs = set()
 
@@ -1038,10 +1042,11 @@ class Clinic(Analysis):
             reset=self._reset_variable_names,
         )
 
-        # map variable names from debug information
-        var_manager.map_variable_names_from_debug_info(
-            self._replacement_recorder.equivalence_classes(), arg_list, ail_graph, self.kb.dvars
-        )
+        if self._use_debug_variable_names and self.project.kb.dvars.has_debug_variables:
+            # map variable names from debug information
+            var_manager.map_variable_names_from_debug_info(
+                self._replacement_recorder.equivalence_classes(), arg_list, ail_graph, self.kb.dvars
+            )
 
         # Link variables to each statement
         for block in ail_graph.nodes():

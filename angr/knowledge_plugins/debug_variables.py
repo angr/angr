@@ -140,6 +140,10 @@ class DebugVariableManager(KnowledgeBasePlugin):
         self._dvar_by_addrs: DefaultDict[Tuple[int, int], Set[Variable]] = defaultdict(set)
         self._dparam_by_addrs: DefaultDict[int, List[Variable]] = defaultdict(list)
 
+    @property
+    def has_debug_variables(self) -> bool:
+        return bool(self._dvar_by_addrs) or bool(self._dparam_by_addrs)
+
     def from_name_and_pc(self, var_name: str, pc_addr: int) -> Variable:
         """
         Get a variable from its string in the scope of pc.

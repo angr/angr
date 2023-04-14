@@ -160,7 +160,7 @@ options = [
     ),
     O(
         "Improve structuring algorithm",
-        "If applicable in deeper structurer, like Phoenix, improves decompilation output",
+        "If applicable in deeper structurer, like Phoenix, improves decompilation output.",
         bool,
         "recursive_structurer",
         "improve_structurer",
@@ -168,6 +168,26 @@ options = [
         default_value=True,
         clears_cache=True,
     ),
+    O(
+        "Load variable names from debug symbols if available",
+        "If debug symbols are provided, attempt to use variable names from debug symbols for local variables.",
+        bool,
+        "clinic",
+        "use_debug_variable_names",
+        category="Variables",
+        default_value=True,
+        clears_cache=True,
+    ),
+    #O(
+    #    "Load variable types from debug symbols if available",
+    #    "If debug symbols are provided, attempt to use variable types from debug symbols for local variables.",
+    #    bool,
+    #    "clinic",
+    #    "use_debug_variable_types",
+    #    category="Variables",
+    #    default_value=True,
+    #    clears_cache=True,
+    #),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options
