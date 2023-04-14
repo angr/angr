@@ -1037,7 +1037,11 @@ class Clinic(Analysis):
             labels=self.kb.labels,
             reset=self._reset_variable_names,
         )
-        var_manager.map_variable_names_from_debug_info(self._replacement_recorder.equivalence_classes(), self.kb.dvars)
+
+        # map variable names from debug information
+        var_manager.map_variable_names_from_debug_info(
+            self._replacement_recorder.equivalence_classes(), arg_list, self.kb.dvars
+        )
 
         # Link variables to each statement
         for block in ail_graph.nodes():

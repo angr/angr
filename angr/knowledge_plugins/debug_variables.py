@@ -1,4 +1,4 @@
-from typing import List, Generator, TYPE_CHECKING
+from typing import List, Tuple, Set, DefaultDict, Generator, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -137,7 +137,8 @@ class DebugVariableManager(KnowledgeBasePlugin):
         super().__init__()
         self._kb: "KnowledgeBase" = kb
         self._dvar_containers = {}
-        self._dvar_by_addrs = defaultdict(set)
+        self._dvar_by_addrs: DefaultDict[Tuple[int, int], Set[Variable]] = defaultdict(set)
+        self._dparam_by_addrs: DefaultDict[int, List[Variable]] = defaultdict(list)
 
     def from_name_and_pc(self, var_name: str, pc_addr: int) -> Variable:
         """
@@ -176,6 +177,15 @@ class DebugVariableManager(KnowledgeBasePlugin):
 
         self._dvar_by_addrs[(low_pc, high_pc)].add(cle_var)
 
+    def add_parameter(self, sub_addr: int, cle_var: Variable) -> None:
+        """
+        Add a parameter debug variable for the subprogram starting at sub_addr.
+
+        :param sub_addr:    Address of the subprogram for the parameter.
+        :param cle_var:     The parameter to add.
+        """
+        self._dparam_by_addrs[sub_addr].append(cle_var)
+
     def __setitem__(self, index, cle_var):
         assert isinstance(index, slice) and isinstance(cle_var, Variable)
         return self.add_variable(cle_var, index.start, index.stop)
@@ -197,6 +207,10 @@ class DebugVariableManager(KnowledgeBasePlugin):
         for (lo, hi), variables in self._dvar_by_addrs.items():
             if lo <= low_pc and hi >= high_pc:
                 yield from variables
+
+    def get_parameters(self, sub_addr: int) -> Generator[Variable, None, None]:
+        if sub_addr in self._dparam_by_addrs:
+            yield from self._dparam_by_addrs[sub_addr]
 
     def load_from_dwarf(self, elf_object: ELF = None, cu: CompilationUnit = None):
         """
@@ -225,9 +239,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
                         # static variable
                         self.add_variable(cle_var, cu_curr.min_addr, cu_curr.max_addr)
                 for subp in cu_curr.functions.values():
-                    for cle_var in subp.local_variables:
-                        cle_var: Variable
-
+                    for cle_var in subp.local_variables + subp.parameters:
                         if cle_var.location is None:
                             low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
                             high_pc = cle_var.lexical_block.high_pc + obj.mapped_base
@@ -235,6 +247,8 @@ class DebugVariableManager(KnowledgeBasePlugin):
                         else:
                             for low_pc, high_pc, _ in cle_var.location:
                                 self.add_variable(cle_var, low_pc, high_pc)
+                    for param in subp.parameters:
+                        self.add_parameter(subp.low_pc + obj.mapped_base, param)
 
 
 KnowledgeBasePlugin.register_default("dvars", DebugVariableManager)

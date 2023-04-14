@@ -757,7 +757,7 @@ class VariableManagerInternal(Serializable):
             var.name = f"a{idx}"
             var._hash = None
 
-    def map_variable_names_from_debug_info(self, equivalence_classes, dvars):
+    def map_variable_names_from_debug_info(self, equivalence_classes, func_arg_list, dvars):
         if not self._unified_variables:
             return
 
@@ -812,6 +812,13 @@ class VariableManagerInternal(Serializable):
                 self.manager._kb._project.arch.name,
             )
 
+        # Match parameters
+        dparams = list(dvars.get_parameters(self.func_addr))
+        if len(dparams) <= len(func_arg_list):
+            for arg, dparam in zip(func_arg_list, dparams):
+                arg.name = dparam.name
+
+        # Match variables
         for var, unified_var in self._variables_to_unified_variables.items():
             accesses = self.get_variable_accesses(var)
 
