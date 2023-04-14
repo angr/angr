@@ -148,7 +148,7 @@ class KnownAnalysesPlugin(typing.Protocol):
     VariableRecovery: "Type[VariableRecovery]"
 
 
-class AnalysesHubWithDefault(PluginVendor, KnownAnalysesPlugin):
+class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
     """
     This class has type-hinting for all built-in analyses plugin
     """
