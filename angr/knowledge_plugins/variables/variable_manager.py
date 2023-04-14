@@ -1,8 +1,9 @@
-from typing import Set, List, Tuple, Dict, Union, Optional, TYPE_CHECKING
+from typing import Set, List, Tuple, Dict, Union, Any, Optional, TYPE_CHECKING
 import logging
 from collections import defaultdict
 from itertools import count, chain
 
+from ailment.statement import Label
 import ailment.expression
 import networkx
 
@@ -757,7 +758,13 @@ class VariableManagerInternal(Serializable):
             var.name = f"a{idx}"
             var._hash = None
 
-    def map_variable_names_from_debug_info(self, equivalence_classes, func_arg_list, dvars):
+    def map_variable_names_from_debug_info(
+        self,
+        equivalence_classes: List[Set[Tuple[int, Any]]],
+        func_arg_list: List[SimVariable],
+        func_graph: networkx.DiGraph,
+        dvars,
+    ):
         if not self._unified_variables:
             return
 
@@ -818,6 +825,19 @@ class VariableManagerInternal(Serializable):
             for arg, dparam in zip(func_arg_list, dparams):
                 arg.name = dparam.name
 
+        # collect instruction sizes
+        ins_sizes = {}
+        for ail_block in func_graph:
+            last_stmt_addr = None
+            for stmt in ail_block.statements:
+                if isinstance(stmt, Label):
+                    continue
+                if last_stmt_addr is not None:
+                    ins_sizes[last_stmt_addr] = stmt.ins_addr - last_stmt_addr
+                last_stmt_addr = stmt.ins_addr
+            if last_stmt_addr is not None:
+                ins_sizes[last_stmt_addr] = ail_block.original_size + ail_block.addr - last_stmt_addr
+
         # Match variables
         for var, unified_var in self._variables_to_unified_variables.items():
             accesses = self.get_variable_accesses(var)
@@ -827,7 +847,9 @@ class VariableManagerInternal(Serializable):
                 if ins_addr is None:
                     continue
                 debug_vars = [
-                    dv for dv in dvars.variables_in_range(ins_addr, ins_addr + MAX_INSN_SIZE) if not dv.external
+                    dv
+                    for dv in dvars.variables_in_range(ins_addr, ins_addr + ins_sizes.get(ins_addr, MAX_INSN_SIZE))
+                    if not dv.external
                 ]
                 # further filter by location
                 for dv in debug_vars:

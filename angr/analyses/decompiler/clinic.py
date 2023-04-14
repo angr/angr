@@ -1040,7 +1040,7 @@ class Clinic(Analysis):
 
         # map variable names from debug information
         var_manager.map_variable_names_from_debug_info(
-            self._replacement_recorder.equivalence_classes(), arg_list, self.kb.dvars
+            self._replacement_recorder.equivalence_classes(), arg_list, ail_graph, self.kb.dvars
         )
 
         # Link variables to each statement
