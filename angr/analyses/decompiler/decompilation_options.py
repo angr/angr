@@ -178,7 +178,7 @@ options = [
         default_value=True,
         clears_cache=True,
     ),
-    #O(
+    # O(
     #    "Load variable types from debug symbols if available",
     #    "If debug symbols are provided, attempt to use variable types from debug symbols for local variables.",
     #    bool,
@@ -187,7 +187,7 @@ options = [
     #    category="Variables",
     #    default_value=True,
     #    clears_cache=True,
-    #),
+    # ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options
