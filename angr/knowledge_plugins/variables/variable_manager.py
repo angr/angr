@@ -7,6 +7,7 @@ from ailment.statement import Label
 import ailment.expression
 import networkx
 
+from cle.backends.elf import ELF
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable, StackVariable, RegisterVariable, VariableLocationType
 from claripy.utils.orderedset import OrderedSet
@@ -772,12 +773,13 @@ class VariableManagerInternal(Serializable):
 
         # determine initial activation record offset of the function
         func_cfa = 0
-        for cft in self.manager._kb._project.loader.main_object.decoded_cft:
-            if cft.table:
-                rule = cft.table[0]
-                if "pc" in rule and "cfa" in rule and rule["pc"] == self.func_addr:
-                    func_cfa = -rule["cfa"].offset
-                    break
+        if isinstance(self.manager._kb._project.loader.main_object, ELF):
+            for cft in self.manager._kb._project.loader.main_object.decoded_cft:
+                if cft.table:
+                    rule = cft.table[0]
+                    if "pc" in rule and "cfa" in rule and rule["pc"] == self.func_addr:
+                        func_cfa = -rule["cfa"].offset
+                        break
 
         # for each variable, we first calculate its possible alternatives (in terms of AIL registers). this is because
         # the merge of variables during optimization will cause us to optimize away some variables.
