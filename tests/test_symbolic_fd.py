@@ -28,25 +28,25 @@ class TestSymbolicFd(unittest.TestCase):
             simgr = project.factory.simgr(state)
             while simgr.active != []:
                 simgr.explore(find=find, avoid=avoid)
-            assert simgr.avoid != [] and simgr.found == []
+            assert simgr.avoid != [] and simgr.found == [], f"{method_name}: got {simgr.avoid} and {simgr.found}"
 
             # any file might exist
-            state = project.factory.entry_state(addr=addr)
+            state = project.factory.blank_state(addr=addr)
             state.options["ALL_FILES_EXIST"] = False
             state.options["ANY_FILE_MIGHT_EXIST"] = True
             simgr = project.factory.simgr(state)
             while simgr.active != []:
                 simgr.explore(find=find, avoid=avoid)
-            assert simgr.avoid != [] and simgr.found != []
+            assert simgr.avoid != [] and simgr.found != [], f"{method_name}: got {simgr.avoid} and {simgr.found}"
 
             # no file exists
-            state = project.factory.entry_state(addr=addr)
+            state = project.factory.blank_state(addr=addr)
             state.options["ALL_FILES_EXIST"] = False
             state.options["ANY_FILE_MIGHT_EXIST"] = False
             simgr = project.factory.simgr(state)
             while simgr.active != []:
                 simgr.explore(find=find, avoid=avoid)
-            assert simgr.avoid == [] and simgr.found != []
+            assert simgr.avoid == [] and simgr.found != [], f"{method_name}: got {simgr.avoid} and {simgr.found}"
 
 
 if __name__ == "__main__":
