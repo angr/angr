@@ -25,6 +25,7 @@ class TestCallsiteMaker(unittest.TestCase):
             for func in cfg.kb.functions.values():
                 if func.calling_convention is None:
                     # determine the calling convention of each function
+                    project.analyses.VariableRecoveryFast(func)
                     cc_analysis = project.analyses.CallingConvention(func)
                     if cc_analysis.cc is not None:
                         func.calling_convention = cc_analysis.cc

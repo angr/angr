@@ -237,6 +237,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         cfg = proj.analyses.CFG(data_references=True, normalize=True)
 
         func = cfg.functions.function(name="mosquitto_publish", plt=True)
+        proj.analyses.VariableRecoveryFast(func)
         cca = proj.analyses.CallingConvention(func, analyze_callsites=True)
         assert len(cca.prototype.args) == 6
 
@@ -245,6 +246,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         proj = angr.Project(binary_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True, force_complete_scan=False)
         func = proj.kb.functions.get_by_addr(0x4046E0)
+        proj.analyses.VariableRecoveryFast(func)
         cca = proj.analyses.CallingConvention(func=func, cfg=cfg, analyze_callsites=True)
 
         assert cca.prototype is not None
