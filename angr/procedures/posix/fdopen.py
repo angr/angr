@@ -28,7 +28,7 @@ def mode_to_flag(mode):
     return all_modes[mode]
 
 
-def writing(mode):
+def create_file(mode):
     # TODO improve this: handle mode = strings
     if mode[-1] == b"b":  # lol who uses windows
         mode = mode[:-1]
@@ -59,7 +59,7 @@ class fdopen(angr.SimProcedure):
 
         # TODO: handle append and other mode subtleties
 
-        fd_concr = self.state.posix.get_concrete_fd(fd_int, writing=writing(mode))
+        fd_concr = self.state.posix.get_concrete_fd(fd_int, create_file=create_file(mode))
         if fd_concr not in self.state.posix.fd:
             # if file descriptor not found return NULL
             return 0
@@ -79,4 +79,4 @@ class fdopen(angr.SimProcedure):
                 return file_struct_ptr
             else:
                 null = self.state.solver.BVV(0, self.state.arch.bits)
-                return self.state.solver.If(fd_int != -1, file_struct_ptr, null)
+                return self.state.solver.If(fd_int == fd_concr, file_struct_ptr, null)

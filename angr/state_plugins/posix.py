@@ -299,7 +299,7 @@ class SimSystemPosix(SimStatePlugin):
                 sock_pair[1].set_state(state)
 
     def _pick_fd(self):
-        for fd in range(0, 8192):
+        for fd in range(0, max_fds):
             if fd not in self.fd:
                 return fd
         raise SimPosixError("exhausted file descriptors")
@@ -334,12 +334,12 @@ class SimSystemPosix(SimStatePlugin):
             fd = self._pick_fd()
 
         flags = self.state.solver.eval(flags)
-        writing = (flags & Flags.O_ACCMODE) in (Flags.O_RDWR, Flags.O_WRONLY)
+        create_file = (flags & Flags.O_ACCMODE) in (Flags.O_RDWR, Flags.O_WRONLY)
 
         simfile = self.state.fs.get(name)
         if simfile is None:
             ident = SimFile.make_ident(name)
-            if not writing:
+            if not create_file:
                 if options.ALL_FILES_EXIST not in self.state.options:
                     if options.ANY_FILE_MIGHT_EXIST in self.state.options:
                         file_exists = self.state.solver.BoolS("file_exists_%s" % ident, explicit_name=True)
@@ -409,43 +409,54 @@ class SimSystemPosix(SimStatePlugin):
         self.fd[fd] = simfd
         return fd
 
-    def get_fd(self, fd, writing=True):
+    def get_fd(self, fd, create_file=True):
         """
         Looks up the SimFileDescriptor associated with the given number (an AST).
         If the number is concrete and does not map to anything, return None.
         If the number is symbolic, constrain it to an open fd and create a new file for it.
-        Set writing to False if no write-access is planned (i.e. fd is read-only).
+        Set create_file to False if no write-access is planned (i.e. fd is read-only).
         """
-        concr_fd = self.get_concrete_fd(fd, writing=writing)
-        if concr_fd < 0:
+        concr_fd = self._get_concrete_fd(fd, create_file)
+        if concr_fd < 0 or max_fds <= concr_fd:
             return None
         return self.fd.get(concr_fd)
 
-    def get_concrete_fd(self, fd, writing=True):
+    def get_concrete_fd(self, fd, create_file=True):
         """
-        Same behavior as get_fd(fd), only the result is a concrete integer fd instead of a SimFileDescriptor.
+        Same behavior as get_fd(fd), only the result is a concrete integer fd (or -1) instead of a SimFileDescriptor.
         """
+        concr_fd = self._get_concrete_fd(fd, create_file)
+        if concr_fd < 0 or max_fds <= concr_fd:
+            return -1
+        return concr_fd
+
+    def _get_concrete_fd(self, fd, create_file):
         if isinstance(fd, int):
             return fd
+        if not self.state.satisfiable(extra_constraints=(fd < max_fds,)):
+            return -1
         try:
-            concr_fd = self.state.solver.eval_one(fd, extra_constraints=(self.state.solver.SGE(fd, 0),))
-            return concr_fd
+            return self.state.solver.eval_one(fd, extra_constraints=(fd < max_fds,))
         except SimSolverError:
             pass
 
         new_filename = b"/tmp/angr_implicit_%d" % self.autotmp_counter
         self.autotmp_counter += 1
-        concr_fd = self._pick_fd()
-        if writing:
-            opened_fd = self.open(new_filename, Flags.O_RDWR, preferred_fd=concr_fd)
-            if opened_fd != concr_fd:
-                raise SimPosixError("Something went wrong trying to open implicit temp")
+        if create_file:
+            flags = Flags.O_RDWR
         else:
-            # cannot check result since value might be symbolic
-            opened_fd = self.open(new_filename, Flags.O_RDONLY, preferred_fd=concr_fd)
+            flags = Flags.O_RDONLY
+        concr_fd = self._pick_fd()
+        if not self.state.satisfiable(extra_constraints=(concr_fd == fd,)):
+            l.error("Could not look up a partially constrained symbolic fd")
+            return -1
+        opened_fd = self.open(new_filename, flags, preferred_fd=concr_fd)
+
+        if not self.state.satisfiable(extra_constraints=(concr_fd == opened_fd,)):
+            l.error("Something went wrong trying to open implicit temp")
+            return -1
         self.state.add_constraints(fd == opened_fd)
         l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", concr_fd, new_filename)
-
         return concr_fd
 
     def close(self, fd):
@@ -455,7 +466,7 @@ class SimSystemPosix(SimStatePlugin):
         """
         if not isinstance(fd, int):
             try:
-                fd = self.state.solver.eval_one(fd, extra_constraints=(self.state.solver.SGE(fd, 0),))
+                fd = self.state.solver.eval_one(fd, extra_constraints=(fd < max_fds,))
             except SimSolverError:
                 l.error("Trying to close a symbolic file descriptor")
                 return False
@@ -482,16 +493,12 @@ class SimSystemPosix(SimStatePlugin):
         guest_path = None
 
         # set fd to the value of sim_fd, if positive and unique
-        if isinstance(sim_fd, int):
-            if sim_fd >= 0:
-                fd = sim_fd
-        elif self.state.solver.satisfiable(extra_constraints=(self.state.solver.SGE(sim_fd, 0),)):
-            try:
-                fd = self.state.solver.eval_one(sim_fd)
-                if fd < 0:
-                    fd = None
-            except SimSolverError:
-                pass
+        try:
+            fd = self.state.solver.eval_one(sim_fd)
+            if fd < 0 or max_fds <= fd:
+                fd = None
+        except SimSolverError:
+            pass
 
         if fd is not None:
             fd_desc = self.state.posix.get_fd(fd)
