@@ -421,7 +421,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self.to_use_symbolic_exprs = set()
 
         # create a new solver which holds partial constriants, this is essentially used as simplification solver
-        initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+        #initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+        initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(),
+                                                                                  unsafe_replacement=True,
+                                                                                  auto_replace=False)))
+        initial_state.globals['existing_mba_split_constraints'] = []
+
         for cons in initial_state.preconstrainer.preconstraints:
             for var in cons.variables:
                 if var.startswith('precon_sp'):
@@ -1506,106 +1511,104 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
 
         if self.data_sensitive:
-            ## dealing with indirect jumps that are dependent on user input and user input based loads
             if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) == 1:
-                new_states = []
-                uncon_succ = sim_successors.unconstrained_successors[0]
-                #poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
-                poss_target = uncon_succ.scratch.target
 
-                # if it's till symbolic try to eval with the partial constraint solver
-                if uncon_succ.solver.symbolic(poss_target):
+                    new_states = []
+                    uncon_succ = sim_successors.unconstrained_successors[0]
+                    #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver._replacement(uncon_succ.regs.ip)
+                    poss_target = uncon_succ.regs.ip
+
+                    # if it's till symbolic try to eval with the partial constraint solver
+                    #if uncon_succ.solver.symbolic(poss_target):
                     try:
-                        poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(poss_target)
+                        poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
                     except:
                         print("more than one target?, possible going to split states now")
 
-                if not uncon_succ.solver.symbolic(poss_target):
-                    new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
-                    new_sim_successors.artifacts = sim_successors.artifacts
-                    new_sim_successors.engine = sim_successors.engine
-                    new_sim_successors.processed = sim_successors.processed
-                    new_sim_successors.description = sim_successors.description
-                    new_sim_successors.sort = sim_successors.sort
+                   # poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
 
-                    new_sim_successors.add_successor(uncon_succ, poss_target,
-                                                     uncon_succ.scratch.guard,
-                                                     uncon_succ.history.jumpkind, True,
-                                                     uncon_succ.scratch.exit_stmt_idx,
-                                                     uncon_succ.scratch.exit_ins_addr,
-                                                     uncon_succ.scratch.source)
-
-                    sim_successors = new_sim_successors
-                    sim_successors.artifacts['irsb_direct_next'] = True
-
-                else:
-                    # the unconstrained successor is most likely due to a read addr memory read, so we will try to concretize the addr and the read here a
-                    # nd create new states for each possible addr. We will also add the solved values as constraints and replacements so that we don't to solve for it in the future.
-                    # the concrete values for the addr come from the overriden function _perform_vex_expr_Load() in InputConcretizeEngine
-                    for ast in sim_successors.unconstrained_successors[0].regs.ip.leaf_asts():
-
-                        if ast in sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'] and ast.args[0] not in sim_successors.unconstrained_successors[0].globals['replaced_asts_str']:
-                            conc_addr_and_new_constraints = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][0]
-                            if len(conc_addr_and_new_constraints) > 2:
-                                print("More than two possible jumps? is this not a direct jump converted to an indirect jump?")
-                                import ipdb;ipdb.set_trace()
-                            for conc_addr, input_constraints, loaded_value_constraint in conc_addr_and_new_constraints: #input_constraint
-                                sym_addr = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][2]
-                                size = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][1]
-                                new_state = sim_successors.unconstrained_successors[0].copy()
-                                value = new_state.memory.load(conc_addr, size, endness=new_state.arch.memory_endness)
-                                #import ipdb;ipdb.set_trace()
-
-
-                                new_state.add_constraints(sym_addr == conc_addr)
-                                new_state.solver._solver.add_replacement(sym_addr, conc_addr, invalidate_cache=False)
-                                new_state.partial_symbolic_constraint_solver.add(sym_addr == conc_addr)
-
-                                new_state.add_constraints(loaded_value_constraint)
-                                new_state.solver._solver.add_replacement(loaded_value_constraint.args[0], loaded_value_constraint.args[1], invalidate_cache=False)
-                                new_state.partial_symbolic_constraint_solver.add(loaded_value_constraint)
-                                new_state.globals['replaced_asts_str'][loaded_value_constraint.args[0].args[0]] = "replaced"
-
-                                for ast_constraint in input_constraints:
-                                    new_state.add_constraints(ast_constraint)
-                                    new_state.solver._solver.add_replacement(ast_constraint.args[0], ast_constraint.args[1], invalidate_cache=False)
-                                    new_state.partial_symbolic_constraint_solver.add(ast_constraint)
-                                    new_state.globals['replaced_asts_str'][ast_constraint.args[0].args[0]] = "replaced"
-
-                                # new_state.regs.ip = new_state.solver.simplify(new_state.regs.ip).replace_dict(new_state.solver._solver._replacement_cache)
-                                # new_state.scratch.target = new_state.solver.simplify(new_state.scratch.target).replace_dict(new_state.solver._solver._replacement_cache)
-                                if new_state.solver.symbolic(new_state.regs.ip):
-                                    try:
-                                        new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
-                                    except:
-                                        print("Unable to get one IP")
-                                        import ipdb;ipdb.set_trace()
-                                if new_state.solver.symbolic(new_state.scratch.target):
-                                    try:
-                                        new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
-                                    except:
-                                        print("Unable to get one IP")
-                                        import ipdb;ipdb.set_trace()
-                                new_states.append(new_state)
-
-                    if len(new_states) != 0:
+                    if not uncon_succ.solver.symbolic(poss_target):
+                        #import ipdb;ipdb.set_trace()
                         new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                         new_sim_successors.artifacts = sim_successors.artifacts
                         new_sim_successors.engine = sim_successors.engine
                         new_sim_successors.processed = sim_successors.processed
                         new_sim_successors.description = sim_successors.description
                         new_sim_successors.sort = sim_successors.sort
-                        for new_state in new_states:
-                            new_sim_successors.add_successor(new_state, new_state.solver.eval(new_state.scratch.target), new_state.scratch.guard,
-                                                                      new_state.history.jumpkind, True,
-                                                                      new_state.scratch.exit_stmt_idx,
-                                                                      new_state.scratch.exit_ins_addr,
-                                                                      new_state.scratch.source)
-                        sim_successors=new_sim_successors
-                        sim_successors.artifacts['irsb_direct_next'] = True
-                        # import ipdb;
-                        # ipdb.set_trace()
 
+                        uncon_succ.regs.ip = poss_target
+
+                        new_sim_successors.add_successor(uncon_succ, uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.scratch.target),
+                                                         uncon_succ.scratch.guard,
+                                                         uncon_succ.history.jumpkind, True,
+                                                         uncon_succ.scratch.exit_stmt_idx,
+                                                         uncon_succ.scratch.exit_ins_addr,
+                                                         uncon_succ.scratch.source)
+
+                        sim_successors = new_sim_successors
+                        sim_successors.artifacts['irsb_direct_next'] = True
+
+
+                    else:
+                        repl_ip= sim_successors.all_successors[0].partial_symbolic_constraint_solver._solver._replacement(sim_successors.all_successors[0].regs.ip)
+
+                        state_var_ast = []
+                        for ast in repl_ip.leaf_asts():
+                            if isinstance(ast.args[0], str) and ast.args[0].startswith('mba_state_split_cond') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
+                                state_var_ast.append(ast)
+
+                        # if len(state_var_ast) != 1:
+                        #     import ipdb;ipdb.set_trace()
+
+                        if len(state_var_ast) > 0:
+
+                            state_var_ast = state_var_ast[0]
+
+                            sim_successors.all_successors[0].globals['existing_mba_split_constraints'].append(state_var_ast.args[0])
+
+                            try:
+                                # This eval result is not added to repalcements even though unsafe replacements is turned on number of solns must be only one
+                                solns = sim_successors.unconstrained_successors[0].partial_symbolic_constraint_solver._solver.batch_eval([sim_successors.unconstrained_successors[0].regs.ip, state_var_ast], 5)
+                            except:
+                                import ipdb;ipdb.set_trace()
+
+                            if len(solns) > 2:
+                                import ipdb;ipdb.set_trace()
+
+                            for soln_pair in solns:
+                                new_state = sim_successors.unconstrained_successors[0].copy()
+
+
+                                new_state.partial_symbolic_constraint_solver.add(state_var_ast == soln_pair[1])
+
+                                # we are doing eval_one because only when one soln exists unsafe replacements will happen
+
+                                k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver._replacement(new_state.regs.ip))
+
+                                new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
+                                new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
+
+                                new_states.append(new_state)
+                                # import ipdb;ipdb.set_trace()
+                        else:
+                            print("The VIP/some reg has probably become symbolic, or we have reached last node")
+
+                        if len(new_states) != 0:
+                            #import ipdb;ipdb.set_trace()
+                            new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+                            new_sim_successors.artifacts = sim_successors.artifacts
+                            new_sim_successors.engine = sim_successors.engine
+                            new_sim_successors.processed = sim_successors.processed
+                            new_sim_successors.description = sim_successors.description
+                            new_sim_successors.sort = sim_successors.sort
+                            for new_state in new_states:
+                                new_sim_successors.add_successor(new_state, new_state.solver.eval(new_state.scratch.target), new_state.scratch.guard,
+                                                                          new_state.history.jumpkind, True,
+                                                                          new_state.scratch.exit_stmt_idx,
+                                                                          new_state.scratch.exit_ins_addr,
+                                                                          new_state.scratch.source)
+                            sim_successors=new_sim_successors
+                            sim_successors.artifacts['irsb_direct_next'] = True
 
             elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
                 print("More than one unconstrained successor?!")
