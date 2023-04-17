@@ -75,7 +75,7 @@ class fdopen(angr.SimProcedure):
                 file_struct_ptr + io_file_data["fd"], fd_bvv, endness=self.state.arch.memory_endness
             )
 
-            if self.state.solver.is_true(fd_int != -1):
+            if self.state.solver.is_true(fd_int == fd_concr):
                 return file_struct_ptr
             else:
                 null = self.state.solver.BVV(0, self.state.arch.bits)
