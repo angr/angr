@@ -135,8 +135,10 @@ class InputConcretizeEngine(UberEngine):
 
     def _handle_vex_expr(self, expr):
         result = super()._handle_vex_expr(expr)
+        ## Should we do at least _replacement() here so tht mbas will keep getting simplified, this will help if the mba is on stack and has not been replaced in _perform_vex_expr_Load
+        ## But this slows down analyses so instead we just do replacement for all temps and registers in _perform_vex_expr_Load
+        #new_result = self.state.partial_symbolic_constraint_solver._solver._replacement(result[0])
         new_result = result[0]
-
         if self.project.prev_symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
             for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
                 for to_repl_expr in expr_list:
@@ -196,12 +198,12 @@ class InputConcretizeEngine(UberEngine):
             else:
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 ## IF OPTIMIZATION IS ZERO THEN WE HAVE TO STORE THIS IN THE REGISTER WHICH CREATED THIS TMP AS WELL,SINCE THE TEMP WILL NOT BE USED LATER WHEN THE REGISTER IS READ
+                ## OR WE CAN JUST DO _replacement on all regs and current temps....... but still possible it might be on stack
                 addr_mba=claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1])
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], addr_mba)
                 self.state.scratch.temps[expr.addr.tmp] = addr_mba
                 to_return=claripy.If(state_split_cond, loaded_values[0], loaded_values[1])
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], to_return)
-
                 ## This to add addrs which are of the following form mba+offset, mba+4
                 if addr[0].op in ["__add__","__sub__"]:
                     if len(addr[0].args) == 2:
@@ -240,6 +242,20 @@ class InputConcretizeEngine(UberEngine):
                                 print("Not implemented")
                                 import ipdb;
                                 ipdb.set_trace()
+
+                ## Do replacement for all registers and temps just to be safe....... although the mba can still be on stack...... will deal with it later.
+                ## That should not be a problem since we try to evaluate every address above, so it should be resolved
+                for ind in range(len(self.state.scratch.temps)):
+                    if self.state.scratch.temps[ind] is not None:
+                        self.state.scratch.temps[ind] = self.state.partial_symbolic_constraint_solver._solver._replacement(self.state.scratch.temps[ind])
+
+                for reg in self.state.arch.registers.keys():
+                    offset = self.state.arch.registers[reg][0]
+                    size = self.state.arch.registers[reg][1]
+                    old_val = self.state.registers.load(offset, size)
+                    new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val)
+                    if old_val is not new_val:
+                        self.state.registers.store(offset, new_val)
 
                 return [to_return ,result[1]]
 
@@ -476,20 +492,6 @@ class VMDeobfuscation(Analysis):
 
         start_state_copy = start_state.copy()
 
-        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-        # import ipdb;ipdb.set_trace()
-        # q = Queue()
-        # p = Process(target=self.constant_propagation, args=(new_cfg, proj, start_addr, q), kwargs={'start_state':None, 'prev_symbolic_expr_locations_blockwise':symbolic_expr_locations_blockwise})
-        # p.start()
-        # # res = q.get()
-        # res = []
-        # while len(res) < 2:
-        #     while not q.empty():
-        #         print("here")
-        #         res.append(q.get())
-        #
-        # new_cfg = res[0]
-        # symbolic_expr_locations_blockwise = res[1]
 
         #p.join()
         import gc
@@ -516,7 +518,7 @@ class VMDeobfuscation(Analysis):
         # import ipdb;ipdb.set_trace()
         start_state_copy = start_state.copy()
         #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-
+        #
         # if self.project.filename == "/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/loop_test.vmp.exe":
         #     # VM_1_func = Function(proj.kb.functions, 0x1400B921B, 'VM_1', None, is_simprocedure=False)
         #     # VM_1_func.normalize()
@@ -593,10 +595,10 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
         #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
-        verification_state_copy = verification_state.copy()
-        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy,
-                                           start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
-        import ipdb;ipdb.set_trace()
+        # verification_state_copy = verification_state.copy()
+        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy,
+        #                                    start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
+        # import ipdb;ipdb.set_trace()
 
         for i in range(2):
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
@@ -641,11 +643,10 @@ class VMDeobfuscation(Analysis):
 
         verification_state_copy = verification_state.copy()
         self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-        import ipdb;ipdb.set_trace()
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
-        self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
-        self.compare_vex(initial_cfg, new_cfg, folder_name)
-        self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
+        # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
+        # self.compare_vex(initial_cfg, new_cfg, folder_name)
+        # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
     def symbolizer(self, cfg, proj, start_addr, q, start_state=None, options=None,
                              prev_symbolic_expr_locations_blockwise=None, vm_vpc=None,
@@ -1350,7 +1351,6 @@ class VMDeobfuscation(Analysis):
                     proj.hook(symbol_addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=proj.factory._default_cc(start_state.arch), prototype=proc.prototype),replace=True)
                     #proj.unhook(symbol_addr)
 
-        import ipdb;ipdb.set_trace()
 
     def convert_to_atom(self, vex_inst, tyenv, byte_width):
         if isinstance(vex_inst, pyvex.expr.RdTmp):
