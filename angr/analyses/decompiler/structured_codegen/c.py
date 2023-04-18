@@ -572,11 +572,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             wrapped_cmt += "\n"
 
-        final_comment = ""
-        for line in wrapped_cmt.splitlines():
-            final_comment += f"// {line}\n"
-
-        return final_comment
+        return "".join([f"// {line}\n" for line in wrapped_cmt.splitlines()])
 
 
 class CStatement(CConstruct):  # pylint:disable=abstract-method
