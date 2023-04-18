@@ -495,7 +495,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield "\n", None
 
         yield indent_str, None
-        
+
         # header comments (if they exist)
         header_comments = self.codegen.kb.comments.get(self.codegen.cfunc.addr, [])
         if header_comments:
