@@ -1,6 +1,7 @@
 from typing import Set, Optional, Union, TYPE_CHECKING
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
+from ...knowledge_plugins.key_definitions.constants import ObservationPointType
 from .. import register_analysis
 from .reaching_definitions import ReachingDefinitionsAnalysis
 

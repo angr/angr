@@ -1,6 +1,7 @@
 from typing import Dict, Tuple, Union, Optional
 
 import claripy
+from archinfo import Arch
 
 from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
@@ -88,7 +89,7 @@ class FunctionCall(Atom):
         self.callsite = callsite
 
     @property
-    def single_target(self):
+    def single_target(self) -> Optional[int]:
         if (
             type(self.target) is MultiValues
             and len(self.target.values) == 1
@@ -97,6 +98,8 @@ class FunctionCall(Atom):
             and next(iter(self.target.values[0])).op == "BVV"
         ):
             return next(iter(self.target.values[0])).args[0]
+        elif isinstance(self.target, int):
+            return self.target
         return None
 
     def __repr__(self):
@@ -190,16 +193,23 @@ class Register(Atom):
     __slots__ = (
         "reg_offset",
         "_size",
+        "arch",
     )
 
-    def __init__(self, reg_offset: int, size: int):
+    def __init__(self, reg_offset: int, size: int, arch: Optional[Arch]=None):
         super().__init__()
 
         self.reg_offset = reg_offset
         self._size = size
+        self.arch = arch
 
     def __repr__(self):
-        return "<Reg %d<%d>>" % (self.reg_offset, self.size)
+        return "<Reg %s<%d>>" % (
+                self.reg_offset
+                    if self.arch is None
+                    else self.arch.translate_register_name(self.reg_offset, self._size),
+                self.size
+        )
 
     def __eq__(self, other):
         return type(other) is Register and self.reg_offset == other.reg_offset and self.size == other.size

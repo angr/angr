@@ -21,9 +21,9 @@ from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
 from .subject import Subject, SubjectType
 from .function_handler import FunctionHandler
+from .dep_graph import DepGraph
 
 if TYPE_CHECKING:
-    from .dep_graph import DepGraph
     from typing import Literal, Iterable
 
     ObservationPoint = Tuple[Literal["insn", "node", "stmt"], Union[int, Tuple[int, int, int]], ObservationPointType]
@@ -63,7 +63,7 @@ class ReachingDefinitionsAnalysis(
         maximum_local_call_depth=5,
         observe_all=False,
         visited_blocks=None,
-        dep_graph: Optional["DepGraph"] = None,
+        dep_graph: Union[DepGraph, bool, None] = None,
         observe_callback=None,
         canonical_size=8,
         stack_pointer_tracker=None,
@@ -98,6 +98,8 @@ class ReachingDefinitionsAnalysis(
                                                 to None to skip dependency graph generation.
         :param canonical_size:                  The sizes (in bytes) that objects with an UNKNOWN_SIZE are treated as
                                                 for operations where sizes are necessary.
+        :param dep_graph:                       Set this to True to generate a dependency graph for the subject. It will
+                                                be available as `result.dep_graph`.
         """
 
         if not isinstance(subject, Subject):
@@ -119,7 +121,12 @@ class ReachingDefinitionsAnalysis(
         self._maximum_local_call_depth = maximum_local_call_depth
         self._canonical_size = canonical_size
 
-        self._dep_graph = dep_graph
+        if dep_graph is None or dep_graph is False:
+            self._dep_graph = None
+        elif dep_graph is True:
+            self._dep_graph = DepGraph()
+        else:
+            self._dep_graph = dep_graph
 
         if function_handler is None:
             self._function_handler = FunctionHandler().hook(self)
@@ -215,6 +222,9 @@ class ReachingDefinitionsAnalysis(
 
     @property
     def dep_graph(self):
+        if self._dep_graph is None:
+            raise ValueError("Cannot access dep_graph if the analysis was not configured to generate one. Try passing "
+                             "dep_graph=True to the RDA constructor.")
         return self._dep_graph
 
     @property
@@ -460,3 +470,4 @@ class ReachingDefinitionsAnalysis(
 
     def _post_analysis(self):
         pass
+

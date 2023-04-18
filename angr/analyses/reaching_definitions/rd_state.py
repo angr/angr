@@ -254,6 +254,10 @@ class ReachingDefinitionsState:
         return self._environment
 
     @property
+    def _dep_graph(self):
+        return self.analysis._dep_graph
+
+    @property
     def dep_graph(self):
         return self.analysis.dep_graph
 
@@ -433,7 +437,7 @@ class ReachingDefinitionsState:
             defs = set(LiveDefinitions.extract_defs_from_mv(mv))
             self.all_definitions |= defs
 
-            if self.dep_graph is not None:
+            if self._dep_graph is not None:
                 stack_use = set(
                     filter(lambda u: isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack, self.codeloc_uses)
                 )
@@ -478,11 +482,11 @@ class ReachingDefinitionsState:
                         # "uses" are actually the definitions that we're using and the "definition" is the
                         # new definition; i.e. The def that the old def is used to construct so this is
                         # really a graph where nodes are defs and edges are uses.
-                        self.dep_graph.add_node(used)
+                        self._dep_graph.add_node(used)
                         for def_ in defs:
                             if not def_.dummy:
-                                self.dep_graph.add_edge(used, def_)
-                        self.dep_graph.add_dependencies_for_concrete_pointers_of(
+                                self._dep_graph.add_edge(used, def_)
+                        self._dep_graph.add_dependencies_for_concrete_pointers_of(
                             values,
                             used,
                             self.analysis.project.kb.cfgs.get_most_accurate(),
@@ -571,20 +575,20 @@ class ReachingDefinitionsState:
         atom = GuardUse(target)
         kinda_definition = Definition(atom, code_loc)
 
-        if self.dep_graph is not None:
-            self.dep_graph.add_node(kinda_definition)
+        if self._dep_graph is not None:
+            self._dep_graph.add_node(kinda_definition)
             for used in self.codeloc_uses:
-                self.dep_graph.add_edge(used, kinda_definition)
+                self._dep_graph.add_edge(used, kinda_definition)
 
     def mark_call(self, code_loc: CodeLocation, target):
         self._cycle(code_loc)
         atom = FunctionCall(target, code_loc)
         kinda_definition = Definition(atom, code_loc)
 
-        if self.dep_graph is not None and self._track_calls:
-            self.dep_graph.add_node(kinda_definition)
+        if self._dep_graph is not None and self._track_calls:
+            self._dep_graph.add_node(kinda_definition)
             for used in self.codeloc_uses:
-                self.dep_graph.add_edge(used, kinda_definition)
+                self._dep_graph.add_edge(used, kinda_definition)
             self.codeloc_uses.clear()
             self.codeloc_uses.add(kinda_definition)
             self.live_definitions.uses_by_codeloc[code_loc].clear()
@@ -595,8 +599,8 @@ class ReachingDefinitionsState:
         atom = ConstantSrc(const)
         kinda_definition = Definition(atom, code_loc)
 
-        if self.dep_graph is not None and self._track_consts:
-            self.dep_graph.add_node(kinda_definition)
+        if self._dep_graph is not None and self._track_consts:
+            self._dep_graph.add_node(kinda_definition)
             self.codeloc_uses.add(kinda_definition)
             self.live_definitions.uses_by_codeloc[code_loc].add(kinda_definition)
 

@@ -7,7 +7,7 @@ import claripy
 from cle.loader import Loader
 
 from ...code_location import CodeLocation
-from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
+from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, FunctionCall, GuardUse, Tmp
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.cfg import CFGModel
@@ -185,3 +185,15 @@ class DepGraph:
             )
 
             self.graph.add_edge(memory_location_definition, definition)
+
+    def find_defs(self, **kwargs) -> List[Definition]:
+        """
+        Filter the definitions present in the graph based on various criteria.
+        Parameters can be any valid keyword args to `Definition.matches`
+        """
+        result = []
+        defn: Definition
+        for defn in self.nodes():
+            if defn.matches(**kwargs):
+                result.append(defn)
+        return result

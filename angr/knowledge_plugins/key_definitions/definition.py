@@ -2,7 +2,7 @@ from typing import Set
 
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .atoms import Atom, MemoryLocation, Register
+from .atoms import Atom, MemoryLocation, Register, Tmp, FunctionCall, GuardUse
 from .tag import Tag
 
 
@@ -12,7 +12,6 @@ class Definition:
 
     :ivar atom:     The atom being defined.
     :ivar codeloc:  Where this definition is created in the original binary code.
-    :ivar data:     A concrete value (or many concrete values) that the atom holds when the definition is created.
     :ivar dummy:    Tell whether the definition should be considered dummy or not. During simplification by AILment,
                     definitions marked as dummy will not be removed.
     :ivar tags:     A set of tags containing information about the definition gathered during analyses.
@@ -21,7 +20,6 @@ class Definition:
     __slots__ = (
         "atom",
         "codeloc",
-        "data",
         "dummy",
         "tags",
         "_hash",
@@ -76,3 +74,32 @@ class Definition:
             return self.atom.bits // 8
         else:
             raise ValueError("Unsupported operation size on %s." % type(self.atom))
+
+    def matches(self, kind=None, bbl_addr=None, ins_addr=None, call_target=None) -> bool:
+        """
+        Return whether this definition has certain characteristics.
+
+        :param kind:        Specifies the kind of atom that must match. One of the strings "reg", "mem", "tmp",
+                            "guard", "call", or None.
+        :param bbl_addr:    The codeloc must be from this basic block
+        :param ins_addr:    The codeloc must be from this instruction
+        :param call_target: The atom must be a call targeting this address
+        """
+        if kind is not None:
+            if kind == 'reg' and not isinstance(self.atom, Register):
+                return False
+            if kind == 'mem' and not isinstance(self.atom, MemoryLocation):
+                return False
+            if kind == 'tmp' and not isinstance(self.atom, Tmp):
+                return False
+            if kind == 'guard' and not isinstance(self.atom, GuardUse):
+                return False
+            if kind == 'call' and not isinstance(self.atom, FunctionCall):
+                return False
+        if bbl_addr is not None and self.codeloc.block_addr != bbl_addr:
+            return False
+        if ins_addr is not None and self.codeloc.ins_addr != ins_addr:
+            return False
+        if call_target is not None and (not isinstance(self.atom, FunctionCall) or self.atom.single_target != call_target):
+            return False
+        return True
