@@ -54,5 +54,5 @@ class poll(angr.SimProcedure):
                     fds + offset * size_of_pollfd + offset_revents, revents, endness=self.arch.memory_endness
                 )
 
-        retval = self.state.solver.BVV(0, 1).concat(self.state.solver.BVS("poll_ret", 31))
+        retval = self.state.solver.BVV(0, 1).concat(self.state.solver.BVS("poll_ret", self.state.arch.bits - 1))
         return retval
