@@ -130,34 +130,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
 
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
-
-        #simplified_addr = self.state.solver.simplify(addr[0])
-        #simplified_addr=self.state.solver.simplify(addr[0])
-        # if self.state.globals["cur_block_id"].vm_vpc == 5368833174 and self.state.scratch.ins_addr == 0x140042D7D:
-        #     import ipdb;ipdb.set_trace()
-
-        # if self.state.globals["cur_block_id"].vm_vpc == 4358398 and self.state.scratch.ins_addr == 0x45F580:
-        #     import ipdb;
-        #     ipdb.set_trace()
-
-        loc_key = str(self.state.globals['cur_block_id']) + str(hex(self.state.scratch.ins_addr))
-        # if loc_key in self.state.globals['mba_locs']:
-        #     import ipdb;ipdb.set_trace()
-        #     result_tup, addr_tup = self.state.globals['mba_locs'][loc_key]
-        #     self.state.registers.store(self.state.arch.registers[addr_tup[0]][0], addr_tup[1])
-        #     temp_no = self.state.scratch.irsb.statements[self.state.scratch.stmt_idx].data.addr.tmp
-        #     self.state.scratch.temps[temp_no] = addr_tup[1]
-        #
-        #     ## update the unique mba_split_cond
-        #     state_split_cond = claripy.BoolS('mba_state_split_cond')
-        #     new_result_tup = (result_tup[0], claripy.If(state_split_cond, result_tup[1].args[1], result_tup[1].args[2]))
-        #     new_addr_tup = (addr_tup[0], claripy.If(state_split_cond, addr_tup[1].args[1], addr_tup[1].args[2]))
-        #     self.state.globals['mba_locs'][loc_key] = [new_result_tup, new_addr_tup]
-        #     return result_tup[1], None
-
         simplified_addr = addr[0]
-        # if PropagatorState.is_top(addr[0]):
-        #     import ipdb;ipdb.set_trace()
         if self.state.solver.symbolic(addr[0]):
             try:
                 simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr[0])
@@ -187,102 +160,24 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         save = False
         var_ast_list = []
 
-        # no_constraints_solver = claripy.solvers.SolverComposite()
-        # no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
-        # conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
         conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0],5)
         ast_addrs = []
         for con_addr in conc_addrs:
             ast_addrs.append(claripy.BVV(con_addr, addr[0].size()))
 
         conc_addrs = ast_addrs
-        #
-        # for test_str in ['symbolic_read_unconstrained_2212_32','symbolic_read_unconstrained_3329_32', 'state_merge_131_3584_16', 'symbolic_read_unconstrained_3328_32', 'symbolic_read_unconstrained_3534_32']:
-        #     if isinstance(result[0].args[0], str) and result[0].args[0].startswith(test_str):
-        #         import ipdb;ipdb.set_trace()
 
         if len(conc_addrs) < 5:
             if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_') and not merged_stack_address:
                 if not self.state.solver.symbolic(simplified_addr):
                     return result
                 save = True
-                for ast in simplified_addr.leaf_asts():
-                    if isinstance(ast.args[0], str) and not ast.args[0].startswith('precon') and ast.args[0] not in \
-                            self.state.globals['replaced_asts_str']:
-                        var_ast_list.append(ast)
-                    # if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
-                    #     save = True
-                    #     var_ast_list.append(ast)
-                    # if isinstance(ast.args[0], str) and ast.args[0].startswith('symbolified_expr'):
-                    #     save = True
-                    #     var_ast_list.append(ast)
-                if not save:
-                    poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0], 5)
-                    addr_in_binary = True
-
-                    for pos_addr in poss_addrs:
-                        if not self.state.project.loader.main_object.contains_addr(pos_addr):
-                            addr_in_binary = False
-                            break
-
-                    if len(poss_addrs) < 5 and addr_in_binary:
-                        # import ipdb;ipdb.set_trace()
-                        save = True
-
-                        for ast in simplified_addr.leaf_asts():
-                            if self.state.solver.symbolic(ast):
-                                if ast.args[0] not in self.state.globals['replaced_asts_str']:
-                                    var_ast_list.append(ast)
 
         if len(var_ast_list) > 1:
             print("More than one variables? which one to save.... maybe both")
-            # import ipdb;
-            # ipdb.set_trace()
+
 
         if save:
-            # create a solver without any constraints and use that to solve. This is equivalent to simplifying it and should not have the same issues that regular symbolic execution/solving with contraints should have
-            # no_constraints_solver = claripy.solvers.SolverComposite()
-            # no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
-            # conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
-
-            ## USE THIS THE PARTIAL CONSTRAINTS INSTEAD OF UNONCONSTRINAED SOLVER
-            #conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(simplified_addr, 4)
-
-            # simp_addr = self.state.solver.simplify(simplified_addr)
-            # vars = simp_addr.variables
-
-            # if len(var_ast_list) > 1:
-            #     print("More than one variables to constrain at a time................. interesting...")
-            #     #import ipdb;ipdb.set_trace()
-            #
-            #
-            # conc_addr_and_new_constraints = []
-            # loaded_values = []
-            # for conc_addr in conc_addrs:
-            #     new_ast_constraints = []
-            #     no_constraints_solver = claripy.solvers.SolverComposite()
-            #     no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
-            #     no_constraints_solver.add(simplified_addr == conc_addr)
-            #
-            #     loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
-            #                                           endness=self.state.arch.memory_endness)
-            #     #conc_input_value = no_constraints_solver.eval(var_ast, 1)[0]
-            #     loaded_values.append(loaded_value)
-            #
-            #     # solve for the other variables with the above constraint on the addr
-            #     conc_input_value = []
-            #     for var_ast in var_ast_list:
-            #         conc_input_value = no_constraints_solver.eval(var_ast, 5)
-            #         new_ast_constraints.append(var_ast == conc_input_value[0])
-            #         # add this new constraint, and then solve for the rest as well
-            #         no_constraints_solver.add(var_ast == conc_input_value[0])
-            #
-            #     if len(conc_input_value) == 1:
-            #         conc_addr_and_new_constraints.append((conc_addr, new_ast_constraints, result[0] == loaded_value))
-            #     else:
-            #         #dont add a constraint on the ast since there's no single value that satisfies this, because we are going to use this for constant propagation
-            #         conc_addr_and_new_constraints.append((conc_addr, None, result[0] == loaded_value))
-
             loaded_values = []
             for conc_addr in conc_addrs:
                 loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
@@ -294,23 +189,11 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 import ipdb;
                 ipdb.set_trace()
             else:
-                # import ipdb;ipdb.set_trace()
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
-                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1]))
-                self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], claripy.If(state_split_cond, loaded_values[0], loaded_values[1]))
-
-                cur_block = self.state.block()
-                ind=cur_block.instruction_addrs.index(self.state.scratch.ins_addr)
-                if cur_block.disassembly.insns[ind].mnemonic != "mov":
-                    import ipdb;ipdb.set_trace()
-
-                op_str = cur_block.disassembly.insns[ind].insn.op_str
-                import re
-                res=re.search('(.*), .*\[(.*)\]',op_str)
-
-                loc_key = str(self.state.globals['cur_block_id']) + str(hex(self.state.scratch.ins_addr))
-                new_state_split_cond = claripy.BoolS('mba_state_split_cond')
-                self.state.globals['mba_locs'][loc_key] = [(res.groups()[0], claripy.If(new_state_split_cond, loaded_values[0], loaded_values[1])), (res.groups()[1], claripy.If(new_state_split_cond, conc_addrs[0], conc_addrs[1]))]
+                addr_mba=claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1])
+                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], addr_mba)
+                to_return=claripy.If(state_split_cond, loaded_values[0], loaded_values[1])
+                self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], to_return)
 
 
                 ## This to add addrs which are of the following form mba+offset, mba+4
@@ -333,23 +216,40 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1] + addr[0].args[2], claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[0], conc_addrs[1] - addr[0].args[0]))
                             elif addr[0].op == "__sub__":
                                 print("Not implemented")
-                                #self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[1], claripy.If(state_split_cond, addr[0].args[0] - conc_addrs[0], addr[0].args[0] - conc_addrs[1]))
+                                import ipdb;
+                                ipdb.set_trace()
                         elif addr[0].args[1].depth == 1:
                             if addr[0].op == "__add__":
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] + addr[0].args[2],claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[1], conc_addrs[1] - addr[0].args[1]))
                             elif addr[0].op == "__sub__":
                                 print("Not implemented")
-                                # self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr[0].args[1], conc_addrs[1] + addr[0].args[1]))
+                                import ipdb;
+                                ipdb.set_trace()
                         elif addr[0].args[2].depth == 1:
                             if addr[0].op == "__add__":
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] + addr[0].args[1],claripy.If(state_split_cond, conc_addrs[0] - addr[0].args[2], conc_addrs[1] - addr[0].args[2]))
                             elif addr[0].op == "__sub__":
                                 print("Not implemented")
-                                # self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0].args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr[0].args[1], conc_addrs[1] + addr[0].args[1]))
-                #self.state.partial_symbolic_constraint_solver._solver.add(result[0] == claripy.If(state_split_cond, loaded_values[0], loaded_values[1]))
+                                import ipdb;
+                                ipdb.set_trace()
 
-                # self.state.globals['concretized_load_addr_dict'][result[0]] = (
-                # conc_addr_and_new_constraints, self._ty_to_bytes(ty), simplified_addr)
+                ## Do replacement for all registers and temps just to be safe....... although the mba can still be on stack...... will deal with it later.
+                ## That should not be a problem since we try to evaluate every address above, so it should be resolved
+                for ind in range(len(self.state.scratch.temps)):
+                    if self.state.scratch.temps[ind] is not None:
+                        self.state.scratch.temps[
+                            ind] = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                            self.state.scratch.temps[ind])
+
+                for reg in self.state.arch.registers.keys():
+                    offset = self.state.arch.registers[reg][0]
+                    size = self.state.arch.registers[reg][1]
+                    old_val = self.state.registers.load(offset, size)
+                    new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val)
+                    if old_val is not new_val:
+                        self.state.registers.store(offset, new_val)
+
+                return [to_return, result[1]]
 
         return result
 
