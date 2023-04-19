@@ -490,7 +490,9 @@ class SimEngineRDVEX(
     #
 
     def _handle_Const(self, expr) -> MultiValues:
-        return MultiValues(claripy_value(expr.con.type, expr.con.value))
+        clrp = claripy_value(expr.con.type, expr.con.value)
+        self.state.mark_const(self._codeloc(), expr.con.value, len(clrp) // 8)
+        return MultiValues(clrp)
 
     def _handle_Conversion(self, expr):
         simop = vex_operations[expr.op]
@@ -1059,7 +1061,6 @@ class SimEngineRDVEX(
 
         func_addr_int: int = func_addr_v._model_concrete.value
 
-        caller_codeloc = self._codeloc()
         codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
 
         # direct calls
@@ -1103,7 +1104,8 @@ class SimEngineRDVEX(
             executed_rda, state = self._function_handler.handle_unknown_call(self.state, src_codeloc=self._codeloc())
             self.state = state
 
-        self.state.mark_call(caller_codeloc, func_addr_int)
+        # this should be the codeloc of the function so that we pick up uses in the handler as dep-use preds
+        self.state.mark_call(codeloc, func_addr_int)
         skip_cc = executed_rda
 
         return skip_cc

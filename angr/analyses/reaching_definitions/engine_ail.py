@@ -570,9 +570,11 @@ class SimEngineRDAIL(
                     except SimMemoryMissingError:
                         continue
 
+                    # XXX should be add_stack_use_by_defs?
                     self.state.add_memory_use_by_defs(defs, self._codeloc(), expr=expr)
                     result = result.merge(vs) if result is not None else vs
             else:
+                # XXX does ail not support heap tracking?
                 l.debug("Memory address %r undefined or unsupported at pc %#x.", addr, self.ins_addr)
 
         if result is None:
@@ -1138,7 +1140,7 @@ class SimEngineRDAIL(
         return MultiValues(offset_to_values={0: {top}})
 
     def _ail_handle_Const(self, expr) -> MultiValues:
-        self.state.mark_const(self._codeloc(), expr)
+        self.state.mark_const(self._codeloc(), expr.value, expr.size)
         if isinstance(expr.value, float):
             sort = None
             if expr.bits == 64:

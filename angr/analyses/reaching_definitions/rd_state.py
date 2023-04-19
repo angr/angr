@@ -594,9 +594,9 @@ class ReachingDefinitionsState:
             self.live_definitions.uses_by_codeloc[code_loc].clear()
             self.live_definitions.uses_by_codeloc[code_loc].add(kinda_definition)
 
-    def mark_const(self, code_loc: CodeLocation, const):
+    def mark_const(self, code_loc: CodeLocation, value: int, size: int):
         self._cycle(code_loc)
-        atom = ConstantSrc(const)
+        atom = ConstantSrc(value, size)
         kinda_definition = Definition(atom, code_loc)
 
         if self._dep_graph is not None and self._track_consts:

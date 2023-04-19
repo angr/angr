@@ -26,20 +26,28 @@ class Atom:
 
     @property
     def size(self) -> int:
+        """
+        The size of the storage location, in bytes.
+        """
         raise NotImplementedError()
 
     @staticmethod
-    def from_argument(argument: SimFunctionArgument, registers: Dict[str, Tuple[int, int]]):
+    def from_argument(argument: SimFunctionArgument, arch: Arch, full_reg=False):
         """
         Instanciate an `Atom` from a given argument.
 
         :param argument: The argument to create a new atom from.
         :param registers: A mapping representing the registers of a given architecture.
+        :param full_reg: Whether to return an atom indicating the entire register if the argument only specifies a
+                        slice of the register.
         """
         if isinstance(argument, SimRegArg):
-            return Register(registers[argument.reg_name][0], argument.size)
+            if full_reg:
+                return Register(arch.registers[argument.reg_name][0], arch.registers[argument.reg_name][1], arch)
+            else:
+                return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size, arch)
         elif isinstance(argument, SimStackArg):
-            return MemoryLocation(registers["sp"][0] + argument.stack_offset, argument.size)
+            return MemoryLocation(arch.registers["sp"][0] + argument.stack_offset, argument.size)
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
@@ -125,26 +133,27 @@ class ConstantSrc(Atom):
     Represents a constant.
     """
 
-    __slots__ = ("const",)
+    __slots__ = ("value", "_size")
 
-    def __init__(self, const):
+    def __init__(self, value: int, size: int):
         super().__init__()
-        self.const = const
+        self.value: int = value
+        self._size: int = size
 
     def __repr__(self):
-        return repr(self.const)
+        return f'<Const {self.value}>'
 
     def __eq__(self, other):
-        return type(other) is ConstantSrc and self.const == other.const
+        return type(other) is ConstantSrc and self.value == other.value and self.size == other.size
 
     __hash__ = Atom.__hash__
 
     def _core_hash(self):
-        return hash(self.const)
+        return hash((self.value, self.size))
 
     @property
     def size(self):
-        return self.const.size
+        return self._size
 
 
 class Tmp(Atom):
@@ -205,9 +214,7 @@ class Register(Atom):
 
     def __repr__(self):
         return "<Reg %s<%d>>" % (
-                self.reg_offset
-                    if self.arch is None
-                    else self.arch.translate_register_name(self.reg_offset, self._size),
+                self.name,
                 self.size
         )
 
@@ -226,6 +233,12 @@ class Register(Atom):
     @property
     def size(self) -> int:
         return self._size
+
+    @property
+    def name(self) -> str:
+        return str(self.reg_offset) \
+                    if self.arch is None \
+                    else self.arch.translate_register_name(self.reg_offset, self._size)
 
 
 class MemoryLocation(Atom):

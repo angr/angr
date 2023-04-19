@@ -1,3 +1,5 @@
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.sim_type import SimTypeBottom
 from functools import wraps
 from typing import TYPE_CHECKING, List, Set, Optional, Tuple, Union
 import logging
@@ -5,7 +7,7 @@ import logging
 from cle import Symbol
 
 from angr.knowledge_plugins.key_definitions.atoms import Atom
-from angr import SimCC
+from angr.calling_conventions import SimCC
 from angr.sim_type import SimTypeFunction
 
 l = logging.getLogger(__name__)
@@ -141,13 +143,19 @@ class FunctionHandler:
 
     def c_args_as_atoms(self, state, cc, prototype) -> List[Set[Atom]]:
         return [
-            {Atom.from_argument(footprint_arg, state.arch.registers) for footprint_arg in arg.footprint()}
+            {Atom.from_argument(footprint_arg, state.arch, full_reg=True) for footprint_arg in arg.get_footprint()}
             for arg in cc.arg_locs(prototype)
         ]
 
+    def c_return_as_atoms(self, state, cc, prototype) -> Set[Atom]:
+        if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
+            return {Atom.from_argument(footprint_arg, state.arch, full_reg=True) for footprint_arg in cc.return_val(prototype.returnty).get_footprint()}
+        else:
+            return set()
+
 
 class SimpleUsesFunctionHandler(FunctionHandler):
-    def handler_external_function_name(self, state, ext_func_name, src_codeloc=None):
+    def handle_external_function_name(self, state, ext_func_name, src_codeloc=None):
         handler_name = "handle_%s" % ext_func_name
         if ext_func_name and hasattr(self, handler_name):
             return super().handler_external_function_name(state, ext_func_name, src_codeloc=src_codeloc)
@@ -157,6 +165,8 @@ class SimpleUsesFunctionHandler(FunctionHandler):
             for arg in self.c_args_as_atoms(state, hooked_by.cc, hooked_by.prototype):
                 for atom in arg:
                     state.add_use(atom, src_codeloc)
+            for atom in self.c_return_as_atoms(state, hooked_by.cc, hooked_by.prototype):
+                state.kill_and_add_definition(atom, src_codeloc, MultiValues(state.top(atom.bits)))
             return True, state
 
         return super().handler_external_function_name(state, ext_func_name, src_codeloc=src_codeloc)
