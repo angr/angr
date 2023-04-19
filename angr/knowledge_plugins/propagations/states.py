@@ -84,7 +84,7 @@ class PropagatorState:
 
     @classmethod
     def initial_state(
-        cls, project: Project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None
+        cls, project: Project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None, max_prop_expr_occurrence=None, initial_codeloc=None,
     ):
         raise NotImplementedError
 
@@ -206,12 +206,12 @@ class PropagatorState:
 
         return state, merge_occurred
 
-    def add_replacement(self, codeloc, old, new):
+    def add_replacement(self, codeloc, old: CodeLocation, new):
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.
         If the self._only_consts flag is set to true, only constant values will be set.
 
-        :param CodeLocation codeloc:    The code location.
+        :param codeloc:                 The code location.
         :param old:                     The expression to be replaced.
         :param new:                     The expression to replace with.
         :return:                        None
@@ -286,7 +286,7 @@ class PropagatorVEXState(PropagatorState):
         return "<PropagatorVEXState>"
 
     @classmethod
-    def initial_state(cls, project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None):
+    def initial_state(cls, project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None, max_prop_expr_occurrence=None, initial_codeloc=None):
         state = cls(
             project.arch,
             project=project,
@@ -294,6 +294,7 @@ class PropagatorVEXState(PropagatorState):
             do_binops=do_binops,
             store_tops=store_tops,
             gp=gp,
+            max_prop_expr_occurrence=max_prop_expr_occurrence,
         )
         spoffset_var = SimEngineLight.sp_offset(project.arch.bits, 0)
         state.store_register(
@@ -487,13 +488,13 @@ class PropagatorAILState(PropagatorState):
 
     @classmethod
     def initial_state(
-        cls, project: Project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None
+        cls, project: Project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None, max_prop_expr_occurrence=None, initial_codeloc=None,
     ):
-        state = cls(project.arch, project=project, only_consts=only_consts, gp=gp)
+        state = cls(project.arch, project=project, only_consts=only_consts, gp=gp, max_prop_expr_occurrence=max_prop_expr_occurrence)
         spoffset_var = ailment.Expr.StackBaseOffset(None, project.arch.bits, 0)
         sp_value = PropValue(
             claripy.BVV(0x7FFF_FF00, project.arch.bits),
-            offset_and_details={0: Detail(project.arch.bytes, spoffset_var, None)},
+            offset_and_details={0: Detail(project.arch.bytes, spoffset_var, initial_codeloc)},
         )
         state.store_register(
             ailment.Expr.Register(None, None, project.arch.sp_offset, project.arch.bits),
@@ -510,7 +511,7 @@ class PropagatorAILState(PropagatorState):
                     reg_expr,
                     PropValue(
                         claripy.BVV(func_addr, 64),
-                        offset_and_details={0: Detail(8, reg_value, CodeLocation(0, 0))},
+                        offset_and_details={0: Detail(8, reg_value, initial_codeloc)},
                     ),
                 )
         elif project.arch.name == "MIPS32":
@@ -523,7 +524,7 @@ class PropagatorAILState(PropagatorState):
                     reg_expr,
                     PropValue(
                         claripy.BVV(func_addr, 32),
-                        offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))},
+                        offset_and_details={0: Detail(4, reg_value, initial_codeloc)},
                     ),
                 )
         elif archinfo.arch_arm.is_arm_arch(project.arch):
@@ -532,7 +533,7 @@ class PropagatorAILState(PropagatorState):
             reg_value = ailment.Expr.Const(None, None, 0, 32)
             state.store_register(
                 reg_expr,
-                PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, CodeLocation(0, 0))}),
+                PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, initial_codeloc)}),
             )
 
         return state
