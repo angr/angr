@@ -84,7 +84,15 @@ class PropagatorState:
 
     @classmethod
     def initial_state(
-        cls, project: Project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None, max_prop_expr_occurrence=None, initial_codeloc=None,
+        cls,
+        project: Project,
+        only_consts=False,
+        gp=None,
+        do_binops=True,
+        store_tops=False,
+        func_addr=None,
+        max_prop_expr_occurrence=None,
+        initial_codeloc=None,
     ):
         raise NotImplementedError
 
@@ -286,7 +294,17 @@ class PropagatorVEXState(PropagatorState):
         return "<PropagatorVEXState>"
 
     @classmethod
-    def initial_state(cls, project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None, max_prop_expr_occurrence=None, initial_codeloc=None):
+    def initial_state(
+        cls,
+        project,
+        only_consts=False,
+        gp=None,
+        do_binops=True,
+        store_tops=False,
+        func_addr=None,
+        max_prop_expr_occurrence=None,
+        initial_codeloc=None,
+    ):
         state = cls(
             project.arch,
             project=project,
@@ -488,9 +506,23 @@ class PropagatorAILState(PropagatorState):
 
     @classmethod
     def initial_state(
-        cls, project: Project, only_consts=False, gp=None, do_binops=True, store_tops=False, func_addr=None, max_prop_expr_occurrence=None, initial_codeloc=None,
+        cls,
+        project: Project,
+        only_consts=False,
+        gp=None,
+        do_binops=True,
+        store_tops=False,
+        func_addr=None,
+        max_prop_expr_occurrence=None,
+        initial_codeloc=None,
     ):
-        state = cls(project.arch, project=project, only_consts=only_consts, gp=gp, max_prop_expr_occurrence=max_prop_expr_occurrence)
+        state = cls(
+            project.arch,
+            project=project,
+            only_consts=only_consts,
+            gp=gp,
+            max_prop_expr_occurrence=max_prop_expr_occurrence,
+        )
         spoffset_var = ailment.Expr.StackBaseOffset(None, project.arch.bits, 0)
         sp_value = PropValue(
             claripy.BVV(0x7FFF_FF00, project.arch.bits),
