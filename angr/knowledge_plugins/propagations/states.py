@@ -1,4 +1,4 @@
-from typing import Set, Optional, Union, Tuple, DefaultDict, List, Any, Dict
+from typing import Set, Optional, Union, Tuple, DefaultDict, List, Any, Dict, TYPE_CHECKING
 from collections import defaultdict
 import weakref
 
@@ -14,6 +14,9 @@ from angr.engines.light.engine import SimEngineLight
 from angr.code_location import CodeLocation
 
 from .prop_value import PropValue, Detail
+
+if TYPE_CHECKING:
+    from archinfo import Arch
 
 
 class PropagatorState:
@@ -149,6 +152,44 @@ class PropagatorState:
                 return True
         return False
 
+    @staticmethod
+    def merge_replacements(replacements_0, replacements_1) -> bool:
+        """
+        The replacement merging logic is special: replacements_1 is the newer replacement result and replacement_0 is
+        the older result waiting to be updated. When both replacements_1 and replacement_0 have a non-top value for the
+        same variable and code location, we will update the slot in replacement_0 with the value from replacement_1.
+
+        :return:            Whether merging has happened or not.
+        """
+        merge_occurred = False
+        for loc, vars_ in replacements_1.items():
+            if loc not in replacements_0:
+                replacements_0[loc] = vars_.copy()
+                merge_occurred = True
+            else:
+                for var, repl in vars_.items():
+                    if var not in replacements_0[loc]:
+                        replacements_0[loc][var] = repl
+                        merge_occurred = True
+                    else:
+                        if PropagatorState.is_top(repl) or PropagatorState.is_top(replacements_0[loc][var]):
+                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                            replacements_0[loc][var] = t
+                            merge_occurred = True
+                        elif (
+                            isinstance(replacements_0[loc][var], claripy.ast.Base) or isinstance(repl, claripy.ast.Base)
+                        ) and replacements_0[loc][var] is not repl:
+                            replacements_0[loc][var] = repl
+                            merge_occurred = True
+                        elif (
+                            not isinstance(replacements_0[loc][var], claripy.ast.Base)
+                            and not isinstance(repl, claripy.ast.Base)
+                            and replacements_0[loc][var] != repl
+                        ):
+                            replacements_0[loc][var] = repl
+                            merge_occurred = True
+        return merge_occurred
+
     def copy(self) -> "PropagatorState":
         raise NotImplementedError()
 
@@ -157,7 +198,7 @@ class PropagatorState:
         merge_occurred = False
 
         for o in others:
-            merge_occurred |= PropagatorAnalysis.merge_replacements(state._replacements, o._replacements)
+            merge_occurred |= PropagatorState.merge_replacements(state._replacements, o._replacements)
 
             if state._equivalence != o._equivalence:
                 merge_occurred = True
