@@ -30,7 +30,12 @@ class CallExprFinder(ailment.AILBlockWalker):
 
     # pylint:disable=unused-argument
     def _handle_CallExpr(
-        self, expr_idx: int, expr: ailment.Stmt.Call, stmt_idx: int, stmt: ailment.Stmt.Statement, block: Optional[ailment.Block]
+        self,
+        expr_idx: int,
+        expr: ailment.Stmt.Call,
+        stmt_idx: int,
+        stmt: ailment.Stmt.Statement,
+        block: Optional[ailment.Block],
     ):
         self.has_call = True
 
