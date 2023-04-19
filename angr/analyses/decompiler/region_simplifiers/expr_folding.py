@@ -3,10 +3,9 @@ from collections import defaultdict
 from typing import Optional, Any, Dict, Set, Tuple, Iterable, DefaultDict, TYPE_CHECKING
 
 import ailment
-from ailment import Expression, Block
+from ailment import Expression, Block, AILBlockWalker
 from ailment.statement import Statement, Assignment, Call
 
-from ..ailblock_walker import AILBlockWalker
 from ..sequence_walker import SequenceWalker
 from ..structuring.structurer_nodes import (
     ConditionNode,

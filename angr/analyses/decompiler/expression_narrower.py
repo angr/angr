@@ -1,5 +1,5 @@
 from typing import Optional, Any, TYPE_CHECKING
-from .ailblock_walker import AILBlockWalkerBase
+from ailment import AILBlockWalkerBase
 
 if TYPE_CHECKING:
     from ailment.expression import (

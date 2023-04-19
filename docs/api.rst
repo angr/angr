@@ -346,7 +346,6 @@ Analysis
 .. automodule:: angr.analyses.decompiler.structuring.phoenix
 .. automodule:: angr.analyses.decompiler
 .. automodule:: angr.analyses.decompiler.ail_simplifier
-.. automodule:: angr.analyses.decompiler.ailblock_walker
 .. automodule:: angr.analyses.decompiler.ailgraph_walker
 .. automodule:: angr.analyses.decompiler.block_simplifier
 .. automodule:: angr.analyses.decompiler.callsite_maker

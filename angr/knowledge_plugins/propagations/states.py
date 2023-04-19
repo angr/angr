@@ -19,6 +19,22 @@ if TYPE_CHECKING:
     from archinfo import Arch
 
 
+class CallExprFinder(ailment.AILBlockWalker):
+    """
+    Walks an AIL expression to find if it contains a call expression anywhere.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.has_call = False
+
+    # pylint:disable=unused-argument
+    def _handle_CallExpr(
+        self, expr_idx: int, expr: ailment.Stmt.Call, stmt_idx: int, stmt: ailment.Stmt.Statement, block: Optional[ailment.Block]
+    ):
+        self.has_call = True
+
+
 class PropagatorState:
     """
     Describes the base state used in Propagator.
@@ -697,8 +713,6 @@ class PropagatorAILState(PropagatorState):
         if isinstance(new, ailment.statement.Call):
             return
         else:
-            from .call_expr_finder import CallExprFinder  # pylint:disable=import-outside-toplevel
-
             callexpr_finder = CallExprFinder()
             callexpr_finder.walk_expression(new)
             if callexpr_finder.has_call:

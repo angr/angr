@@ -4,14 +4,13 @@ import logging
 
 import networkx
 
-from ailment import Block
+from ailment import Block, AILBlockWalkerBase
 from ailment.statement import ConditionalJump
 from ailment.expression import Expression, BinaryOp, Const, Load
 
 from ...cfg.cfg_utils import CFGUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
-from ..ailblock_walker import AILBlockWalkerBase
 from .optimization_pass import OptimizationPass, OptimizationPassStage, MultipleBlocksException
 
 if TYPE_CHECKING:

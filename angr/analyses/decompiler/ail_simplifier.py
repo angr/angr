@@ -2,6 +2,7 @@ from typing import Set, Dict, List, Tuple, Any, Optional, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
+from ailment import AILBlockWalkerBase, AILBlockWalker
 from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump
 from ailment.expression import (
@@ -27,7 +28,6 @@ from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from .. import Analysis, AnalysesHub
-from .ailblock_walker import AILBlockWalkerBase, AILBlockWalker
 from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
 from .block_simplifier import BlockSimplifier

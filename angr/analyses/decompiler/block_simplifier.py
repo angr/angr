@@ -4,6 +4,7 @@ from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
 from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
+from ailment import AILBlockWalker
 
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
@@ -14,7 +15,6 @@ from ...analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from ...errors import SimMemoryMissingError
 from .. import Analysis, register_analysis
 from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
-from .ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
