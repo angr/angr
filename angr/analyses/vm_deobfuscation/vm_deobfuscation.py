@@ -519,41 +519,6 @@ class VMDeobfuscation(Analysis):
         start_state_copy = start_state.copy()
         #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         #
-        # if self.project.filename == "/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/loop_test.vmp.exe":
-        #     # VM_1_func = Function(proj.kb.functions, 0x1400B921B, 'VM_1', None, is_simprocedure=False)
-        #     # VM_1_func.normalize()
-        #     visited_nodes={}
-        #     VM_1_func = Function(proj.kb.functions, 0x1400b921b, 'VM_1', None, is_simprocedure=False)
-        #
-        #     traversal_start_node = "<CFGENode 0x1400b921b (0x0 0x0 None0x140012030 0x14012404f 0x1400b921b )vm-vpc:None [58]>"
-        #     node_stack=[]
-        #     for cur_node in new_cfg.nodes():
-        #         if str(cur_node) == traversal_start_node:
-        #             node_stack.append(cur_node)
-        #             VM_1_func.startpoint = cur_node
-        #             break
-        #     end_points = ["<CFGENode 0x14001143d (0x0 0x0 None0x140012030 0x14012404f 0x1400b921b )vm-vpc:5368834930 [5]>"]
-        #
-        #     while len(node_stack)>0:
-        #         cur_node = node_stack.pop(0)
-        #         if str(cur_node) in end_points or cur_node in visited_nodes:
-        #             continue
-        #         visited_nodes[cur_node] = True
-        #         succs=new_cfg.get_successors(cur_node)
-        #         node_stack = succs+node_stack
-        #         for succ in succs:
-        #             VM_1_func._transit_to(cur_node, succ)
-        #
-        #     VM_1_func.normalize()
-        #     #self.project.kb.functions[5369467419].normalize()
-        #     # self.project.kb.functions[5369467419].calling_convention = angr.calling_conventions.SimCCMicrosoftAMD64
-        #     dec = proj.analyses.Decompiler(VM_1_func)
-        #     print("Decompilation result:")
-        #     print(dec.codegen.text)
-        #     import ipdb;
-        #     ipdb.set_trace()
-
-
 
         # # this is a simplification pass to remove all push x, ret to x type of jumps
         new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
@@ -640,6 +605,46 @@ class VMDeobfuscation(Analysis):
 
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join("dae_"+str(i)+"_result.svg"))
+
+        if self.project.filename == "/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/loop_test.vmp.exe":
+            import pickle
+            with open("/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/pickled_final_cfg",
+                      'wb') as final_cfg_pickle:
+                pickle.dump(new_cfg, final_cfg_pickle)
+
+            # with open("/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/pickled_final_cfg","rb") as final_cfg_pickle:
+            #     new_cfg=pickle.load( final_cfg_pickle)
+            visited_nodes = {}
+            VM_1_func = Function(self.project.kb.functions, 0x1400b921b, 'VM_1', None, is_simprocedure=False)
+
+            traversal_start_node = "<CFGENode 0x140012030 (NoneNone0x0 0x0 None0x140012030 )vm-vpc:None [3]>"
+            node_stack = []
+            for cur_node in new_cfg.nodes():
+                if str(cur_node) == traversal_start_node:
+                    node_stack.append(cur_node)
+                    VM_1_func.startpoint = cur_node
+                    break
+            end_points = [
+                "<CFGENode 0x14012405a (0x0 0x0 None0x140012030 0x14012404f 0x1400118a0 )vm-vpc:5368834930 [10]>"]
+
+            while len(node_stack) > 0:
+                cur_node = node_stack.pop(0)
+                if str(cur_node) in end_points or cur_node in visited_nodes:
+                    continue
+                visited_nodes[cur_node] = True
+                succs = new_cfg.get_successors(cur_node)
+                node_stack = succs + node_stack
+
+                # new block_id for cur_node
+                import ipdb;
+                ipdb.set_trace()
+                new_cur_node = copy.deepcopy(cur_node)
+                new_cur_node.addr = int.from_bytes(bytes(str(cur_node.block_id), 'utf-8'), "big")
+
+                for succ in succs:
+                    new_succ = copy.deepcopy(succ)
+                    new_succ.addr = int.from_bytes(bytes(str(succ.block_id), 'utf-8'), "big")
+                    VM_1_func._transit_to(new_cur_node, new_succ)
 
         verification_state_copy = verification_state.copy()
         self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
