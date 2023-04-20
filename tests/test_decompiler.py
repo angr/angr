@@ -1291,6 +1291,22 @@ class TestDecompiler(unittest.TestCase):
                 assert line[m.end()] == "["
 
     @for_all_structuring_algos
+    def test_decompiling_fmt_put_space(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["put_space"]
+        proj.analyses.VariableRecoveryFast(f)
+        cca = proj.analyses.CallingConvention(f)
+        f.prototype = cca.prototype
+        f.calling_convention = cca.cc
+
+        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+    @for_all_structuring_algos
     def test_decompiling_fmt_get_space(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
         proj = angr.Project(bin_path, auto_load_libs=False)

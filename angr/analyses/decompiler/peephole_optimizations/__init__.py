@@ -35,6 +35,7 @@ from .rewrite_mips_gp_loads import RewriteMipsGpLoads
 from .remove_noop_conversions import RemoveNoopConversions
 from .rewrite_bit_extractions import RewriteBitExtractions
 from .remove_redundant_ite_comparisons import RemoveRedundantITEComparisons
+from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 
