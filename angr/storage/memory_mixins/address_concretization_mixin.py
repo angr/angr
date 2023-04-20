@@ -7,7 +7,7 @@ from ... import sim_options as options
 from ... import concretization_strategies
 from ...sim_state_options import SimStateOptions
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
+from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError, SimValueError
 from ...storage import DUMMY_SYMBOLIC_READ_VALUE
 
 
@@ -273,6 +273,24 @@ class AddressConcretizationMixin(MemoryMixin):
 
         if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_READS in self.state.options:
             return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
+
+        # Modified by Hongwei: return a self-defined MemoryLoad value instead of a default value,
+        # Do not even try to concretize the address, therefore we can avoid the BackendError
+        # if self.state.solver.symbolic(addr):
+        try:
+            self.state.solver.eval_atmost(addr, 32)
+            try:
+                concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))
+            except SimMemoryError:
+                if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
+                    return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
+                else:
+                    raise
+        except SimValueError:
+            args = [addr]
+            MemoryLoad_decl = claripy.ast.func.MemoryLoad(op='MemoryLoad', args=args, _ret_size=size*8)
+            new_value = MemoryLoad_decl.op(*args)
+            return new_value
 
         try:
             concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))
