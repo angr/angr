@@ -1306,6 +1306,11 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
+        # bitshifts should be properly simplified into signed divisions
+        assert "/ 8" in d.codegen.text
+        assert "* 8" in d.codegen.text
+        assert ">>" not in d.codegen.text
+
     @for_all_structuring_algos
     def test_decompiling_fmt_get_space(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
