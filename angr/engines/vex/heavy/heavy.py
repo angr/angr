@@ -200,9 +200,39 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             exit_jumpkind = exit_state.history.jumpkind if exit_state.history.jumpkind else ""
 
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
+                # Modified by Hongwei
+                target_func_call_addr = exit_state.addr
+                target_func = self.project.kb.functions.get_by_addr(target_func_call_addr)
+                target_func_name = "Func_%s" % target_func.demangled_name
+                # print(hex(target_func.addr), target_func_name, target_func.prototype)
+                func_args = [target_func_name]
+                try:
+                    for arg in target_func.arguments:
+                        # print(arg.reg_name)
+                        arg_ast = getattr(exit_state.regs, arg.reg_name)
+                        func_args.append(arg_ast)
+                except:
+                    pass
+                target_func_ast = claripy.ast.func.Func(op=target_func_name,
+                                                        args=func_args,
+                                                        _ret_size=exit_state.arch.bits)
+                target_func_ast_result = target_func_ast.func_op(*func_args)
+
+                # Remove dummy argument
+                if len(target_func_ast_result.args) > 0 and target_func_name in str(target_func_ast_result.args[0]):
+                    target_func_ast_result.args = target_func_ast_result.args[1:]
+
+                # print(target_func_ast_result)
                 exit_state.registers.store(
-                    exit_state.arch.ret_offset, exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits)
+                    exit_state.arch.ret_offset,
+                    target_func_ast_result
                 )
+
+                # exit_state.registers.store(
+                #     exit_state.arch.ret_offset, exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits)
+                # )
+
+                # End of modification
                 exit_state.scratch.target = exit_state.solver.BVV(successors.addr + irsb.size, exit_state.arch.bits)
                 exit_state.history.jumpkind = "Ijk_Ret"
                 exit_state.regs.ip = exit_state.scratch.target
