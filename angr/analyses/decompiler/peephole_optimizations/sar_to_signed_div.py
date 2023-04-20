@@ -5,6 +5,10 @@ from .base import PeepholeOptimizationExprBase
 
 
 class SarToSignedDiv(PeepholeOptimizationExprBase):
+    """
+    Simplify signed divisions that are optimized into bit shifts during compilation.
+    """
+
     __slots__ = ()
 
     NAME = "(signed(expr)? expr + A ** 2 - 1: expr) <<s A => expr /s 2 ** A"

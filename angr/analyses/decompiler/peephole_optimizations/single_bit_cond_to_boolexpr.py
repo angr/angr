@@ -1,12 +1,16 @@
-from ailment.expression import ITE, Convert, BinaryOp, Const, UnaryOp
+from ailment.expression import ITE, Convert, BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
 
 
 class SingleBitCondToBoolExpr(PeepholeOptimizationExprBase):
+    """
+    Convert single-bit conditions to bool expressions
+    """
+
     __slots__ = ()
 
-    NAME = "Convert single-bit conditions to bool expressions"
+    NAME = "Convert single-bit conditions to bool expressions (== 0 or == 1)"
     expr_classes = (ITE,)
 
     def optimize(self, expr: ITE):
