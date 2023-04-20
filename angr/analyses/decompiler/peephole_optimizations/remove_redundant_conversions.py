@@ -55,6 +55,21 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         )
                         return new_expr
 
+                elif expr.op in {"Add", "Sub"}:
+                    # Add(Conv(32->64, expr), A) ==> Conv(32->64, Add(expr, A))
+                    op0, op1 = expr.operands
+                    con = Const(op1.idx, op1.variable, op1.value, op0.from_bits)
+                    return Convert(
+                        op0.idx,
+                        op0.from_bits,
+                        op0.to_bits,
+                        op0.is_signed,
+                        BinaryOp(
+                            expr.idx, expr.op, [op0.operand, con], expr.signed, bits=op0.operand.bits, **expr.tags
+                        ),
+                        **op0.tags,
+                    )
+
             elif (
                 isinstance(expr.operands[1], Convert)
                 and expr.operands[1].to_bits == expr.operands[0].to_bits
@@ -75,7 +90,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         **expr.tags,
                     )
                     r = Convert(
-                        expr.idx,
+                        op0.idx,
                         op0.from_bits,
                         op0.to_bits,
                         op0.is_signed,
@@ -83,5 +98,63 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         **op0.tags,
                     )
                     return r
+
+        # a more complex case
+        # (Conv(expr) >> A) & B == C  ==>  (expr >> A) & B == C
+        if expr.op in {
+            "CmpEQ",
+            "CmpNE",
+            "CmpGT",
+            "CmpGE",
+            "CmpGTs",
+            "CmpGEs",
+            "CmpLT",
+            "CmpLE",
+            "CmpLTs",
+            "CmpLEs",
+        } and isinstance(expr.operands[1], Const):
+            op0 = expr.operands[0]
+            if isinstance(op0, BinaryOp):
+                left, b = op0.operands
+                if (
+                    isinstance(b, Const)
+                    and isinstance(left, BinaryOp)
+                    and left.op
+                    in {
+                        "Shr",
+                        "Sar",
+                        "Shl",
+                    }
+                ):
+                    shift_lhs, a = left.operands
+                    if isinstance(a, Const) and isinstance(shift_lhs, Convert):
+                        from_bits = shift_lhs.from_bits
+                        if 0 < a.value < from_bits:
+                            c = expr.operands[1]
+                            r0 = BinaryOp(
+                                left.idx,
+                                left.op,
+                                [shift_lhs.operand, Const(a.idx, a.variable, a.value, from_bits)],
+                                left.signed,
+                                bits=from_bits,
+                                **left.tags,
+                            )
+                            r1 = BinaryOp(
+                                op0.idx,
+                                op0.op,
+                                [r0, Const(b.idx, b.variable, b.value, from_bits)],
+                                op0.signed,
+                                bits=from_bits,
+                                **op0.tags,
+                            )
+                            r = BinaryOp(
+                                expr.idx,
+                                expr.op,
+                                [r1, Const(c.idx, c.variable, c.value, from_bits)],
+                                expr.signed,
+                                bits=from_bits,
+                                **expr.tags,
+                            )
+                            return r
 
         return None
