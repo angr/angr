@@ -826,6 +826,10 @@ class VariableManagerInternal(Serializable):
         if len(dparams) <= len(func_arg_list):
             for arg, dparam in zip(func_arg_list, dparams):
                 arg.name = dparam.name
+                if arg in self._variables_to_unified_variables:
+                    unified_arg = self._variables_to_unified_variables[arg]
+                    if unified_arg is not arg:
+                        unified_arg.name = dparam.name
 
         # collect instruction sizes
         ins_sizes = {}
