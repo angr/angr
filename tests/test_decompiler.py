@@ -2321,6 +2321,23 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 0
 
+    @structuring_algo("phoenix")
+    def test_decompiling_with_dwarf_varnames(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "muraster_O0")
+        proj = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["drawpage"]
+
+        proj.kb.dvars.load_from_dwarf()
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # ensure we match all function arguments
+        assert re.search(r"\sdrawpage\([^,]+ctx, [^,]+doc, [^,]+pagenum\)", d.codegen.text) is not None
+        # ensure the `try_render_page` call is properly mapped to variable names
+        assert re.search(r"try_render_page\(ctx, pagenum, &cookie, start, 0, filename, ", d.codegen.text) is not None
+
 
 if __name__ == "__main__":
     unittest.main()
