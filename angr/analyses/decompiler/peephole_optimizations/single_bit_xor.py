@@ -7,7 +7,7 @@ class SingleBitXor(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "bool_expr ^ 1 => !bool_expr (b)"
-    expr_classes = (Convert,)  # all expressions are allowed
+    expr_classes = (Convert,)
 
     def optimize(self, expr: Convert):
         # Convert(N->1, (Convert(1->N, t_x) ^ 0x1<N>) ==> Not(t_x)

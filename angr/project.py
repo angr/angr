@@ -92,7 +92,7 @@ class Project:
     :type storage:      defaultdict(list)
     """
 
-    analyses: "AnalysesHub"
+    analyses: "AnalysesHubWithDefault"
     arch: archinfo.Arch
 
     def __init__(
@@ -802,6 +802,6 @@ class Project:
 
 from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
-from .analyses.analysis import AnalysesHub
+from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
 from .knowledge_base import KnowledgeBase
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
