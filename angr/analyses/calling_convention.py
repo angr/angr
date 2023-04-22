@@ -113,7 +113,7 @@ class CallingConventionAnalysis(Analysis):
         caller_func_addr: Optional[int] = None,
         callsite_block_addr: Optional[int] = None,
         callsite_insn_addr: Optional[int] = None,
-        func_graph: Optional = None,
+        func_graph: Optional[networkx.DiGraph] = None,
     ):
         self._function = func
         self._variable_manager = self.kb.variables
@@ -318,7 +318,7 @@ class CallingConventionAnalysis(Analysis):
             # we do not analyze SimProcedures or PLT stubs
             return None
 
-        if not self._variable_manager.has_function_manager:
+        if not self._variable_manager.has_function_manager(self._function.addr):
             l.warning("Please run variable recovery on %r before analyzing its calling convention.", self._function)
             return None
 

@@ -214,7 +214,7 @@ class SimEngineVRAIL(
                 )
             else:
                 ty = typeconsts.int_type(expr.size * self.state.arch.byte_width)
-            v = claripy.BVV(expr.value, expr.size * self.state.arch.byte_width)
+            v = claripy.BVV(expr.value, expr.bits)
         r = RichR(v, typevar=ty)
         self._reference(r, self._codeloc())
         return r

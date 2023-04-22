@@ -143,7 +143,7 @@ class TestDwarfVariables(TestCase):
             (88, b"ld!\n"),
         ]
         for line, expected_string in lines_strings:
-            addr = {addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)}.pop()
+            addr = {addr for addr in self.addr2line if (filename, line) in self.addr2line[addr]}.pop()
             simgr.explore(find=addr)
             s = simgr.found[0]
             computed_string = s.dvars["string"].string.concrete
@@ -154,7 +154,7 @@ class TestDwarfVariables(TestCase):
         simgr = self.p.factory.simgr()
         filename = "/home/lukas/Software/angr-dev/binaries/tests_src/various_variables.c"
         line = 47
-        addr = {addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)}.pop()
+        addr = {addr for addr in self.addr2line if (filename, line) in self.addr2line[addr]}.pop()
         simgr.explore(find=addr)
         s = simgr.found[0]
         computed_value = s.dvars["static_var"].mem.concrete
@@ -164,7 +164,7 @@ class TestDwarfVariables(TestCase):
         simgr = self.p.factory.simgr()
         filename = "/home/lukas/Software/angr-dev/binaries/tests_src/various_variables.c"
         line = 55
-        addr = {addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)}.pop()
+        addr = {addr for addr in self.addr2line if (filename, line) in self.addr2line[addr]}.pop()
         simgr.explore(find=addr)
         s = simgr.found[0]
         computed_value = s.dvars["local_in_loop"].mem.concrete
@@ -174,7 +174,7 @@ class TestDwarfVariables(TestCase):
         simgr = self.p.factory.simgr()
         filename = "/home/lukas/Software/angr-dev/binaries/tests_src/various_variables.c"
         line = 68
-        addr = {addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)}.pop()
+        addr = {addr for addr in self.addr2line if (filename, line) in self.addr2line[addr]}.pop()
         simgr.explore(find=addr)
         s = simgr.found[0]
         computed_value = s.dvars["local_in_if"].mem.concrete
@@ -184,7 +184,7 @@ class TestDwarfVariables(TestCase):
         simgr = self.p.factory.simgr()
         filename = "/home/lukas/Software/angr-dev/binaries/tests_src/various_variables.c"
         line = 144
-        addr = {addr for addr in self.addr2line if self.addr2line[addr] == (filename, line)}.pop()
+        addr = {addr for addr in self.addr2line if (filename, line) in self.addr2line[addr]}.pop()
         simgr.explore(find=addr)
         s = simgr.found[0]
         local_struct = s.dvars["local_struct"]

@@ -1,35 +1,22 @@
 import angr
 
+from ...storage.file import Flags
+from .fstat import fstat
 
-class stat(angr.SimProcedure):
-    def run(self, file_path, stat_buf):
-        # this is a dummy for now
-        stat = self.state.posix.fstat(0)
-        # TODO: make arch-neutral
-        self._store_amd64(stat_buf, stat)
-        return 0
 
-    def _store_amd64(self, stat_buf, stat):
-        def store(offset, val):
-            return self.state.memory.store(stat_buf + offset, val)
+class stat(fstat):
+    def run(self, p_addr, stat_buf):
+        # open tempory fd
+        strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
+        p_strlen = self.inline_call(strlen, p_addr)
+        p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness="Iend_BE")
+        file_path = self.state.solver.eval(p_expr, cast_to=bytes)
+        fd = self.state.posix.open(file_path, Flags.O_RDONLY)
 
-        store(0x00, stat.st_dev)
-        store(0x08, stat.st_ino)
-        store(0x10, stat.st_nlink)
-        store(0x18, stat.st_mode)
-        store(0x1C, stat.st_uid)
-        store(0x20, stat.st_gid)
-        store(0x24, self.state.solver.BVV(0, 32))
-        store(0x28, stat.st_rdev)
-        store(0x30, stat.st_size)
-        store(0x38, stat.st_blksize)
-        store(0x40, stat.st_blocks)
-        store(0x48, stat.st_atime)
-        store(0x50, stat.st_atimensec)
-        store(0x58, stat.st_mtime)
-        store(0x60, stat.st_mtimensec)
-        store(0x68, stat.st_ctime)
-        store(0x70, stat.st_ctimensec)
-        store(0x78, self.state.solver.BVV(0, 64))
-        store(0x80, self.state.solver.BVV(0, 64))
-        store(0x88, self.state.solver.BVV(0, 64))
+        # Use fstat to get the result and everything
+        result = super().run(fd, stat_buf)
+
+        # close tempory fd
+        self.state.posix.close(fd)
+
+        return result

@@ -495,6 +495,13 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield "\n", None
 
         yield indent_str, None
+
+        # header comments (if they exist)
+        header_comments = self.codegen.kb.comments.get(self.codegen.cfunc.addr, [])
+        if header_comments:
+            header_cmt = self._line_wrap_comment("".join(header_comments))
+            yield header_cmt, None
+
         # return type
         yield self.functy.returnty.c_repr(name="").strip(" "), None
         yield " ", None
@@ -547,6 +554,25 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield indent_str, None
         yield "}", brace
         yield "\n", None
+
+    @staticmethod
+    def _line_wrap_comment(comment: str, width=80) -> str:
+        lines = comment.splitlines()
+        wrapped_cmt = ""
+
+        for line in lines:
+            if len(line) < width:
+                wrapped_cmt += line + "\n"
+                continue
+
+            for i, c in enumerate(line):
+                if i % width == 0 and i != 0:
+                    wrapped_cmt += "\n"
+                wrapped_cmt += c
+
+            wrapped_cmt += "\n"
+
+        return "".join([f"// {line}\n" for line in wrapped_cmt.splitlines()])
 
 
 class CStatement(CConstruct):  # pylint:disable=abstract-method

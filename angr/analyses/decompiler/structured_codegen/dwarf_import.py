@@ -99,7 +99,7 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
         for block in self.function.blocks:
             for insn in block.instruction_addrs:
                 if insn in obj.addr_to_line:
-                    lines.add((*obj.addr_to_line[insn], insn))
+                    lines.update((*filename_line, insn) for filename_line in obj.addr_to_line[insn])
 
         ranges = []
         for filename, line, _ in lines:

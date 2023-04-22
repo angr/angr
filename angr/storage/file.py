@@ -68,16 +68,19 @@ class SimFileBase(SimStatePlugin):
     :ivar pos:      If the file is a stream, this will be the current position. Otherwise, None.
     :ivar concrete: Whether or not this file contains mostly concrete data. Will be used by some SimProcedures to
                     choose how to handle variable-length operations like fgets.
+    :ivar file_exists:
+                    Set to False, if file does not exists, set to a claripy Bool if unknown, default True.
     """
 
     seekable = False
     pos = None
 
-    def __init__(self, name=None, writable=True, ident=None, concrete=False, **kwargs):
+    def __init__(self, name=None, writable=True, ident=None, concrete=False, file_exists=True, **kwargs):
         self.name = name
         self.ident = ident
         self.writable = writable
         self.concrete = concrete
+        self.file_exists = file_exists
 
         if ident is None:
             self.ident = self.make_ident(self.name)
@@ -152,6 +155,7 @@ class SimFileBase(SimStatePlugin):
         o.ident = self.ident
         o.writable = self.writable
         o.concrete = self.concrete
+        o.file_exists = self.file_exists
         return o
 
 
@@ -335,6 +339,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
         o.seekable = self.seekable
         o.writable = self.writable
         o.concrete = self.concrete
+        o.file_exists = self.file_exists
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
@@ -840,6 +845,15 @@ class SimFileDescriptorBase(SimStatePlugin):
         """
         raise NotImplementedError
 
+    @property
+    def file_exists(self):
+        """
+        This should be True in most cases.
+        Only if we opened an fd of unknown existence, ALL_FILES_EXIST is False and ANY_FILE_MIGHT_EXIST is True,
+        this is a symbolic boolean.
+        """
+        return True
+
     def _prep_read(self, size):
         return self._prep_generic(size, True)
 
@@ -934,6 +948,10 @@ class SimFileDescriptor(SimFileDescriptorBase):
         Return a concretization of the underlying file. Returns whatever format is preferred by the file.
         """
         return self.file.concretize(**kwargs)
+
+    @property
+    def file_exists(self):
+        return self.file.file_exists
 
     @property
     def read_storage(self):
