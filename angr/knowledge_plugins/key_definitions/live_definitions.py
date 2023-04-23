@@ -450,7 +450,12 @@ class LiveDefinitions:
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
             try:
-                self.register_definitions.store(atom.reg_offset, d, size=atom.size, endness=endness)
+                self.register_definitions.store(
+                    atom.reg_offset,
+                    d,
+                    size=atom.size,
+                    endness=self.arch.register_endness if endness is None else endness,
+                )
             except SimMemoryError:
                 l.warning("Failed to store register definition %s at %d.", d, atom.reg_offset, exc_info=True)
         elif isinstance(atom, MemoryLocation):
@@ -555,9 +560,11 @@ class LiveDefinitions:
         else:
             return
 
-    def get_register_definitions(self, reg_offset: int, size: int) -> Iterable[Definition]:
+    def get_register_definitions(self, reg_offset: int, size: int, endness=None) -> Iterable[Definition]:
         try:
-            values: MultiValues = self.register_definitions.load(reg_offset, size=size)
+            values: MultiValues = self.register_definitions.load(
+                reg_offset, size=size, endness=self.arch.register_endness if endness is None else endness
+            )
         except SimMemoryMissingError:
             return
         yield from LiveDefinitions.extract_defs_from_mv(values)

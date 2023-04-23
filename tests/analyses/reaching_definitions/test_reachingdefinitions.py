@@ -7,6 +7,7 @@ from unittest import TestCase, main
 
 import ailment
 import angr
+import claripy
 from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
 from angr.code_location import CodeLocation
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
@@ -462,6 +463,18 @@ class TestReachingDefinitions(TestCase):
 
         block = project.factory.block(project.entry, cross_insn_opt=False)
         _ = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=block, track_tmps=False)  # it should not crash
+
+    def test_partial_register_read(self):
+        bin_path = _binary_path("fauxware")
+        project = angr.Project(bin_path, auto_load_libs=False)
+        cfg = project.analyses[CFGFast].prep()()
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=cfg.kb.functions["main"], observe_all=True)
+        mv = rda.model.observed_results[("insn", 0x400765, OP_BEFORE)].register_definitions.load(
+            project.arch.registers["edx"][0],
+            size=4,
+            endness=project.arch.register_endness,
+        )
+        assert claripy.is_true(mv.one_value() == claripy.BVV(1, 32))
 
 
 if __name__ == "__main__":
