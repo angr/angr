@@ -350,7 +350,6 @@ class SimEngineRDAIL(
                         self.arch.sp_offset,
                         sp_v + self.arch.bytes,
                         size=self.arch.bytes,
-                        endness=self.arch.register_endness,
                     )
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
