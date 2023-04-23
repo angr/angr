@@ -1,10 +1,13 @@
 import logging
+from typing import TYPE_CHECKING, Optional
 
 from archinfo.arch_soot import SootAddressDescriptor
 
 from ...errors import SimValueError, SimSolverModeError
 from ...state_plugins.callstack import CallStack
 
+if TYPE_CHECKING:
+    from ...sim_state import SimState
 l = logging.getLogger(name=__name__)
 
 # TODO: Make callsite an object and use it in BlockID and FunctionKey
@@ -122,13 +125,13 @@ class CFGJobBase:
     def __init__(
         self,
         addr,
-        state,
+        state: "SimState",
         context_sensitivity_level,
         block_id=None,
         src_block_id=None,
         src_exit_stmt_idx=None,
         src_ins_addr=None,
-        jumpkind=None,
+        jumpkind: Optional[str] = None,
         call_stack=None,
         is_narrowing=False,
         skip=False,

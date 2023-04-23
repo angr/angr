@@ -1,7 +1,7 @@
 import collections
 from itertools import dropwhile
 import logging
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Tuple, Union
 
 from .plugin import SimStatePlugin
 from ..errors import AngrError, SimEmptyCallStackError
@@ -327,7 +327,7 @@ class CallStack(SimStatePlugin):
 
         return "\n".join(stack)
 
-    def stack_suffix(self, context_sensitivity_level):
+    def stack_suffix(self, context_sensitivity_level) -> Tuple[Union[int, None], ...]:
         """
         Generate the stack suffix. A stack suffix can be used as the key to a SimRun in CFG recovery.
 

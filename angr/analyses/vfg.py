@@ -1,4 +1,4 @@
-from typing import List, Generator, TYPE_CHECKING, Optional
+from typing import Any, Callable, DefaultDict, Dict, List, Generator, TYPE_CHECKING, Optional, Set, Tuple, Union
 import logging
 from collections import defaultdict
 
@@ -205,7 +205,7 @@ class VFGNode:
     A descriptor of nodes in a Value-Flow Graph
     """
 
-    def __init__(self, addr, key, state=None):
+    def __init__(self, addr, key: BlockID, state: Optional["SimState"] = None):
         """
         Constructor.
 
@@ -215,14 +215,14 @@ class VFGNode:
         """
         self.key = key
         self.addr = addr
-        self.state = None
-        self.widened_state = None
-        self.narrowing_times = 0
-        self.all_states = []
-        self.events = []
-        self.input_variables = []
-        self.actions = []
-        self.final_states = []
+        self.state: Optional[SimState] = None
+        self.widened_state: Optional[SimState] = None
+        self.narrowing_times: int = 0
+        self.all_states: List[SimState] = []
+        self.events: List = []
+        self.input_variables: List = []
+        self.actions: List = []
+        self.final_states: List[SimState] = []
 
         if state:
             self.all_states.append(state)
@@ -287,22 +287,22 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
     def __init__(
         self,
-        cfg=None,
-        context_sensitivity_level=2,
-        start=None,
-        function_start=None,
-        interfunction_level=0,
-        initial_state=None,
-        avoid_runs=None,
+        cfg: Optional[CFGEmulated] = None,
+        context_sensitivity_level: int = 2,
+        start: Optional[int] = None,
+        function_start: Optional[int] = None,
+        interfunction_level: int = 0,
+        initial_state: Optional["SimState"] = None,
+        avoid_runs: Optional[List[int]] = None,
         remove_options=None,
-        timeout=None,
-        max_iterations_before_widening=8,
-        max_iterations=40,
-        widening_interval=3,
-        final_state_callback=None,
-        status_callback=None,
-        record_function_final_states=False,
-    ):
+        timeout: Optional[int] = None,
+        max_iterations_before_widening: int = 8,
+        max_iterations: int = 40,
+        widening_interval: int = 3,
+        final_state_callback: Optional[Callable[["SimState", CallStack], Any]] = None,
+        status_callback: Optional[Callable[["VFG"], Any]] = None,
+        record_function_final_states: bool = False,
+    ) -> None:
         """
         :param cfg: The control-flow graph to base this analysis on. If none is provided, we will
                     construct a CFGEmulated.
@@ -315,6 +315,8 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         :param remove_options: State options to remove from the initial state. It only works when `initial_state` is
                                 None
         :param int timeout:
+        :param final_state_callback: callback function when countering final state
+        :param status_callback: callback function used in _analysis_core_baremetal
         """
 
         ForwardAnalysis.__init__(
@@ -326,11 +328,11 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         self._cfg = cfg
 
         # Where to start the analysis
-        self._start = start if start is not None else self.project.entry
-        self._function_start = function_start if function_start is not None else self._start
+        self._start: Optional[int] = start if start is not None else self.project.entry
+        self._function_start: Optional[int] = function_start if function_start is not None else self._start
 
         # Other parameters
-        self._avoid_runs = [] if avoid_runs is None else avoid_runs
+        self._avoid_runs: List[int] = [] if avoid_runs is None else avoid_runs
         self._context_sensitivity_level = context_sensitivity_level
         self._interfunction_level = interfunction_level
         self._state_options_to_remove = set() if remove_options is None else remove_options
@@ -347,45 +349,49 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         self._record_function_final_states = record_function_final_states
 
-        self._nodes = {}  # all the vfg nodes, keyed on block IDs
-        self._normal_states = {}  # Last available state for each program point without widening
-        self._widened_states = {}  # States on which widening has occurred
+        self._nodes: Dict[int, VFGNode] = {}  # all the vfg nodes, keyed on block IDs
+        self._normal_states: Dict[int, SimState] = {}  # Last available state for each program point without widening
+        self._widened_states: Dict[int, SimState] = {}  # States on which widening has occurred
 
         # Initial states of each function, which is context sensitive
         # It maps function key to its states
-        self._function_initial_states = defaultdict(dict)
+        self._function_initial_states: DefaultDict[int, Dict[int, SimState]] = defaultdict(dict)
         # Final states of each function, right after `ret` is called. Also context sensitive.
         # even if a function may have multiple return sites, as long as they all return to the same place, there is
         # only one final state of that function.
-        self._function_final_states = defaultdict(dict)
+        self._function_final_states: DefaultDict[int, Dict[int, SimState]] = defaultdict(dict)
 
         # All final states are put in this list
-        self.final_states = []
+        self.final_states: List[SimState] = []
 
-        self._state_initialization_map = defaultdict(list)
+        self._state_initialization_map: DefaultDict[int, List[Tuple[int, int]]] = defaultdict(list)
 
-        self._exit_targets = defaultdict(list)  # A dict to log edges and the jumpkind between each basic block
+        self._exit_targets: DefaultDict[Tuple[Union[int, None], ...], List[Tuple[BlockID, str]]] = defaultdict(
+            list
+        )  # A dict to log edges and the jumpkind between each basic block
         # A dict to record all blocks that returns to a specific address
-        self._return_target_sources = defaultdict(list)
+        self._return_target_sources: DefaultDict[int, List[int]] = defaultdict(list)
 
-        self._pending_returns = {}
+        self._pending_returns: Dict[BlockID, PendingJob] = {}
 
-        self._thumb_addrs = set()  # set of all addresses that are code in thumb mode
+        self._thumb_addrs: Set[int] = set()  # set of all addresses that are code in thumb mode
 
-        self._final_address = None  # Address of the very last instruction. The analysis is terminated there.
+        self._final_address: Optional[
+            int
+        ] = None  # Address of the very last instruction. The analysis is terminated there.
 
-        self._function_merge_points = {}
-        self._function_widening_points = {}
-        self._function_node_addrs = {}  # sorted in reverse post-order
+        self._function_merge_points: Dict[int, List[int]] = {}
+        self._function_widening_points: Dict[int, List[int]] = {}
+        self._function_node_addrs: Dict[int, List[int]] = {}  # sorted in reverse post-order
 
         self._mergeable_plugins = ("memory", "registers")
 
-        self._task_stack = []
+        self._task_stack: List[AnalysisTask] = []
 
-        self._tracing_times = defaultdict(int)
+        self._tracing_times: DefaultDict[int, int] = defaultdict(int)
 
         # counters for debugging
-        self._execution_counter = defaultdict(int)
+        self._execution_counter: DefaultDict[int, int] = defaultdict(int)
 
         # Start analysis
         self._analyze()
@@ -595,7 +601,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return job.block_id
 
-    def _pre_job_handling(self, job):
+    def _pre_job_handling(self, job: VFGJob):
         """
         Some code executed before actually processing the job.
 
@@ -1022,7 +1028,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     def _intra_analysis(self):
         pass
 
-    def _merge_jobs(self, *jobs):
+    def _merge_jobs(self, *jobs: VFGJob):
         l.debug("Merging jobs %s", jobs)
 
         # there should not be more than two jobs being merged at the same time
@@ -1154,7 +1160,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     # State widening, merging, and narrowing
     #
 
-    def _merge_states(self, *states):
+    def _merge_states(self, *states: SimState):
         """
         Merge two given states, and return a new one.
 
@@ -1252,7 +1258,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return state
 
-    def _set_return_address(self, state, ret_addr):
+    def _set_return_address(self, state: "SimState", ret_addr: int):
         """
         Set the return address of the current state to a specific address. We assume we are at the beginning of a
         function, or in other words, we are about to execute the very first instruction of the function.
@@ -1435,7 +1441,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return sim_successors, error_occured, restart_analysis
 
-    def _create_new_jobs(self, job, successor, new_block_id, new_call_stack):
+    def _create_new_jobs(self, job: VFGJob, successor: "SimState", new_block_id: BlockID, new_call_stack):
         """
         Create a list of new VFG jobs for the successor state.
 
