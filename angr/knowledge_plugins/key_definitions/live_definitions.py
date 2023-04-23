@@ -324,7 +324,9 @@ class LiveDefinitions:
         """
         Return the concrete value contained by the stack pointer.
         """
-        sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
+        sp_values: MultiValues = self.register_definitions.load(
+            self.arch.sp_offset, size=self.arch.bytes, endness=self.arch.register_endness
+        )
         sp_v = sp_values.one_value()
         if sp_v is None:
             # multiple values of sp exists. still return a value if there is only one value (maybe with different
@@ -339,7 +341,9 @@ class LiveDefinitions:
         """
         Return the offset of the stack pointer.
         """
-        sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
+        sp_values: MultiValues = self.register_definitions.load(
+            self.arch.sp_offset, size=self.arch.bytes, endness=self.arch.register_endness
+        )
         sp_v = sp_values.one_value()
         if sp_v is None:
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
@@ -603,7 +607,9 @@ class LiveDefinitions:
     def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
         if isinstance(atom, Register):
             try:
-                return self.register_definitions.load(atom.reg_offset, size=atom.size)
+                return self.register_definitions.load(
+                    atom.reg_offset, size=atom.size, endness=self.arch.register_endness
+                )
             except SimMemoryMissingError:
                 return None
         elif isinstance(atom, MemoryLocation):
@@ -632,7 +638,7 @@ class LiveDefinitions:
     def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
         # get all current definitions
         try:
-            mvs: MultiValues = self.register_definitions.load(reg_offset, size=size)
+            mvs: MultiValues = self.register_definitions.load(reg_offset, size=size, endness=self.arch.register_endness)
         except SimMemoryMissingError:
             return
 

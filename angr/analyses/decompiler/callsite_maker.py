@@ -237,7 +237,7 @@ class CallSiteMaker(Analysis):
                 return None, None
 
             try:
-                vs: "MultiValues" = rd.register_definitions.load(offset, size=size)
+                vs: "MultiValues" = rd.register_definitions.load(offset, size=size, endness=self.arch.register_endness)
             except SimMemoryMissingError:
                 return None, None
             values_and_defs_ = set()

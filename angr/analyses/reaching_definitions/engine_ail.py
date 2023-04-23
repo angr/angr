@@ -343,13 +343,16 @@ class SimEngineRDAIL(
         if self.state._sp_adjusted:
             # stack pointers still exist in the block. so we must emulate the return of the call
             if self.arch.call_pushes_ret:
-                sp_mv: MultiValues = self.state.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
+                sp_mv: MultiValues = self.state.register_definitions.load(
+                    self.arch.sp_offset, size=self.arch.bytes, endness=self.arch.register_endness
+                )
                 sp_v = sp_mv.one_value()
                 if sp_v is not None:
                     self.state.register_definitions.store(
                         self.arch.sp_offset,
                         sp_v + self.arch.bytes,
                         size=self.arch.bytes,
+                        endness=self.arch.register_endness,
                     )
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
@@ -471,7 +474,9 @@ class SimEngineRDAIL(
 
         # first check if it is ever defined
         try:
-            value: MultiValues = self.state.register_definitions.load(reg_offset, size=size)
+            value: MultiValues = self.state.register_definitions.load(
+                reg_offset, size=size, endness=self.arch.register_endness
+            )
         except SimMemoryMissingError as ex:
             # the full value does not exist, but we handle partial existence, too
             missing_defs = None
@@ -480,7 +485,9 @@ class SimEngineRDAIL(
                 i = 0
                 while i < size:
                     try:
-                        value: MultiValues = self.state.register_definitions.load(reg_offset + i, size=1)
+                        value: MultiValues = self.state.register_definitions.load(
+                            reg_offset + i, size=1, endness=self.arch.register_endness
+                        )
                     except SimMemoryMissingError as ex_:
                         i += ex_.missing_size
                         continue
