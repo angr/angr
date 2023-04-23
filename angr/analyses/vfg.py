@@ -281,7 +281,7 @@ class VFGNode:
             self.widened_state = s
 
 
-class VFG(ForwardAnalysis[SimState, VFGNode], Analysis):  # pylint:disable=abstract-method
+class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pylint:disable=abstract-method
     """
     This class represents a control-flow graph with static analysis result.
 
