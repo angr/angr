@@ -176,9 +176,8 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
     def _job_queue_empty(self) -> None:
         pass
 
-    @abstractmethod
     def _initial_abstract_state(self, node: NodeType) -> AnalysisState:
-        pass
+        raise NotImplementedError("_initial_abstract_state() is not implemented.")
 
     def _process_input_state_for_successor(
         self, node: NodeType, successor: NodeType, input_state: AnalysisState
