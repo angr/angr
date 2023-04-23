@@ -1,13 +1,14 @@
 # Disable some pylint warnings: no-self-use, missing-docstring
-# pylint: disable=R0201, C0111
+# pylint: disable=R0201,C0111,bad-builtin
 
 import os
 import pickle
 from unittest import TestCase, main
 
 import ailment
-import angr
 import claripy
+
+import angr
 from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
 from angr.code_location import CodeLocation
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
@@ -340,15 +341,17 @@ class TestReachingDefinitions(TestCase):
     def test_dep_graph(self):
         project = angr.Project(_binary_path("true"), auto_load_libs=False)
         cfg = project.analyses[CFGFast].prep()()
-        main = cfg.functions["main"]
+        main_func = cfg.functions["main"]
 
         # build a def-use graph for main() of /bin/true without tmps.
         # check that the only dependency of the first block's
         # guard is the four cc registers
-        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main, track_tmps=False, dep_graph=DepGraph())
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(
+            subject=main_func, track_tmps=False, dep_graph=DepGraph()
+        )
         guard_use = list(
             filter(
-                lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr,
+                lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main_func.addr,
                 rda.dep_graph._graph.nodes(),
             )
         )[0]
@@ -361,10 +364,14 @@ class TestReachingDefinitions(TestCase):
         )
 
         # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
-        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main, track_tmps=True, dep_graph=DepGraph())
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(
+            subject=main_func, track_tmps=True, dep_graph=DepGraph()
+        )
         tmp_7 = list(
             filter(
-                lambda def_: type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr,
+                lambda def_: type(def_.atom) is Tmp
+                and def_.atom.tmp_idx == 7
+                and def_.codeloc.block_addr == main_func.addr,
                 rda.dep_graph._graph.nodes(),
             )
         )[0]
@@ -376,10 +383,10 @@ class TestReachingDefinitions(TestCase):
         project = angr.Project(bin_path, auto_load_libs=False)
         arch = project.arch
         cfg = project.analyses[CFGFast].prep()()
-        main = cfg.functions["authenticate"]
+        main_func = cfg.functions["authenticate"]
 
         rda: ReachingDefinitionsAnalysis = project.analyses[ReachingDefinitionsAnalysis].prep()(
-            subject=main, track_tmps=False, dep_graph=DepGraph()
+            subject=main_func, track_tmps=False, dep_graph=DepGraph()
         )
         dep_graph = rda.dep_graph
         open_rdi = next(
@@ -423,14 +430,14 @@ class TestReachingDefinitions(TestCase):
         project = angr.Project(bin_path, auto_load_libs=False)
         arch = project.arch
         cfg = project.analyses[CFGFast].prep()()
-        main = cfg.functions["main"]
+        main_func = cfg.functions["main"]
 
         project.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
-        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main, track_tmps=False, call_stack=[])
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main_func, track_tmps=False, call_stack=[])
 
         # 4007ae
         # rsi and rdi are all used by authenticate()
-        context = (main.addr,)
+        context = (main_func.addr,)
         code_location = CodeLocation(0x4007A0, DEFAULT_STATEMENT, ins_addr=0x4007AE, context=context)
         uses = rda.all_uses.get_uses_by_location(code_location)
         self.assertEqual(len(uses), 2)
