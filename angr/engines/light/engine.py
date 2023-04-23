@@ -9,6 +9,7 @@ import pyvex
 import claripy
 import archinfo
 
+from ...misc.ux import once
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from ...code_location import CodeLocation
@@ -366,7 +367,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
                 return getattr(self, handler)(expr, vector_size, vector_count)
             return getattr(self, handler)(expr)
         else:
-            self.l.error("Unsupported Binop %s.", expr.op)
+            if once(expr.op):
+                self.l.warning("Unsupported Binop %s.", expr.op)
 
         return None
 
