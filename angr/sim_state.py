@@ -110,10 +110,7 @@ class SimState(PluginHub):
 
         # Arch
         if self._is_java_jni_project:
-            self._arch = {
-                "soot": self._is_java_jni_project.arch,
-                "vex": self._is_java_jni_project.simos.native_simos.arch,
-            }
+            self._arch = {"soot": project.arch, "vex": project.simos.native_simos.arch}
             # This flag indicates whether the current ip is a native address or
             # a soot address descriptor.
             # Note: We cannot solely rely on the ip to make that decsision,
