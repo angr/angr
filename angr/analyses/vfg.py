@@ -9,7 +9,7 @@ import networkx
 from . import Analysis, CFGEmulated
 
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
-from .cfg.cfg_utils import CFGUtils
+from angr.utils.graph import GraphUtils
 from angr.analyses import ForwardAnalysis
 from .. import sim_options
 from ..engines.procedure import ProcedureEngine
@@ -1879,7 +1879,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode], Analysis):  # pylint:disable=abstr
             return []
 
         if function_address not in self._function_merge_points:
-            ordered_merge_points = CFGUtils.find_merge_points(
+            ordered_merge_points = GraphUtils.find_merge_points(
                 function_address, new_function.endpoints, new_function.graph
             )
             self._function_merge_points[function_address] = ordered_merge_points
@@ -1906,7 +1906,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode], Analysis):  # pylint:disable=abstr
         if function_address not in self._function_widening_points:
             if not new_function.normalized:
                 new_function.normalize()
-            widening_points = CFGUtils.find_widening_points(
+            widening_points = GraphUtils.find_widening_points(
                 function_address, new_function.endpoints, new_function.graph
             )
             self._function_widening_points[function_address] = widening_points
@@ -1930,7 +1930,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode], Analysis):  # pylint:disable=abstr
             return []
 
         if function_address not in self._function_node_addrs:
-            sorted_nodes = CFGUtils.quasi_topological_sort_nodes(function.graph)
+            sorted_nodes = GraphUtils.quasi_topological_sort_nodes(function.graph)
             self._function_node_addrs[function_address] = [n.addr for n in sorted_nodes]
 
         return self._function_node_addrs[function_address]

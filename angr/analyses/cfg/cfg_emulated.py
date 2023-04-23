@@ -39,7 +39,7 @@ from ...utils.constants import DEFAULT_STATEMENT
 from angr.analyses import ForwardAnalysis
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_utils import CFGUtils
+from angr.utils.graph import GraphUtils
 
 from ..cdg import CDG
 from ..ddg import DDG
@@ -300,7 +300,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._node_addr_visiting_order = []
 
         if self._base_graph:
-            sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self._base_graph)
+            sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._base_graph)
             self._node_addr_visiting_order = [n.addr for n in sorted_nodes]
 
         self._sanitize_parameters()

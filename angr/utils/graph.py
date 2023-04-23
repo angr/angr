@@ -66,9 +66,7 @@ def to_acyclic_graph(
 
     if ordered_nodes is None:
         # take the quasi-topological order of the graph
-        from angr.analyses.cfg.cfg_utils import CFGUtils  # pylint:disable=import-outside-toplevel
-
-        ordered_nodes = CFGUtils.quasi_topological_sort_nodes(graph, loop_heads=loop_heads)
+        ordered_nodes = GraphUtils.quasi_topological_sort_nodes(graph, loop_heads=loop_heads)
 
     acyclic_graph = networkx.DiGraph()
 

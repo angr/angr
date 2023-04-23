@@ -13,7 +13,7 @@ from ailment.expression import Const, UnaryOp, MultiStatementExpression
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
-from ...cfg.cfg_utils import CFGUtils
+from angr.utils.graph import GraphUtils
 from ..sequence_walker import SequenceWalker
 from ..utils import (
     remove_last_statement,
@@ -178,7 +178,7 @@ class PhoenixStructurer(StructurerBase):
     def _analyze_cyclic(self) -> bool:
         any_matches = False
         acyclic_graph = to_acyclic_graph(self._region.graph, loop_heads=[self._region.head])
-        for node in list(reversed(CFGUtils.quasi_topological_sort_nodes(acyclic_graph))):
+        for node in list(reversed(GraphUtils.quasi_topological_sort_nodes(acyclic_graph))):
             if node not in self._region.graph:
                 continue
             matched = self._match_cyclic_schemas(
@@ -491,7 +491,7 @@ class PhoenixStructurer(StructurerBase):
                 succ_while = result_while[-1]
                 succ_dowhile = result_dowhile[-1]
                 if succ_while in self._parent_region.graph and succ_dowhile in self._parent_region.graph:
-                    sorted_nodes = CFGUtils.quasi_topological_sort_nodes(
+                    sorted_nodes = GraphUtils.quasi_topological_sort_nodes(
                         self._parent_region.graph, loop_heads=[self._parent_region.head]
                     )
                     succ_while_idx = sorted_nodes.index(succ_while)
@@ -665,7 +665,7 @@ class PhoenixStructurer(StructurerBase):
         if len(continue_edges) > 1:
             # convert all but one (the one that is the farthest from the head, topological-wise) head-going edges into
             # continues
-            sorted_nodes = CFGUtils.quasi_topological_sort_nodes(
+            sorted_nodes = GraphUtils.quasi_topological_sort_nodes(
                 fullgraph, nodes=[src for src, _ in continue_edges], loop_heads=[loop_head]
             )
             src_to_ignore = sorted_nodes[-1]
@@ -841,7 +841,7 @@ class PhoenixStructurer(StructurerBase):
 
             self._assert_graph_ok(acyclic_graph, "Removed wrong edges")
 
-        for node in list(reversed(CFGUtils.quasi_topological_sort_nodes(acyclic_graph))):
+        for node in list(reversed(GraphUtils.quasi_topological_sort_nodes(acyclic_graph))):
             if node not in graph:
                 continue
             if graph.has_edge(node, head):
@@ -1898,7 +1898,7 @@ class PhoenixStructurer(StructurerBase):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     other_edges.append((src, dst))
 
-        ordered_nodes = CFGUtils.quasi_topological_sort_nodes(acyclic_graph, loop_heads=[head])
+        ordered_nodes = GraphUtils.quasi_topological_sort_nodes(acyclic_graph, loop_heads=[head])
         node_seq = {nn: idx for (idx, nn) in enumerate(ordered_nodes)}
 
         if all_edges_wo_dominance:

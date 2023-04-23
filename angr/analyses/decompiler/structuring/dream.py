@@ -9,7 +9,7 @@ import claripy
 import ailment
 
 from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
-from ...cfg.cfg_utils import CFGUtils
+from angr.utils.graph import GraphUtils
 from ..graph_region import GraphRegion
 from ..empty_node_remover import EmptyNodeRemover
 from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
@@ -344,7 +344,7 @@ class DreamStructurer(StructurerBase):
     def _make_sequence(self):
         seq = SequenceNode(None)
 
-        for node in CFGUtils.quasi_topological_sort_nodes(self._region.graph):
+        for node in GraphUtils.quasi_topological_sort_nodes(self._region.graph):
             seq.add_node(CodeNode(node, self.cond_proc.reaching_conditions.get(node, None)))
 
         if seq.nodes:

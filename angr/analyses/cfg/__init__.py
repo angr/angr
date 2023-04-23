@@ -7,6 +7,5 @@ from .cfg_fast_soot import CFGFastSoot
 
 # things to make your life easier
 from .cfg_arch_options import CFGArchOptions
-from .cfg_utils import CFGUtils
 from .cfg_base import CFGBase
 from ...knowledge_plugins.cfg import CFGNode

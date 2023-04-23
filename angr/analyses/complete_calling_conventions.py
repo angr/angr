@@ -9,7 +9,7 @@ import claripy
 
 from ..utils.mp import mp_context, Initializer
 from ..knowledge_plugins.cfg import CFGModel
-from ..analyses.cfg import CFGUtils
+from angr.utils.graph import GraphUtils
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
 
 if TYPE_CHECKING:
@@ -102,7 +102,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         """
 
         # get an ordering of functions based on the call graph
-        sorted_funcs = CFGUtils.quasi_topological_sort_nodes(self.kb.functions.callgraph)
+        sorted_funcs = GraphUtils.quasi_topological_sort_nodes(self.kb.functions.callgraph)
 
         total_funcs = 0
         for func_addr in reversed(sorted_funcs):
