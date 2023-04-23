@@ -319,7 +319,6 @@ Analysis
 .. automodule:: angr.analyses.cfg.indirect_jump_resolvers.const_resolver
 .. automodule:: angr.analyses.cfg.indirect_jump_resolvers.resolver
 .. automodule:: angr.analyses.cfg.indirect_jump_resolvers
-.. automodule:: angr.analyses.cfg.cfg_utils
 .. automodule:: angr.analyses.cfg.cfg_fast_soot
 .. automodule:: angr.analyses.cfg.segment_list
 .. automodule:: angr.analyses.cdg
