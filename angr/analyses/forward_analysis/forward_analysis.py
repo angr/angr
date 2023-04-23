@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Callable, Optional, Generic, TypeVar, Tuple, Set, TYPE_CHECKING, Union
+from typing import Any, Dict, List, Callable, Optional, Generic, Type, TypeVar, Tuple, Set, TYPE_CHECKING, Union
 
 import networkx
 
@@ -42,7 +42,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
         order_jobs=False,
         allow_merging=False,
         allow_widening=False,
-        status_callback=None,
+        status_callback: Optional[Callable[[Type["ForwardAnalysis"]], Any]] = None,
         graph_visitor: "Optional[GraphVisitor[NodeType]]" = None,
     ):
         """
@@ -273,7 +273,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
                 # no change is detected
                 self._output_state[self._node_key(n)] = output_state
                 continue
-            elif changed is True:
+            if changed is True:
                 # changes detected
 
                 # output state of node n is input state for successors to node n

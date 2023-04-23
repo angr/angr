@@ -1,4 +1,4 @@
-from typing import List, Generator, TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Callable, DefaultDict, Dict, List, Generator, Optional, Set, Tuple, Union
 import logging
 from collections import defaultdict
 
@@ -27,10 +27,13 @@ from ..errors import (
 )
 from ..procedures import SIM_PROCEDURES
 from ..state_plugins.callstack import CallStack
+from claripy.vsa.strided_interval import StridedInterval
+from ..analyses import AnalysesHub
+
+from ..sim_state import SimState
 
 if TYPE_CHECKING:
-    from angr.sim_state import SimState
-
+    from ..knowledge_base import KnowledgeBase
 
 l = logging.getLogger(name=__name__)
 
@@ -40,17 +43,17 @@ class VFGJob(CFGJobBase):
     A job descriptor that contains local variables used during VFG analysis.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self.call_stack_suffix = None
-        self.vfg_node = None
+        self.call_stack_suffix: List = []
+        self.vfg_node: Optional[VFGNode] = None
         self.is_call_jump = None
         self.call_target = None
         self.dbg_exit_status = {}
         self.is_return_jump = None
 
-        self.sim_successors = None
+        self.sim_successors: Optional[SimSuccessors] = None
 
         # if this job has a call successor, do we plan to skip the call successor or not
         self.call_skipped = False
@@ -60,10 +63,10 @@ class VFGJob(CFGJobBase):
         self.call_task: Optional[CallAnalysis] = None
 
     @property
-    def block_id(self):
+    def block_id(self) -> Optional[BlockID]:
         return self._block_id
 
-    def callstack_repr(self, kb=None):
+    def callstack_repr(self, kb: "KnowledgeBase"):
         s = []
         for i in range(0, len(self.call_stack_suffix), 2):
             call_site, func_addr = (
@@ -93,7 +96,15 @@ class PendingJob:
         "src_ins_addr",
     )
 
-    def __init__(self, block_id, state, call_stack, src_block_id, src_stmt_idx, src_ins_addr):
+    def __init__(
+        self,
+        block_id: BlockID,
+        state: SimState,
+        call_stack: CallStack,
+        src_block_id: BlockID,
+        src_stmt_idx: int,
+        src_ins_addr: int,
+    ) -> None:
         self.block_id = block_id
         self.state = state
         self.call_stack = call_stack
@@ -107,7 +118,7 @@ class AnalysisTask:
     An analysis task describes a task that should be done before popping this task out of the task stack and discard it.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     @property
@@ -120,13 +131,13 @@ class FunctionAnalysis(AnalysisTask):
     Analyze a function, generate fix-point states from all endpoints of that function, and then merge them to one state.
     """
 
-    def __init__(self, function_address, return_address):
+    def __init__(self, function_address: int, return_address: Optional[int]) -> None:
         super().__init__()
 
         self.function_address = function_address
         self.return_address = return_address
 
-        self.call_analysis = None
+        self.call_analysis: Optional[AnalysisTask] = None
 
         # tracks all jobs that are live currently
         self.jobs = []
@@ -140,7 +151,7 @@ class FunctionAnalysis(AnalysisTask):
     #
 
     @property
-    def done(self):
+    def done(self) -> bool:
         return not self.jobs
 
 
@@ -150,7 +161,13 @@ class CallAnalysis(AnalysisTask):
     those functions, and merge them into one state.
     """
 
-    def __init__(self, address, return_address, function_analysis_tasks=None, mergeable_plugins=None):
+    def __init__(
+        self,
+        address: int,
+        return_address: None,
+        function_analysis_tasks: Optional[List[Any]] = None,
+        mergeable_plugins: Optional[Tuple[str, str]] = None,
+    ) -> None:
         super().__init__()
 
         self.address = address
@@ -170,7 +187,7 @@ class CallAnalysis(AnalysisTask):
     #
 
     @property
-    def done(self):
+    def done(self) -> bool:
         for task in self.function_analysis_tasks:
             if not task.done:
                 return False
@@ -180,16 +197,16 @@ class CallAnalysis(AnalysisTask):
     # Public methods
     #
 
-    def register_function_analysis(self, task):
+    def register_function_analysis(self, task: FunctionAnalysis) -> None:
         assert isinstance(task, FunctionAnalysis)
 
         self.function_analysis_tasks.append(task)
         task.call_analysis = self
 
-    def add_final_job(self, job):
+    def add_final_job(self, job: VFGJob) -> None:
         self._final_jobs.append(job)
 
-    def merge_jobs(self):
+    def merge_jobs(self) -> VFGJob:
         assert self._final_jobs
 
         job = self._final_jobs[0]
@@ -205,7 +222,7 @@ class VFGNode:
     A descriptor of nodes in a Value-Flow Graph
     """
 
-    def __init__(self, addr, key, state=None):
+    def __init__(self, addr: int, key: BlockID, state: Optional["SimState"] = None) -> None:
         """
         Constructor.
 
@@ -215,20 +232,20 @@ class VFGNode:
         """
         self.key = key
         self.addr = addr
-        self.state = None
-        self.widened_state = None
-        self.narrowing_times = 0
-        self.all_states = []
-        self.events = []
-        self.input_variables = []
-        self.actions = []
-        self.final_states = []
+        self.state: Optional[SimState] = None
+        self.widened_state: Optional[SimState] = None
+        self.narrowing_times: int = 0
+        self.all_states: List[SimState] = []
+        self.events: List = []
+        self.input_variables: List = []
+        self.actions: List = []
+        self.final_states: List[SimState] = []
 
         if state:
             self.all_states.append(state)
             self.state = state
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.key)
 
     def __eq__(self, o):
@@ -264,7 +281,7 @@ class VFGNode:
             self.widened_state = s
 
 
-class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
+class VFG(ForwardAnalysis[SimState, VFGNode], Analysis):  # pylint:disable=abstract-method
     """
     This class represents a control-flow graph with static analysis result.
 
@@ -287,22 +304,22 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
     def __init__(
         self,
-        cfg=None,
-        context_sensitivity_level=2,
-        start=None,
-        function_start=None,
-        interfunction_level=0,
-        initial_state=None,
-        avoid_runs=None,
-        remove_options=None,
-        timeout=None,
-        max_iterations_before_widening=8,
-        max_iterations=40,
-        widening_interval=3,
-        final_state_callback=None,
-        status_callback=None,
-        record_function_final_states=False,
-    ):
+        cfg: Optional[CFGEmulated] = None,
+        context_sensitivity_level: int = 2,
+        start: Optional[int] = None,
+        function_start: Optional[int] = None,
+        interfunction_level: int = 0,
+        initial_state: Optional["SimState"] = None,
+        avoid_runs: Optional[List[int]] = None,
+        remove_options: Optional[Set[str]] = None,
+        timeout: Optional[int] = None,
+        max_iterations_before_widening: int = 8,
+        max_iterations: int = 40,
+        widening_interval: int = 3,
+        final_state_callback: Optional[Callable[["SimState", CallStack], Any]] = None,
+        status_callback: Optional[Callable[["VFG"], Any]] = None,
+        record_function_final_states: bool = False,
+    ) -> None:
         """
         :param cfg: The control-flow graph to base this analysis on. If none is provided, we will
                     construct a CFGEmulated.
@@ -315,22 +332,24 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         :param remove_options: State options to remove from the initial state. It only works when `initial_state` is
                                 None
         :param int timeout:
+        :param final_state_callback: callback function when countering final state
+        :param status_callback: callback function used in _analysis_core_baremetal
         """
 
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=True, status_callback=status_callback
-        )
+        )  # type:ignore
 
         # Related CFG.
         # We can still perform analysis if you don't specify a CFG. But providing a CFG may give you better result.
         self._cfg = cfg
 
         # Where to start the analysis
-        self._start = start if start is not None else self.project.entry
-        self._function_start = function_start if function_start is not None else self._start
+        self._start: int = start if start is not None else self.project.entry
+        self._function_start: int = function_start if function_start is not None else self._start
 
         # Other parameters
-        self._avoid_runs = [] if avoid_runs is None else avoid_runs
+        self._avoid_runs: List[int] = [] if avoid_runs is None else avoid_runs
         self._context_sensitivity_level = context_sensitivity_level
         self._interfunction_level = interfunction_level
         self._state_options_to_remove = set() if remove_options is None else remove_options
@@ -347,45 +366,51 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         self._record_function_final_states = record_function_final_states
 
-        self._nodes = {}  # all the vfg nodes, keyed on block IDs
-        self._normal_states = {}  # Last available state for each program point without widening
-        self._widened_states = {}  # States on which widening has occurred
+        self._nodes: Dict[BlockID, VFGNode] = {}  # all the vfg nodes, keyed on block IDs
+        self._normal_states: Dict[
+            BlockID, SimState
+        ] = {}  # Last available state for each program point without widening
+        self._widened_states: Dict[BlockID, SimState] = {}  # States on which widening has occurred
 
         # Initial states of each function, which is context sensitive
         # It maps function key to its states
-        self._function_initial_states = defaultdict(dict)
+        self._function_initial_states: DefaultDict[int, Dict[int, SimState]] = defaultdict(dict)
         # Final states of each function, right after `ret` is called. Also context sensitive.
         # even if a function may have multiple return sites, as long as they all return to the same place, there is
         # only one final state of that function.
-        self._function_final_states = defaultdict(dict)
+        self._function_final_states: DefaultDict[int, Dict[int, SimState]] = defaultdict(dict)
 
         # All final states are put in this list
-        self.final_states = []
+        self.final_states: List[SimState] = []
 
-        self._state_initialization_map = defaultdict(list)
+        self._state_initialization_map: DefaultDict[int, List[Tuple[int, int]]] = defaultdict(list)
 
-        self._exit_targets = defaultdict(list)  # A dict to log edges and the jumpkind between each basic block
+        self._exit_targets: DefaultDict[Tuple[Union[int, None], ...], List[Tuple[BlockID, str]]] = defaultdict(
+            list
+        )  # A dict to log edges and the jumpkind between each basic block
         # A dict to record all blocks that returns to a specific address
-        self._return_target_sources = defaultdict(list)
+        self._return_target_sources: DefaultDict[int, List[int]] = defaultdict(list)
 
-        self._pending_returns = {}
+        self._pending_returns: Dict[BlockID, PendingJob] = {}
 
-        self._thumb_addrs = set()  # set of all addresses that are code in thumb mode
+        self._thumb_addrs: Set[int] = set()  # set of all addresses that are code in thumb mode
 
-        self._final_address = None  # Address of the very last instruction. The analysis is terminated there.
+        self._final_address: Optional[
+            int
+        ] = None  # Address of the very last instruction. The analysis is terminated there.
 
-        self._function_merge_points = {}
-        self._function_widening_points = {}
-        self._function_node_addrs = {}  # sorted in reverse post-order
+        self._function_merge_points: Dict[int, List[int]] = {}
+        self._function_widening_points: Dict[int, List[int]] = {}
+        self._function_node_addrs: Dict[int, List[int]] = {}  # sorted in reverse post-order
 
         self._mergeable_plugins = ("memory", "registers")
 
-        self._task_stack = []
+        self._task_stack: List[FunctionAnalysis] = []
 
-        self._tracing_times = defaultdict(int)
+        self._tracing_times: DefaultDict[BlockID, int] = defaultdict(int)
 
         # counters for debugging
-        self._execution_counter = defaultdict(int)
+        self._execution_counter: DefaultDict[BlockID, int] = defaultdict(int)
 
         # Start analysis
         self._analyze()
@@ -399,17 +424,14 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         return self._task_stack[-1].function_address
 
     @property
-    def _top_task(self):
+    def _top_task(self) -> Optional[FunctionAnalysis]:
         """
         Get the first task in the stack.
 
         :return: The top task in the stack, or None if the stack is empty.
-        :rtype: AnalysisTask
+        :rtype: FunctionAnalysis
         """
-
-        if not self._task_stack:
-            return None
-        return self._task_stack[-1]
+        return self._task_stack[-1] if len(self._task_stack) != 0 else None
 
     @property
     def _top_function_analysis_task(self):
@@ -437,7 +459,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     # Public methods
     #
 
-    def get_any_node(self, addr):
+    def get_any_node(self, addr: int) -> Optional[VFGNode]:
         """
         Get any VFG node corresponding to the basic block at @addr.
         Note that depending on the context sensitivity level, there might be
@@ -461,7 +483,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     #
 
     def copy(self):
-        new_vfg = VFG(self.project)
+        new_vfg = VFG(self.project)  # type:ignore
         new_vfg._cfg = self._cfg
         new_vfg._graph = networkx.DiGraph(self.graph)
         new_vfg._nodes = self._nodes.copy()
@@ -479,7 +501,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     # Main analysis routines, mostly overriding methods of ForwardAnalysis
     #
 
-    def _pre_analysis(self):
+    def _pre_analysis(self) -> None:
         """
         Executed before analysis starts. Necessary initializations are performed here.
 
@@ -499,7 +521,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             l.debug("Generating a CFG, since none was given...")
             # TODO: can we use a fast CFG instead? note that fast CFG does not care of context sensitivity at all, but
             # TODO: for state merging, we also don't really care about context sensitivity.
-            self._cfg = self.project.analyses[CFGEmulated].prep()(
+            self._cfg: CFGEmulated = self.project.analyses[CFGEmulated].prep()(
                 context_sensitivity_level=self._context_sensitivity_level, starts=(self._start,)
             )
 
@@ -584,7 +606,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         # return self._cfg.get_topological_order(self._cfg.get_node(job.block_id))
 
-    def _job_key(self, job):
+    def _job_key(self, job: VFGJob) -> Optional[BlockID]:
         """
         Return the block ID of the job. Two or more jobs owning the same block ID will be merged together.
 
@@ -595,7 +617,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return job.block_id
 
-    def _pre_job_handling(self, job):
+    def _pre_job_handling(self, job: VFGJob) -> None:
         """
         Some code executed before actually processing the job.
 
@@ -666,7 +688,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         self._top_task.jobs.remove(job)
 
         # set up some essential variables and parameters
-        job.call_stack_suffix = job.get_call_stack_suffix()
+        job.call_stack_suffix = job.get_call_stack_suffix()  # type:ignore
         job.jumpkind = "Ijk_Boring" if job.state.history.jumpkind is None else job.state.history.jumpkind
 
         src_block_id = job.src_block_id
@@ -709,25 +731,28 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, src_exit_stmt_idx=src_exit_stmt_idx)
 
-    def _get_successors(self, job: VFGJob):
+    def _get_successors(self, job: VFGJob) -> List[SimState]:
         # Extract initial values
         state = job.state
         addr = job.addr
 
         # Obtain successors
         if addr not in self._avoid_runs:
+            assert job.sim_successors is not None
             all_successors: List["SimState"] = (
                 job.sim_successors.flat_successors + job.sim_successors.unconstrained_successors
             )
         else:
             all_successors = []
 
+        assert job.vfg_node is not None
         # save those states
         if job.vfg_node.final_states is None:
             job.vfg_node.final_states = []
         job.vfg_node.final_states.extend(all_successors)
 
         # Update thumb_addrs
+        assert job.sim_successors
         if job.sim_successors.sort == "IRSB" and state.thumb:
             self._thumb_addrs.update(job.sim_successors.artifacts["insn_addrs"])
 
@@ -779,7 +804,9 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return all_successors
 
-    def _handle_successor(self, job, successor, all_successors):
+    def _handle_successor(
+        self, job: VFGJob, successor: SimState, all_successors: List[SimState]
+    ) -> List[Union[VFGJob, Any]]:
         """
         Process each successor generated by the job, and return a new list of succeeding jobs.
 
@@ -967,7 +994,9 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return new_jobs
 
-    def _post_job_handling(self, job: VFGJob, new_jobs, successors):  # pylint:disable=unused-argument
+    def _post_job_handling(
+        self, job: VFGJob, new_jobs: List[Union[VFGJob, Any]], successors: List[SimState]
+    ) -> None:  # pylint:disable=unused-argument
         # Debugging output
         if l.level == logging.DEBUG:
             self._post_job_handling_debug(job, successors)
@@ -1019,10 +1048,10 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         #    # task stack is empty
         #    self.final_states.append(job.state)
 
-    def _intra_analysis(self):
+    def _intra_analysis(self) -> None:
         pass
 
-    def _merge_jobs(self, *jobs):
+    def _merge_jobs(self, *jobs: VFGJob):
         l.debug("Merging jobs %s", jobs)
 
         # there should not be more than two jobs being merged at the same time
@@ -1082,7 +1111,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return False
 
-    def _widen_jobs(self, *jobs):
+    def _widen_jobs(self, *jobs: VFGJob):
         """
 
         :param iterable jobs:
@@ -1092,6 +1121,8 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         job_0: VFGJob
         job_1: VFGJob
         job_0, job_1 = jobs[-2:]
+
+        assert self._top_function_analysis_task is not None
 
         # update jobs
         for job in jobs:
@@ -1117,7 +1148,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return new_job
 
-    def _job_queue_empty(self):
+    def _job_queue_empty(self) -> None:
         if self._pending_returns:
             # We don't have any paths remaining. Let's pop a previously-missing return to
             # process
@@ -1147,14 +1178,14 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
             l.debug("Tracing a missing return %s", repr(pending_ret_key))
 
-    def _post_analysis(self):
+    def _post_analysis(self) -> None:
         pass
 
     #
     # State widening, merging, and narrowing
     #
 
-    def _merge_states(self, *states):
+    def _merge_states(self, *states: SimState):
         """
         Merge two given states, and return a new one.
 
@@ -1225,7 +1256,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     # Helper methods
     #
 
-    def _prepare_initial_state(self, function_start, state):
+    def _prepare_initial_state(self, function_start: int, state: Optional[SimState]) -> SimState:
         """
         Get the state to start the analysis for function.
 
@@ -1236,6 +1267,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         if state is None:
             state = self.project.factory.blank_state(mode="static", remove_options=self._state_options_to_remove)
 
+        assert state is not None
         # make room for arguments passed to the function
         sp = state.regs.sp
         sp_val = state.solver.eval_one(sp)
@@ -1252,7 +1284,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return state
 
-    def _set_return_address(self, state, ret_addr):
+    def _set_return_address(self, state: "SimState", ret_addr: int) -> None:
         """
         Set the return address of the current state to a specific address. We assume we are at the beginning of a
         function, or in other words, we are about to execute the very first instruction of the function.
@@ -1330,7 +1362,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     # DiGraph manipulation
     #
 
-    def _graph_get_node(self, block_id, terminator_for_nonexistent_node=False):
+    def _graph_get_node(self, block_id: BlockID, terminator_for_nonexistent_node: bool = False) -> VFGNode:
         """
         Get an existing VFGNode instance from the graph.
 
@@ -1367,7 +1399,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return self._nodes[block_id]
 
-    def _graph_add_edge(self, src_block_id, dst_block_id, **kwargs):
+    def _graph_add_edge(self, src_block_id: Optional[BlockID], dst_block_id: BlockID, **kwargs) -> None:
         """
         Add an edge onto the graph.
 
@@ -1392,7 +1424,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     # Other methods
     #
 
-    def _get_simsuccessors(self, state, addr):
+    def _get_simsuccessors(self, state: SimState, addr: int) -> Tuple[SimSuccessors, bool, bool]:
         error_occured = False
         restart_analysis = False
 
@@ -1435,7 +1467,9 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return sim_successors, error_occured, restart_analysis
 
-    def _create_new_jobs(self, job, successor, new_block_id, new_call_stack):
+    def _create_new_jobs(
+        self, job: VFGJob, successor: "SimState", new_block_id: BlockID, new_call_stack: CallStack
+    ) -> List[Union[VFGJob, Any]]:
         """
         Create a list of new VFG jobs for the successor state.
 
@@ -1480,7 +1514,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 reg_sp_expr = (
                     successor_state.registers.load(reg_sp_offset, size=arch.bytes, endness=arch.register_endness)
                     + sp_difference
-                )
+                )  # type: ignore
                 successor_state.registers.store(arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
@@ -1514,7 +1548,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             else:
                 self._pending_returns[new_block_id] = PendingJob(
                     new_block_id, successor_state, new_call_stack, job.block_id, stmt_idx, ins_addr
-                )
+                )  # type: ignore
                 job.dbg_exit_status[successor] = "Pending"
 
         else:
@@ -1532,11 +1566,11 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_expr = successor_state.regs.sp
 
-                    if isinstance(reg_sp_expr._model_vsa, claripy.vsa.StridedInterval):
+                    if isinstance(reg_sp_expr._model_vsa, claripy.vsa.StridedInterval):  # type: ignore
                         reg_sp_si = reg_sp_expr._model_vsa
                         reg_sp_si.min  # reg_sp_val
-                    elif isinstance(reg_sp_expr._model_vsa, claripy.vsa.ValueSet):
-                        reg_sp_si = next(iter(reg_sp_expr._model_vsa.items()))[1]
+                    elif isinstance(reg_sp_expr._model_vsa, claripy.vsa.ValueSet):  # type: ignore
+                        reg_sp_si = next(iter(reg_sp_expr._model_vsa.items()))[1]  # type: ignore
                         reg_sp_si.min  # reg_sp_val
                         # TODO: Finish it!
 
@@ -1662,7 +1696,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         l.debug("Task stack: %s", self._task_stack)
 
     @staticmethod
-    def _is_call_jumpkind(jumpkind):
+    def _is_call_jumpkind(jumpkind: str) -> bool:
         if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys_"):
             return True
         return False
@@ -1672,7 +1706,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         return jumpkind in ("Ijk_Ret", "Ijk_FakeRet")
 
     @staticmethod
-    def _create_stack_region(successor_state, successor_ip):
+    def _create_stack_region(successor_state: SimState, successor_ip: int) -> StridedInterval:
         arch = successor_state.arch
         reg_sp_offset = arch.sp_offset
         reg_sp_expr = successor_state.registers.load(reg_sp_offset, size=arch.bytes, endness=arch.register_endness)
@@ -1685,7 +1719,9 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             reg_sp_val = reg_sp_expr._model_vsa
             reg_sp_si = successor_state.solver.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
             reg_sp_si = reg_sp_si._model_vsa
-        elif type(reg_sp_expr._model_vsa) is claripy.vsa.StridedInterval:  # pylint:disable=unidiomatic-typecheck
+        elif (
+            type(reg_sp_expr._model_vsa) is claripy.vsa.StridedInterval
+        ):  # pylint:disable=unidiomatic-typecheck # type: ignore
             reg_sp_si = reg_sp_expr._model_vsa
             reg_sp_val = reg_sp_si.min
         else:
@@ -1698,7 +1734,9 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return reg_sp_si
 
-    def _create_callstack(self, job, successor_ip, jumpkind, fakeret_successor):
+    def _create_callstack(
+        self, job: VFGJob, successor_ip: int, jumpkind: str, fakeret_successor: Optional[SimState]
+    ) -> CallStack:
         addr = job.addr
 
         if self._is_call_jumpkind(jumpkind):
@@ -1727,7 +1765,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return new_call_stack
 
-    def _save_function_initial_state(self, function_key, function_address, state):
+    def _save_function_initial_state(self, function_key: FunctionKey, function_address: int, state: SimState) -> None:
         """
         Save the initial state of a function, and merge it with existing ones if there are any.
 
@@ -1821,7 +1859,7 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         else:
             raise AngrVFGError("from and to should be of the same type")
 
-        return networkx.all_simple_paths(self.graph, n_begin, n_end)
+        return networkx.all_simple_paths(self.graph, n_begin, n_end)  # type: ignore
 
     def _merge_points(self, function_address):
         """
@@ -1897,7 +1935,5 @@ class VFG(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         return self._function_node_addrs[function_address]
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VFG", VFG)
