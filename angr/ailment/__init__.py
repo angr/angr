@@ -10,6 +10,7 @@ from .statement import Assignment
 from .expression import Expression, Const, Tmp, Register, UnaryOp, BinaryOp
 from .converter_common import Converter
 from .manager import Manager
+from .block_walker import AILBlockWalker, AILBlockWalkerBase
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +69,8 @@ __all__ = [
     "BinaryOp",
     "Manager",
     "IRSBConverter",
+    "AILBlockWalkerBase",
+    "AILBlockWalker",
     *(["PCodeIRSBConverter"] if "pcode" in available_converters else []),
     *(["VEXIRSBConverter"] if "vex" in available_converters else []),
 ]
