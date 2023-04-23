@@ -300,7 +300,7 @@ class ReachingDefinitionsState:
         sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
         sp_def = Definition(sp_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
         sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
-        self.register_definitions.store(self.arch.sp_offset, sp, endness=self.arch.register_endness)
+        self.register_definitions.store(self.arch.sp_offset, sp)
 
         if cc is not None:
             prototype = self.analysis.kb.functions[func_addr].prototype
@@ -317,7 +317,7 @@ class ReachingDefinitionsState:
                             )
                             self.all_definitions.add(reg_def)
                             reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
-                            self.register_definitions.store(reg_offset, reg, endness=self.arch.register_endness)
+                            self.register_definitions.store(reg_offset, reg)
 
                         # initialize stack parameters
                         elif isinstance(arg, SimStackArg):
@@ -341,14 +341,14 @@ class ReachingDefinitionsState:
             rtoc_def = Definition(rtoc_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
             self.all_definitions.add(rtoc_def)
             rtoc = self.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
-            self.register_definitions.store(offset, rtoc, endness=self.arch.register_endness)
+            self.register_definitions.store(offset, rtoc)
         elif self.arch.name.startswith("MIPS64"):
             offset, size = self.arch.registers["t9"]
             t9_atom = Register(offset, size)
             t9_def = Definition(t9_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
             self.all_definitions.add(t9_def)
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
-            self.register_definitions.store(offset, t9, endness=self.arch.register_endness)
+            self.register_definitions.store(offset, t9)
         elif self.arch.name.startswith("MIPS"):
             if func_addr is None:
                 l.warning("func_addr must not be None to initialize a function in mips")
@@ -357,7 +357,7 @@ class ReachingDefinitionsState:
             t9_def = Definition(t9_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
             self.all_definitions.add(t9_def)
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
-            self.register_definitions.store(t9_offset, t9, endness=self.arch.register_endness)
+            self.register_definitions.store(t9_offset, t9)
 
     def copy(self) -> "ReachingDefinitionsState":
         rd = ReachingDefinitionsState(

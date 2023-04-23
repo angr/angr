@@ -296,9 +296,7 @@ class BlockSimplifier(Analysis):
                     defs_ = set()
                     if isinstance(d.atom, atoms.Register):
                         try:
-                            vs: "MultiValues" = live_defs.register_definitions.load(
-                                d.atom.reg_offset, size=d.atom.size, endness=self.arch.register_endness
-                            )
+                            vs: "MultiValues" = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
                         except SimMemoryMissingError:
                             vs = None
                     elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):

@@ -65,16 +65,14 @@ class OutdatedDefinitionWalker(AILBlockWalker):
 
         # is the used register still alive at this point?
         try:
-            reg_vals: "MultiValues" = self.livedefs_defat.register_definitions.load(
-                expr.reg_offset, size=expr.size, endness=self.arch.register_endness
-            )
+            reg_vals: "MultiValues" = self.livedefs_defat.register_definitions.load(expr.reg_offset, size=expr.size)
             defs_defat = list(self.livedefs_defat.extract_defs_from_mv(reg_vals))
         except SimMemoryMissingError:
             defs_defat = []
 
         try:
             reg_vals: "MultiValues" = self.livedefs_currentloc.register_definitions.load(
-                expr.reg_offset, size=expr.size, endness=self.arch.register_endness
+                expr.reg_offset, size=expr.size
             )
             defs_currentloc = list(self.livedefs_currentloc.extract_defs_from_mv(reg_vals))
         except SimMemoryMissingError:

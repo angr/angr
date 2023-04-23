@@ -119,6 +119,7 @@ class LiveDefinitions:
                 top_func=self.top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
+                endness=self.arch.register_endness,
             )
             if register_definitions is None
             else register_definitions
@@ -324,9 +325,7 @@ class LiveDefinitions:
         """
         Return the concrete value contained by the stack pointer.
         """
-        sp_values: MultiValues = self.register_definitions.load(
-            self.arch.sp_offset, size=self.arch.bytes, endness=self.arch.register_endness
-        )
+        sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
         sp_v = sp_values.one_value()
         if sp_v is None:
             # multiple values of sp exists. still return a value if there is only one value (maybe with different
@@ -341,9 +340,7 @@ class LiveDefinitions:
         """
         Return the offset of the stack pointer.
         """
-        sp_values: MultiValues = self.register_definitions.load(
-            self.arch.sp_offset, size=self.arch.bytes, endness=self.arch.register_endness
-        )
+        sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
         sp_v = sp_values.one_value()
         if sp_v is None:
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
@@ -458,7 +455,7 @@ class LiveDefinitions:
                     atom.reg_offset,
                     d,
                     size=atom.size,
-                    endness=self.arch.register_endness if endness is None else endness,
+                    endness=endness,
                 )
             except SimMemoryError:
                 l.warning("Failed to store register definition %s at %d.", d, atom.reg_offset, exc_info=True)
@@ -567,7 +564,9 @@ class LiveDefinitions:
     def get_register_definitions(self, reg_offset: int, size: int, endness=None) -> Iterable[Definition]:
         try:
             values: MultiValues = self.register_definitions.load(
-                reg_offset, size=size, endness=self.arch.register_endness if endness is None else endness
+                reg_offset,
+                size=size,
+                endness=endness,
             )
         except SimMemoryMissingError:
             return
@@ -607,9 +606,7 @@ class LiveDefinitions:
     def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
         if isinstance(atom, Register):
             try:
-                return self.register_definitions.load(
-                    atom.reg_offset, size=atom.size, endness=self.arch.register_endness
-                )
+                return self.register_definitions.load(atom.reg_offset, size=atom.size)
             except SimMemoryMissingError:
                 return None
         elif isinstance(atom, MemoryLocation):
@@ -638,7 +635,7 @@ class LiveDefinitions:
     def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
         # get all current definitions
         try:
-            mvs: MultiValues = self.register_definitions.load(reg_offset, size=size, endness=self.arch.register_endness)
+            mvs: MultiValues = self.register_definitions.load(reg_offset, size=size)
         except SimMemoryMissingError:
             return
 

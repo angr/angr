@@ -339,9 +339,7 @@ class SimEngineRDVEX(
 
         reg_atom = Register(reg_offset, size)
         try:
-            values: MultiValues = self.state.register_definitions.load(
-                reg_offset, size=size, endness=self.arch.register_endness
-            )
+            values: MultiValues = self.state.register_definitions.load(reg_offset, size=size)
         except SimMemoryMissingError:
             top = self.state.top(size * self.arch.byte_width)
             # annotate it
@@ -1211,9 +1209,7 @@ class SimEngineRDVEX(
 
         if self.arch.call_pushes_ret is True:
             # pop return address if necessary
-            sp: MultiValues = self.state.register_definitions.load(
-                self.arch.sp_offset, size=self.arch.bytes, endness=self.arch.register_endness
-            )
+            sp: MultiValues = self.state.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
             sp_v = sp.one_value()
             if sp_v is not None and not self.state.is_top(sp_v):
                 sp_addr = sp_v - self.arch.stack_change
