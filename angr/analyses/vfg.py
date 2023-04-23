@@ -1,4 +1,4 @@
-from typing import Any, Callable, DefaultDict, Dict, List, Generator, TYPE_CHECKING, Optional, Set, Tuple, Union
+from typing import Any, Callable, DefaultDict, Dict, List, Generator, Optional, Set, Tuple, Union
 import logging
 from collections import defaultdict
 
@@ -28,8 +28,7 @@ from ..errors import (
 from ..procedures import SIM_PROCEDURES
 from ..state_plugins.callstack import CallStack
 
-if TYPE_CHECKING:
-    from angr.sim_state import SimState
+from ..sim_state import SimState
 
 
 l = logging.getLogger(name=__name__)
