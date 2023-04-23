@@ -7,16 +7,16 @@ import claripy
 import ailment
 import pyvex
 
-from ... import sim_options
-from .. import register_analysis
-from ..analysis import Analysis
-from .engine_vex import SimEnginePropagatorVEX
-from .engine_ail import SimEnginePropagatorAIL
 from angr.code_location import CodeLocation
 from angr.analyses import ForwardAnalysis, visitors
 from angr.knowledge_plugins.propagations.propagation_model import PropagationModel
 from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
 from angr.knowledge_plugins.propagations.states import PropagatorAILState, PropagatorVEXState, PropagatorState
+from ... import sim_options
+from .. import register_analysis
+from ..analysis import Analysis
+from .engine_vex import SimEnginePropagatorVEX
+from .engine_ail import SimEnginePropagatorAIL
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel

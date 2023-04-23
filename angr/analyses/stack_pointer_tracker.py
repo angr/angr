@@ -1,17 +1,17 @@
-# pylint:disable=abstract-method
+# pylint:disable=abstract-method,ungrouped-imports
 
 from typing import Set, List, Optional, TYPE_CHECKING
 import logging
 
 import pyvex
 
+from angr.analyses import ForwardAnalysis, visitors
 from ..utils.constants import is_alignment_mask
 from ..analyses import AnalysesHub
 from ..knowledge_plugins import Function
 from ..block import BlockNode
 from ..errors import SimTranslationError
 from .analysis import Analysis
-from angr.analyses import ForwardAnalysis, visitors
 
 try:
     import pypcode

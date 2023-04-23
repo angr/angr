@@ -8,8 +8,8 @@ import networkx
 import claripy
 import ailment
 
-from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.utils.graph import GraphUtils
+from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from ..graph_region import GraphRegion
 from ..empty_node_remover import EmptyNodeRemover
 from ..jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
@@ -1001,9 +1001,9 @@ class DreamStructurer(StructurerBase):
                 for node_ in sorted_guarded_nodes:
                     if node_ is not entry_node and node_.addr not in entry_addrs_set:
                         # fix reaching condition
-                        reaching_condition_subexprs = {
-                            ex for ex in get_ast_subexprs(node_.reaching_condition)
-                        }.difference(set(cond_subexprs))
+                        reaching_condition_subexprs = set(get_ast_subexprs(node_.reaching_condition)).difference(
+                            set(cond_subexprs)
+                        )
                         new_reaching_condition = claripy.And(*reaching_condition_subexprs)
                         new_node = CodeNode(node_.node, new_reaching_condition)
                         case_node.add_node(new_node)

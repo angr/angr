@@ -5,10 +5,10 @@ from cle.backends import Section, Segment
 import pyvex
 import claripy
 
+from angr.analyses import visitors, ForwardAnalysis
 from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
 from . import register_analysis, PropagatorAnalysis
 from .analysis import Analysis
-from angr.analyses import visitors, ForwardAnalysis
 from .propagator.vex_vars import VEXTmp
 
 
@@ -16,6 +16,10 @@ class SimEngineInitFinderVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):
+    """
+    The VEX engine class for InitFinder.
+    """
+
     def __init__(self, project, replacements, overlay, pointers_only=False):
         super().__init__()
         self.project = project

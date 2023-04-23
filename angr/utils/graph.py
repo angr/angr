@@ -296,6 +296,10 @@ class ContainerNode:
 
 
 class Dominators:
+    """
+    Describes dominators in a graph.
+    """
+
     dom: networkx.DiGraph
 
     def __init__(self, graph, entry_node, successors_func=None, reverse=False):
@@ -528,6 +532,10 @@ class Dominators:
 
 
 class PostDominators(Dominators):
+    """
+    Describe post-dominators in a graph.
+    """
+
     def __init__(self, graph, entry_node, successors_func=None):
         super().__init__(graph, entry_node, successors_func=successors_func, reverse=True)
 
@@ -537,7 +545,11 @@ class PostDominators(Dominators):
 
 
 class SCCPlaceholder:
-    __slots__ = ["scc_id"]
+    """
+    Describes a placeholder for strongly-connected-components in a graph.
+    """
+
+    __slots__ = ("scc_id",)
 
     def __init__(self, scc_id):
         self.scc_id = scc_id
@@ -611,7 +623,7 @@ class GraphUtils:
             else:
                 for n in scc:
                     predecessors = graph.predecessors(n)
-                    if any([p not in scc for p in predecessors]):
+                    if any(p not in scc for p in predecessors):
                         widening_addrs.add(n.addr)
                         break
 

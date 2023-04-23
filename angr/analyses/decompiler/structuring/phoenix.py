@@ -10,10 +10,10 @@ from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump, Label
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
+from angr.utils.graph import GraphUtils
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
-from angr.utils.graph import GraphUtils
 from ..sequence_walker import SequenceWalker
 from ..utils import (
     remove_last_statement,

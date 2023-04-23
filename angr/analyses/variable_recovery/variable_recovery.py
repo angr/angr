@@ -4,12 +4,13 @@ from typing import Tuple
 
 import claripy
 
+from angr.analyses import ForwardAnalysis, visitors
+from angr.analyses import AnalysesHub
 from ...errors import SimMemoryMissingError
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ... import BP, BP_AFTER
 from ...sim_variable import SimRegisterVariable, SimStackVariable
 from ...code_location import CodeLocation
-from angr.analyses import ForwardAnalysis, visitors
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .annotations import StackLocationAnnotation
 
@@ -548,7 +549,5 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
                     state.downsize_region(state.stack_region),
                 )
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("VariableRecovery", VariableRecovery)

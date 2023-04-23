@@ -4,19 +4,23 @@ from collections import defaultdict
 import claripy
 import pyvex
 
+from angr.analyses import visitors, ForwardAnalysis
 from ..knowledge_plugins.xrefs import XRef, XRefType
 from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
 from .propagator.vex_vars import VEXTmp
 from .propagator.values import Top
 from . import register_analysis, PropagatorAnalysis
 from .analysis import Analysis
-from angr.analyses import visitors, ForwardAnalysis
 
 
 class SimEngineXRefsVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):
+    """
+    The VEX engine class for XRefs analysis.
+    """
+
     def __init__(self, xref_manager, project=None, replacements=None):
         super().__init__()
         self.project = project

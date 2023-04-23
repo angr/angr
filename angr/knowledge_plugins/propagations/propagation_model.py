@@ -55,18 +55,16 @@ class PropagationModel(Serializable):
 
     def block_beginning_state(self, block_addr) -> PropagatorState:
         if self._function is None:
-            raise NotImplementedError
-        else:
-            node = self._function.get_node(block_addr)
-            preds = [self.states[pnode.addr] for pnode in self._function.graph.predecessors(node)]
-            if not preds:
-                if isinstance(node, ailment.Block):
-                    state = PropagatorAILState.initial_state(self._function.project, func_addr=self._function.addr)
-                else:
-                    state = PropagatorVEXState.initial_state(self._function.project, func_addr=self._function.addr)
-                    state.store_register(
-                        state.arch.ip_offset, state.arch.bytes, claripy.BVV(block_addr, state.arch.bits)
-                    )
+            raise NotImplementedError()
+
+        node = self._function.get_node(block_addr)
+        preds = [self.states[pnode.addr] for pnode in self._function.graph.predecessors(node)]
+        if not preds:
+            if isinstance(node, ailment.Block):
+                state = PropagatorAILState.initial_state(self._function.project, func_addr=self._function.addr)
             else:
-                state, _ = preds[0].merge(*preds[1:])
-            return state
+                state = PropagatorVEXState.initial_state(self._function.project, func_addr=self._function.addr)
+                state.store_register(state.arch.ip_offset, state.arch.bytes, claripy.BVV(block_addr, state.arch.bits))
+        else:
+            state, _ = preds[0].merge(*preds[1:])
+        return state
