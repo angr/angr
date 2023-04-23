@@ -11,6 +11,9 @@ import networkx
 import pyvex
 from archinfo import ArchARM
 
+from angr.analyses import ForwardAnalysis
+from angr.utils.graph import GraphUtils
+from angr.analyses import AnalysesHub
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
 from ...codenode import BlockNode
@@ -36,20 +39,21 @@ from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
 from ...knowledge_plugins.cfg import CFGENode, IndirectJump
 from ...utils.constants import DEFAULT_STATEMENT
-from ..forward_analysis import ForwardAnalysis
-from .cfg_base import CFGBase
-from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_utils import CFGUtils
-
 from ..cdg import CDG
 from ..ddg import DDG
 from ..backward_slice import BackwardSlice
 from ..loopfinder import LoopFinder, Loop
+from .cfg_base import CFGBase
+from .cfg_job_base import BlockID, CFGJobBase
 
 l = logging.getLogger(name=__name__)
 
 
 class CFGJob(CFGJobBase):
+    """
+    The job class that CFGEmulated uses.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -234,7 +238,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :param state_add_options:                   State options that will be added to the initial state.
         :param state_remove_options:                State options that will be removed from the initial state.
         """
-        ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
+        ForwardAnalysis.__init__(self, order_jobs=base_graph is not None)
         CFGBase.__init__(
             self,
             "emulated",
@@ -300,7 +304,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._node_addr_visiting_order = []
 
         if self._base_graph:
-            sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self._base_graph)
+            sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._base_graph)
             self._node_addr_visiting_order = [n.addr for n in sorted_nodes]
 
         self._sanitize_parameters()
@@ -2432,7 +2436,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 ]
             symbolic_successors = [suc_state for suc_state in successors if suc_state.solver.symbolic(suc_state.ip)]
 
-            resolved = True if not symbolic_successors else False
+            resolved = not symbolic_successors
             if symbolic_successors:
                 for suc in symbolic_successors:
                     if o.SYMBOLIC in suc.options:
@@ -2472,7 +2476,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         # keep fake_rets
                         successors = [s for s in successors if s.history.jumpkind == "Ijk_FakeRet"]
 
-                elif sim_successors.sort == "IRSB" and any([ex.history.jumpkind != "Ijk_Ret" for ex in successors]):
+                elif sim_successors.sort == "IRSB" and any(ex.history.jumpkind != "Ijk_Ret" for ex in successors):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug("Try traversal backwards in symbolic mode on %s.", cfg_node)
                     if self._enable_symbolic_back_traversal:
@@ -2494,7 +2498,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         successors = []
 
-                elif successors and all([ex.history.jumpkind == "Ijk_Ret" for ex in successors]):
+                elif successors and all(ex.history.jumpkind == "Ijk_Ret" for ex in successors):
                     l.debug("All exits are returns (Ijk_Ret). It will be handled by pending exits.")
 
                 else:
@@ -2633,11 +2637,15 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :param SimSuccessors current_block: SimSuccessor with address to attempt to navigate to.
         :param dict block_artifacts:  Container of IRSB data - specifically used for known persistant register values.
         :param CFGNode cfg_node:      Current node interested around.
-        :returns:                     Double checked concrete successors.
+        :returns:                     Double-checked concrete successors.
         :rtype: List
         """
 
-        class register_protector:
+        class RegisterProtector:
+            """
+            A class that prevent specific registers from being overwritten.
+            """
+
             def __init__(self, reg_offset, info_collection):
                 """
                 Class to overwrite registers.
@@ -2650,7 +2658,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             def write_persistent_register(self, state_):
                 """
-                Writes over given registers from self._info_coollection (taken from block_artifacts)
+                Writes over given registers from self._info_collection (taken from block_artifacts)
 
                 :param SimSuccessors state_: state to update registers for
                 """
@@ -2723,7 +2731,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     for reg in state.arch.persistent_regs:
                         state.registers.store(reg, block_artifacts[n.addr][reg])
                 for reg in state.arch.persistent_regs:
-                    reg_protector = register_protector(reg, block_artifacts)
+                    reg_protector = RegisterProtector(reg, block_artifacts)
                     state.inspect.add_breakpoint(
                         "reg_write",
                         BP(
@@ -2836,7 +2844,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             if action.type == "reg" and action.offset == self.project.arch.ip_offset:
                 # Skip all accesses to IP registers
                 continue
-            elif action.type == "exit":
+            if action.type == "exit":
                 # only consider read/write actions
                 continue
 
@@ -2849,7 +2857,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     # Now let's live with this big hack...
                     try:
                         const = successor_state.solver.eval_one(data.ast)
-                    except Exception:
+                    except Exception:  # pylint:disable=broad-exception-caught
                         continue
 
                     if self._is_address_executable(const):
@@ -3484,7 +3492,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if simsuccessors.sort == "IRSB" and state.thumb:
             insn_addrs = simsuccessors.artifacts["insn_addrs"]
             self._thumb_addrs.update(insn_addrs)
-            self._thumb_addrs.update(map(lambda x: x + 1, insn_addrs))
+            self._thumb_addrs.update(map(lambda x: x + 1, insn_addrs))  # pylint:disable=bad-builtin
 
     def _get_callsites(self, function_address):
         """
@@ -3559,7 +3567,5 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
 
-
-from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default("CFGEmulated", CFGEmulated)

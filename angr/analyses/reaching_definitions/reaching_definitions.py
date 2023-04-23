@@ -6,6 +6,7 @@ import ailment
 import pyvex
 from ..forward_analysis.visitors.graph import NodeType
 
+from angr.analyses import ForwardAnalysis
 from ...block import Block
 from ...knowledge_plugins.cfg.cfg_node import CFGNode
 from ...codenode import CodeNode
@@ -15,7 +16,6 @@ from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveD
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
 from ...misc.ux import deprecated
 from ..analysis import Analysis
-from ..forward_analysis import ForwardAnalysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
@@ -32,7 +32,7 @@ l = logging.getLogger(name=__name__)
 
 
 class ReachingDefinitionsAnalysis(
-    ForwardAnalysis[ReachingDefinitionsState, NodeType], Analysis
+    ForwardAnalysis[ReachingDefinitionsState, NodeType, object, object], Analysis
 ):  # pylint:disable=abstract-method
     """
     ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a
@@ -232,11 +232,8 @@ class ReachingDefinitionsAnalysis(
         key = "insn", ins_addr, op_type
         if key not in self.observed_results:
             raise KeyError(
-                (
-                    "Reaching definitions are not available at observation point %s. "
-                    "Did you specify that observation point?"
-                )
-                % key
+                "Reaching definitions are not available at observation point %s. "
+                "Did you specify that observation point?" % str(key)
             )
 
         return self.observed_results[key]
@@ -398,7 +395,7 @@ class ReachingDefinitionsAnalysis(
                 canonical_size=self._canonical_size,
             )
 
-    # pylint: disable=no-self-use
+    # pylint: disable=no-self-use,arguments-differ
     def _merge_states(self, _node, *states: ReachingDefinitionsState):
         merged_state, merge_occurred = states[0].merge(*states[1:])
         return merged_state, not merge_occurred

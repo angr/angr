@@ -1,10 +1,9 @@
 from typing import Optional, Callable, TYPE_CHECKING
 
-from ailment import Block, Stmt, Expr
+from ailment import Block, Stmt, Expr, AILBlockWalker
 
 from ...errors import SimMemoryMissingError
 from ...code_location import CodeLocation
-from ..decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
     from archinfo import Arch

@@ -1,17 +1,17 @@
-# pylint:disable=abstract-method
+# pylint:disable=abstract-method,ungrouped-imports
 
 from typing import Set, List, Optional, TYPE_CHECKING
 import logging
 
 import pyvex
 
+from angr.analyses import ForwardAnalysis, visitors
 from ..utils.constants import is_alignment_mask
 from ..analyses import AnalysesHub
 from ..knowledge_plugins import Function
 from ..block import BlockNode
 from ..errors import SimTranslationError
 from .analysis import Analysis
-from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 
 try:
     import pypcode
@@ -299,9 +299,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 # Make a copy before normalizing the function
                 func = func.copy()
                 func.normalize()
-            graph_visitor = FunctionGraphVisitor(func)
+            graph_visitor = visitors.FunctionGraphVisitor(func)
         elif block is not None:
-            graph_visitor = SingleNodeGraphVisitor(block)
+            graph_visitor = visitors.SingleNodeGraphVisitor(block)
         else:
             raise ValueError("StackPointerTracker must work on either a function or a single block.")
 

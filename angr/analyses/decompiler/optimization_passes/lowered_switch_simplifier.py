@@ -4,14 +4,13 @@ import logging
 
 import networkx
 
-from ailment import Block
+from ailment import Block, AILBlockWalkerBase
 from ailment.statement import ConditionalJump
 from ailment.expression import Expression, BinaryOp, Const, Load
 
-from ...cfg.cfg_utils import CFGUtils
+from angr.utils.graph import GraphUtils
 from ..utils import first_nonlabel_statement, remove_last_statement
 from ..structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement, SequenceNode, MultiNode
-from ..ailblock_walker import AILBlockWalkerBase
 from .optimization_pass import OptimizationPass, OptimizationPassStage, MultipleBlocksException
 
 if TYPE_CHECKING:
@@ -202,7 +201,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                             graph_copy.add_edge(node_copy, succ)
 
     def _find_cascading_switch_variable_comparisons(self):
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self._graph)
+        sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._graph)
         variable_comparisons = {}
         for node in sorted_nodes:
             r = self._find_switch_variable_comparison_type_a(node)

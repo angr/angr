@@ -4,12 +4,11 @@ from typing import Any, Dict, List, Callable, Optional, Generic, Type, TypeVar, 
 import networkx
 
 from .visitors.graph import NodeType
-from ..cfg.cfg_job_base import CFGJobBase, BlockID
 from ...sim_state import SimState
 from ...errors import AngrForwardAnalysisError
 from ...errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
 from ...utils.algo import binary_insert
-from .job_info import JobInfo
+from .job_info import JobInfo, JobType, JobKey
 
 if TYPE_CHECKING:
     from .visitors.graph import GraphVisitor
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
 AnalysisState = TypeVar("AnalysisState")
 
 
-class ForwardAnalysis(Generic[AnalysisState, NodeType]):
+class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
     static analyses in angr, including CFG analysis, VFG analysis, DDG, etc.
@@ -70,10 +69,10 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
         self._should_abort = False
 
         # All remaining jobs
-        self._job_info_queue: List[JobInfo] = []
+        self._job_info_queue: List[JobInfo[JobType, JobKey]] = []
 
         # A map between job key to job. Jobs with the same key will be merged by calling _merge_jobs()
-        self._job_map: Dict[BlockID, JobInfo] = {}
+        self._job_map: Dict[JobKey, JobInfo[JobType, JobKey]] = {}
 
         # A mapping between node and its input states
         self._input_states: Dict[NodeType, List[AnalysisState]] = defaultdict(list)
@@ -118,7 +117,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
 
         self._should_abort = True
 
-    def has_job(self, job: CFGJobBase) -> bool:
+    def has_job(self, job: JobType) -> bool:
         """
         Checks whether there exists another job which has the same job key.
         :param job: The job to check.
@@ -147,19 +146,19 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
     def _post_analysis(self) -> None:
         raise NotImplementedError("_post_analysis() is not implemented.")
 
-    def _job_key(self, job: CFGJobBase) -> BlockID:
+    def _job_key(self, job: JobType) -> JobKey:
         raise NotImplementedError("_job_key() is not implemented.")
 
-    def _get_successors(self, job: CFGJobBase) -> Union[List[SimState], List[CFGJobBase]]:
+    def _get_successors(self, job: JobType) -> Union[List[SimState], List[JobType]]:
         raise NotImplementedError("_get_successors() is not implemented.")
 
-    def _pre_job_handling(self, job: CFGJobBase) -> None:
+    def _pre_job_handling(self, job: JobType) -> None:
         raise NotImplementedError("_pre_job_handling() is not implemented.")
 
-    def _post_job_handling(self, job: CFGJobBase, new_jobs, successors: List[SimState]) -> None:
+    def _post_job_handling(self, job: JobType, new_jobs, successors: List[SimState]) -> None:
         raise NotImplementedError("_post_job_handling() is not implemented.")
 
-    def _handle_successor(self, job: CFGJobBase, successor: SimState, successors: List[SimState]) -> List[CFGJobBase]:
+    def _handle_successor(self, job: JobType, successor: SimState, successors: List[SimState]) -> List[JobType]:
         raise NotImplementedError("_handle_successor() is not implemented.")
 
     def _job_queue_empty(self) -> None:
@@ -215,16 +214,16 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
 
     # Special interfaces for non-graph-traversal mode
 
-    def _merge_jobs(self, *jobs: CFGJobBase):
+    def _merge_jobs(self, *jobs: JobType):
         raise NotImplementedError("_merge_jobs() is not implemented.")
 
-    def _should_widen_jobs(self, *jobs: CFGJobBase):
+    def _should_widen_jobs(self, *jobs: JobType):
         raise NotImplementedError("_should_widen_jobs() is not implemented.")
 
-    def _widen_jobs(self, *jobs: CFGJobBase):
+    def _widen_jobs(self, *jobs: JobType):
         raise NotImplementedError("_widen_jobs() is not implemented.")
 
-    def _job_sorting_key(self, job: CFGJobBase) -> int:
+    def _job_sorting_key(self, job: JobType) -> int:
         raise NotImplementedError("_job_sorting_key() is not implemented.")
 
     #
@@ -397,7 +396,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
 
             self._intra_analysis()
 
-    def _process_job_and_get_successors(self, job_info: JobInfo) -> None:
+    def _process_job_and_get_successors(self, job_info: JobInfo[JobType, JobKey]) -> None:
         """
         Process a job, get all successors of this job, and call _handle_successor() to handle each successor.
 
@@ -422,7 +421,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
 
         self._post_job_handling(job, all_new_jobs, successors)
 
-    def _insert_job(self, job: CFGJobBase) -> None:
+    def _insert_job(self, job: JobType) -> None:
         """
         Insert a new job into the job queue. If the job queue is ordered, this job will be inserted at the correct
         position.
@@ -481,7 +480,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
         else:
             self._job_info_queue.append(job_info)
 
-    def _peek_job(self, pos: int) -> CFGJobBase:
+    def _peek_job(self, pos: int) -> JobType:
         """
         Return the job currently at position `pos`, but still keep it in the job queue. An IndexError will be raised
         if that position does not currently exist in the job list.

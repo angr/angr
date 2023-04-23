@@ -5,12 +5,12 @@ import logging
 import claripy
 from ailment import Stmt, Expr
 
+from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ..reaching_definitions.reaching_definitions import OP_BEFORE, OP_AFTER
 from .engine_base import SimEnginePropagatorBase
-from .prop_value import PropValue, Detail
 
 if TYPE_CHECKING:
     from .propagator import PropagatorAILState
@@ -99,7 +99,7 @@ class SimEnginePropagatorAIL(
             if isinstance(data.one_expr, Expr.StackBaseOffset):
                 # convert it to a BV
                 expr = data.one_expr
-                data_v = self.sp_offset(data.one_expr.offset)
+                data_v = self.sp_offset(stmt.addr.bits, data.one_expr.offset)
                 size = data_v.size() // self.arch.byte_width
                 to_store = PropValue.from_value_and_details(data_v, size, expr, self._codeloc())
             elif isinstance(data.value, claripy.ast.BV):
@@ -331,7 +331,7 @@ class SimEnginePropagatorAIL(
                     new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
                     self.state.add_replacement(self._codeloc(), expr, new_expr)
                     return PropValue.from_value_and_details(
-                        self.sp_offset(sb_offset), expr.size, new_expr, self._codeloc()
+                        self.sp_offset(expr.bits, sb_offset), expr.size, new_expr, self._codeloc()
                     )
             elif expr.reg_offset == self.arch.bp_offset:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
@@ -339,7 +339,7 @@ class SimEnginePropagatorAIL(
                     new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
                     self.state.add_replacement(self._codeloc(), expr, new_expr)
                     return PropValue.from_value_and_details(
-                        self.sp_offset(sb_offset), expr.size, new_expr, self._codeloc()
+                        self.sp_offset(expr.bits, sb_offset), expr.size, new_expr, self._codeloc()
                     )
 
         def _test_concatenation(pv: PropValue):

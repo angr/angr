@@ -29,7 +29,6 @@ from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
 from ..reaching_definitions import ReachingDefinitionsAnalysis
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
-from .ailblock_walker import AILBlockWalker
 from .optimization_passes import get_default_optimization_passes, OptimizationPassStage
 
 if TYPE_CHECKING:
@@ -905,7 +904,7 @@ class Clinic(Analysis):
                 block.statements[stmt_idx] = new_stmt
 
         def _handler(block):
-            walker = AILBlockWalker()
+            walker = ailment.AILBlockWalker()
             # we don't need to handle any statement besides Returns
             walker.stmt_handlers.clear()
             walker.expr_handlers.clear()
@@ -1317,7 +1316,7 @@ class Clinic(Analysis):
     @staticmethod
     def _collect_externs(ail_graph, variable_kb):
         global_vars = variable_kb.variables.global_manager.get_variables()
-        walker = AILBlockWalker()
+        walker = ailment.AILBlockWalker()
         variables = set()
 
         def handle_expr(
@@ -1335,12 +1334,12 @@ class Clinic(Analysis):
             ]:
                 if v and v in global_vars:
                     variables.add(v)
-            return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+            return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
         def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: Optional[ailment.Block]):
             if stmt.variable and stmt.variable in global_vars:
                 variables.add(stmt.variable)
-            return AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
+            return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
 
         walker.stmt_handlers[ailment.statement.Store] = handle_Store
         walker._handle_expr = handle_expr

@@ -5,10 +5,10 @@ from cle.backends import Section, Segment
 import pyvex
 import claripy
 
+from angr.analyses import visitors, ForwardAnalysis
 from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
 from . import register_analysis, PropagatorAnalysis
 from .analysis import Analysis
-from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
 from .propagator.vex_vars import VEXTmp
 
 
@@ -16,6 +16,10 @@ class SimEngineInitFinderVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):
+    """
+    The VEX engine class for InitFinder.
+    """
+
     def __init__(self, project, replacements, overlay, pointers_only=False):
         super().__init__()
         self.project = project
@@ -178,7 +182,7 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
             # traversing a function
-            graph_visitor = FunctionGraphVisitor(func, func_graph)
+            graph_visitor = visitors.FunctionGraphVisitor(func, func_graph)
             if replacements is None:
                 prop = self.project.analyses[PropagatorAnalysis].prep()(
                     func=func, func_graph=func_graph, base_state=self.project.factory.blank_state()
@@ -186,7 +190,7 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
                 replacements = prop.replacements
         elif block is not None:
             # traversing a block
-            graph_visitor = SingleNodeGraphVisitor(block)
+            graph_visitor = visitors.SingleNodeGraphVisitor(block)
             if replacements is None:
                 prop = self.project.analyses[PropagatorAnalysis].prep()(
                     block=block, base_state=self.project.factory.blank_state()

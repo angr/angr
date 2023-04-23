@@ -1,12 +1,15 @@
-from angr.analyses.cfg.cfg_job_base import BlockID, CFGJobBase
+from typing import Generic, TypeVar
+
+JobType = TypeVar("JobType")
+JobKey = TypeVar("JobKey")
 
 
-class JobInfo:
+class JobInfo(Generic[JobType, JobKey]):
     """
     Stores information of each job.
     """
 
-    def __init__(self, key: BlockID, job: CFGJobBase):
+    def __init__(self, key: JobKey, job: JobType):
         self.key = key
         self.jobs = [(job, "")]
 
@@ -23,7 +26,7 @@ class JobInfo:
         return s
 
     @property
-    def job(self) -> CFGJobBase:
+    def job(self) -> JobType:
         """
         Get the latest available job.
 

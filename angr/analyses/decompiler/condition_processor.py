@@ -8,11 +8,11 @@ import networkx
 import claripy
 import ailment
 
+from angr.utils.graph import GraphUtils
 from ...utils.lazy_import import lazy_import
 from ...utils import is_pyinstaller
 from ...utils.graph import dominates, inverted_idoms
 from ...block import Block, BlockNode
-from ..cfg.cfg_utils import CFGUtils
 from .structuring.structurer_nodes import (
     MultiNode,
     EmptyBlockNotice,
@@ -188,7 +188,7 @@ class ConditionProcessor:
 
         reaching_conditions = {}
         # recover the reaching condition for each node
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(_g)
+        sorted_nodes = GraphUtils.quasi_topological_sort_nodes(_g)
         terminating_nodes = []
         for node in sorted_nodes:
             # create special conditions for all nodes that are jump table entries
