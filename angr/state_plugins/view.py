@@ -14,7 +14,7 @@ l = logging.getLogger(name=__name__)
 
 
 class SimRegNameView(SimStatePlugin):
-    def __getattr__(self, k):
+    def __getattr__(self, k) -> claripy.ast.base.Base:
         """
         Get the value of a register.
 

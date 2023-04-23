@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, Dict, List, Callable, Optional, Generic, Type, TypeVar, Tuple, Set, TYPE_CHECKING, Union
 
@@ -16,10 +15,9 @@ if TYPE_CHECKING:
     from .visitors.graph import GraphVisitor
 
 AnalysisState = TypeVar("AnalysisState")
-JobType = TypeVar("JobType", bound=CFGJobBase)
 
 
-class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
+class ForwardAnalysis(Generic[AnalysisState, NodeType]):
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
     static analyses in angr, including CFG analysis, VFG analysis, DDG, etc.
@@ -120,7 +118,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
 
         self._should_abort = True
 
-    def has_job(self, job: JobType) -> bool:
+    def has_job(self, job: CFGJobBase) -> bool:
         """
         Checks whether there exists another job which has the same job key.
         :param job: The job to check.
@@ -140,41 +138,32 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
 
     # Common interfaces
 
-    @abstractmethod
     def _pre_analysis(self) -> None:
-        pass
+        raise NotImplementedError("_pre_analysis() is not implemented.")
 
-    @abstractmethod
     def _intra_analysis(self) -> None:
-        pass
+        raise NotImplementedError("_intra_analysis() is not implemented.")
 
-    @abstractmethod
     def _post_analysis(self) -> None:
-        pass
+        raise NotImplementedError("_post_analysis() is not implemented.")
 
-    @abstractmethod
-    def _job_key(self, job: JobType) -> BlockID:
-        pass
+    def _job_key(self, job: CFGJobBase) -> BlockID:
+        raise NotImplementedError("_job_key() is not implemented.")
 
-    @abstractmethod
-    def _get_successors(self, job: JobType) -> Union[List[SimState], List[JobType]]:
-        pass
+    def _get_successors(self, job: CFGJobBase) -> Union[List[SimState], List[CFGJobBase]]:
+        raise NotImplementedError("_get_successors() is not implemented.")
 
-    @abstractmethod
-    def _pre_job_handling(self, job: JobType) -> None:
-        pass
+    def _pre_job_handling(self, job: CFGJobBase) -> None:
+        raise NotImplementedError("_pre_job_handling() is not implemented.")
 
-    @abstractmethod
-    def _post_job_handling(self, job: JobType, new_jobs, successors: List[SimState]) -> None:
-        pass
+    def _post_job_handling(self, job: CFGJobBase, new_jobs, successors: List[SimState]) -> None:
+        raise NotImplementedError("_post_job_handling() is not implemented.")
 
-    @abstractmethod
-    def _handle_successor(self, job: JobType, successor: SimState, successors: List[SimState]) -> List[JobType]:
-        pass
+    def _handle_successor(self, job: CFGJobBase, successor: SimState, successors: List[SimState]) -> List[CFGJobBase]:
+        raise NotImplementedError("_handle_successor() is not implemented.")
 
-    @abstractmethod
     def _job_queue_empty(self) -> None:
-        pass
+        raise NotImplementedError("_job_queue_empty() is not implemented.")
 
     def _initial_abstract_state(self, node: NodeType) -> AnalysisState:
         raise NotImplementedError("_initial_abstract_state() is not implemented.")
@@ -433,7 +422,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
 
         self._post_job_handling(job, all_new_jobs, successors)
 
-    def _insert_job(self, job: JobType) -> None:
+    def _insert_job(self, job: CFGJobBase) -> None:
         """
         Insert a new job into the job queue. If the job queue is ordered, this job will be inserted at the correct
         position.
@@ -492,7 +481,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
         else:
             self._job_info_queue.append(job_info)
 
-    def _peek_job(self, pos: int) -> JobType:
+    def _peek_job(self, pos: int) -> CFGJobBase:
         """
         Return the job currently at position `pos`, but still keep it in the job queue. An IndexError will be raised
         if that position does not currently exist in the job list.
