@@ -21,6 +21,7 @@ from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
 from .subject import Subject, SubjectType
 from .function_handler import FunctionHandler
+from ..cfg.cfg_job_base import CFGJobBase
 
 if TYPE_CHECKING:
     from .dep_graph import DepGraph
@@ -32,7 +33,7 @@ l = logging.getLogger(name=__name__)
 
 
 class ReachingDefinitionsAnalysis(
-    ForwardAnalysis[ReachingDefinitionsState, NodeType], Analysis
+    ForwardAnalysis[ReachingDefinitionsState, NodeType, CFGJobBase], Analysis
 ):  # pylint:disable=abstract-method
     """
     ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a

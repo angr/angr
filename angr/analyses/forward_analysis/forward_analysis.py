@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, List, Callable, Optional, Generic, TypeVar, Tuple, Set, TYPE_CHECKING, Union
+from typing import Any, Dict, List, Callable, Optional, Generic, Type, TypeVar, Tuple, Set, TYPE_CHECKING, Union
 
 import networkx
 
@@ -16,9 +16,10 @@ if TYPE_CHECKING:
     from .visitors.graph import GraphVisitor
 
 AnalysisState = TypeVar("AnalysisState")
+JobType = TypeVar("JobType", bound=CFGJobBase)
 
 
-class ForwardAnalysis(Generic[AnalysisState, NodeType], ABC):
+class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
     static analyses in angr, including CFG analysis, VFG analysis, DDG, etc.
@@ -43,7 +44,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType], ABC):
         order_jobs=False,
         allow_merging=False,
         allow_widening=False,
-        status_callback=None,
+        status_callback: Optional[Callable[[Type["ForwardAnalysis"]], Any]] = None,
         graph_visitor: "Optional[GraphVisitor[NodeType]]" = None,
     ):
         """
@@ -119,7 +120,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType], ABC):
 
         self._should_abort = True
 
-    def has_job(self, job: CFGJobBase) -> bool:
+    def has_job(self, job: JobType) -> bool:
         """
         Checks whether there exists another job which has the same job key.
         :param job: The job to check.
@@ -152,23 +153,23 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType], ABC):
         pass
 
     @abstractmethod
-    def _job_key(self, job: CFGJobBase) -> BlockID:
+    def _job_key(self, job: JobType) -> BlockID:
         pass
 
     @abstractmethod
-    def _get_successors(self, job: CFGJobBase) -> Union[List[SimState], List[CFGJobBase]]:
+    def _get_successors(self, job: JobType) -> Union[List[SimState], List[JobType]]:
         pass
 
     @abstractmethod
-    def _pre_job_handling(self, job: CFGJobBase) -> None:
+    def _pre_job_handling(self, job: JobType) -> None:
         pass
 
     @abstractmethod
-    def _post_job_handling(self, job: CFGJobBase, new_jobs, successors: List[SimState]) -> None:
+    def _post_job_handling(self, job: JobType, new_jobs, successors: List[SimState]) -> None:
         pass
 
     @abstractmethod
-    def _handle_successor(self, job: CFGJobBase, successor: SimState, successors: List[SimState]) -> List[CFGJobBase]:
+    def _handle_successor(self, job: JobType, successor: SimState, successors: List[SimState]) -> List[JobType]:
         pass
 
     @abstractmethod
@@ -228,19 +229,19 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType], ABC):
     # Special interfaces for non-graph-traversal mode
 
     @abstractmethod
-    def _merge_jobs(self, *jobs: CFGJobBase):
+    def _merge_jobs(self, *jobs: JobType):
         pass
 
     @abstractmethod
-    def _should_widen_jobs(self, *jobs: CFGJobBase):
+    def _should_widen_jobs(self, *jobs: JobType):
         pass
 
     @abstractmethod
-    def _widen_jobs(self, *jobs: CFGJobBase):
+    def _widen_jobs(self, *jobs: JobType):
         pass
 
     @abstractmethod
-    def _job_sorting_key(self, job: CFGJobBase) -> int:
+    def _job_sorting_key(self, job: JobType) -> int:
         pass
 
     #
@@ -438,7 +439,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType], ABC):
 
         self._post_job_handling(job, all_new_jobs, successors)
 
-    def _insert_job(self, job: CFGJobBase) -> None:
+    def _insert_job(self, job: JobType) -> None:
         """
         Insert a new job into the job queue. If the job queue is ordered, this job will be inserted at the correct
         position.
@@ -497,7 +498,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType], ABC):
         else:
             self._job_info_queue.append(job_info)
 
-    def _peek_job(self, pos: int) -> CFGJobBase:
+    def _peek_job(self, pos: int) -> JobType:
         """
         Return the job currently at position `pos`, but still keep it in the job queue. An IndexError will be raised
         if that position does not currently exist in the job list.
