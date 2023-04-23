@@ -192,7 +192,6 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
         """
         return node
 
-    @abstractmethod
     def _run_on_node(self, node: NodeType, state: AnalysisState) -> Tuple[bool, AnalysisState]:
         """
         The analysis routine that runs on each node in the graph.
@@ -208,9 +207,9 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
         :param state:   An abstract state that acts as the initial abstract state of this analysis routine.
         :return:        A tuple: (changed, output abstract state)
         """
-        pass
 
-    @abstractmethod
+        raise NotImplementedError("_run_on_node() is not implemented.")
+
     def _merge_states(self, node: NodeType, *states: AnalysisState) -> Tuple[AnalysisState, bool]:
         """
         Merge multiple abstract states into one.
@@ -220,29 +219,25 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
         :return:       A merged abstract state, and a boolean variable indicating if a local fixed-point has reached (
                        i.e., union(state0, state1) == state0), in which case, its successors will not be revisited.
         """
-        pass
 
-    @abstractmethod
+        raise NotImplementedError("_merge_states() is not implemented.")
+
     def _widen_states(self, *states: AnalysisState) -> AnalysisState:
-        pass
+        raise NotImplementedError("_widen_states() is not implemented.")
 
     # Special interfaces for non-graph-traversal mode
 
-    @abstractmethod
-    def _merge_jobs(self, *jobs: JobType):
-        pass
+    def _merge_jobs(self, *jobs: CFGJobBase):
+        raise NotImplementedError("_merge_jobs() is not implemented.")
 
-    @abstractmethod
-    def _should_widen_jobs(self, *jobs: JobType):
-        pass
+    def _should_widen_jobs(self, *jobs: CFGJobBase):
+        raise NotImplementedError("_should_widen_jobs() is not implemented.")
 
-    @abstractmethod
-    def _widen_jobs(self, *jobs: JobType):
-        pass
+    def _widen_jobs(self, *jobs: CFGJobBase):
+        raise NotImplementedError("_widen_jobs() is not implemented.")
 
-    @abstractmethod
-    def _job_sorting_key(self, job: JobType) -> int:
-        pass
+    def _job_sorting_key(self, job: CFGJobBase) -> int:
+        raise NotImplementedError("_job_sorting_key() is not implemented.")
 
     #
     # Private methods
@@ -290,7 +285,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType], ABC):
                 # no change is detected
                 self._output_state[self._node_key(n)] = output_state
                 continue
-            elif changed is True:
+            if changed is True:
                 # changes detected
 
                 # output state of node n is input state for successors to node n
