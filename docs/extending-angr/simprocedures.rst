@@ -234,7 +234,7 @@ attributes of your function so that static analysis knows what it's doing.
   returning
 * ``IS_SYSCALL``: Self-explanatory
 
-Furthermore, if you set ``ADDS_EXITS``, you may also want to define the method
+Furthermore, if you set ``ADDS_EXITS = True``, you'll need to define the method
 ``static_exits()``. This function takes a single parameter, a list of IRSBs that
 would be executed in the run-up to your function, and asks you to return a list
 of all the exits that you know would be produced by your function in that case.

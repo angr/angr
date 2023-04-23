@@ -14,7 +14,6 @@ import angr
 class __libc_init(angr.SimProcedure):
     # pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init
 
-    ADDS_EXITS = True
     NO_RET = True
     local_vars = ("main", "argc", "argv", "envp")
 
