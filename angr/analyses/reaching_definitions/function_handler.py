@@ -155,6 +155,7 @@ class FunctionHandler:
             other_output_defns |= defs - ret_defns
         if state._dep_graph is not None:
             state.analysis.function_calls[data.callsite] = FunctionCallRelationships(
+                callsite=data.callsite,
                 target=data.address,
                 args_defns=args_defns,
                 other_input_defns=other_input_defns,

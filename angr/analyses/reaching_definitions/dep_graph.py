@@ -23,6 +23,7 @@ def _is_definition(node):
 
 @dataclass
 class FunctionCallRelationships:
+    callsite: CodeLocation
     target: Optional[int]
     args_defns: List[Set[Definition]]
     other_input_defns: Set[Definition]

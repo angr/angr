@@ -471,7 +471,7 @@ class ReachingDefinitionsAnalysis(
     def _post_analysis(self):
         pass
 
-    def callsites_to(self, target: Union[int, str, Function]) -> Iterable[Tuple[int, FunctionCallRelationships]]:
+    def callsites_to(self, target: Union[int, str, Function]) -> Iterable[FunctionCallRelationships]:
         if isinstance(target, (str, int)):
             func_addr = self.project.kb.functions[target].addr
         elif isinstance(target, Function):

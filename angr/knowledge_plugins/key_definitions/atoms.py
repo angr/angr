@@ -1,4 +1,5 @@
 from typing import Union, Optional
+from enum import Enum, auto
 
 import claripy
 from archinfo import Arch
@@ -6,6 +7,13 @@ from archinfo import Arch
 from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from .heap_address import HeapAddress
+
+class AtomKind(Enum):
+    register = auto()
+    memory = auto()
+    tmp = auto()
+    guard = auto()
+    constant = auto()
 
 
 class Atom:

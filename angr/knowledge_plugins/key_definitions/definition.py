@@ -1,8 +1,8 @@
-from typing import Set
+from typing import Set, Optional
 
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .atoms import Atom, MemoryLocation, Register, Tmp, GuardUse, ConstantSrc
+from .atoms import Atom, MemoryLocation, Register, Tmp, GuardUse, ConstantSrc, AtomKind
 from .tag import Tag
 
 
@@ -75,7 +75,7 @@ class Definition:
         else:
             raise ValueError("Unsupported operation size on %s." % type(self.atom))
 
-    def matches(self, kind=None, bbl_addr=None, ins_addr=None) -> bool:
+    def matches(self, kind: Optional[AtomKind]=None, bbl_addr=None, ins_addr=None) -> bool:
         """
         Return whether this definition has certain characteristics.
 
@@ -85,15 +85,15 @@ class Definition:
         :param ins_addr:    The codeloc must be from this instruction
         """
         if kind is not None:
-            if kind == 'reg' and not isinstance(self.atom, Register):
+            if kind == AtomKind.register and not isinstance(self.atom, Register):
                 return False
-            if kind == 'mem' and not isinstance(self.atom, MemoryLocation):
+            if kind == AtomKind.memory and not isinstance(self.atom, MemoryLocation):
                 return False
-            if kind == 'tmp' and not isinstance(self.atom, Tmp):
+            if kind == AtomKind.tmp and not isinstance(self.atom, Tmp):
                 return False
-            if kind == 'guard' and not isinstance(self.atom, GuardUse):
+            if kind == AtomKind.guard and not isinstance(self.atom, GuardUse):
                 return False
-            if kind == 'const' and not isinstance(self.atom, ConstantSrc):
+            if kind == AtomKind.constant and not isinstance(self.atom, ConstantSrc):
                 return False
         if bbl_addr is not None and self.codeloc.block_addr != bbl_addr:
             return False
