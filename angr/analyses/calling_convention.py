@@ -68,21 +68,11 @@ class UpdateArgumentsOption:
 
 class DummyFunctionHandler(FunctionHandler):
     """
-    A function handler that is used during reaching definition analysis.
+    A no-op function handler that is used during reaching definition analysis.
     """
 
-    def handle_local_function(
-        self,
-        state: "ReachingDefinitionsState",
-        function_address: int,
-        call_stack: Optional[List],
-        maximum_local_call_depth: int,
-        visited_blocks: Set[int],
-        dep_graph: "DepGraph",
-        src_ins_addr: Optional[int] = None,
-        codeloc: Optional["CodeLocation"] = None,
-    ) -> Tuple[bool, "ReachingDefinitionsState", "Set[int]", "DepGraph"]:
-        return False, state, visited_blocks, dep_graph
+    def handle_function(self, *args, **kwargs):
+        pass
 
 
 class CallingConventionAnalysis(Analysis):

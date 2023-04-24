@@ -222,7 +222,7 @@ class SimEngineRDAIL(
             target,
             cc=stmt.calling_convention,
             prototype=stmt.prototype,
-            args_values=[self._expr(arg) for arg in stmt.args],
+            args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
         )
 
         self._function_handler.handle_function(self.state, data)
