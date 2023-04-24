@@ -4,6 +4,7 @@ from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import ObservationPointType
 from .. import register_analysis
 from .reaching_definitions import ReachingDefinitionsAnalysis
+from .function_handler import FunctionHandler
 
 
 if TYPE_CHECKING:

@@ -571,6 +571,9 @@ class ReachingDefinitionsState:
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         yield from self.live_definitions.get_definitions(atom)
 
+    def get_values(self, atom: Atom) -> Optional[MultiValues]:
+        return self.live_definitions.get_value_from_atom(atom)
+
     def mark_guard(self, code_loc: CodeLocation, target):
         self._cycle(code_loc)
         atom = GuardUse(target)
