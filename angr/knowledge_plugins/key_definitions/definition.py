@@ -85,16 +85,23 @@ class Definition:
         :param ins_addr:    The codeloc must be from this instruction
         """
         if kind is not None:
-            if kind == AtomKind.register and not isinstance(self.atom, Register):
-                return False
-            if kind == AtomKind.memory and not isinstance(self.atom, MemoryLocation):
-                return False
-            if kind == AtomKind.tmp and not isinstance(self.atom, Tmp):
-                return False
-            if kind == AtomKind.guard and not isinstance(self.atom, GuardUse):
-                return False
-            if kind == AtomKind.constant and not isinstance(self.atom, ConstantSrc):
-                return False
+            if kind == AtomKind.register:
+                if not isinstance(self.atom, Register):
+                    return False
+            elif kind == AtomKind.memory:
+                if not isinstance(self.atom, MemoryLocation):
+                    return False
+            elif kind == AtomKind.tmp:
+                if not isinstance(self.atom, Tmp):
+                    return False
+            elif kind == AtomKind.guard:
+                if not isinstance(self.atom, GuardUse):
+                    return False
+            elif kind == AtomKind.constant:
+                if not isinstance(self.atom, ConstantSrc):
+                    return False
+            else:
+                raise TypeError(f'Expeted AtomKind or None, got {type(kind).__name__}')
         if bbl_addr is not None and self.codeloc.block_addr != bbl_addr:
             return False
         if ins_addr is not None and self.codeloc.ins_addr != ins_addr:
