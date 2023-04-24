@@ -49,11 +49,10 @@ class ReachingDefinitionsAnalysis(
 
     def __init__(
         self,
-        subject: Union[Subject, ailment.Block, Block, Function] = None,
+        subject: Union[Subject, ailment.Block, Block, Function, str] = None,
         func_graph=None,
         max_iterations=3,
         track_tmps=False,
-        track_calls=None,
         track_consts=False,
         observation_points: "Iterable[ObservationPoint]" = None,
         init_state: ReachingDefinitionsState = None,
@@ -74,7 +73,6 @@ class ReachingDefinitionsAnalysis(
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
         :param bool track_tmps:                 Whether or not temporary variables should be taken into consideration
                                                 during the analysis.
-        :param bool track_calls:                Whether or not calls will show up as elements in the def-use graph.
         :param iterable observation_points:     A collection of tuples of ("node"|"insn", ins_addr, OP_TYPE) defining
                                                 where reaching definitions should be copied and stored. OP_TYPE can be
                                                 OP_BEFORE or OP_AFTER.
@@ -102,6 +100,8 @@ class ReachingDefinitionsAnalysis(
                                                 be available as `result.dep_graph`.
         """
 
+        if isinstance(subject, str):
+            subject = self.kb.functions[subject]
         if not isinstance(subject, Subject):
             self._subject = Subject(subject, func_graph, cc)
         else:
@@ -113,7 +113,6 @@ class ReachingDefinitionsAnalysis(
         )
 
         self._track_tmps = track_tmps
-        self._track_calls = track_calls
         self._track_consts = track_consts
         self._max_iterations = max_iterations
         self._observation_points = observation_points
@@ -400,7 +399,6 @@ class ReachingDefinitionsAnalysis(
                 self.project.arch,
                 self.subject,
                 track_tmps=self._track_tmps,
-                track_calls=self._track_calls,
                 track_consts=self._track_consts,
                 analysis=self,
                 canonical_size=self._canonical_size,

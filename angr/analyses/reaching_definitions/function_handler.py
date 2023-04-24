@@ -1,24 +1,60 @@
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.sim_type import SimTypeBottom
-from functools import wraps
-from typing import TYPE_CHECKING, List, Set, Optional, Tuple, Union
+from angr.knowledge_plugins.key_definitions.atoms import Register
+from typing import TYPE_CHECKING, List, Set, Optional, Dict
+from dataclasses import dataclass, field
 import logging
 
+import networkx
 from cle import Symbol
 
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.sim_type import SimTypeBottom
 from angr.knowledge_plugins.key_definitions.atoms import Atom
 from angr.calling_conventions import SimCC
 from angr.sim_type import SimTypeFunction
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.functions import Function
+from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
 
-l = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from angr.code_location import CodeLocation
-    from angr.analyses.reaching_definitions.dep_graph import DepGraph
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
+
+l = logging.getLogger(__name__)
+
+
+@dataclass
+class FunctionEffect:
+    sources: Set[Atom]
+    value: Optional[MultiValues] = None
+    sources_defns: Optional[Set[Definition]] = None
+
+@dataclass
+class FunctionCallData:
+    callsite: "CodeLocation"
+    address_multi: MultiValues
+    address: Optional[int] = None
+    symbol: Optional[Symbol] = None
+    function: Optional[Function] = None
+    name: Optional[str] = None
+    cc: Optional[SimCC] = None
+    prototype: Optional[SimTypeFunction] = None
+    args_atoms: Optional[List[Set[Atom]]] = None
+    args_values: Optional[List[MultiValues]] = None
+    ret_atoms: Optional[Set[Atom]] = None
+    visited_blocks: Optional[Set[int]] = None
+    effects: Dict[Atom, FunctionEffect] = field(default_factory=lambda: {})
+
+    def depends(self, dest: Atom, *sources: Atom, value: Optional[MultiValues] = None):
+        if dest in self.effects:
+            l.warning("Function handler for %s seems to be implemented incorrectly - multiple stores to single atom")
+        else:
+            self.effects[dest] = FunctionEffect(set(sources), value=value)
+
 
 
 # pylint: disable=unused-argument, no-self-use
+# TODO FIXME XXX DO NOT MERGE UNTIL AUDREY HAS FIXED THE DOCSTRINGS
 class FunctionHandler:
     """
     An abstract base class for function handlers.
@@ -39,144 +75,128 @@ class FunctionHandler:
         """
         return self
 
-    def handle_local_function(
-        self,
-        state: "ReachingDefinitionsState",
-        function_address: int,
-        call_stack: Optional[List],
-        maximum_local_call_depth: int,
-        visited_blocks: Set[int],
-        dep_graph: "DepGraph",
-        src_ins_addr: Optional[int] = None,
-        codeloc: Optional["CodeLocation"] = None,
-    ) -> Tuple[bool, "ReachingDefinitionsState", "Set[int]", "DepGraph"]:
-        """
-        :param state: The state at the entry of the function, i.e. the function's input state.
-        :param function_address: The address of the function to handle.
-        :param call_stack:
-        :param maximum_local_call_depth:
-        :param visited_blocks: A set of the addresses of the previously visited blocks.
-        :param dep_graph: A definition-use graph, where nodes represent definitions, and edges represent uses.
-        :param codeloc: The code location of the call to the analysed function.
-        """
-        l.warning("Please implement the local function handler with your own logic.")
-        return False, state, visited_blocks, dep_graph
+    def handle_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
+        # META
+        if data.address is None:
+            val = data.address_multi.one_value()
+            if val is not None and val.op == "BVV":
+                data.address = val.args[0]
+        if data.symbol is None and data.address is not None:
+            data.symbol = state.analysis.project.loader.find_symbol(data.address)
+        if data.function is None and data.address is not None:
+            data.function = state.analysis.project.kb.functions.get(data.address, None)
+        if data.name is None and data.function is not None:
+            data.name = data.function.name
+        if data.name is None and data.symbol is not None:
+            data.name = data.symbol.name
+        if data.cc is None and data.function is not None:
+            data.cc = data.function.cc
+        if data.prototype is None and data.function is not None:
+            data.prototype = data.function.prototype
+        if data.address is not None and (data.cc is None or data.prototype is None):
+            hook = state.analysis.project.hooked_by(data.address)
+            if data.cc is None and hook is not None:
+                data.cc = hook.cc
+            if data.prototype is None and hook is not None:
+                data.prototype = hook.prototype
+        if data.cc is None:
+            data.cc = state.analysis.project.factory.cc()  # sketchy
+        if data.args_atoms is None and data.cc is not None and data.prototype is not None:
+            data.args_atoms = self.c_args_as_atoms(state, data.cc, data.prototype)
+        if data.ret_atoms is None and data.cc is not None and data.prototype is not None:
+            data.ret_atoms = self.c_return_as_atoms(state, data.cc, data.prototype)
+        if data.subgraph is None and state._dep_graph is not None:
+            data.subgraph = networkx.DiGraph()
+        # TODO what to do about args.values...
 
-    def handle_unknown_call(
-        self, state: "ReachingDefinitionsState", src_codeloc: Optional["CodeLocation"] = None
-    ) -> Tuple[bool, "ReachingDefinitionsState"]:
-        """
-        Called when the RDA encounters a function call to somewhere really weird.
-        E.g. the function address was invalid (not even TOP),
-        or the address of the function is outside of the main object, but also not a known symbol
-        :param state:
-        :param src_codeloc:
-        :return:
-        """
-        l.error("Encountered unknown call. Implement the unknown function handler with your own logic.")
-        return False, state
-
-    def handle_indirect_call(
-        self, state: "ReachingDefinitionsState", src_codeloc: Optional["CodeLocation"] = None
-    ) -> Tuple[bool, "ReachingDefinitionsState"]:
-        """
-        The RDA encountered a function call with multiple possible values, or TOP as a target
-        :param state:
-        :param src_codeloc:
-        :return:
-        """
-        l.warning("Please implement the indirect function handler with your own logic.")
-        return False, state
-
-    def handle_external_function_fallback(
-        self, state: "ReachingDefinitionsState", src_codeloc: Optional["CodeLocation"] = None
-    ) -> Tuple[bool, "ReachingDefinitionsState"]:
-        """
-        Fallback for a call to an external function, that has no specific implementation
-        :param state:
-        :param src_codeloc:
-        :return:
-        """
-        return False, state
-
-    def handle_external_function_symbol(
-        self,
-        state: "ReachingDefinitionsState",
-        symbol: Symbol,
-        src_codeloc: Optional["CodeLocation"] = None,
-    ) -> Tuple[bool, "ReachingDefinitionsState"]:
-        """
-        The generic handler for external functions with a known symbol
-        This is different from
-        The default behavior using hasattr/getattr supports existing code,
-        but you can also implement the check if the external function is supported in another way,
-        e.g. similar to SimProcedures
-        :param state:
-        :param symbol:
-        :param src_codeloc:
-        :return:
-        """
-        if symbol.name:
-            return self.handle_external_function_name(state, symbol.name, src_codeloc)
+        # PROCESS
+        if data.name is not None and hasattr(self, f"handle_{data.name}"):
+            handler = getattr(self, f"handle_impl_{data.name}")
+        elif data.address is not None:
+            if state.analysis.project.loader.main_object.contains_addr(data.address):
+                handler = self.handle_local_function
+            else:
+                handler = self.handle_external_function
         else:
-            l.warning("Symbol %s for external function has no name, falling back to generic handler", symbol)
-            return self.handle_external_function_fallback(state, src_codeloc)
+            handler = self.handle_indirect_function
 
-    def handle_external_function_name(
-        self,
-        state: "ReachingDefinitionsState",
-        ext_func_name: str,
-        src_codeloc: Optional["CodeLocation"] = None,
-    ) -> Tuple[bool, "ReachingDefinitionsState"]:
-        handler_name = "handle_%s" % ext_func_name
-        if ext_func_name and hasattr(self, handler_name):
-            return getattr(self, handler_name)(state, src_codeloc)
+        handler(state, data)
 
-        l.warning("No handler for external function %s(), falling back to generic handler", ext_func_name)
-        return self.handle_external_function_fallback(state, src_codeloc)
+        if self.cc is not None:
+            for reg in self.caller_saved_regs_as_atoms(state, data.cc):
+                if reg not in data.effects:
+                    data.store(reg)
+        if state.arch.call_pushes_ret:
+            sp_atom = self.stack_pointer_as_atom(state)
+            if sp_atom not in data.effects:  # let the user override the stack pointer if they want
+                new_sp = None
+                sp_val = state.live_definitions.get_value_from_atom(sp_atom)
+                if sp_val is not None:
+                    one_sp_val = sp_val.one_value()
+                    if one_sp_val is not None:
+                        new_sp = sp_val + state.arch.call_sp_fix
+                data.store(sp_atom, value=new_sp)
 
-    def guess_cc(self, state, func_name=None) -> SimCC:
-        hooked_by = state.analysis.project.symbol_hooked_by(func_name) if func_name is not None else None
-        if hooked_by is not None:
-            return hooked_by.cc
-        return state.analysis.project.factory.cc()
+        # OUTPUT
+        args_defns = [set().union(*(state.get_definitions(atom) for atom in atoms)) for atoms in (data.args_atoms or set())]
+        all_args_defns = set().union(*args_defns)
+        other_input_defns = set()
+        ret_defns = data.ret_atoms or set()
+        other_output_defns = set()
 
-    def c_args_as_atoms(self, state, cc, prototype) -> List[Set[Atom]]:
+        for effect in data.effects.values():
+            if effect.sources_defns is None:
+                effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
+                other_input_defns |= effect.sources_defns - all_args_defns
+        for dest, effect in data.effects.items():
+            # TODO how to generate the codelocation for an unknown address?
+            value = effect.value if effect.value is not None else state.top(dest.bits)
+            mv, defs = state.kill_and_add_definition(dest, CodeLocation(data.address, None), value, uses=effect.sources_defns)
+            other_output_defns |= defs - ret_defns
+        if state._dep_graph is not None:
+            state._dep_graph.function_calls[data.callsite] = FunctionCallRelationships(
+                target=data.address,
+                args_defns=args_defns,
+                other_input_defns=other_input_defns,
+                ret_defns=ret_defns,
+                other_output_defns=other_output_defns,
+            )
+
+
+    def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
+        sources = {atom for arg in data.args_atoms for atom in arg}
+        for atom in data.ret_atoms:
+            data.store(atom, *sources)
+
+    handle_indirect_function = handle_generic_function
+    handle_local_function = handle_generic_function
+    handle_external_function = handle_generic_function
+
+    @staticmethod
+    def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
         return [
             {Atom.from_argument(footprint_arg, state.arch, full_reg=True) for footprint_arg in arg.get_footprint()}
             for arg in cc.arg_locs(prototype)
         ]
 
-    def c_return_as_atoms(self, state, cc, prototype) -> Set[Atom]:
+    @staticmethod
+    def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> Set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
-            return {Atom.from_argument(footprint_arg, state.arch, full_reg=True) for footprint_arg in cc.return_val(prototype.returnty).get_footprint()}
+            return {
+                Atom.from_argument(footprint_arg, state.arch, full_reg=True)
+                for footprint_arg in cc.return_val(prototype.returnty).get_footprint()
+            }
         else:
             return set()
 
+    @staticmethod
+    def caller_saved_regs_as_atoms(state: "ReachingDefinitionsState", cc: SimCC) -> Set[Register]:
+        return (
+            {Register(*state.arch.registers[reg], state.arch) for reg in cc.CALLER_SAVED_REGS}
+            if cc.CALLER_SAVED_REGS is not None
+            else set()
+        )
 
-class SimpleUsesFunctionHandler(FunctionHandler):
-    def handle_external_function_name(self, state, ext_func_name, src_codeloc=None):
-        handler_name = "handle_%s" % ext_func_name
-        if ext_func_name and hasattr(self, handler_name):
-            return super().handler_external_function_name(state, ext_func_name, src_codeloc=src_codeloc)
-
-        hooked_by = state.analysis.project.symbol_hooked_by(ext_func_name)
-        if hooked_by is not None:
-            for arg in self.c_args_as_atoms(state, hooked_by.cc, hooked_by.prototype):
-                for atom in arg:
-                    state.add_use(atom, src_codeloc)
-            for atom in self.c_return_as_atoms(state, hooked_by.cc, hooked_by.prototype):
-                state.kill_and_add_definition(atom, src_codeloc, MultiValues(state.top(atom.bits)))
-            return True, state
-
-        return super().handler_external_function_name(state, ext_func_name, src_codeloc=src_codeloc)
-
-def c_args(prototype: Union[str, SimTypeFunction], cc: Optional[SimCC]=None):
-    def decorator(f):
-        @functools.wraps(f)
-        def inner(self: FunctionHandler, state: ReachingDefinitionsState):
-            nonlocal cc
-            guessed_cc = cc if cc is not None else self.guess_cc(state)
-            atomsets = self.c_args_as_atoms(state, guessed_cc, prototype)
-            values = [state.live_definitions.get_value_from_atom(next(iter(atomset))) if len(atomset) == 1 else None for atomset in atomsets]
-            return f(self, state, *values)
+    @staticmethod
+    def stack_pointer_as_atom(state) -> Register:
+        return Register(state.arch.sp_offset, state.arch.bytes, state.arch)

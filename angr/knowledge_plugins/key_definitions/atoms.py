@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Union, Optional
+from typing import Union, Optional
 
 import claripy
 from archinfo import Arch
@@ -6,7 +6,6 @@ from archinfo import Arch
 from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from .heap_address import HeapAddress
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 class Atom:
@@ -82,50 +81,6 @@ class GuardUse(Atom):
 
     def _core_hash(self):
         return hash((GuardUse, self.target))
-
-
-class FunctionCall(Atom):
-    """
-    Represents a function call.
-    """
-
-    __slots__ = ("target", "callsite")
-
-    def __init__(self, target, callsite):
-        super().__init__()
-        self.target = target
-        self.callsite = callsite
-
-    @property
-    def single_target(self) -> Optional[int]:
-        if (
-            type(self.target) is MultiValues
-            and len(self.target.values) == 1
-            and 0 in self.target.values
-            and len(self.target.values[0]) == 1
-            and next(iter(self.target.values[0])).op == "BVV"
-        ):
-            return next(iter(self.target.values[0])).args[0]
-        elif isinstance(self.target, int):
-            return self.target
-        return None
-
-    def __repr__(self):
-        target = self.single_target
-        target_txt = hex(target) if target is not None else "(indirect)"
-        return "<Call %s>" % target_txt
-
-    def __eq__(self, other):
-        return type(other) is FunctionCall and self.callsite == other.callsite
-
-    __hash__ = Atom.__hash__
-
-    def _core_hash(self):
-        return hash(self.callsite)
-
-    @property
-    def size(self):
-        raise NotImplementedError
 
 
 class ConstantSrc(Atom):

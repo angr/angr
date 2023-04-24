@@ -1,3 +1,4 @@
+from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
 from typing import Optional, Iterable, Set, Generator, Tuple, Any, TYPE_CHECKING
 import logging
 
@@ -13,7 +14,6 @@ from ...knowledge_plugins.key_definitions.atoms import (
     GuardUse,
     Register,
     MemoryLocation,
-    FunctionCall,
     ConstantSrc,
 )
 from ...knowledge_plugins.functions.function import Function
@@ -72,7 +72,6 @@ class ReachingDefinitionsState:
         "_canonical_size",
         "heap_allocator",
         "_environment",
-        "_track_calls",
         "_track_consts",
         "_sp_adjusted",
         "exit_observed",
@@ -83,7 +82,6 @@ class ReachingDefinitionsState:
         arch: archinfo.Arch,
         subject: Subject,
         track_tmps: bool = False,
-        track_calls: bool = False,
         track_consts: bool = False,
         analysis: Optional["ReachingDefinitionsAnalysis"] = None,
         rtoc_value=None,
@@ -95,10 +93,9 @@ class ReachingDefinitionsState:
         all_definitions: Optional[Set[Definition]] = None,
     ):
         # handy short-hands
-        self.arch = arch
+        self.arch: archinfo.Arch = arch
         self._subject = subject
         self._track_tmps = track_tmps
-        self._track_calls = track_calls
         self._track_consts = track_consts
         self.analysis = analysis
         self._canonical_size: int = canonical_size
@@ -375,7 +372,6 @@ class ReachingDefinitionsState:
             self.arch,
             self._subject,
             track_tmps=self._track_tmps,
-            track_calls=self._track_calls,
             track_consts=self._track_consts,
             analysis=self.analysis,
             live_definitions=self.live_definitions.copy(),
@@ -424,9 +420,10 @@ class ReachingDefinitionsState:
         data: MultiValues,
         dummy=False,
         tags: Set[Tag] = None,
-        endness=None,
-        annotated: bool = False,
-    ) -> Optional[MultiValues]:
+        endness=None, # XXX destroy
+        annotated: bool = False,  # XXX destory
+        uses: Optional[Set[Definition]] = None,
+    ) -> Tuple[Optional[MultiValues], Set[Definition]]:
         self._cycle(code_loc)
 
         mv = self.live_definitions.kill_and_add_definition(
@@ -450,7 +447,9 @@ class ReachingDefinitionsState:
                     for v in vs:
                         values.add(v)
 
-                for used in self.codeloc_uses:
+                if uses is None:
+                    uses = self.codeloc_uses
+                for used in uses:
                     # sp is always used as a stack pointer, and we do not track dependencies against stack pointers.
                     # bp is sometimes used as a base pointer. we recognize such cases by checking if there is a use to
                     # the stack variable.
@@ -492,8 +491,10 @@ class ReachingDefinitionsState:
                             self.analysis.project.kb.cfgs.get_most_accurate(),
                             self.analysis.project.loader,
                         )
+        else:
+            defs = set()
 
-        return mv
+        return mv, defs
 
     def add_use(self, atom: Atom, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
         self._cycle(code_loc)
@@ -580,20 +581,6 @@ class ReachingDefinitionsState:
             for used in self.codeloc_uses:
                 self._dep_graph.add_edge(used, kinda_definition)
 
-    def mark_call(self, code_loc: CodeLocation, target):
-        self._cycle(code_loc)
-        atom = FunctionCall(target, code_loc)
-        kinda_definition = Definition(atom, code_loc)
-
-        if self._dep_graph is not None and self._track_calls:
-            self._dep_graph.add_node(kinda_definition)
-            for used in self.codeloc_uses:
-                self._dep_graph.add_edge(used, kinda_definition)
-            self.codeloc_uses.clear()
-            self.codeloc_uses.add(kinda_definition)
-            self.live_definitions.uses_by_codeloc[code_loc].clear()
-            self.live_definitions.uses_by_codeloc[code_loc].add(kinda_definition)
-
     def mark_const(self, code_loc: CodeLocation, value: int, size: int):
         self._cycle(code_loc)
         atom = ConstantSrc(value, size)
@@ -606,3 +593,32 @@ class ReachingDefinitionsState:
 
     def downsize(self):
         self.all_definitions = set()
+
+    def pointer_to_atoms(self, pointer: MultiValues, size: int, endness: str) -> Set[Atom]:
+        """
+        Given a MultiValues, return the set of atoms that loading or storing to the pointer with that value
+        could define or use.
+        """
+        result = set()
+        for value in pointer.values[0]:
+            if self.is_top(value):
+                continue
+
+            # TODO this can be simplified with the walrus operator
+            stack_offset = self.get_stack_offset(value)
+            if stack_offset is not None:
+                addr = SpOffset(pointer.bits, stack_offset)
+            else:  
+                heap_offset = self.get_heap_offset(value)
+                if heap_offset is not None:
+                    addr = HeapAddress(heap_offset)
+                elif value.op == 'BVV':
+                    addr = value.args[0]
+                else:
+                    # cannot resolve
+                    continue
+                    
+            atom = MemoryLocation(addr, size, endness)
+            result.add(atom)
+
+        return result

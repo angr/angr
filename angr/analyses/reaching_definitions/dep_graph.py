@@ -1,5 +1,6 @@
-from typing import Optional, Dict, Set, Iterable, Union, List
+from typing import Optional, Dict, Set, Iterable, Union, List, Tuple, TYPE_CHECKING
 from functools import reduce
+from dataclasses import dataclass
 
 import networkx
 
@@ -7,15 +8,27 @@ import claripy
 from cle.loader import Loader
 
 from ...code_location import CodeLocation
-from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, FunctionCall, GuardUse, Tmp
+from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.cfg import CFGModel
+from ...knowledge_plugins.functions import Function
 from .external_codeloc import ExternalCodeLocation
+
+if TYPE_CHECKING:
+    from angr.project import Project
 
 
 def _is_definition(node):
     return isinstance(node, Definition)
+
+@dataclass
+class FunctionCallRelationships:
+    target: Optional[int]
+    args_defns: List[Set[Definition]]
+    other_input_defns: Set[Definition]
+    ret_defns: Set[Definition]
+    other_output_defns: Set[Definition]
 
 
 class DepGraph:
@@ -25,7 +38,7 @@ class DepGraph:
     Mostly a wrapper around a <networkx.DiGraph>.
     """
 
-    def __init__(self, graph: Optional[networkx.DiGraph] = None):
+    def __init__(self, project: "Project", graph: Optional[networkx.DiGraph] = None):
         """
         :param graph: A graph where nodes are definitions, and edges represent uses.
         """
@@ -36,6 +49,20 @@ class DepGraph:
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
         self._graph: networkx.DiGraph = graph if graph is not None else networkx.DiGraph()
+        self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
+        self._project = project
+
+    def callsites_for(self, target: Union[int, str, Function]) -> Iterable[Tuple[int, FunctionCallRelationships]]:
+        if isinstance(target, (str, int)):
+            func_addr = self._project.kb.functions[target].addr
+        elif isinstance(target, Function):
+            func_addr = target.addr
+        else:
+            raise TypeError(type(target))
+
+        for callsite, info in self.function_calls.items():
+            if info.target == func_addr:
+                yield callsite, info
 
     @property
     def graph(self) -> networkx.DiGraph:

@@ -2,7 +2,7 @@ from typing import Set
 
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .atoms import Atom, MemoryLocation, Register, Tmp, FunctionCall, GuardUse
+from .atoms import Atom, MemoryLocation, Register, Tmp, GuardUse
 from .tag import Tag
 
 
@@ -75,15 +75,14 @@ class Definition:
         else:
             raise ValueError("Unsupported operation size on %s." % type(self.atom))
 
-    def matches(self, kind=None, bbl_addr=None, ins_addr=None, call_target=None) -> bool:
+    def matches(self, kind=None, bbl_addr=None, ins_addr=None) -> bool:
         """
         Return whether this definition has certain characteristics.
 
         :param kind:        Specifies the kind of atom that must match. One of the strings "reg", "mem", "tmp",
-                            "guard", "call", or None.
+                            "guard", or None.
         :param bbl_addr:    The codeloc must be from this basic block
         :param ins_addr:    The codeloc must be from this instruction
-        :param call_target: The atom must be a call targeting this address
         """
         if kind is not None:
             if kind == 'reg' and not isinstance(self.atom, Register):
@@ -94,12 +93,8 @@ class Definition:
                 return False
             if kind == 'guard' and not isinstance(self.atom, GuardUse):
                 return False
-            if kind == 'call' and not isinstance(self.atom, FunctionCall):
-                return False
         if bbl_addr is not None and self.codeloc.block_addr != bbl_addr:
             return False
         if ins_addr is not None and self.codeloc.ins_addr != ins_addr:
-            return False
-        if call_target is not None and (not isinstance(self.atom, FunctionCall) or self.atom.single_target != call_target):
             return False
         return True
