@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING
+from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Iterable
 from collections import defaultdict
 
 import ailment
@@ -14,13 +14,14 @@ from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
+from ...code_location import CodeLocation
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
 from .subject import Subject, SubjectType
-from .function_handler import FunctionHandler
+from .function_handler import FunctionHandler, FunctionCallRelationships
 from .dep_graph import DepGraph
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ class ReachingDefinitionsAnalysis(
         func_graph=None,
         max_iterations=3,
         track_tmps=False,
-        track_consts=False,
+        track_consts=True,
         observation_points: "Iterable[ObservationPoint]" = None,
         init_state: ReachingDefinitionsState = None,
         cc=None,
@@ -62,7 +63,7 @@ class ReachingDefinitionsAnalysis(
         maximum_local_call_depth=5,
         observe_all=False,
         visited_blocks=None,
-        dep_graph: Union[DepGraph, bool, None] = None,
+        dep_graph: Union[DepGraph, bool, None] = True,
         observe_callback=None,
         canonical_size=8,
         stack_pointer_tracker=None,
@@ -123,7 +124,7 @@ class ReachingDefinitionsAnalysis(
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
         elif dep_graph is True:
-            self._dep_graph = DepGraph()
+            self._dep_graph = DepGraph(self.project)
         else:
             self._dep_graph = dep_graph
 
@@ -168,6 +169,7 @@ class ReachingDefinitionsAnalysis(
         self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
             func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None
         )
+        self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
 
@@ -468,4 +470,16 @@ class ReachingDefinitionsAnalysis(
 
     def _post_analysis(self):
         pass
+
+    def callsites_to(self, target: Union[int, str, Function]) -> Iterable[Tuple[int, FunctionCallRelationships]]:
+        if isinstance(target, (str, int)):
+            func_addr = self.project.kb.functions[target].addr
+        elif isinstance(target, Function):
+            func_addr = target.addr
+        else:
+            raise TypeError(type(target))
+
+        for callsite, info in self.function_calls.items():
+            if info.target == func_addr:
+                yield callsite, info
 

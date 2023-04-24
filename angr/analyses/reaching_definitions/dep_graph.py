@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Set, Iterable, Union, List, Tuple, TYPE_CHECKING
+from typing import Optional, Dict, Set, Iterable, Union, List, TYPE_CHECKING
 from functools import reduce
 from dataclasses import dataclass
 
@@ -12,7 +12,6 @@ from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.cfg import CFGModel
-from ...knowledge_plugins.functions import Function
 from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
@@ -49,20 +48,7 @@ class DepGraph:
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
         self._graph: networkx.DiGraph = graph if graph is not None else networkx.DiGraph()
-        self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
         self._project = project
-
-    def callsites_for(self, target: Union[int, str, Function]) -> Iterable[Tuple[int, FunctionCallRelationships]]:
-        if isinstance(target, (str, int)):
-            func_addr = self._project.kb.functions[target].addr
-        elif isinstance(target, Function):
-            func_addr = target.addr
-        else:
-            raise TypeError(type(target))
-
-        for callsite, info in self.function_calls.items():
-            if info.target == func_addr:
-                yield callsite, info
 
     @property
     def graph(self) -> networkx.DiGraph:
@@ -213,7 +199,7 @@ class DepGraph:
 
             self.graph.add_edge(memory_location_definition, definition)
 
-    def find_defs(self, **kwargs) -> List[Definition]:
+    def find_definitions(self, **kwargs) -> List[Definition]:
         """
         Filter the definitions present in the graph based on various criteria.
         Parameters can be any valid keyword args to `Definition.matches`
@@ -223,4 +209,42 @@ class DepGraph:
         for defn in self.nodes():
             if defn.matches(**kwargs):
                 result.append(defn)
+        return result
+
+    def find_all_predecessors(self, starts: Union[Definition, Iterable[Definition]], **kwargs) -> List[Definition]:
+        """
+        Filter the ancestors of the given start node or nodes that match various criteria.
+        Parameters can be any valid keyword args to `Definition.matches`
+        """
+        result = []
+        queue = [starts] if isinstance(starts, Definition) else list(starts)
+        seen = set(queue)
+        while queue:
+            thing = queue.pop()
+            for pred in self.graph.pred[thing]:
+                if pred in seen:
+                    continue
+                seen.add(pred)
+                if pred.matches(**kwargs):
+                    queue.append(pred)
+                    result.append(pred)
+        return result
+
+    def find_all_successors(self, starts: Union[Definition, Iterable[Definition]], **kwargs) -> List[Definition]:
+        """
+        Filter the descendents of the given start node or nodes that match various criteria.
+        Parameters can be any valid keyword args to `Definition.matches`
+        """
+        result = []
+        queue = [starts] if isinstance(starts, Definition) else list(starts)
+        seen = set(queue)
+        while queue:
+            thing = queue.pop()
+            for pred in self.graph.succ[thing]:
+                if pred in seen:
+                    continue
+                seen.add(pred)
+                if pred.matches(**kwargs):
+                    queue.append(pred)
+                    result.append(pred)
         return result

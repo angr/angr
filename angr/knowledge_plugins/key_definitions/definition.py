@@ -2,7 +2,7 @@ from typing import Set
 
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .atoms import Atom, MemoryLocation, Register, Tmp, GuardUse
+from .atoms import Atom, MemoryLocation, Register, Tmp, GuardUse, ConstantSrc
 from .tag import Tag
 
 
@@ -80,7 +80,7 @@ class Definition:
         Return whether this definition has certain characteristics.
 
         :param kind:        Specifies the kind of atom that must match. One of the strings "reg", "mem", "tmp",
-                            "guard", or None.
+                            "guard", "const", or None.
         :param bbl_addr:    The codeloc must be from this basic block
         :param ins_addr:    The codeloc must be from this instruction
         """
@@ -92,6 +92,8 @@ class Definition:
             if kind == 'tmp' and not isinstance(self.atom, Tmp):
                 return False
             if kind == 'guard' and not isinstance(self.atom, GuardUse):
+                return False
+            if kind == 'const' and not isinstance(self.atom, ConstantSrc):
                 return False
         if bbl_addr is not None and self.codeloc.block_addr != bbl_addr:
             return False

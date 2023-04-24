@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, List, Set, Optional, Dict
 from dataclasses import dataclass, field
 import logging
 
-import networkx
 from cle import Symbol
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -14,10 +13,10 @@ from angr.sim_type import SimTypeFunction
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.functions import Function
 from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
+from angr.code_location import CodeLocation
 
 
 if TYPE_CHECKING:
-    from angr.code_location import CodeLocation
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 
 l = logging.getLogger(__name__)
@@ -31,7 +30,7 @@ class FunctionEffect:
 
 @dataclass
 class FunctionCallData:
-    callsite: "CodeLocation"
+    callsite: CodeLocation
     address_multi: MultiValues
     address: Optional[int] = None
     symbol: Optional[Symbol] = None
@@ -90,11 +89,14 @@ class FunctionHandler:
         if data.name is None and data.symbol is not None:
             data.name = data.symbol.name
         if data.cc is None and data.function is not None:
-            data.cc = data.function.cc
+            data.cc = data.function.calling_convention
         if data.prototype is None and data.function is not None:
             data.prototype = data.function.prototype
         if data.address is not None and (data.cc is None or data.prototype is None):
-            hook = state.analysis.project.hooked_by(data.address)
+            hook = None if not state.analysis.project.is_hooked(data.address) else state.analysis.project.hooked_by(data.address)
+            if hook is None and data.address in state.analysis.project.loader.main_object.reverse_plt:
+                plt_name = state.analysis.project.loader.main_object.reverse_plt[data.address]
+                hook = state.analysis.project.symbol_hooked_by(plt_name)
             if data.cc is None and hook is not None:
                 data.cc = hook.cc
             if data.prototype is None and hook is not None:
@@ -105,8 +107,6 @@ class FunctionHandler:
             data.args_atoms = self.c_args_as_atoms(state, data.cc, data.prototype)
         if data.ret_atoms is None and data.cc is not None and data.prototype is not None:
             data.ret_atoms = self.c_return_as_atoms(state, data.cc, data.prototype)
-        if data.subgraph is None and state._dep_graph is not None:
-            data.subgraph = networkx.DiGraph()
         # TODO what to do about args.values...
 
         # PROCESS
@@ -122,10 +122,10 @@ class FunctionHandler:
 
         handler(state, data)
 
-        if self.cc is not None:
+        if data.cc is not None:
             for reg in self.caller_saved_regs_as_atoms(state, data.cc):
                 if reg not in data.effects:
-                    data.store(reg)
+                    data.depends(reg)
         if state.arch.call_pushes_ret:
             sp_atom = self.stack_pointer_as_atom(state)
             if sp_atom not in data.effects:  # let the user override the stack pointer if they want
@@ -134,8 +134,8 @@ class FunctionHandler:
                 if sp_val is not None:
                     one_sp_val = sp_val.one_value()
                     if one_sp_val is not None:
-                        new_sp = sp_val + state.arch.call_sp_fix
-                data.store(sp_atom, value=new_sp)
+                        new_sp = MultiValues(one_sp_val + state.arch.call_sp_fix)
+                data.depends(sp_atom, value=new_sp)
 
         # OUTPUT
         args_defns = [set().union(*(state.get_definitions(atom) for atom in atoms)) for atoms in (data.args_atoms or set())]
@@ -150,11 +150,11 @@ class FunctionHandler:
                 other_input_defns |= effect.sources_defns - all_args_defns
         for dest, effect in data.effects.items():
             # TODO how to generate the codelocation for an unknown address?
-            value = effect.value if effect.value is not None else state.top(dest.bits)
+            value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             mv, defs = state.kill_and_add_definition(dest, CodeLocation(data.address, None), value, uses=effect.sources_defns)
             other_output_defns |= defs - ret_defns
         if state._dep_graph is not None:
-            state._dep_graph.function_calls[data.callsite] = FunctionCallRelationships(
+            state.analysis.function_calls[data.callsite] = FunctionCallRelationships(
                 target=data.address,
                 args_defns=args_defns,
                 other_input_defns=other_input_defns,
@@ -164,9 +164,11 @@ class FunctionHandler:
 
 
     def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
+        if data.args_atoms is None:
+            return
         sources = {atom for arg in data.args_atoms for atom in arg}
         for atom in data.ret_atoms:
-            data.store(atom, *sources)
+            data.depends(atom, *sources)
 
     handle_indirect_function = handle_generic_function
     handle_local_function = handle_generic_function
