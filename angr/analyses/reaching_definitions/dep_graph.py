@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Set, Iterable, Union, List, TYPE_CHECKING
+from typing import Optional, Dict, Set, Iterable, Union, List, TYPE_CHECKING, Tuple
 from functools import reduce
 from dataclasses import dataclass
 
@@ -250,3 +250,30 @@ class DepGraph:
                 if pred.matches(**kwargs):
                     result.append(pred)
         return result
+
+    def find_path(
+        self, starts: Union[Definition, Iterable[Definition]], ends: Union[Definition, Iterable[Definition]], **kwargs
+    ) -> Optional[Tuple[Definition, ...]]:
+        """
+        Find a path between the given start node or nodes and the given end node or nodes.
+        All the intermeidate steps in the path must match the criteria given in kwargs.
+        The kwargs can be any valid parameters to `Definition.matches`.
+
+        This algorithm has exponential time and space complexity. Use at your own risk.
+        Want to do better? Do it yourself or use networkx and eat the cost of indirection and/or cloning.
+        """
+        ends = {ends} if isinstance(ends, Definition) else set(ends)
+        queue = [(starts,)] if isinstance(starts, Definition) else [(start,) for start in starts]
+        seen = set(queue)
+        while queue:
+            path = queue.pop()
+            for succ in self.graph.succ[path[-1]]:
+                if succ in seen:
+                    continue
+                seen.add(succ)
+                newpath = path + (succ,)
+                if succ in ends:
+                    return newpath
+                if succ.matches(**kwargs):
+                    queue.append(newpath)
+        return None
