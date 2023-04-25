@@ -225,9 +225,9 @@ class DepGraph:
             for pred in self.graph.pred[thing]:
                 if pred in seen:
                     continue
+                queue.append(pred)
                 seen.add(pred)
                 if pred.matches(**kwargs):
-                    queue.append(pred)
                     result.append(pred)
         return result
 
@@ -244,8 +244,8 @@ class DepGraph:
             for pred in self.graph.succ[thing]:
                 if pred in seen:
                     continue
+                queue.append(pred)
                 seen.add(pred)
                 if pred.matches(**kwargs):
-                    queue.append(pred)
                     result.append(pred)
         return result
