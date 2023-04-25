@@ -12,9 +12,8 @@ import angr
 # structors points to PRE_INIT_ARRAY, INIT_ARRAY, and FINI_ARRAY
 ######################################
 class __libc_init(angr.SimProcedure):
-    # pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init
+    # pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init,missing-class-docstring
 
-    ADDS_EXITS = True
     NO_RET = True
     local_vars = ("main", "argc", "argv", "envp")
 
