@@ -75,7 +75,7 @@ class Definition:
         else:
             raise ValueError("Unsupported operation size on %s." % type(self.atom))
 
-    def matches(self, kind: Optional[AtomKind]=None, bbl_addr=None, ins_addr=None) -> bool:
+    def matches(self, kind: Optional[AtomKind] = None, bbl_addr=None, ins_addr=None) -> bool:
         """
         Return whether this definition has certain characteristics.
 
@@ -85,23 +85,23 @@ class Definition:
         :param ins_addr:    The codeloc must be from this instruction
         """
         if kind is not None:
-            if kind == AtomKind.register:
+            if kind == AtomKind.REGISTER:
                 if not isinstance(self.atom, Register):
                     return False
-            elif kind == AtomKind.memory:
+            elif kind == AtomKind.MEMORY:
                 if not isinstance(self.atom, MemoryLocation):
                     return False
-            elif kind == AtomKind.tmp:
+            elif kind == AtomKind.TMP:
                 if not isinstance(self.atom, Tmp):
                     return False
-            elif kind == AtomKind.guard:
+            elif kind == AtomKind.GUARD:
                 if not isinstance(self.atom, GuardUse):
                     return False
-            elif kind == AtomKind.constant:
+            elif kind == AtomKind.CONSTANT:
                 if not isinstance(self.atom, ConstantSrc):
                     return False
             else:
-                raise TypeError(f'Expeted AtomKind or None, got {type(kind).__name__}')
+                raise TypeError(f"Expeted AtomKind or None, got {type(kind).__name__}")
         if bbl_addr is not None and self.codeloc.block_addr != bbl_addr:
             return False
         if ins_addr is not None and self.codeloc.ins_addr != ins_addr:

@@ -8,12 +8,13 @@ from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from .heap_address import HeapAddress
 
+
 class AtomKind(Enum):
-    register = auto()
-    memory = auto()
-    tmp = auto()
-    guard = auto()
-    constant = auto()
+    REGISTER = auto()
+    MEMORY = auto()
+    TMP = auto()
+    GUARD = auto()
+    CONSTANT = auto()
 
 
 class Atom:
@@ -37,6 +38,10 @@ class Atom:
         The size of the storage location, in bytes.
         """
         raise NotImplementedError()
+
+    @property
+    def bits(self) -> int:
+        return self.size * 8
 
     @staticmethod
     def from_argument(argument: SimFunctionArgument, arch: Arch, full_reg=False):
@@ -104,7 +109,7 @@ class ConstantSrc(Atom):
         self._size: int = size
 
     def __repr__(self):
-        return f'<Const {self.value}>'
+        return f"<Const {self.value}>"
 
     def __eq__(self, other):
         return type(other) is ConstantSrc and self.value == other.value and self.size == other.size
@@ -168,7 +173,7 @@ class Register(Atom):
         "arch",
     )
 
-    def __init__(self, reg_offset: int, size: int, arch: Optional[Arch]=None):
+    def __init__(self, reg_offset: int, size: int, arch: Optional[Arch] = None):
         super().__init__()
 
         self.reg_offset = reg_offset
@@ -176,10 +181,7 @@ class Register(Atom):
         self.arch = arch
 
     def __repr__(self):
-        return "<Reg %s<%d>>" % (
-                self.name,
-                self.size
-        )
+        return "<Reg %s<%d>>" % (self.name, self.size)
 
     def __eq__(self, other):
         return type(other) is Register and self.reg_offset == other.reg_offset and self.size == other.size
@@ -190,18 +192,16 @@ class Register(Atom):
         return hash(("reg", self.reg_offset, self.size))
 
     @property
-    def bits(self) -> int:
-        return self._size * 8
-
-    @property
     def size(self) -> int:
         return self._size
 
     @property
     def name(self) -> str:
-        return str(self.reg_offset) \
-                    if self.arch is None \
-                    else self.arch.translate_register_name(self.reg_offset, self._size)
+        return (
+            str(self.reg_offset)
+            if self.arch is None
+            else self.arch.translate_register_name(self.reg_offset, self._size)
+        )
 
 
 class MemoryLocation(Atom):

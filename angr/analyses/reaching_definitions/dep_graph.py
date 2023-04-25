@@ -21,8 +21,9 @@ if TYPE_CHECKING:
 def _is_definition(node):
     return isinstance(node, Definition)
 
+
 @dataclass
-class FunctionCallRelationships:
+class FunctionCallRelationships:  # TODO this doesn't belong in this file anymore
     callsite: CodeLocation
     target: Optional[int]
     args_defns: List[Set[Definition]]

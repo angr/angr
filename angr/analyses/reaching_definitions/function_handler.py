@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import logging
 
 from cle import Symbol
+from cle.backends import ELF
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.sim_type import SimTypeBottom
@@ -28,6 +29,7 @@ class FunctionEffect:
     value: Optional[MultiValues] = None
     sources_defns: Optional[Set[Definition]] = None
 
+
 @dataclass
 class FunctionCallData:
     callsite: CodeLocation
@@ -49,7 +51,6 @@ class FunctionCallData:
             l.warning("Function handler for %s seems to be implemented incorrectly - multiple stores to single atom")
         else:
             self.effects[dest] = FunctionEffect(set(sources), value=value)
-
 
 
 # pylint: disable=unused-argument, no-self-use
@@ -76,6 +77,9 @@ class FunctionHandler:
 
     def handle_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
         # META
+        assert state.current_codeloc is not None
+        assert state.analysis is not None
+        assert state.analysis.project.loader.main_object is not None
         if data.address is None:
             val = data.address_multi.one_value()
             if val is not None and val.op == "BVV":
@@ -93,8 +97,16 @@ class FunctionHandler:
         if data.prototype is None and data.function is not None:
             data.prototype = data.function.prototype
         if data.address is not None and (data.cc is None or data.prototype is None):
-            hook = None if not state.analysis.project.is_hooked(data.address) else state.analysis.project.hooked_by(data.address)
-            if hook is None and data.address in state.analysis.project.loader.main_object.reverse_plt:
+            hook = (
+                None
+                if not state.analysis.project.is_hooked(data.address)
+                else state.analysis.project.hooked_by(data.address)
+            )
+            if (
+                hook is None
+                and isinstance(state.analysis.project.loader.main_object, ELF)
+                and data.address in state.analysis.project.loader.main_object.reverse_plt
+            ):
                 plt_name = state.analysis.project.loader.main_object.reverse_plt[data.address]
                 hook = state.analysis.project.symbol_hooked_by(plt_name)
             if data.cc is None and hook is not None:
@@ -138,10 +150,12 @@ class FunctionHandler:
                 data.depends(sp_atom, value=new_sp)
 
         # OUTPUT
-        args_defns = [set().union(*(state.get_definitions(atom) for atom in atoms)) for atoms in (data.args_atoms or set())]
+        args_defns = [
+            set().union(*(state.get_definitions(atom) for atom in atoms)) for atoms in (data.args_atoms or set())
+        ]
         all_args_defns = set().union(*args_defns)
         other_input_defns = set()
-        ret_defns = data.ret_atoms or set()
+        ret_defns = set().union(*(state.get_definitions(atom) for atom in data.ret_atoms or set()))
         other_output_defns = set()
 
         for effect in data.effects.values():
@@ -151,7 +165,12 @@ class FunctionHandler:
         for dest, effect in data.effects.items():
             # TODO how to generate the codelocation for an unknown address?
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
-            mv, defs = state.kill_and_add_definition(dest, CodeLocation(data.address, None), value, uses=effect.sources_defns)
+            mv, defs = state.kill_and_add_definition(
+                dest,
+                CodeLocation(data.address, None) if data.address is not None else state.current_codeloc,
+                value,
+                uses=effect.sources_defns,
+            )
             other_output_defns |= defs - ret_defns
         if state._dep_graph is not None:
             state.analysis.function_calls[data.callsite] = FunctionCallRelationships(
@@ -163,9 +182,8 @@ class FunctionHandler:
                 other_output_defns=other_output_defns,
             )
 
-
     def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
-        if data.args_atoms is None:
+        if data.args_atoms is None or data.ret_atoms is None:
             return
         sources = {atom for arg in data.args_atoms for atom in arg}
         for atom in data.ret_atoms:
