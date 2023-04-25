@@ -1376,8 +1376,14 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
-                        new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=right)
-                        self._remove_last_statement_if_jump(start_node)
+                        last_if_jump = self._remove_last_statement_if_jump(start_node)
+                        new_cond_node = ConditionNode(
+                            last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                            None,
+                            edge_cond_left,
+                            left,
+                            false_node=right,
+                        )
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         if not left_succs:
@@ -1412,8 +1418,14 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
-                        new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        self._remove_last_statement_if_jump(start_node)
+                        last_if_jump = self._remove_last_statement_if_jump(start_node)
+                        new_cond_node = ConditionNode(
+                            last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                            None,
+                            edge_cond_left,
+                            left,
+                            false_node=None,
+                        )
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
@@ -1434,8 +1446,14 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
-                        new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
-                        self._remove_last_statement_if_jump(start_node)
+                        last_if_jump = self._remove_last_statement_if_jump(start_node)
+                        new_cond_node = ConditionNode(
+                            last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                            None,
+                            edge_cond_left,
+                            left,
+                            false_node=None,
+                        )
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
                         # on the original graph
@@ -1461,7 +1479,17 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
-                        new_cond_node = ConditionNode(start_node.addr, None, edge_cond_left, left, false_node=None)
+                        try:
+                            last_stmt = self.cond_proc.get_last_statement(start_node)
+                        except EmptyBlockNotice:
+                            last_stmt = None
+                        new_cond_node = ConditionNode(
+                            last_stmt.ins_addr if last_stmt is not None else start_node.addr,
+                            None,
+                            edge_cond_left,
+                            left,
+                            false_node=None,
+                        )
                         new_nodes = [start_node, new_cond_node]
                         if full_graph.in_degree[right] == 1:
                             # only remove the if statement when it will no longer be used later
