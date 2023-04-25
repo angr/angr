@@ -932,6 +932,25 @@ class AILSimplifier(Analysis):
                 if u.block_addr not in {b.addr for b in super_node_blocks}:
                     continue
 
+                # check if any atoms that the call relies on has been overwritten by statements in between the def site
+                # and the use site.
+                defsite_all_expr_uses = set(rd.all_uses.get_uses_by_location(the_def.codeloc))
+                defsite_defs_per_atom = defaultdict(set)
+                for dd in defsite_all_expr_uses:
+                    defsite_defs_per_atom[dd.atom].add(dd)
+                usesite_rdstate = rd.observed_results[("stmt", (u.block_addr, u.stmt_idx), 0)]
+                usesite_expr_def_outdated = False
+                for defsite_expr_atom, defsite_expr_uses in defsite_defs_per_atom.items():
+                    usesite_expr_uses = set(usesite_rdstate.get_definitions(defsite_expr_atom))
+                    if not usesite_expr_uses:
+                        # the atom is not defined at the use site - it's fine
+                        continue
+                    if usesite_expr_uses != defsite_expr_uses:
+                        usesite_expr_def_outdated = True
+                        break
+                if usesite_expr_def_outdated:
+                    continue
+
                 # replace all uses
                 old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
                 if old_block is None:
