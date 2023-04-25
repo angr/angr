@@ -167,11 +167,18 @@ class FunctionHandler:
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             mv, defs = state.kill_and_add_definition(
                 dest,
-                CodeLocation(data.address, None) if data.address is not None else state.current_codeloc,
+                CodeLocation(data.callsite.ins_addr, None),
                 value,
                 uses=effect.sources_defns,
             )
-            other_output_defns |= defs - ret_defns
+            other_output_defns |= defs
+
+        ret_defns = set()
+        if data.ret_atoms:
+            for atom in data.ret_atoms:
+                ret_defns |= set(state.get_definitions(atom))
+        other_output_defns -= ret_defns
+
         if state._dep_graph is not None:
             state.analysis.function_calls[data.callsite] = FunctionCallRelationships(
                 callsite=data.callsite,
