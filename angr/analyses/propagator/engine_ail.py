@@ -1108,7 +1108,7 @@ class SimEnginePropagatorAIL(
             l.warning("Unknown where the expression is defined. Assume the definition is out-dated.")
             return True, False
 
-        key_defat = "stmt", (expr_defat.block_addr, expr_defat.stmt_idx), OP_AFTER
+        key_defat = "stmt", (expr_defat.block_addr, expr_defat.block_idx, expr_defat.stmt_idx), OP_AFTER
         if key_defat not in self._reaching_definitions.observed_results:
             l.warning(
                 "Required reaching definition state at instruction address %#x is not found. Assume the definition is "
@@ -1117,7 +1117,7 @@ class SimEnginePropagatorAIL(
             )
             return True, False
 
-        key_currloc = "stmt", (current_loc.block_addr, current_loc.stmt_idx), OP_BEFORE
+        key_currloc = "stmt", (current_loc.block_addr, current_loc.block_idx, current_loc.stmt_idx), OP_BEFORE
         if key_currloc not in self._reaching_definitions.observed_results:
             l.warning(
                 "Required reaching definition state at instruction address %#x is not found. Assume the definition is "

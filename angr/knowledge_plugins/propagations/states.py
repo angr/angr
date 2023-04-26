@@ -707,7 +707,7 @@ class PropagatorAILState(PropagatorState):
         prop_value = PropValue.from_value_and_labels(value, labels)
         return prop_value
 
-    def add_replacement(self, codeloc, old, new):
+    def add_replacement(self, codeloc: CodeLocation, old, new):
         if self._only_consts:
             if self.is_const_or_register(new) or self.is_top(new):
                 pass
