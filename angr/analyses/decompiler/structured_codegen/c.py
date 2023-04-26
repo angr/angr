@@ -923,7 +923,7 @@ class CIfBreak(CStatement):
         else:
             yield " ", None
         yield "{", brace
-        yield "\n", self
+        yield "\n", None
         yield self.indent_str(indent=indent + INDENT_DELTA), self
         yield "break;\n", self
         yield indent_str, None
@@ -1172,7 +1172,7 @@ class CFunctionCall(CStatement, CExpression):
             yield ";", self
             if not self.returning:
                 yield " /* do not return */", self
-            yield "\n", self
+            yield "\n", None
 
 
 class CReturn(CStatement):
@@ -1238,7 +1238,7 @@ class CGoto(CStatement):
         yield ";", self
         if self.codegen.comment_gotos:
             yield " */", None
-        yield "\n", self
+        yield "\n", None
 
 
 class CUnsupportedStatement(CStatement):
