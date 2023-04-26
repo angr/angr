@@ -858,12 +858,12 @@ class CIfElse(CStatement):
             yield from condition.c_repr_chunks()
             yield ")", paren
             if self.codegen.braces_on_own_lines:
-                yield "\n", self
+                yield "\n", None
                 yield indent_str, None
             else:
                 yield " ", None
             yield "{", brace
-            yield "\n", self
+            yield "\n", None
             if node is not None:
                 yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
             yield indent_str, None
@@ -884,11 +884,11 @@ class CIfElse(CStatement):
             else:
                 yield " ", None
             yield "{", brace
-            yield "\n", self
+            yield "\n", None
             yield from self.else_node.c_repr_chunks(indent=indent + INDENT_DELTA)
             yield indent_str, None
             yield "}", brace
-        yield "\n", self
+        yield "\n", None
 
 
 class CIfBreak(CStatement):
@@ -923,12 +923,12 @@ class CIfBreak(CStatement):
         else:
             yield " ", None
         yield "{", brace
-        yield "\n", self
+        yield "\n", None
         yield self.indent_str(indent=indent + INDENT_DELTA), self
         yield "break;\n", self
         yield indent_str, None
         yield "}", brace
-        yield "\n", self
+        yield "\n", None
 
 
 class CBreak(CStatement):
@@ -998,7 +998,7 @@ class CSwitchCase(CStatement):
         else:
             yield " ", None
         yield "{", brace
-        yield "\n", self
+        yield "\n", None
 
         # cases
         for id_or_ids, case in self.cases:
@@ -1022,7 +1022,7 @@ class CSwitchCase(CStatement):
 
         yield indent_str, None
         yield "}", brace
-        yield "\n", self
+        yield "\n", None
 
 
 class CAssignment(CStatement):
@@ -1172,7 +1172,7 @@ class CFunctionCall(CStatement, CExpression):
             yield ";", self
             if not self.returning:
                 yield " /* do not return */", self
-            yield "\n", self
+            yield "\n", None
 
 
 class CReturn(CStatement):
@@ -1238,7 +1238,7 @@ class CGoto(CStatement):
         yield ";", self
         if self.codegen.comment_gotos:
             yield " */", None
-        yield "\n", self
+        yield "\n", None
 
 
 class CUnsupportedStatement(CStatement):
