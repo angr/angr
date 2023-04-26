@@ -938,7 +938,7 @@ class AILSimplifier(Analysis):
                 defsite_defs_per_atom = defaultdict(set)
                 for dd in defsite_all_expr_uses:
                     defsite_defs_per_atom[dd.atom].add(dd)
-                usesite_rdstate = rd.observed_results[("stmt", (u.block_addr, u.stmt_idx), 0)]
+                usesite_rdstate = rd.observed_results[("stmt", (u.block_addr, u.block_idx, u.stmt_idx), 0)]
                 usesite_expr_def_outdated = False
                 for defsite_expr_atom, defsite_expr_uses in defsite_defs_per_atom.items():
                     usesite_expr_uses = set(usesite_rdstate.get_definitions(defsite_expr_atom))
@@ -946,9 +946,21 @@ class AILSimplifier(Analysis):
                         # the atom is not defined at the use site - it's fine
                         continue
                     if usesite_expr_uses != defsite_expr_uses:
+                        # special case: ok if this atom is assigned to at the def site and has not been overwritten
+                        if len(usesite_expr_uses) == 1:
+                            usesite_expr_use = next(iter(usesite_expr_uses))
+                            if (
+                                usesite_expr_use.atom == defsite_expr_atom
+                                and usesite_expr_use.codeloc == the_def.codeloc
+                            ):
+                                continue
                         usesite_expr_def_outdated = True
                         break
                 if usesite_expr_def_outdated:
+                    continue
+
+                # check if there are any calls in between the def site and the use site
+                if self._count_calls_in_supernodeblocks(super_node_blocks, the_def.codeloc, u) > 0:
                     continue
 
                 # replace all uses
@@ -1204,6 +1216,27 @@ class AILSimplifier(Analysis):
             return True
 
         return False
+
+    @staticmethod
+    def _count_calls_in_supernodeblocks(blocks: List[Block], start: CodeLocation, end: CodeLocation) -> int:
+        """
+        Count the number of call statements in a list of blocks for a single super block between two given code
+        locations (exclusive).
+        """
+        calls = 0
+        started = False
+        for b in blocks:
+            if b.addr == start.block_addr:
+                started = True
+                continue
+            if b.addr == end.block_addr:
+                started = False
+                continue
+
+            if started:
+                if b.statements and isinstance(b.statements[-1], Call):
+                    calls += 1
+        return calls
 
 
 AnalysesHub.register_default("AILSimplifier", AILSimplifier)

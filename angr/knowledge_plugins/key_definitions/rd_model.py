@@ -15,7 +15,7 @@ class ReachingDefinitionsModel:
 
     def __init__(self, func_addr: Optional[int] = None):
         self.func_addr = func_addr  # do not use. only for pretty-printing
-        self.observed_results: Dict[Tuple[str, Union[int, Tuple[int, int]], int], LiveDefinitions] = {}
+        self.observed_results: Dict[Tuple[str, Union[int, Tuple[int, int, int]], int], LiveDefinitions] = {}
         self.all_definitions: Set["Definition"] = set()
         self.all_uses = Uses()
 

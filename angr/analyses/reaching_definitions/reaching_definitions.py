@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from .dep_graph import DepGraph
     from typing import Literal, Iterable
 
-    ObservationPoint = Tuple[Literal["insn", "node", "stmt"], Union[int, Tuple[int, int]], ObservationPointType]
+    ObservationPoint = Tuple[Literal["insn", "node", "stmt"], Union[int, Tuple[int, int, int]], ObservationPointType]
 
 l = logging.getLogger(name=__name__)
 
@@ -346,11 +346,12 @@ class ReachingDefinitionsAnalysis(
         key = None
         observe = False
 
+        block_idx = block.idx if isinstance(block, ailment.Block) else None
         if self._observe_all:
             observe = True
-            key: ObservationPoint = ("stmt", (block.addr, stmt_idx), op_type)
+            key: ObservationPoint = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
         elif self._observation_points is not None:
-            key: ObservationPoint = ("stmt", (block.addr, stmt_idx), op_type)
+            key: ObservationPoint = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
             if key in self._observation_points:
                 observe = True
         elif self._observe_callback is not None:
@@ -358,7 +359,7 @@ class ReachingDefinitionsAnalysis(
                 "stmt", stmt_idx=stmt_idx, stmt=stmt, block=block, state=state, op_type=op_type
             )
             if observe:
-                key: ObservationPoint = ("stmt", (block.addr, stmt_idx), op_type)
+                key: ObservationPoint = ("stmt", (block.addr, block_idx, stmt_idx), op_type)
 
         if not observe:
             return
