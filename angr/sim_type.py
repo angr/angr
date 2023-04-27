@@ -115,7 +115,7 @@ class SimType:
         if name is None:
             return repr(self)
         else:
-            return f"{str(self) if self.label is None else self.label} {name}"
+            return f"/* peed$ var_type_start */" +  f"{str(self) if self.label is None else self.label}" + f"/* peed$ var_type_end */" + f" {name}"
 
     def copy(self):
         raise NotImplementedError()
@@ -381,7 +381,7 @@ class SimTypeInt(SimTypeReg):
             out = "unsigned " + out
         if name is None:
             return out
-        return f"{out} {name}"
+        return f"/* peed$ var_type_start */" + f"{out}" + f"/* peed$ var_type_end */" + f" {name}"
 
     def __repr__(self):
         name = self._base_name

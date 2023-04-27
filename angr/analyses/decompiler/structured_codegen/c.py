@@ -419,7 +419,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                         type_pre = type_pre.rstrip(" ")
                     else:
                         type_pre_spaces = ""
+                    yield "/* peed$ var_type_start */", None
                     yield type_pre, var_type
+                    yield "/* peed$ var_type_end */", None
                     if type_pre_spaces:
                         yield type_pre_spaces, None
                     yield name, cvariable
@@ -503,7 +505,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield header_cmt, None
 
         # return type
-        yield self.functy.returnty.c_repr(name="").strip(" "), None
+        returnty = self.functy.returnty.c_repr(name="").strip(" ")
+        returnty = returnty.replace("var_type_", "func_type_")
+        yield returnty, None
         yield " ", None
         # function name
         if self.demangled_name:
@@ -535,7 +539,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             else:
                 type_pre_spaces = ""
 
+            yield "/* peed$ param_type_start */", None
             yield type_pre, arg_type
+            yield "/* peed$ param_type_end */", None
             if type_pre_spaces:
                 yield type_pre_spaces, None
             yield variable_name, arg
