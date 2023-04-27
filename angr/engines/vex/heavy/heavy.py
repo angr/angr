@@ -202,27 +202,31 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
                 # Modified by Hongwei
                 target_func_call_addr = exit_state.addr
-                target_func = self.project.kb.functions.get_by_addr(target_func_call_addr)
-                target_func_name = "Func_%s" % target_func.demangled_name
-                # print(hex(target_func.addr), target_func_name, target_func.prototype)
-                func_args = [target_func_name]
-                try:
-                    for arg in target_func.arguments:
-                        # print(arg.reg_name)
-                        arg_ast = getattr(exit_state.regs, arg.reg_name)
-                        func_args.append(arg_ast)
-                except:
-                    pass
+                call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
+
+                # Get function arguments from sypy_path plugin
+                # function_info: {func_call_addr: {'func_name': func_name, 'func_obj': func_obj}
+                assert target_func_call_addr in exit_state.sypy_path.function_info
+                target_func_name = exit_state.sypy_path.function_info[target_func_call_addr]['func_name']
+
+                # function_calls: {func_name: {call_insn_addr: [[arg1, arg2, ...], [arg1, arg2, ...], ...]}
+                # Same function call at the same address could have different list of arguments in mutiple paths,
+                # We take the last one
+                assert call_insn_addr in exit_state.sypy_path.function_calls[target_func_name]
+                target_func_args = exit_state.sypy_path.function_calls[target_func_name][call_insn_addr][-1]
+
+                # Add dummy argument when generating function AST
+                claripy_func_args = [target_func_name] + target_func_args
                 target_func_ast = claripy.ast.func.Func(op=target_func_name,
-                                                        args=func_args,
+                                                        args=claripy_func_args,
                                                         _ret_size=exit_state.arch.bits)
-                target_func_ast_result = target_func_ast.func_op(*func_args)
+                target_func_ast_result = target_func_ast.func_op(*claripy_func_args)
 
                 # Remove dummy argument
                 if len(target_func_ast_result.args) > 0 and target_func_name in str(target_func_ast_result.args[0]):
                     target_func_ast_result.args = target_func_ast_result.args[1:]
 
-                # print(target_func_ast_result)
+                print("HEAVY, func call: ", target_func_ast_result)
                 exit_state.registers.store(
                     exit_state.arch.ret_offset,
                     target_func_ast_result
