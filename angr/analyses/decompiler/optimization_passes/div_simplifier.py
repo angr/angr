@@ -288,7 +288,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         if matched:
             return new_expr
 
-        return super()._ail_handle_Add(expr)
+        return expr
 
     def _match_signed_division_add_operands(self, op0, op1):
         # From: Add((Conv(64->32, ((Load(addr=stack_base+4, size=4, endness=Iend_LE) Mulls 0x55555556<32>)
