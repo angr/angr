@@ -33,12 +33,35 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return new_expr
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
                 return expr.operands[0]
-        elif expr.op == "Sub" and isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
-            mask = (1 << expr.bits) - 1
-            new_expr = Const(
-                expr.idx, None, (expr.operands[0].value - expr.operands[1].value) & mask, expr.bits, **expr.tags
-            )
-            return new_expr
+            if isinstance(expr.operands[1], Const) and isinstance(expr.operands[0], BinaryOp) and isinstance(expr.operands[0].operands[1], Const):
+                left = expr.operands[0]
+                inner_expr, const_0 = left.operands
+                const_1 = expr.operands[1]
+                if left.op == "Add":
+                    return BinaryOp(left.idx, "Add", [inner_expr, Const(const_0.idx, None, const_0.value + const_1.value, const_0.bits)],
+                                    expr.signed, **expr.tags)
+                elif left.op == "Sub":
+                    return BinaryOp(left.idx, "Add",
+                                    [inner_expr, Const(const_0.idx, None, const_1.value - const_0.value, const_0.bits)],
+                                    expr.signed, **expr.tags)
+        elif expr.op == "Sub":
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                mask = (1 << expr.bits) - 1
+                new_expr = Const(
+                    expr.idx, None, (expr.operands[0].value - expr.operands[1].value) & mask, expr.bits, **expr.tags
+                )
+                return new_expr
+            if isinstance(expr.operands[1], Const) and isinstance(expr.operands[0], BinaryOp) and isinstance(expr.operands[0].operands[1], Const):
+                left = expr.operands[0]
+                inner_expr, const_0 = left.operands
+                const_1 = expr.operands[1]
+                if left.op == "Add":
+                    return BinaryOp(left.idx, "Sub", [inner_expr, Const(const_0.idx, None, const_1.value - const_0.value, const_0.bits)],
+                                    expr.signed, **expr.tags)
+                elif left.op == "Sub":
+                    return BinaryOp(left.idx, "Sub",
+                                    [inner_expr, Const(const_0.idx, None, const_0.value + const_1.value, const_0.bits)],
+                                    expr.signed, **expr.tags)
 
         elif expr.op == "And":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
