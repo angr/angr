@@ -123,7 +123,7 @@ class FunctionHandler:
 
         # PROCESS
         if data.name is not None and hasattr(self, f"handle_{data.name}"):
-            handler = getattr(self, f"handle_impl_{data.name}")
+            handler = getattr(self, f"handle_{data.name}")
         elif data.address is not None:
             if state.analysis.project.loader.main_object.contains_addr(data.address):
                 handler = self.handle_local_function
