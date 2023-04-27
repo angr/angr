@@ -7,6 +7,7 @@ from collections import defaultdict
 import claripy
 from claripy.annotation import Annotation
 import archinfo
+from archinfo.arch import Endness
 
 from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
@@ -569,11 +570,16 @@ class LiveDefinitions:
             return
         yield from LiveDefinitions.extract_defs_from_mv(values)
 
-    def get_stack_definitions(self, stack_offset: int, size: int, endness) -> Iterable[Definition]:
+    def get_stack_values(self, stack_offset: int, size: int, endness: Endness) -> Optional[MultiValues]:
         stack_addr = self.stack_offset_to_stack_addr(stack_offset)
         try:
-            mv: MultiValues = self.stack_definitions.load(stack_addr, size=size, endness=endness)
+            return self.stack_definitions.load(stack_addr, size=size, endness=endness)
         except SimMemoryMissingError:
+            return None
+
+    def get_stack_definitions(self, stack_offset: int, size: int, endness) -> Iterable[Definition]:
+        mv = self.get_stack_values(stack_offset, size, endness)
+        if not mv:
             return
         yield from LiveDefinitions.extract_defs_from_mv(mv)
 
@@ -597,7 +603,7 @@ class LiveDefinitions:
             result |= set(self.get_definitions(atom))
         return result
 
-    def get_value_from_definition(self, definition: Definition) -> MultiValues:
+    def get_value_from_definition(self, definition: Definition) -> Optional[MultiValues]:
         return self.get_value_from_atom(definition.atom)
 
     def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
