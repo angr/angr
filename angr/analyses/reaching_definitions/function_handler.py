@@ -28,6 +28,7 @@ class FunctionEffect:
     sources: Set[Atom]
     value: Optional[MultiValues] = None
     sources_defns: Optional[Set[Definition]] = None
+    apply_at_callsite: bool = False
 
 
 @dataclass
@@ -46,14 +47,14 @@ class FunctionCallData:
     visited_blocks: Optional[Set[int]] = None
     effects: Dict[Atom, FunctionEffect] = field(default_factory=lambda: {})
 
-    def depends(self, dest: Atom, *sources: Atom, value: Optional[MultiValues] = None):
+    def depends(self, dest: Atom, *sources: Atom, value: Optional[MultiValues] = None, apply_at_callsite: bool = False):
         if dest in self.effects:
             l.warning(
                 "Function handler for %s seems to be implemented incorrectly - "
                 "you're supposed to call depends() exactly once per dependant atom"
             )
         else:
-            self.effects[dest] = FunctionEffect(set(sources), value=value)
+            self.effects[dest] = FunctionEffect(set(sources), value=value, apply_at_callsite=apply_at_callsite)
 
 
 # pylint: disable=unused-argument, no-self-use
@@ -117,8 +118,13 @@ class FunctionHandler:
                 data.cc = hook.cc
             if data.prototype is None and hook is not None:
                 data.prototype = hook.prototype
+
+        # fallback to the default calling convention and prototype
         if data.cc is None:
             data.cc = state.analysis.project.factory.cc()  # sketchy
+        if data.prototype is None:
+            data.prototype = state.analysis.project.factory.function_prototype()
+
         if data.args_atoms is None and data.cc is not None and data.prototype is not None:
             data.args_atoms = self.c_args_as_atoms(state, data.cc, data.prototype)
         if data.ret_atoms is None and data.cc is not None and data.prototype is not None:
@@ -166,18 +172,24 @@ class FunctionHandler:
             if effect.sources_defns is None:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
+        callee_codeloc = CodeLocation(
+            data.address,
+            stmt_idx=None,
+            context=(data.callsite.block_addr,),
+        )
+        caller_codeloc = CodeLocation(
+            data.callsite.block_addr,
+            stmt_idx=data.callsite.stmt_idx,
+            ins_addr=data.callsite.ins_addr,
+            block_idx=data.callsite.block_idx,
+            context=None,
+        )
         for dest, effect in data.effects.items():
             # TODO how to generate the codelocation for an unknown address?
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             mv, defs = state.kill_and_add_definition(
                 dest,
-                CodeLocation(
-                    data.callsite.block_addr,
-                    data.callsite.stmt_idx,
-                    ins_addr=data.callsite.ins_addr,
-                    block_idx=data.callsite.block_idx,
-                    context=None,
-                ),
+                caller_codeloc if effect.apply_at_callsite else callee_codeloc,
                 value,
                 uses=effect.sources_defns,
             )
@@ -204,7 +216,7 @@ class FunctionHandler:
             return
         sources = {atom for arg in data.args_atoms for atom in arg}
         for atom in data.ret_atoms:
-            data.depends(atom, *sources)
+            data.depends(atom, *sources, apply_at_callsite=True)
 
     handle_indirect_function = handle_generic_function
     handle_local_function = handle_generic_function
@@ -218,14 +230,18 @@ class FunctionHandler:
         ]
 
     @staticmethod
-    def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> Set[Atom]:
+    def c_return_as_atoms(
+        state: "ReachingDefinitionsState", cc: SimCC, prototype: Optional[SimTypeFunction]
+    ) -> Set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
-            return {
-                Atom.from_argument(footprint_arg, state.arch, full_reg=True)
-                for footprint_arg in cc.return_val(prototype.returnty).get_footprint()
-            }
-        else:
-            return set()
+            d = set()
+            retval = cc.return_val(prototype.returnty)
+            if retval is not None:
+                return {
+                    Atom.from_argument(footprint_arg, state.arch, full_reg=True)
+                    for footprint_arg in retval.get_footprint()
+                }
+        return set()
 
     @staticmethod
     def caller_saved_regs_as_atoms(state: "ReachingDefinitionsState", cc: SimCC) -> Set[Register]:

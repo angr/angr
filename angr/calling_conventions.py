@@ -1156,9 +1156,9 @@ class SimLyingRegArg(SimRegArg):
 
 
 class SimCCUsercall(SimCC):
-    def __init__(self, arch, arg_locs, ret_loc):
+    def __init__(self, arch, args, ret_loc):
         super().__init__(arch)
-        self.arg_locs = arg_locs
+        self.args = args
         self.ret_loc = ret_loc
 
     ArgSession = UsercallArgSession
