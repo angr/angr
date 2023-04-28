@@ -167,7 +167,13 @@ class FunctionHandler:
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             mv, defs = state.kill_and_add_definition(
                 dest,
-                CodeLocation(data.callsite.ins_addr, None),
+                CodeLocation(
+                    data.callsite.block_addr,
+                    data.callsite.stmt_idx,
+                    ins_addr=data.callsite.ins_addr,
+                    block_idx=data.callsite.block_idx,
+                    context=None,
+                ),
                 value,
                 uses=effect.sources_defns,
             )
