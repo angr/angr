@@ -1,9 +1,140 @@
-from typing import Set, Optional
+from typing import Set, Optional, Literal, Union
+from dataclasses import dataclass
+import logging
+
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.sim_variable import SimTemporaryVariable
+from angr.sim_variable import SimMemoryVariable
+from angr.sim_variable import SimStackVariable
+from angr.sim_variable import SimRegisterVariable
+from angr.misc.ux import once
 
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
 from .atoms import Atom, MemoryLocation, Register, Tmp, GuardUse, ConstantSrc, AtomKind
 from .tag import Tag
+from ...sim_variable import SimVariable
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class DefinitionMatchPredicate:
+    kind: Optional[AtomKind] = (None,)
+    bbl_addr: Optional[int] = (None,)
+    ins_addr: Optional[int] = (None,)
+    variable: Optional[SimVariable] = (None,)
+    variable_manager: Union[VariableManagerInternal, None, Literal[False]] = (None,)
+    stack_offset: Optional[int] = (None,)
+    reg_name: Optional[Union[str, int]] = (None,)
+    heap_offset: Optional[int] = (None,)
+    global_addr: Optional[int] = (None,)
+    tmp_idx: Optional[int] = (None,)
+    const_val: Optional[int] = (None,)
+
+    @staticmethod
+    def construct(self, predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
+        if predicate is None:
+            predicate = DefinitionMatchPredicate(**kwargs)
+            predicate.normalize()
+        return predicate
+
+    def normalize(self):
+        if self.variable is not None:
+            if isinstance(self.variable, SimRegisterVariable):
+                self.reg_name = self.variable.reg
+            elif isinstance(self.variable, SimStackVariable):
+                if self.variable.base != "bp":
+                    log.warning("Cannot match against variables with %s base (need bp)", self.variable.base)
+                else:
+                    self.stack_offset = self.variable.offset
+            elif isinstance(self.variable, SimMemoryVariable):
+                # TODO region
+                if isinstance(self.variable.addr, int):
+                    self.global_addr = self.variable.addr
+                else:
+                    log.warning(
+                        "Cannot match against memory variable with %s addr (need int)",
+                        type(self.variable.addr).__name__,
+                    )
+            elif isinstance(self.variable, SimTemporaryVariable):
+                self.tmp_idx = self.variable.tmp_id
+            else:
+                log.warning(
+                    "Cannot match against definition to %s (need reg, stack, mem, or tmp)", type(self.variable).__name__
+                )
+
+        if self.reg_name is not None:
+            self.kind = AtomKind.REGISTER
+        elif self.stack_offset is not None or self.heap_offset is not None or self.global_addr is not None:
+            self.kind = AtomKind.MEMORY
+        elif self.const_val is not None:
+            self.kind = AtomKind.CONST
+        elif self.tmp_idx is not None:
+            self.kind = AtomKind.TMP
+
+    def matches(self, defn: "Definition") -> bool:
+        if self.variable is not None:
+            if self.variable_manager is False:
+                pass
+            elif self.variable_manager is not None:
+                if not self.variable_manager.is_variable_used_at(
+                    self.variable, (defn.codeloc.bbl_addr, defn.codeloc.stmt_idx)
+                ):
+                    return False
+            elif once("definition_matches_no_variable_manager"):
+                log.warning(
+                    "Cannot match definitions to variables on the basis of locations without a variable manager."
+                )
+                log.warning("Pass variable_manager=False to acknowledge this explicitly.")
+        if self.bbl_addr is not None and defn.codeloc.block_addr != self.bbl_addr:
+            return False
+        if self.ins_addr is not None and defn.codeloc.ins_addr != self.ins_addr:
+            return False
+
+        if isinstance(defn.atom, Register):
+            if self.kind not in (None, AtomKind.REGISTER):
+                return False
+            if self.reg_name is not None:
+                if isinstance(self.reg_name, int):
+                    if not (defn.atom.reg_offset <= self.reg_name < defn.atom.reg_offset + defn.atom.size):
+                        return False
+                elif isinstance(self.reg_name, str):
+                    if defn.atom.arch is not None:
+                        if self.reg_name != defn.atom.name:
+                            return False
+                        else:
+                            log.warning(
+                                "Attempting to match by register name against a definition which does not have an arch"
+                            )
+                            return False
+                else:
+                    raise TypeError(self.reg_name)
+        elif isinstance(defn.atom, MemoryLocation):
+            if self.kind not in (None, AtomKind.MEMORY):
+                return False
+            if self.stack_offset is not None:
+                if (
+                    not isinstance(defn.atom.addr, SpOffset)
+                    or defn.atom.addr.base != TODO
+                    or defn.atom.addr.offset != self.stack_offset
+                ):
+                    return False
+        elif isinstance(defn.atom, Tmp):
+            if self.kind not in (None, AtomKind.TMP):
+                return False
+            if self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
+                return False
+        elif isinstance(defn.atom, GuardUse):
+            if self.kind not in (None, AtomKind.GUARD):
+                return False
+        elif isinstance(defn.atom, ConstantSrc):
+            if self.kind not in (None, AtomKind.CONSTANT):
+                return False
+        else:
+            raise TypeError(type(defn))
+
+        return True
 
 
 class Definition:
@@ -54,6 +185,9 @@ class Definition:
             self._hash = hash((self.atom, self.codeloc))
         return self._hash
 
+    def __getstate__(self):
+        return (self.atom, self.codeloc)
+
     @property
     def offset(self) -> int:
         if isinstance(self.atom, Register):
@@ -75,35 +209,9 @@ class Definition:
         else:
             raise ValueError("Unsupported operation size on %s." % type(self.atom))
 
-    def matches(self, kind: Optional[AtomKind] = None, bbl_addr=None, ins_addr=None) -> bool:
+    def matches(self, **kwargs) -> bool:
         """
         Return whether this definition has certain characteristics.
 
-        :param kind:        Specifies the kind of atom that must match. One of the strings "reg", "mem", "tmp",
-                            "guard", "const", or None.
-        :param bbl_addr:    The codeloc must be from this basic block
-        :param ins_addr:    The codeloc must be from this instruction
         """
-        if kind is not None:
-            if kind == AtomKind.REGISTER:
-                if not isinstance(self.atom, Register):
-                    return False
-            elif kind == AtomKind.MEMORY:
-                if not isinstance(self.atom, MemoryLocation):
-                    return False
-            elif kind == AtomKind.TMP:
-                if not isinstance(self.atom, Tmp):
-                    return False
-            elif kind == AtomKind.GUARD:
-                if not isinstance(self.atom, GuardUse):
-                    return False
-            elif kind == AtomKind.CONSTANT:
-                if not isinstance(self.atom, ConstantSrc):
-                    return False
-            else:
-                raise TypeError(f"Expeted AtomKind or None, got {type(kind).__name__}")
-        if bbl_addr is not None and self.codeloc.block_addr != bbl_addr:
-            return False
-        if ins_addr is not None and self.codeloc.ins_addr != ins_addr:
-            return False
-        return True
+        return DefinitionMatchPredicate.construct(**kwargs).matches(self)

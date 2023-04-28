@@ -9,7 +9,7 @@ from cle.loader import Loader
 
 from ...code_location import CodeLocation
 from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
-from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.definition import Definition, DefinitionMatchPredicate
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.cfg import CFGModel
 from .external_codeloc import ExternalCodeLocation
@@ -204,20 +204,22 @@ class DepGraph:
     def find_definitions(self, **kwargs) -> List[Definition]:
         """
         Filter the definitions present in the graph based on various criteria.
-        Parameters can be any valid keyword args to `Definition.matches`
+        Parameters can be any valid keyword args to `DefinitionMatchPredicate`
         """
+        predicate = DefinitionMatchPredicate.construct(**kwargs)
         result = []
         defn: Definition
         for defn in self.nodes():
-            if defn.matches(**kwargs):
+            if predicate.matches(defn):
                 result.append(defn)
         return result
 
     def find_all_predecessors(self, starts: Union[Definition, Iterable[Definition]], **kwargs) -> List[Definition]:
         """
         Filter the ancestors of the given start node or nodes that match various criteria.
-        Parameters can be any valid keyword args to `Definition.matches`
+        Parameters can be any valid keyword args to `DefinitionMatchPredicate`
         """
+        predicate = DefinitionMatchPredicate.construct(**kwargs)
         result = []
         queue = [starts] if isinstance(starts, Definition) else list(starts)
         seen = set(queue)
@@ -228,15 +230,16 @@ class DepGraph:
                     continue
                 queue.append(pred)
                 seen.add(pred)
-                if pred.matches(**kwargs):
+                if predicate.matches(pred):
                     result.append(pred)
         return result
 
     def find_all_successors(self, starts: Union[Definition, Iterable[Definition]], **kwargs) -> List[Definition]:
         """
         Filter the descendents of the given start node or nodes that match various criteria.
-        Parameters can be any valid keyword args to `Definition.matches`
+        Parameters can be any valid keyword args to `DefinitionMatchPredicate`
         """
+        predicate = DefinitionMatchPredicate.construct(**kwargs)
         result = []
         queue = [starts] if isinstance(starts, Definition) else list(starts)
         seen = set(queue)
@@ -247,7 +250,7 @@ class DepGraph:
                     continue
                 queue.append(pred)
                 seen.add(pred)
-                if pred.matches(**kwargs):
+                if predicate.matches(pred):
                     result.append(pred)
         return result
 
@@ -257,11 +260,12 @@ class DepGraph:
         """
         Find a path between the given start node or nodes and the given end node or nodes.
         All the intermeidate steps in the path must match the criteria given in kwargs.
-        The kwargs can be any valid parameters to `Definition.matches`.
+        The kwargs can be any valid parameters to `DefinitionMatchPredicate`.
 
         This algorithm has exponential time and space complexity. Use at your own risk.
         Want to do better? Do it yourself or use networkx and eat the cost of indirection and/or cloning.
         """
+        predicate = DefinitionMatchPredicate.construct(**kwargs)
         ends = {ends} if isinstance(ends, Definition) else set(ends)
         queue = [(starts,)] if isinstance(starts, Definition) else [(start,) for start in starts]
         seen = set(queue)
@@ -274,6 +278,6 @@ class DepGraph:
                 newpath = path + (succ,)
                 if succ in ends:
                     return newpath
-                if succ.matches(**kwargs):
+                if predicate.matches(succ):
                     queue.append(newpath)
         return None

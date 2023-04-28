@@ -65,7 +65,9 @@ def _defaultdict_set():
 
 class VariableManagerInternal(Serializable):
     """
-    Manage variables for a function. It is meant to be used internally by VariableManager.
+    Manage variables for a function. It is meant to be used internally by VariableManager, but it's common to be
+    given a reference to one in response to a query for "the variables for a given function". Maybe a better name
+    would be "VariableManagerScope".
     """
 
     def __init__(self, manager, func_addr=None):
@@ -84,6 +86,7 @@ class VariableManagerInternal(Serializable):
         self._stmt_to_variable: Dict[
             Union[Tuple[int, int], Tuple[int, int, int]], Set[Tuple[SimVariable, int]]
         ] = defaultdict(set)
+        self._variable_to_stmt: Dict[SimVariable, Set[Union[Tuple[int, int], Tuple[int, int, int]]]] = defaultdict(set)
         self._atom_to_variable: Dict[
             Union[Tuple[int, int], Tuple[int, int, int]], Dict[int, Set[Tuple[SimVariable, int]]]
         ] = defaultdict(_defaultdict_set)
@@ -258,6 +261,7 @@ class VariableManagerInternal(Serializable):
                 )
             )
             model._stmt_to_variable[loc].add(tpl)
+            model._variable_to_stmt[variable].add(loc)
             if variable_access.atom_hash is not None:
                 model._atom_to_variable[loc][variable_access.atom_hash].add(tpl)
 
@@ -413,12 +417,14 @@ class VariableManagerInternal(Serializable):
             self._variable_accesses[variable] = {VariableAccess(variable, sort, location, offset, atom_hash=atom_hash)}
             self._insn_to_variable[location.ins_addr] = {var_and_offset}
             self._stmt_to_variable[key] = {var_and_offset}
+            self._variable_to_stmt[variable].add(key)
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash] = {var_and_offset}
         else:
             self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
             self._insn_to_variable[location.ins_addr].add(var_and_offset)
             self._stmt_to_variable[key].add(var_and_offset)
+            self._variable_to_stmt[variable].add(key)
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash].add(var_and_offset)
 
@@ -501,6 +507,9 @@ class VariableManagerInternal(Serializable):
             return []
 
         return vars_and_offset
+
+    def is_variable_used_at(self, variable: SimVariable, loc: Tuple[int, int]) -> bool:
+        return loc in self._variable_to_stmt[variable]
 
     def find_variable_by_stmt(self, block_addr, stmt_idx, sort, block_idx: Optional[int] = None):
         return next(iter(self.find_variables_by_stmt(block_addr, stmt_idx, sort, block_idx=block_idx)), None)

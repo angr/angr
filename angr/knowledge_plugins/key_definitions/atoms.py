@@ -59,6 +59,7 @@ class Atom:
             else:
                 return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size, arch)
         elif isinstance(argument, SimStackArg):
+            # XXX why are we adding a stack offset to a register offset. wtf
             return MemoryLocation(arch.registers["sp"][0] + argument.stack_offset, argument.size)
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
@@ -70,6 +71,9 @@ class Atom:
         if self._hash is None:
             self._hash = self._core_hash()
         return self._hash
+
+    def __getstate__(self):
+        raise NotImplementedError()
 
 
 class GuardUse(Atom):
@@ -93,7 +97,10 @@ class GuardUse(Atom):
     __hash__ = Atom.__hash__
 
     def _core_hash(self):
-        return hash((GuardUse, self.target))
+        return hash(self.__getstate__())
+
+    def __getstate__(self):
+        return (GuardUse, self.target)
 
 
 class ConstantSrc(Atom):
@@ -117,7 +124,10 @@ class ConstantSrc(Atom):
     __hash__ = Atom.__hash__
 
     def _core_hash(self):
-        return hash((self.value, self.size))
+        return hash(self.__getstate__())
+
+    def __getstate__(self):
+        return (self.value, self.size)
 
     @property
     def size(self):
@@ -149,6 +159,9 @@ class Tmp(Atom):
 
     def _core_hash(self):
         return hash(("tmp", self.tmp_idx))
+
+    def __getstate__(self):
+        return (self.tmp_idx,)
 
     @property
     def size(self) -> int:
@@ -190,6 +203,9 @@ class Register(Atom):
 
     def _core_hash(self):
         return hash(("reg", self.reg_offset, self.size))
+
+    def __getstate__(self):
+        return (self.reg_offset, self.size)
 
     @property
     def size(self) -> int:
@@ -275,3 +291,6 @@ class MemoryLocation(Atom):
 
     def _core_hash(self):
         return hash(("mem", self.addr, self.size, self.endness))
+
+    def __getstate__(self):
+        return (self.addr, self.size, self.endness)
