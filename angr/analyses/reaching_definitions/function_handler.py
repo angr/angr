@@ -48,7 +48,10 @@ class FunctionCallData:
 
     def depends(self, dest: Atom, *sources: Atom, value: Optional[MultiValues] = None):
         if dest in self.effects:
-            l.warning("Function handler for %s seems to be implemented incorrectly - multiple stores to single atom")
+            l.warning(
+                "Function handler for %s seems to be implemented incorrectly - "
+                "you're supposed to call depends() exactly once per dependant atom"
+            )
         else:
             self.effects[dest] = FunctionEffect(set(sources), value=value)
 
@@ -122,8 +125,8 @@ class FunctionHandler:
         # TODO what to do about args.values...
 
         # PROCESS
-        if data.name is not None and hasattr(self, f"handle_{data.name}"):
-            handler = getattr(self, f"handle_{data.name}")
+        if data.name is not None and hasattr(self, f"handle_impl_{data.name}"):
+            handler = getattr(self, f"handle_impl_{data.name}")
         elif data.address is not None:
             if state.analysis.project.loader.main_object.contains_addr(data.address):
                 handler = self.handle_local_function
