@@ -124,7 +124,7 @@ class ReachingDefinitionsAnalysis(
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
         elif dep_graph is True:
-            self._dep_graph = DepGraph(self.project)
+            self._dep_graph = DepGraph()
         else:
             self._dep_graph = dep_graph
 

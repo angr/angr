@@ -39,7 +39,7 @@ class DepGraph:
     Mostly a wrapper around a <networkx.DiGraph>.
     """
 
-    def __init__(self, project: "Project", graph: Optional[networkx.DiGraph] = None):
+    def __init__(self, graph: Optional[networkx.DiGraph] = None):
         """
         :param graph: A graph where nodes are definitions, and edges represent uses.
         """
@@ -50,7 +50,6 @@ class DepGraph:
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
         self._graph: networkx.DiGraph = graph if graph is not None else networkx.DiGraph()
-        self._project = project
 
     @property
     def graph(self) -> networkx.DiGraph:
