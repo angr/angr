@@ -325,39 +325,40 @@ def remove_breakpoints(state):
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vsp_reg, prev_unroll_vm_addrs=None, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_state=None, remove_insts=None, constant_prop_func_replacements=None,semantic_verf_hooks=None):
+    def __init__(self, vsp_reg, prev_unroll_vm_addrs=None, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_state=None, remove_insts=None, constant_prop_func_replacements=None,semantic_verf_hooks=None,decomp_start_end_node_str=None):
 
-    #     # This is the address of the node where the virtual machine implementation starts
-    #     self.vm_start_addr = vm_start_addr
-    #     self.vsp_reg = vsp_reg
-    #     self.start_addr = start_addr
-    #     self.verification_state = verification_state
-    #     self.constant_prop_func_replacements = constant_prop_func_replacements
-    #
-    #
-    #     if self.project.arch.bits == 32:
-    #         start_state.registers.store(start_state.arch.registers['ss'][0], 0)
-    #
-    #     start_state_copy_without_bps = start_state.copy()
-    #
-    #
-    #     # unroll the loops for the previous VM's
-    #     start_state.globals['vm_vip_regs'] = {}
-    #     start_state.globals['vm_end_addrs'] = {}
-    #     start_state.globals['cur_rm_bps'] = []
-    #     start_state.globals['call_stack_context_sensitivity_on'] = True
-    #
-    #     # add breakpoints to activate and remove bps for each vm region
-    #     for vm_tuple in prev_unroll_vm_addrs:
-    #         vm_start_addr = vm_tuple[0]
-    #         vm_end_addrs = vm_tuple[1]
-    #         cur_vip_reg = vm_tuple[2]
-    #         start_state.globals['vm_vip_regs'][vm_start_addr] = cur_vip_reg
-    #         start_state.globals['vm_end_addrs'][vm_start_addr] = vm_end_addrs
-    #         start_state.inspect.add_breakpoint('instruction',
-    #                                            BP(BP_BEFORE, instruction=vm_start_addr, action=activate_save_vm_vpc))
-    #
-    #
+        # This is the address of the node where the virtual machine implementation starts
+        self.vm_start_addr = vm_start_addr
+        self.vsp_reg = vsp_reg
+        self.start_addr = start_addr
+        self.verification_state = verification_state
+        self.constant_prop_func_replacements = constant_prop_func_replacements
+
+
+        if self.project.arch.bits == 32:
+            start_state.registers.store(start_state.arch.registers['ss'][0], 0)
+
+        start_state_copy_without_bps = start_state.copy()
+
+
+        # unroll the loops for the previous VM's
+        start_state.globals['vm_vip_regs'] = {}
+        start_state.globals['vm_end_addrs'] = {}
+        start_state.globals['cur_rm_bps'] = []
+        start_state.globals['call_stack_context_sensitivity_on'] = True
+
+        # add breakpoints to activate and remove bps for each vm region
+        for vm_tuple in prev_unroll_vm_addrs:
+            vm_start_addr = vm_tuple[0]
+            vm_end_addrs = vm_tuple[1]
+            cur_vip_reg = vm_tuple[2]
+            start_state.globals['vm_vip_regs'][vm_start_addr] = cur_vip_reg
+            start_state.globals['vm_end_addrs'][vm_start_addr] = vm_end_addrs
+            start_state.inspect.add_breakpoint('instruction',
+                                               BP(BP_BEFORE, instruction=vm_start_addr, action=activate_save_vm_vpc))
+
+        proj=self.project
+        folder_name = os.path.dirname(self.project.filename)
     #     start_state_copy = start_state.copy()
     #     cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
     #     self.project.kb.cfgs.cfgs = {}
@@ -366,7 +367,7 @@ class VMDeobfuscation(Analysis):
     #         node.input_state = None
     #         node.final_states = None
     #
-    #     folder_name = os.path.dirname(self.project.filename)
+    #
     #     #self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
     #
     #     # removing path terminators, cause...............they causing problems
@@ -532,102 +533,103 @@ class VMDeobfuscation(Analysis):
     #     # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
     #     new_cfg = self.remove_useless_jump_instructions(new_cfg, proj, start_addr, None, initial_cfg)
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "remove_useless_jump.svg"))
-    #
-    #     for i in range(4):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join("dae_"+str(i)+"_result.svg"))
-    #
-    #         new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
-    #             # commented this for test_vmp to show the add eax,1 result
-    #
-    #         new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
-    #
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-    #
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
-    #
-    #     #### These need to be after join basic blocks becasue of the way RDA considers a libc func call as internal instead of external
-    #     for i in range(4):
-    #         global to_break
-    #         to_break = True
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-    #
-    #     for i in range(4):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join("dae_"+str(i)+"_result.svg"))
-    #
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-    #
-    #     new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-    #
-    #     # verification_state_copy = verification_state.copy()
-    #     # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy,
-    #     #                                    start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
-    #     # import ipdb;ipdb.set_trace()
-    #
-    #     for i in range(2):
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-    #     for i in range(2):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join("dae_"+str(i)+"_result.svg"))
-    #
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
-    #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
-    #
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-    #
-    #     for i in range(8):
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-    #
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join("dae_cake_"+str(i)+"_result.svg"))
-    #
-    #         new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
-    #
-    #         new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
-    #
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-    #
-    #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
-    #
-    #     for i in range(3):
-    #         new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
-    #
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-    #
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join("dae_"+str(i)+"_result.svg"))
 
-        if self.project.filename == "/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/loop_test.vmp.exe":
-            import pickle
-            # with open("/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/pickled_final_cfg",
-            #           'wb') as final_cfg_pickle:
-            #     pickle.dump(new_cfg, final_cfg_pickle)
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/mid_way_cfg"
+        # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
+        # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
+        #
+        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
+        #     new_cfg = pickle.load(mid_way_cfg_pickle)
 
-            #if self.project.filename == "/home/ashwin/projects/loop_exe_test":
-            if self.project.filename == "/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/loop_test.vmp.exe":
-                import pickle
-                # with open("/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/pickled_final_cfg",
-                #           'wb') as final_cfg_pickle:
-                #     pickle.dump(new_cfg, final_cfg_pickle)
 
-                with open("/media/sf_PhD/simple_vm_set/vmprotect_test/loop_exe_test/loop_test/x64/Debug/pickled_final_cfg",
-                          "rb") as final_cfg_pickle:
-                    new_cfg = pickle.load(final_cfg_pickle)
+        # for i in range(4):
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+        #
+        #     new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
+        #         # commented this for test_vmp to show the add eax,1 result
+        #
+        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+        #
+        # #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        #
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
+        #
+        # #### These need to be after join basic blocks becasue of the way RDA considers a libc func call as internal instead of external
+        # for i in range(4):
+        #     global to_break
+        #     to_break = True
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        #
+        # for i in range(4):
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+        #
+        # #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        #
+        # new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
+        # #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        #
+        # # verification_state_copy = verification_state.copy()
+        # # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy,
+        # #                                    start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
+        # # import ipdb;ipdb.set_trace()
+        #
+        # for i in range(2):
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        # for i in range(2):
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+        #
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
+        # new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
+        #
+        # #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        #
+        # for i in range(8):
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        #
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
+        #
+        #     new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+        #
+        #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
+        #
+        # #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        #
+        # new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
+        #
+        # for i in range(3):
+        #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
+        #
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        #
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
 
-                self.try_decompilation(new_cfg)
+        import pickle
+        pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
+        # with open(pickled_file_name,'wb') as final_cfg_pickle:
+        #     pickle.dump(new_cfg, final_cfg_pickle)
+        #
+        with open(pickled_file_name, "rb") as final_cfg_pickle:
+            new_cfg = pickle.load(final_cfg_pickle)
+
+        self.try_decompilation(new_cfg, decomp_start_end_node_str)
+
 
         verification_state_copy = verification_state.copy()
         self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
@@ -636,24 +638,28 @@ class VMDeobfuscation(Analysis):
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
-    def try_decompilation(self, new_cfg):
+    def try_decompilation(self, new_cfg, decomp_start_end_node_str):
         visited_nodes = {}
-        VM_1_func = Function(self.project.kb.functions, 0x1400b921b, 'VM_1', None, is_simprocedure=False)
 
-        traversal_start_node = "<CFGENode 0x140012030 (NoneNone0x0 0x0 None0x140012030 )vm-vpc:None [3]>"
-        end_points = ["<CFGENode 0x14012405a (0x0 0x0 None0x140012030 0x14012404f 0x1400118a0 )vm-vpc:5368834930 [10]>"]
+        traversal_start_node = decomp_start_end_node_str[0][0]
+        end_points = decomp_start_end_node_str[1][0]
         end_node_block_ids = []
         node_stack = []
+        start_node= None
         for cur_node in new_cfg.nodes():
             if str(cur_node) == traversal_start_node:
                 node_stack.append(cur_node)
-                VM_1_func.startpoint = cur_node
+                start_node = cur_node
             elif str(cur_node) in end_points:
                 end_node_block_ids.append(cur_node.block_id)
+        VM_1_func = Function(self.project.kb.functions, self.convert_addr_to_int(start_node.addr, start_node.block_id), 'VM_1', None, is_simprocedure=False)
+        VM_1_func.startpoint = start_node
 
         decomp_model = self.project.kb.cfgs.new_model("decomp_graph")
         decomp_model.graph = networkx.DiGraph()
         new_block_id_embed_dict = {}
+
+        ## Populate nodes in the VM_1 func
         while len(node_stack) > 0:
             cur_node = node_stack.pop(0)
             if cur_node.block_id in end_node_block_ids or cur_node.block_id in visited_nodes:
@@ -686,7 +692,7 @@ class VMDeobfuscation(Analysis):
                 VM_1_func._transit_to(new_cur_node, new_succ)
 
         VM_1_func.normalized = True
-        dec = self.project.analyses.Decompiler(VM_1_func, )
+        dec = self.project.analyses.Decompiler(VM_1_func)
         print("Decompilation result:")
         print(dec.codegen.text)
         import ipdb;
@@ -703,43 +709,49 @@ class VMDeobfuscation(Analysis):
             return old_node
 
         successors = list(old_graph.graph.successors(old_node))
-        if old_node.irsb.jumpkind == "Ijk_Call":
-            if len(successors) > 1:
-                import ipdb;ipdb.set_trace()
-            elif len(successors)==1 and not successors[0].is_simprocedure:
+        if len(successors) != 0:
+            if old_node.irsb.jumpkind == "Ijk_Call":
+                if len(successors) > 1:
+                    import ipdb;ipdb.set_trace()
+                elif len(successors)==1 and not successors[0].is_simprocedure:
+                    new_jumpkind = "Ijk_Boring"
+
+
+            if old_node.irsb.jumpkind == "Ijk_Ret" and successors[0].is_simprocedure:
                 new_jumpkind = "Ijk_Boring"
 
 
-        if old_node.irsb.jumpkind == "Ijk_Ret" and successors[0].is_simprocedure:
-            new_jumpkind = "Ijk_Boring"
+            # replace indirect jumps that are acutally a branch, by adding exit statement
+            if len(successors) == 2 and not isinstance(old_node.irsb.statements[-1], pyvex.stmt.Exit):
+                new_jumpkind = "Ijk_Boring"
+
+                largest_tmp_no=0
+                for stmt in old_node.irsb.statements:
+                    if isinstance(stmt, pyvex.stmt.WrTmp) and stmt.tmp > largest_tmp_no:
+                        largest_tmp_no = stmt.tmp
+
+                cmp_tmp_no = largest_tmp_no +1
+                true_addr_int = self.convert_addr_to_int(successors[0].addr, successors[0].block_id)
+                true_addr = pyvex.expr.Const(U64(true_addr_int))
+                false_addr_int = self.convert_addr_to_int(successors[1].addr, successors[1].block_id)
+                jmp_tmp_no = old_node.irsb.next.tmp
+                cmp_stmt = pyvex.stmt.WrTmp(cmp_tmp_no, pyvex.expr.Binop("Iop_CmpEQ64", [true_addr, pyvex.expr.RdTmp(jmp_tmp_no)]))
+                exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
+                                U64(true_addr_int),
+                                "Ijk_Boring",
+                                self.project.arch.registers['ip'][0])
+
+                new_statements = new_statements + [cmp_stmt, exit_stmt]
+                new_next = pyvex.expr.Const(U64(false_addr_int))
+                old_node.irsb.tyenv.types.append('Ity_I1')
 
 
-        # replace indirect jumps that are acutally a branch, by adding exit statement
-        if len(successors) == 2:
-            new_jumpkind = "Ijk_Boring"
-
-            largest_tmp_no=0
-            for stmt in old_node.irsb.statements:
-                if isinstance(stmt, pyvex.stmt.WrTmp) and stmt.tmp > largest_tmp_no:
-                    largest_tmp_no = stmt.tmp
-
-            cmp_tmp_no = largest_tmp_no +1
-            true_addr_int = self.convert_addr_to_int(successors[0].block_id)
-            true_addr = pyvex.expr.Const(U64(true_addr_int))
-            false_addr_int = self.convert_addr_to_int(successors[1].block_id)
-            jmp_tmp_no = old_node.irsb.next.tmp
-            cmp_stmt = pyvex.stmt.WrTmp(cmp_tmp_no, pyvex.expr.Binop("Iop_CmpEQ64", [true_addr, pyvex.expr.RdTmp(jmp_tmp_no)]))
-            exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
-                            U64(true_addr_int),
-                            "Ijk_Boring",
-                            self.project.arch.registers['ip'][0])
-
-            new_statements = new_statements + [cmp_stmt, exit_stmt]
-            new_next = pyvex.expr.Const(U64(false_addr_int))
-            old_node.irsb.tyenv.types.append('Ity_I1')
+        # for stmt_idx, stmt in enumerate(new_statements):
+        #     if isinstance(stmt, pyvex.stmt.IMark):
+        #         stmt.addr = self.convert_addr_to_int(stmt.addr, old_node.block_id)
 
 
-        block_id_int = self.convert_addr_to_int(old_node.block_id)
+        block_id_int = self.convert_addr_to_int(old_node.addr, old_node.block_id)
         new_addr = block_id_int#<<36 + old_node.addr
         # for stmt in old_node.irsb.statements:
         #     if type(stmt) is pyvex.IRStmt.IMark:
@@ -769,8 +781,8 @@ class VMDeobfuscation(Analysis):
         new_block_id_embed_dict[old_node.block_id] = new_cur_node
         return new_cur_node
 
-    def convert_addr_to_int(self, block_id):
-        return int.from_bytes(bytes(str(block_id.vm_vpc)+str(block_id.addr), 'utf-8'), "big")
+    def convert_addr_to_int(self, addr, block_id):
+        return int.from_bytes(bytes(str(block_id.vm_vpc)+str(addr), 'utf-8'), "big")
     def symbolizer(self, cfg, proj, start_addr, q, start_state=None, options=None,
                              prev_symbolic_expr_locations_blockwise=None, vm_vpc=None,
                              return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None, do_replacements=False):
@@ -2108,8 +2120,25 @@ class VMDeobfuscation(Analysis):
                 elif isinstance(stmt, pyvex.stmt.Exit) and type(stmt.guard) == pyvex.expr.Const:
                     # Removing conditional statements that depend on a constant
                     if stmt.guard.con.value == 0:
+                        # Remove the edge that is no longer required
+                        succs = list(dsa_new_model.graph.successors(node))
+                        if len(succs) == 2:
+                            for succ in succs:
+                                if succ.addr == stmt.dst.value and stmt.dst.block_id == succ.block_id:
+                                    edge_to_remove_node = succ
+                            dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
                         continue
                     elif stmt.guard.con.value == 1:
+                        # Remove the edge that is no longer required
+                        succs = list(dsa_new_model.graph.successors(node))
+                        if len(succs) == 2:
+                            for succ in succs:
+                                if succ.addr == node.irsb.next.con.value and node.irsb.next.con.block_id == succ.block_id:
+                                    edge_to_remove_node = succ
+                            dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
+                        else:
+                            print("Hmmmmm")
+                            import ipdb;ipdb.set_trace()
                         node.irsb.next = pyvex.expr.Const(stmt.dst)
                         continue
                 new_statements.append(stmt)
