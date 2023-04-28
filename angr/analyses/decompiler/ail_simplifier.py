@@ -249,7 +249,7 @@ class AILSimplifier(Analysis):
 
         rd = self._compute_reaching_definitions()
         sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
-        for def_ in sorted_defs:
+        for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
             if isinstance(def_.atom, atoms.Register):
                 needs_narrowing, to_size, use_exprs = self._narrowing_needed(def_, rd, addr_and_idx_to_block)
                 if needs_narrowing:
