@@ -177,7 +177,7 @@ class StateGraphRecoveryAnalysis(Analysis):
 
         abs_state = self.fields.generate_abstract_state(init_state)
         abs_state_id = next(abs_state_id_ctr)
-        self.state_graph.add_node((('STATE_ID', abs_state_id),) + abs_state)
+        self.state_graph.add_node((('NODE_CTR', abs_state_id),) + abs_state)
         state_queue = [(init_state, abs_state_id, abs_state, None, None, None, None, None, None, None)]
         if self._switch_on is None:
             countdown_timer = 0
@@ -207,6 +207,8 @@ class StateGraphRecoveryAnalysis(Analysis):
             # symbolically trace the state
             expression_bp.enabled = True
             next_state = self._traverse_one(prev_state)
+            print(next_state.solver.eval(next_state.memory.load(self._time_addr, 4, endness=self.project.arch.memory_endness)))
+
             expression_bp.enabled = False
 
             abs_state = self.fields.generate_abstract_state(next_state)
@@ -238,14 +240,15 @@ class StateGraphRecoveryAnalysis(Analysis):
                 continue
 
             known_transitions.append(transition)
-            self.state_graph.add_edge((('STATE_ID', prev_abs_state_id),) + prev_abs_state,
-                                      (('STATE_ID', abs_state_id),) + abs_state,
+            self.state_graph.add_edge((('NODE_CTR', prev_abs_state_id),) + prev_abs_state,
+                                      (('NODE_CTR', abs_state_id),) + abs_state,
                                       time_delta=time_delta,
                                       time_delta_constraint=time_delta_constraint,
                                       time_delta_src=time_delta_src,
                                       temp_delta=temp_delta,
                                       temp_delta_constraint=temp_delta_constraint,
                                       temp_delta_src=temp_delta_src,
+                                      label = f'time_delta_constraint={time_delta_constraint},\ntemp_delta_constraint={temp_delta_constraint}'
                                       )
 
             # discover time deltas
@@ -415,12 +418,17 @@ class StateGraphRecoveryAnalysis(Analysis):
 
                 state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, None, None, None, None, None, None))
 
+        # test
+        # from networkx.drawing.nx_agraph import write_dot
+        # write_dot(self.state_graph, "testbothg.dot")
+        # import ipdb; ipdb.set_trace()
         # check if any nodes need to be divided
         for state_node in list(self.state_graph):
             predecessors = list(self.state_graph.predecessors(state_node))
+            successors = list(self.state_graph.successors(state_node))
             if len(predecessors) > 1:
                 nin = len(predecessors)
-                nout = len(list(self.state_graph.successors(state_node)))
+                nout = len(successors)
                 state_edge = list()
                 for edge in known_transitions:
                     if state_node[1:] == edge[1]:
@@ -431,30 +439,36 @@ class StateGraphRecoveryAnalysis(Analysis):
                 else:
                     for pre_node in predecessors:
                         new_id = next(abs_state_id_ctr)
+                        print(f"new_id:{new_id}")
                         pre_edge_data = self.state_graph.get_edge_data(pre_node, state_node)
                         self.state_graph.add_edge(pre_node,
-                                                  (('STATE_ID', new_id),) + state_node[1:],
+                                                  (('NODE_CTR', new_id),) + state_node[1:],
                                                   time_delta=pre_edge_data['time_delta'],
                                                   time_delta_constraint=pre_edge_data['time_delta_constraint'],
                                                   time_delta_src=pre_edge_data['time_delta_src'],
                                                   temp_delta=pre_edge_data['temp_delta'],
                                                   temp_delta_constraint=pre_edge_data['temp_delta_constraint'],
                                                   temp_delta_src=pre_edge_data['temp_delta_src'],
+                                                  label=f'time_delta_constraint={pre_edge_data["time_delta_constraint"]}'
                                                   )
                         suc_nodes = [edge[2] for edge in state_edge if edge[0] == pre_node[1:] ]
                         for suc_node in suc_nodes:
                             suc_id = known_states[suc_node]
-                            suc_edge_data = self.state_graph.get_edge_data(state_node, ((('STATE_ID',suc_id),) + suc_node))
-                            self.state_graph.add_edge((('STATE_ID', new_id),) + state_node[1:],
-                                                      (('STATE_ID', suc_id),) + suc_node,
+                            suc_edge_data = self.state_graph.get_edge_data(state_node, ((('NODE_CTR',suc_id),) + suc_node))
+                            if suc_edge_data is None:
+                                import ipdb; ipdb.set_trace()
+                            self.state_graph.add_edge((('NODE_CTR', new_id),) + state_node[1:],
+                                                      (('NODE_CTR', suc_id),) + suc_node,
                                                       time_delta=suc_edge_data['time_delta'],
                                                       time_delta_constraint=suc_edge_data['time_delta_constraint'],
                                                       time_delta_src=suc_edge_data['time_delta_src'],
                                                       temp_delta=suc_edge_data['temp_delta'],
                                                       temp_delta_constraint=suc_edge_data['temp_delta_constraint'],
                                                       temp_delta_src=suc_edge_data['temp_delta_src'],
+                                                      label=f'time_delta_constraint={suc_edge_data["time_delta_constraint"]}'
                                                       )
                     self.state_graph.remove_node(state_node)
+                    break   # TODO: this could be wrong if there is multiple nodes need to be divided
 
     def _discover_time_deltas(self, state: 'SimState') -> List[Tuple[int,claripy.ast.Base,Tuple[int,int]]]:
         """
@@ -473,7 +487,7 @@ class StateGraphRecoveryAnalysis(Analysis):
         state.inspect.add_breakpoint('constraints', bp_0)
 
         next_state = self._traverse_one(state)
-
+        # import ipdb; ipdb.set_trace()
         # detect required time delta
         # TODO: Extend it to more than just seconds
         steps: List[Tuple[int,claripy.ast.Base,Tuple[int,int]]] = [ ]
@@ -501,13 +515,32 @@ class StateGraphRecoveryAnalysis(Analysis):
                                         constraint_source.get(original_constraint, None),
                                     ))
                                     continue
-
+                    elif constraint.op in ("__le__",):  # simulink arm32
+                        if constraint.args[0].args[1] is delta:
+                            if constraint.args[1].op == 'BVV':
+                                step = constraint.args[1].args[0]
+                                if step != 0 and step < 255:
+                                    steps.append((
+                                        step,
+                                        constraint,
+                                        constraint_source.get(original_constraint, None),
+                                    ))
+                                    continue
+                            elif constraint.args[1].args[0].op == 'BVV':    # arduino arm32 oven
+                                step = constraint.args[1].args[0].args[0]
+                                if step != 0:
+                                    steps.append((
+                                        step,
+                                        constraint,
+                                        constraint_source.get(original_constraint, None),
+                                    ))
+                                    continue
                     elif constraint.op == "__ne__":
                         if constraint.args[0] is delta:     # amd64
                             # found a potential step
                             if constraint.args[1].op == 'BVV':
                                 step = constraint.args[1]._model_concrete.value
-                                if step != 0:
+                                if step != 0 and step < 255:
                                     steps.append((
                                         step,
                                         constraint,
@@ -751,6 +784,21 @@ class StateGraphRecoveryAnalysis(Analysis):
             return self._symbolize_timecounter_beremiz(state)
         elif self.software == 'arduino':
             return self._symbolize_timecounter_arduino(state)
+        elif self.software == 'simulink':
+            return self._symbolize_timecounter_simulink(state)
+
+    # simulink time 255
+    def _symbolize_timecounter_simulink(self, state: 'SimState') -> Dict[str,claripy.ast.Base]:
+        tv_sec_addr = self._time_addr
+        # prev = state.memory.load(self._time_addr, size=1, endness=self.project.arch.memory_endness)
+        # prev_time = state.solver.eval(prev) + 1
+
+        self._tv_sec_var = claripy.BVS('tv_sec', 1 * self.project.arch.byte_width)
+        state.memory.store(tv_sec_addr, self._tv_sec_var, endness=self.project.arch.memory_endness)
+        state.preconstrainer.preconstrain(
+            claripy.BVV(0, 1 * self.project.arch.byte_width), self._tv_sec_var)
+
+        return {'tv_sec': self._tv_sec_var}
 
     # Traffic_Light Beremiz
     def _symbolize_timecounter_beremiz(self, state: 'SimState') -> Dict[str,claripy.ast.Base]:
@@ -785,16 +833,22 @@ class StateGraphRecoveryAnalysis(Analysis):
         return {'tv_sec': self._tv_sec_var}
 
     def _symbolically_advance_timecounter(self, state: 'SimState') -> List[claripy.ast.Bits]:
-        sec_delta = claripy.BVS("sec_delta", self.project.arch.bytes * self.project.arch.byte_width)
-        state.preconstrainer.preconstrain(claripy.BVV(1, self.project.arch.bytes * self.project.arch.byte_width), sec_delta)
+        bytesize = self.project.arch.bytes
+        if self.software == 'simulink':
+            bytesize = 1
+        sec_delta = claripy.BVS("sec_delta", bytesize * self.project.arch.byte_width)
+        state.preconstrainer.preconstrain(claripy.BVV(1, bytesize * self.project.arch.byte_width), sec_delta)
 
-        tv_sec = state.memory.load(self._time_addr, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+        tv_sec = state.memory.load(self._time_addr, size=bytesize, endness=self.project.arch.memory_endness)
         state.memory.store(self._time_addr, tv_sec + sec_delta, endness=self.project.arch.memory_endness)
 
         return [sec_delta]
 
     def _advance_timecounter(self, state: 'SimState', delta: int) -> None:
-        prev = state.memory.load(self._time_addr, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+        bytesize = self.project.arch.bytes
+        if self.software == 'simulink':
+            bytesize = 1
+        prev = state.memory.load(self._time_addr, size=bytesize, endness=self.project.arch.memory_endness)
         state.memory.store(self._time_addr, prev + delta, endness=self.project.arch.memory_endness)
 
         if self.software == 'beremiz':
@@ -835,6 +889,7 @@ class StateGraphRecoveryAnalysis(Analysis):
 
         while simgr.active:
             s = simgr.active[0]
+            # print(s)
             if len(simgr.active) > 1:
                 import ipdb; ipdb.set_trace()
 
