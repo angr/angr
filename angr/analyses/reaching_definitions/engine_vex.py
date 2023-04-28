@@ -1025,9 +1025,9 @@ class SimEngineRDVEX(
         if func_addr is None:
             func_addr = self.state.top(self.state.arch.bits)
         data = FunctionCallData(
-                callsite=self._codeloc(),
-                address_multi=func_addr,
-                visited_blocks=set(),
+            callsite=self._codeloc(),
+            address_multi=func_addr,
+            visited_blocks=set(),
         )
         self._function_handler.handle_function(self.state, data)
         self._visited_blocks = data.visited_blocks

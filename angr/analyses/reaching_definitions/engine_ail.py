@@ -210,8 +210,13 @@ class SimEngineRDAIL(
     def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool = False):
         if isinstance(stmt.target, ailment.Expr.Expression):
             target = self._expr(stmt.target)  # pylint:disable=unused-variable
+            func_name = None
+        elif isinstance(stmt.target, str):
+            func_name = stmt.target
+            target = None
         else:
             target = stmt.target
+            func_name = None
         codeloc = self._codeloc()
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
@@ -222,6 +227,7 @@ class SimEngineRDAIL(
             target,
             cc=stmt.calling_convention,
             prototype=stmt.prototype,
+            name=func_name,
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
         )
 

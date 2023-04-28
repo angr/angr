@@ -33,7 +33,7 @@ class FunctionEffect:
 @dataclass
 class FunctionCallData:
     callsite: CodeLocation
-    address_multi: MultiValues
+    address_multi: Optional[MultiValues]
     address: Optional[int] = None
     symbol: Optional[Symbol] = None
     function: Optional[Function] = None
@@ -84,9 +84,10 @@ class FunctionHandler:
         assert state.analysis is not None
         assert state.analysis.project.loader.main_object is not None
         if data.address is None:
-            val = data.address_multi.one_value()
-            if val is not None and val.op == "BVV":
-                data.address = val.args[0]
+            if data.address_multi is not None:
+                val = data.address_multi.one_value()
+                if val is not None and val.op == "BVV":
+                    data.address = val.args[0]
         if data.symbol is None and data.address is not None:
             data.symbol = state.analysis.project.loader.find_symbol(data.address)
         if data.function is None and data.address is not None:
