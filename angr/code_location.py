@@ -32,7 +32,8 @@ class CodeLocation:
         Constructor.
 
         :param block_addr:          Address of the block
-        :param stmt_idx:            Statement ID. None for SimProcedures
+        :param stmt_idx:            Statement ID. None for SimProcedures or if the code location is meant to refer to
+                                    the entire block.
         :param class sim_procedure: The corresponding SimProcedure class.
         :param ins_addr:            The instruction address.
         :param context:             A tuple that represents the context of this CodeLocation in contextful mode, or
