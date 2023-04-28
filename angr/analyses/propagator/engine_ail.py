@@ -199,22 +199,23 @@ class SimEnginePropagatorAIL(
                 sp_value = self.state.load_register(sp_reg)
                 if sp_value is not None and 0 in sp_value.offset_and_details and len(sp_value.offset_and_details) == 1:
                     sp_expr = sp_value.offset_and_details[0].expr
-                    if isinstance(sp_expr, Expr.StackBaseOffset):
-                        sp_expr_new = sp_expr.copy()
-                        sp_expr_new.offset += self.arch.bytes
-                    else:
-                        sp_expr_new = sp_expr + self.arch.bytes
-                    sp_value_new = PropValue(
-                        sp_value.value + self.arch.bytes,
-                        offset_and_details={
-                            0: Detail(
-                                sp_value.offset_and_details[0].size,
-                                sp_expr_new,
-                                self._codeloc(),
-                            )
-                        },
-                    )
-                    self.state.store_register(sp_reg, sp_value_new)
+                    if sp_expr is not None:
+                        if isinstance(sp_expr, Expr.StackBaseOffset):
+                            sp_expr_new = sp_expr.copy()
+                            sp_expr_new.offset += self.arch.bytes
+                        else:
+                            sp_expr_new = sp_expr + self.arch.bytes
+                        sp_value_new = PropValue(
+                            sp_value.value + self.arch.bytes,
+                            offset_and_details={
+                                0: Detail(
+                                    sp_value.offset_and_details[0].size,
+                                    sp_expr_new,
+                                    self._codeloc(),
+                                )
+                            },
+                        )
+                        self.state.store_register(sp_reg, sp_value_new)
 
     def _ail_handle_ConditionalJump(self, stmt):
         condition = self._expr(stmt.condition)
