@@ -5,9 +5,9 @@ angr is a library for Python 3.8+, and must be installed into a Python
 environment before it can be used.
 
 .. tip::
-   It is reccomend to use an isolated python environement rather than installing
+   It is recommended to use an isolated python environment rather than installing
    angr globally. Doing so reduces dependency conflicts and aids in
-   reproducability while debugging. Some popular tools that accomplish this
+   reproducibility while debugging. Some popular tools that accomplish this
    include:
 
    * `venv <https://docs.python.org/3/library/venv.html>`_
@@ -20,7 +20,7 @@ Installing from PyPI
 --------------------
 
 angr is published on `PyPI <https://pypi.org/>`_, and using this is the easiest
-and reccomended way to install angr. It can be installed angr with pip:
+and recommended way to install angr. It can be installed angr with pip:
 
 .. code-block:: bash
 
