@@ -291,20 +291,21 @@ class AILSimplifier(Analysis):
                                 replace_loads=True,
                             )
                         elif isinstance(stmt, Call):
-                            tags = dict(stmt.ret_expr.tags)
-                            tags["reg_name"] = self.project.arch.translate_register_name(
-                                def_.atom.reg_offset, size=to_size
-                            )
-                            new_retexpr = Register(
-                                stmt.ret_expr.idx,
-                                None,
-                                def_.atom.reg_offset,
-                                to_size * self.project.arch.byte_width,
-                                **tags,
-                            )
-                            r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
-                            )
+                            if stmt.ret_expr is not None:
+                                tags = dict(stmt.ret_expr.tags)
+                                tags["reg_name"] = self.project.arch.translate_register_name(
+                                    def_.atom.reg_offset, size=to_size
+                                )
+                                new_retexpr = Register(
+                                    stmt.ret_expr.idx,
+                                    None,
+                                    def_.atom.reg_offset,
+                                    to_size * self.project.arch.byte_width,
+                                    **tags,
+                                )
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
+                                )
                         if not r:
                             # couldn't replace the definition...
                             continue
