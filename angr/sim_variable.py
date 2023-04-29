@@ -151,10 +151,7 @@ class SimTemporaryVariable(SimVariable):
         return hash("tmp_%d" % (self.tmp_id))
 
     def __eq__(self, other):
-        if isinstance(other, SimTemporaryVariable):
-            return hash(self) == hash(other)
-
-        return False
+        return isinstance(other, SimTemporaryVariable) and self.tmp_id == other.tmp_id
 
     def copy(self) -> "SimTemporaryVariable":
         return SimTemporaryVariable(self.tmp_id, size=self.size)
