@@ -1846,13 +1846,18 @@ class TestDecompiler(unittest.TestCase):
                     all_labels.add(m.group(0)[:-1])
                 for m in re.finditer(r"goto ([^;]+);", d.codegen.text):
                     all_gotos.add(m.group(1))
-                assert len(all_labels) == 1
-                assert len(all_gotos) == 1
+                assert len(all_labels) == 2
+                assert len(all_gotos) == 2
                 assert all_labels == all_gotos
             else:
                 # dream
                 assert "LABEL_" not in d.codegen.text
                 assert "goto" not in d.codegen.text
+
+            # ensure all return values are still there
+            assert "1;" in d.codegen.text
+            assert "0;" in d.codegen.text
+            assert "-1;" in d.codegen.text or "4294967295" in d.codegen.text
 
     @structuring_algo("phoenix")
     def test_decompiling_split_lines_split(self, decompiler_options=None):

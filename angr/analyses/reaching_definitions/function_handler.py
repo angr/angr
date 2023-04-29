@@ -171,20 +171,22 @@ class FunctionHandler:
 
         handler(state, data)
 
-        if data.cc is not None:
-            for reg in self.caller_saved_regs_as_atoms(state, data.cc):
-                if reg not in data.effects:
-                    data.depends(reg)
-        if state.arch.call_pushes_ret:
-            sp_atom = self.stack_pointer_as_atom(state)
-            if sp_atom not in data.effects:  # let the user override the stack pointer if they want
-                new_sp = None
-                sp_val = state.live_definitions.get_value_from_atom(sp_atom)
-                if sp_val is not None:
-                    one_sp_val = sp_val.one_value()
-                    if one_sp_val is not None:
-                        new_sp = MultiValues(one_sp_val + state.arch.call_sp_fix)
-                data.depends(sp_atom, value=new_sp)
+        if not data.is_expr:
+            # a call expression does not overwrite or redefine any local registers
+            if data.cc is not None:
+                for reg in self.caller_saved_regs_as_atoms(state, data.cc):
+                    if reg not in data.effects:
+                        data.depends(reg)
+            if state.arch.call_pushes_ret:
+                sp_atom = self.stack_pointer_as_atom(state)
+                if sp_atom not in data.effects:  # let the user override the stack pointer if they want
+                    new_sp = None
+                    sp_val = state.live_definitions.get_value_from_atom(sp_atom)
+                    if sp_val is not None:
+                        one_sp_val = sp_val.one_value()
+                        if one_sp_val is not None:
+                            new_sp = MultiValues(one_sp_val + state.arch.call_sp_fix)
+                    data.depends(sp_atom, value=new_sp)
 
         # OUTPUT
         args_defns = [
