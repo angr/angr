@@ -124,7 +124,7 @@ class SimConstantVariable(SimVariable):
         return self.ident == other.ident and self.value == other.value and self.region == other.region
 
     def __hash__(self):
-        return hash(("const", self.value, self.ident, self.region, self.ident))
+        return hash(("const", self.ident, self.value, self.region))
 
     def copy(self) -> "SimConstantVariable":
         r = SimConstantVariable(ident=self.ident, value=self.value, region=self.region, size=self.size)
