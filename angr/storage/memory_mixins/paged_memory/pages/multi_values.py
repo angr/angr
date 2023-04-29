@@ -209,4 +209,4 @@ class MultiValues:
         if before:
             return offset_idx - 1 if offset_idx > 0 else None
         else:
-            return offset_idx + 1 if offset_idx +1 < len(sorted_offsets) else None
+            return offset_idx + 1 if offset_idx + 1 < len(sorted_offsets) else None
