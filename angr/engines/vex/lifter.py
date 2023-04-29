@@ -329,10 +329,13 @@ class VEXLifter(SimEngineBase):
                         else:
                             raise TypeError("Unsupported backer type %s." % type(backer))
             elif state:
+                backoff = addr if addr < 20 else 20
+                max_size += backoff
+                offset += backoff
                 if state.memory.SUPPORTS_CONCRETE_LOAD:
-                    buff = state.memory.concrete_load(addr, max_size)
+                    buff = state.memory.concrete_load(addr - backoff, max_size)
                 else:
-                    buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
+                    buff = state.solver.eval(state.memory.load(addr - backoff, max_size, inspect=False), cast_to=bytes)
                 size = len(buff)
 
         # If that didn't work and if smc is enabled, try to load from the state
