@@ -85,7 +85,7 @@ class MultiValues:
         pre_offset = self._adjacent_offset(offset, before=True)
         if pre_offset is not None:
             pre_values = self._values[pre_offset]
-            pre_values_size = next(iter(pre_values)).length // 8
+            pre_values_size = next(iter(pre_values)).length // 8 if len(pre_values) > 0 else 0
             if pre_offset + pre_values_size > offset:
                 # we need to break the preceding values
                 new_pre_value_size = offset - pre_offset
@@ -202,14 +202,11 @@ class MultiValues:
         """
 
         sorted_offsets = list(sorted(self._values.keys())) if self._values is not None else [0]
+        offset_idx = sorted_offsets.index(offset)
+        if offset_idx == -1:
+            return None
 
-        for i, off in enumerate(sorted_offsets):
-            if off == offset:
-                if before:
-                    return sorted_offsets[i - 1] if i > 0 else None
-                else:
-                    return sorted_offsets[i + 1] if i + 1 < len(sorted_offsets) else None
-            if off > offset:
-                # we missed it...
-                return None
-        return None
+        if before:
+            return offset_idx - 1 if offset_idx > 0 else None
+        else:
+            return offset_idx + 1 if offset_idx +1 < len(sorted_offsets) else None
