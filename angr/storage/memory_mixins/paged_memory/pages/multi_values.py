@@ -202,11 +202,12 @@ class MultiValues:
         """
 
         sorted_offsets = list(sorted(self._values.keys())) if self._values is not None else [0]
-        offset_idx = sorted_offsets.index(offset)
-        if offset_idx == -1:
+        try:
+            offset_idx = sorted_offsets.index(offset)
+        except ValueError:
             return None
 
         if before:
             return offset_idx - 1 if offset_idx > 0 else None
         else:
-            return offset_idx + 1 if offset_idx +1 < len(sorted_offsets) else None
+            return offset_idx + 1 if offset_idx + 1 < len(sorted_offsets) else None
