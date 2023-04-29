@@ -11,13 +11,13 @@ if TYPE_CHECKING:
 
 class SimVariable(Serializable):
     __slots__ = [
-        "ident",
+        "_ident",
         "name",
-        "region",
+        "_region",
         "category",
         "renamed",
         "candidate_names",
-        "size",
+        "_size",
     ]
 
     def __init__(self, ident=None, name=None, region: Optional[int] = None, category=None, size: Optional[int] = None):
@@ -25,13 +25,25 @@ class SimVariable(Serializable):
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
         """
-        self.ident = ident
+        self._ident = ident
         self.name = name
-        self.region: Optional[int] = region
+        self._region: Optional[int] = region
         self.category: Optional[str] = category
         self.renamed = False
         self.candidate_names = None
-        self.size = size
+        self._size = size
+
+    @property
+    def ident(self):
+        return self._ident
+
+    @property
+    def region(self):
+        return self._region
+
+    @property
+    def size(self):
+        return self._size
 
     def copy(self):
         raise NotImplementedError()
@@ -83,11 +95,15 @@ class SimVariable(Serializable):
 
 
 class SimConstantVariable(SimVariable):
-    __slots__ = ["value"]
+    __slots__ = ["_value"]
 
     def __init__(self, ident=None, value=None, region=None, size=None):
         super().__init__(ident=ident, region=region, size=size)
-        self.value = value
+        self._value = value
+
+    @property
+    def value(self):
+        return self._value
 
     def __repr__(self):
         s = f"<{self.region}|const {self.value}>"
@@ -116,12 +132,16 @@ class SimConstantVariable(SimVariable):
 
 
 class SimTemporaryVariable(SimVariable):
-    __slots__ = ["tmp_id"]
+    __slots__ = ["_tmp_id"]
 
     def __init__(self, tmp_id, size=None):
         SimVariable.__init__(self, size=size)
 
-        self.tmp_id = tmp_id
+        self._tmp_id = tmp_id
+
+    @property
+    def tmp_id(self):
+        return self._tmp_id
 
     def __repr__(self):
         s = "<tmp %d>" % (self.tmp_id,)
@@ -160,12 +180,16 @@ class SimTemporaryVariable(SimVariable):
 
 
 class SimRegisterVariable(SimVariable):
-    __slots__ = ["reg"]
+    __slots__ = ["_reg"]
 
     def __init__(self, reg_offset, size, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
 
-        self.reg: int = reg_offset
+        self._reg: int = reg_offset
+
+    @property
+    def reg(self):
+        return self._reg
 
     @property
     def bits(self):
@@ -223,18 +247,19 @@ class SimRegisterVariable(SimVariable):
 
 
 class SimMemoryVariable(SimVariable):
-    __slots__ = ["addr"]
+    __slots__ = ["_addr"]
 
     def __init__(self, addr, size, ident=None, name=None, region=None, category=None):
-        SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
-
-        self.addr = addr
-
         if isinstance(size, claripy.ast.BV) and not size.symbolic:
             # Convert it to a concrete number
             size = size._model_concrete.value
+        SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
 
-        self.size = size
+        self._addr = addr
+
+    @property
+    def addr(self):
+        return self._addr
 
     def __repr__(self):
         if type(self.size) is int:
@@ -306,9 +331,9 @@ class SimMemoryVariable(SimVariable):
 
 class SimStackVariable(SimMemoryVariable):
     __slots__ = (
-        "base",
-        "offset",
-        "base_addr",
+        "_base",
+        "_offset",
+        "_base_addr",
     )
 
     def __init__(self, offset, size, base="sp", base_addr=None, ident=None, name=None, region=None, category=None):
@@ -326,9 +351,21 @@ class SimStackVariable(SimMemoryVariable):
 
         super().__init__(addr, size, ident=ident, name=name, region=region, category=category)
 
-        self.base = base
-        self.offset = offset
-        self.base_addr = base_addr
+        self._base = base
+        self._offset = offset
+        self._base_addr = base_addr
+
+    @property
+    def base(self):
+        return self._base
+
+    @property
+    def offset(self):
+        return self._offset
+
+    @property
+    def base_addr(self):
+        return self._base_addr
 
     def __repr__(self):
         if type(self.size) is int:
