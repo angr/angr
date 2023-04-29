@@ -201,13 +201,21 @@ class MultiValues:
         :return:        The adjacent offset as requested. If the requested adjacent offset does not exist, return None.
         """
 
-        sorted_offsets = list(sorted(self._values.keys())) if self._values is not None else [0]
-        try:
-            offset_idx = sorted_offsets.index(offset)
-        except ValueError:
+        if self._values is None:
             return None
 
-        if before:
-            return offset_idx - 1 if offset_idx > 0 else None
-        else:
-            return offset_idx + 1 if offset_idx + 1 < len(sorted_offsets) else None
+        min_off = None
+        max_off = None
+        for off in self._values.keys():
+            if off < offset:
+                if min_off is None:
+                    min_off = off
+                else:
+                    min_off = off if off > min_off else min_off
+            elif off > offset:
+                if max_off is None:
+                    max_off = off
+                else:
+                    max_off = off if off < max_off else max_off
+
+        return min_off if before else max_off
