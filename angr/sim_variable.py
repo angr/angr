@@ -201,15 +201,12 @@ class SimRegisterVariable(SimVariable):
         return hash(("reg", self.region, self.reg, self.size, self.ident))
 
     def __eq__(self, other):
-        if isinstance(other, SimRegisterVariable):
-            return (
-                self.ident == other.ident
-                and self.reg == other.reg
-                and self.size == other.size
-                and self.region == other.region
-            )
-
-        return False
+        return (isinstance(other, SimRegisterVariable)
+            and self.ident == other.ident
+            and self.reg == other.reg
+            and self.size == other.size
+            and self.region == other.region
+        )
 
     def copy(self) -> "SimRegisterVariable":
         return SimRegisterVariable(
@@ -285,10 +282,11 @@ class SimMemoryVariable(SimVariable):
         return hash((addr_hash, hash(self.size), self.ident))
 
     def __eq__(self, other):
-        if isinstance(other, SimMemoryVariable):
-            return self.ident == other.ident and self.addr == other.addr and self.size == other.size
-
-        return False
+        return (isinstance(other, SimMemoryVariable)
+            and self.ident == other.ident
+            and self.addr == other.addr
+            and self.size == other.size
+        )
 
     @property
     def bits(self):
@@ -381,11 +379,8 @@ class SimStackVariable(SimMemoryVariable):
         return f"[{self.base}{self.offset:+#x}]"
 
     def __eq__(self, other):
-        if type(other) is not SimStackVariable:
-            return False
-
-        return (
-            self.ident == other.ident
+        return (isinstance(other, SimStackVariable)
+            and self.ident == other.ident
             and self.base == other.base
             and self.offset == other.offset
             and self.size == other.size
