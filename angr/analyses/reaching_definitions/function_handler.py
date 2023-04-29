@@ -47,6 +47,7 @@ class FunctionCallData:
     visited_blocks: Optional[Set[int]] = None
     effects: Dict[Atom, FunctionEffect] = field(default_factory=lambda: {})
 
+    @property
     def caller_codeloc(self) -> CodeLocation:
         return CodeLocation(
             self.callsite.block_addr,
@@ -56,6 +57,7 @@ class FunctionCallData:
             context=None,
         )
 
+    @property
     def callee_codeloc(self) -> CodeLocation:
         return CodeLocation(
             self.address,
@@ -65,7 +67,6 @@ class FunctionCallData:
 
     def depends(
         self,
-        state: "ReachingDefinitionsState",
         dest: Atom,
         *sources: Atom,
         value: Optional[MultiValues] = None,
@@ -78,9 +79,6 @@ class FunctionCallData:
                 self.address,
             )
         else:
-            caller_codeloc = self.caller_codeloc()
-            for source in sources:
-                state.add_use(source, caller_codeloc, expr=None)
             self.effects[dest] = FunctionEffect(set(sources), value=value, apply_at_callsite=apply_at_callsite)
 
 
@@ -175,7 +173,7 @@ class FunctionHandler:
         if data.cc is not None:
             for reg in self.caller_saved_regs_as_atoms(state, data.cc):
                 if reg not in data.effects:
-                    data.depends(state, reg)
+                    data.depends(reg)
         if state.arch.call_pushes_ret:
             sp_atom = self.stack_pointer_as_atom(state)
             if sp_atom not in data.effects:  # let the user override the stack pointer if they want
@@ -185,7 +183,7 @@ class FunctionHandler:
                     one_sp_val = sp_val.one_value()
                     if one_sp_val is not None:
                         new_sp = MultiValues(one_sp_val + state.arch.call_sp_fix)
-                data.depends(state, sp_atom, value=new_sp)
+                data.depends(sp_atom, value=new_sp)
 
         # OUTPUT
         args_defns = [
@@ -193,16 +191,20 @@ class FunctionHandler:
         ]
         all_args_defns = set().union(*args_defns)
         other_input_defns = set()
+        ret_defns = set()
         other_output_defns = set()
 
         for effect in data.effects.values():
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
-        callee_codeloc = data.callee_codeloc()
-        caller_codeloc = data.caller_codeloc()
+        callee_codeloc = data.callee_codeloc
+        caller_codeloc = data.caller_codeloc
         for dest, effect in data.effects.items():
-            # TODO how to generate the codelocation for an unknown address?
+            if effect.sources_defns is not None:
+                for source in effect.sources_defns:
+                    state.add_use(source.atom, caller_codeloc, expr=None)
+
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             mv, defs = state.kill_and_add_definition(
                 dest,
@@ -210,23 +212,20 @@ class FunctionHandler:
                 value,
                 uses=effect.sources_defns,
             )
-            other_output_defns |= defs
+            for defn in defs:
+                if data.ret_atoms is not None and defn.atom not in data.ret_atoms:
+                    other_output_defns.add(defn)
+                else:
+                    ret_defns.add(defn)
 
-        ret_defns = set()
-        if data.ret_atoms:
-            for atom in data.ret_atoms:
-                ret_defns |= set(state.get_definitions(atom))
-        other_output_defns -= ret_defns
-
-        if state._dep_graph is not None:
-            state.analysis.function_calls[data.callsite] = FunctionCallRelationships(
-                callsite=data.callsite,
-                target=data.address,
-                args_defns=args_defns,
-                other_input_defns=other_input_defns,
-                ret_defns=ret_defns,
-                other_output_defns=other_output_defns,
-            )
+        state.analysis.function_calls[data.callsite] = FunctionCallRelationships(
+            callsite=data.callsite,
+            target=data.address,
+            args_defns=args_defns,
+            other_input_defns=other_input_defns,
+            ret_defns=ret_defns,
+            other_output_defns=other_output_defns,
+        )
 
     def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
         if data.ret_atoms is None:
@@ -234,7 +233,7 @@ class FunctionHandler:
         if data.args_values is None:
             sources = {atom for arg in data.args_atoms for atom in arg}
             for atom in data.ret_atoms:
-                data.depends(state, atom, *sources, apply_at_callsite=True)
+                data.depends(atom, *sources, apply_at_callsite=True)
 
     handle_indirect_function = handle_generic_function
     handle_local_function = handle_generic_function
@@ -252,7 +251,6 @@ class FunctionHandler:
         state: "ReachingDefinitionsState", cc: SimCC, prototype: Optional[SimTypeFunction]
     ) -> Set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
-            d = set()
             retval = cc.return_val(prototype.returnty)
             if retval is not None:
                 return {
