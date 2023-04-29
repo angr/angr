@@ -106,9 +106,7 @@ class SimConstantVariable(SimVariable):
         return self._value
 
     def __repr__(self):
-        s = f"<{self.region}|const {self.value}>"
-
-        return s
+        return f"<{self.region}|const {self.value}>"
 
     def loc_repr(self, arch):
         return f"const {self.value}"
@@ -144,8 +142,7 @@ class SimTemporaryVariable(SimVariable):
         return self._tmp_id
 
     def __repr__(self):
-        s = "<tmp %d>" % (self.tmp_id,)
-        return s
+        return f"<tmp {self.tmp_id}>"
 
     def loc_repr(self, arch):
         return f"tmp #{self.tmp_id}"
@@ -196,12 +193,9 @@ class SimRegisterVariable(SimVariable):
         return self.size * 8
 
     def __repr__(self):
-        ident_str = "[%s]" % self.ident if self.ident else ""
+        ident_str = f"[{self.ident}]" if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
-
-        s = f"<{region_str}{ident_str}|Reg {self.reg}, {self.size}B>"
-
-        return s
+        return f"<{region_str}{ident_str}|Reg {self.reg}, {self.size}B>"
 
     def loc_repr(self, arch):
         return arch.translate_register_name(self.reg, self.size)
@@ -368,13 +362,8 @@ class SimStackVariable(SimMemoryVariable):
         return self._base_addr
 
     def __repr__(self):
-        if type(self.size) is int:
-            size = "%d" % self.size
-        else:
-            size = "%s" % self.size
-
-        prefix = "%s(stack)" % self.name if self.name is not None else "Stack"
-        ident = "[%s]" % self.ident if self.ident else ""
+        prefix = f"{self.name}(stack)" if self.name is not None else "Stack"
+        ident = f"[{self.ident}]" if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
 
         if type(self.offset) is int:
@@ -385,9 +374,9 @@ class SimStackVariable(SimMemoryVariable):
             else:
                 offset = ""
 
-            s = f"<{region_str}{ident}|{prefix} {self.base}{offset}, {size} B>"
+            s = f"<{region_str}{ident}|{prefix} {self.base}{offset}, {self.size} B>"
         else:
-            s = f"<{region_str}{ident}|{prefix} {self.base}{self.addr}, {size} B>"
+            s = f"<{region_str}{ident}|{prefix} {self.base}{self.addr}, {self.size} B>"
 
         return s
 
