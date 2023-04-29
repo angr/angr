@@ -1713,7 +1713,10 @@ class PhoenixStructurer(StructurerBase):
                     None, stmts, self.cond_proc.convert_claripy_bool_ast(right_left_cond), ins_addr=left.addr
                 )
                 memo[right_left_cond._hash] = mstmt_expr
-            cond = self.cond_proc.convert_claripy_bool_ast(claripy.And(left_cond, right_left_cond))
+            cond = self.cond_proc.convert_claripy_bool_ast(
+                claripy.And(left_cond, right_left_cond),
+                memo=memo,
+            )
             cond_jump = ConditionalJump(
                 None,
                 cond,
