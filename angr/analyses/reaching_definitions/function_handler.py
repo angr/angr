@@ -44,6 +44,7 @@ class FunctionCallData:
     args_atoms: Optional[List[Set[Atom]]] = None
     args_values: Optional[List[MultiValues]] = None
     ret_atoms: Optional[Set[Atom]] = None
+    is_expr: bool = False
     visited_blocks: Optional[Set[int]] = None
     effects: Dict[Atom, FunctionEffect] = field(default_factory=lambda: {})
 
@@ -204,7 +205,6 @@ class FunctionHandler:
             if effect.sources_defns is not None:
                 for source in effect.sources_defns:
                     state.add_use(source.atom, caller_codeloc, expr=None)
-
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             mv, defs = state.kill_and_add_definition(
                 dest,
@@ -228,9 +228,12 @@ class FunctionHandler:
         )
 
     def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
-        if data.ret_atoms is None:
+        if data.ret_atoms is None or data.is_expr:
             return
-        if data.args_values is None:
+        if data.args_values is not None:
+            for atom in data.ret_atoms:
+                data.depends(atom, apply_at_callsite=True)
+        else:
             sources = {atom for arg in data.args_atoms for atom in arg}
             for atom in data.ret_atoms:
                 data.depends(atom, *sources, apply_at_callsite=True)

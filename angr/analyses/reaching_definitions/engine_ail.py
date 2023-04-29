@@ -229,6 +229,7 @@ class SimEngineRDAIL(
             prototype=stmt.prototype,
             name=func_name,
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
+            is_expr=is_expr,
         )
 
         self._function_handler.handle_function(self.state, data)
