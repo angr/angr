@@ -71,8 +71,7 @@ class DummyFunctionHandler(FunctionHandler):
     A no-op function handler that is used during reaching definition analysis.
     """
 
-    def handle_function(self, *args, **kwargs):
-        pass
+    pass
 
 
 class CallingConventionAnalysis(Analysis):
@@ -487,19 +486,21 @@ class CallingConventionAnalysis(Analysis):
         default_cc_cls = default_cc(self.project.arch.name)
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
-            self._analyze_callsite_return_value_uses(cc, return_site_addr, rda, fact)
+            self._analyze_callsite_return_value_uses(cc, caller_block_addr, rda, fact)
             self._analyze_callsite_arguments(cc, caller_block_addr, call_insn_addr, rda, fact)
 
         return fact
 
     def _analyze_callsite_return_value_uses(
-        self, cc: SimCC, return_site_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
+        self, cc: SimCC, caller_block_addr: int, rda: ReachingDefinitionsModel, fact: CallSiteFact
     ) -> None:
         all_defs: Set["Definition"] = {
             def_
             for def_ in rda.all_uses._uses_by_definition.keys()
             if (
-                def_.codeloc.block_addr == return_site_addr or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
+                def_.codeloc.block_addr == caller_block_addr
+                and def_.codeloc.stmt_idx == DEFAULT_STATEMENT
+                or any(isinstance(tag, ReturnValueTag) for tag in def_.tags)
             )
         }
         all_uses: "Uses" = rda.all_uses
