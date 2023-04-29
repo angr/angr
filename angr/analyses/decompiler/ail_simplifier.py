@@ -609,6 +609,9 @@ class AILSimplifier(Analysis):
                         break
             if the_def is None:
                 continue
+            if the_def.codeloc.context:
+                # the definition is in a callee function
+                continue
 
             if isinstance(the_def.codeloc, ExternalCodeLocation):
                 # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
