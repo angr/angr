@@ -30,6 +30,7 @@ from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
     from ...knowledge_base import KnowledgeBase
+    from angr.code_location import CodeLocation
 
 l = logging.getLogger(name=__name__)
 
@@ -398,7 +399,6 @@ class VariableManagerInternal(Serializable):
         location: "CodeLocation",
         overwrite=False,
         atom=None,
-        block_idx: Optional[int] = None,
     ):
         # TODO can this line be removed, should we be only adding to _variables in add_variable?
         self._variables.add(variable)
