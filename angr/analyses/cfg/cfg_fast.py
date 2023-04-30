@@ -1760,9 +1760,12 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     None,
                     None,
                 )
-                if namehint and addr_ not in self.kb.labels:
-                    unique_label = self.kb.labels.get_unique_label(namehint)
-                    self.kb.labels[addr_] = unique_label
+                if namehint:
+                    if addr_ not in self.kb.labels or self.kb.labels[addr_] in {
+                        "_ftext",
+                    }:
+                        unique_label = self.kb.labels.get_unique_label(namehint)
+                        self.kb.labels[addr_] = unique_label
 
         # determine if this procedure returns
         if procedure.DYNAMIC_RET:
