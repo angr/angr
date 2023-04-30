@@ -15,15 +15,15 @@ class PeepholeOptimizationStmtBase:
         "kb",
         "func_addr",
     )
-    project: Project
-    kb: KnowledgeBase
+    project: Optional[Project]
+    kb: Optional[KnowledgeBase]
     func_addr: Optional[int]
 
     NAME = "Peephole Optimization - Statement"
     DESCRIPTION = "Peephole Optimization - Statement"
     stmt_classes = None
 
-    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int] = None):
+    def __init__(self, project: Optional[Project], kb: Optional[KnowledgeBase], func_addr: Optional[int] = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
@@ -42,15 +42,15 @@ class PeepholeOptimizationExprBase:
         "kb",
         "func_addr",
     )
-    project: Project
-    kb: KnowledgeBase
+    project: Optional[Project]
+    kb: Optional[KnowledgeBase]
     func_addr: Optional[int]
 
     NAME = "Peephole Optimization - Expression"
     DESCRIPTION = "Peephole Optimization - Expression"
     expr_classes = None
 
-    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int] = None):
+    def __init__(self, project: Optional[Project], kb: Optional[KnowledgeBase], func_addr: Optional[int] = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr

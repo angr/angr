@@ -31,7 +31,7 @@ class SwitchExpressionSimplifier(SequenceWalker):
         from ..peephole_optimizations.remove_noop_conversions import RemoveNoopConversions
 
         while isinstance(switch_expr, ailment.Expr.Convert):
-            optimized = RemoveNoopConversions.optimize(switch_expr)
+            optimized = RemoveNoopConversions(None, None).optimize(switch_expr)
             if optimized is not None:
                 switch_expr = optimized
                 continue
