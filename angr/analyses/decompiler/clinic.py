@@ -274,8 +274,12 @@ class Clinic(Analysis):
             cache=block_simplification_cache,
         )
 
+        # Run simplification passes
+        self._update_progress(65.0, text="Running simplifications 2")
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
+
         # Simplify the entire function for the third time
-        self._update_progress(65.0, text="Simplifying function 3")
+        self._update_progress(70.0, text="Simplifying function 3")
         self._simplify_function(
             ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
@@ -284,7 +288,7 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
         )
 
-        self._update_progress(68.0, text="Simplifying blocks 4")
+        self._update_progress(72.0, text="Simplifying blocks 4")
         ail_graph = self._simplify_blocks(
             ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
@@ -293,12 +297,8 @@ class Clinic(Analysis):
         )
 
         # Make function arguments
-        self._update_progress(70.0, text="Making argument list")
+        self._update_progress(75.0, text="Making argument list")
         arg_list = self._make_argument_list()
-
-        # Run simplification passes
-        self._update_progress(75.0, text="Running simplifications 2")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
