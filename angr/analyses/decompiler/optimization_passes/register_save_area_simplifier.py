@@ -34,7 +34,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
         "MIPS64",
     ]
     PLATFORMS = ["cgc", "linux"]
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Simplify register save areas"
     DESCRIPTION = __doc__.strip()
 

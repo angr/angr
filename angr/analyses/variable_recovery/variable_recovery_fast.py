@@ -392,9 +392,11 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         if type(node) is ailment.Block:
             # AIL mode
             block = node
+            block_key = node.addr, node.idx
         else:
             # VEX mode, get the block again
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
+            block_key = node.addr
 
         # if node.addr in self._instates:
         #     prev_state: VariableRecoveryFastState = self._instates[node.addr]
@@ -407,15 +409,17 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         state = state.copy()
         state.block_addr = node.addr
+        if isinstance(node, ailment.Block):
+            state.block_idx = node.idx
         # self._instates[node.addr] = state
 
-        if self._node_iterations[node.addr] >= self._max_iterations:
+        if self._node_iterations[block_key] >= self._max_iterations:
             l.debug("Skip node %#x as we have iterated %d times on it.", node.addr, self._node_iterations[node.addr])
             return False, state
 
         self._process_block(state, block)
 
-        self._node_iterations[node.addr] += 1
+        self._node_iterations[block_key] += 1
         self.type_constraints |= state.type_constraints
         for var, typevar in state.typevars._typevars.items():
             self.var_to_typevars[var].add(typevar)
@@ -425,7 +429,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                 self.ret_val_size = state.ret_val_size
 
         state.downsize()
-        self._outstates[node.addr] = state
+        self._outstates[block_key] = state
 
         return True, state
 

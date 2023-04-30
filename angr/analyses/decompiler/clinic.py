@@ -1059,7 +1059,7 @@ class Clinic(Analysis):
             stmt_type = type(stmt)
             if stmt_type is ailment.Stmt.Store:
                 # find a memory variable
-                mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt)
+                mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
                 if len(mem_vars) == 1:
                     stmt.variable, stmt.offset = next(iter(mem_vars))
                 else:
@@ -1120,7 +1120,7 @@ class Clinic(Analysis):
 
         if type(expr) is ailment.Expr.Register:
             # find a register variable
-            reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             final_reg_vars = set()
             if len(reg_vars) > 1:
                 # take phi variables
@@ -1135,7 +1135,7 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.Load:
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
                 base_addr, offset = self.parse_variable_addr(expr.addr)
@@ -1168,7 +1168,7 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.BinaryOp:
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
@@ -1182,7 +1182,7 @@ class Clinic(Analysis):
                 )
 
         elif type(expr) is ailment.Expr.UnaryOp:
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
@@ -1194,7 +1194,7 @@ class Clinic(Analysis):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
         elif type(expr) is ailment.Expr.ITE:
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
@@ -1205,7 +1205,7 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.iftrue)
 
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
