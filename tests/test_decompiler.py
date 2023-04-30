@@ -2224,6 +2224,16 @@ class TestDecompiler(unittest.TestCase):
         assert (
             "> 118" not in d.codegen.text and ">= 119" not in d.codegen.text
         )  # > 118 (>= 119) goes to the default case
+        assert "case 65:" in d.codegen.text
+        assert "case 69:" in d.codegen.text
+        assert "case 84:" in d.codegen.text
+        assert "case 98:" in d.codegen.text
+        assert "case 101:" in d.codegen.text
+        assert "case 110:" in d.codegen.text
+        assert "case 115:" in d.codegen.text
+        assert "case 116:" in d.codegen.text
+        assert "case 117:" in d.codegen.text
+        assert "case 118:" in d.codegen.text
 
     @structuring_algo("phoenix")
     def test_comma_separated_statement_expression_whoami(self, decompiler_options=None):

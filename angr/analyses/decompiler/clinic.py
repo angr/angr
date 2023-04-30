@@ -285,6 +285,7 @@ class Clinic(Analysis):
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=stackarg_offsets,
             unify_variables=True,
+            narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
         )
 
