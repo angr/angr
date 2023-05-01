@@ -20,17 +20,17 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class DefinitionMatchPredicate:
-    kind: Optional[AtomKind] = (None,)
-    bbl_addr: Optional[int] = (None,)
-    ins_addr: Optional[int] = (None,)
-    variable: Optional[SimVariable] = (None,)
-    variable_manager: Union[VariableManagerInternal, None, Literal[False]] = (None,)
-    stack_offset: Optional[int] = (None,)
-    reg_name: Optional[Union[str, int]] = (None,)
-    heap_offset: Optional[int] = (None,)
-    global_addr: Optional[int] = (None,)
-    tmp_idx: Optional[int] = (None,)
-    const_val: Optional[int] = (None,)
+    kind: Optional[AtomKind] = None
+    bbl_addr: Optional[int] = None
+    ins_addr: Optional[int] = None
+    variable: Optional[SimVariable] = None
+    variable_manager: Union[VariableManagerInternal, None, Literal[False]] = None
+    stack_offset: Optional[int] = None
+    reg_name: Optional[Union[str, int]] = None
+    heap_offset: Optional[int] = None
+    global_addr: Optional[int] = None
+    tmp_idx: Optional[int] = None
+    const_val: Optional[int] = None
 
     @staticmethod
     def construct(predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
