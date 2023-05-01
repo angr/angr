@@ -170,10 +170,12 @@ class PropValue:
             return ailment.Expr.Const(expr.idx, expr.variable, (expr.value >> start) & mask, bits, **expr.tags)
 
         if start == 0:
-            return ailment.Expr.Convert(None, expr.bits, bits, False, expr)
+            return ailment.Expr.Convert(None, expr.bits, bits, False, expr, **expr.tags)
         else:
-            a = ailment.Expr.BinaryOp(None, "Shr", (expr, ailment.Expr.Const(None, None, bits, expr.bits)), False)
-            return ailment.Expr.Convert(None, a.bits, bits, False, a)
+            a = ailment.Expr.BinaryOp(
+                None, "Shr", (expr, ailment.Expr.Const(None, None, bits, expr.bits)), False, **expr.tags
+            )
+            return ailment.Expr.Convert(None, a.bits, bits, False, a, **expr.tags)
 
     @staticmethod
     def extend_ail_expression(bits: int, expr: Optional[ailment.Expr.Expression]) -> Optional[ailment.Expr.Expression]:
@@ -183,4 +185,4 @@ class PropValue:
             return ailment.Expr.Const(expr.idx, expr.variable, expr.value, bits + expr.bits, **expr.tags)
         elif isinstance(expr, ailment.Expr.Convert):
             return ailment.Expr.Convert(None, expr.from_bits, bits + expr.to_bits, False, expr.operand, **expr.tags)
-        return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr)
+        return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr, **expr.tags)

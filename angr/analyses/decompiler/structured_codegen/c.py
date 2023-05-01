@@ -113,6 +113,19 @@ def qualifies_for_implicit_cast(ty1, ty2):
 
 
 def extract_terms(expr: "CExpression") -> Tuple[int, List[Tuple[int, "CExpression"]]]:
+    # handle unnecessary type casts
+    if isinstance(expr, CTypeCast):
+        expr = MakeTypecastsImplicit.collapse(expr.dst_type, expr.expr)
+    if (
+        isinstance(expr, CTypeCast)
+        and isinstance(expr.dst_type, SimTypeInt)
+        and isinstance(expr.src_type, SimTypeInt)
+        and expr.dst_type.size == expr.src_type.size
+        and expr.dst_type.signed != expr.src_type.signed
+    ):
+        # (unsigned int)(a + 60)  ==>  a + 60, assuming a + 60 is an int
+        expr = expr.expr
+
     if isinstance(expr, CConstant):
         return expr.value, []
     # elif isinstance(expr, CUnaryOp) and expr.op == 'Minus'

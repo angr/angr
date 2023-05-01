@@ -274,17 +274,22 @@ class Clinic(Analysis):
             cache=block_simplification_cache,
         )
 
+        # Run simplification passes
+        self._update_progress(65.0, text="Running simplifications 2")
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
+
         # Simplify the entire function for the third time
-        self._update_progress(65.0, text="Simplifying function 3")
+        self._update_progress(70.0, text="Simplifying function 3")
         self._simplify_function(
             ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=stackarg_offsets,
             unify_variables=True,
+            narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
         )
 
-        self._update_progress(68.0, text="Simplifying blocks 4")
+        self._update_progress(72.0, text="Simplifying blocks 4")
         ail_graph = self._simplify_blocks(
             ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
@@ -293,12 +298,8 @@ class Clinic(Analysis):
         )
 
         # Make function arguments
-        self._update_progress(70.0, text="Making argument list")
+        self._update_progress(75.0, text="Making argument list")
         arg_list = self._make_argument_list()
-
-        # Run simplification passes
-        self._update_progress(75.0, text="Running simplifications 2")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
@@ -1059,7 +1060,7 @@ class Clinic(Analysis):
             stmt_type = type(stmt)
             if stmt_type is ailment.Stmt.Store:
                 # find a memory variable
-                mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt)
+                mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
                 if len(mem_vars) == 1:
                     stmt.variable, stmt.offset = next(iter(mem_vars))
                 else:
@@ -1120,7 +1121,7 @@ class Clinic(Analysis):
 
         if type(expr) is ailment.Expr.Register:
             # find a register variable
-            reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             final_reg_vars = set()
             if len(reg_vars) > 1:
                 # take phi variables
@@ -1135,7 +1136,7 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.Load:
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
                 base_addr, offset = self.parse_variable_addr(expr.addr)
@@ -1168,7 +1169,7 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.BinaryOp:
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
@@ -1182,7 +1183,7 @@ class Clinic(Analysis):
                 )
 
         elif type(expr) is ailment.Expr.UnaryOp:
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
@@ -1194,7 +1195,7 @@ class Clinic(Analysis):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
         elif type(expr) is ailment.Expr.ITE:
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var
@@ -1205,7 +1206,7 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.iftrue)
 
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
-            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
                 var, offset = next(iter(variables))
                 expr.variable = var

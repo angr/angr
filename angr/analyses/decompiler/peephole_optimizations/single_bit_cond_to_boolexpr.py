@@ -28,6 +28,7 @@ class SingleBitCondToBoolExpr(PeepholeOptimizationExprBase):
                         "CmpEQ",
                         [cond_inner.operands[0], Const(None, None, 0, cond_inner.operands[0].bits)],
                         False,
+                        **cond_inner.tags,
                     )
                 else:
                     # A ==> A == 1
@@ -36,6 +37,7 @@ class SingleBitCondToBoolExpr(PeepholeOptimizationExprBase):
                         "CmpEQ",
                         [cond_inner.operands[0], Const(None, None, 1, cond_inner.operands[0].bits)],
                         False,
+                        **cond_inner.tags,
                     )
                 return ITE(
                     expr.idx,

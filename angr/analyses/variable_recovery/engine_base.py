@@ -242,7 +242,7 @@ class SimEngineVRBase(SimEngineLight):
                 offset = None
             variable_manager.reference_at(var, offset, codeloc, atom=src)
 
-    def _assign_to_register(self, offset, richr, size, src=None, dst=None):
+    def _assign_to_register(self, offset, richr, size, src=None, dst=None, create_variable: bool = True):
         """
 
         :param int offset:
@@ -251,7 +251,7 @@ class SimEngineVRBase(SimEngineLight):
         :return:
         """
 
-        if offset in (self.arch.ip_offset, self.arch.sp_offset, self.arch.lr_offset):
+        if offset in (self.arch.ip_offset, self.arch.sp_offset, self.arch.lr_offset) or not create_variable:
             # only store the value. don't worry about variables.
             v = MultiValues(richr.data)
             self.state.register_region.store(offset, v)

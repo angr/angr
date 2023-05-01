@@ -26,7 +26,16 @@ class SwitchExpressionSimplifier(SequenceWalker):
 
         switch_expr = node.switch_expr
         convert = None
-        if isinstance(switch_expr, ailment.Expr.Convert):
+
+        # pylint: disable=import-outside-toplevel
+        from ..peephole_optimizations.remove_noop_conversions import RemoveNoopConversions
+
+        while isinstance(switch_expr, ailment.Expr.Convert):
+            optimized = RemoveNoopConversions(None, None).optimize(switch_expr)
+            if optimized is not None:
+                switch_expr = optimized
+                continue
+
             convert = switch_expr
             switch_expr = switch_expr.operand
 

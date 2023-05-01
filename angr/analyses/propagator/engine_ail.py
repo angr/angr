@@ -487,7 +487,9 @@ class SimEnginePropagatorAIL(
                     # eliminate the redundant Convert
                     new_expr = o_expr.operand
                 else:
-                    new_expr = Expr.Convert(expr.idx, o_expr.from_bits, expr.to_bits, expr.is_signed, o_expr.operand)
+                    new_expr = Expr.Convert(
+                        expr.idx, o_expr.from_bits, expr.to_bits, expr.is_signed, o_expr.operand, **o_expr.tags
+                    )
             elif type(o_expr) is Expr.Const:
                 # do the conversion right away
                 value = o_expr.value

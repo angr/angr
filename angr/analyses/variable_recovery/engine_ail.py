@@ -5,6 +5,7 @@ import logging
 import claripy
 import ailment
 
+from angr.code_location import CodeLocation
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction, SimTypeBottom
 from ...engines.light import SimEngineLightAILMixin
@@ -24,12 +25,22 @@ class SimEngineVRAIL(
     SimEngineVRBase,
 ):
     state: "VariableRecoveryFastState"
+    block: ailment.Block
 
     def __init__(self, *args, call_info=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}
+
+    def _codeloc(self, block_only=False):
+        return CodeLocation(
+            self.block.addr,
+            None if block_only else self.stmt_idx,
+            block_idx=self.block.idx,
+            ins_addr=None if block_only else self.ins_addr,
+            context=self._context,
+        )
 
     # Statement handlers
 
@@ -80,6 +91,7 @@ class SimEngineVRAIL(
         ret_reg_offset = None
         ret_expr_bits = self.state.arch.bits
         ret_val = None  # stores the value that this method should return to its caller when this is a call expression.
+        create_variable = True
         if not is_expr:
             # this is a call statement. we need to update the return value register later
             ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
@@ -87,6 +99,7 @@ class SimEngineVRAIL(
                 ret_reg_offset = ret_expr.reg_offset
                 ret_expr_bits = ret_expr.bits
             else:
+                # the return expression is not used, so we treat this call as not returning anything
                 if stmt.calling_convention is not None:
                     if stmt.prototype is None:
                         ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
@@ -102,6 +115,7 @@ class SimEngineVRAIL(
 
                 if ret_expr is not None:
                     ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
+                create_variable = False
         else:
             # this is a call expression. we just return the value at the end of this method
             if stmt.ret_expr is not None:
@@ -141,8 +155,9 @@ class SimEngineVRAIL(
                 self._assign_to_register(
                     ret_reg_offset,
                     RichR(self.state.top(expr_bits), typevar=ret_ty),
-                    self.state.arch.bytes,
+                    expr_bits // self.arch.byte_width,
                     dst=ret_expr,
+                    create_variable=create_variable,
                 )
 
         if prototype is not None and args:

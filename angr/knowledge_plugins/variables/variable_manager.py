@@ -30,6 +30,7 @@ from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
     from ...knowledge_base import KnowledgeBase
+    from angr.code_location import CodeLocation
 
 l = logging.getLogger(name=__name__)
 
@@ -80,10 +81,12 @@ class VariableManagerInternal(Serializable):
 
         self._variable_accesses: Dict[SimVariable, Set[VariableAccess]] = defaultdict(set)
         self._insn_to_variable: Dict[int, Set[Tuple[SimVariable, int]]] = defaultdict(set)
-        self._stmt_to_variable: Dict[Tuple[int, int], Set[Tuple[SimVariable, int]]] = defaultdict(set)
-        self._atom_to_variable: Dict[Tuple[int, int], Dict[int, Set[Tuple[SimVariable, int]]]] = defaultdict(
-            _defaultdict_set
-        )
+        self._stmt_to_variable: Dict[
+            Union[Tuple[int, int], Tuple[int, int, int]], Set[Tuple[SimVariable, int]]
+        ] = defaultdict(set)
+        self._atom_to_variable: Dict[
+            Union[Tuple[int, int], Tuple[int, int, int]], Dict[int, Set[Tuple[SimVariable, int]]]
+        ] = defaultdict(_defaultdict_set)
         self._variable_counters = {
             "register": count(),
             "stack": count(),
@@ -245,7 +248,15 @@ class VariableManagerInternal(Serializable):
 
             model._variable_accesses[variable_access.variable].add(variable_access)
             model._insn_to_variable[variable_access.location.ins_addr].add(tpl)
-            loc = (variable_access.location.block_addr, variable_access.location.stmt_idx)
+            loc = (
+                (variable_access.location.block_addr, variable_access.location.stmt_idx)
+                if variable_access.location.block_idx is None
+                else (
+                    variable_access.location.block_addr,
+                    variable_access.location.block_idx,
+                    variable_access.location.stmt_idx,
+                )
+            )
             model._stmt_to_variable[loc].add(tpl)
             if variable_access.atom_hash is not None:
                 model._atom_to_variable[loc][variable_access.atom_hash].add(tpl)
@@ -380,23 +391,36 @@ class VariableManagerInternal(Serializable):
             VariableAccessSort.REFERENCE, variable, offset, location, overwrite=overwrite, atom=atom
         )
 
-    def _record_variable_access(self, sort: int, variable, offset, location, overwrite=False, atom=None):
+    def _record_variable_access(
+        self,
+        sort: int,
+        variable,
+        offset,
+        location: "CodeLocation",
+        overwrite=False,
+        atom=None,
+    ):
         # TODO can this line be removed, should we be only adding to _variables in add_variable?
         self._variables.add(variable)
         var_and_offset = variable, offset
         atom_hash = (hash(atom) & 0xFFFF_FFFF) if atom is not None else None
+        key = (
+            (location.block_addr, location.stmt_idx)
+            if location.block_idx is None
+            else (location.block_addr, location.block_idx, location.stmt_idx)
+        )
         if overwrite:
             self._variable_accesses[variable] = {VariableAccess(variable, sort, location, offset, atom_hash=atom_hash)}
             self._insn_to_variable[location.ins_addr] = {var_and_offset}
-            self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {var_and_offset}
+            self._stmt_to_variable[key] = {var_and_offset}
             if atom_hash is not None:
-                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom_hash] = {var_and_offset}
+                self._atom_to_variable[key][atom_hash] = {var_and_offset}
         else:
             self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
             self._insn_to_variable[location.ins_addr].add(var_and_offset)
-            self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add(var_and_offset)
+            self._stmt_to_variable[key].add(var_and_offset)
             if atom_hash is not None:
-                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom_hash].add(var_and_offset)
+                self._atom_to_variable[key][atom_hash].add(var_and_offset)
 
     def make_phi_node(self, block_addr, *variables):
         """
@@ -478,11 +502,13 @@ class VariableManagerInternal(Serializable):
 
         return vars_and_offset
 
-    def find_variable_by_stmt(self, block_addr, stmt_idx, sort):
-        return next(iter(self.find_variables_by_stmt(block_addr, stmt_idx, sort)), None)
+    def find_variable_by_stmt(self, block_addr, stmt_idx, sort, block_idx: Optional[int] = None):
+        return next(iter(self.find_variables_by_stmt(block_addr, stmt_idx, sort, block_idx=block_idx)), None)
 
-    def find_variables_by_stmt(self, block_addr: int, stmt_idx: int, sort: str) -> List[Tuple[SimVariable, int]]:
-        key = block_addr, stmt_idx
+    def find_variables_by_stmt(
+        self, block_addr: int, stmt_idx: int, sort: str, block_idx: Optional[int] = None
+    ) -> List[Tuple[SimVariable, int]]:
+        key = (block_addr, stmt_idx) if block_idx is None else (block_addr, block_idx, stmt_idx)
 
         if key not in self._stmt_to_variable:
             return []
@@ -507,11 +533,16 @@ class VariableManagerInternal(Serializable):
 
         return var_and_offsets
 
-    def find_variable_by_atom(self, block_addr, stmt_idx, atom):
-        return next(iter(self.find_variables_by_atom(block_addr, stmt_idx, atom)), None)
+    def find_variable_by_atom(self, block_addr, stmt_idx, atom, block_idx: Optional[int] = None):
+        return next(iter(self.find_variables_by_atom(block_addr, stmt_idx, atom, block_idx=block_idx)), None)
 
-    def find_variables_by_atom(self, block_addr, stmt_idx, atom) -> Set[Tuple[SimVariable, int]]:
-        key = block_addr, stmt_idx
+    def find_variables_by_atom(
+        self, block_addr, stmt_idx, atom, block_idx: Optional[int] = None
+    ) -> Set[Tuple[SimVariable, int]]:
+        if block_idx is None:
+            key = block_addr, stmt_idx
+        else:
+            key = block_addr, block_idx, stmt_idx
 
         if key not in self._atom_to_variable:
             return set()

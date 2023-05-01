@@ -21,7 +21,7 @@ class SimplifyPcRelativeLoads(PeepholeOptimizationExprBase):
 
             if isinstance(op1, Const):
                 # check if op1 is PC
-                if is_pc(self.project, expr.ins_addr, op1.value):
+                if hasattr(expr, "ins_addr") and is_pc(self.project, expr.ins_addr, op1.value):
                     # check if op0.addr points to a read-only section
                     addr = op0.addr.value
                     if is_in_readonly_section(self.project, addr) or is_in_readonly_segment(self.project, addr):
