@@ -60,7 +60,7 @@ repos:
     -   id: rm-unneeded-f-str
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.3.1
+    rev: v3.3.2
     hooks:
     -   id: pyupgrade
         args: [--py38-plus]
@@ -94,6 +94,6 @@ repos:
     -   id: check-docstring-first
 
 -   repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.262
+    rev: v0.0.263
     hooks:
     - id: ruff
