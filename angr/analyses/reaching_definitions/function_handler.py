@@ -207,8 +207,9 @@ class FunctionHandler:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
         # apply the effects
-        for dest, effect in data.effects.items():
+        for dest, effect in sorted(data.effects.items(), key=lambda de: de[1].apply_at_callsite):
             codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
+            state.move_codelocs(codeloc)  # no-op if duplicated
             # mark uses
             if effect.sources_defns is not None:
                 for source in effect.sources_defns:
@@ -225,7 +226,6 @@ class FunctionHandler:
                     dest,
                     value,
                     uses=effect.sources_defns,
-                    override_codeloc=codeloc,
                 )
                 # categorize the output defn as either ret or other based on the atoms
                 for defn in defs:
