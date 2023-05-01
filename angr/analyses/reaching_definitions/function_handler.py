@@ -1,5 +1,5 @@
 from angr.knowledge_plugins.key_definitions.atoms import Register
-from typing import TYPE_CHECKING, List, Set, Optional, Dict
+from typing import TYPE_CHECKING, List, Set, Optional, Dict, Union
 from dataclasses import dataclass, field
 import logging
 
@@ -33,7 +33,8 @@ class FunctionEffect:
 
 @dataclass
 class FunctionCallData:
-    callsite: CodeLocation
+    callsite_codeloc: CodeLocation
+    function_codeloc: CodeLocation
     address_multi: Optional[MultiValues]
     address: Optional[int] = None
     symbol: Optional[Symbol] = None
@@ -44,27 +45,11 @@ class FunctionCallData:
     args_atoms: Optional[List[Set[Atom]]] = None
     args_values: Optional[List[MultiValues]] = None
     ret_atoms: Optional[Set[Atom]] = None
-    is_expr: bool = False
+    redefine_locals: bool = True
     visited_blocks: Optional[Set[int]] = None
     effects: Dict[Atom, FunctionEffect] = field(default_factory=lambda: {})
-
-    @property
-    def caller_codeloc(self) -> CodeLocation:
-        return CodeLocation(
-            self.callsite.block_addr,
-            stmt_idx=self.callsite.stmt_idx,
-            ins_addr=self.callsite.ins_addr,
-            block_idx=self.callsite.block_idx,
-            context=None,
-        )
-
-    @property
-    def callee_codeloc(self) -> CodeLocation:
-        return CodeLocation(
-            self.address,
-            stmt_idx=None,
-            context=(self.callsite.block_addr,),
-        )
+    ret_values: Optional[MultiValues] = None
+    ret_values_deps: Optional[Set[Definition]] = None
 
     def depends(
         self,
@@ -105,9 +90,26 @@ class FunctionHandler:
         """
         return self
 
+    def make_function_codeloc(
+        self, target: Union[None, int, MultiValues], callsite: CodeLocation, callsite_func_addr: Optional[int]
+    ):
+        if isinstance(target, MultiValues):
+            target_bv = target.one_value()
+            if target_bv.op == "BVV":
+                target = target_bv.args[0]
+            else:
+                target = None
+        if callsite.context is None:
+            return CodeLocation(target, stmt_idx=None, context=None)
+        elif type(callsite.context) is tuple and callsite_func_addr is not None:
+            return CodeLocation(target, stmt_idx=None, context=(callsite_func_addr,) + callsite.context)
+        else:
+            raise TypeError(
+                "Please implement FunctionHandler.make_function_codeloc for your special context sensitivity"
+            )
+
     def handle_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
         # META
-        assert state.current_codeloc is not None
         assert state.analysis is not None
         assert state.analysis.project.loader.main_object is not None
         if data.address is None:
@@ -159,6 +161,7 @@ class FunctionHandler:
             data.ret_atoms = self.c_return_as_atoms(state, data.cc, data.prototype)
 
         # PROCESS
+        state.move_codelocs(data.function_codeloc)
         if data.name is not None and hasattr(self, f"handle_impl_{data.name}"):
             handler = getattr(self, f"handle_impl_{data.name}")
         elif data.address is not None:
@@ -171,8 +174,8 @@ class FunctionHandler:
 
         handler(state, data)
 
-        if not data.is_expr:
-            # a call expression does not overwrite or redefine any local registers
+        # a call expression does not overwrite or redefine any local registers
+        if data.redefine_locals:
             if data.cc is not None:
                 for reg in self.caller_saved_regs_as_atoms(state, data.cc):
                     if reg not in data.effects:
@@ -197,48 +200,60 @@ class FunctionHandler:
         ret_defns = set()
         other_output_defns = set()
 
+        # translate all the dep atoms into dep defns
         for effect in data.effects.values():
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
-        callee_codeloc = data.callee_codeloc
-        caller_codeloc = data.caller_codeloc
+        # apply the effects
         for dest, effect in data.effects.items():
+            # TODO experiment: does getting rid of apply at callsite and then letting this callsite do anything
+            # that needs to happen at the callsite make sense?
+            # codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
+            codeloc = data.function_codeloc
+            # mark uses
             if effect.sources_defns is not None:
                 for source in effect.sources_defns:
-                    state.add_use(source.atom, caller_codeloc, expr=None)
+                    state.add_use(source.atom, expr=None)
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
+            # special case: if there is exactly one ret atom, we expect that the caller will do something
+            # with the value, e.g. if this is a call expression.
+            if data.ret_atoms is not None and len(data.ret_atoms) == 1:
+                data.ret_values = value
+                data.ret_values_deps = effect.sources_defns
+            # mark definition
+            # TODO do we skip this in the above case
             mv, defs = state.kill_and_add_definition(
                 dest,
-                caller_codeloc if effect.apply_at_callsite else callee_codeloc,
                 value,
                 uses=effect.sources_defns,
+                override_codeloc=codeloc,
             )
+            # categorize the output defn as either ret or other based on the atoms
             for defn in defs:
                 if data.ret_atoms is not None and defn.atom not in data.ret_atoms:
                     other_output_defns.add(defn)
                 else:
                     ret_defns.add(defn)
 
-        state.analysis.function_calls[data.callsite] = FunctionCallRelationships(
-            callsite=data.callsite,
+        # record this callsite
+        state.analysis.function_calls[data.callsite_codeloc] = FunctionCallRelationships(
+            callsite=data.callsite_codeloc,
             target=data.address,
             args_defns=args_defns,
             other_input_defns=other_input_defns,
             ret_defns=ret_defns,
             other_output_defns=other_output_defns,
         )
+        # move the current codeloc back to the callsite
+        state.move_codelocs(data.callsite_codeloc)
 
     def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
-        if data.ret_atoms is None or data.is_expr:
+        if data.ret_atoms is None:
             return
-        if data.args_values is not None:
-            for atom in data.ret_atoms:
-                data.depends(atom, apply_at_callsite=True)
-        else:
-            sources = {atom for arg in data.args_atoms for atom in arg}
-            for atom in data.ret_atoms:
-                data.depends(atom, *sources, apply_at_callsite=True)
+        sources = {atom for arg in data.args_atoms or [] for atom in arg}
+        for atom in data.ret_atoms:
+            data.depends(atom, *sources, apply_at_callsite=True)
 
     handle_indirect_function = handle_generic_function
     handle_local_function = handle_generic_function

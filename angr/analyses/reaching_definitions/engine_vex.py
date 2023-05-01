@@ -1,27 +1,22 @@
 from itertools import chain
-from typing import Optional, Iterable, Set, Union, TYPE_CHECKING, Tuple
+from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
 import logging
 
 import pyvex
 import claripy
-from cle import Symbol
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError, SimMemoryMissingError
-from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC, SimStructArg, SimArrayArg
 from ...utils.constants import DEFAULT_STATEMENT
 from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from ...knowledge_plugins.functions import Function
-from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
+from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, Tag
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
-from ...knowledge_plugins.key_definitions.undefined import Undefined
 from ...code_location import CodeLocation
-from ...analyses.reaching_definitions.call_trace import CallTrace
 from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
 from angr.analyses.reaching_definitions.function_handler import FunctionCallData
@@ -42,11 +37,9 @@ class SimEngineRDVEX(
     Implements the VEX execution engine for reaching definition analysis.
     """
 
-    def __init__(self, project, call_stack, maximum_local_call_depth, functions=None, function_handler=None):
+    def __init__(self, project, functions=None, function_handler=None):
         super().__init__()
         self.project = project
-        self._call_stack = call_stack
-        self._maximum_local_call_depth = maximum_local_call_depth
         self.functions: Optional["FunctionManager"] = functions
         self._function_handler: Optional["FunctionHandler"] = function_handler
         self._visited_blocks = None
@@ -54,26 +47,26 @@ class SimEngineRDVEX(
 
         self.state: ReachingDefinitionsState
 
-    def process(self, state, *args, **kwargs):
-        self._dep_graph = kwargs.pop("dep_graph", None)
-        self._visited_blocks = kwargs.pop("visited_blocks", None)
-
+    def process(self, state, *args, block=None, fail_fast=False, visited_blocks=None, dep_graph=None):
+        self._visited_blocks = visited_blocks
+        self._dep_graph = dep_graph
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
         try:
             self._process(
                 state,
                 None,
-                block=kwargs.pop("block", None),
+                block=block,
             )
         except SimEngineError as e:
-            if kwargs.pop("fail_fast", False) is True:
+            if fail_fast is True:
                 raise e
             l.error(e)
-        return self.state, self._visited_blocks, self._dep_graph
+        return self.state
 
     def _process_block_end(self):
         self.stmt_idx = DEFAULT_STATEMENT
+        self._set_codeloc()
         if self.block.vex.jumpkind == "Ijk_Call":
             # it has to be a function
             addr = self._expr(self.block.vex.next)
@@ -92,16 +85,14 @@ class SimEngineRDVEX(
     # Private methods
     #
 
-    def _generate_call_string(self) -> Tuple[int, ...]:
-        if isinstance(self.state._subject.content, Function):
-            return (self.state._subject.content.addr,)
-        elif isinstance(self.state._subject.content, CallTrace):
-            return tuple(x.caller_func_addr for x in self.state._subject.content.callsites)
-        else:
-            return None
-
     def _external_codeloc(self):
-        return ExternalCodeLocation(self._generate_call_string())
+        return ExternalCodeLocation(self.state.codeloc.context)
+
+    def _set_codeloc(self):
+        # TODO do we want a better mechanism to specify context updates?
+        self.state.move_codelocs(
+            CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self.state.codeloc.context)
+        )
 
     #
     # VEX statement handlers
@@ -112,6 +103,7 @@ class SimEngineRDVEX(
             self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_BEFORE)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
+        self._set_codeloc()
         super()._handle_Stmt(stmt)
 
         if self.state.analysis:
@@ -134,13 +126,12 @@ class SimEngineRDVEX(
 
         self.state.kill_and_add_definition(
             tmp_atom,
-            self._codeloc(),
             data,
         )
 
     def _handle_WrTmpData(self, tmp: int, data):
         super()._handle_WrTmpData(tmp, data)
-        self.state.kill_and_add_definition(Tmp(tmp, self.tyenv.sizeof(tmp)), self._codeloc(), self.tmps[tmp])
+        self.state.kill_and_add_definition(Tmp(tmp, self.tyenv.sizeof(tmp)), self.tmps[tmp])
 
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
@@ -155,15 +146,15 @@ class SimEngineRDVEX(
                 if self.state.is_heap_address(d):
                     heap_offset = self.state.get_heap_offset(d)
                     if heap_offset is not None:
-                        self.state.add_heap_use(heap_offset, 1, "Iend_BE", self._codeloc())
+                        self.state.add_heap_use(heap_offset, 1, "Iend_BE")
                 elif self.state.is_stack_address(d):
                     stack_offset = self.state.get_stack_offset(d)
                     if stack_offset is not None:
-                        self.state.add_stack_use(stack_offset, 1, "Iend_BE", self._codeloc())
+                        self.state.add_stack_use(stack_offset, 1, "Iend_BE")
 
         if self.state.exit_observed and reg_offset == self.arch.sp_offset:
             return
-        self.state.kill_and_add_definition(reg, self._codeloc(), data)
+        self.state.kill_and_add_definition(reg, data)
 
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
     def _handle_Store(self, stmt):
@@ -245,7 +236,7 @@ class SimEngineRDVEX(
 
                 # different addresses are not killed by a subsequent iteration, because kill only removes entries
                 # with same index and same size
-                self.state.kill_and_add_definition(atom, self._codeloc(), data, tags=tags, endness=endness)
+                self.state.kill_and_add_definition(atom, data, tags=tags, endness=endness)
 
     def _handle_LoadG(self, stmt):
         guard = self._expr(stmt.guard)
@@ -275,7 +266,7 @@ class SimEngineRDVEX(
     def _handle_Exit(self, stmt):
         _ = self._expr(stmt.guard)
         target = stmt.dst.value
-        self.state.mark_guard(self._codeloc(), target)
+        self.state.mark_guard(target)
         if (
             self.block.instruction_addrs
             and self.ins_addr in self.block.instruction_addrs
@@ -300,7 +291,6 @@ class SimEngineRDVEX(
                 self.tmps[stmt.result] = load_result
                 self.state.kill_and_add_definition(
                     Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
-                    self._codeloc(),
                     load_result,
                 )
         else:
@@ -315,7 +305,6 @@ class SimEngineRDVEX(
                 self.tmps[stmt.result] = MultiValues(claripy.BVV(1, 1))
                 self.state.kill_and_add_definition(
                     Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
-                    self._codeloc(),
                     self.tmps[stmt.result],
                 )
 
@@ -334,7 +323,7 @@ class SimEngineRDVEX(
     def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[MultiValues]:
         tmp: int = expr.tmp
 
-        self.state.add_tmp_use(tmp, self._codeloc())
+        self.state.add_tmp_use(tmp)
 
         if tmp in self.tmps:
             return self.tmps[tmp]
@@ -355,7 +344,7 @@ class SimEngineRDVEX(
             top = self.state.annotate_with_def(top, Definition(reg_atom, self._external_codeloc()))
             values = MultiValues(top)
             # write it to registers
-            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
+            self.state.kill_and_add_definition(reg_atom, values, override_codeloc=self._external_codeloc())
 
         current_defs: Optional[Iterable[Definition]] = None
         for vs in values.values():
@@ -367,13 +356,13 @@ class SimEngineRDVEX(
 
         if current_defs is None:
             # no defs can be found. add a fake definition
-            mv = self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
+            mv = self.state.kill_and_add_definition(reg_atom, values, override_codeloc=self._external_codeloc())
             current_defs = set()
             for vs in mv.values():
                 for v in vs:
                     current_defs |= self.state.extract_defs(v)
 
-        self.state.add_register_use_by_defs(current_defs, self._codeloc())
+        self.state.add_register_use_by_defs(current_defs)
 
         return values
 
@@ -395,7 +384,7 @@ class SimEngineRDVEX(
         def_ = Definition(dummy_atom, self._external_codeloc())
         top = self.state.annotate_with_def(top, def_)
         # add use
-        self.state.add_memory_use_by_def(def_, self._codeloc())
+        self.state.add_memory_use_by_def(def_)
         return MultiValues(top)
 
     def _load_core(self, addrs: Iterable[claripy.ast.Base], size: int, endness: str) -> MultiValues:
@@ -420,7 +409,7 @@ class SimEngineRDVEX(
                     except SimMemoryMissingError:
                         continue
 
-                    self.state.add_stack_use_by_defs(defs, self._codeloc())
+                    self.state.add_stack_use_by_defs(defs)
                     result = result.merge(vs) if result is not None else vs
 
             elif self.state.is_heap_address(addr):
@@ -432,7 +421,7 @@ class SimEngineRDVEX(
                 except SimMemoryMissingError:
                     continue
 
-                self.state.add_heap_use_by_defs(defs, self._codeloc())
+                self.state.add_heap_use_by_defs(defs)
                 result = result.merge(vs) if result is not None else vs
 
             else:
@@ -463,7 +452,7 @@ class SimEngineRDVEX(
                     except KeyError:
                         continue
 
-                self.state.add_memory_use_by_defs(defs, self._codeloc())
+                self.state.add_memory_use_by_defs(defs)
                 result = result.merge(vs) if result is not None else vs
 
         if result is None:
@@ -492,7 +481,7 @@ class SimEngineRDVEX(
 
     def _handle_Const(self, expr) -> MultiValues:
         clrp = claripy_value(expr.con.type, expr.con.value)
-        self.state.mark_const(self._codeloc(), expr.con.value, len(clrp) // 8)
+        self.state.mark_const(expr.con.value, len(clrp) // 8)
         return MultiValues(clrp)
 
     def _handle_Conversion(self, expr):
@@ -1024,9 +1013,12 @@ class SimEngineRDVEX(
     def _handle_function(self, func_addr: Optional[MultiValues], **kwargs):
         if func_addr is None:
             func_addr = self.state.top(self.state.arch.bits)
+
+        callsite = self.state.codeloc
         data = FunctionCallData(
-            callsite=self._codeloc(),
-            address_multi=func_addr,
+            callsite,
+            self._function_handler.make_function_codeloc(func_addr, callsite, self.state.analysis.model.func_addr),
+            func_addr,
             visited_blocks=set(),
         )
         self._function_handler.handle_function(self.state, data)

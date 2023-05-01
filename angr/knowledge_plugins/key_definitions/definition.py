@@ -116,7 +116,7 @@ class DefinitionMatchPredicate:
             if self.stack_offset is not None:
                 if (
                     not isinstance(defn.atom.addr, SpOffset)
-                    or defn.atom.addr.base != TODO
+                    or defn.atom.addr.base != "sp"  # TODO???????
                     or defn.atom.addr.offset != self.stack_offset
                 ):
                     return False

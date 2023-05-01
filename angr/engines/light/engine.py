@@ -107,26 +107,12 @@ class SimEngineLight(
     # Helper methods
     #
 
-    @property
-    def _context(self) -> Optional[Tuple[int]]:
-        if self._call_stack is None:
-            # contextless mode
-            return None
-
-        if not self._call_stack:
-            # contextful but the callstack is empty
-            return ()
-
-        # Convert to Tuple to make `context` hashable if not None
-        call_stack_addresses = tuple(self._call_stack)
-        return call_stack_addresses
-
-    def _codeloc(self, block_only=False):
+    def _codeloc(self, block_only=False, context=None):
         return CodeLocation(
             self.block.addr,
             None if block_only else self.stmt_idx,
             ins_addr=None if block_only else self.ins_addr,
-            context=self._context,
+            context=context,
         )
 
 
@@ -834,10 +820,10 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     # Helper methods
     #
 
-    def _codeloc(self):
+    def _codeloc(self, context=None):
         # noinspection PyUnresolvedReferences
         return CodeLocation(
-            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self._context, block_idx=self.block.idx
+            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=context, block_idx=self.block.idx
         )
 
     #

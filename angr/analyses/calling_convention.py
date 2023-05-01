@@ -35,9 +35,6 @@ from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
 from .reaching_definitions.function_handler import FunctionHandler
 
 if TYPE_CHECKING:
-    from angr.code_location import CodeLocation
-    from angr.analyses.reaching_definitions.dep_graph import DepGraph
-    from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
     from ..knowledge_plugins.functions import Function
     from ..knowledge_plugins.cfg import CFGModel
     from ..knowledge_plugins.key_definitions.uses import Uses

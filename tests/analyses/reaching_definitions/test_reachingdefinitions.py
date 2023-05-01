@@ -20,7 +20,6 @@ from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefiniti
 from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
-from angr.utils.constants import DEFAULT_STATEMENT
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_object import SimMemoryObject
 
@@ -56,10 +55,11 @@ class InsnAndNodeObserveTestingUtils:
         reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_function,
             observation_points=observation_points,
-            call_stack=[],
         )
 
-        state = ReachingDefinitionsState(project.arch, reaching_definitions.subject)
+        state = ReachingDefinitionsState(
+            CodeLocation(main_function.addr, None), project.arch, reaching_definitions.subject
+        )
 
         return (project, main_function, reaching_definitions, state)
 
@@ -83,7 +83,6 @@ class TestReachingDefinitions(TestCase):
         reaching_definition = project.analyses[ReachingDefinitionsAnalysis].prep(kb=tmp_kb)(
             subject=function,
             observe_all=True,
-            call_stack=[],
         )
 
         result = _extract_result(reaching_definition)
@@ -244,71 +243,6 @@ class TestReachingDefinitions(TestCase):
             )
         )
 
-    def test_init_the_call_stack_with_a_block_as_subject_add_its_owning_function_to_the_call_stack(self):
-        binary_path = _binary_path("all")
-        project = angr.Project(binary_path, load_options={"auto_load_libs": False})
-        cfg = project.analyses[CFGFast].prep()()
-
-        _start = cfg.kb.functions["_start"]
-        __libc_start_main = cfg.kb.functions["__libc_start_main"]
-        call_stack = [_start.addr, __libc_start_main.addr]
-
-        main_function = cfg.kb.functions["main"]
-        main_address = main_function.addr
-        main_block = Block(addr=main_address, project=project)
-
-        reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
-            subject=main_block, call_stack=call_stack
-        )
-        expected_call_stack = call_stack + [main_function.addr]
-
-        self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
-
-    def test_init_the_call_stack_with_another_block_as_subject_does_not_deepen_the_call_stack(self):
-        binary_path = _binary_path("all")
-        project = angr.Project(binary_path, load_options={"auto_load_libs": False})
-        cfg = project.analyses[CFGFast].prep()()
-
-        _start = cfg.kb.functions["_start"]
-        __libc_start_main = cfg.kb.functions["__libc_start_main"]
-        initial_call_stack = [_start.addr, __libc_start_main.addr]
-
-        main_function = cfg.kb.functions["main"]
-        main_address = main_function.addr
-        main_block = Block(addr=main_address, project=project)
-        another_block_in_main = Block(addr=0x4006FD, project=project)
-
-        new_call_stack = (
-            project.analyses[ReachingDefinitionsAnalysis]
-            .prep()(subject=main_block, call_stack=initial_call_stack)
-            ._call_stack
-        )
-
-        reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
-            subject=another_block_in_main, call_stack=new_call_stack
-        )
-        expected_call_stack = initial_call_stack + [main_function.addr]
-
-        self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
-
-    def test_init_the_call_stack_with_a_function_as_subject_adds_it_to_the_call_stack(self):
-        binary_path = _binary_path("all")
-        project = angr.Project(binary_path, load_options={"auto_load_libs": False})
-        cfg = project.analyses[CFGFast].prep()()
-
-        _start = cfg.kb.functions["_start"]
-        __libc_start_main = cfg.kb.functions["__libc_start_main"]
-        initial_call_stack = [_start.addr, __libc_start_main.addr]
-
-        main_function = cfg.kb.functions["main"]
-
-        reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
-            subject=main_function, call_stack=initial_call_stack
-        )
-        expected_call_stack = initial_call_stack + [main_function.addr]
-
-        self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
-
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path("all")
         project = angr.Project(binary_path, load_options={"auto_load_libs": False})
@@ -347,7 +281,7 @@ class TestReachingDefinitions(TestCase):
         # check that the only dependency of the first block's
         # guard is the four cc registers
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(
-            subject=main_func, track_tmps=False, dep_graph=DepGraph()
+            subject=main_func, track_tmps=False, track_consts=False, dep_graph=True
         )
         guard_use = list(
             filter(
@@ -386,7 +320,7 @@ class TestReachingDefinitions(TestCase):
         main_func = cfg.functions["authenticate"]
 
         rda: ReachingDefinitionsAnalysis = project.analyses[ReachingDefinitionsAnalysis].prep()(
-            subject=main_func, track_tmps=False, dep_graph=DepGraph()
+            subject=main_func, track_tmps=False, track_consts=False, dep_graph=True
         )
         dep_graph = rda.dep_graph
         open_rdi = next(
@@ -431,14 +365,15 @@ class TestReachingDefinitions(TestCase):
         arch = project.arch
         cfg = project.analyses[CFGFast].prep()()
         main_func = cfg.functions["main"]
+        authenticate_func = cfg.functions["authenticate"]
 
         project.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
-        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main_func, track_tmps=False, call_stack=[])
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main_func, track_tmps=False)
 
         # 4007ae
         # rsi and rdi are all used by authenticate()
-        context = (main_func.addr,)
-        code_location = CodeLocation(0x4007A0, DEFAULT_STATEMENT, ins_addr=0x4007AE, context=context)
+        context = None
+        code_location = CodeLocation(authenticate_func.addr, None, context=context)
         uses = rda.all_uses.get_uses_by_location(code_location)
         self.assertEqual(len(uses), 2)
         auth_rdi = next(

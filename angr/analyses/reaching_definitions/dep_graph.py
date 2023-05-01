@@ -15,7 +15,7 @@ from ...knowledge_plugins.cfg import CFGModel
 from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
-    from angr.project import Project
+    pass
 
 
 def _is_definition(node):
