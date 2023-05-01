@@ -33,7 +33,7 @@ class DefinitionMatchPredicate:
     const_val: Optional[int] = (None,)
 
     @staticmethod
-    def construct(self, predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
+    def construct(predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
         if predicate is None:
             predicate = DefinitionMatchPredicate(**kwargs)
             predicate.normalize()
