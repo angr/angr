@@ -51,10 +51,10 @@ class Expression(TaggedObject):
         return r, replaced
 
     def __add__(self, other):
-        return BinaryOp(None, "Add", [self, other], False)
+        return BinaryOp(None, "Add", [self, other], False, **self.tags)
 
     def __sub__(self, other):
-        return BinaryOp(None, "Sub", [self, other], False)
+        return BinaryOp(None, "Sub", [self, other], False, **self.tags)
 
 
 class Atom(Expression):
