@@ -50,6 +50,7 @@ class FunctionCallData:
     effects: Dict[Atom, FunctionEffect] = field(default_factory=lambda: {})
     ret_values: Optional[MultiValues] = None
     ret_values_deps: Optional[Set[Definition]] = None
+    caller_will_handle_single_ret: bool = False
 
     def depends(
         self,
@@ -102,7 +103,7 @@ class FunctionHandler:
         if callsite.context is None:
             return CodeLocation(target, stmt_idx=None, context=None)
         elif type(callsite.context) is tuple and callsite_func_addr is not None:
-            return CodeLocation(target, stmt_idx=None, context=(callsite_func_addr,) + callsite.context)
+            return CodeLocation(target, stmt_idx=None, context=(callsite.block_addr,) + callsite.context)
         else:
             raise TypeError(
                 "Please implement FunctionHandler.make_function_codeloc for your special context sensitivity"
@@ -207,10 +208,7 @@ class FunctionHandler:
                 other_input_defns |= effect.sources_defns - all_args_defns
         # apply the effects
         for dest, effect in data.effects.items():
-            # TODO experiment: does getting rid of apply at callsite and then letting this callsite do anything
-            # that needs to happen at the callsite make sense?
-            # codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
-            codeloc = data.function_codeloc
+            codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
             # mark uses
             if effect.sources_defns is not None:
                 for source in effect.sources_defns:
@@ -218,23 +216,23 @@ class FunctionHandler:
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             # special case: if there is exactly one ret atom, we expect that the caller will do something
             # with the value, e.g. if this is a call expression.
-            if data.ret_atoms is not None and len(data.ret_atoms) == 1:
+            if data.caller_will_handle_single_ret and data.ret_atoms == {dest}:
                 data.ret_values = value
                 data.ret_values_deps = effect.sources_defns
-            # mark definition
-            # TODO do we skip this in the above case
-            mv, defs = state.kill_and_add_definition(
-                dest,
-                value,
-                uses=effect.sources_defns,
-                override_codeloc=codeloc,
-            )
-            # categorize the output defn as either ret or other based on the atoms
-            for defn in defs:
-                if data.ret_atoms is not None and defn.atom not in data.ret_atoms:
-                    other_output_defns.add(defn)
-                else:
-                    ret_defns.add(defn)
+            else:
+                # mark definition
+                mv, defs = state.kill_and_add_definition(
+                    dest,
+                    value,
+                    uses=effect.sources_defns,
+                    override_codeloc=codeloc,
+                )
+                # categorize the output defn as either ret or other based on the atoms
+                for defn in defs:
+                    if data.ret_atoms is not None and defn.atom not in data.ret_atoms:
+                        other_output_defns.add(defn)
+                    else:
+                        ret_defns.add(defn)
 
         # record this callsite
         state.analysis.function_calls[data.callsite_codeloc] = FunctionCallRelationships(

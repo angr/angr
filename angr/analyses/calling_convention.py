@@ -272,7 +272,7 @@ class CallingConventionAnalysis(Analysis):
                     # prioritize the hooker
                     hooker = self.project.hooked_by(real_func.addr)
                     if hooker is not None:
-                        if not hooker.is_stub or hooker.is_function and hooker.library_name:
+                        if not hooker.is_stub or hooker.is_function and not hooker.guessed_prototype:
                             return real_func.calling_convention, hooker.prototype
                 if real_func.calling_convention and real_func.prototype:
                     return real_func.calling_convention, real_func.prototype

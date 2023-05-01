@@ -243,6 +243,7 @@ class SimEngineRDAIL(
             name=func_name,
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
             redefine_locals=not is_expr,
+            caller_will_handle_single_ret=True,
         )
 
         self._function_handler.handle_function(self.state, data)

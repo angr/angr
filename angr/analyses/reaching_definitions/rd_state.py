@@ -541,7 +541,7 @@ class ReachingDefinitionsState:
 
     def add_memory_use_by_def(self, definition: Definition, expr: Optional[Any] = None):
         self.codeloc_uses.add(definition)
-        self.live_definitions.add_memory_use_by_def(definition, expr=expr)
+        self.live_definitions.add_memory_use_by_def(definition, self.codeloc, expr=expr)
 
     def add_memory_use_by_defs(self, defs: Iterable[Definition], expr: Optional[Any] = None):
         for definition in defs:

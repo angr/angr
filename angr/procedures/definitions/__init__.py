@@ -188,6 +188,7 @@ class SimLibrary:
             proc.cc = self.fallback_cc[arch.name](arch)
         if proc.display_name in self.prototypes:
             proc.prototype = self.prototypes[proc.display_name].with_arch(arch)
+            proc.guessed_prototype = False
             if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
                 proc.prototype.arg_names = inspect.getfullargspec(proc.run).args[1:]
@@ -345,6 +346,7 @@ class SimCppLibrary(SimLibrary):
             stub.prototype = self._proto_from_demangled_name(demangled_name)
             if stub.prototype is not None:
                 stub.prototype = stub.prototype.with_arch(arch)
+                stub.guessed_prototype = False
                 if not stub.ARGS_MISMATCH:
                     stub.cc.num_args = len(stub.prototype.args)
                     stub.num_args = len(stub.prototype.args)
@@ -520,6 +522,7 @@ class SimSyscallLibrary(SimLibrary):
         # a bit of a hack.
         name = proc.display_name
         if self.syscall_prototypes[abi].get(name, None) is not None:
+            proc.guessed_prototype = False
             proc.prototype = self.syscall_prototypes[abi][name].with_arch(arch)
 
     # pylint: disable=arguments-differ
