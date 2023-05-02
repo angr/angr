@@ -13,7 +13,7 @@ from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
+from ...knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
 from .subject import SubjectType
@@ -244,6 +244,7 @@ class SimEngineRDAIL(
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
             redefine_locals=not is_expr,
             caller_will_handle_single_ret=True,
+            ret_atoms={Atom.from_ail_expr(stmt.ret_expr, self.arch)} if stmt.ret_expr is not None else None,
         )
 
         self._function_handler.handle_function(self.state, data)

@@ -39,7 +39,6 @@ class SimEngineVRAIL(
             None if block_only else self.stmt_idx,
             block_idx=self.block.idx,
             ins_addr=None if block_only else self.ins_addr,
-            context=self._context,
         )
 
     # Statement handlers

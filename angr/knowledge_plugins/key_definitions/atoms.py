@@ -2,6 +2,7 @@ from typing import Union, Optional
 from enum import Enum, auto
 
 import claripy
+import ailment
 from archinfo import Arch
 
 from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
@@ -49,7 +50,17 @@ class Atom:
         self.size = v
 
     @staticmethod
-    def from_argument(argument: SimFunctionArgument, arch: Arch, full_reg=False):
+    def from_ail_expr(expr: ailment.Expr.Expression, arch: Arch, full_reg: bool = False) -> "Register":
+        if isinstance(expr, ailment.Expr.Register):
+            if full_reg:
+                reg_name = arch.translate_register_name(expr.reg_offset)
+                return Register(arch.registers[reg_name][0], arch.registers[reg_name][1], arch)
+            else:
+                return Register(expr.reg_offset, expr.size, arch)
+        raise TypeError(f"Expression type {type(expr)} is not yet supported")
+
+    @staticmethod
+    def from_argument(argument: SimFunctionArgument, arch: Arch, full_reg=False) -> Union["Register", "MemoryLocation"]:
         """
         Instanciate an `Atom` from a given argument.
 

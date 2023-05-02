@@ -550,9 +550,9 @@ class TestDecompiler(unittest.TestCase):
             if "convert(" in line:
                 # the previous line must be a curly brace
                 assert i > 0
-                assert code_lines[i - 1] == "{", (
-                    "Some arguments to convert() are probably not folded into this call " "statement."
-                )
+                assert (
+                    code_lines[i - 1] == "{"
+                ), "Some arguments to convert() are probably not folded into this call statement."
                 break
         else:
             assert False, "Call to convert() is not found in decompilation output."

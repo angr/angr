@@ -163,7 +163,8 @@ class FunctionHandler:
         elif data.args_atoms is None and data.cc is not None and data.prototype is not None:
             data.args_atoms = self.c_args_as_atoms(state, data.cc, data.prototype)
         if data.ret_atoms is None and data.cc is not None and data.prototype is not None:
-            data.ret_atoms = self.c_return_as_atoms(state, data.cc, data.prototype)
+            if data.prototype.returnty is not None:
+                data.ret_atoms = self.c_return_as_atoms(state, data.cc, data.prototype)
 
         # PROCESS
         state.move_codelocs(data.function_codeloc)

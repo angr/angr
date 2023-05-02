@@ -895,6 +895,7 @@ class AILSimplifier(Analysis):
 
                 if self._is_call_using_temporaries(call):
                     continue
+                call_addr: Optional[int] = call.target.value if isinstance(call.target, Const) else None
 
                 if eq.codeloc in updated_use_locations:
                     # this def is now created by an updated use. the corresponding statement will be updated in the end.
@@ -957,9 +958,9 @@ class AILSimplifier(Analysis):
                         # special case: ok if this atom is assigned to at the def site and has not been overwritten
                         if len(usesite_expr_uses) == 1:
                             usesite_expr_use = next(iter(usesite_expr_uses))
-                            if (
-                                usesite_expr_use.atom == defsite_expr_atom
-                                and usesite_expr_use.codeloc == the_def.codeloc
+                            if usesite_expr_use.atom == defsite_expr_atom and (
+                                usesite_expr_use.codeloc == the_def.codeloc
+                                or usesite_expr_use.codeloc.block_addr == call_addr
                             ):
                                 continue
                         usesite_expr_def_outdated = True
