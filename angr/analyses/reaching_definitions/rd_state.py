@@ -581,25 +581,26 @@ class ReachingDefinitionsState:
         could define or use.
         """
         result = set()
-        for value in pointer.values[0]:
-            if self.is_top(value):
-                continue
-
-            # TODO this can be simplified with the walrus operator
-            stack_offset = self.get_stack_offset(value)
-            if stack_offset is not None:
-                addr = SpOffset(pointer.bits, stack_offset)
-            else:
-                heap_offset = self.get_heap_offset(value)
-                if heap_offset is not None:
-                    addr = HeapAddress(heap_offset)
-                elif value.op == "BVV":
-                    addr = value.args[0]
-                else:
-                    # cannot resolve
+        for vs in pointer.values():
+            for value in vs:
+                if self.is_top(value):
                     continue
 
-            atom = MemoryLocation(addr, size, endness)
-            result.add(atom)
+                # TODO this can be simplified with the walrus operator
+                stack_offset = self.get_stack_offset(value)
+                if stack_offset is not None:
+                    addr = SpOffset(pointer.bits, stack_offset)
+                else:
+                    heap_offset = self.get_heap_offset(value)
+                    if heap_offset is not None:
+                        addr = HeapAddress(heap_offset)
+                    elif value.op == "BVV":
+                        addr = value.args[0]
+                    else:
+                        # cannot resolve
+                        continue
+
+                atom = MemoryLocation(addr, size, endness)
+                result.add(atom)
 
         return result
