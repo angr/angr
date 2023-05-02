@@ -887,15 +887,18 @@ class AILSimplifier(Analysis):
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
                     call = eq.atom1
+                    call_addr: Optional[int] = call.target.value if isinstance(call.target, Const) else None
                 elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
                     # register variable = Convert(Call)
                     call = eq.atom1
+                    call_addr: Optional[int] = (
+                        call.operand.target.value if isinstance(call.operand.target, Const) else None
+                    )
                 else:
                     continue
 
                 if self._is_call_using_temporaries(call):
                     continue
-                call_addr: Optional[int] = call.target.value if isinstance(call.target, Const) else None
 
                 if eq.codeloc in updated_use_locations:
                     # this def is now created by an updated use. the corresponding statement will be updated in the end.
