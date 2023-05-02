@@ -51,6 +51,8 @@ class FunctionCallData:
     ret_values: Optional[MultiValues] = None
     ret_values_deps: Optional[Set[Definition]] = None
     caller_will_handle_single_ret: bool = False
+    guessed_cc: bool = False
+    guessed_prototype: bool = False
 
     def depends(
         self,
@@ -150,9 +152,11 @@ class FunctionHandler:
 
         # fallback to the default calling convention and prototype
         if data.cc is None:
-            data.cc = state.analysis.project.factory.cc()  # sketchy
+            data.cc = state.analysis.project.factory.cc()
+            data.guessed_cc = True
         if data.prototype is None:
             data.prototype = state.analysis.project.factory.function_prototype()
+            data.guessed_prototype = True
 
         if data.args_values is not None:
             data.args_atoms = None  # so we do not retrieve the atoms for arguments again
@@ -247,11 +251,20 @@ class FunctionHandler:
         state.move_codelocs(data.callsite_codeloc)
 
     def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
-        if data.ret_atoms is None:
-            return
-        sources = {atom for arg in data.args_atoms or [] for atom in arg}
-        for atom in data.ret_atoms:
-            data.depends(atom, *sources, apply_at_callsite=True)
+        if data.guessed_prototype:
+            # use all!
+            # TODO should we use some number of stack variables as well?
+            assert data.ret_atoms  # provided as guess
+            for ret_atom in data.ret_atoms:
+                data.depends(
+                    ret_atom, *(Register(*state.arch.registers[reg_name], state.arch) for reg_name in data.cc.ARG_REGS)
+                )
+        else:
+            if data.ret_atoms is None:
+                return
+            sources = {atom for arg in data.args_atoms or [] for atom in arg}
+            for atom in data.ret_atoms:
+                data.depends(atom, *sources, apply_at_callsite=True)
 
     handle_indirect_function = handle_generic_function
     handle_local_function = handle_generic_function
