@@ -210,8 +210,8 @@ class FunctionHandler:
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
-        # apply the effects
-        for dest, effect in sorted(data.effects.items(), key=lambda de: de[1].apply_at_callsite):
+        # apply the effects, with the ones marked with apply_at_callsite=True applied first
+        for dest, effect in sorted(data.effects.items(), key=lambda de: de[1].apply_at_callsite, reverse=True):
             codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
             state.move_codelocs(codeloc)  # no-op if duplicated
             # mark uses
