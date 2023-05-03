@@ -98,14 +98,16 @@ class FunctionHandler:
     ):
         if isinstance(target, MultiValues):
             target_bv = target.one_value()
-            if target_bv.op == "BVV":
-                target = target_bv.args[0]
+            if target_bv is not None and target_bv.op == "BVV":
+                target_int = target_bv.args[0]
             else:
-                target = None
+                target_int = None
+        else:
+            target_int = target
         if callsite.context is None:
-            return CodeLocation(target, stmt_idx=None, context=None)
+            return CodeLocation(target_int, stmt_idx=None, context=None)
         elif type(callsite.context) is tuple and callsite_func_addr is not None:
-            return CodeLocation(target, stmt_idx=None, context=(callsite.block_addr,) + callsite.context)
+            return CodeLocation(target_int, stmt_idx=None, context=(callsite.block_addr,) + callsite.context)
         else:
             raise TypeError(
                 "Please implement FunctionHandler.make_function_codeloc for your special context sensitivity"
@@ -211,14 +213,13 @@ class FunctionHandler:
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
-        # apply the effects, with the ones marked with apply_at_callsite=True applied first
-        for dest, effect in sorted(data.effects.items(), key=lambda de: de[1].apply_at_callsite, reverse=True):
+                # mark uses
+                for source in effect.sources_defns:
+                    state.add_use_by_def(source, expr=None)
+        # apply the effects, with the ones marked with apply_at_callsite=False applied first
+        for dest, effect in sorted(data.effects.items(), key=lambda de: de[1].apply_at_callsite, reverse=False):
             codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
             state.move_codelocs(codeloc)  # no-op if duplicated
-            # mark uses
-            if effect.sources_defns is not None:
-                for source in effect.sources_defns:
-                    state.add_use(source.atom, expr=None)
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             # special case: if there is exactly one ret atom, we expect that the caller will do something
             # with the value, e.g. if this is a call expression.
@@ -252,6 +253,7 @@ class FunctionHandler:
         state.move_codelocs(data.callsite_codeloc)
 
     def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
+        assert data.cc is not None
         if data.guessed_prototype:
             # use all!
             # TODO should we use some number of stack variables as well?
@@ -279,9 +281,7 @@ class FunctionHandler:
         ]
 
     @staticmethod
-    def c_return_as_atoms(
-        state: "ReachingDefinitionsState", cc: SimCC, prototype: Optional[SimTypeFunction]
-    ) -> Set[Atom]:
+    def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> Set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
             retval = cc.return_val(prototype.returnty)
             if retval is not None:
