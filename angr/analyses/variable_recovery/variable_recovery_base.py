@@ -312,13 +312,6 @@ class VariableRecoveryStateBase:
     def variable_manager(self):
         return self._analysis.variable_manager
 
-    @property
-    def variables(self):
-        for ro in self.stack_region:
-            yield from ro.internal_objects
-        for ro in self.register_region:
-            yield from ro.internal_objects
-
     def get_variable_definitions(self, block_addr):
         """
         Get variables that are defined at the specified block.
