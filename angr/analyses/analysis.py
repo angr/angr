@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from .boyscout import BoyScout
     from .variable_recovery import VariableRecoveryFast
     from .variable_recovery import VariableRecovery
+    from .reaching_definitions import ReachingDefinitionsAnalysis
 
     AnalysisParams = ParamSpec("AnalysisParams")
 
@@ -146,6 +147,7 @@ class KnownAnalysesPlugin(typing.Protocol):
     BoyScout: "Type[BoyScout]"
     VariableRecoveryFast: "Type[VariableRecoveryFast]"
     VariableRecovery: "Type[VariableRecovery]"
+    ReachingDefinitions: "Type[ReachingDefinitionsAnalysis]"
 
 
 class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):

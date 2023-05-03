@@ -35,7 +35,7 @@ from .ccall_rewriters import CCALL_REWRITERS
 
 if TYPE_CHECKING:
     from ailment.manager import Manager
-    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
+    from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 
 
 _l = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ class AILSimplifier(Analysis):
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions = None
+        self._reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
@@ -189,7 +189,7 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
-    def _compute_reaching_definitions(self) -> "ReachingDefinitionsModel":
+    def _compute_reaching_definitions(self) -> "ReachingDefinitionsAnalysis":
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
@@ -836,9 +836,14 @@ class AILSimplifier(Analysis):
     #
 
     @staticmethod
-    def _is_call_using_temporaries(call: Call) -> bool:
+    def _is_expr_using_temporaries(expr: Expression) -> bool:
         walker = AILBlockTempCollector()
-        walker.walk_statement(call)
+        walker.walk_expression(expr)
+        return len(walker.temps) > 0
+
+    def _is_stmt_using_temporaries(stmt: Statement) -> bool:
+        walker = AILBlockTempCollector()
+        walker.walk_statement(stmt)
         return len(walker.temps) > 0
 
     def _fold_call_exprs(self) -> bool:
@@ -879,25 +884,23 @@ class AILSimplifier(Analysis):
         def_locations_to_remove: Set[CodeLocation] = set()
         updated_use_locations: Set[CodeLocation] = set()
 
+        eq: Equivalence
         for eq in prop.model.equivalence:
-            eq: Equivalence
-
             # register variable == Call
             if isinstance(eq.atom0, Register):
+                call_addr: Optional[int]
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
-                    call = eq.atom1
-                    call_addr: Optional[int] = call.target.value if isinstance(call.target, Const) else None
+                    call: Expression = eq.atom1
+                    call_addr = call.target.value if isinstance(call.target, Const) else None
                 elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
                     # register variable = Convert(Call)
                     call = eq.atom1
-                    call_addr: Optional[int] = (
-                        call.operand.target.value if isinstance(call.operand.target, Const) else None
-                    )
+                    call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
                 else:
                     continue
 
-                if self._is_call_using_temporaries(call):
+                if self._is_expr_using_temporaries(call):
                     continue
 
                 if eq.codeloc in updated_use_locations:
@@ -986,7 +989,7 @@ class AILSimplifier(Analysis):
 
                 if isinstance(eq.atom0, Register):
                     src = used_expr
-                    dst = call
+                    dst: Expression = call
 
                     if src.bits != dst.bits:
                         dst = Convert(None, dst.bits, src.bits, False, dst)

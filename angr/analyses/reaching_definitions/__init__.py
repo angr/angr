@@ -13,7 +13,7 @@ from ...knowledge_plugins.key_definitions.atoms import (
 )
 from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import register_analysis
-from .reaching_definitions import ReachingDefinitionsAnalysis
+from .reaching_definitions import ReachingDefinitionsAnalysis, ReachingDefinitionsModel
 from .function_handler import FunctionHandler
 
 

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, Any
 
 
 class CodeLocation:
@@ -24,7 +24,7 @@ class CodeLocation:
         stmt_idx: Optional[int],
         sim_procedure=None,
         ins_addr: Optional[int] = None,
-        context: Optional[Tuple[int]] = None,
+        context: Any = None,
         block_idx: int = None,
         **kwargs,
     ):
@@ -42,7 +42,7 @@ class CodeLocation:
         """
 
         self.block_addr: int = block_addr
-        self.stmt_idx: int = stmt_idx
+        self.stmt_idx: Optional[int] = stmt_idx
         self.sim_procedure = sim_procedure
         self.ins_addr: Optional[int] = ins_addr
         self.context: Optional[Tuple[int]] = context
