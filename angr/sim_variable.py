@@ -26,12 +26,13 @@ class SimVariable(Serializable):
         :param str name: Name of this variable.
         """
         self._ident = ident
-        self.name = name
         self._region: Optional[int] = region
+        self._size = size
+
+        self.name = name
         self.category: Optional[str] = category
         self.renamed = False
         self.candidate_names = None
-        self._size = size
 
     @property
     def ident(self):
@@ -65,13 +66,13 @@ class SimVariable(Serializable):
         obj.base.renamed = self.renamed
 
     def _from_base(self, obj):
-        self.ident = obj.base.ident
+        self._ident = obj.base.ident
         if obj.base.HasField("category"):
             self.category = obj.base.category
         else:
             self.category = None
         if obj.base.HasField("region"):
-            self.region = obj.base.region
+            self._region = obj.base.region
         self.name = obj.base.name
         self.renamed = obj.base.renamed
 
