@@ -451,6 +451,35 @@ class TestVariableRecovery(unittest.TestCase):
             False,
         )
 
+    def _run_variable_recovery_analysis_multiple_times(self, func_name: str, is_fast: bool):
+        binary_path = os.path.join(test_location, "x86_64", "fauxware")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFG(normalize=True)
+
+        if is_fast:
+            analysis = project.analyses.VariableRecoveryFast
+        else:
+            analysis = project.analyses.VariableRecovery
+
+        # Initial
+        l = analysis(cfg.kb.functions[func_name], store_live_variables=True)
+        expected_variables = project.kb.variables[func_name].get_variables()
+
+        # Again
+        analysis(cfg.kb.functions[func_name])
+        assert project.kb.variables[func_name].get_variables() == expected_variables
+
+        # Again, with new CFG
+        cfg = project.analyses.CFG(normalize=True)
+        analysis(cfg.kb.functions[func_name])
+        assert project.kb.variables[func_name].get_variables() == expected_variables
+
+    def test_variable_recovery_fauxware_main_multiple_times(self):
+        self._run_variable_recovery_analysis_multiple_times("main", False)
+
+    def test_variable_recovery_fast_fauxware_main_multiple_times(self):
+        self._run_variable_recovery_analysis_multiple_times("main", True)
+
 
 if __name__ == "__main__":
     l.setLevel(logging.DEBUG)
