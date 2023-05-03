@@ -743,8 +743,6 @@ class VariableManagerInternal(Serializable):
                 var.name = f"v{idx}"
             elif isinstance(var, SimRegisterVariable):
                 var.name = f"v{idx}"
-            # clear the hash cache
-            var._hash = None
 
         # rename arguments but keeping the original order
         arg_ctr = count(0)
@@ -754,7 +752,6 @@ class VariableManagerInternal(Serializable):
             if var.name is not None and not reset:
                 continue
             var.name = f"a{idx}"
-            var._hash = None
 
     def _register_struct_type(self, ty: SimStruct, name: Optional[str] = None) -> TypeRef:
         if not name:
