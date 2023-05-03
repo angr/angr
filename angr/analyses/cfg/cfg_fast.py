@@ -3307,8 +3307,14 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
                     del self._function_returns[nonreturning_function.addr]
 
-    def _pop_pending_job(self, returning=True):
-        return self._pending_jobs.pop_job(returning=returning)
+    def _pop_pending_job(self, returning=True) -> Optional[CFGJob]:
+        while self._pending_jobs:
+            job = self._pending_jobs.pop_job(returning=returning)
+            if job is not None and job.job_type == CFGJobType.DATAREF_HINTS and self._seg_list.is_occupied(job.addr):
+                # ignore this hint from data refs because the target address has already been analyzed
+                continue
+            return job
+        return None
 
     def _clean_pending_exits(self):
         self._pending_jobs.cleanup()
