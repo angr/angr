@@ -216,13 +216,13 @@ class FunctionHandler:
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
-                # mark uses
-                for source in effect.sources_defns:
-                    state.add_use_by_def(source, expr=None)
         # apply the effects, with the ones marked with apply_at_callsite=False applied first
         for dest, effect in sorted(data.effects.items(), key=lambda de: de[1].apply_at_callsite, reverse=False):
             codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
             state.move_codelocs(codeloc)  # no-op if duplicated
+            # mark uses
+            for source in effect.sources_defns or set():
+                state.add_use_by_def(source, expr=None)
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             # special case: if there is exactly one ret atom, we expect that the caller will do something
             # with the value, e.g. if this is a call expression.
@@ -234,7 +234,7 @@ class FunctionHandler:
                 mv, defs = state.kill_and_add_definition(
                     dest,
                     value,
-                    uses=effect.sources_defns,
+                    uses=effect.sources_defns or set(),
                 )
                 # categorize the output defn as either ret or other based on the atoms
                 for defn in defs:
