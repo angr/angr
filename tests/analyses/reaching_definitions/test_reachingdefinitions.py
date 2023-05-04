@@ -64,11 +64,11 @@ class InsnAndNodeObserveTestingUtils:
         return (project, main_function, reaching_definitions, state)
 
 
-def _binary_path(binary_name):
+def _binary_path(binary_name, arch: str = "x86_64"):
     tests_location = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests"
     )
-    return os.path.join(tests_location, "x86_64", binary_name)
+    return os.path.join(tests_location, arch, binary_name)
 
 
 def _result_path(binary_results_name):
@@ -482,6 +482,23 @@ class TestReachingDefinitions(TestCase):
             endness=project.arch.register_endness,
         )
         assert claripy.is_true(mv.one_value() == claripy.BVV(1, 32))
+
+    def test_conditional_return(self):
+        bin_path = _binary_path("check_dap", arch="armel")
+        project = angr.Project(bin_path, auto_load_libs=False)
+        cfg = project.analyses[CFGFast].prep()(normalize=True)
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=cfg.kb.functions[0x93E0], observe_all=True)
+        sp_0 = rda.model.observed_results[("insn", 0x9410, OP_BEFORE)].register_definitions.load(
+            project.arch.sp_offset,
+            size=4,
+            endness=project.arch.register_endness,
+        )
+        sp_1 = rda.model.observed_results[("insn", 0x9410, OP_AFTER)].register_definitions.load(
+            project.arch.sp_offset,
+            size=4,
+            endness=project.arch.register_endness,
+        )
+        assert sp_0 == sp_1
 
 
 if __name__ == "__main__":
