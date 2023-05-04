@@ -163,8 +163,13 @@ class FunctionHandler:
             data.prototype = state.analysis.project.factory.function_prototype()
             data.guessed_prototype = True
 
-        if data.args_values is not None:
-            data.args_atoms = None  # so we do not retrieve the atoms for arguments again
+        if data.args_atoms is None and data.args_values is not None:
+            data.args_atoms = [
+                set().union(
+                    *({defn.atom for defn in state.extract_defs(value)} for values in mv.values() for value in values)
+                )
+                for mv in data.args_values
+            ]
         elif data.args_atoms is None and data.cc is not None and data.prototype is not None:
             data.args_atoms = self.c_args_as_atoms(state, data.cc, data.prototype)
         if data.ret_atoms is None and data.cc is not None and data.prototype is not None:
