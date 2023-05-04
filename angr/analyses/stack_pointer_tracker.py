@@ -545,7 +545,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     self._set_post_state(curr_stmt_start_addr, state.freeze())
                 curr_stmt_start_addr = stmt.addr + stmt.delta
                 self._set_pre_state(curr_stmt_start_addr, state.freeze())
-            if type(stmt) is pyvex.IRStmt.Exit:
+            elif (
+                type(stmt) is pyvex.IRStmt.Exit
+                and curr_stmt_start_addr in vex_block.instruction_addresses
+                and vex_block.instruction_addresses.index(curr_stmt_start_addr) == vex_block.instructions - 1
+            ):
                 exit_observed = True
             else:
                 try:

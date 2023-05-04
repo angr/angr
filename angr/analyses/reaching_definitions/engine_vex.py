@@ -275,7 +275,12 @@ class SimEngineRDVEX(
         _ = self._expr(stmt.guard)
         target = stmt.dst.value
         self.state.mark_guard(self._codeloc(), target)
-        self.state.exit_observed = True
+        if (
+            self.block.instruction_addrs
+            and self.ins_addr in self.block.instruction_addrs
+            and self.block.instruction_addrs.index(self.ins_addr) == self.block.instructions - 1
+        ):
+            self.state.exit_observed = True
 
     def _handle_IMark(self, stmt):
         pass
