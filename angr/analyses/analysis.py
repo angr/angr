@@ -44,6 +44,8 @@ if TYPE_CHECKING:
     from .variable_recovery import VariableRecovery
     from .reaching_definitions import ReachingDefinitionsAnalysis
     from .complete_calling_conventions import CompleteCallingConventionsAnalysis
+    from .decompiler.clinic import Clinic
+    from .propagator import PropagatorAnalysis
 
     AnalysisParams = ParamSpec("AnalysisParams")
 
@@ -150,6 +152,8 @@ class KnownAnalysesPlugin(typing.Protocol):
     VariableRecovery: "Type[VariableRecovery]"
     ReachingDefinitions: "Type[ReachingDefinitionsAnalysis]"
     CompleteCallingConventions: "Type[CompleteCallingConventionsAnalysis]"
+    Clinic: "Type[Clinic]"
+    Propagator: "Type[PropagatorAnalysis]"
 
 
 class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):

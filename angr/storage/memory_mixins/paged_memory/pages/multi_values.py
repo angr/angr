@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Set, Generator, Tuple
+from typing import Dict, Optional, Set, Tuple, Iterator
 
 import claripy
 
@@ -163,7 +163,7 @@ class MultiValues:
             return {0}
         return set() if not self._values else set(self._values.keys())
 
-    def values(self) -> Generator[Set[claripy.ast.Base], None, None]:
+    def values(self) -> Iterator[Set[claripy.ast.Base]]:
         if self._single_value is not None:
             yield {self._single_value}
         else:
@@ -171,7 +171,7 @@ class MultiValues:
                 return
             yield from self._values.values()
 
-    def items(self) -> Generator[Tuple[int, Set[claripy.ast.Base]], None, None]:
+    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.Base]]]:
         if self._single_value is not None:
             yield 0, {self._single_value}
         else:

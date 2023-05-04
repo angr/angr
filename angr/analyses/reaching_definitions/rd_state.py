@@ -1,5 +1,5 @@
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
-from typing import Optional, Iterable, Set, Generator, Tuple, Any, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Tuple, Any, TYPE_CHECKING, Iterator
 import logging
 
 import archinfo
@@ -190,7 +190,14 @@ class ReachingDefinitionsState:
         """
         return self.live_definitions.annotate_with_def(symvar, definition)
 
-    def extract_defs(self, symvar: claripy.ast.Base) -> Generator[Definition, None, None]:
+    def annotate_mv_with_def(self, mv: MultiValues, definition: Definition) -> MultiValues:
+        return MultiValues(
+            offset_to_values={
+                offset: {self.annotate_with_def(value, definition) for value in values} for offset, values in mv.items()
+            }
+        )
+
+    def extract_defs(self, symvar: claripy.ast.Base) -> Iterator[Definition]:
         yield from self.live_definitions.extract_defs(symvar)
 
     #

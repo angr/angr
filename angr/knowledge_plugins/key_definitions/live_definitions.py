@@ -534,7 +534,7 @@ class LiveDefinitions:
             # ignore constants
             pass
         else:
-            raise TypeError()
+            raise TypeError("Unsupported atom type %s." % type(definition.atom))
 
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         if isinstance(atom, Register):
@@ -551,7 +551,7 @@ class LiveDefinitions:
         elif isinstance(atom, Tmp):
             yield from self.get_tmp_definitions(atom.tmp_idx)
         else:
-            raise TypeError()
+            raise TypeError("Unsupported atom type %s." % type(atom))
 
     def get_tmp_definitions(self, tmp_idx: int) -> Iterable[Definition]:
         if tmp_idx in self.tmps:
