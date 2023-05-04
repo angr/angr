@@ -531,10 +531,13 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             elif self.track_mem and type(stmt) is pyvex.IRStmt.Store:
                 state.store(resolve_expr(stmt.addr), resolve_expr(stmt.data))
             elif type(stmt) is pyvex.IRStmt.Put:
+                if exit_observed and stmt.offset == self.project.arch.sp_offset:
+                    return
                 state.put(stmt.offset, resolve_expr(stmt.data))
             else:
                 raise CouldNotResolveException()
 
+        exit_observed = False
         for stmt in vex_block.statements:
             if type(stmt) is pyvex.IRStmt.IMark:
                 if curr_stmt_start_addr is not None:
@@ -542,6 +545,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     self._set_post_state(curr_stmt_start_addr, state.freeze())
                 curr_stmt_start_addr = stmt.addr + stmt.delta
                 self._set_pre_state(curr_stmt_start_addr, state.freeze())
+            if type(stmt) is pyvex.IRStmt.Exit:
+                exit_observed = True
             else:
                 try:
                     resolve_stmt(stmt)

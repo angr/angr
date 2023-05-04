@@ -75,6 +75,7 @@ class ReachingDefinitionsState:
         "_track_calls",
         "_track_consts",
         "_sp_adjusted",
+        "exit_observed",
     )
 
     def __init__(
@@ -120,6 +121,11 @@ class ReachingDefinitionsState:
 
         self.current_codeloc: Optional[CodeLocation] = None
         self.codeloc_uses: Set[Definition] = set()
+
+        # have we observed an exit statement or not during the analysis of the single block?
+        # this variable is not copied to new states because it only tracks if an exit statement is observed in a single
+        # block and is always set to False at the beginning of the analysis of each block.
+        self.exit_observed: bool = False
 
     #
     # Util methods for working with the memory model
