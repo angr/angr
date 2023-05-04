@@ -20,14 +20,19 @@ class MultiValueMergerMixin(MemoryMixin):
 
         # try to merge it in the traditional way
         if len(values_set) > self._element_limit:
-            top_val = self._top_func(merged_size * self.state.arch.byte_width)
+            # strip annotations from each value and see how many raw values there are in total
+            stripped_values_set = {v._apply_to_annotations(lambda alist: None) for v in values_set}
+            if len(stripped_values_set) > 1:
+                ret_val = self._top_func(merged_size * self.state.arch.byte_width)
+            else:
+                ret_val = next(iter(stripped_values_set))
             # migrate annotations
             annotations = []
             for v in values_set:
                 annotations += list(v.annotations)
             if annotations:
-                top_val = top_val.annotate(*annotations)
-            merged_val = {top_val}
+                ret_val = ret_val.annotate(*annotations)
+            merged_val = {ret_val}
         else:
             merged_val = values_set
         return merged_val
