@@ -201,13 +201,18 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
                 # Modified by Hongwei
-                target_func_call_addr = exit_state.addr
-                call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
+                try:
+                    target_func_call_addr = exit_state.addr
+                    call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
 
-                # Get function arguments from sypy_path plugin
-                # function_info: {func_call_addr: {'func_name': func_name, 'func_obj': func_obj}
-                assert target_func_call_addr in exit_state.sypy_path.function_info
-                target_func_name = exit_state.sypy_path.function_info[target_func_call_addr]['func_name']
+                    # Get function arguments from sypy_path plugin
+                    # function_info: {func_call_addr: {'func_name': func_name, 'func_obj': func_obj}
+                    assert target_func_call_addr in exit_state.sypy_path.function_info
+                    target_func_name = exit_state.sypy_path.function_info[target_func_call_addr]['func_name']
+                except:
+                    # Handle indirect function call
+                    target_func_name = "Func_indirect_call" + str(exit_state.ip)
+                    call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
 
                 # function_calls: {func_name: {call_insn_addr: [[arg1, arg2, ...], [arg1, arg2, ...], ...]}
                 # Same function call at the same address could have different list of arguments in mutiple paths,
