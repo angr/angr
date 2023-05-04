@@ -927,6 +927,8 @@ class AILSimplifier(Analysis):
                 if len(all_uses) != 1:
                     continue
                 u, used_expr = next(iter(all_uses))
+                if used_expr is None:
+                    continue
 
                 if u in def_locations_to_remove:
                     # this use site has been altered by previous folding attempts. the corresponding statement will be
