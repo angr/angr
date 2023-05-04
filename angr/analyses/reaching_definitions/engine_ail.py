@@ -354,7 +354,7 @@ class SimEngineRDAIL(
         result = data.ret_values
         if result is not None and data.ret_values_deps is not None:
             for dep in data.ret_values_deps:
-                result = self.state.annotate_with_def(result, dep)
+                result = self.state.annotate_mv_with_def(result, dep)
         return result
 
     def _ail_handle_Register(self, expr: ailment.Expr.Register) -> MultiValues:
