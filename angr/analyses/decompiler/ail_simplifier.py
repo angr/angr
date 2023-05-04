@@ -196,6 +196,7 @@ class AILSimplifier(Analysis):
         rd = self.project.analyses.ReachingDefinitions(
             subject=self.func,
             func_graph=self.func_graph,
+            # init_context=(),    <-- in case of fire break glass
             observe_all=True,  # observe_callback=self._simplify_function_rd_observe_callback
         )
         self._reaching_definitions = rd

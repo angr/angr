@@ -144,11 +144,12 @@ class RegionSimplifier(Analysis):
             variable_assignment_dependencies[var] = deps
 
         # any variable definition that uses an existing to-be-removed variable cannot be folded
-        all_variables_to_fold = set(variable_assignments)
-        for var in all_variables_to_fold:
-            if all_variables_to_fold.intersection(variable_assignment_dependencies[var]):
-                del variable_assignments[var]
-                del variable_uses[var]
+        # BUT WAIT. idk if this is necessary and commenting this out fixes a test. in case of fire break glass ig
+        # all_variables_to_fold = set(variable_assignments)
+        # for var in all_variables_to_fold:
+        #    if all_variables_to_fold.intersection(variable_assignment_dependencies[var]):
+        #        del variable_assignments[var]
+        #        del variable_uses[var]
 
         # replace them
         ExpressionFolder(variable_assignments, variable_uses, region, variable_manager)
