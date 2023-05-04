@@ -117,11 +117,14 @@ class FunctionHandler:
         # META
         assert state.analysis is not None
         assert state.analysis.project.loader.main_object is not None
-        if data.address is None:
-            if data.address_multi is not None:
-                val = data.address_multi.one_value()
-                if val is not None and val.op == "BVV":
-                    data.address = val.args[0]
+        if data.address is None and data.address_multi is not None:
+            for vs in data.address_multi.values():
+                for val in vs:
+                    if val is not None and val.op == "BVV":
+                        data.address = val.args[0]
+                        break
+                if data.address is not None:
+                    break
         if data.symbol is None and data.address is not None:
             data.symbol = state.analysis.project.loader.find_symbol(data.address)
         if data.function is None and data.address is not None:
