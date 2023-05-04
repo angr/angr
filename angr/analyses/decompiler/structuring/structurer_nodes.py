@@ -56,6 +56,14 @@ class MultiNode:
     def __eq__(self, other):
         return isinstance(other, MultiNode) and self.nodes == other.nodes
 
+    def dbg_repr(self, indent=0):
+        s = ""
+        for node in self.nodes:
+            s += node.dbg_repr(indent=indent + INDENT_DELTA)
+            s += "\n"
+
+        return s
+
 
 class BaseNode:
     __slots__ = ()
@@ -86,9 +94,10 @@ class BaseNode:
 
         return True
 
-    @property
-    def addr(self) -> int:
-        raise NotImplementedError()
+    addr: Optional[int]
+
+    def dbg_repr(self, indent=0):
+        return " " * indent + f"## dbg_repr not implemented for {type(self).__name__}"
 
 
 class SequenceNode(BaseNode):
@@ -204,17 +213,12 @@ class ConditionNode(BaseNode):
 
     def dbg_repr(self, indent=0):
         indent_str = indent * " "
-        s = ""
-        s += (
-            indent_str + "if (<block-missing>; %s)\n" + indent_str + "{\n" + indent_str + "%s\n" + indent_str + "}\n"
-        ) % (
-            self.condition,
-            self.true_node.dbg_repr(indent + 2),
+        s = (
+            indent_str + f"if (<block-missing>; {self.condition})\n{indent_str}{{\n"
+            f"{self.true_node.dbg_repr(indent + INDENT_DELTA) if self.true_node is not None else ''}{indent_str}}}\n"
         )
         if self.false_node is not None:
-            s += (
-                indent_str + "else\n" + indent_str + "{\n" + indent_str + "%s\n" + indent_str + "}"
-            ) % self.false_node.dbg_repr(indent + 2)
+            s += f"{indent_str}else\n{indent_str}{{\n{self.false_node.dbg_repr(indent + INDENT_DELTA)}{indent_str}}}\n"
 
         return s
 
@@ -289,6 +293,18 @@ class LoopNode(BaseNode):
     def __repr__(self):
         return f"<LoopNode {self.sort}@{self.addr:#x}>"
 
+    def dbg_repr(self, indent=0):
+        # initializer = self.initializer.dbg_repr() if self.initializer is not None else 'None'
+        # iterator = self.iterator.dbg_repr() if self.iterator else 'None'
+        addr = hex(self.addr) if isinstance(self.addr, int) else str(self.addr)
+        continue_addr = hex(self.continue_addr) if isinstance(self.continue_addr, int) else str(self.continue_addr)
+        indent_str = " " * indent
+        return (
+            f"{indent_str}LoopNode(sort={self.sort}, initializer={self.initializer}, condition={self.condition}, "
+            f"iterator={self.iterator}, addr={addr}, continue_addr={continue_addr}):\n"
+            f"{self.sequence_node.dbg_repr(indent=indent + INDENT_DELTA)}"
+        )
+
 
 class BreakNode(BaseNode):
     __slots__ = (
@@ -299,6 +315,9 @@ class BreakNode(BaseNode):
     def __init__(self, addr, target):
         self.addr = addr
         self.target = target
+
+    def dbg_repr(self, indent=0):
+        return " " * indent + "BreakNode"
 
 
 class ContinueNode(BaseNode):
@@ -311,6 +330,9 @@ class ContinueNode(BaseNode):
         self.addr = addr
         self.target = target
 
+    def dbg_repr(self, indent=0):
+        return " " * indent + "ContinueNode"
+
 
 class ConditionalBreakNode(BreakNode):
     __slots__ = ("condition",)
@@ -321,6 +343,9 @@ class ConditionalBreakNode(BreakNode):
 
     def __repr__(self):
         return f"<ConditionalBreakNode {self.addr:#x} target:{self.target}>"
+
+    def dbg_repr(self, indent=0):
+        return " " * indent + "ConditionalBreakNode(condition={self.condition})"
 
 
 class SwitchCaseNode(BaseNode):

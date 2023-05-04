@@ -563,7 +563,7 @@ class CallingConventionAnalysis(Analysis):
 
         default_type_cls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
         arg_session = cc.arg_session(default_type_cls().with_arch(self.project.arch))
-        temp_args = []
+        temp_args: List[Optional[SimFunctionArgument]] = []
         for _ in range(30):  # at most 30 arguments
             arg_loc = cc.next_arg(arg_session, default_type_cls().with_arch(self.project.arch))
             if isinstance(arg_loc, SimRegArg):

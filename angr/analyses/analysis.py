@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from .variable_recovery import VariableRecoveryFast
     from .variable_recovery import VariableRecovery
     from .reaching_definitions import ReachingDefinitionsAnalysis
+    from .complete_calling_conventions import CompleteCallingConventionsAnalysis
 
     AnalysisParams = ParamSpec("AnalysisParams")
 
@@ -94,7 +95,7 @@ class AnalysisLogEntry:
 A = TypeVar("A", bound="Analysis")
 
 
-class AnalysesHub(PluginVendor):
+class AnalysesHub(PluginVendor[A]):
     """
     This class contains functions for all the registered and runnable analyses,
     """
@@ -118,7 +119,7 @@ class AnalysesHub(PluginVendor):
         s, self.project = sd
         super().__setstate__(s)
 
-    def __getitem__(self, plugin_cls: "Type[A]") -> "AnalysisFactory[A]":
+    def __getitem__(self, plugin_cls: Type[A]) -> "AnalysisFactory[A]":
         return AnalysisFactory(self.project, plugin_cls)
 
 
@@ -148,6 +149,7 @@ class KnownAnalysesPlugin(typing.Protocol):
     VariableRecoveryFast: "Type[VariableRecoveryFast]"
     VariableRecovery: "Type[VariableRecovery]"
     ReachingDefinitions: "Type[ReachingDefinitionsAnalysis]"
+    CompleteCallingConventions: "Type[CompleteCallingConventionsAnalysis]"
 
 
 class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
@@ -222,10 +224,10 @@ class Analysis:
     :ivar progress.Progress _progressbar: The progress bar object.
     """
 
-    project: "Project" = None
-    kb: "KnowledgeBase" = None
-    _fail_fast = None
-    _name = None
+    project: "Project"
+    kb: "KnowledgeBase"
+    _fail_fast: bool
+    _name: str
     errors = []
     named_errors = defaultdict(list)
     _progress_callback = None
