@@ -160,6 +160,8 @@ class SimEngineRDVEX(
                     if stack_offset is not None:
                         self.state.add_stack_use(stack_offset, 1, "Iend_BE", self._codeloc())
 
+        if self.state.exit_observed and reg_offset == self.arch.sp_offset:
+            return
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
@@ -273,6 +275,12 @@ class SimEngineRDVEX(
         _ = self._expr(stmt.guard)
         target = stmt.dst.value
         self.state.mark_guard(self._codeloc(), target)
+        if (
+            self.block.instruction_addrs
+            and self.ins_addr in self.block.instruction_addrs
+            and self.block.instruction_addrs.index(self.ins_addr) == self.block.instructions - 1
+        ):
+            self.state.exit_observed = True
 
     def _handle_IMark(self, stmt):
         pass
