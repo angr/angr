@@ -54,7 +54,7 @@ class ExitStatement:
 
 class PcodeDisassemblerBlock(DisassemblerBlock):
     """
-    Helper class to represent a block of dissassembled target architecture
+    Helper class to represent a block of disassembled target architecture
     instructions
     """
 
@@ -107,7 +107,7 @@ class IRSB:
         "_direct_next",
         "_exit_statements",
         "_instruction_addresses",
-        "_instructions",
+        "_ops",
         "_size",
         "_statements",
         "_disassembly",
@@ -123,7 +123,7 @@ class IRSB:
     _direct_next: Optional[bool]
     _exit_statements: Sequence[Tuple[int, int, ExitStatement]]
     _instruction_addresses: Sequence[int]
-    _instructions: Sequence[pypcode.Translation]
+    _ops: Sequence[pypcode.PcodeOp]  # FIXME: Merge into _statements
     _size: Optional[int]
     _statements: Iterable  # Note: currently unused
     _disassembly: Optional[PcodeDisassemblerBlock]
@@ -189,8 +189,8 @@ class IRSB:
 
         self._direct_next = None
         self._exit_statements = []
-        self._instruction_addresses = ()
-        self._instructions: List["pypcode.Translation"] = []
+        self._instruction_addresses = []
+        self._ops = []
         self._size = None
         self._statements = []
         self.addr = mem_addr
@@ -258,15 +258,7 @@ class IRSB:
             nxt=self.next,
             jumpkind=self.jumpkind,
             direct_next=self.direct_next,
-            # deepcopy call to 'pickle' fails.
-            # shallow copy should work since _instructions shouldn't mutate
-            instructions=copy.copy(self._instructions),
-            # statements = None, #unused
-            # instruction_addresses = None # computed
-            # tyenv = None # unused
-            # exit_statements = None # currently unused
-            # default_exit_target = None # currently unused
-            # size = None # computed
+            ops=self._ops[:],
         )
 
         return new
@@ -277,22 +269,14 @@ class IRSB:
         The appended irsb's jumpkind and default exit are used.
         :param extendwith: The IRSB to append to this IRSB
         """
-        # see _set_attributes call in 'copy' def for notes on other attributes
         self._set_attributes(
             nxt=extendwith.next,
             jumpkind=extendwith.jumpkind,
             direct_next=extendwith.direct_next,
-            instructions=copy.copy(self._instructions),
+            ops=self._ops + extendwith._ops,
         )
 
-        # append instructions if new
-        addrs = self.instruction_addresses
-        newinsns = [insn for insn in extendwith._instructions if insn.address not in addrs]
-        self._instructions.extend(newinsns)
-
-        # reset disassem. now disassem will be recomputed if irsb.disassembly is called
         self._disassembly = None
-
         return self
 
     def invalidate_direct_next(self) -> None:
@@ -353,21 +337,22 @@ class IRSB:
         """
         The number of instructions in this block
         """
-        return len(self._instructions)
+        return len(self._instruction_addresses)
 
     @property
     def instruction_addresses(self) -> Sequence[int]:
         """
         Addresses of instructions in this block.
         """
-        return [ins.address.offset for ins in self._instructions]
+        return self._instruction_addresses
 
     @property
     def size(self) -> int:
         """
         The size of this block, in bytes
         """
-        return sum(ins.length for ins in self._instructions)
+        assert self._size is not None
+        return self._size
 
     @property
     def operations(self):
@@ -415,10 +400,12 @@ class IRSB:
         """
         sa = []
         sa.append("IRSB {")
-        for i, ins in enumerate(self._instructions):
-            sa.append("   %02d | ------ %08x, %d ------" % (i, ins.address.offset, ins.length))
-            for op in ins.ops:
-                sa.append("  +%02d | %s" % (op.seq.uniq, pypcode.PcodePrettyPrinter.fmt_op(op)))
+        for i, op in enumerate(self._ops):
+            if op.opcode == pypcode.OpCode.IMARK:
+                for vn in op.inputs[:]:
+                    sa.append(f"   {i:02d} | ------ {vn.offset:08x}, {vn.size} ------")
+            else:
+                sa.append(f"   {i:02d} | {pypcode.PcodePrettyPrinter.fmt_op(op)}")
 
         if isinstance(self.next, int):
             next_str = "%x" % self.next
@@ -444,7 +431,7 @@ class IRSB:
         jumpkind: Optional[str] = None,
         direct_next: Optional[bool] = None,
         size: Optional[int] = None,
-        instructions: Optional[Iterable[pypcode.Translation]] = None,
+        ops: Optional[Sequence[pypcode.PcodeOp]] = None,
         instruction_addresses: Optional[Iterable[int]] = None,
         exit_statements: Sequence[Tuple[int, int, ExitStatement]] = None,
         default_exit_target: Optional = None,
@@ -455,7 +442,7 @@ class IRSB:
         self.jumpkind = jumpkind
         self._direct_next = direct_next
         self._size = size
-        self._instructions = instructions or []
+        self._ops = ops or []
         self._instruction_addresses = instruction_addresses
         self._exit_statements = exit_statements or []
         self.default_exit_target = default_exit_target
@@ -468,7 +455,7 @@ class IRSB:
             irsb.jumpkind,
             irsb.direct_next,
             irsb.size,
-            instructions=irsb._instructions,
+            ops=irsb._ops,
             instruction_addresses=irsb._instruction_addresses,
             exit_statements=irsb.exit_statements,
             default_exit_target=irsb.default_exit_target,
@@ -484,8 +471,9 @@ class IRSB:
 
     @property
     def disassembly(self) -> PcodeDisassemblerBlock:
+        # FIXME
         if self._disassembly is None:
-            insns = [PcodeDisassemblerInsn(ins) for ins in self._instructions]
+            insns = [] #PcodeDisassemblerInsn(ins) for ins in self._instructions]
             thumb = False  # FIXME
             self._disassembly = PcodeDisassemblerBlock(self.addr, insns, thumb, self.arch)
         return self._disassembly
@@ -816,11 +804,7 @@ class PcodeBasicBlockLifter:
                 raise NotImplementedError()
             langid = archinfo_to_lang_map[arch.name]
 
-        langs = {l.id: l for a in pypcode.Arch.enumerate() for l in a.languages}
-
-        lang = langs[langid]
-
-        self.context = pypcode.Context(lang)
+        self.context = pypcode.Context(langid)
         self.behaviors = BehaviorFactory()
 
     def lift(
@@ -832,28 +816,42 @@ class PcodeBasicBlockLifter:
         max_bytes: Optional[int] = None,
         max_inst: Optional[int] = None,
     ) -> None:
+        assert irsb.addr == baseaddr
+        assert bytes_offset < len(data)
+
         if max_bytes is None or max_bytes > MAX_BYTES:
-            max_bytes = min(len(data), MAX_BYTES)
+            max_bytes = min(len(data) - bytes_offset, MAX_BYTES)
         if max_inst is None or max_inst > MAX_INSTRUCTIONS:
             max_inst = MAX_INSTRUCTIONS
 
         irsb.behaviors = self.behaviors  # FIXME
-
-        # Translate
-        addr = baseaddr + bytes_offset
-        result = self.context.translate(data[bytes_offset:], addr, max_inst, max_bytes, True)
-        irsb._instructions = result.instructions
-
-        # Post-process block to mark exits and next block
+        irsb._instruction_addresses = []
+        fallthru_addr = irsb.addr
         next_block = None
-        for insn in irsb._instructions:
-            for op in insn.ops:
-                if op.opcode in [pypcode.OpCode.BRANCH, pypcode.OpCode.CBRANCH] and op.inputs[0].get_addr().is_constant:
-                    # P-code relative branch (op.seq.pc.offset + op.seq.uniq + op.inputs[0].offset)
+
+        try:
+            b = bytes(data[bytes_offset:])
+            translation = self.context.translate(b, irsb.addr, max_instructions=max_inst, max_bytes=max_bytes, flags=pypcode.TranslateFlags.BB_TERMINATING)
+            irsb._ops = translation.ops
+
+            last_decode_addr = irsb.addr
+            last_imark_idx = 0
+            for op_idx, op in enumerate(irsb._ops):
+                if op.opcode == pypcode.OpCode.IMARK:
+                    last_decode_addr = op.inputs[0].offset
+                    fallthru_addr = op.inputs[-1].offset + op.inputs[-1].size
+                    last_imark_idx = op_idx
+                    irsb._instruction_addresses.extend([vn.offset for vn in op.inputs])
                     continue
+
+                if op.opcode in {pypcode.OpCode.BRANCH, pypcode.OpCode.CBRANCH} and op.inputs[0].space.name == "const":
+                    # P-code relative branch (op_idx + op.inputs[0].offset)
+                    # Note: We only model these in execution
+                    continue
+
                 if op.opcode == pypcode.OpCode.CBRANCH:
                     irsb._exit_statements.append(
-                        (op.seq.pc.offset, op.seq.uniq, ExitStatement(op.inputs[0].offset, "Ijk_Boring"))
+                        (last_decode_addr, op_idx - last_imark_idx, ExitStatement(op.inputs[0].offset, "Ijk_Boring"))
                     )
                 elif op.opcode == pypcode.OpCode.BRANCH:
                     next_block = (op.inputs[0].offset, "Ijk_Boring")
@@ -865,18 +863,13 @@ class PcodeBasicBlockLifter:
                     next_block = (None, "Ijk_Call")
                 elif op.opcode == pypcode.OpCode.RETURN:
                     next_block = (None, "Ijk_Ret")
-
-        if len(irsb._instructions) > 0:
-            last_insn = irsb._instructions[-1]
-            fallthru_addr = last_insn.address.offset + last_insn.length
-        else:
-            fallthru_addr = addr
-
-        if result.error:
+        except (pypcode.BadDataError, pypcode.UnimplError):
             next_block = (fallthru_addr, "Ijk_NoDecode")
-        elif next_block is None:
+
+        if next_block is None:
             next_block = (fallthru_addr, "Ijk_Boring")
 
+        irsb._size = fallthru_addr - irsb.addr
         irsb.next, irsb.jumpkind = next_block
 
 
