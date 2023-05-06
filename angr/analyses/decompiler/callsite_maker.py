@@ -85,6 +85,7 @@ class CallSiteMaker(Analysis):
             prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
 
         args = []
+        arg_defs = []
         arg_locs = None
         if cc is None:
             l.warning("Call site %#x (callee %s) has an unknown calling convention.", self.block.addr, repr(func))
@@ -105,11 +106,13 @@ class CallSiteMaker(Analysis):
 
         if arg_locs is not None:
             for arg_loc in arg_locs:
-                if type(arg_loc) is SimRegArg:
+                if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size
                     offset = arg_loc.check_offset(cc.arch)
+                    value_and_defs = self._resolve_register_argument(last_stmt, arg_loc)
+                    arg_defs += [d for _, d in value_and_defs]
                     args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
-                elif type(arg_loc) is SimStackArg:
+                elif isinstance(arg_loc, SimStackArg):
                     stack_arg_locs.append(arg_loc)
                     _, the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
 
@@ -195,6 +198,7 @@ class CallSiteMaker(Analysis):
                 prototype=prototype,
                 args=args,
                 ret_expr=ret_expr,
+                arg_defs=arg_defs,
                 **last_stmt.tags,
             )
         )
@@ -224,7 +228,7 @@ class CallSiteMaker(Analysis):
             l.warning("TODO: Unsupported statement type %s for definitions.", type(stmt))
             return None
 
-    def _resolve_register_argument(self, call_stmt, arg_loc) -> Tuple:
+    def _resolve_register_argument(self, call_stmt, arg_loc) -> Set[Tuple[Optional[int], "Definition"]]:
         size = arg_loc.size
         offset = arg_loc.check_offset(self.project.arch)
 
@@ -234,12 +238,12 @@ class CallSiteMaker(Analysis):
             try:
                 rd: "LiveDefinitions" = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
             except KeyError:
-                return None, None
+                return set()
 
             try:
                 vs: "MultiValues" = rd.register_definitions.load(offset, size=size)
             except SimMemoryMissingError:
-                return None, None
+                return set()
             values_and_defs_ = set()
             for values in vs.values():
                 for value in values:
@@ -250,18 +254,9 @@ class CallSiteMaker(Analysis):
                     for def_ in rd.extract_defs(value):
                         values_and_defs_.add((concrete_value, def_))
 
-            if not values_and_defs_:
-                l.warning("Did not find any reaching definition for register %s at instruction %x.", arg_loc, ins_addr)
-            elif len(values_and_defs_) > 1:
-                l.warning("TODO: More than one reaching definition are found at instruction %x.", ins_addr)
-            else:
-                # Find the definition
-                # FIXME: Multiple definitions - we need phi nodes
-                value, def_ = next(iter(values_and_defs_))
-                variable = self._find_variable_from_definition(def_)
-                return value, variable
+            return values_and_defs_
 
-        return None, None
+        return set()
 
     def _resolve_stack_argument(self, call_stmt, arg_loc) -> Tuple[Any, Any]:  # pylint:disable=unused-argument
         size = arg_loc.size
@@ -346,18 +341,20 @@ class CallSiteMaker(Analysis):
             arg_loc = arg_locs[fmt_arg_idx]
 
             if isinstance(arg_loc, SimRegArg):
-                value, _ = self._resolve_register_argument(call_stmt, arg_loc)
+                value_and_defs = self._resolve_register_argument(call_stmt, arg_loc)
             elif isinstance(arg_loc, SimStackArg):
-                value, _ = self._resolve_stack_argument(call_stmt, arg_loc)
+                value_and_defs = self._resolve_stack_argument(call_stmt, arg_loc)
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
                 return None
 
-            if isinstance(value, int):
-                fmt_str = self._load_string(value)
-                if fmt_str:
-                    break
+            if len(set(v for v, _ in value_and_defs)) == 1:
+                value = next(iter(set(v for v, _ in value_and_defs)))
+                if isinstance(value, int):
+                    fmt_str = self._load_string(value)
+                    if fmt_str:
+                        break
 
         if not fmt_str:
             return None

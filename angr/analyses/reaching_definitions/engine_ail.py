@@ -268,6 +268,12 @@ class SimEngineRDAIL(
 
         self._function_handler.handle_function(self.state, data)
 
+        if hasattr(stmt, "arg_defs"):
+            for arg_def in stmt.arg_defs:
+                arg_def: Definition
+                if arg_def in self.state.all_definitions:
+                    self.state.kill_definitions(arg_def.atom)
+
         # kill all cc_ops
         if "cc_op" in self.arch.registers:
             self.state.kill_definitions(Register(*self.arch.registers["cc_op"]))
