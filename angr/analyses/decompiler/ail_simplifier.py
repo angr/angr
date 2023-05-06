@@ -1114,7 +1114,7 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
-                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
+                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
                             simplified = True
@@ -1130,7 +1130,7 @@ class AILSimplifier(Analysis):
                             simplified = True
                             continue
                     elif isinstance(stmt, Call):
-                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
+                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
                             simplified = True

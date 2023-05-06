@@ -390,15 +390,18 @@ class ReachingDefinitionsAnalysis(
 
         if isinstance(node, ailment.Block):
             block = node
+            block_key = (node.addr, node.idx)
             engine = self._engine_ail
         elif isinstance(node, (Block, CodeNode)):
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
             engine = self._engine_vex
+            block_key = node.addr
         elif isinstance(node, CFGNode):
             if node.is_simprocedure or node.is_syscall:
                 return False, state.copy()
             block = node.block
             engine = self._engine_vex
+            block_key = node.addr
         else:
             l.warning("Unsupported node type %s.", node.__class__)
             return False, state.copy()
@@ -414,7 +417,6 @@ class ReachingDefinitionsAnalysis(
             dep_graph=self._dep_graph,
         )
 
-        block_key = node.addr
         self._node_iterations[block_key] += 1
 
         self.node_observe(node.addr, state, OP_AFTER)

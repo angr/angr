@@ -211,7 +211,7 @@ class SimEngineRDAIL(
 
         dst = stmt.ret_expr
         if isinstance(dst, ailment.Tmp):
-            self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), src, uses=data.ret_values_deps)
+            _, defs = self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), src, uses=data.ret_values_deps)
             self.tmps[dst.tmp_idx] = src
 
         elif isinstance(dst, ailment.Register):
@@ -230,7 +230,12 @@ class SimEngineRDAIL(
                     otv[next_off] = {claripy.BVV(0, (full_reg_size - next_off) * 8)}
                 src = MultiValues(offset_to_values=otv)
             reg = Register(full_reg_offset, full_reg_size)
-            self.state.kill_and_add_definition(reg, src, uses=data.ret_values_deps)
+            _, defs = self.state.kill_and_add_definition(reg, src, uses=data.ret_values_deps)
+        else:
+            defs = set()
+
+        if self.state.analysis:
+            self.state.analysis.function_calls[data.callsite_codeloc].ret_defns.update(defs)
 
     def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool = False) -> FunctionCallData:
         if isinstance(stmt.target, ailment.Expr.Expression):
