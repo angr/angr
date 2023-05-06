@@ -3,7 +3,7 @@ from enum import Enum, auto
 
 import claripy
 import ailment
-from archinfo import Arch
+from archinfo import Arch, RegisterOffset
 
 from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
@@ -163,7 +163,7 @@ class Register(Atom):
         "arch",
     )
 
-    def __init__(self, reg_offset: int, size: int, arch: Optional[Arch] = None):
+    def __init__(self, reg_offset: RegisterOffset, size: int, arch: Optional[Arch] = None):
         super().__init__(size)
 
         self.reg_offset = reg_offset
