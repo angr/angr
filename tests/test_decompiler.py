@@ -18,11 +18,14 @@ from angr.analyses import (
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
+from angr.misc.testing import is_testing
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 l = logging.Logger(__name__)
 
-WORKER = bool(os.environ.get("WORKER", False))  # this variable controls whether we print the decompilation code or not
+WORKER = is_testing or bool(
+    os.environ.get("WORKER", False)
+)  # this variable controls whether we print the decompilation code or not
 
 
 def for_all_structuring_algos(func):
