@@ -1,15 +1,15 @@
-from angr.knowledge_plugins.key_definitions.atoms import Register
-from typing import TYPE_CHECKING, List, Set, Optional, Dict, Union
+from typing import TYPE_CHECKING, List, Set, Optional, Dict, Union, Tuple
 from dataclasses import dataclass, field
 from itertools import chain
 import logging
 
+import archinfo
 from cle import Symbol
 from cle.backends import ELF
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.sim_type import SimTypeBottom
-from angr.knowledge_plugins.key_definitions.atoms import Atom
+from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, SpOffset
 from angr.calling_conventions import SimCC
 from angr.sim_type import SimTypeFunction
 from angr.knowledge_plugins.key_definitions.definition import Definition
@@ -48,13 +48,36 @@ class FunctionCallData:
     ret_atoms: Optional[Set[Atom]] = None
     redefine_locals: bool = True
     visited_blocks: Optional[Set[int]] = None
-    effects: Dict[Atom, FunctionEffect] = field(default_factory=lambda: {})
+    effects: List[Tuple[Optional[Atom], FunctionEffect]] = field(default_factory=lambda: [])
     uses_without_effects: List[FunctionEffect] = field(default_factory=lambda: [])
     ret_values: Optional[MultiValues] = None
     ret_values_deps: Optional[Set[Definition]] = None
     caller_will_handle_single_ret: bool = False
     guessed_cc: bool = False
     guessed_prototype: bool = False
+
+    def has_clobbered(self, dest: Atom) -> bool:
+        if isinstance(dest, Register):
+            for reg in [loc for loc, _ in self.effects if isinstance(loc, Register)]:
+                if dest.reg_offset + dest.size <= reg.reg_offset or dest.reg_offset >= reg.reg_offset + reg.size:
+                    # no overlap
+                    continue
+                return True
+            return False
+        if isinstance(dest, MemoryLocation) and isinstance(dest.addr, SpOffset):
+            for stkarg in [
+                loc for loc, _ in self.effects if isinstance(loc, MemoryLocation) and isinstance(loc.addr, SpOffset)
+            ]:
+                if (
+                    dest.addr.offset + dest.size <= stkarg.addr.offset
+                    or stkarg.addr.offset + stkarg.size <= dest.addr.offset
+                ):
+                    # no overlap
+                    continue
+                return True
+            return False
+        # unsupported
+        return False
 
     def depends(
         self,
@@ -63,14 +86,14 @@ class FunctionCallData:
         value: Optional[MultiValues] = None,
         apply_at_callsite: bool = False,
     ):
-        if dest in self.effects:
+        if self.has_clobbered(dest):
             l.warning(
                 "Function handler for %s seems to be implemented incorrectly - "
                 "you're supposed to call depends() exactly once per dependant atom",
                 self.address,
             )
         else:
-            self.effects[dest] = FunctionEffect(set(sources), value=value, apply_at_callsite=apply_at_callsite)
+            self.effects.append((dest, FunctionEffect(set(sources), value=value, apply_at_callsite=apply_at_callsite)))
 
     def use_without_effects(self, *sources: Atom, apply_at_callsite: bool = False):
         self.uses_without_effects.append(FunctionEffect(set(sources), apply_at_callsite=apply_at_callsite))
@@ -199,11 +222,11 @@ class FunctionHandler:
         if data.redefine_locals:
             if data.cc is not None:
                 for reg in self.caller_saved_regs_as_atoms(state, data.cc):
-                    if reg not in data.effects:
+                    if not data.has_clobbered(reg):
                         data.depends(reg)
             if state.arch.call_pushes_ret:
                 sp_atom = self.stack_pointer_as_atom(state)
-                if sp_atom not in data.effects:  # let the user override the stack pointer if they want
+                if not data.has_clobbered(sp_atom):  # let the user override the stack pointer if they want
                     new_sp = None
                     sp_val = state.live_definitions.get_value_from_atom(sp_atom)
                     if sp_val is not None:
@@ -222,13 +245,13 @@ class FunctionHandler:
         other_output_defns = set()
 
         # translate all the dep atoms into dep defns
-        for effect in chain(data.effects.values(), data.uses_without_effects):
+        for effect in chain(map(lambda x: x[1], data.effects), data.uses_without_effects):
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
         # apply the effects, with the ones marked with apply_at_callsite=False applied first
         for dest, effect in sorted(
-            chain(data.effects.items(), ((None, x) for x in data.uses_without_effects)),
+            chain(data.effects, ((None, x) for x in data.uses_without_effects)),
             key=lambda de: de[1].apply_at_callsite,
         ):
             codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
@@ -283,7 +306,7 @@ class FunctionHandler:
                 for ret_atom in data.ret_atoms:
                     data.depends(
                         ret_atom,
-                        *(Register(*state.arch.registers[reg_name], state.arch) for reg_name in data.cc.ARG_REGS),
+                        *(Register(*state.arch.registers[reg_name], arch=state.arch) for reg_name in data.cc.ARG_REGS),
                     )
         else:
             sources = {atom for arg in data.args_atoms or [] for atom in arg}
@@ -318,7 +341,7 @@ class FunctionHandler:
     @staticmethod
     def caller_saved_regs_as_atoms(state: "ReachingDefinitionsState", cc: SimCC) -> Set[Register]:
         return (
-            {Register(*state.arch.registers[reg], state.arch) for reg in cc.CALLER_SAVED_REGS}
+            {Register(*state.arch.registers[reg], arch=state.arch) for reg in cc.CALLER_SAVED_REGS}
             if cc.CALLER_SAVED_REGS is not None
             else set()
         )
