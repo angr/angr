@@ -1,6 +1,7 @@
 from angr.knowledge_plugins.key_definitions.atoms import Register
 from typing import TYPE_CHECKING, List, Set, Optional, Dict, Union
 from dataclasses import dataclass, field
+from itertools import chain
 import logging
 
 from cle import Symbol
@@ -48,6 +49,7 @@ class FunctionCallData:
     redefine_locals: bool = True
     visited_blocks: Optional[Set[int]] = None
     effects: Dict[Atom, FunctionEffect] = field(default_factory=lambda: {})
+    uses_without_effects: List[FunctionEffect] = field(default_factory=lambda: [])
     ret_values: Optional[MultiValues] = None
     ret_values_deps: Optional[Set[Definition]] = None
     caller_will_handle_single_ret: bool = False
@@ -69,6 +71,9 @@ class FunctionCallData:
             )
         else:
             self.effects[dest] = FunctionEffect(set(sources), value=value, apply_at_callsite=apply_at_callsite)
+
+    def use_without_effects(self, *sources: Atom, apply_at_callsite: bool = False):
+        self.uses_without_effects.append(FunctionEffect(set(sources), apply_at_callsite=apply_at_callsite))
 
 
 # pylint: disable=unused-argument, no-self-use
@@ -217,17 +222,23 @@ class FunctionHandler:
         other_output_defns = set()
 
         # translate all the dep atoms into dep defns
-        for effect in data.effects.values():
+        for effect in chain(data.effects.values(), data.uses_without_effects):
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
         # apply the effects, with the ones marked with apply_at_callsite=False applied first
-        for dest, effect in sorted(data.effects.items(), key=lambda de: de[1].apply_at_callsite, reverse=False):
+        for dest, effect in sorted(
+            chain(data.effects.items(), ((None, x) for x in data.uses_without_effects)),
+            key=lambda de: de[1].apply_at_callsite,
+        ):
             codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
             state.move_codelocs(codeloc)  # no-op if duplicated
             # mark uses
             for source in effect.sources_defns or set():
                 state.add_use_by_def(source, expr=None)
+            if dest is None:
+                continue
+
             value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
             # special case: if there is exactly one ret atom, we expect that the caller will do something
             # with the value, e.g. if this is a call expression.
@@ -271,9 +282,10 @@ class FunctionHandler:
                     ret_atom, *(Register(*state.arch.registers[reg_name], state.arch) for reg_name in data.cc.ARG_REGS)
                 )
         else:
-            if data.ret_atoms is None:
-                return
             sources = {atom for arg in data.args_atoms or [] for atom in arg}
+            if not data.ret_atoms:
+                data.use_without_effects(*sources, apply_at_callsite=True)  # controversial
+                return
             for atom in data.ret_atoms:
                 data.depends(atom, *sources, apply_at_callsite=True)
 
