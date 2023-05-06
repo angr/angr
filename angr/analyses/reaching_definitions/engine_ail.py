@@ -256,7 +256,7 @@ class SimEngineRDAIL(
             prototype=stmt.prototype,
             name=func_name,
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
-            redefine_locals=not is_expr,
+            redefine_locals=stmt.args is None and not is_expr,
             caller_will_handle_single_ret=True,
             ret_atoms={Atom.from_ail_expr(stmt.ret_expr, self.arch)} if stmt.ret_expr is not None else None,
         )
