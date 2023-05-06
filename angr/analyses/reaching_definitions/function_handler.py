@@ -191,6 +191,7 @@ class FunctionHandler:
             data.prototype = state.analysis.project.factory.function_prototype()
             data.guessed_prototype = True
 
+        args_atoms_from_values = set()
         if data.args_atoms is None and data.args_values is not None:
             data.args_atoms = [
                 set().union(
@@ -198,6 +199,8 @@ class FunctionHandler:
                 )
                 for mv in data.args_values
             ]
+            for atoms_set in data.args_atoms:
+                args_atoms_from_values |= atoms_set
         elif data.args_atoms is None and data.cc is not None and data.prototype is not None:
             data.args_atoms = self.c_args_as_atoms(state, data.cc, data.prototype)
         if data.ret_atoms is None and data.cc is not None and data.prototype is not None:
@@ -258,7 +261,8 @@ class FunctionHandler:
             state.move_codelocs(codeloc)  # no-op if duplicated
             # mark uses
             for source in effect.sources_defns or set():
-                state.add_use_by_def(source, expr=None)
+                if source.atom not in args_atoms_from_values:
+                    state.add_use_by_def(source, expr=None)
             if dest is None:
                 continue
 
