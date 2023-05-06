@@ -158,7 +158,7 @@ class FunctionHandler:
             if data.cc is None and hook is not None:
                 data.cc = hook.cc
             if data.prototype is None and hook is not None:
-                data.prototype = hook.prototype
+                data.prototype = hook.prototype.with_arch(state.arch)
 
         # fallback to the default calling convention and prototype
         if data.cc is None:
