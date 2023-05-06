@@ -100,12 +100,9 @@ class SimEngineVRAIL(
             else:
                 # the return expression is not used, so we treat this call as not returning anything
                 if stmt.calling_convention is not None:
+                    # we only set the ret_expr if prototype must be guessed. otherwise ret_expr should just be None
                     if stmt.prototype is None:
                         ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
-                    elif stmt.prototype.returnty is None or type(stmt.prototype.returnty) is SimTypeBottom:
-                        ret_expr = None
-                    else:
-                        ret_expr: SimRegArg = stmt.calling_convention.return_val(stmt.prototype.returnty)
                 else:
                     l.debug(
                         "Unknown calling convention for function %s. Fall back to default calling convention.", target
