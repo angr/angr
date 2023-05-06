@@ -798,7 +798,7 @@ class SimEngineVRBase(SimEngineLight):
 
         return RichR(self.state.top(size * self.state.arch.byte_width), typevar=typevar)
 
-    def _read_from_register(self, offset, size, expr=None):
+    def _read_from_register(self, offset, size, expr=None, force_variable_size=None):
         """
 
         :param offset:
@@ -825,7 +825,7 @@ class SimEngineVRBase(SimEngineLight):
             # the value does not exist. create a new variable
             variable = SimRegisterVariable(
                 offset,
-                size,
+                size if force_variable_size is None else force_variable_size,
                 ident=self.variable_manager[self.func_addr].next_variable_ident("register"),
                 region=self.func_addr,
             )
