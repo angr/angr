@@ -327,10 +327,12 @@ class FunctionHandler:
 
     @staticmethod
     def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
-        return [
-            {Atom.from_argument(footprint_arg, state.arch, full_reg=True) for footprint_arg in arg.get_footprint()}
-            for arg in cc.arg_locs(prototype)
-        ]
+        if not prototype.variadic:
+            return [
+                {Atom.from_argument(footprint_arg, state.arch, full_reg=True) for footprint_arg in arg.get_footprint()}
+                for arg in cc.arg_locs(prototype)
+            ]
+        return [{Register(*state.arch.registers[arg_name], arch=state.arch)} for arg_name in cc.ARG_REGS]
 
     @staticmethod
     def c_return_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> Set[Atom]:
