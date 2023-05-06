@@ -647,7 +647,7 @@ class AILSimplifier(Analysis):
                         if any(
                             (def_ != the_def and def_.atom == the_def.atom)
                             for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.Register)
+                            if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
                         ):
                             continue
 
