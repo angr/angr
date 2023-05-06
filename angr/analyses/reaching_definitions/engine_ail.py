@@ -215,7 +215,21 @@ class SimEngineRDAIL(
             self.tmps[dst.tmp_idx] = src
 
         elif isinstance(dst, ailment.Register):
-            reg = Register(dst.reg_offset, dst.size)
+            full_reg_offset, full_reg_size = self.arch.registers[self.arch.register_names[dst.reg_offset]]
+            if dst.size != full_reg_size:
+                # we need to extend the value to overwrite the entire register
+                otv = {}
+                next_off = 0
+                if full_reg_offset < dst.reg_offset:
+                    otv[0] = {claripy.BVV(0, (dst.reg_offset - full_reg_offset) * 8)}
+                    next_off = dst.reg_offset - full_reg_offset
+                for off, items in src.items():
+                    otv[next_off + off] = set(items)
+                next_off += len(src) // 8
+                if next_off < full_reg_size:
+                    otv[next_off] = {claripy.BVV(0, (full_reg_size - next_off) * 8)}
+                src = MultiValues(offset_to_values=otv)
+            reg = Register(full_reg_offset, full_reg_size)
             self.state.kill_and_add_definition(reg, src, uses=data.ret_values_deps)
 
     def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool = False) -> FunctionCallData:
