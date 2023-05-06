@@ -273,14 +273,18 @@ class FunctionHandler:
 
     def handle_generic_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
         assert data.cc is not None
+        assert data.prototype is not None
+        if data.prototype.returnty is not None:
+            data.ret_values = MultiValues(state.top(data.prototype.returnty.size))
         if data.guessed_prototype:
             # use all!
             # TODO should we use some number of stack variables as well?
-            assert data.ret_atoms  # provided as guess
-            for ret_atom in data.ret_atoms:
-                data.depends(
-                    ret_atom, *(Register(*state.arch.registers[reg_name], state.arch) for reg_name in data.cc.ARG_REGS)
-                )
+            if data.ret_atoms is not None:
+                for ret_atom in data.ret_atoms:
+                    data.depends(
+                        ret_atom,
+                        *(Register(*state.arch.registers[reg_name], state.arch) for reg_name in data.cc.ARG_REGS),
+                    )
         else:
             sources = {atom for arg in data.args_atoms or [] for atom in arg}
             if not data.ret_atoms:
