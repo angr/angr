@@ -32,7 +32,6 @@ from .. import SIM_PROCEDURES
 from .reaching_definitions import get_all_definitions
 from .reaching_definitions.external_codeloc import ExternalCodeLocation
 from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
-from .reaching_definitions.function_handler import FunctionHandler
 
 if TYPE_CHECKING:
     from ..knowledge_plugins.functions import Function
@@ -61,14 +60,6 @@ class UpdateArgumentsOption:
     DoNotUpdate = 0
     AlwaysUpdate = 1
     UpdateWhenCCHasNoArgs = 2
-
-
-class DummyFunctionHandler(FunctionHandler):
-    """
-    A no-op function handler that is used during reaching definition analysis.
-    """
-
-    pass
 
 
 class CallingConventionAnalysis(Analysis):
@@ -360,7 +351,6 @@ class CallingConventionAnalysis(Analysis):
             func,
             func_graph=subgraph,
             observation_points=observation_points,
-            function_handler=DummyFunctionHandler(),
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
         fact = self._collect_callsite_fact(
@@ -473,7 +463,7 @@ class CallingConventionAnalysis(Analysis):
         self,
         caller_block_addr: int,
         call_insn_addr: int,
-        return_site_addr: int,
+        return_site_addr: Optional[int],
         rda: ReachingDefinitionsModel,
     ) -> CallSiteFact:
         fact = CallSiteFact(

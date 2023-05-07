@@ -353,6 +353,7 @@ class FunctionHandler:
                     data.depends(
                         ret_atom,
                         *(Register(*state.arch.registers[reg_name], arch=state.arch) for reg_name in data.cc.ARG_REGS),
+                        apply_at_callsite=True,
                     )
         else:
             sources = {atom for arg in data.args_atoms or [] for atom in arg}
