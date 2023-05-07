@@ -181,14 +181,6 @@ class Register(Atom):
             str(self.reg_offset) if self.arch is None else self.arch.translate_register_name(self.reg_offset, self.size)
         )
 
-    def __getstate__(self):
-        return None
-
-    def __setstate__(self, state):
-        self.arch = None
-        for k, v in state[1].items():
-            setattr(self, k, v)
-
 
 class MemoryLocation(Atom):
     """

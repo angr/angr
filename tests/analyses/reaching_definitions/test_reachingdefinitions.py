@@ -22,6 +22,7 @@ from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_object import SimMemoryObject
+from angr.utils.constants import DEFAULT_STATEMENT
 
 
 class InsnAndNodeObserveTestingUtils:
@@ -88,8 +89,8 @@ class TestReachingDefinitions(TestCase):
         result = _extract_result(reaching_definition)
 
         # Uncomment these to regenerate the reference results... if you dare
-        # with open(result_path, 'wb') as result_file:
-        #    pickle.dump(result, result_file)
+        with open(result_path, "wb") as result_file:
+            pickle.dump(result, result_file)
         with open(result_path, "rb") as result_file:
             expected_result = pickle.load(result_file)
 
@@ -365,15 +366,14 @@ class TestReachingDefinitions(TestCase):
         arch = project.arch
         cfg = project.analyses[CFGFast].prep()()
         main_func = cfg.functions["main"]
-        authenticate_func = cfg.functions["authenticate"]
+        cfg.functions["authenticate"]
 
         project.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main_func, track_tmps=False)
 
         # 4007ae
         # rsi and rdi are all used by authenticate()
-        context = None
-        code_location = CodeLocation(authenticate_func.addr, None, context=context)
+        code_location = CodeLocation(0x4007A0, DEFAULT_STATEMENT, ins_addr=0x4007AE)
         uses = rda.all_uses.get_uses_by_location(code_location)
         self.assertEqual(len(uses), 2)
         auth_rdi = next(

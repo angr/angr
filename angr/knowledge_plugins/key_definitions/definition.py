@@ -185,9 +185,6 @@ class Definition:
             self._hash = hash((self.atom, self.codeloc))
         return self._hash
 
-    def __getstate__(self):
-        return (self.atom, self.codeloc)
-
     @property
     def offset(self) -> int:
         if isinstance(self.atom, Register):

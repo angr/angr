@@ -137,9 +137,6 @@ class CodeLocation:
             )
         return self._hash
 
-    def __getstate__(self):
-        return (self.block_addr, self.stmt_idx, self.sim_procedure, self.ins_addr, self.context, self.block_idx)
-
     def _store_kwargs(self, **kwargs):
         if self.info is None:
             self.info = {}
