@@ -4,7 +4,6 @@ from collections import defaultdict
 
 import ailment
 import pyvex
-from ..forward_analysis.visitors.graph import NodeType
 
 from angr.analyses import ForwardAnalysis
 from ...block import Block
@@ -16,6 +15,7 @@ from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveD
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
 from ...code_location import CodeLocation
 from ...misc.ux import deprecated
+from ..forward_analysis.visitors.graph import NodeType
 from ..analysis import Analysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX

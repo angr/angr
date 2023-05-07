@@ -366,7 +366,6 @@ class TestReachingDefinitions(TestCase):
         arch = project.arch
         cfg = project.analyses[CFGFast].prep()()
         main_func = cfg.functions["main"]
-        cfg.functions["authenticate"]
 
         project.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main_func, track_tmps=False)
