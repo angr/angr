@@ -44,7 +44,9 @@ class RegionIdentifier(Analysis):
             cond_proc
             if cond_proc is not None
             else ConditionProcessor(
-                self.project.arch if self.project is not None else None  # it's only None in test cases
+                self.project.arch
+                if getattr(self, "project", None) is not None
+                else None  # it's only None in test cases
             )
         )
         self._graph = graph if graph is not None else self.function.graph

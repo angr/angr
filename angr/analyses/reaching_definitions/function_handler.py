@@ -220,7 +220,8 @@ class FunctionHandler:
                 and data.address in state.analysis.project.loader.main_object.reverse_plt
             ):
                 plt_name = state.analysis.project.loader.main_object.reverse_plt[data.address]
-                hook = state.analysis.project.symbol_hooked_by(plt_name)
+                if state.analysis.project.loader.find_symbol(plt_name) is not None:
+                    hook = state.analysis.project.symbol_hooked_by(plt_name)
             if data.cc is None and hook is not None:
                 data.cc = hook.cc
             if data.prototype is None and hook is not None:
