@@ -301,6 +301,9 @@ class SimRegArg(SimFunctionArgument):
         offset = self.check_offset(state.arch)
         if self.clear_entire_reg:
             state.registers.store(self.reg_name, 0)
+        expected_width = self.size * state.arch.byte_width
+        if value.size() < expected_width:
+            value = claripy.ZeroExt(expected_width - value.size(), value)
         state.registers.store(offset, value, size=self.size)
 
     def get_value(self, state, **kwargs):  # pylint: disable=unused-argument,arguments-differ
