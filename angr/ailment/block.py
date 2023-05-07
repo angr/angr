@@ -36,19 +36,23 @@ class Block:
         else:
             return "<AILBlock %#x.%d of %d statements>" % (self.addr, self.idx, len(self.statements))
 
-    def __str__(self):
+    def dbg_repr(self, indent=0):
+        indent_str = " " * indent
         if self.idx is None:
-            block_str = "## Block %x\n" % self.addr
+            block_str = f"{indent_str}## Block {self.addr:x}\n"
         else:
-            block_str = "## Block %x.%d\n" % (self.addr, self.idx)
+            block_str = "%s## Block %x.%d\n" % (indent_str, self.addr, self.idx)
         stmts_str = "\n".join(
             [
-                ("%02d | %s | " % (i, hex(getattr(stmt, "ins_addr", 0)))) + str(stmt)
+                ("%s%02d | %s | " % (indent_str, i, hex(getattr(stmt, "ins_addr", 0)))) + str(stmt)
                 for i, stmt in enumerate(self.statements)
             ]
         )
-        block_str += stmts_str
+        block_str += stmts_str + "\n"
         return block_str
+
+    def __str__(self):
+        return self.dbg_repr()
 
     def __eq__(self, other):
         return (

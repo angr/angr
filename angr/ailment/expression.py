@@ -34,6 +34,8 @@ class Expression(TaggedObject):
             return self.likes(atom)
 
     def __eq__(self, other):
+        if self is other:
+            return True
         return type(self) is type(other) and self.likes(other) and self.idx == other.idx
 
     def likes(self, atom):  # pylint:disable=unused-argument,no-self-use
@@ -1082,6 +1084,9 @@ class MultiStatementExpression(Expression):
 
     def _hash_core(self):
         return stable_hash((MultiStatementExpression,) + tuple(self.stmts) + (self.expr,))
+
+    def likes(self, other):
+        return type(self) is type(other) and self.stmts == other.stmts and self.expr == other.expr
 
     def __repr__(self):
         return f"MultiStatementExpression({self.stmts}, {self.expr})"
