@@ -1,5 +1,5 @@
 # pylint:disable=unused-argument
-from typing import Dict, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import claripy
 import pyvex
@@ -13,6 +13,7 @@ from ...knowledge_plugins import Function
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ..typehoon import typevars, typeconsts
 from .engine_base import SimEngineVRBase, RichR
+from .irsb_scanner import VEXIRSBScanner
 
 if TYPE_CHECKING:
     from .variable_recovery_base import VariableRecoveryStateBase
@@ -32,44 +33,22 @@ class SimEngineVRVEX(
         super().__init__(*args, **kwargs)
 
         self.call_info = call_info or {}
-
-        # the following variables are for narrowing argument-passing register on 64-bit architectures. they are
-        # initialized before processing each block.
-        self.tmps_with_64bit_regs: Set[int] = set()  # tmps that store 64-bit register values
-        self.tmps_converted_to_32bit: Set[int] = set()  # tmps that store the 64-to-32-bit converted values
-        self.tmps_assignment_stmtidx: Dict[int, int] = {}  # statement IDs for the assignment of each tmp
+        self.stmts_to_lower = None
 
     # Statement handlers
 
+    def _is_top(self, expr: RichR) -> bool:
+        return self.state.is_top(expr)
+
+    def _top(self, size: int):
+        return self.state.top(size)
+
     def _process_Stmt(self, whitelist=None):
-        self.tmps_with_64bit_regs = set()
-        self.tmps_assignment_stmtidx = {}
-        self.tmps_converted_to_32bit = set()
+        scanner = VEXIRSBScanner(logger=self.l)
+        scanner._process(None, None, block=self.block)
+        self.stmts_to_lower = scanner.stmts_to_lower
 
         super()._process_Stmt(whitelist=whitelist)
-
-        # detect variables that can be narrowed from 64 bits to 32 bits
-        varman = self.state.variable_manager[self.func_addr]
-        vars_to_narrow = set()
-        for tmp_to_lower in self.tmps_converted_to_32bit:
-            existing_vars = varman.find_variables_by_stmt(
-                self.block.addr, self.tmps_assignment_stmtidx[tmp_to_lower], "register"
-            )
-            if len(existing_vars) != 1:
-                continue
-            existing_var = existing_vars[0][0]
-            if existing_var.size == 8:
-                vars_to_narrow.add(existing_var)
-
-        for var_to_lower in vars_to_narrow:
-            var_to_lower.size = 4
-
-    def _handle_WrTmp(self, stmt):
-        if isinstance(stmt.data, pyvex.IRExpr.Get) and stmt.data.result_size(self.tyenv) == 64:
-            self.tmps_with_64bit_regs.add(stmt.tmp)
-        self.tmps_assignment_stmtidx[stmt.tmp] = self.stmt_idx
-
-        super()._handle_WrTmp(stmt)
 
     def _handle_Put(self, stmt):
         offset = stmt.offset
@@ -144,12 +123,6 @@ class SimEngineVRVEX(
             return RichR(self.state.top(bits))
         return r
 
-    def _handle_RdTmp(self, expr):
-        if expr.tmp in self.tmps_converted_to_32bit:
-            self.tmps_converted_to_32bit.remove(expr.tmp)
-
-        return super()._handle_RdTmp(expr)
-
     def _handle_Get(self, expr):
         reg_offset = expr.offset
         reg_size = expr.result_size(self.tyenv) // 8
@@ -171,7 +144,12 @@ class SimEngineVRVEX(
                 if isinstance(next_stmt, pyvex.IRStmt.WrTmp) and isinstance(next_stmt.data, pyvex.IRExpr.ITE):
                     return RichR(self.state.top(reg_size * 8))
 
-        return self._read_from_register(reg_offset, reg_size, expr=expr)
+        force_variable_size = None
+        if self.stmts_to_lower and self.stmt_idx in self.stmts_to_lower:
+            if reg_size == 8:
+                force_variable_size = 4
+
+        return self._read_from_register(reg_offset, reg_size, expr=expr, force_variable_size=force_variable_size)
 
     def _handle_Load(self, expr: pyvex.IRExpr.Load) -> RichR:
         addr = self._expr(expr.addr)
@@ -185,14 +163,6 @@ class SimEngineVRVEX(
 
     def _handle_Conversion(self, expr: pyvex.IRExpr.Unop) -> RichR:
         _ = self._expr(expr.args[0])
-
-        if expr.op == "Iop_64to32" and isinstance(expr.args[0], pyvex.IRExpr.RdTmp):
-            # special handling for t11 = GET:I64(rdi); t4 = 64to32(t11) style of code in x86-64 (and other 64-bit
-            # architectures as well)
-            tmp_src = expr.args[0].tmp
-            if tmp_src in self.tmps_with_64bit_regs:
-                self.tmps_converted_to_32bit.add(tmp_src)
-
         return RichR(self.state.top(expr.result_size(self.tyenv)))
 
     # Function handlers

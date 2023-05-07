@@ -441,6 +441,7 @@ Analysis
 .. automodule:: angr.analyses.variable_recovery.engine_ail
 .. automodule:: angr.analyses.variable_recovery.engine_vex
 .. automodule:: angr.analyses.variable_recovery.engine_base
+.. automodule:: angr.analyses.variable_recovery.irsb_scanner
 .. automodule:: angr.analyses.variable_recovery
 .. automodule:: angr.analyses.typehoon.lifter
 .. automodule:: angr.analyses.typehoon.simple_solver
