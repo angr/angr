@@ -843,6 +843,7 @@ class AILSimplifier(Analysis):
         walker.walk_expression(expr)
         return len(walker.temps) > 0
 
+    @staticmethod
     def _is_stmt_using_temporaries(stmt: Statement) -> bool:
         walker = AILBlockTempCollector()
         walker.walk_statement(stmt)

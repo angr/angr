@@ -11,6 +11,10 @@ from .heap_address import HeapAddress
 
 
 class AtomKind(Enum):
+    """
+    An enum indicating the class of an atom
+    """
+
     REGISTER = auto()
     MEMORY = auto()
     TMP = auto()

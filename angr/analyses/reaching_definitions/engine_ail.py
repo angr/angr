@@ -16,11 +16,11 @@ from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+from ...code_location import CodeLocation
 from .subject import SubjectType
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
 from .function_handler import FunctionHandler, FunctionCallData
-from angr.code_location import CodeLocation
 
 l = logging.getLogger(name=__name__)
 
@@ -72,7 +72,7 @@ class SimEngineRDAIL(
             ailment.Expr.DirtyExpression: self._ail_handle_DirtyExpression,
         }
 
-    def process(self, state, *args, dep_graph=None, visited_blocks=None, block=None, fail_fast=False):
+    def process(self, state, *args, dep_graph=None, visited_blocks=None, block=None, fail_fast=False, **kwargs):
         self._dep_graph = dep_graph
         self._visited_blocks = visited_blocks
 
@@ -88,9 +88,6 @@ class SimEngineRDAIL(
             if fail_fast is True:
                 raise e
         return self.state
-
-    def sp_offset(self, offset: int):
-        return self.state.stack_address(offset)
 
     #
     # Private methods

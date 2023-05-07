@@ -1,4 +1,3 @@
-from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
 from typing import Optional, Iterable, Set, Tuple, Any, TYPE_CHECKING, Iterator
 import logging
 
@@ -20,6 +19,7 @@ from ...knowledge_plugins.functions.function import Function
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.environment import Environment
 from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
+from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
 from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
@@ -436,9 +436,7 @@ class ReachingDefinitionsState:
             self.all_definitions |= defs
 
             if self._dep_graph is not None:
-                stack_use = set(
-                    filter(lambda u: isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack, self.codeloc_uses)
-                )
+                stack_use = {u for u in self.codeloc_uses if isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack}
 
                 sp_offset = self.arch.sp_offset
                 bp_offset = self.arch.bp_offset
@@ -517,7 +515,7 @@ class ReachingDefinitionsState:
         for definition in defs:
             self.codeloc_uses.add(definition)
             # if track_tmps is False, definitions may not be Tmp definitions
-            self.live_definitions.add_use_by_def(definition, self.codeloc)
+            self.live_definitions.add_use_by_def(definition, self.codeloc, expr=expr)
 
     def add_register_use(self, reg_offset: int, size: int, expr: Optional[Any] = None) -> None:
         defs = self.live_definitions.get_register_definitions(reg_offset, size)
@@ -596,7 +594,7 @@ class ReachingDefinitionsState:
                 # TODO this can be simplified with the walrus operator
                 stack_offset = self.get_stack_offset(value)
                 if stack_offset is not None:
-                    addr = SpOffset(pointer.bits, stack_offset)
+                    addr = SpOffset(pointer.size * 8, stack_offset)
                 else:
                     heap_offset = self.get_heap_offset(value)
                     if heap_offset is not None:

@@ -353,9 +353,7 @@ class CallingConventionAnalysis(Analysis):
             observation_points=observation_points,
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        fact = self._collect_callsite_fact(
-            caller_block_addr, call_insn_addr, None if return_site_block is None else return_site_block.addr, rda.model
-        )
+        fact = self._collect_callsite_fact(caller_block_addr, call_insn_addr, rda.model)
         return fact
 
     def _extract_and_analyze_callsites(
@@ -463,7 +461,6 @@ class CallingConventionAnalysis(Analysis):
         self,
         caller_block_addr: int,
         call_insn_addr: int,
-        return_site_addr: Optional[int],
         rda: ReachingDefinitionsModel,
     ) -> CallSiteFact:
         fact = CallSiteFact(

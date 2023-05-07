@@ -20,6 +20,11 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class DefinitionMatchPredicate:
+    """
+    A dataclass indicating several facts which much all must match in order for a definition to match. Largely an
+    internal class; don't worry about this.
+    """
+
     kind: Optional[AtomKind] = None
     bbl_addr: Optional[int] = None
     ins_addr: Optional[int] = None
@@ -69,7 +74,7 @@ class DefinitionMatchPredicate:
         elif self.stack_offset is not None or self.heap_offset is not None or self.global_addr is not None:
             self.kind = AtomKind.MEMORY
         elif self.const_val is not None:
-            self.kind = AtomKind.CONST
+            self.kind = AtomKind.CONSTANT
         elif self.tmp_idx is not None:
             self.kind = AtomKind.TMP
 
@@ -97,7 +102,7 @@ class DefinitionMatchPredicate:
                 return False
             if self.reg_name is not None:
                 if isinstance(self.reg_name, int):
-                    if not (defn.atom.reg_offset <= self.reg_name < defn.atom.reg_offset + defn.atom.size):
+                    if not defn.atom.reg_offset <= self.reg_name < defn.atom.reg_offset + defn.atom.size:
                         return False
                 elif isinstance(self.reg_name, str):
                     if defn.atom.arch is not None:

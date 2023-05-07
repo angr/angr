@@ -19,7 +19,7 @@ from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
 from ...code_location import CodeLocation
 from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
-from angr.analyses.reaching_definitions.function_handler import FunctionCallData
+from .function_handler import FunctionCallData
 
 if TYPE_CHECKING:
     from ...knowledge_plugins import FunctionManager
@@ -47,7 +47,7 @@ class SimEngineRDVEX(
 
         self.state: ReachingDefinitionsState
 
-    def process(self, state, *args, block=None, fail_fast=False, visited_blocks=None, dep_graph=None):
+    def process(self, state, *args, block=None, fail_fast=False, visited_blocks=None, dep_graph=None, **kwargs):
         self._visited_blocks = visited_blocks
         self._dep_graph = dep_graph
         # we are using a completely different state. Therefore, we directly call our _process() method before
@@ -1010,7 +1010,7 @@ class SimEngineRDVEX(
     # User defined high level statement handlers
     #
 
-    def _handle_function(self, func_addr: Optional[MultiValues], **kwargs):
+    def _handle_function(self, func_addr: Optional[MultiValues]):
         if func_addr is None:
             func_addr = self.state.top(self.state.arch.bits)
 

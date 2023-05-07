@@ -5,7 +5,6 @@ import logging
 import claripy
 import ailment
 
-from angr.code_location import CodeLocation
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction
 from ...engines.light import SimEngineLightAILMixin
@@ -24,6 +23,10 @@ class SimEngineVRAIL(
     SimEngineLightAILMixin,
     SimEngineVRBase,
 ):
+    """
+    The engine for variable recovery on AIL.
+    """
+
     state: "VariableRecoveryFastState"
     block: ailment.Block
 
@@ -32,14 +35,6 @@ class SimEngineVRAIL(
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}
-
-    def _codeloc(self, block_only=False):
-        return CodeLocation(
-            self.block.addr,
-            None if block_only else self.stmt_idx,
-            block_idx=self.block.idx,
-            ins_addr=None if block_only else self.ins_addr,
-        )
 
     # Statement handlers
 

@@ -1,8 +1,10 @@
+# pylint: disable=missing-class-docstring
 from unittest import TestCase
+
+from archinfo import ArchMIPS32
 
 from angr.calling_conventions import SimRegArg
 from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
-from archinfo import ArchMIPS32
 
 
 class TestAtoms(TestCase):
