@@ -7,7 +7,7 @@ import ailment
 
 from angr.code_location import CodeLocation
 from ...calling_conventions import SimRegArg
-from ...sim_type import SimTypeFunction, SimTypeBottom
+from ...sim_type import SimTypeFunction
 from ...engines.light import SimEngineLightAILMixin
 from ..typehoon import typeconsts, typevars
 from ..typehoon.lifter import TypeLifter

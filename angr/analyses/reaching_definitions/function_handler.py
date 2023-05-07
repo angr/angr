@@ -1,9 +1,8 @@
-from typing import TYPE_CHECKING, List, Set, Optional, Dict, Union, Tuple
+from typing import TYPE_CHECKING, List, Set, Optional, Union, Tuple
 from dataclasses import dataclass, field
 from itertools import chain
 import logging
 
-import archinfo
 from cle import Symbol
 from cle.backends import ELF
 

@@ -387,7 +387,7 @@ class SimEnginePropagatorAIL(
                     mv = None
                 if mv is not None:
                     reg_defs = o.extract_defs_from_mv(mv)
-                    reg_defat_codelocs = set(reg_def.codeloc for reg_def in reg_defs)
+                    reg_defat_codelocs = {reg_def.codeloc for reg_def in reg_defs}
                     if len(reg_defat_codelocs) == 1:
                         reg_defat = next(iter(reg_defat_codelocs))
                         defat_key = "stmt", (reg_defat.block_addr, reg_defat.block_idx, reg_defat.stmt_idx), OP_BEFORE

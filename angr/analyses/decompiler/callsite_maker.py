@@ -343,8 +343,8 @@ class CallSiteMaker(Analysis):
             value = None
             if isinstance(arg_loc, SimRegArg):
                 value_and_defs = self._resolve_register_argument(call_stmt, arg_loc)
-                if len(set(v for v, _ in value_and_defs)) == 1:
-                    value = next(iter(set(v for v, _ in value_and_defs)))
+                if len({v for v, _ in value_and_defs}) == 1:
+                    value = next(iter({v for v, _ in value_and_defs}))
 
             elif isinstance(arg_loc, SimStackArg):
                 value, _ = self._resolve_stack_argument(call_stmt, arg_loc)
