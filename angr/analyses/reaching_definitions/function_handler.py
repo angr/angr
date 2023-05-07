@@ -1,6 +1,5 @@
-from typing import TYPE_CHECKING, List, Set, Optional, Union, Tuple
+from typing import TYPE_CHECKING, List, Set, Optional, Union
 from dataclasses import dataclass, field
-from itertools import chain
 import logging
 
 from cle import Symbol
@@ -19,12 +18,19 @@ from angr.code_location import CodeLocation
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
+    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis
 
 l = logging.getLogger(__name__)
 
 
 @dataclass
 class FunctionEffect:
+    """
+    A single effect that a function summary may apply to the state. This is largely an implementation detail; use
+    `FunctionCallData.depends` instead.
+    """
+
+    dest: Optional[Atom]
     sources: Set[Atom]
     value: Optional[MultiValues] = None
     sources_defns: Optional[Set[Definition]] = None
@@ -33,6 +39,26 @@ class FunctionEffect:
 
 @dataclass
 class FunctionCallData:
+    """
+    A bundle of intermediate data used when computing the sum effect of a function during ReachingDefinitionsAnalysis.
+
+    RDA engine contract:
+
+    - Construct one of these before calling `FunctionHandler.handle_function`. Fill it with as many fields as you can
+      realistically provide without duplicating effort.
+    - Provide `callsite_codeloc` as either the call statement (AIL) or the default exit of the default statement of the
+      calling block (VEX)
+    - Provide `function_codeloc` as the callee address with `stmt_idx=0``.
+
+    Function handler contract:
+
+    - If redefine_locals is unset, do not adjust any artifacts of the function call abstration, such as the stack
+      pointer, the caller saved registers, etc.
+    - If caller_will_handle_single_ret is set, and there is a single entry in `ret_atoms`, do not apply to the state
+      effects modifying this atom. Instead, set `ret_values` and `ret_values_deps` to the values and deps which are
+      used constructing these values.
+    """
+
     callsite_codeloc: CodeLocation
     function_codeloc: CodeLocation
     address_multi: Optional[MultiValues]
@@ -47,8 +73,7 @@ class FunctionCallData:
     ret_atoms: Optional[Set[Atom]] = None
     redefine_locals: bool = True
     visited_blocks: Optional[Set[int]] = None
-    effects: List[Tuple[Optional[Atom], FunctionEffect]] = field(default_factory=lambda: [])
-    uses_without_effects: List[FunctionEffect] = field(default_factory=lambda: [])
+    effects: List[FunctionEffect] = field(default_factory=lambda: [])
     ret_values: Optional[MultiValues] = None
     ret_values_deps: Optional[Set[Definition]] = None
     caller_will_handle_single_ret: bool = False
@@ -56,17 +81,24 @@ class FunctionCallData:
     guessed_prototype: bool = False
 
     def has_clobbered(self, dest: Atom) -> bool:
+        """
+        Determines whether the given atom already has effects applied
+        """
         if isinstance(dest, Register):
-            for reg in [loc for loc, _ in self.effects if isinstance(loc, Register)]:
+            for effect in self.effects:
+                if not isinstance(effect.dest, Register):
+                    continue
+                reg = effect.dest
                 if dest.reg_offset + dest.size <= reg.reg_offset or dest.reg_offset >= reg.reg_offset + reg.size:
                     # no overlap
                     continue
                 return True
             return False
         if isinstance(dest, MemoryLocation) and isinstance(dest.addr, SpOffset):
-            for stkarg in [
-                loc for loc, _ in self.effects if isinstance(loc, MemoryLocation) and isinstance(loc.addr, SpOffset)
-            ]:
+            for effect in self.effects:
+                if not isinstance(effect.dest, MemoryLocation) or not isinstance(effect.dest.addr, SpOffset):
+                    continue
+                stkarg = effect.dest
                 if (
                     dest.addr.offset + dest.size <= stkarg.addr.offset
                     or stkarg.addr.offset + stkarg.size <= dest.addr.offset
@@ -80,49 +112,46 @@ class FunctionCallData:
 
     def depends(
         self,
-        dest: Atom,
+        dest: Optional[Atom],
         *sources: Atom,
         value: Optional[MultiValues] = None,
         apply_at_callsite: bool = False,
     ):
-        if self.has_clobbered(dest):
+        """
+        Mark a single effect of the current function, including the atom being modified, the input atoms on which that
+        output atom depends, the precise (or imprecise!) value to store, and whether the effect should be applied
+        during the function or afterwards, at the callsite.
+
+        The atom being modified may be None to mark uses of the source atoms which do not have any explicit sinks.
+        """
+        if dest is not None and self.has_clobbered(dest):
             l.warning(
                 "Function handler for %s seems to be implemented incorrectly - "
                 "you're supposed to call depends() exactly once per dependant atom",
                 self.address,
             )
         else:
-            self.effects.append((dest, FunctionEffect(set(sources), value=value, apply_at_callsite=apply_at_callsite)))
-
-    def use_without_effects(self, *sources: Atom, apply_at_callsite: bool = False):
-        self.uses_without_effects.append(FunctionEffect(set(sources), apply_at_callsite=apply_at_callsite))
+            self.effects.append(FunctionEffect(dest, set(sources), value=value, apply_at_callsite=apply_at_callsite))
 
 
 # pylint: disable=unused-argument, no-self-use
-# TODO FIXME XXX DO NOT MERGE UNTIL AUDREY HAS FIXED THE DOCSTRINGS
 class FunctionHandler:
     """
-    An abstract base class for function handlers.
-
-    To work properly, we expect function handlers to:
-      - Be related to a <ReachingDefinitionsAnalysis>;
-      - Provide a `handle_local_function` method.
+    A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
 
-    def hook(self, analysis) -> "FunctionHandler":
+    def hook(self, analysis: "ReachingDefinitionsAnalysis") -> "FunctionHandler":
         """
-        A <FunctionHandler> needs information about the context in which it is executed.
-        A <ReachingDefinitionsAnalysis> would "hook" into a handler by calling: `<FunctionHandler>.hook(self)`.
-
-        :param angr.analyses.ReachingDefinitionsAnalysis analysis: A RDA using this <FunctionHandler>.
-
-        :return FunctionHandler:
+        Attach this instance of the function handler to an instance of RDA.
         """
         return self
 
     def make_function_codeloc(
         self, target: Union[None, int, MultiValues], callsite: CodeLocation, callsite_func_addr: Optional[int]
     ):
+        """
+        The RDA engine will call this function to transform a callsite CodeLocation into a callee CodeLocation.
+        """
         if isinstance(target, MultiValues):
             target_bv = target.one_value()
             if target_bv is not None and target_bv.op == "BVV":
@@ -141,6 +170,21 @@ class FunctionHandler:
             )
 
     def handle_function(self, state: "ReachingDefinitionsState", data: FunctionCallData):
+        """
+        The main entry point for the function handler. Called with a RDA state and a FunctionCallData, it is expected
+        to update the state and the data as per the contracts described on FunctionCallData.
+
+        You can override this method to take full control over how data is processed, or override any of the following
+        to use the higher-level interface (data.depends()):
+
+        - `handle_impl_<function name>`
+        - `handle_local_function`
+        - `handle_external_function`
+        - `handle_indirect_function`
+        - `handle_generic_function`
+
+        Each of them take the same signature as `handle_function`.
+        """
         # META
         assert state.analysis is not None
         assert state.analysis.project.loader.main_object is not None
@@ -248,34 +292,31 @@ class FunctionHandler:
         other_output_defns = set()
 
         # translate all the dep atoms into dep defns
-        for effect in chain(map(lambda x: x[1], data.effects), data.uses_without_effects):
+        for effect in data.effects:
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
                 other_input_defns |= effect.sources_defns - all_args_defns
         # apply the effects, with the ones marked with apply_at_callsite=False applied first
-        for dest, effect in sorted(
-            chain(data.effects, ((None, x) for x in data.uses_without_effects)),
-            key=lambda de: de[1].apply_at_callsite,
-        ):
+        for effect in sorted(data.effects, key=lambda effect: effect.apply_at_callsite):
             codeloc = data.callsite_codeloc if effect.apply_at_callsite else data.function_codeloc
             state.move_codelocs(codeloc)  # no-op if duplicated
             # mark uses
             for source in effect.sources_defns or set():
                 if source.atom not in args_atoms_from_values:
                     state.add_use_by_def(source, expr=None)
-            if dest is None:
+            if effect.dest is None:
                 continue
 
-            value = effect.value if effect.value is not None else MultiValues(state.top(dest.bits))
+            value = effect.value if effect.value is not None else MultiValues(state.top(effect.dest.bits))
             # special case: if there is exactly one ret atom, we expect that the caller will do something
             # with the value, e.g. if this is a call expression.
-            if data.caller_will_handle_single_ret and data.ret_atoms == {dest}:
+            if data.caller_will_handle_single_ret and data.ret_atoms == {effect.dest}:
                 data.ret_values = value
                 data.ret_values_deps = effect.sources_defns
             else:
                 # mark definition
                 mv, defs = state.kill_and_add_definition(
-                    dest,
+                    effect.dest,
                     value,
                     uses=effect.sources_defns or set(),
                 )
@@ -315,7 +356,7 @@ class FunctionHandler:
         else:
             sources = {atom for arg in data.args_atoms or [] for atom in arg}
             if not data.ret_atoms:
-                data.use_without_effects(*sources, apply_at_callsite=True)  # controversial
+                data.depends(None, *sources, apply_at_callsite=True)  # controversial
                 return
             for atom in data.ret_atoms:
                 data.depends(atom, *sources, apply_at_callsite=True)
