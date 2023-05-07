@@ -1270,6 +1270,9 @@ class TestDecompiler(unittest.TestCase):
         assert "extern char num_packets;" in d.codegen.text
         assert "extern char src;" in d.codegen.text
 
+        # make sure there are no unidentified stack variables
+        assert "stack_base" not in d.codegen.text
+
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
 
         # make sure the line with printf("Recieved packet %d for connection with %d\n"...) does not have
