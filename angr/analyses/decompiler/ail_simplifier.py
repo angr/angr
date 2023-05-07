@@ -256,11 +256,12 @@ class AILSimplifier(Analysis):
                 if needs_narrowing:
                     # replace the definition
                     if not isinstance(def_.codeloc, ExternalCodeLocation):
-                        if def_.codeloc.block_idx is None:
-                            # probably a function call?
+                        old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
+                        if old_block is None:
+                            # this definition might be inside a callee function, which is why the block does not exist
+                            # ignore it
                             continue
 
-                        old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
                         the_block = self.blocks.get(old_block, old_block)
                         stmt = the_block.statements[def_.codeloc.stmt_idx]
                         r, new_block = False, None
