@@ -295,19 +295,19 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                 assert isinstance(proto.returnty, SimTypeLongLong)
 
     def test_run_multiple_times(self):
-            binary_path = os.path.join(test_location, "tests", "x86_64", "fauxware")
-            proj = angr.Project(binary_path, auto_load_libs=False)
-            
-            proj.analyses.CFG(normalize=True)
-            proj.analyses.CompleteCallingConventions(recover_variables=True)
+        binary_path = os.path.join(test_location, "tests", "x86_64", "fauxware")
+        proj = angr.Project(binary_path, auto_load_libs=False)
 
-            expected_prototype = proj.kb.functions['main'].prototype
-            proj.analyses.CompleteCallingConventions(recover_variables=True)
-            assert proj.kb.functions['main'].prototype == expected_prototype
+        proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
 
-            proj.analyses.CFG(normalize=True)
-            proj.analyses.CompleteCallingConventions(recover_variables=True)
-            assert proj.kb.functions['main'].prototype == expected_prototype
+        expected_prototype = proj.kb.functions["main"].prototype
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
+        assert proj.kb.functions["main"].prototype == expected_prototype
+
+        proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
+        assert proj.kb.functions["main"].prototype == expected_prototype
 
 
 if __name__ == "__main__":

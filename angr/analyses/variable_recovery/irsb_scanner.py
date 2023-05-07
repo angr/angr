@@ -20,6 +20,7 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
         self.tmps_with_64bit_regs: Set[int] = set()  # tmps that store 64-bit register values
         self.tmps_converted_to_32bit: Set[int] = set()  # tmps that store the 64-to-32-bit converted values
         self.tmps_assignment_stmtidx: Dict[int, int] = {}  # statement IDs for the assignment of each tmp
+        self.stmts_to_lower: Set[int] = set()
 
     def _process_Stmt(self, whitelist=None):
         self.tmps_with_64bit_regs = set()
@@ -62,8 +63,6 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
         if expr.tmp in self.tmps_converted_to_32bit:
             self.tmps_converted_to_32bit.remove(expr.tmp)
 
-        return None
-
     def _handle_Conversion(self, expr: pyvex.IRExpr.Unop):
         if expr.op == "Iop_64to32" and isinstance(expr.args[0], pyvex.IRExpr.RdTmp):
             # special handling for t11 = GET:I64(rdi); t4 = 64to32(t11) style of code in x86-64 (and other 64-bit
@@ -71,8 +70,6 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
             tmp_src = expr.args[0].tmp
             if tmp_src in self.tmps_with_64bit_regs:
                 self.tmps_converted_to_32bit.add(tmp_src)
-
-        return None
 
     def _handle_CCall(self, expr):
         pass
