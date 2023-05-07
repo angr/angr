@@ -23,15 +23,5 @@ class ExternalCodeLocation(CodeLocation):
         returns the hash value of self.
         """
         if self._hash is None:
-            self._hash = hash(
-                (
-                    self.block_addr,
-                    self.stmt_idx,
-                    self.sim_procedure,
-                    self.ins_addr,
-                    self.context,
-                    self.block_idx,
-                    self.call_string,
-                )
-            )
+            self._hash = hash((self.call_string,))
         return self._hash

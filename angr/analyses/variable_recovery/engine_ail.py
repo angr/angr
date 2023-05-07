@@ -5,9 +5,8 @@ import logging
 import claripy
 import ailment
 
-from angr.code_location import CodeLocation
 from ...calling_conventions import SimRegArg
-from ...sim_type import SimTypeFunction, SimTypeBottom
+from ...sim_type import SimTypeFunction
 from ...engines.light import SimEngineLightAILMixin
 from ..typehoon import typeconsts, typevars
 from ..typehoon.lifter import TypeLifter
@@ -24,6 +23,10 @@ class SimEngineVRAIL(
     SimEngineLightAILMixin,
     SimEngineVRBase,
 ):
+    """
+    The engine for variable recovery on AIL.
+    """
+
     state: "VariableRecoveryFastState"
     block: ailment.Block
 
@@ -32,15 +35,6 @@ class SimEngineVRAIL(
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}
-
-    def _codeloc(self, block_only=False):
-        return CodeLocation(
-            self.block.addr,
-            None if block_only else self.stmt_idx,
-            block_idx=self.block.idx,
-            ins_addr=None if block_only else self.ins_addr,
-            context=self._context,
-        )
 
     # Statement handlers
 
@@ -101,12 +95,9 @@ class SimEngineVRAIL(
             else:
                 # the return expression is not used, so we treat this call as not returning anything
                 if stmt.calling_convention is not None:
+                    # we only set the ret_expr if prototype must be guessed. otherwise ret_expr should just be None
                     if stmt.prototype is None:
                         ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
-                    elif stmt.prototype.returnty is None or type(stmt.prototype.returnty) is SimTypeBottom:
-                        ret_expr = None
-                    else:
-                        ret_expr: SimRegArg = stmt.calling_convention.return_val(stmt.prototype.returnty)
                 else:
                     l.debug(
                         "Unknown calling convention for function %s. Fall back to default calling convention.", target

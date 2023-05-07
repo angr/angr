@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Generator, Tuple, Any, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Tuple, Any, TYPE_CHECKING, Iterator
 import logging
 
 import archinfo
@@ -13,13 +13,13 @@ from ...knowledge_plugins.key_definitions.atoms import (
     GuardUse,
     Register,
     MemoryLocation,
-    FunctionCall,
     ConstantSrc,
 )
 from ...knowledge_plugins.functions.function import Function
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.environment import Environment
 from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
+from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
 from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
@@ -65,14 +65,13 @@ class ReachingDefinitionsState:
         "_subject",
         "_track_tmps",
         "analysis",
-        "current_codeloc",
+        "codeloc",
         "codeloc_uses",
         "live_definitions",
         "all_definitions",
         "_canonical_size",
         "heap_allocator",
         "_environment",
-        "_track_calls",
         "_track_consts",
         "_sp_adjusted",
         "exit_observed",
@@ -80,10 +79,10 @@ class ReachingDefinitionsState:
 
     def __init__(
         self,
+        codeloc: CodeLocation,
         arch: archinfo.Arch,
         subject: Subject,
         track_tmps: bool = False,
-        track_calls: bool = False,
         track_consts: bool = False,
         analysis: Optional["ReachingDefinitionsAnalysis"] = None,
         rtoc_value=None,
@@ -95,10 +94,10 @@ class ReachingDefinitionsState:
         all_definitions: Optional[Set[Definition]] = None,
     ):
         # handy short-hands
-        self.arch = arch
+        self.codeloc = codeloc
+        self.arch: archinfo.Arch = arch
         self._subject = subject
         self._track_tmps = track_tmps
-        self._track_calls = track_calls
         self._track_consts = track_consts
         self.analysis = analysis
         self._canonical_size: int = canonical_size
@@ -119,7 +118,6 @@ class ReachingDefinitionsState:
         self.heap_allocator = heap_allocator or HeapAllocator(canonical_size)
         self._environment: Environment = environment or Environment()
 
-        self.current_codeloc: Optional[CodeLocation] = None
         self.codeloc_uses: Set[Definition] = set()
 
         # have we observed an exit statement or not during the analysis of the *last instruction* of a block? we should
@@ -192,7 +190,14 @@ class ReachingDefinitionsState:
         """
         return self.live_definitions.annotate_with_def(symvar, definition)
 
-    def extract_defs(self, symvar: claripy.ast.Base) -> Generator[Definition, None, None]:
+    def annotate_mv_with_def(self, mv: MultiValues, definition: Definition) -> MultiValues:
+        return MultiValues(
+            offset_to_values={
+                offset: {self.annotate_with_def(value, definition) for value in values} for offset, values in mv.items()
+            }
+        )
+
+    def extract_defs(self, symvar: claripy.ast.Base) -> Iterator[Definition]:
         yield from self.live_definitions.extract_defs(symvar)
 
     #
@@ -252,6 +257,10 @@ class ReachingDefinitionsState:
     @property
     def environment(self):
         return self._environment
+
+    @property
+    def _dep_graph(self):
+        return self.analysis._dep_graph
 
     @property
     def dep_graph(self):
@@ -368,10 +377,10 @@ class ReachingDefinitionsState:
 
     def copy(self) -> "ReachingDefinitionsState":
         rd = ReachingDefinitionsState(
+            self.codeloc,
             self.arch,
             self._subject,
             track_tmps=self._track_tmps,
-            track_calls=self._track_calls,
             track_consts=self._track_consts,
             analysis=self.analysis,
             live_definitions=self.live_definitions.copy(),
@@ -393,22 +402,15 @@ class ReachingDefinitionsState:
 
         return state, merged_0 or merged_1
 
-    def _cycle(self, code_loc: CodeLocation) -> None:
-        if isinstance(code_loc, ExternalCodeLocation):
-            return
-        if code_loc != self.current_codeloc:
-            self.current_codeloc = code_loc
+    def move_codelocs(self, new_codeloc: CodeLocation) -> None:
+        if self.codeloc != new_codeloc:
+            self.codeloc = new_codeloc
             self.codeloc_uses = set()
 
     def kill_definitions(self, atom: Atom) -> None:
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
-
-        :param atom:
-        :param CodeLocation code_loc:
-        :param object data:
-        :return: None
         """
 
         self.live_definitions.kill_definitions(atom)
@@ -416,27 +418,25 @@ class ReachingDefinitionsState:
     def kill_and_add_definition(
         self,
         atom: Atom,
-        code_loc: CodeLocation,
         data: MultiValues,
         dummy=False,
         tags: Set[Tag] = None,
-        endness=None,
+        endness=None,  # XXX destroy
         annotated: bool = False,
-    ) -> Optional[MultiValues]:
-        self._cycle(code_loc)
-
+        uses: Optional[Set[Definition]] = None,
+        override_codeloc: Optional[CodeLocation] = None,
+    ) -> Tuple[Optional[MultiValues], Set[Definition]]:
+        codeloc = override_codeloc or self.codeloc
         mv = self.live_definitions.kill_and_add_definition(
-            atom, code_loc, data, dummy=dummy, tags=tags, endness=endness, annotated=annotated
+            atom, codeloc, data, dummy=dummy, tags=tags, endness=endness, annotated=annotated
         )
 
         if mv is not None:
             defs = set(LiveDefinitions.extract_defs_from_mv(mv))
             self.all_definitions |= defs
 
-            if self.dep_graph is not None:
-                stack_use = set(
-                    filter(lambda u: isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack, self.codeloc_uses)
-                )
+            if self._dep_graph is not None:
+                stack_use = {u for u in self.codeloc_uses if isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack}
 
                 sp_offset = self.arch.sp_offset
                 bp_offset = self.arch.bp_offset
@@ -446,7 +446,9 @@ class ReachingDefinitionsState:
                     for v in vs:
                         values.add(v)
 
-                for used in self.codeloc_uses:
+                if uses is None:
+                    uses = self.codeloc_uses
+                for used in uses:
                     # sp is always used as a stack pointer, and we do not track dependencies against stack pointers.
                     # bp is sometimes used as a base pointer. we recognize such cases by checking if there is a use to
                     # the stack variable.
@@ -478,127 +480,132 @@ class ReachingDefinitionsState:
                         # "uses" are actually the definitions that we're using and the "definition" is the
                         # new definition; i.e. The def that the old def is used to construct so this is
                         # really a graph where nodes are defs and edges are uses.
-                        self.dep_graph.add_node(used)
+                        self._dep_graph.add_node(used)
                         for def_ in defs:
                             if not def_.dummy:
-                                self.dep_graph.add_edge(used, def_)
-                        self.dep_graph.add_dependencies_for_concrete_pointers_of(
+                                self._dep_graph.add_edge(used, def_)
+                        self._dep_graph.add_dependencies_for_concrete_pointers_of(
                             values,
                             used,
                             self.analysis.project.kb.cfgs.get_most_accurate(),
                             self.analysis.project.loader,
                         )
+        else:
+            defs = set()
 
-        return mv
+        return mv, defs
 
-    def add_use(self, atom: Atom, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
-        self._cycle(code_loc)
+    def add_use(self, atom: Atom, expr: Optional[Any] = None) -> None:
         self.codeloc_uses.update(self.get_definitions(atom))
 
-        self.live_definitions.add_use(atom, code_loc, expr=expr)
+        self.live_definitions.add_use(atom, self.codeloc, expr=expr)
 
-    def add_use_by_def(self, definition: Definition, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
-        self._cycle(code_loc)
+    def add_use_by_def(self, definition: Definition, expr: Optional[Any] = None) -> None:
         self.codeloc_uses.add(definition)
 
-        self.live_definitions.add_use_by_def(definition, code_loc, expr=expr)
+        self.live_definitions.add_use_by_def(definition, self.codeloc, expr=expr)
 
-    def add_tmp_use(self, tmp: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_tmp_use(self, tmp: int, expr: Optional[Any] = None) -> None:
         defs = self.live_definitions.get_tmp_definitions(tmp)
-        self.add_tmp_use_by_defs(defs, code_loc, expr=expr)
+        self.add_tmp_use_by_defs(defs, expr=expr)
 
     def add_tmp_use_by_defs(
-        self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any] = None
+        self, defs: Iterable[Definition], expr: Optional[Any] = None
     ) -> None:  # pylint:disable=unused-argument
-        self._cycle(code_loc)
         for definition in defs:
             self.codeloc_uses.add(definition)
             # if track_tmps is False, definitions may not be Tmp definitions
-            self.live_definitions.add_use_by_def(definition, code_loc)
+            self.live_definitions.add_use_by_def(definition, self.codeloc, expr=expr)
 
-    def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
+    def add_register_use(self, reg_offset: int, size: int, expr: Optional[Any] = None) -> None:
         defs = self.live_definitions.get_register_definitions(reg_offset, size)
-        self.add_register_use_by_defs(defs, code_loc, expr=expr)
+        self.add_register_use_by_defs(defs, expr=expr)
 
-    def add_register_use_by_defs(
-        self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any] = None
-    ) -> None:
-        self._cycle(code_loc)
+    def add_register_use_by_defs(self, defs: Iterable[Definition], expr: Optional[Any] = None) -> None:
         for definition in defs:
             self.codeloc_uses.add(definition)
-            self.live_definitions.add_register_use_by_def(definition, code_loc, expr=expr)
+            self.live_definitions.add_register_use_by_def(definition, self.codeloc, expr=expr)
 
-    def add_stack_use(
-        self, stack_offset: int, size: int, endness, code_loc: CodeLocation, expr: Optional[Any] = None
-    ) -> None:
+    def add_stack_use(self, stack_offset: int, size: int, endness, expr: Optional[Any] = None) -> None:
         defs = self.live_definitions.get_stack_definitions(stack_offset, size, endness)
-        self.add_stack_use_by_defs(defs, code_loc, expr=expr)
+        self.add_stack_use_by_defs(defs, expr=expr)
 
-    def add_stack_use_by_defs(self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any] = None):
-        self._cycle(code_loc)
+    def add_stack_use_by_defs(self, defs: Iterable[Definition], expr: Optional[Any] = None):
         for definition in defs:
             self.codeloc_uses.add(definition)
-            self.live_definitions.add_stack_use_by_def(definition, code_loc, expr=expr)
+            self.live_definitions.add_stack_use_by_def(definition, self.codeloc, expr=expr)
 
-    def add_heap_use(
-        self, heap_offset: int, size: int, endness, code_loc: CodeLocation, expr: Optional[Any] = None
-    ) -> None:
+    def add_heap_use(self, heap_offset: int, size: int, endness, expr: Optional[Any] = None) -> None:
         defs = self.live_definitions.get_heap_definitions(heap_offset, size, endness)
-        self.add_heap_use_by_defs(defs, code_loc, expr=expr)
+        self.add_heap_use_by_defs(defs, expr=expr)
 
-    def add_heap_use_by_defs(self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any] = None):
-        self._cycle(code_loc)
+    def add_heap_use_by_defs(self, defs: Iterable[Definition], expr: Optional[Any] = None):
         for definition in defs:
             self.codeloc_uses.add(definition)
-            self.live_definitions.add_heap_use_by_def(definition, code_loc, expr=expr)
+            self.live_definitions.add_heap_use_by_def(definition, self.codeloc, expr=expr)
 
-    def add_memory_use_by_def(self, definition: Definition, code_loc: CodeLocation, expr: Optional[Any] = None):
-        self._cycle(code_loc)
+    def add_memory_use_by_def(self, definition: Definition, expr: Optional[Any] = None):
         self.codeloc_uses.add(definition)
-        self.live_definitions.add_memory_use_by_def(definition, code_loc, expr=expr)
+        self.live_definitions.add_memory_use_by_def(definition, self.codeloc, expr=expr)
 
-    def add_memory_use_by_defs(self, defs: Iterable[Definition], code_loc: CodeLocation, expr: Optional[Any] = None):
-        self._cycle(code_loc)
+    def add_memory_use_by_defs(self, defs: Iterable[Definition], expr: Optional[Any] = None):
         for definition in defs:
             self.codeloc_uses.add(definition)
-            self.live_definitions.add_memory_use_by_def(definition, code_loc, expr=expr)
+            self.live_definitions.add_memory_use_by_def(definition, self.codeloc, expr=expr)
 
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         yield from self.live_definitions.get_definitions(atom)
 
-    def mark_guard(self, code_loc: CodeLocation, target):
-        self._cycle(code_loc)
+    def get_values(self, atom: Atom) -> Optional[MultiValues]:
+        return self.live_definitions.get_value_from_atom(atom)
+
+    def mark_guard(self, target):
         atom = GuardUse(target)
-        kinda_definition = Definition(atom, code_loc)
+        kinda_definition = Definition(atom, self.codeloc)
 
-        if self.dep_graph is not None:
-            self.dep_graph.add_node(kinda_definition)
+        if self._dep_graph is not None:
+            self._dep_graph.add_node(kinda_definition)
             for used in self.codeloc_uses:
-                self.dep_graph.add_edge(used, kinda_definition)
+                self._dep_graph.add_edge(used, kinda_definition)
 
-    def mark_call(self, code_loc: CodeLocation, target):
-        self._cycle(code_loc)
-        atom = FunctionCall(target, code_loc)
-        kinda_definition = Definition(atom, code_loc)
+    def mark_const(self, value: int, size: int):
+        atom = ConstantSrc(value, size)
+        kinda_definition = Definition(atom, self.codeloc)
 
-        if self.dep_graph is not None and self._track_calls:
-            self.dep_graph.add_node(kinda_definition)
-            for used in self.codeloc_uses:
-                self.dep_graph.add_edge(used, kinda_definition)
-            self.codeloc_uses.clear()
+        if self._dep_graph is not None and self._track_consts:
+            self._dep_graph.add_node(kinda_definition)
             self.codeloc_uses.add(kinda_definition)
-            self.live_definitions.uses_by_codeloc[code_loc].clear()
-            self.live_definitions.uses_by_codeloc[code_loc].add(kinda_definition)
-
-    def mark_const(self, code_loc: CodeLocation, const):
-        self._cycle(code_loc)
-        atom = ConstantSrc(const)
-        kinda_definition = Definition(atom, code_loc)
-
-        if self.dep_graph is not None and self._track_consts:
-            self.dep_graph.add_node(kinda_definition)
-            self.codeloc_uses.add(kinda_definition)
-            self.live_definitions.uses_by_codeloc[code_loc].add(kinda_definition)
+            self.live_definitions.uses_by_codeloc[self.codeloc].add(kinda_definition)
 
     def downsize(self):
         self.all_definitions = set()
+
+    def pointer_to_atoms(self, pointer: MultiValues, size: int, endness: str) -> Set[Atom]:
+        """
+        Given a MultiValues, return the set of atoms that loading or storing to the pointer with that value
+        could define or use.
+        """
+        result = set()
+        for vs in pointer.values():
+            for value in vs:
+                if self.is_top(value):
+                    continue
+
+                # TODO this can be simplified with the walrus operator
+                stack_offset = self.get_stack_offset(value)
+                if stack_offset is not None:
+                    addr = SpOffset(pointer.size * 8, stack_offset)
+                else:
+                    heap_offset = self.get_heap_offset(value)
+                    if heap_offset is not None:
+                        addr = HeapAddress(heap_offset)
+                    elif value.op == "BVV":
+                        addr = value.args[0]
+                    else:
+                        # cannot resolve
+                        continue
+
+                atom = MemoryLocation(addr, size, endness)
+                result.add(atom)
+
+        return result

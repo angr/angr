@@ -151,6 +151,9 @@ class SimProcedure:
         if self.prototype is None:
             charp = SimTypePointer(SimTypeChar())
             self.prototype = SimTypeFunction([charp] * self.num_args, charp)
+            self.guessed_prototype = True
+        else:
+            self.guessed_prototype = False
 
         # runtime values
         self.state = None

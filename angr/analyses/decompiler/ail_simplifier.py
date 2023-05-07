@@ -35,7 +35,7 @@ from .ccall_rewriters import CCALL_REWRITERS
 
 if TYPE_CHECKING:
     from ailment.manager import Manager
-    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsModel
+    from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 
 
 _l = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ class AILSimplifier(Analysis):
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions = None
+        self._reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
@@ -189,13 +189,14 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
-    def _compute_reaching_definitions(self) -> "ReachingDefinitionsModel":
+    def _compute_reaching_definitions(self) -> "ReachingDefinitionsAnalysis":
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
         rd = self.project.analyses.ReachingDefinitions(
             subject=self.func,
             func_graph=self.func_graph,
+            # init_context=(),    <-- in case of fire break glass
             observe_all=True,  # observe_callback=self._simplify_function_rd_observe_callback
         )
         self._reaching_definitions = rd
@@ -249,13 +250,18 @@ class AILSimplifier(Analysis):
 
         rd = self._compute_reaching_definitions()
         sorted_defs = sorted(rd.all_definitions, key=lambda d: d.codeloc, reverse=True)
-        for def_ in sorted_defs:
+        for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
             if isinstance(def_.atom, atoms.Register):
                 needs_narrowing, to_size, use_exprs = self._narrowing_needed(def_, rd, addr_and_idx_to_block)
                 if needs_narrowing:
                     # replace the definition
                     if not isinstance(def_.codeloc, ExternalCodeLocation):
                         old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
+                        if old_block is None:
+                            # this definition might be inside a callee function, which is why the block does not exist
+                            # ignore it
+                            continue
+
                         the_block = self.blocks.get(old_block, old_block)
                         stmt = the_block.statements[def_.codeloc.stmt_idx]
                         r, new_block = False, None
@@ -291,20 +297,21 @@ class AILSimplifier(Analysis):
                                 replace_loads=True,
                             )
                         elif isinstance(stmt, Call):
-                            tags = dict(stmt.ret_expr.tags)
-                            tags["reg_name"] = self.project.arch.translate_register_name(
-                                def_.atom.reg_offset, size=to_size
-                            )
-                            new_retexpr = Register(
-                                stmt.ret_expr.idx,
-                                None,
-                                def_.atom.reg_offset,
-                                to_size * self.project.arch.byte_width,
-                                **tags,
-                            )
-                            r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
-                            )
+                            if stmt.ret_expr is not None:
+                                tags = dict(stmt.ret_expr.tags)
+                                tags["reg_name"] = self.project.arch.translate_register_name(
+                                    def_.atom.reg_offset, size=to_size
+                                )
+                                new_retexpr = Register(
+                                    stmt.ret_expr.idx,
+                                    None,
+                                    def_.atom.reg_offset,
+                                    to_size * self.project.arch.byte_width,
+                                    **tags,
+                                )
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    the_block, {def_.codeloc: {stmt.ret_expr: new_retexpr}}
+                                )
                         if not r:
                             # couldn't replace the definition...
                             continue
@@ -608,6 +615,9 @@ class AILSimplifier(Analysis):
                         break
             if the_def is None:
                 continue
+            if the_def.codeloc.context:
+                # the definition is in a callee function
+                continue
 
             if isinstance(the_def.codeloc, ExternalCodeLocation):
                 # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
@@ -638,7 +648,7 @@ class AILSimplifier(Analysis):
                         if any(
                             (def_ != the_def and def_.atom == the_def.atom)
                             for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.Register)
+                            if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
                         ):
                             continue
 
@@ -828,9 +838,15 @@ class AILSimplifier(Analysis):
     #
 
     @staticmethod
-    def _is_call_using_temporaries(call: Call) -> bool:
+    def _is_expr_using_temporaries(expr: Expression) -> bool:
         walker = AILBlockTempCollector()
-        walker.walk_statement(call)
+        walker.walk_expression(expr)
+        return len(walker.temps) > 0
+
+    @staticmethod
+    def _is_stmt_using_temporaries(stmt: Statement) -> bool:
+        walker = AILBlockTempCollector()
+        walker.walk_statement(stmt)
         return len(walker.temps) > 0
 
     def _fold_call_exprs(self) -> bool:
@@ -871,21 +887,23 @@ class AILSimplifier(Analysis):
         def_locations_to_remove: Set[CodeLocation] = set()
         updated_use_locations: Set[CodeLocation] = set()
 
+        eq: Equivalence
         for eq in prop.model.equivalence:
-            eq: Equivalence
-
             # register variable == Call
             if isinstance(eq.atom0, Register):
+                call_addr: Optional[int]
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
-                    call = eq.atom1
+                    call: Expression = eq.atom1
+                    call_addr = call.target.value if isinstance(call.target, Const) else None
                 elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
                     # register variable = Convert(Call)
                     call = eq.atom1
+                    call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
                 else:
                     continue
 
-                if self._is_call_using_temporaries(call):
+                if self._is_expr_using_temporaries(call):
                     continue
 
                 if eq.codeloc in updated_use_locations:
@@ -912,6 +930,8 @@ class AILSimplifier(Analysis):
                 if len(all_uses) != 1:
                     continue
                 u, used_expr = next(iter(all_uses))
+                if used_expr is None:
+                    continue
 
                 if u in def_locations_to_remove:
                     # this use site has been altered by previous folding attempts. the corresponding statement will be
@@ -949,9 +969,9 @@ class AILSimplifier(Analysis):
                         # special case: ok if this atom is assigned to at the def site and has not been overwritten
                         if len(usesite_expr_uses) == 1:
                             usesite_expr_use = next(iter(usesite_expr_uses))
-                            if (
-                                usesite_expr_use.atom == defsite_expr_atom
-                                and usesite_expr_use.codeloc == the_def.codeloc
+                            if usesite_expr_use.atom == defsite_expr_atom and (
+                                usesite_expr_use.codeloc == the_def.codeloc
+                                or usesite_expr_use.codeloc.block_addr == call_addr
                             ):
                                 continue
                         usesite_expr_def_outdated = True
@@ -974,7 +994,7 @@ class AILSimplifier(Analysis):
 
                 if isinstance(eq.atom0, Register):
                     src = used_expr
-                    dst = call
+                    dst: Expression = call
 
                     if src.bits != dst.bits:
                         dst = Convert(None, dst.bits, src.bits, False, dst)
@@ -1096,7 +1116,7 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
-                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
+                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
                             simplified = True
@@ -1112,7 +1132,7 @@ class AILSimplifier(Analysis):
                             simplified = True
                             continue
                     elif isinstance(stmt, Call):
-                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
+                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
                             simplified = True

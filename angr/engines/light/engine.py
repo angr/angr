@@ -18,6 +18,10 @@ from ..engine import SimEngine
 
 
 class SimEngineLightMixin:
+    """
+    A mixin base class for engines meant to perform static analysis
+    """
+
     def __init__(self, *args, logger=None, **kwargs):
         self.arch: Optional[archinfo.Arch] = None
         self.l = logger
@@ -75,6 +79,10 @@ class SimEngineLight(
     SimEngineLightMixin,
     SimEngine,
 ):
+    """
+    A full-featured engine base class, suitable for static analysis
+    """
+
     def __init__(self):
         logger = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
         super().__init__(logger=logger)
@@ -107,31 +115,21 @@ class SimEngineLight(
     # Helper methods
     #
 
-    @property
-    def _context(self) -> Optional[Tuple[int]]:
-        if self._call_stack is None:
-            # contextless mode
-            return None
-
-        if not self._call_stack:
-            # contextful but the callstack is empty
-            return ()
-
-        # Convert to Tuple to make `context` hashable if not None
-        call_stack_addresses = tuple(self._call_stack)
-        return call_stack_addresses
-
-    def _codeloc(self, block_only=False):
+    def _codeloc(self, block_only=False, context=None):
         return CodeLocation(
             self.block.addr,
             None if block_only else self.stmt_idx,
             ins_addr=None if block_only else self.ins_addr,
-            context=self._context,
+            context=context,
         )
 
 
 # noinspection PyPep8Naming
 class SimEngineLightVEXMixin(SimEngineLightMixin):
+    """
+    A mixin for doing static analysis on VEX
+    """
+
     def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
         # initialize local variables
         self.tmps = {}
@@ -233,7 +231,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             self.l.error("Unsupported expression type %s.", type(expr).__name__)
         return None
 
-    def _handle_Triop(self, expr: pyvex.IRExpr.Triop):
+    def _handle_Triop(self, expr: pyvex.IRExpr.Triop):  # pylint: disable=useless-return
         self.l.error("Unsupported Triop %s.", expr.op)
         return None
 
@@ -782,6 +780,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
 # noinspection PyPep8Naming
 class SimEngineLightAILMixin(SimEngineLightMixin):
+    """
+    A mixin for doing static analysis on AIL
+    """
+
     def _process(
         self, state, successors, *args, block=None, whitelist=None, **kwargs
     ):  # pylint:disable=arguments-differ
@@ -834,10 +836,13 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     # Helper methods
     #
 
-    def _codeloc(self):
-        # noinspection PyUnresolvedReferences
+    def _codeloc(self, block_only=False, context=None):
         return CodeLocation(
-            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self._context, block_idx=self.block.idx
+            self.block.addr,
+            None if block_only else self.stmt_idx,
+            ins_addr=None if block_only else self.ins_addr,
+            context=context,
+            block_idx=self.block.idx,
         )
 
     #

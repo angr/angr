@@ -1,12 +1,23 @@
 from typing import Set, Optional, Union, TYPE_CHECKING
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
+from ...knowledge_plugins.key_definitions.constants import ObservationPointType
+from ...knowledge_plugins.key_definitions.atoms import (
+    AtomKind,
+    Atom,
+    Register,
+    MemoryLocation,
+    Tmp,
+    GuardUse,
+    ConstantSrc,
+)
+from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import register_analysis
-from .reaching_definitions import ReachingDefinitionsAnalysis
+from .reaching_definitions import ReachingDefinitionsAnalysis, ReachingDefinitionsModel
+from .function_handler import FunctionHandler
 
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.key_definitions.definition import Definition
     from angr.storage.memory_object import SimMemoryObject
     from angr.storage.memory_mixins import MultiValuedMemory
     from angr.storage.memory_mixins.paged_memory.pages import MVListPage

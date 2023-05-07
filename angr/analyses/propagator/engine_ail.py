@@ -5,7 +5,9 @@ import logging
 import claripy
 from ailment import Stmt, Expr
 
+from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable, SimMemoryVariable
@@ -199,22 +201,23 @@ class SimEnginePropagatorAIL(
                 sp_value = self.state.load_register(sp_reg)
                 if sp_value is not None and 0 in sp_value.offset_and_details and len(sp_value.offset_and_details) == 1:
                     sp_expr = sp_value.offset_and_details[0].expr
-                    if isinstance(sp_expr, Expr.StackBaseOffset):
-                        sp_expr_new = sp_expr.copy()
-                        sp_expr_new.offset += self.arch.bytes
-                    else:
-                        sp_expr_new = sp_expr + self.arch.bytes
-                    sp_value_new = PropValue(
-                        sp_value.value + self.arch.bytes,
-                        offset_and_details={
-                            0: Detail(
-                                sp_value.offset_and_details[0].size,
-                                sp_expr_new,
-                                self._codeloc(),
-                            )
-                        },
-                    )
-                    self.state.store_register(sp_reg, sp_value_new)
+                    if sp_expr is not None:
+                        if isinstance(sp_expr, Expr.StackBaseOffset):
+                            sp_expr_new = sp_expr.copy()
+                            sp_expr_new.offset += self.arch.bytes
+                        else:
+                            sp_expr_new = sp_expr + self.arch.bytes
+                        sp_value_new = PropValue(
+                            sp_value.value + self.arch.bytes,
+                            offset_and_details={
+                                0: Detail(
+                                    sp_value.offset_and_details[0].size,
+                                    sp_expr_new,
+                                    self._codeloc(),
+                                )
+                            },
+                        )
+                        self.state.store_register(sp_reg, sp_value_new)
 
     def _ail_handle_ConditionalJump(self, stmt):
         condition = self._expr(stmt.condition)
@@ -347,8 +350,8 @@ class SimEnginePropagatorAIL(
                 lo_value = pv.offset_and_details[0]
                 hi_offset = next(iter(k for k in pv.offset_and_details if k != 0))
                 hi_value = pv.offset_and_details[hi_offset]
-                if lo_value.def_at == hi_value.def_at:
-                    # it's the same value! we can apply concatenation here
+                if lo_value.def_at == hi_value.def_at or isinstance(hi_value.expr, Expr.Const):
+                    # it's the same value or the high-end extension is a pure constant. we can apply concatenation here
                     if isinstance(hi_value.expr, Expr.Const) and hi_value.expr.value == 0:
                         # it's probably an up-cast
                         mappings = {
@@ -370,6 +373,32 @@ class SimEnginePropagatorAIL(
             return False, None
 
         new_expr = self.state.load_register(expr)
+
+        # where was this register defined?
+        reg_defat = None
+        if self._reaching_definitions is not None:
+            codeloc = self._codeloc()
+            key = "stmt", (codeloc.block_addr, codeloc.block_idx, codeloc.stmt_idx), OP_BEFORE
+            if key in self._reaching_definitions.observed_results:
+                o = self._reaching_definitions.observed_results[key]
+                try:
+                    mv = o.register_definitions.load(expr.reg_offset, size=expr.size)
+                except SimMemoryMissingError:
+                    mv = None
+                if mv is not None:
+                    reg_defs = o.extract_defs_from_mv(mv)
+                    reg_defat_codelocs = {reg_def.codeloc for reg_def in reg_defs}
+                    if len(reg_defat_codelocs) == 1:
+                        reg_defat = next(iter(reg_defat_codelocs))
+                        defat_key = "stmt", (reg_defat.block_addr, reg_defat.block_idx, reg_defat.stmt_idx), OP_BEFORE
+                        if defat_key not in self._reaching_definitions.observed_results:
+                            # the observation point does not exist. probably it's because te observation point is in a
+                            # callee function.
+                            reg_defat = None
+                        if isinstance(reg_defat, ExternalCodeLocation):
+                            # there won't be an observed result for external code location. give up
+                            reg_defat = None
+
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
             replaced = False
@@ -379,7 +408,7 @@ class SimEnginePropagatorAIL(
                 if detail.expr is None:
                     break
                 outdated_, has_avoid_ = self.is_using_outdated_def(
-                    detail.expr, detail.def_at, self._codeloc(), avoid=expr
+                    detail.expr, reg_defat if reg_defat is not None else detail.def_at, self._codeloc(), avoid=expr
                 )
                 if outdated_ or has_avoid_:
                     outdated = True

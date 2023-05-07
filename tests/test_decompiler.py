@@ -18,11 +18,14 @@ from angr.analyses import (
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
+from angr.misc.testing import is_testing
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 l = logging.Logger(__name__)
 
-WORKER = bool(os.environ.get("WORKER", False))  # this variable controls whether we print the decompilation code or not
+WORKER = is_testing or bool(
+    os.environ.get("WORKER", False)
+)  # this variable controls whether we print the decompilation code or not
 
 
 def for_all_structuring_algos(func):
@@ -550,9 +553,9 @@ class TestDecompiler(unittest.TestCase):
             if "convert(" in line:
                 # the previous line must be a curly brace
                 assert i > 0
-                assert code_lines[i - 1] == "{", (
-                    "Some arguments to convert() are probably not folded into this call " "statement."
-                )
+                assert (
+                    code_lines[i - 1] == "{"
+                ), "Some arguments to convert() are probably not folded into this call statement."
                 break
         else:
             assert False, "Call to convert() is not found in decompilation output."
@@ -1849,13 +1852,18 @@ class TestDecompiler(unittest.TestCase):
                     all_labels.add(m.group(0)[:-1])
                 for m in re.finditer(r"goto ([^;]+);", d.codegen.text):
                     all_gotos.add(m.group(1))
-                assert len(all_labels) == 1
-                assert len(all_gotos) == 1
+                assert len(all_labels) == 2
+                assert len(all_gotos) == 2
                 assert all_labels == all_gotos
             else:
                 # dream
                 assert "LABEL_" not in d.codegen.text
                 assert "goto" not in d.codegen.text
+
+            # ensure all return values are still there
+            assert "1;" in d.codegen.text
+            assert "0;" in d.codegen.text
+            assert "-1;" in d.codegen.text or "4294967295" in d.codegen.text
 
     @structuring_algo("phoenix")
     def test_decompiling_split_lines_split(self, decompiler_options=None):

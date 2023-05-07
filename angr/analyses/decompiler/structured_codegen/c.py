@@ -3080,8 +3080,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
+        # width of converted type is easy
         if 64 >= expr.to_bits > 32:
-            dst_type = SimTypeLongLong()
+            dst_type: Union[SimTypeInt, SimTypeChar] = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
             dst_type = SimTypeInt()
         elif 16 >= expr.to_bits > 8:
@@ -3093,9 +3094,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
 
-        dst_type.signed = expr.is_signed
+        # convert child
         child = self._handle(expr.operand)
-        if getattr(child.type, "signed", False) != expr.is_signed:
+        orig_child_signed = getattr(child.type, "signed", False)
+
+        # signedness of converted type is hard
+        if expr.to_bits < expr.from_bits:
+            # very sketchy. basically a guess
+            # can we even generate signed downcasts?
+            dst_type.signed = orig_child_signed | expr.is_signed
+        else:
+            dst_type.signed = expr.is_signed
+
+        # do we need an intermediate cast?
+        if orig_child_signed != expr.is_signed and expr.to_bits > expr.from_bits:
             # this is a problem. sign-extension only happens when the SOURCE of the cast is signed
             child_ty = self.default_simtype_from_size(child.type.size // self.project.arch.byte_width, expr.is_signed)
             child = CTypeCast(None, child_ty, child, codegen=self)

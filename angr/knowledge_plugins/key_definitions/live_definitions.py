@@ -7,13 +7,14 @@ from collections import defaultdict
 import claripy
 from claripy.annotation import Annotation
 import archinfo
+from archinfo.arch import Endness
 
 from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .atoms import Atom, Register, MemoryLocation, Tmp, FunctionCall, ConstantSrc
+from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .uses import Uses
@@ -529,14 +530,11 @@ class LiveDefinitions:
                 pass
         elif type(definition.atom) is Tmp:
             self.add_tmp_use_by_def(definition, code_loc)
-        elif type(definition.atom) is FunctionCall:
-            # ignore function calls
-            pass
         elif type(definition.atom) is ConstantSrc:
             # ignore constants
             pass
         else:
-            raise TypeError()
+            raise TypeError("Unsupported atom type %s." % type(definition.atom))
 
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         if isinstance(atom, Register):
@@ -553,7 +551,7 @@ class LiveDefinitions:
         elif isinstance(atom, Tmp):
             yield from self.get_tmp_definitions(atom.tmp_idx)
         else:
-            raise TypeError()
+            raise TypeError("Unsupported atom type %s." % type(atom))
 
     def get_tmp_definitions(self, tmp_idx: int) -> Iterable[Definition]:
         if tmp_idx in self.tmps:
@@ -572,11 +570,16 @@ class LiveDefinitions:
             return
         yield from LiveDefinitions.extract_defs_from_mv(values)
 
-    def get_stack_definitions(self, stack_offset: int, size: int, endness) -> Iterable[Definition]:
+    def get_stack_values(self, stack_offset: int, size: int, endness: Endness) -> Optional[MultiValues]:
         stack_addr = self.stack_offset_to_stack_addr(stack_offset)
         try:
-            mv: MultiValues = self.stack_definitions.load(stack_addr, size=size, endness=endness)
+            return self.stack_definitions.load(stack_addr, size=size, endness=endness)
         except SimMemoryMissingError:
+            return None
+
+    def get_stack_definitions(self, stack_offset: int, size: int, endness) -> Iterable[Definition]:
+        mv = self.get_stack_values(stack_offset, size, endness)
+        if not mv:
             return
         yield from LiveDefinitions.extract_defs_from_mv(mv)
 
@@ -600,7 +603,7 @@ class LiveDefinitions:
             result |= set(self.get_definitions(atom))
         return result
 
-    def get_value_from_definition(self, definition: Definition) -> MultiValues:
+    def get_value_from_definition(self, definition: Definition) -> Optional[MultiValues]:
         return self.get_value_from_atom(definition.atom)
 
     def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:

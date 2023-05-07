@@ -8,6 +8,7 @@ from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrap
 from .callable import Callable
 from .errors import AngrAssemblyError
 from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
+from .sim_type import SimTypeFunction, SimTypeInt
 
 try:
     from .engines import UberEnginePcode
@@ -235,7 +236,7 @@ class AngrObjectFactory:
 
     def cc(self):
         """
-        Return a SimCC (calling convention) parametrized for this project.
+        Return a SimCC (calling convention) parameterized for this project.
 
         Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
         this `cc` object.
@@ -244,6 +245,12 @@ class AngrObjectFactory:
         """
 
         return self._default_cc(arch=self.project.arch)
+
+    def function_prototype(self):
+        """
+        Return a default function prototype parameterized for this project and SimOS.
+        """
+        return SimTypeFunction(tuple(), SimTypeInt()).with_arch(self.project.arch)
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload

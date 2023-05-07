@@ -373,34 +373,43 @@ class Clinic(Analysis):
         """
 
         for node in self.function.transition_graph:
-            if not isinstance(node, Function):
+            if (
+                isinstance(node, BlockNode)
+                and node.addr != self.function.addr
+                and self.kb.functions.contains_addr(node.addr)
+            ):
+                # tail jumps
+                target_func = self.kb.functions.get_by_addr(node.addr)
+            elif isinstance(node, Function):
+                target_func = node
+            else:
                 continue
 
             # case 0: the calling convention and prototype are available
-            if node.calling_convention is not None and node.prototype is not None:
+            if target_func.calling_convention is not None and target_func.prototype is not None:
                 continue
 
             call_sites = []
             for pred in self.function.transition_graph.predecessors(node):
                 call_sites.append(pred)
             # case 1: calling conventions and prototypes are available at every single call site
-            if all(self.kb.callsite_prototypes.has_prototype(callsite.addr) for callsite in call_sites):
+            if call_sites and all(self.kb.callsite_prototypes.has_prototype(callsite.addr) for callsite in call_sites):
                 continue
 
             # case 2: the callee is a SimProcedure
-            if node.is_simprocedure:
-                cc = self.project.analyses.CallingConvention(node)
+            if target_func.is_simprocedure:
+                cc = self.project.analyses.CallingConvention(target_func)
                 if cc.cc is not None and cc.prototype is not None:
-                    node.calling_convention = cc.cc
-                    node.prototype = cc.prototype
+                    target_func.calling_convention = cc.cc
+                    target_func.prototype = cc.prototype
                     continue
 
             # case 3: the callee is a PLT function
-            if node.is_plt:
-                cc = self.project.analyses.CallingConvention(node)
+            if target_func.is_plt:
+                cc = self.project.analyses.CallingConvention(target_func)
                 if cc.cc is not None and cc.prototype is not None:
-                    node.calling_convention = cc.cc
-                    node.prototype = cc.prototype
+                    target_func.calling_convention = cc.cc
+                    target_func.prototype = cc.prototype
                     continue
 
             # case 4: fall back to call site analysis

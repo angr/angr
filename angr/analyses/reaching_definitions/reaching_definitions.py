@@ -1,10 +1,9 @@
 import logging
-from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING
+from typing import Optional, DefaultDict, Dict, Tuple, Set, Any, Union, TYPE_CHECKING, Iterable
 from collections import defaultdict
 
 import ailment
 import pyvex
-from ..forward_analysis.visitors.graph import NodeType
 
 from angr.analyses import ForwardAnalysis
 from ...block import Block
@@ -14,17 +13,19 @@ from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
+from ...code_location import CodeLocation
 from ...misc.ux import deprecated
+from ..forward_analysis.visitors.graph import NodeType
 from ..analysis import Analysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
-from .subject import Subject, SubjectType
-from .function_handler import FunctionHandler
+from .subject import Subject
+from .function_handler import FunctionHandler, FunctionCallRelationships
+from .dep_graph import DepGraph
 
 if TYPE_CHECKING:
-    from .dep_graph import DepGraph
-    from typing import Literal, Iterable
+    from typing import Literal
 
     ObservationPoint = Tuple[Literal["insn", "node", "stmt"], Union[int, Tuple[int, int, int]], ObservationPointType]
 
@@ -49,21 +50,19 @@ class ReachingDefinitionsAnalysis(
 
     def __init__(
         self,
-        subject: Union[Subject, ailment.Block, Block, Function] = None,
+        subject: Union[Subject, ailment.Block, Block, Function, str] = None,
         func_graph=None,
         max_iterations=3,
         track_tmps=False,
-        track_calls=None,
-        track_consts=False,
+        track_consts=True,
         observation_points: "Iterable[ObservationPoint]" = None,
         init_state: ReachingDefinitionsState = None,
+        init_context=None,
         cc=None,
         function_handler: "Optional[FunctionHandler]" = None,
-        call_stack: Optional[List[int]] = None,
-        maximum_local_call_depth=5,
         observe_all=False,
         visited_blocks=None,
-        dep_graph: Optional["DepGraph"] = None,
+        dep_graph: Union[DepGraph, bool, None] = True,
         observe_callback=None,
         canonical_size=8,
         stack_pointer_tracker=None,
@@ -71,10 +70,9 @@ class ReachingDefinitionsAnalysis(
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
         :param func_graph:                      Alternative graph for function.graph.
-        :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
-        :param bool track_tmps:                 Whether or not temporary variables should be taken into consideration
+        :param max_iterations:                  The maximum number of iterations before the analysis is terminated.
+        :param track_tmps:                      Whether or not temporary variables should be taken into consideration
                                                 during the analysis.
-        :param bool track_calls:                Whether or not calls will show up as elements in the def-use graph.
         :param iterable observation_points:     A collection of tuples of ("node"|"insn", ins_addr, OP_TYPE) defining
                                                 where reaching definitions should be copied and stored. OP_TYPE can be
                                                 OP_BEFORE or OP_AFTER.
@@ -82,24 +80,25 @@ class ReachingDefinitionsAnalysis(
                                                 copy.
                                                 Default to None: the analysis then initialize its own abstract state,
                                                 based on the given <Subject>.
-        :param SimCC cc:                        Calling convention of the function.
-        :param FunctionHandler function_handler:
-                                                The function handler to update the analysis state and results on
+        :param init_context:                    If init_state is not given, this is used to initialize the context
+                                                field of the initial state's CodeLocation. The only default-supported
+                                                type which may go here is a tuple of integers, i.e. a callstack.
+                                                Anything else requires a custom FunctionHandler.
+        :param cc:                              Calling convention of the function.
+        :param function_handler:                The function handler to update the analysis state and results on
                                                 function calls.
-        :param call_stack:                      An ordered list of Function addresses representing the call stack
-                                                leading to the analysed subject, from older to newer calls. Setting it
-                                                to None to limit the analysis to a single function and disable call
-                                                stack tracking; In that case, all contexts in CodeLocation will be
-                                                None, which makes CodeLocation objects contextless.
-        :param int maximum_local_call_depth:    Maximum local function recursion depth.
-        :param Boolean observe_all:             Observe every statement, both before and after.
+        :param observe_all:                     Observe every statement, both before and after.
         :param visited_blocks:                  A set of previously visited blocks.
         :param dep_graph:                       An initial dependency graph to add the result of the analysis to. Set it
                                                 to None to skip dependency graph generation.
         :param canonical_size:                  The sizes (in bytes) that objects with an UNKNOWN_SIZE are treated as
                                                 for operations where sizes are necessary.
+        :param dep_graph:                       Set this to True to generate a dependency graph for the subject. It will
+                                                be available as `result.dep_graph`.
         """
 
+        if isinstance(subject, str):
+            subject = self.kb.functions[subject]
         if not isinstance(subject, Subject):
             self._subject = Subject(subject, func_graph, cc)
         else:
@@ -111,28 +110,28 @@ class ReachingDefinitionsAnalysis(
         )
 
         self._track_tmps = track_tmps
-        self._track_calls = track_calls
         self._track_consts = track_consts
         self._max_iterations = max_iterations
         self._observation_points = observation_points
         self._init_state = init_state
-        self._maximum_local_call_depth = maximum_local_call_depth
         self._canonical_size = canonical_size
 
-        self._dep_graph = dep_graph
+        if dep_graph is None or dep_graph is False:
+            self._dep_graph = None
+        elif dep_graph is True:
+            self._dep_graph = DepGraph()
+        else:
+            self._dep_graph = dep_graph
 
         if function_handler is None:
             self._function_handler = FunctionHandler().hook(self)
         else:
             self._function_handler = function_handler.hook(self)
 
-        self._call_stack: Optional[List[int]] = None
-        if call_stack is not None:
-            self._call_stack = self._init_call_stack(call_stack, subject)
-
         if self._init_state is not None:
             self._init_state = self._init_state.copy()
             self._init_state.analysis = self
+        self._init_context = init_context
 
         self._observe_all = observe_all
         self._observe_callback = observe_callback
@@ -145,15 +144,11 @@ class ReachingDefinitionsAnalysis(
 
         self._engine_vex = SimEngineRDVEX(
             self.project,
-            self._call_stack,
-            self._maximum_local_call_depth,
             functions=self.kb.functions,
             function_handler=self._function_handler,
         )
         self._engine_ail = SimEngineRDAIL(
             self.project,
-            self._call_stack,
-            self._maximum_local_call_depth,
             function_handler=self._function_handler,
             stack_pointer_tracker=stack_pointer_tracker,
         )
@@ -162,31 +157,9 @@ class ReachingDefinitionsAnalysis(
         self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
             func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None
         )
+        self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
-
-    def _init_call_stack(self, call_stack: List[int], subject) -> List[int]:
-        if self._subject.type == SubjectType.Function:
-            return call_stack + [subject.addr]
-        elif self._subject.type == SubjectType.Block:
-            cfg = self.kb.cfgs.get_most_accurate()
-            if cfg is None:
-                # no CFG exists
-                return call_stack
-            cfg_node = cfg.get_any_node(subject.addr)
-            if cfg_node is None:
-                # we don't know which function this node belongs to
-                return call_stack
-            function_address = cfg_node.function_address
-            function = self.kb.functions.function(function_address)
-            if len(call_stack) > 0 and call_stack[-1] == function.addr:
-                return call_stack
-            else:
-                return call_stack + [function.addr]
-        elif self._subject.type == SubjectType.CallTrace:
-            return call_stack + [self._subject.content.current_function_address()]
-        else:
-            raise ValueError("Unexpected subject type %s." % self._subject.type)
 
     @property
     def observed_results(self) -> Dict[Tuple[str, int, int], LiveDefinitions]:
@@ -215,14 +188,16 @@ class ReachingDefinitionsAnalysis(
 
     @property
     def dep_graph(self):
+        if self._dep_graph is None:
+            raise ValueError(
+                "Cannot access dep_graph if the analysis was not configured to generate one. Try passing "
+                "dep_graph=True to the RDA constructor."
+            )
         return self._dep_graph
 
     @property
     def visited_blocks(self):
         return self._visited_blocks
-
-    def _current_local_call_depth(self):
-        return len(self._call_stack)
 
     @deprecated(replacement="get_reaching_definitions_by_insn")
     def get_reaching_definitions(self, ins_addr, op_type):
@@ -382,15 +357,15 @@ class ReachingDefinitionsAnalysis(
     def _pre_analysis(self):
         pass
 
-    def _initial_abstract_state(self, _node) -> ReachingDefinitionsState:
+    def _initial_abstract_state(self, node) -> ReachingDefinitionsState:
         if self._init_state is not None:
             return self._init_state
         else:
             return ReachingDefinitionsState(
+                CodeLocation(node.addr, stmt_idx=0, ins_addr=node.addr, context=self._init_context),
                 self.project.arch,
                 self.subject,
                 track_tmps=self._track_tmps,
-                track_calls=self._track_calls,
                 track_consts=self._track_consts,
                 analysis=self,
                 canonical_size=self._canonical_size,
@@ -415,15 +390,18 @@ class ReachingDefinitionsAnalysis(
 
         if isinstance(node, ailment.Block):
             block = node
+            block_key = (node.addr, node.idx)
             engine = self._engine_ail
         elif isinstance(node, (Block, CodeNode)):
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
             engine = self._engine_vex
+            block_key = node.addr
         elif isinstance(node, CFGNode):
             if node.is_simprocedure or node.is_syscall:
                 return False, state.copy()
             block = node.block
             engine = self._engine_vex
+            block_key = node.addr
         else:
             l.warning("Unsupported node type %s.", node.__class__)
             return False, state.copy()
@@ -431,7 +409,7 @@ class ReachingDefinitionsAnalysis(
         self.node_observe(node.addr, state, OP_BEFORE)
 
         state = state.copy()
-        state, self._visited_blocks, self._dep_graph = engine.process(
+        state = engine.process(
             state,
             block=block,
             fail_fast=self._fail_fast,
@@ -439,7 +417,6 @@ class ReachingDefinitionsAnalysis(
             dep_graph=self._dep_graph,
         )
 
-        block_key = node.addr
         self._node_iterations[block_key] += 1
 
         self.node_observe(node.addr, state, OP_AFTER)
@@ -460,3 +437,15 @@ class ReachingDefinitionsAnalysis(
 
     def _post_analysis(self):
         pass
+
+    def callsites_to(self, target: Union[int, str, Function]) -> Iterable[FunctionCallRelationships]:
+        if isinstance(target, (str, int)):
+            func_addr = self.project.kb.functions[target].addr
+        elif isinstance(target, Function):
+            func_addr = target.addr
+        else:
+            raise TypeError(type(target))
+
+        for callsite, info in self.function_calls.items():
+            if info.target == func_addr:
+                yield callsite, info

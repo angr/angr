@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from itertools import chain
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional
 import logging
 
 import archinfo
@@ -11,17 +11,16 @@ from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
-from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
+from ...calling_conventions import DEFAULT_CC, SimRegArg
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
+from ...knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from ...knowledge_plugins.functions import Function
-from ...analyses.reaching_definitions.call_trace import CallTrace
+from ...code_location import CodeLocation
 from .subject import SubjectType
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
-from .function_handler import FunctionHandler
+from .function_handler import FunctionHandler, FunctionCallData
 
 l = logging.getLogger(name=__name__)
 
@@ -36,15 +35,11 @@ class SimEngineRDAIL(
     def __init__(
         self,
         project,
-        call_stack,
-        maximum_local_call_depth,
         function_handler: Optional[FunctionHandler] = None,
         stack_pointer_tracker=None,
     ):
         super().__init__()
         self.project = project
-        self._call_stack = call_stack
-        self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
         self._visited_blocks = None
         self._dep_graph = None
@@ -77,9 +72,9 @@ class SimEngineRDAIL(
             ailment.Expr.DirtyExpression: self._ail_handle_DirtyExpression,
         }
 
-    def process(self, state, *args, **kwargs):
-        self._dep_graph = kwargs.pop("dep_graph", None)
-        self._visited_blocks = kwargs.pop("visited_blocks", None)
+    def process(self, state, *args, dep_graph=None, visited_blocks=None, block=None, fail_fast=False, **kwargs):
+        self._dep_graph = dep_graph
+        self._visited_blocks = visited_blocks
 
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
@@ -87,30 +82,31 @@ class SimEngineRDAIL(
             self._process(
                 state,
                 None,
-                block=kwargs.pop("block", None),
+                block=block,
             )
         except SimEngineError as e:
-            if kwargs.pop("fail_fast", False) is True:
+            if fail_fast is True:
                 raise e
-        return self.state, self._visited_blocks, self._dep_graph
-
-    def sp_offset(self, offset: int):
-        return self.state.stack_address(offset)
+        return self.state
 
     #
     # Private methods
     #
 
-    def _generate_call_string(self) -> Tuple[int, ...]:
-        if isinstance(self.state._subject.content, Function):
-            return (self.state._subject.content.addr,)
-        elif isinstance(self.state._subject.content, CallTrace):
-            return tuple(x.caller_func_addr for x in self.state._subject.content.callsites)
-        else:
-            return None
-
     def _external_codeloc(self):
-        return ExternalCodeLocation(self._generate_call_string())
+        return ExternalCodeLocation(self.state.codeloc.context)
+
+    def _set_codeloc(self):
+        # TODO do we want a better mechanism to specify context updates?
+        self.state.move_codelocs(
+            CodeLocation(
+                self.block.addr,
+                self.stmt_idx,
+                ins_addr=self.ins_addr,
+                block_idx=self.block.idx,
+                context=self.state.codeloc.context,
+            )
+        )
 
     #
     # AIL statement handlers
@@ -121,6 +117,7 @@ class SimEngineRDAIL(
             self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_BEFORE)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
+        self._set_codeloc()
         handler = self._stmt_handlers.get(type(stmt), None)
         if handler is not None:
             if handler is not ...:
@@ -154,12 +151,12 @@ class SimEngineRDAIL(
             src = MultiValues(self.state.top(dst.bits))
 
         if isinstance(dst, ailment.Tmp):
-            self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), self._codeloc(), src)
+            self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), src)
             self.tmps[dst.tmp_idx] = src
 
         elif isinstance(dst, ailment.Register):
             reg = Register(dst.reg_offset, dst.size)
-            self.state.kill_and_add_definition(reg, self._codeloc(), src)
+            self.state.kill_and_add_definition(reg, src)
 
             if dst.reg_offset == self.arch.sp_offset:
                 self.state._sp_adjusted = True
@@ -188,7 +185,7 @@ class SimEngineRDAIL(
                 memory_location = MemoryLocation(addr_v._model_concrete.value, size, endness=stmt.endness)
 
             if memory_location is not None:
-                self.state.kill_and_add_definition(memory_location, self._codeloc(), data, endness=stmt.endness)
+                self.state.kill_and_add_definition(memory_location, data, endness=stmt.endness)
 
     def _ail_handle_Jump(self, stmt):
         _ = self._expr(stmt.target)
@@ -204,134 +201,75 @@ class SimEngineRDAIL(
         self.state.kill_definitions(ip)
 
     def _ail_handle_Call(self, stmt: ailment.Stmt.Call):
-        self._handle_Call_base(stmt, is_expr=False)
+        data = self._handle_Call_base(stmt, is_expr=False)
+        src = data.ret_values
+        if src is None:
+            return
 
-    def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool = False):
+        dst = stmt.ret_expr
+        if isinstance(dst, ailment.Tmp):
+            _, defs = self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), src, uses=data.ret_values_deps)
+            self.tmps[dst.tmp_idx] = src
+
+        elif isinstance(dst, ailment.Register):
+            full_reg_offset, full_reg_size = self.arch.registers[self.arch.register_names[dst.reg_offset]]
+            if dst.size != full_reg_size:
+                # we need to extend the value to overwrite the entire register
+                otv = {}
+                next_off = 0
+                if full_reg_offset < dst.reg_offset:
+                    otv[0] = {claripy.BVV(0, (dst.reg_offset - full_reg_offset) * 8)}
+                    next_off = dst.reg_offset - full_reg_offset
+                for off, items in src.items():
+                    otv[next_off + off] = set(items)
+                next_off += len(src) // 8
+                if next_off < full_reg_size:
+                    otv[next_off] = {claripy.BVV(0, (full_reg_size - next_off) * 8)}
+                src = MultiValues(offset_to_values=otv)
+            reg = Register(full_reg_offset, full_reg_size)
+            _, defs = self.state.kill_and_add_definition(reg, src, uses=data.ret_values_deps)
+        else:
+            defs = set()
+
+        if self.state.analysis:
+            self.state.analysis.function_calls[data.callsite_codeloc].ret_defns.update(defs)
+
+    def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool = False) -> FunctionCallData:
         if isinstance(stmt.target, ailment.Expr.Expression):
             target = self._expr(stmt.target)  # pylint:disable=unused-variable
+            func_name = None
+        elif isinstance(stmt.target, str):
+            func_name = stmt.target
+            target = None
         else:
             target = stmt.target
-        codeloc = self._codeloc()
+            func_name = None
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
         self.state.kill_definitions(ip)
 
-        # When stmt.args are available, used registers/stack variables are decided by stmt.args. Otherwise we fall-back
-        # to using all argument registers.
-        if stmt.args is not None:
-            # getting used expressions from stmt.args
-            used_exprs = stmt.args
-        elif stmt.calling_convention is not None and stmt.prototype is not None:
-            # getting used expressions from the function prototype, its arguments, and the calling convention
-            used_exprs = []
-            for arg_loc in stmt.calling_convention.arg_locs(stmt.prototype):
-                if isinstance(arg_loc, SimRegArg):
-                    used_exprs.append(
-                        ailment.Expr.Register(
-                            None,
-                            None,
-                            self.arch.registers[arg_loc.reg_name][0],
-                            self.arch.registers[arg_loc.reg_name][1],
-                        )
-                    )
-                elif isinstance(arg_loc, SimStackArg):
-                    used_exprs.append(SpOffset(arg_loc.size * 8, arg_loc.stack_offset, is_base=False))
-                else:
-                    l.warning("_handle_Call(): Unsupported arg_loc %r.", arg_loc)
-        else:
-            used_exprs = None
+        data = FunctionCallData(
+            self.state.codeloc,
+            self._function_handler.make_function_codeloc(
+                target, self.state.codeloc, self.state.analysis.model.func_addr
+            ),
+            target,
+            cc=stmt.calling_convention,
+            prototype=stmt.prototype,
+            name=func_name,
+            args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
+            redefine_locals=stmt.args is None and not is_expr,
+            caller_will_handle_single_ret=True,
+            ret_atoms={Atom.from_ail_expr(stmt.ret_expr, self.arch)} if stmt.ret_expr is not None else None,
+        )
 
-        # All caller-saved registers will always be killed.
-        if stmt.calling_convention is not None:
-            cc = stmt.calling_convention
-        else:
-            # Fall back to the default calling convention
-            l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
-            cc = self.project.factory.cc()
+        self._function_handler.handle_function(self.state, data)
 
-        killed_vars = [
-            ailment.Expr.Register(
-                None, None, self.arch.registers[reg_name][0], self.arch.registers[reg_name][1] * self.arch.byte_width
-            )
-            for reg_name in cc.CALLER_SAVED_REGS
-        ]
-
-        # Add uses
-        if used_exprs is None:
-            used_exprs = [
-                ailment.Expr.Register(
-                    None,
-                    None,
-                    self.arch.registers[reg_name][0],
-                    self.arch.registers[reg_name][1] * self.arch.byte_width,
-                )
-                for reg_name in cc.ARG_REGS
-            ]
-            if cc.FP_ARG_REGS:
-                used_exprs += [
-                    ailment.Expr.Register(
-                        None,
-                        None,
-                        self.arch.registers[reg_name][0],
-                        self.arch.registers[reg_name][1] * self.arch.byte_width,
-                    )
-                    for reg_name in cc.FP_ARG_REGS[:8]
-                ]
-        for expr in used_exprs:
-            self._expr(expr)
-
-        self.state.mark_call(codeloc, target)
-
-        # Add definition
-        return_reg_offset = None
-        # TODO: Expose it as an option
-        return_value_use_full_width_reg = True
-        if not is_expr:
-            if stmt.ret_expr is not None:
-                if isinstance(stmt.ret_expr, ailment.Expr.Register):
-                    return_reg_offset = stmt.ret_expr.reg_offset
-                    return_reg_size = stmt.ret_expr.size if not return_value_use_full_width_reg else self.arch.bytes
-                    reg_atom = Register(return_reg_offset, return_reg_size)
-                    top = self.state.top(return_reg_size * self.arch.byte_width)
-                    self.state.kill_and_add_definition(reg_atom, codeloc, MultiValues(top))
-                elif isinstance(stmt.ret_expr, ailment.Expr.Tmp):
-                    tmp_atom = Tmp(stmt.ret_expr.tmp_idx, stmt.ret_expr.size)
-                    top = self.state.top(stmt.ret_expr.bits)
-                    self.state.kill_and_add_definition(tmp_atom, codeloc, MultiValues(top))
-                else:
-                    l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
-
-            elif stmt.fp_ret_expr is not None:
-                if isinstance(stmt.fp_ret_expr, ailment.Expr.Register):
-                    return_reg_offset = stmt.fp_ret_expr.reg_offset
-                    return_reg_size = stmt.fp_ret_expr.size if not return_value_use_full_width_reg else self.arch.bytes
-                    reg_atom = Register(return_reg_offset, return_reg_size)
-                    top = self.state.top(return_reg_size * self.arch.byte_width)
-                    self.state.kill_and_add_definition(reg_atom, codeloc, MultiValues(top))
-                elif isinstance(stmt.fp_ret_expr, ailment.Expr.Tmp):
-                    tmp_atom = Tmp(stmt.fp_ret_expr.tmp_idx, stmt.fp_ret_expr.size)
-                    top = self.state.top(stmt.fp_ret_expr.bits)
-                    self.state.kill_and_add_definition(tmp_atom, codeloc, MultiValues(top))
-                else:
-                    l.warning("Unsupported fp_ret_expr type %s. Please report to GitHub.", stmt.fp_ret_expr.__class__)
-
-            else:
-                if cc.RETURN_VAL is not None:
-                    # Return value is redefined here, so it is not a dummy value
-                    return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
-                    self.state.kill_definitions(Register(return_reg_offset, return_reg_size))
-                # FIXME: Hack
-                if cc.FP_RETURN_VAL is not None:
-                    if cc.FP_RETURN_VAL.reg_name in self.arch.registers:
-                        return_reg_offset, return_reg_size = self.arch.registers[cc.FP_RETURN_VAL.reg_name]
-                        self.state.kill_definitions(Register(return_reg_offset, return_reg_size))
-
-        # Kill those ones that should be killed
-        for var in killed_vars:
-            if var.reg_offset == return_reg_offset:
-                # Skip the return variable
-                continue
-            self.state.kill_definitions(Register(var.reg_offset, var.size))
+        if hasattr(stmt, "arg_defs"):
+            for arg_def in stmt.arg_defs:
+                arg_def: Definition
+                if arg_def in self.state.all_definitions:
+                    self.state.kill_definitions(arg_def.atom)
 
         # kill all cc_ops
         if "cc_op" in self.arch.registers:
@@ -340,21 +278,9 @@ class SimEngineRDAIL(
             self.state.kill_definitions(Register(*self.arch.registers["cc_dep2"]))
             self.state.kill_definitions(Register(*self.arch.registers["cc_ndep"]))
 
-        if self.state._sp_adjusted:
-            # stack pointers still exist in the block. so we must emulate the return of the call
-            if self.arch.call_pushes_ret:
-                sp_mv: MultiValues = self.state.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
-                sp_v = sp_mv.one_value()
-                if sp_v is not None:
-                    self.state.register_definitions.store(
-                        self.arch.sp_offset,
-                        sp_v + self.arch.bytes,
-                        size=self.arch.bytes,
-                    )
+        return data
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
-        codeloc = self._codeloc()
-
         cc = None
         prototype = None
         if self.state.analysis.subject.type == SubjectType.Function:
@@ -386,7 +312,7 @@ class SimEngineRDAIL(
                     }
                     and (isinstance(cc.RETURN_VAL, SimRegArg) and reg.name != cc.RETURN_VAL.reg_name)
                 ):
-                    self.state.add_register_use(reg.vex_offset, reg.size, codeloc)
+                    self.state.add_register_use(reg.vex_offset, reg.size)
 
         if stmt.ret_exprs:
             # Handle return expressions
@@ -406,15 +332,15 @@ class SimEngineRDAIL(
                 else:
                     offset = cc.arch.registers[ret_val.reg_name][0] + ret_val.reg_offset
                     size = ret_val.size
-                self.state.add_register_use(offset, size, codeloc)
+                self.state.add_register_use(offset, size)
             else:
                 l.error("Cannot handle CC with non-register return value location")
 
         # base pointer
         # TODO: Check if the stack base pointer is used as a stack base pointer in this function or not
-        self.state.add_register_use(self.project.arch.bp_offset, self.project.arch.bytes, codeloc)
+        self.state.add_register_use(self.project.arch.bp_offset, self.project.arch.bytes)
         # We don't add sp since stack pointers are supposed to be get rid of in AIL. this is definitely a hack though
-        # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8), codeloc)
+        # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8))
 
     def _ail_handle_DirtyStatement(self, stmt: ailment.Stmt.DirtyStatement):
         # TODO: The logic below is subject to change when ailment.Stmt.DirtyStatement is changed
@@ -425,7 +351,7 @@ class SimEngineRDAIL(
             if tmp in (-1, 0xFFFFFFFF):
                 return
             size = 32  # FIXME: We don't know the size.
-            self.state.kill_and_add_definition(Tmp(tmp, size), self._codeloc(), None)
+            self.state.kill_and_add_definition(Tmp(tmp, size), None)
             self.tmps[tmp] = None
         else:
             l.warning("Unexpected type of dirty statement %s.", type(stmt.dirty_stmt))
@@ -438,7 +364,7 @@ class SimEngineRDAIL(
         return MultiValues(expr)
 
     def _ail_handle_Tmp(self, expr: ailment.Expr.Tmp) -> MultiValues:
-        self.state.add_tmp_use(expr.tmp_idx, self._codeloc())
+        self.state.add_tmp_use(expr.tmp_idx)
 
         tmp = super()._ail_handle_Tmp(expr)
         if tmp is None:
@@ -446,8 +372,12 @@ class SimEngineRDAIL(
         return tmp
 
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call) -> MultiValues:
-        self._handle_Call_base(expr, is_expr=True)
-        return MultiValues(self.state.top(expr.bits))
+        data = self._handle_Call_base(expr, is_expr=True)
+        result = data.ret_values
+        if result is not None and data.ret_values_deps is not None:
+            for dep in data.ret_values_deps:
+                result = self.state.annotate_mv_with_def(result, dep)
+        return result
 
     def _ail_handle_Register(self, expr: ailment.Expr.Register) -> MultiValues:
         self.state: ReachingDefinitionsState
@@ -496,14 +426,15 @@ class SimEngineRDAIL(
                                 missing_defs = chain(missing_defs, self.state.extract_defs(v))
 
             if missing_defs is not None:
-                self.state.add_register_use_by_defs(missing_defs, self._codeloc(), expr=expr)
+                self.state.add_register_use_by_defs(missing_defs, expr=expr)
 
             top = self.state.top(size * self.state.arch.byte_width)
             # annotate it
-            top = self.state.annotate_with_def(top, Definition(reg_atom, self._external_codeloc()))
+            extloc = self._external_codeloc()
+            top = self.state.annotate_with_def(top, Definition(reg_atom, extloc))
             value = MultiValues(top)
             # write it back
-            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), value)
+            self.state.kill_and_add_definition(reg_atom, value, override_codeloc=extloc)
 
         # extract Definitions
         defs: Optional[Iterable[Definition]] = None
@@ -516,10 +447,9 @@ class SimEngineRDAIL(
 
         if defs is None:
             # define it right away as an external dependency
-            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), value)
+            self.state.kill_and_add_definition(reg_atom, value, override_codeloc=self._external_codeloc())
         else:
-            codeloc = self._codeloc()
-            self.state.add_register_use_by_defs(defs, codeloc, expr=expr)
+            self.state.add_register_use_by_defs(defs, expr=expr)
 
         return value
 
@@ -538,11 +468,12 @@ class SimEngineRDAIL(
         else:
             top = self.state.top(bits)
             # annotate it
+            extloc = self._external_codeloc()
             dummy_atom = MemoryLocation(0, size, endness=expr.endness)
-            def_ = Definition(dummy_atom, self._external_codeloc())
+            def_ = Definition(dummy_atom, extloc)
             top = self.state.annotate_with_def(top, def_)
             # add use
-            self.state.add_memory_use_by_def(def_, self._codeloc(), expr=expr)
+            self.state.add_memory_use_by_def(def_, expr=expr)
             return MultiValues(top)
 
         result: Optional[MultiValues] = None
@@ -558,7 +489,7 @@ class SimEngineRDAIL(
                 except SimMemoryMissingError:
                     continue
 
-                self.state.add_memory_use_by_defs(defs, self._codeloc(), expr=expr)
+                self.state.add_memory_use_by_defs(defs, expr=expr)
                 result = result.merge(vs) if result is not None else vs
             elif self.state.is_stack_address(addr):
                 stack_offset = self.state.get_stack_offset(addr)
@@ -570,9 +501,11 @@ class SimEngineRDAIL(
                     except SimMemoryMissingError:
                         continue
 
-                    self.state.add_memory_use_by_defs(defs, self._codeloc(), expr=expr)
+                    # XXX should be add_stack_use_by_defs?
+                    self.state.add_memory_use_by_defs(defs, expr=expr)
                     result = result.merge(vs) if result is not None else vs
             else:
+                # XXX does ail not support heap tracking?
                 l.debug("Memory address %r undefined or unsupported at pc %#x.", addr, self.ins_addr)
 
         if result is None:
@@ -596,7 +529,7 @@ class SimEngineRDAIL(
             def_ = Definition(dummy_atom, self._external_codeloc())
             top = self.state.annotate_with_def(top, def_)
             # add use
-            self.state.add_memory_use_by_def(def_, self._codeloc(), expr=expr)
+            self.state.add_memory_use_by_def(def_, expr=expr)
             return MultiValues(top)
 
         converted = set()
@@ -1138,7 +1071,7 @@ class SimEngineRDAIL(
         return MultiValues(offset_to_values={0: {top}})
 
     def _ail_handle_Const(self, expr) -> MultiValues:
-        self.state.mark_const(self._codeloc(), expr)
+        self.state.mark_const(expr.value, expr.size)
         if isinstance(expr.value, float):
             sort = None
             if expr.bits == 64:
@@ -1166,54 +1099,3 @@ class SimEngineRDAIL(
     #
     # User defined high-level statement handlers
     #
-
-    def _handle_function(self):
-        if len(self._call_stack) + 1 > self._maximum_local_call_depth:
-            l.warning("The analysis reached its maximum recursion depth.")
-            return None
-
-        defs_ip = self.state.register_definitions.get_objects_by_offset(self.arch.ip_offset)
-        if len(defs_ip) != 1:
-            l.error("Invalid definition(s) for IP.")
-            return None
-
-        ip_data = next(iter(defs_ip)).data
-        if len(ip_data) != 1:
-            l.error("Invalid number of values for IP.")
-            return None
-
-        ip_addr = ip_data.get_first_element()
-        if not isinstance(ip_addr, int):
-            l.error("Invalid type %s for IP.", type(ip_addr).__name__)
-            return None
-
-        is_internal = False
-        ext_func_name: Optional[str] = None
-        symbol = None
-        if self.project.loader.main_object.contains_addr(ip_addr) is True:
-            ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
-            if ext_func_name is None:
-                is_internal = True
-        else:
-            symbol = self.project.loader.find_symbol(ip_addr)
-        if symbol is not None:
-            self._function_handler.handle_external_function_symbol(self.state, symbol, self._codeloc())
-        elif ext_func_name is not None:
-            self._function_handler.handle_external_function_name(self.state, ext_func_name, self._codeloc())
-        elif is_internal is True:
-            is_updated, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
-                self.state,
-                ip_addr,
-                self._call_stack,
-                self._maximum_local_call_depth,
-                self._visited_blocks,
-                self._dep_graph,
-            )
-
-            if is_updated is True:
-                self.state = state
-                self._visited_blocks = visited_blocks
-                self._dep_graph = dep_graph
-        else:
-            l.warning("Could not find function name for external function at address %#x.", ip_addr)
-        return None
