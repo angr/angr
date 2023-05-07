@@ -448,6 +448,14 @@ class SimTypeLongLong(SimTypeInt):
     _base_name = "long long"
 
 
+class SimTypeInt128(SimTypeInt):
+    _base_name = "uint128_t"
+
+    @property
+    def size(self) -> int:
+        return 128
+
+
 class SimTypeChar(SimTypeReg):
     """
     SimTypeChar is a type that specifies a character;

@@ -19,6 +19,7 @@ from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationSt
 if TYPE_CHECKING:
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
     from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions, Definition
+    from .replacement_recorder import ReplacementRecorder
     from ailment.block import Block
 
 
@@ -42,6 +43,7 @@ class BlockSimplifier(Analysis):
         stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None,
         cached_reaching_definitions=None,
         cached_propagator=None,
+        replacement_recorder: Optional["ReplacementRecorder"] = None,
     ):
         """
         :param block:   The AIL block to simplify. Setting it to None to skip calling self._analyze(), which is useful
@@ -54,6 +56,7 @@ class BlockSimplifier(Analysis):
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_arg_offsets = stack_arg_offsets
         self._stack_pointer_tracker = stack_pointer_tracker
+        self._replacement_recorder = replacement_recorder
 
         if peephole_optimizations is None:
             self._expr_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in EXPR_OPTS]
@@ -157,7 +160,9 @@ class BlockSimplifier(Analysis):
             prop_state = list(propagator.model.states.values())[0]
             replacements = prop_state._replacements
             if replacements:
-                _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
+                _, new_block = self._replace_and_build(
+                    block, replacements, replace_registers=True, replacement_recorder=self._replacement_recorder
+                )
                 new_block = self._eliminate_self_assignments(new_block)
                 self._clear_cache()
             else:
@@ -180,6 +185,7 @@ class BlockSimplifier(Analysis):
         replace_loads: bool = False,
         gp: Optional[int] = None,
         replace_registers: bool = True,
+        replacement_recorder: Optional["ReplacementRecorder"] = None,
     ) -> Tuple[bool, "Block"]:
         new_statements = block.statements[::]
         replaced = False
@@ -226,6 +232,9 @@ class BlockSimplifier(Analysis):
                 if r:
                     replaced = True
                     new_statements[codeloc.stmt_idx] = new_stmt
+
+                    if replacement_recorder is not None and isinstance(old, (Register, Load)):
+                        replacement_recorder.record_replacement(codeloc.ins_addr, old, new)
 
         if not replaced:
             return False, block

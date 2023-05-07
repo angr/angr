@@ -30,6 +30,7 @@ from ..cfg.cfg_base import CFGBase
 from ..reaching_definitions import ReachingDefinitionsAnalysis
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .optimization_passes import get_default_optimization_passes, OptimizationPassStage
+from .replacement_recorder import ReplacementRecorder
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -63,6 +64,8 @@ class Clinic(Analysis):
         must_struct: Optional[Set[str]] = None,
         variable_kb=None,
         reset_variable_names=False,
+        use_debug_variable_names=True,
+        use_debug_variable_types=True,
         cache: Optional["DecompilationCache"] = None,
     ):
         if not func.normalized:
@@ -91,6 +94,9 @@ class Clinic(Analysis):
         self._reset_variable_names = reset_variable_names
         self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
+        self._replacement_recorder = ReplacementRecorder()
+        self._use_debug_variable_names = use_debug_variable_names
+        self._use_debug_variable_types = use_debug_variable_types
 
         self._new_block_addrs = set()
 
@@ -683,6 +689,7 @@ class Clinic(Analysis):
             peephole_optimizations=self.peephole_optimizations,
             cached_reaching_definitions=cached_rd,
             cached_propagator=cached_prop,
+            replacement_recorder=self._replacement_recorder,
         )
         # update the cache
         if cache is not None:
@@ -749,6 +756,7 @@ class Clinic(Analysis):
             narrow_expressions=narrow_expressions,
             only_consts=only_consts,
             fold_callexprs_into_conditions=fold_callexprs_into_conditions,
+            replacement_recorder=self._replacement_recorder,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -1034,6 +1042,12 @@ class Clinic(Analysis):
             labels=self.kb.labels,
             reset=self._reset_variable_names,
         )
+
+        if self._use_debug_variable_names and self.project.kb.dvars.has_debug_variables:
+            # map variable names from debug information
+            var_manager.map_variable_names_from_debug_info(
+                self._replacement_recorder.equivalence_classes(), arg_list, ail_graph, self.kb.dvars
+            )
 
         # Link variables to each statement
         for block in ail_graph.nodes():

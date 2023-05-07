@@ -25,6 +25,7 @@ from ....sim_type import (
     SimTypeFixedSizeArray,
     SimTypeLength,
     SimTypeReg,
+    SimTypeInt128,
 )
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
@@ -3080,7 +3081,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
-        if 64 >= expr.to_bits > 32:
+        if expr.to_bits == 128:
+            dst_type = SimTypeInt128()
+        elif 64 >= expr.to_bits > 32:
             dst_type = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
             dst_type = SimTypeInt()

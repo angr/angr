@@ -1,12 +1,15 @@
-from typing import Set, List, Tuple, Dict, Union, Optional, TYPE_CHECKING
+from typing import Set, List, Tuple, Dict, Union, Any, Optional, TYPE_CHECKING
 import logging
 from collections import defaultdict
 from itertools import count, chain
 
+from ailment.statement import Label
+import ailment.expression
 import networkx
 
+from cle.backends.elf import ELF
 from cle.backends.elf.compilation_unit import CompilationUnit
-from cle.backends.elf.variable import Variable
+from cle.backends.elf.variable import Variable, StackVariable, RegisterVariable, VariableLocationType
 from claripy.utils.orderedset import OrderedSet
 
 from ...protos import variables_pb2
@@ -786,6 +789,140 @@ class VariableManagerInternal(Serializable):
                 continue
             var.name = f"a{idx}"
             var._hash = None
+
+    def map_variable_names_from_debug_info(
+        self,
+        equivalence_classes: List[Set[Tuple[int, Any]]],
+        func_arg_list: List[SimVariable],
+        func_graph: networkx.DiGraph,
+        dvars,
+    ):
+        if not self._unified_variables:
+            return
+
+        # TODO: Handle duplicated variable names
+
+        # determine initial activation record offset of the function
+        func_cfa = 0
+        if isinstance(self.manager._kb._project.loader.main_object, ELF):
+            for cft in self.manager._kb._project.loader.main_object.decoded_cft:
+                if cft.table:
+                    rule = cft.table[0]
+                    if "pc" in rule and "cfa" in rule and rule["pc"] == self.func_addr:
+                        func_cfa = -rule["cfa"].offset
+                        break
+
+        # for each variable, we first calculate its possible alternatives (in terms of AIL registers). this is because
+        # the merge of variables during optimization will cause us to optimize away some variables.
+        var2alternatives = defaultdict(set)
+
+        for var, unified_var in self._variables_to_unified_variables.items():
+            # where is the variable used?
+            accesses = self.get_variable_accesses(var)
+
+            for acc in accesses:
+                for equ_class in equivalence_classes:
+                    matched = False
+                    for ins_addr, atom in equ_class:
+                        if ins_addr == acc.location.ins_addr:
+                            if isinstance(atom, ailment.expression.Register) and isinstance(var, SimRegisterVariable):
+                                if atom.reg_offset == var.reg:
+                                    matched = True
+                                    break
+                    if matched:
+                        for ins_addr, atom in equ_class:
+                            var2alternatives[var].add((ins_addr, atom))
+                        break
+
+        # next, for each variable, match it (and if it has alternatives, each of its alternatives) to a debug variable
+        # TODO: use alternatives
+
+        dwarf_regs = self.manager._kb._project.arch.dwarf_registers
+        regs = self.manager._kb._project.arch.registers
+        MAX_INSN_SIZE = 16  # TODO: Handle other architectures
+
+        def _get_reg_offset(reg_name_may_not_exist: str) -> Optional[int]:
+            if reg_name_may_not_exist not in regs:
+                return None
+            return regs[reg_name_may_not_exist][0]
+
+        if not dwarf_regs:
+            l.warning(
+                "DWARF registers is not set for architecture %s. Please report to GitHub.",
+                self.manager._kb._project.arch.name,
+            )
+
+        # Match parameters
+        dparams = list(dvars.get_parameters(self.func_addr))
+        if len(dparams) <= len(func_arg_list):
+            for arg, dparam in zip(func_arg_list, dparams):
+                arg.name = dparam.name
+                if arg in self._variables_to_unified_variables:
+                    unified_arg = self._variables_to_unified_variables[arg]
+                    if unified_arg is not arg:
+                        unified_arg.name = dparam.name
+
+        # collect instruction sizes
+        ins_sizes = {}
+        for ail_block in func_graph:
+            last_stmt_addr = None
+            for stmt in ail_block.statements:
+                if isinstance(stmt, Label):
+                    continue
+                if last_stmt_addr is not None:
+                    ins_sizes[last_stmt_addr] = stmt.ins_addr - last_stmt_addr
+                last_stmt_addr = stmt.ins_addr
+            if last_stmt_addr is not None:
+                ins_sizes[last_stmt_addr] = ail_block.original_size + ail_block.addr - last_stmt_addr
+
+        # Match variables
+        for var, unified_var in self._variables_to_unified_variables.items():
+            accesses = self.get_variable_accesses(var)
+
+            for access in accesses:
+                ins_addr = access.location.ins_addr
+                if ins_addr is None:
+                    continue
+                debug_vars = [
+                    dv
+                    for dv in dvars.variables_in_range(ins_addr, ins_addr + ins_sizes.get(ins_addr, MAX_INSN_SIZE))
+                    if not dv.external
+                ]
+                # further filter by location
+                for dv in debug_vars:
+                    if (
+                        isinstance(dv, RegisterVariable)
+                        and isinstance(var, SimRegisterVariable)
+                        and dv.relative_addr is not None
+                        and 0 <= dv.relative_addr < len(dwarf_regs)
+                        and _get_reg_offset(dwarf_regs[dv.relative_addr]) == var.reg
+                    ):
+                        var.name = dv.name
+                        unified_var.name = dv.name
+                    elif isinstance(dv, StackVariable) and isinstance(var, SimStackVariable):
+                        if dv.relative_addr == var.offset + func_cfa:
+                            var.name = dv.name
+                            unified_var.name = dv.name
+                    elif isinstance(dv, Variable) and dv.location is not None:
+                        # parse each location
+                        for lo, hi, loc in dv.location:
+                            if lo <= ins_addr < hi and loc is not None:
+                                if (
+                                    loc.loc_type == VariableLocationType.Register
+                                    and isinstance(var, SimRegisterVariable)
+                                    and loc.relative_addr is not None
+                                    and 0 <= loc.relative_addr < len(dwarf_regs)
+                                    and _get_reg_offset(dwarf_regs[loc.relative_addr]) == var.reg
+                                ):
+                                    var.name = dv.name
+                                    unified_var.name = dv.name
+                                if (
+                                    loc.loc_type == VariableLocationType.Stack
+                                    and isinstance(var, SimStackVariable)
+                                    and loc.relative_addr == var.offset + func_cfa
+                                ):
+                                    var.name = dv.name
+                                    unified_var.name = dv.name
 
     def _register_struct_type(self, ty: SimStruct, name: Optional[str] = None) -> TypeRef:
         if not name:

@@ -347,8 +347,8 @@ class SimEnginePropagatorAIL(
                 lo_value = pv.offset_and_details[0]
                 hi_offset = next(iter(k for k in pv.offset_and_details if k != 0))
                 hi_value = pv.offset_and_details[hi_offset]
-                if lo_value.def_at == hi_value.def_at:
-                    # it's the same value! we can apply concatenation here
+                if lo_value.def_at == hi_value.def_at or isinstance(hi_value.expr, Expr.Const):
+                    # it's the same value or the high-end extension is a pure constant. we can apply concatenation here
                     if isinstance(hi_value.expr, Expr.Const) and hi_value.expr.value == 0:
                         # it's probably an up-cast
                         mappings = {
