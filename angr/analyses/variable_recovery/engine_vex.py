@@ -34,6 +34,7 @@ class SimEngineVRVEX(
 
         self.call_info = call_info or {}
         self.stmts_to_lower = None
+        self.reg_read_stmts_to_ignore = None
 
     # Statement handlers
 
@@ -47,6 +48,7 @@ class SimEngineVRVEX(
         scanner = VEXIRSBScanner(logger=self.l)
         scanner._process(None, None, block=self.block)
         self.stmts_to_lower = scanner.stmts_to_lower
+        self.reg_read_stmts_to_ignore = scanner.reg_read_stmts_to_ignore
 
         super()._process_Stmt(whitelist=whitelist)
 
@@ -149,7 +151,13 @@ class SimEngineVRVEX(
             if reg_size == 8:
                 force_variable_size = 4
 
-        return self._read_from_register(reg_offset, reg_size, expr=expr, force_variable_size=force_variable_size)
+        return self._read_from_register(
+            reg_offset,
+            reg_size,
+            expr=expr,
+            force_variable_size=force_variable_size,
+            create_variable=self.stmt_idx not in self.reg_read_stmts_to_ignore,
+        )
 
     def _handle_Load(self, expr: pyvex.IRExpr.Load) -> RichR:
         addr = self._expr(expr.addr)

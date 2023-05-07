@@ -22,6 +22,17 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
         self.tmps_assignment_stmtidx: Dict[int, int] = {}  # statement IDs for the assignment of each tmp
         self.stmts_to_lower: Set[int] = set()
 
+        # the following variables are for recognizing redundant argument register reads in gcc(?) -O0 binaries.
+        # e.g.,
+        #    mov rdi, r9
+        #    mov rdi, rax
+        #
+        # we will not create a variable for the register read in the first instruction (read from r9) in this case.
+        self.tmp_with_reg_as_value: Dict[int, int] = {}
+        self.reg_with_reg_as_value: Dict[int, int] = {}
+        self.reg_read_stmt_id: Dict[int, int] = {}
+        self.reg_read_stmts_to_ignore: Set[int] = set()
+
     def _process_Stmt(self, whitelist=None):
         self.tmps_with_64bit_regs = set()
         self.tmps_assignment_stmtidx = {}
@@ -32,7 +43,17 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
         self.stmts_to_lower = {self.tmps_assignment_stmtidx[i] for i in self.tmps_converted_to_32bit}
 
     def _handle_Put(self, stmt):
-        pass
+        if isinstance(stmt.data, pyvex.IRExpr.RdTmp) and stmt.data.tmp in self.tmp_with_reg_as_value:
+            if (
+                stmt.offset in self.reg_with_reg_as_value
+                and self.reg_with_reg_as_value[stmt.offset] != self.tmp_with_reg_as_value[stmt.data.tmp]
+            ):
+                # we are overwriting an existing register with a value from another register, before this register is
+                # ever used...
+                # in this case, we should ignore the previous register read
+                old_reg_offset = self.reg_with_reg_as_value[stmt.offset]
+                self.reg_read_stmts_to_ignore.add(self.reg_read_stmt_id[old_reg_offset])
+            self.reg_with_reg_as_value[stmt.offset] = self.tmp_with_reg_as_value[stmt.data.tmp]
 
     def _handle_Load(self, expr):
         pass
@@ -54,10 +75,15 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
             self.tmps_with_64bit_regs.add(stmt.tmp)
         self.tmps_assignment_stmtidx[stmt.tmp] = self.stmt_idx
 
+        if isinstance(stmt.data, pyvex.IRExpr.Get) and stmt.data.result_size(self.tyenv) == 64:
+            self.tmp_with_reg_as_value[stmt.tmp] = stmt.data.offset
+
         super()._handle_WrTmp(stmt)
 
     def _handle_Get(self, expr):
-        pass
+        self.reg_read_stmt_id[expr.offset] = self.stmt_idx
+        if expr.offset in self.reg_with_reg_as_value:
+            del self.reg_with_reg_as_value[expr.offset]
 
     def _handle_RdTmp(self, expr):
         if expr.tmp in self.tmps_converted_to_32bit:

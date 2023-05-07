@@ -294,6 +294,16 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                 assert isinstance(proto.args[0], SimTypeInt)
                 assert isinstance(proto.returnty, SimTypeLongLong)
 
+    def test_ls_gcc_O0_timespec_cmp(self):
+        binary_path = os.path.join(test_location, "tests", "x86_64", "decompiler", "ls_gcc_O0")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        proj.analyses.CFG(normalize=True)
+        proj.analyses.VariableRecoveryFast(proj.kb.functions["timespec_cmp"])
+        cca = proj.analyses.CallingConvention(proj.kb.functions["timespec_cmp"])
+
+        assert len(cca.prototype.args) == 4
+
     def test_run_multiple_times(self):
         binary_path = os.path.join(test_location, "tests", "x86_64", "fauxware")
         proj = angr.Project(binary_path, auto_load_libs=False)
