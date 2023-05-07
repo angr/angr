@@ -153,7 +153,7 @@ options = [
         "recursive_structurer",
         "structurer_cls",
         category="Structuring",
-        default_value="Dream",
+        default_value="Phoenix",
         candidate_values=["Dream", "Phoenix"],
         clears_cache=True,
         convert=structurer_class_from_name,
