@@ -375,7 +375,9 @@ class SimEngineVRBase(SimEngineLight):
             stack_addr = self.state.stack_addr_from_offset(stack_offset)
             self.state.stack_region.store(stack_addr, expr, endness=endness)
 
-            codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+            codeloc = CodeLocation(
+                self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
+            )
 
             addr_and_variables = set()
             try:
@@ -455,7 +457,9 @@ class SimEngineVRBase(SimEngineLight):
                 addr, data_expr, endness=self.state.arch.memory_endness if stmt is None else stmt.endness
             )
 
-        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+        codeloc = CodeLocation(
+            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
+        )
         values = None
         if abs_addr is not None:
             try:
@@ -556,7 +560,9 @@ class SimEngineVRBase(SimEngineLight):
         """
 
         addr: claripy.ast.Base = richr_addr.data
-        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+        codeloc = CodeLocation(
+            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
+        )
         typevar = None
 
         if self.state.is_stack_address(addr):
@@ -765,7 +771,9 @@ class SimEngineVRBase(SimEngineLight):
             l.debug("Identified a new global variable %s at %#x.", variable, self.ins_addr)
             existing_vars = {(variable, (offset, elem_size))}
 
-        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+        codeloc = CodeLocation(
+            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
+        )
         for variable, _ in existing_vars:
             variable_manager.read_from(variable, None, codeloc, atom=expr)
 
