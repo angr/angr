@@ -340,21 +340,23 @@ class CallSiteMaker(Analysis):
         for fmt_arg_idx in potential_fmt_args:
             arg_loc = arg_locs[fmt_arg_idx]
 
+            value = None
             if isinstance(arg_loc, SimRegArg):
                 value_and_defs = self._resolve_register_argument(call_stmt, arg_loc)
+                if len(set(v for v, _ in value_and_defs)) == 1:
+                    value = next(iter(set(v for v, _ in value_and_defs)))
+
             elif isinstance(arg_loc, SimStackArg):
-                value_and_defs = self._resolve_stack_argument(call_stmt, arg_loc)
+                value, _ = self._resolve_stack_argument(call_stmt, arg_loc)
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
                 return None
 
-            if len(set(v for v, _ in value_and_defs)) == 1:
-                value = next(iter(set(v for v, _ in value_and_defs)))
-                if isinstance(value, int):
-                    fmt_str = self._load_string(value)
-                    if fmt_str:
-                        break
+            if isinstance(value, int):
+                fmt_str = self._load_string(value)
+                if fmt_str:
+                    break
 
         if not fmt_str:
             return None
