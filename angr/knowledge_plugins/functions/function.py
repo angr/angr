@@ -20,6 +20,7 @@ from ...procedures import SIM_LIBRARIES
 from ...procedures.definitions import SimSyscallLibrary
 from ...protos import function_pb2
 from ...calling_conventions import DEFAULT_CC
+from ...misc.ux import deprecated
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
@@ -74,7 +75,7 @@ class Function(Serializable):
         "_local_block_addrs",
         "info",
         "tags",
-        "alignment",
+        "is_alignment",
         "is_prototype_guessed",
         "ran_cca",
     )
@@ -85,9 +86,9 @@ class Function(Serializable):
         addr,
         name=None,
         syscall=None,
-        is_simprocedure=None,
+        is_simprocedure: Optional[bool] = None,
         binary_name=None,
-        is_plt=None,
+        is_plt: Optional[bool] = None,
         returning=None,
         alignment=False,
     ):
@@ -107,7 +108,7 @@ class Function(Serializable):
         :param bool returning:  If this function returns.
         :param bool alignment:  If this function acts as an alignment filler. Such functions usually only contain nops.
         """
-        self.transition_graph = networkx.DiGraph()
+        self.transition_graph = networkx.classes.digraph.DiGraph()
         self._local_transition_graph = None
         self.normalized = False
 
@@ -129,9 +130,8 @@ class Function(Serializable):
         self.startpoint = None
         self._function_manager = function_manager
         self.is_syscall = None
-        self.is_plt = None
         self.is_simprocedure = False
-        self.alignment = alignment
+        self.is_alignment = alignment
 
         # These properties are set by VariableManager
         self.bp_on_stack = False
@@ -247,6 +247,15 @@ class Function(Serializable):
             self.calling_convention: Optional[SimCC] = cc
         else:
             self.calling_convention: Optional[SimCC] = None
+
+    @property
+    @deprecated(".is_alignment")
+    def alignment(self):
+        return self.is_alignment
+
+    @alignment.setter
+    def alignment(self, value):
+        self.is_alignment = value
 
     @property
     def name(self):
@@ -752,7 +761,7 @@ class Function(Serializable):
         self._local_blocks = {}
         self._local_block_addrs = set()
         self.startpoint = None
-        self.transition_graph = networkx.DiGraph()
+        self.transition_graph = networkx.classes.digraph.DiGraph()
         self._local_transition_graph = None
 
     def _confirm_fakeret(self, src, dst):
@@ -1041,7 +1050,7 @@ class Function(Serializable):
         if self._local_transition_graph is not None:
             return self._local_transition_graph
 
-        g = networkx.DiGraph()
+        g = networkx.classes.digraph.DiGraph()
         if self.startpoint is not None:
             g.add_node(self.startpoint)
         for block in self._local_blocks.values():
@@ -1081,7 +1090,7 @@ class Function(Serializable):
             return graph
 
         # BFS on local graph but ignoring certain types of graphs
-        g = networkx.DiGraph()
+        g = networkx.classes.digraph.DiGraph()
         queue = [n for n in graph if n is self.startpoint or graph.in_degree[n] == 0]
         traversed = set(queue)
 
@@ -1122,7 +1131,7 @@ class Function(Serializable):
             return graph
 
         # BFS on local graph but ignoring certain types of graphs
-        g = networkx.DiGraph()
+        g = networkx.classes.digraph.DiGraph()
         queue = [n for n in graph if n is self.startpoint or graph.in_degree[n] == 0]
         traversed = set(queue)
 
@@ -1166,7 +1175,7 @@ class Function(Serializable):
 
         # subgraph = networkx.subgraph(self.graph, blocks)
         subgraph = self.graph.subgraph(blocks).copy()
-        g = networkx.DiGraph()
+        g = networkx.classes.digraph.DiGraph()
 
         for n in subgraph.nodes():
             insns = block_addr_to_insns[n.addr]
@@ -1243,7 +1252,7 @@ class Function(Serializable):
         import matplotlib.pyplot as pyplot  # pylint: disable=import-error
         from networkx.drawing.nx_agraph import graphviz_layout  # pylint: disable=import-error
 
-        tmp_graph = networkx.DiGraph()
+        tmp_graph = networkx.classes.digraph.DiGraph()
         for from_block, to_block in self.transition_graph.edges():
             node_a = "%#08x" % from_block.addr
             node_b = "%#08x" % to_block.addr
