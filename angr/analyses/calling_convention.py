@@ -84,7 +84,7 @@ class CallingConventionAnalysis(Analysis):
 
     def __init__(
         self,
-        func: Optional["Function"],
+        func: Optional[Union["Function", int, str]],
         cfg: Optional["CFGModel"] = None,
         analyze_callsites: bool = False,
         caller_func_addr: Optional[int] = None,
@@ -92,6 +92,8 @@ class CallingConventionAnalysis(Analysis):
         callsite_insn_addr: Optional[int] = None,
         func_graph: Optional[networkx.DiGraph] = None,
     ):
+        if func is not None and not isinstance(func, Function):
+            func = self.kb.functions[func]
         self._function = func
         self._variable_manager = self.kb.variables
         self._cfg = cfg

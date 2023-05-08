@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from .complete_calling_conventions import CompleteCallingConventionsAnalysis
     from .decompiler.clinic import Clinic
     from .propagator import PropagatorAnalysis
+    from .calling_convention import CallingConventionAnalysis
 
     AnalysisParams = ParamSpec("AnalysisParams")
 
@@ -154,6 +155,7 @@ class KnownAnalysesPlugin(typing.Protocol):
     CompleteCallingConventions: "Type[CompleteCallingConventionsAnalysis]"
     Clinic: "Type[Clinic]"
     Propagator: "Type[PropagatorAnalysis]"
+    CallingConvention: "Type[CallingConventionAnalysis]"
 
 
 class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
