@@ -324,6 +324,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         "variables_in_use",
         "variable_manager",
         "demangled_name",
+        "unified_local_vars",
     )
 
     def __init__(
@@ -348,17 +349,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.variables_in_use = variables_in_use
         self.variable_manager: "VariableManagerInternal" = variable_manager
         self.demangled_name = demangled_name
+        self.unified_local_vars: Dict[SimVariable, Set[Tuple[CVariable, SimType]]] = self.get_unified_local_vars()
 
-    def variable_list_repr_chunks(self, indent=0):
-        def _varname_to_id(varname: str) -> int:
-            # extract id from default variable name "v{id}"
-            if varname.startswith("v"):
-                try:
-                    return int(varname[1:])
-                except ValueError:
-                    pass
-            return 0
-
+    def get_unified_local_vars(self) -> Dict[SimVariable, Set[Tuple["CVariable", SimType]]]:
         unified_to_var_and_types: Dict[SimVariable, Set[Tuple[CVariable, SimType]]] = defaultdict(set)
 
         arg_set: Set[SimVariable] = set()
@@ -392,10 +385,22 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             unified_to_var_and_types[key].add((cvar, var_type))
 
+        return unified_to_var_and_types
+
+    def variable_list_repr_chunks(self, indent=0):
+        def _varname_to_id(varname: str) -> int:
+            # extract id from default variable name "v{id}"
+            if varname.startswith("v"):
+                try:
+                    return int(varname[1:])
+                except ValueError:
+                    pass
+            return 0
+
         indent_str = self.indent_str(indent)
 
         for variable, cvar_and_vartypes in sorted(
-            unified_to_var_and_types.items(), key=lambda x: _varname_to_id(x[0].name) if x[0].name else 0
+            self.unified_local_vars.items(), key=lambda x: _varname_to_id(x[0].name) if x[0].name else 0
         ):
             yield indent_str, None
 
@@ -451,7 +456,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                         yield str(var_type), var_type
             yield "\n", None
 
-        if unified_to_var_and_types:
+        if self.unified_local_vars:
             yield "\n", None
 
     def c_repr_chunks(self, indent=0, asexpr=False):

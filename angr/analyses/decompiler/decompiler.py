@@ -85,6 +85,7 @@ class Decompiler(Analysis):
         self.codegen = None
         self.cache: Optional[DecompilationCache] = None
         self.options_by_class = None
+        self.seq_node = None
 
         if decompile:
             self._decompile()
@@ -250,6 +251,7 @@ class Decompiler(Analysis):
         )
         self._update_progress(90.0, text="Finishing up")
 
+        self.seq_node = seq_node
         self.codegen = codegen
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
