@@ -1,5 +1,5 @@
 # pylint:disable=wrong-import-position,wrong-import-order
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union
 import logging
 from collections import defaultdict
 
@@ -234,7 +234,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
     def __init__(
         self,
-        func: Function,
+        func: Union[Function, str, int],
         func_graph: Optional[networkx.DiGraph] = None,
         max_iterations: int = 2,
         low_priority=False,
@@ -242,6 +242,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         func_args: Optional[List[SimVariable]] = None,
         store_live_variables=False,
     ):
+        if not isinstance(func, Function):
+            func = self.kb.functions[func]
         func_graph_with_calls = func_graph or func.transition_graph
         call_info = defaultdict(list)
         for node_from, node_to, data in func_graph_with_calls.edges(data=True):

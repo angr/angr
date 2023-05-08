@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ..knowledge_plugins import StructuredCodeManager
     from ..knowledge_plugins import TypesStore
     from ..knowledge_plugins import PropagationManager
+    from ..knowledge_plugins import XRefManager
 
 from ..knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
 
@@ -37,6 +38,7 @@ class KnowledgeBase:
     _project: "Project"
     types: "TypesStore"
     propagations: "PropagationManager"
+    xrefs: "XRefManager"
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:

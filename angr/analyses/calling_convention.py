@@ -27,6 +27,7 @@ from ..knowledge_plugins.key_definitions.tag import ReturnValueTag
 from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
 from ..knowledge_plugins.variables.variable_access import VariableAccessSort
+from ..knowledge_plugins.functions import Function
 from ..utils.constants import DEFAULT_STATEMENT
 from .. import SIM_PROCEDURES
 from .reaching_definitions import get_all_definitions
@@ -34,7 +35,6 @@ from .reaching_definitions.external_codeloc import ExternalCodeLocation
 from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
 
 if TYPE_CHECKING:
-    from ..knowledge_plugins.functions import Function
     from ..knowledge_plugins.cfg import CFGModel
     from ..knowledge_plugins.key_definitions.uses import Uses
     from ..knowledge_plugins.key_definitions.definition import Definition
@@ -84,7 +84,7 @@ class CallingConventionAnalysis(Analysis):
 
     def __init__(
         self,
-        func: Optional["Function"],
+        func: Optional[Union["Function", int, str]],
         cfg: Optional["CFGModel"] = None,
         analyze_callsites: bool = False,
         caller_func_addr: Optional[int] = None,
@@ -92,6 +92,8 @@ class CallingConventionAnalysis(Analysis):
         callsite_insn_addr: Optional[int] = None,
         func_graph: Optional[networkx.DiGraph] = None,
     ):
+        if func is not None and not isinstance(func, Function):
+            func = self.kb.functions[func]
         self._function = func
         self._variable_manager = self.kb.variables
         self._cfg = cfg
