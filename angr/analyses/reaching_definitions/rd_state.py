@@ -594,7 +594,7 @@ class ReachingDefinitionsState:
                 # TODO this can be simplified with the walrus operator
                 stack_offset = self.get_stack_offset(value)
                 if stack_offset is not None:
-                    addr = SpOffset(pointer.size * 8, stack_offset)
+                    addr = SpOffset(value.size() * 8, stack_offset)
                 else:
                     heap_offset = self.get_heap_offset(value)
                     if heap_offset is not None:
