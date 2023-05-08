@@ -23,10 +23,10 @@ class XRef(Serializable):
 
     def __init__(
         self,
-        ins_addr=None,
-        block_addr=None,
-        stmt_idx=None,
-        insn_op_idx=None,
+        ins_addr: Optional[int] = None,
+        block_addr: Optional[int] = None,
+        stmt_idx: Optional[int] = None,
+        insn_op_idx: Optional[int] = None,
         memory_data=None,
         dst: Optional[int] = None,
         xref_type=None,
@@ -35,10 +35,10 @@ class XRef(Serializable):
             raise TypeError("XRefs must be pointing to a constant target. Target %r is not supported." % dst)
 
         # src
-        self.ins_addr = ins_addr
-        self.insn_op_idx = insn_op_idx
-        self.block_addr = block_addr
-        self.stmt_idx = stmt_idx
+        self.ins_addr: Optional[int] = ins_addr
+        self.insn_op_idx: Optional[int] = insn_op_idx
+        self.block_addr: Optional[int] = block_addr
+        self.stmt_idx: Optional[int] = stmt_idx
 
         # dst
         self.memory_data = memory_data  # optional
