@@ -6,6 +6,7 @@ import unittest
 
 import angr
 from angr.code_location import CodeLocation
+from angr.sim_variable import SimRegisterVariable
 
 
 l = logging.getLogger("angr.tests.test_ddg")
@@ -68,6 +69,17 @@ class TestDDG(unittest.TestCase):
             cl1,
             {"data": 14, "type": "tmp", "subtype": ("mem_addr",)},
         ) in in_edges
+
+        instr_view = ddg.view[0x400721]
+        assert instr_view is not None
+        definitions: list = instr_view.definitions
+        var = None
+        for definition in definitions:
+            if isinstance(definition._variable.variable, SimRegisterVariable):
+                var = definition._variable.variable
+                break
+        assert var is not None
+        assert var.reg == 56
 
     def test_ddg_0(self):
         binary_path = os.path.join(test_location, "x86_64", "datadep_test")

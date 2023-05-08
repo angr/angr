@@ -354,6 +354,15 @@ class DDGViewItem:
             and self._simplified == other._simplified
         )
 
+    def __hash__(self):
+        return hash(
+            (
+                self._ddg,
+                self._variable,
+                self._simplified,
+            )
+        )
+
     def _to_viewitem(self, prog_var):
         """
         Convert a ProgramVariable instance to a DDGViewItem object.
@@ -415,12 +424,11 @@ class DDGViewInstruction:
             return DDGViewItem(self._ddg, pv, simplified=self._simplified)
 
     @property
-    def definitions(self):
+    def definitions(self) -> list[DDGViewItem]:
         """
         Get all definitions located at the current instruction address.
 
         :return: A list of ProgramVariable instances.
-        :rtype:  list
         """
 
         defs = set()
