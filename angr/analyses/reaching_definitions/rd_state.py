@@ -45,7 +45,7 @@ class ReachingDefinitionsState:
     It contains a data class LiveDefinitions, which stores both definitions and uses for register, stack, memory, and
     temporary variables, uncovered during the analysis.
 
-    :param subject: The subject being analysed.
+    :param subject: The subject being analyzed.
     :ivar arch: The architecture targeted by the program.
     :param track_tmps: Only tells whether or not temporary variables should be taken into consideration when
                               representing the state of the analysis.
@@ -57,7 +57,7 @@ class ReachingDefinitionsState:
     :param canonical_size:
         The sizes (in bytes) that objects with an UNKNOWN_SIZE are treated as for operations where sizes are necessary.
     :param heap_allocator: Mechanism to model the management of heap memory.
-    :param environment: Representation of the environment of the analysed program.
+    :param environment: Representation of the environment of the analyzed program.
     """
 
     __slots__ = (
@@ -594,7 +594,7 @@ class ReachingDefinitionsState:
                 # TODO this can be simplified with the walrus operator
                 stack_offset = self.get_stack_offset(value)
                 if stack_offset is not None:
-                    addr = SpOffset(pointer.size * 8, stack_offset)
+                    addr = SpOffset(value.size() * 8, stack_offset)
                 else:
                     heap_offset = self.get_heap_offset(value)
                     if heap_offset is not None:
