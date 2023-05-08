@@ -1,4 +1,5 @@
 # pylint:disable=no-member
+from typing import Optional
 from ...protos import cfg_pb2
 from ...serializable import Serializable
 
@@ -48,15 +49,22 @@ class MemoryData(Serializable):
         "content",
     )
 
-    def __init__(self, address, size, sort, pointer_addr=None, max_size=None):
-        self.addr = address
-        self.size = size
-        self.sort = sort
+    def __init__(
+        self,
+        address: int,
+        size: int,
+        sort: Optional[str],  # temporary type
+        pointer_addr: Optional[int] = None,
+        max_size: Optional[int] = None,
+    ):
+        self.addr: int = address
+        self.size: int = size
+        self.sort: Optional[str] = sort
 
-        self.max_size = max_size
-        self.pointer_addr = pointer_addr
+        self.max_size: Optional[int] = max_size
+        self.pointer_addr: Optional[int] = pointer_addr
 
-        self.content = None  # optional
+        self.content: Optional[bytes] = None  # temporary annotation
 
     @property
     def address(self):
