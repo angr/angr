@@ -7,6 +7,7 @@ from cle import SymbolType
 import ailment
 
 from angr.analyses.cfg import CFGFast
+from ...knowledge_plugins.functions.function import Function
 from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
 from ...utils import timethis
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from .structuring.structurer_nodes import SequenceNode
+    from .structured_codegen.c import CStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)
 
@@ -44,7 +46,7 @@ class Decompiler(Analysis):
 
     def __init__(
         self,
-        func,
+        func: Union[Function, str, int],
         cfg: Optional[Union["CFGFast", "CFGModel"]] = None,
         options=None,
         optimization_passes=None,
@@ -61,7 +63,9 @@ class Decompiler(Analysis):
         regen_clinic=True,
         update_memory_data: bool = True,
     ):
-        self.func = func
+        if not isinstance(func, Function):
+            func = self.kb.functions[func]
+        self.func: Function = func
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
         self._options = options
         if optimization_passes is None:
@@ -82,7 +86,7 @@ class Decompiler(Analysis):
         self._update_memory_data = update_memory_data
 
         self.clinic = None  # mostly for debugging purposes
-        self.codegen = None
+        self.codegen: Optional["CStructuredCodeGenerator"] = None
         self.cache: Optional[DecompilationCache] = None
         self.options_by_class = None
         self.seq_node = None
