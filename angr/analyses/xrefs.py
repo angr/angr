@@ -6,6 +6,7 @@ import pyvex
 
 from angr.analyses import visitors, ForwardAnalysis
 from ..knowledge_plugins.xrefs import XRef, XRefType
+from ..knowledge_plugins.functions.function import Function
 from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
 from .propagator.vex_vars import VEXTmp
 from .propagator.values import Top
@@ -187,6 +188,8 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
 
     def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None):
         if func is not None:
+            if not isinstance(func, Function):
+                func = self.kb.functions[func]
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
             # traversing a function

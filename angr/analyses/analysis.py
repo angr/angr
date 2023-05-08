@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from .propagator import PropagatorAnalysis
     from .calling_convention import CallingConventionAnalysis
     from .decompiler.decompiler import Decompiler
+    from .xrefs import XRefsAnalysis
 
     AnalysisParams = ParamSpec("AnalysisParams")
 
@@ -158,6 +159,7 @@ class KnownAnalysesPlugin(typing.Protocol):
     Propagator: "Type[PropagatorAnalysis]"
     CallingConvention: "Type[CallingConventionAnalysis]"
     Decompiler: "Type[Decompiler]"
+    XRefs: "Type[XRefsAnalysis]"
 
 
 class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
