@@ -39,8 +39,8 @@ when the underlying storage don't support the appropriate operations - just like
 normal file descriptors!
 
 You may access the mapping from file descriptor number to file descriptor object
-in ``state.posix.fd``. The file descriptor API may be found `here
-<http://angr.io/api-doc/angr.html#angr.storage.file.SimFileDescriptorBase>`_.
+in ``state.posix.fd``. See the API document for
+:py:class:`angr.storage.file.SimFileDescriptorBase` for more details.
 
 Just tell me how to do what I want to do!
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -48,9 +48,7 @@ Just tell me how to do what I want to do!
 Okay okay!!
 
 To create a SimFile, you should just create an instance of the class you want to
-use. Refer to the `API docs
-<http://angr.io/api-doc/angr.html#module-angr.storage.file>`_ for the full
-instructions.
+use. Refer to :py:mod:`angr.storage.file` for the full instructions.
 
 Let's go through a few illustrative examples, which cover how you can work with
 a concrete file, a symbolic file, a file with mixed concrete and symbolic
@@ -270,9 +268,7 @@ it in the filesystem or serve stdin/stdout from it.
 
 The simulated filesystem is the ``state.fs`` plugin. You can store, load, and
 delete files from the filesystem, with the ``insert``, ``get``, and ``delete``
-methods. Refer to the `api docs
-<http://angr.io/api-doc/angr.html#module-angr.state_plugins.filesystem>`_ for
-details.
+methods. Refer to :py:mod:`angr.state_plugins.filesystem` for details.
 
 So to make our file available as ``/tmp/myfile``:
 

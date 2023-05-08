@@ -185,9 +185,8 @@ are analyzing java bytecode, in which case it is very important.
 ``SimEngineVEX`` is the big fellow. It is used whenever any of the previous
 can't be used. It attempts to lift bytes from the current address into an IRSB,
 and then executes that IRSB symbolically. There are a huge number of parameters
-that can control this process, so I will merely link to the `API reference
-<http://angr.io/api-doc/angr.html#angr.engines.vex.engine.SimEngineVEX.process>`_
-describing them.
+that can control this process, so it is best to reference the API doc for
+:py:meth:`angr.engines.vex.engine.SimEngineVEX.process` describing them.
 
 The exact process by which SimEngineVEX digs into an IRSB is a little
 complicated, but essentially it runs all the block's statements in order. This

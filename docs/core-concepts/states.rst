@@ -48,12 +48,12 @@ Earlier, we showed how to use a Simulation Manager to do some basic execution.
 We'll show off the full capabilities of the simulation manager in the next
 chapter, but for now we can use a much simpler interface to demonstrate how
 symbolic execution works: ``state.step()``. This method will perform one step of
-symbolic execution and return an object called ```SimSuccessors``
-<http://angr.io/api-doc/angr.html#module-angr.engines.successors>`_. Unlike
-normal emulation, symbolic execution can produce several successor states that
-can be classified in a number of ways. For now, what we care about is the
-``.successors`` property of this object, which is a list containing all the
-"normal" successors of a given step.
+symbolic execution and return an object called
+:py:class:`angr.engines.successors.SimSuccessors`. Unlike normal emulation,
+symbolic execution can produce several successor states that can be classified
+in a number of ways. For now, what we care about is the ``.successors`` property
+of this object, which is a list containing all the "normal" successors of a
+given step.
 
 Why a list, instead of just a single successor state? Well, angr's process of
 symbolic execution is just the taking the operations of the individual
@@ -179,15 +179,13 @@ You can customize the state through several arguments to these constructors:
   this API can be a little unpredictable, but we're working on it.
 
 * To specify the calling convention used for a function with ``call_state``, you
-  can pass a ```SimCC`` instance
-  <http://angr.io/api-doc/angr.html#module-angr.calling_conventions>`_ as the
-  ``cc`` argument.:raw-html-m2r:`<br>` We try to pick a sane default, but for
-  special cases you will need to help angr out.
+  can pass a :py:class:`~angr.calling_conventions.SimCC` instance as the ``cc``
+  argument.:raw-html-m2r:`<br>` We try to pick a sane default, but for special
+  cases you will need to help angr out.
 
 There are several more options that can be used in any of these constructors!
-See the `docs
-<http://angr.io/api-doc/angr.html#angr.factory.AngrObjectFactory>`_ on the
-``project.factory`` object (an ``AngrObjectFactory``) for more details.
+See the docs on the ``project.factory`` object (an
+:py:class:`angr.factory.AngrObjectFactory`) for more details.
 
 Low level interface for memory
 ------------------------------

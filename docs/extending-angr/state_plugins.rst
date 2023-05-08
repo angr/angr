@@ -15,9 +15,8 @@ My First Plugin
 ---------------
 
 Let's get started! All state plugins are implemented as subclasses of
-``angr.SimStatePlugin``. Once you've read this document, you can use the `API
-reference for this class
-<http://angr.io/api-doc/angr.html#angr.state_plugins.plugin.SimStatePlugin>`_ to
+``SimStatePlugin``. Once you've read this document, you can use the API
+reference for this class :py:class:`angr.state_plugins.plugin.SimStatePlugin` to
 quickly review the semantics of all the interfaces you should implement.
 
 The most important method you need to implement is ``copy``: it should be

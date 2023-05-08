@@ -300,10 +300,9 @@ angr comes pre-packaged with several built-in analyses that you can use to extra
     proj.analyses.CFGFast              proj.analyses.Reassembler
 
 A couple of these are documented later in this book, but in general, if you want
-to find how to use a given analysis, you should look in the `api documentation.
-<http://angr.io/api-doc/angr.html?highlight=cfg#module-angr.analysis>`_ As an
-extremely brief example: here's how you construct and use a quick control-flow
-graph:
+to find how to use a given analysis, you should look in the api documentation
+for :py:mod:`angr.analyses`. As an extremely brief example: here's how you
+construct and use a quick control-flow graph:
 
 .. code-block:: python
 

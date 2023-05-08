@@ -272,8 +272,8 @@ Here's a quick overview of some of the built-in ones:
   constructor! Note that it frequenly doesn't play nice with other techniques
   due to the invasive way it implements static symbolic execution.
 
-Look at the API documentation for the `simulation manager
-<http://angr.io/api-doc/angr.html#module-angr.manager>`_ and `exploration
-techniques
-<http://angr.io/api-doc/angr.html#angr.exploration_techniques.ExplorationTechnique>`_
-for more information.
+Look at the API documentation for the
+:py:class:`~angr.sim_manager.SimulationManager` and
+:py:class:`~angr.exploration_techniques.ExplorationTechnique` classes for more
+information.
+

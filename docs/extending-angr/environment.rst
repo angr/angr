@@ -62,10 +62,9 @@ The purpose of this categorization is to enable easy sharing of procedures among
 different libraries. For example. libc.so.6 contains all the C standard library
 functions, but so does msvcrt.dll! These relationships are represented with
 objects called ``SimLibraries`` which represent an actual shared library file,
-its functions, and their metadata. Take a look at `the API reference for
-SimLibrary
-<http://angr.io/api-doc/angr.html#angr.procedures.definitions.SimLibrary>`_ along
-with `the code for setting up glibc
+its functions, and their metadata. Take a look at the API reference for
+:py:class:`~angr.procedures.definitions.SimLibrary` along with `the code for
+setting up glibc
 <https://github.com/angr/angr/blob/master/angr/procedures/definitions/glibc.py>`_
 to learn how to use it.
 
@@ -110,8 +109,7 @@ Case 3, out-of-tree development, loose integration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Finally, if you don't want to mess with SimLibraries at all, you can do things
-purely on the project level with `hook_symbol
-<http://angr.io/api-doc/angr.html#angr.project.Project.hook_symbol>`_.
+purely on the project level with :py:meth:`~angr.project.Project.hook_symbol`.
 
 Syscalls
 --------
@@ -137,9 +135,8 @@ and adds them to the library, then adds several syscall number mappings,
 including separate mappings for ``mips-o32``, ``mips-n32``, and ``mips-n64``.
 
 In order for syscalls to be supported in the first place, the project's SimOS
-must inherit from `SimUserland
-<http://angr.io/api-doc/angr.html#angr.simos.userland.SimUserland>`_, itself a
-SimOS subclass. This requires the class to call SimUserland's constructor with a
+must inherit from :py:class:`~angr.simos.userland.SimUserland`, itself a SimOS
+subclass. This requires the class to call SimUserland's constructor with a
 super() call that includes the ``syscall_library`` keyword argument, specifying
 the specific SimSyscallLibrary that contains the appropriate procedures and
 mappings for the operating system. Additionally, the class's
@@ -247,8 +244,7 @@ A SimData can effectively specify some data that must be used to provide an
 unresolved import symbol. It has a number of mechanisms to make this more
 useful, including the ability to specify relocations and subdependencies.
 
-Look at the `SimData class reference
-<http://angr.io/api-doc/cle.html#cle.backends.externs.simdata.SimData>`_ and the
-`existing SimData subclasses
+Look at the SimData :py:class:`cle.backends.externs.simdata.SimData` class
+reference and the `existing SimData subclasses
 <https://github.com/angr/cle/tree/master/cle/backends/externs/simdata>`_ for
 guidelines on how to do this.

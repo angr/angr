@@ -255,7 +255,7 @@ explosion is still *the* main problem preventing symbolic execution from being
 mainstream.
 
 angr provides an excellent base to implement new techniques to control path
-explosion. Most approaches can be easily implemented as `Exploration Techniques
-<http://angr.io/api-doc/angr.html#angr.exploration_techniques.ExplorationTechnique>`_
-and quickly evaluated (for example, on the `CGC dataset
+explosion. Most approaches can be easily implemented as
+:py:class:`~angr.exploration_techniques.ExplorationTechnique` s and quickly
+evaluated (for example, on the `CGC dataset
 <https://github.com/CyberGrandChallenge/samples>`_).
