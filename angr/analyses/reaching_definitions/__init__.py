@@ -14,7 +14,8 @@ from ...knowledge_plugins.key_definitions.atoms import (
 from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import register_analysis
 from .reaching_definitions import ReachingDefinitionsAnalysis, ReachingDefinitionsModel
-from .function_handler import FunctionHandler
+from .function_handler import FunctionHandler, FunctionCallData
+from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
     from angr.storage.memory_object import SimMemoryObject
@@ -35,7 +36,9 @@ __all__ = (
     "ReachingDefinitionsAnalysis",
     "ReachingDefinitionsModel",
     "FunctionHandler",
+    "FunctionCallData",
     "get_all_definitions",
+    "ExternalCodeLocation",
 )
 
 
