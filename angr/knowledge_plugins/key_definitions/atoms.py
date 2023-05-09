@@ -84,6 +84,56 @@ class Atom:
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
+    @staticmethod
+    def reg(thing: Union[str, RegisterOffset], size: Optional[int] = None, arch: Optional[Arch] = None) -> "Register":
+        """
+        Create a Register atom.
+
+        :param thing:   The register offset (e.g., project.arch.registers["rax"][0]) or the register name (e.g., "rax").
+        :param size:    Size of the register atom. Must be provided when creating the atom using a register offset.
+        :param arch:    The architecture. Must be provided when creating the atom using a register name.
+        :return:        The Register Atom object.
+        """
+
+        if isinstance(thing, str):
+            if arch is None:
+                raise ValueError(
+                    "Cannot create a Register Atom by register name without having an architecture "
+                    "specified through arch!"
+                )
+            if thing not in arch.registers:
+                raise ValueError(f"Unknown register name {thing} for architecture {arch.name}")
+            reg_offset, size_ = arch.registers[thing]
+            if size is None:
+                size = size_
+        elif isinstance(thing, RegisterOffset):
+            reg_offset = thing
+            if size is None:
+                raise ValueError(f"You must provide a size when specifying the register offset")
+        else:
+            raise TypeError(
+                "Unsupported type of register. It must be a string (for register name) or an int (for "
+                "register offset)"
+            )
+        return Register(reg_offset, size, arch=arch)
+
+    register = reg
+
+    @staticmethod
+    def mem(addr: Union[SpOffset, HeapAddress, int], size: int, endness: Optional[str] = None) -> "MemoryLocation":
+        """
+        Create a MemoryLocation atom,
+
+        :param addr:        The memory location. Can be an SpOffset for stack variables, an int for global memory
+                            variables, or a HeapAddress for items on the heap.
+        :param size:        Size of the atom.
+        :param endness:     Optional, either "Iend_LE" or "Iend_BE".
+        :return:            The MemoryLocation Atom object.
+        """
+        return MemoryLocation(addr, size, endness=endness)
+
+    memory = mem
+
     def _identity(self):
         raise NotImplementedError()
 
@@ -246,4 +296,4 @@ class MemoryLocation(Atom):
     __hash__ = Atom.__hash__
 
     def _identity(self):
-        return (self.addr, self.size, self.endness)
+        return self.addr, self.size, self.endness
