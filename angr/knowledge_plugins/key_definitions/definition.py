@@ -1,4 +1,4 @@
-from typing import Set, Optional, Literal, Union
+from typing import Set, Optional, Literal, TypeVar, Union, Generic
 from dataclasses import dataclass
 import logging
 
@@ -142,7 +142,10 @@ class DefinitionMatchPredicate:
         return True
 
 
-class Definition:
+A = TypeVar("A", bound=Atom)
+
+
+class Definition(Generic[A]):
     """
     An atom definition.
 
@@ -161,8 +164,8 @@ class Definition:
         "_hash",
     )
 
-    def __init__(self, atom: Atom, codeloc: CodeLocation, dummy: bool = False, tags: Set[Tag] = None):
-        self.atom: Atom = atom
+    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: Set[Tag] = None):
+        self.atom: A = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy
         self.tags = tags or set()
