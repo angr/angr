@@ -55,8 +55,7 @@ class ReachingDefinitionsModel:
             return self.observed_results.get(("insn", ins_addr, kind), None)
         elif ins_addr.ins_addr is None:
             raise ValueError("CodeLocation must have an instruction address associated")
-        else:
-            return self.observed_results.get(("insn", ins_addr.ins_addr, kind))
+        return self.observed_results.get(("insn", ins_addr.ins_addr, kind))
 
     def get_observation_by_node(
         self, node_addr: Union[int, CodeLocation], kind: ObservationPointType
@@ -85,7 +84,7 @@ class ReachingDefinitionsModel:
         else:
             if arg1.stmt_idx is None:
                 raise ValueError("CodeLocation must have a statement index associated")
-            elif arg1.block_idx is None:
+            if arg1.block_idx is None:
                 return self.observed_results.get(("stmt", (arg1.block_addr, arg1.stmt_idx), arg2), None)
             else:
                 return self.observed_results.get(("stmt", (arg1.block_addr, arg1.stmt_idx, block_idx), arg2), None)
