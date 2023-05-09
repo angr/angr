@@ -14,13 +14,32 @@ from ...knowledge_plugins.key_definitions.atoms import (
 from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import register_analysis
 from .reaching_definitions import ReachingDefinitionsAnalysis, ReachingDefinitionsModel
-from .function_handler import FunctionHandler
-
+from .function_handler import FunctionHandler, FunctionCallData
+from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
     from angr.storage.memory_object import SimMemoryObject
     from angr.storage.memory_mixins import MultiValuedMemory
     from angr.storage.memory_mixins.paged_memory.pages import MVListPage
+
+__all__ = (
+    "LiveDefinitions",
+    "ObservationPointType",
+    "AtomKind",
+    "Atom",
+    "Register",
+    "MemoryLocation",
+    "Tmp",
+    "GuardUse",
+    "ConstantSrc",
+    "Definition",
+    "ReachingDefinitionsAnalysis",
+    "ReachingDefinitionsModel",
+    "FunctionHandler",
+    "FunctionCallData",
+    "get_all_definitions",
+    "ExternalCodeLocation",
+)
 
 
 def get_all_definitions(region: "MultiValuedMemory") -> Set["Definition"]:

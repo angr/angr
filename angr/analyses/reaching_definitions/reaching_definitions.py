@@ -187,7 +187,7 @@ class ReachingDefinitionsAnalysis(
         return next(iter(self.observed_results.values()))
 
     @property
-    def dep_graph(self):
+    def dep_graph(self) -> DepGraph:
         if self._dep_graph is None:
             raise ValueError(
                 "Cannot access dep_graph if the analysis was not configured to generate one. Try passing "
@@ -446,6 +446,6 @@ class ReachingDefinitionsAnalysis(
         else:
             raise TypeError(type(target))
 
-        for callsite, info in self.function_calls.items():
+        for info in self.function_calls.values():
             if info.target == func_addr:
-                yield callsite, info
+                yield info

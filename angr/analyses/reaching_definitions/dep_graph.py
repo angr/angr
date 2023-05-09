@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Set, Iterable, Union, List, TYPE_CHECKING, Tuple
+from typing import Optional, Dict, Set, Iterable, Union, List, TYPE_CHECKING, Tuple, overload, Literal, Any
 from functools import reduce
 from dataclasses import dataclass
 
@@ -8,7 +8,15 @@ import claripy
 from cle.loader import Loader
 
 from ...code_location import CodeLocation
-from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
+from ...knowledge_plugins.key_definitions.atoms import (
+    Atom,
+    MemoryLocation,
+    AtomKind,
+    Register,
+    Tmp,
+    ConstantSrc,
+    GuardUse,
+)
 from ...knowledge_plugins.key_definitions.definition import Definition, DefinitionMatchPredicate
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.cfg import CFGModel
@@ -213,7 +221,73 @@ class DepGraph:
                 result.append(defn)
         return result
 
-    def find_all_predecessors(self, starts: Union[Definition, Iterable[Definition]], **kwargs) -> List[Definition]:
+    @overload
+    def find_all_predecessors(
+        self,
+        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        kind: Literal[AtomKind.REGISTER] = ...,
+        **kwargs: Any,
+    ) -> List[Definition[Register]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self,
+        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        kind: Literal[AtomKind.MEMORY] = ...,
+        **kwargs: Any,
+    ) -> List[Definition[MemoryLocation]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self,
+        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        kind: Literal[AtomKind.TMP] = ...,
+        **kwargs: Any,
+    ) -> List[Definition[Tmp]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self,
+        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        kind: Literal[AtomKind.CONSTANT] = ...,
+        **kwargs: Any,
+    ) -> List[Definition[ConstantSrc]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self,
+        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        kind: Literal[AtomKind.GUARD] = ...,
+        **kwargs: Any,
+    ) -> List[Definition[GuardUse]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self,
+        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        reg_name: Union[int, str] = ...,
+        **kwargs: Any,
+    ) -> List[Definition[Register]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], stack_offset: int = ..., **kwargs: Any
+    ) -> List[Definition[MemoryLocation]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], const_val: int = ..., **kwargs: Any
+    ) -> List[Definition[ConstantSrc]]:
+        ...
+
+    def find_all_predecessors(self, starts, **kwargs):
         """
         Filter the ancestors of the given start node or nodes that match various criteria.
         Parameters can be any valid keyword args to `DefinitionMatchPredicate`
