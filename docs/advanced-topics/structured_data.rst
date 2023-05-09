@@ -175,10 +175,9 @@ the ``SimRegArg`` or ``SimStackArg`` classes. You can find them in the factory -
 
 Once you have a SimCC object, you can use it along with a SimState object and a
 function prototype (a SimTypeFunction) to extract or store function arguments
-more cleanly. Take a look at the `API documentation
-<http://angr.io/api-doc/angr.html#angr.calling_conventions.SimCC>`_ for details.
-Alternately, you can pass it to an interface that can use it to modify its own
-behavior, like ``p.factory.call_state``, or...
+more cleanly. Take a look at the :py:class:`angr.calling_conventions.SimCC>` for
+details. Alternately, you can pass it to an interface that can use it to modify
+its own behavior, like ``p.factory.call_state``, or...
 
 Callables
 ---------

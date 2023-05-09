@@ -19,12 +19,10 @@ There are several things that you can do:
 
 
 #. Disable the SimProcedure (you can exclude specific SimProcedures by passing
-   options to the `angr.Project class
-   <http://angr.io/api-doc/angr.html#module-angr.project>`_). This has the
-   drawback of likely leading to a path explosion, unless you are very careful
-   about constraining the input to the function in question. The path explosion
-   can be partially mitigated with other angr capabilities (such as
-   Veritesting).
+   options to the :py:class:`angr.Project` class. This has the drawback of
+   likely leading to a path explosion, unless you are very careful about
+   constraining the input to the function in question. The path explosion can be
+   partially mitigated with other angr capabilities (such as Veritesting).
 #. Replace the SimProcedure with something written directly to the situation in
    question. For example, our ``scanf`` implementation is not complete, but if
    you just need to support a single, known format string, you can write a hook

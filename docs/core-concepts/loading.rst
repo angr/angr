@@ -227,9 +227,9 @@ If you are loading something with ``angr.Project`` and you want to pass an
 option to the ``cle.Loader`` instance that Project implicitly creates, you can
 just pass the keyword argument directly to the Project constructor, and it will
 be passed on to CLE. You should look at the `CLE API docs.
-<http://angr.io/api-doc/cle.html>`_ if you want to know everything that could
-possibly be passed in as an option, but we will go over some important and
-frequently used options here.
+<https://docs.angr.io/projects/cle/en/latest/api.html>`_ if you want to know
+everything that could possibly be passed in as an option, but we will go over
+some important and frequently used options here.
 
 Basic Options
 ~~~~~~~~~~~~~
@@ -409,4 +409,5 @@ attempt to simplify its analysis by hooking complex library functions with
 SimProcedures that summarize the effects of the functions.
 
 In order to see all the things you can do with the CLE loader and its backends,
-look at the `CLE API docs. <http://angr.io/api-doc/cle.html>`_
+look at the `CLE API docs.
+<https://docs.angr.io/projects/cle/en/latest/api.html>`_
