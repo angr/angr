@@ -171,6 +171,22 @@ class LiveDefinitions:
 
         self.uses_by_codeloc: Dict[CodeLocation, Set[Definition]] = defaultdict(set)
 
+    @property
+    def registers(self) -> MultiValuedMemory:
+        return self.register_definitions
+
+    @property
+    def stack(self) -> MultiValuedMemory:
+        return self.stack_definitions
+
+    @property
+    def memory(self) -> MultiValuedMemory:
+        return self.memory_definitions
+
+    @property
+    def heap(self) -> MultiValuedMemory:
+        return self.heap_definitions
+
     def __repr__(self):
         ctnt = "LiveDefs"
         if self.tmps:
