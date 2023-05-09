@@ -606,6 +606,12 @@ class LiveDefinitions:
     def get_value_from_definition(self, definition: Definition) -> Optional[MultiValues]:
         return self.get_value_from_atom(definition.atom)
 
+    def get_one_value_from_definition(self, definition: Definition) -> Optional[claripy.ast.base.Base]:
+        return self.get_one_value_from_atom(definition.atom)
+
+    def get_concrete_value_from_definition(self, definition: Definition) -> Optional[int]:
+        return self.get_concrete_value_from_atom(definition.atom)
+
     def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
         if isinstance(atom, Register):
             try:
@@ -634,6 +640,18 @@ class LiveDefinitions:
                 return None
         else:
             return None
+
+    def get_one_value_from_atom(self, atom: Atom) -> Optional[claripy.ast.base.Base]:
+        r = self.get_value_from_atom(atom)
+        if r is None:
+            raise ValueError("Cannot get one value from %s: load failed" % atom)
+        return r.one_value()
+
+    def get_concrete_value_from_atom(self, atom: Atom) -> Optional[int]:
+        r = self.get_one_value_from_atom(atom)
+        if r is None:
+            raise ValueError("Cannot get concrete value from %s: multivalued" % atom)
+        return r.concrete_value
 
     def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
         # get all current definitions
