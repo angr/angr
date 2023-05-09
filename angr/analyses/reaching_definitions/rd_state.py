@@ -603,7 +603,7 @@ class ReachingDefinitionsState:
         result = set()
         for vs in pointer.values():
             for value in vs:
-                atom = self.pointer_to_atom(value)
+                atom = self.pointer_to_atom(value, size, endness)
                 if atom is not None:
                     result.add(atom)
 
