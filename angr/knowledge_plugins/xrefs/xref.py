@@ -53,10 +53,19 @@ class XRef(Serializable):
         return XRefType.to_string(self.type)
 
     def __repr__(self):
+        if self.dst is not None:
+            if isinstance(self.dst, int):
+                dst_str = hex(self.dst)
+            else:
+                dst_str = str(self.dst)
+        elif self.memory_data is not None:
+            dst_str = hex(self.memory_data.addr)
+        else:
+            dst_str = "unknown"
         return "<XRef {}: {}->{}>".format(
             self.type_string,
             "%#x" % self.ins_addr if self.ins_addr is not None else "%#x[%d]" % (self.block_addr, self.stmt_idx),
-            "%s" % self.dst if self.dst is not None else "%#x" % (self.memory_data.addr),
+            dst_str,
         )
 
     def __eq__(self, other):
