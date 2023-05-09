@@ -842,7 +842,10 @@ class CFGModel(Serializable):
                 string_data = data if zero_pos is None else data[:zero_pos]
                 if content_holder is not None:
                     content_holder.append(string_data)
-                return MemoryDataSort.String, min(len(string_data) + 1, 1024)
+                string_len = len(string_data)
+                if zero_pos:
+                    string_len += 1
+                return MemoryDataSort.String, min(string_len, 1024)
 
         if data_type_guessing_handlers:
             for handler in data_type_guessing_handlers:
