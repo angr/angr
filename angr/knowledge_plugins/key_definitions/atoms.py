@@ -109,7 +109,7 @@ class Atom:
         elif isinstance(thing, RegisterOffset):
             reg_offset = thing
             if size is None:
-                raise ValueError(f"You must provide a size when specifying the register offset")
+                raise ValueError("You must provide a size when specifying the register offset")
         else:
             raise TypeError(
                 "Unsupported type of register. It must be a string (for register name) or an int (for "
