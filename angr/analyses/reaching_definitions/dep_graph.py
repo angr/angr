@@ -332,7 +332,20 @@ class DepGraph:
     ) -> Optional[Tuple[Definition, ...]]:
         """
         Find a path between the given start node or nodes and the given end node or nodes.
-        All the intermeidate steps in the path must match the criteria given in kwargs.
+        All the intermediate steps in the path must match the criteria given in kwargs.
+        The kwargs can be any valid parameters to `DefinitionMatchPredicate`.
+
+        This algorithm has exponential time and space complexity. Use at your own risk.
+        Want to do better? Do it yourself or use networkx and eat the cost of indirection and/or cloning.
+        """
+        return next(self.find_paths(starts, ends, **kwargs), None)
+
+    def find_paths(
+        self, starts: Union[Definition, Iterable[Definition]], ends: Union[Definition, Iterable[Definition]], **kwargs
+    ) -> Iterable[Tuple[Definition, ...]]:
+        """
+        Find all non-overlapping simple paths between the given start node or nodes and the given end node or nodes.
+        All the intermediate steps in the path must match the criteria given in kwargs.
         The kwargs can be any valid parameters to `DefinitionMatchPredicate`.
 
         This algorithm has exponential time and space complexity. Use at your own risk.
@@ -345,12 +358,12 @@ class DepGraph:
         while queue:
             path = queue.pop()
             for succ in self.graph.succ[path[-1]]:
-                if succ in seen:
-                    continue
-                seen.add(succ)
                 newpath = path + (succ,)
                 if succ in ends:
-                    return newpath
+                    yield newpath
+                elif succ in seen:
+                    continue
+
+                seen.add(succ)
                 if predicate.matches(succ):
                     queue.append(newpath)
-        return None

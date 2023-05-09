@@ -152,12 +152,6 @@ class SimProcedure:
             charp = SimTypePointer(SimTypeChar())
             self.prototype = SimTypeFunction([charp] * self.num_args, charp)
             self.guessed_prototype = True
-            if not self.is_stub:
-                l.error(
-                    "You need to instantiate SimProcedures with a prototype. "
-                    "It will attempt to guess one but the consequences of guessing wrong are dire."
-                )
-                l.error("Consider also using angr.SIM_LIBRARIES instead of angr.SIM_PROCEDURES or angr.procedures.")
         else:
             self.guessed_prototype = False
 
