@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Tuple, Any, TYPE_CHECKING, Iterator
+from typing import Optional, Iterable, Set, Tuple, Any, TYPE_CHECKING, Iterator, Union
 import logging
 
 import archinfo
@@ -556,8 +556,23 @@ class ReachingDefinitionsState:
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         yield from self.live_definitions.get_definitions(atom)
 
-    def get_values(self, atom: Atom) -> Optional[MultiValues]:
-        return self.live_definitions.get_value_from_atom(atom)
+    def get_values(self, spec: Union[Atom, Definition]) -> Optional[MultiValues]:
+        if isinstance(spec, Atom):
+            return self.live_definitions.get_value_from_atom(spec)
+        else:
+            return self.live_definitions.get_value_from_definition(spec)
+
+    def get_one_value(self, spec: Union[Atom, Definition]) -> Optional[claripy.ast.base.Base]:
+        if isinstance(spec, Atom):
+            return self.live_definitions.get_one_value_from_atom(spec)
+        else:
+            return self.live_definitions.get_one_value_from_definition(spec)
+
+    def get_concrete_value(self, spec: Union[Atom, Definition]) -> Optional[int]:
+        if isinstance(spec, Atom):
+            return self.live_definitions.get_concrete_value_from_atom(spec)
+        else:
+            return self.live_definitions.get_concrete_value_from_definition(spec)
 
     def mark_guard(self, target):
         atom = GuardUse(target)
@@ -580,7 +595,7 @@ class ReachingDefinitionsState:
     def downsize(self):
         self.all_definitions = set()
 
-    def pointer_to_atoms(self, pointer: MultiValues, size: int, endness: str) -> Set[Atom]:
+    def pointer_to_atoms(self, pointer: MultiValues, size: int, endness: str) -> Set[MemoryLocation]:
         """
         Given a MultiValues, return the set of atoms that loading or storing to the pointer with that value
         could define or use.
@@ -588,24 +603,28 @@ class ReachingDefinitionsState:
         result = set()
         for vs in pointer.values():
             for value in vs:
-                if self.is_top(value):
-                    continue
-
-                # TODO this can be simplified with the walrus operator
-                stack_offset = self.get_stack_offset(value)
-                if stack_offset is not None:
-                    addr = SpOffset(value.size() * 8, stack_offset)
-                else:
-                    heap_offset = self.get_heap_offset(value)
-                    if heap_offset is not None:
-                        addr = HeapAddress(heap_offset)
-                    elif value.op == "BVV":
-                        addr = value.args[0]
-                    else:
-                        # cannot resolve
-                        continue
-
-                atom = MemoryLocation(addr, size, endness)
-                result.add(atom)
+                atom = self.pointer_to_atom(value, size, endness)
+                if atom is not None:
+                    result.add(atom)
 
         return result
+
+    def pointer_to_atom(self, value: claripy.ast.base.Base, size: int, endness: str) -> Optional[MemoryLocation]:
+        if self.is_top(value):
+            return None
+
+        # TODO this can be simplified with the walrus operator
+        stack_offset = self.get_stack_offset(value)
+        if stack_offset is not None:
+            addr = SpOffset(len(value), stack_offset)
+        else:
+            heap_offset = self.get_heap_offset(value)
+            if heap_offset is not None:
+                addr = HeapAddress(heap_offset)
+            elif value.op == "BVV":
+                addr = value.args[0]
+            else:
+                # cannot resolve
+                return None
+
+        return MemoryLocation(addr, size, endness)
