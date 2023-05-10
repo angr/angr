@@ -53,6 +53,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         :param irsb: Block to be executed.
         """
         self.irsb = irsb
+
         # Hack on a handler here to track whether exit has been handled or not
         # FIXME: Vex models this as a known exit statement, which we should also
         # do here. For now, handle it this way.
@@ -226,9 +227,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         Execute the unary behavior of the current op.
         """
         in1 = self._get_value(self._current_op.inputs[0])
-        l.debug("in1 = %s", in1)
         out = self._current_behavior.evaluate_unary(self._current_op.output.size, self._current_op.inputs[0].size, in1)
-        l.debug("out unary = %s", out)
         self._set_value(self._current_op.output, out)
 
     def _execute_binary(self) -> None:
@@ -237,12 +236,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         in1 = self._get_value(self._current_op.inputs[0])
         in2 = self._get_value(self._current_op.inputs[1])
-        l.debug("in1 = %s", in1)
-        l.debug("in2 = %s", in2)
         out = self._current_behavior.evaluate_binary(
             self._current_op.output.size, self._current_op.inputs[0].size, in1, in2
         )
-        l.debug("out binary = %s", out)
         self._set_value(self._current_op.output, out)
 
     def _execute_load(self) -> None:
