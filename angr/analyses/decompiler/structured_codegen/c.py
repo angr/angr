@@ -325,6 +325,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         "variable_manager",
         "demangled_name",
         "unified_local_vars",
+        "show_demangled_name"
     )
 
     def __init__(
@@ -337,6 +338,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         variables_in_use,
         variable_manager,
         demangled_name=None,
+        show_demangled_name=True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -350,6 +352,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.variable_manager: "VariableManagerInternal" = variable_manager
         self.demangled_name = demangled_name
         self.unified_local_vars: Dict[SimVariable, Set[Tuple[CVariable, SimType]]] = self.get_unified_local_vars()
+        self.show_demangled_name = show_demangled_name
 
     def get_unified_local_vars(self) -> Dict[SimVariable, Set[Tuple["CVariable", SimType]]]:
         unified_to_var_and_types: Dict[SimVariable, Set[Tuple[CVariable, SimType]]] = defaultdict(set)
@@ -524,7 +527,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield self.functy.returnty.c_repr(name="").strip(" "), None
         yield " ", None
         # function name
-        if self.demangled_name:
+        if self.demangled_name and self.show_demangled_name:
             normalized_name = get_cpp_function_name(self.demangled_name, specialized=False, qualified=False)
         else:
             normalized_name = self.name
@@ -1116,6 +1119,7 @@ class CFunctionCall(CStatement, CExpression):
         "ret_expr",
         "tags",
         "is_expr",
+        "show_demangled_name",
     )
 
     def __init__(
@@ -1127,6 +1131,7 @@ class CFunctionCall(CStatement, CExpression):
         ret_expr=None,
         tags=None,
         is_expr: bool = False,
+        show_demangled_name=True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -1138,6 +1143,7 @@ class CFunctionCall(CStatement, CExpression):
         self.ret_expr = ret_expr
         self.tags = tags
         self.is_expr = is_expr
+        self.show_demangled_name = show_demangled_name
 
     @property
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
@@ -1168,7 +1174,7 @@ class CFunctionCall(CStatement, CExpression):
             yield " = ", None
 
         if self.callee_func is not None:
-            if self.callee_func.demangled_name:
+            if self.callee_func.demangled_name and self.show_demangled_name:
                 func_name = get_cpp_function_name(self.callee_func.demangled_name, specialized=False, qualified=True)
             else:
                 func_name = self.callee_func.name
@@ -2097,6 +2103,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         show_externs=True,
         externs=None,
         const_formats=None,
+        show_demangled_name=True,
     ):
         super().__init__(flavor=flavor)
 
@@ -2157,6 +2164,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.const_formats: Dict[Any, Dict[str, Any]] = const_formats if const_formats is not None else {}
         self.externs = externs or set()
         self.show_externs = show_externs
+        self.show_demangled_name = show_demangled_name
 
         self.text = None
         self.map_pos_to_node = None
@@ -2186,6 +2194,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.show_local_types = value
             elif option.param == "show_externs":
                 self.show_externs = value
+            elif option.param == "show_demangled_name":
+                self.show_demangled_name = value
 
     def _analyze(self):
         self._variables_in_use = {}
@@ -2236,6 +2246,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         """
         Re-render text and re-generate all sorts of mapping information.
         """
+        self.cfunc.show_demangled_name = self.show_demangled_name
         self.cleanup()
         (
             self.text,

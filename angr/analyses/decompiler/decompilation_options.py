@@ -147,6 +147,16 @@ options = [
         clears_cache=False,
     ),
     O(
+        "Show demangled name",
+        "Demangles names in higher-level languages like C++",
+        bool,
+        "codegen",
+        "show_demangled_name",
+        category="Display",
+        default_value=True,
+        clears_cache=False,
+    ),
+    O(
         "Structuring algorithm",
         "Select a structuring algorithm. Currently supports Dream and Phoenix.",
         type,
