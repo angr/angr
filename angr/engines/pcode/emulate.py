@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Optional
 
 from pypcode import OpCode, Varnode, PcodeOp, Translation
 import claripy
@@ -21,8 +21,9 @@ class PcodeEmulatorMixin(SimEngineBase):
     Mixin for p-code execution.
     """
 
-    _current_op: Union[PcodeOp, None]
-    _current_behavior: Union[OpBehavior, None]
+    _current_op: Optional[PcodeOp]
+    _current_op_idx: int
+    _current_behavior: Optional[OpBehavior]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -61,13 +62,14 @@ class PcodeEmulatorMixin(SimEngineBase):
         self.state.scratch.ins_addr = self.irsb.addr
         last_imark_op_idx = 0
 
-        # FIXME: Handle statement offset correctly
         offset = self.state.scratch.statement_offset
+        assert offset == 0, "FIXME: Handle statement offset correctly"
         self.state.scratch.statement_offset = 0
 
         # FIXME: Shouldn't use protected members of IRSB
         for op_idx, op in enumerate(irsb._ops):
             self._current_op = op
+            self._current_op_idx = op_idx - last_imark_op_idx
             if op.opcode == OpCode.IMARK:
                 decode_addr = op.inputs[0].offset
                 l.debug("Executing machine instruction @ %#x", decode_addr)
@@ -281,7 +283,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         dest = self._current_op.inputs[0]
         if dest.space.name == "const":
             expr = self.state.scratch.ins_addr
-            self.state.scratch.statement_offset = dest.offset + self._current_op.seq.uniq
+            self.state.scratch.statement_offset = self._current_op_idx + dest.offset
         else:
             expr = dest.offset
 
@@ -306,7 +308,7 @@ class PcodeEmulatorMixin(SimEngineBase):
 
         if dest.space.name == "const":
             expr = exit_state.scratch.ins_addr
-            exit_state.scratch.statement_offset = dest.offset + self._current_op.seq.uniq
+            exit_state.scratch.statement_offset = self._current_op_idx + dest.offset
         else:
             expr = dest.offset
 
