@@ -378,6 +378,9 @@ class FunctionHandler:
     @staticmethod
     def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
         if not prototype.variadic:
+            if None in cc.arg_locs(prototype):
+                return []
+
             return [
                 {Atom.from_argument(footprint_arg, state.arch, full_reg=True) for footprint_arg in arg.get_footprint()}
                 for arg in cc.arg_locs(prototype)

@@ -662,10 +662,11 @@ class SimCC:
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
         if isinstance(ty, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
-            raise TypeError(
-                f"{self} doesn't know how to return aggregate types. Consider overriding return_val to "
-                "implement its ABI logic"
-            )
+            #raise TypeError(
+            #    f"{self} doesn't know how to return aggregate types. Consider overriding return_val to "
+            #    "implement its ABI logic"
+            #)
+            return None
         if self.return_in_implicit_outparam(ty):
             if perspective_returned:
                 ptr_loc = self.RETURN_VAL
@@ -695,10 +696,11 @@ class SimCC:
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
-            raise TypeError(
-                f"{self} doesn't know how to store aggregate types. Consider overriding next_arg to "
-                "implement its ABI logic"
-            )
+            #raise TypeError(
+            #    f"{self} doesn't know how to store aggregate types. Consider overriding next_arg to "
+            #    "implement its ABI logic"
+            #)
+            return None
         if isinstance(arg_type, SimTypeBottom):
             # This is usually caused by failures or mistakes during type inference
             l.warning("Function argument type cannot be BOT. Treating it as a 32-bit int.")
