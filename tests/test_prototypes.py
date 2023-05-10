@@ -4,6 +4,7 @@ import os
 import angr
 import angr.calling_conventions
 
+from angr.sim_type import SimTypePointer
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
@@ -30,6 +31,15 @@ def test_find_prototype():
     assert len(arg_locs) == 2
     assert arg_locs[0].reg_name == "rdi"
     assert arg_locs[1].reg_name == "rsi"
+
+def test_cpp_void_pointer():
+    proj = angr.Project(os.path.join(test_location, "x86_64", "void_pointer"), auto_load_libs=False)
+
+    cfg = proj.analyses.CFG()
+    proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
+
+    func = cfg.kb.functions.function(name="_ZdlPvm", plt=True)
+    assert isinstance(func.prototype.args[0], SimTypePointer)
 
 
 def main():
