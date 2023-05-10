@@ -37,7 +37,6 @@ class RemoveRedundantITEComparisons(PeepholeOptimizationExprBase):
             inner_expr = None
 
         if inner_expr is not None and isinstance(inner_expr, ITE):
-            breakpoint()
             a, b = inner_expr.iftrue, inner_expr.iffalse
             if isinstance(expr.operands[1], Const):
                 if isinstance(a, Const) and a.value == expr.operands[1].value:
