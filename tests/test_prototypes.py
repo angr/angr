@@ -5,6 +5,7 @@ import angr
 import angr.calling_conventions
 
 from angr.sim_type import SimTypePointer
+
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
@@ -31,6 +32,7 @@ def test_find_prototype():
     assert len(arg_locs) == 2
     assert arg_locs[0].reg_name == "rdi"
     assert arg_locs[1].reg_name == "rsi"
+
 
 def test_cpp_void_pointer():
     proj = angr.Project(os.path.join(test_location, "x86_64", "void_pointer"), auto_load_libs=False)
