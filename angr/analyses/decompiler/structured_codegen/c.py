@@ -2221,6 +2221,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self._variables_in_use,
             self._variable_kb.variables[self._func.addr],
             demangled_name=self._func.demangled_name,
+            show_demangled_name=self.show_demangled_name,
             codegen=self,
         )
         self.cfunc = FieldReferenceCleanup.handle(self.cfunc)
@@ -2921,6 +2922,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             ret_expr=ret_expr,
             tags=stmt.tags,
             is_expr=is_expr,
+            show_demangled_name=self.show_demangled_name,
             codegen=self,
         )
 
