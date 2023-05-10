@@ -440,7 +440,10 @@ class ReachingDefinitionsAnalysis(
 
     def callsites_to(self, target: Union[int, str, Function]) -> Iterable[FunctionCallRelationships]:
         if isinstance(target, (str, int)):
-            func_addr = self.project.kb.functions[target].addr
+            try:
+                func_addr = self.project.kb.functions[target].addr
+            except KeyError:
+                return
         elif isinstance(target, Function):
             func_addr = target.addr
         else:
