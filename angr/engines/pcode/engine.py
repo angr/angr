@@ -205,10 +205,47 @@ class HeavyPcodeMixin(
                     ret_reg = cc.RETURN_VAL
                     if isinstance(ret_reg, SimRegArg):
                         ret_offset = exit_state.arch.registers[ret_reg.reg_name][0]
+                        # Modified by Hongwei
+                        try:
+                            target_func_call_addr = exit_state.addr
+                            call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
+
+                            # Get function arguments from sypy_path plugin
+                            # function_info: {func_call_addr: {'func_name': func_name, 'func_obj': func_obj}
+                            assert target_func_call_addr in exit_state.sypy_path.function_info
+                            target_func_name = exit_state.sypy_path.function_info[target_func_call_addr]['func_name']
+                        except:
+                            # Handle indirect function call
+                            target_func_name = "Func_indirect_call" + str(exit_state.ip)
+                            call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
+
+                        # function_calls: {func_name: {call_insn_addr: [[arg1, arg2, ...], [arg1, arg2, ...], ...]}
+                        # Same function call at the same address could have different list of arguments in mutiple paths,
+                        # We take the last one
+                        assert call_insn_addr in exit_state.sypy_path.function_calls[target_func_name]
+                        target_func_args = exit_state.sypy_path.function_calls[target_func_name][call_insn_addr][-1]
+
+                        # Add dummy argument when generating function AST
+                        claripy_func_args = [target_func_name] + target_func_args
+                        target_func_ast = claripy.ast.func.Func(op=target_func_name,
+                                                                args=claripy_func_args,
+                                                                _ret_size=exit_state.arch.bits)
+                        target_func_ast_result = target_func_ast.func_op(*claripy_func_args)
+
+                        # Remove dummy argument
+                        if len(target_func_ast_result.args) > 0 and target_func_name in str(target_func_ast_result.args[0]):
+                            target_func_ast_result.args = target_func_ast_result.args[1:]
+
+                        print("HEAVY, func call: ", target_func_ast_result)
                         exit_state.registers.store(
                             ret_offset,
-                            exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits),
+                            target_func_ast_result
                         )
+                        # exit_state.registers.store(
+                        #     ret_offset,
+                        #     exit_state.solver.Unconstrained("fake_ret_value", exit_state.arch.bits),
+                        # )
+                        # End of modification by Hongwei
                     else:
                         if once("return_val_is_not_reg"):
                             l.warning(
