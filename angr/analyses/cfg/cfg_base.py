@@ -997,6 +997,10 @@ class CFGBase(Analysis):
         :rtype:                 bool or None
         """
 
+        if not self._inside_regions(func.addr):
+            # we don't have a full view of this function. assume it returns
+            return True
+
         # If there is at least one return site, then this function is definitely returning
         if func.has_return:
             return True
