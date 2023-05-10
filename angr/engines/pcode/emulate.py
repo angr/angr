@@ -1,6 +1,7 @@
 import logging
 from typing import Union
 
+import pypcode.pypcode
 from pypcode import OpCode, Varnode, PcodeOp, Translation
 import claripy
 from claripy.ast.bv import BV
@@ -21,13 +22,11 @@ class PcodeEmulatorMixin(SimEngineBase):
     Mixin for p-code execution.
     """
 
-    _current_ins: Union[Translation, None]
     _current_op: Union[PcodeOp, None]
     _current_behavior: Union[OpBehavior, None]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._current_ins = None
         self._current_op = None
         self._current_behavior = None
         self._special_op_handlers = {
@@ -49,7 +48,7 @@ class PcodeEmulatorMixin(SimEngineBase):
 
     def handle_pcode_block(self, irsb: IRSB) -> None:
         """
-        Execute a single IRSB.
+        Execute a single P-Code IRSB.
 
         :param irsb: Block to be executed.
         """
@@ -60,31 +59,38 @@ class PcodeEmulatorMixin(SimEngineBase):
         self.state.scratch.exit_handled = False
 
         fallthru_addr = None
-        for i, ins in enumerate(irsb._instructions):
-            l.debug(
-                "Executing machine instruction @ %#x (%d of %d)", ins.address.offset, i + 1, len(irsb._instructions)
-            )
+        self.state.scratch.ins_addr = self.irsb.addr
+        last_imark_op_idx = 0
 
-            # Execute a single instruction of the emulated machine
-            self._current_ins = ins
-            self.state.scratch.ins_addr = self._current_ins.address.offset
+        # FIXME: Handle statement offset correctly
+        offset = self.state.scratch.statement_offset
+        self.state.scratch.statement_offset = 0
 
-            # FIXME: Hacking this on here but ideally should use "scratch".
-            self._pcode_tmps = {}  # FIXME: Consider alignment requirements
+        # FIXME: Shouldn't use protected members of IRSB
+        for op_idx, op in enumerate(irsb._ops):
+            self._current_op = op
+            if op.opcode == OpCode.IMARK:
+                decode_addr = op.inputs[0].offset
+                l.debug("Executing machine instruction @ %#x", decode_addr)
+                last_imark_op_idx = op_idx
+                for vn in op.inputs:
+                    self.state._inspect("instruction", BP_BEFORE, instruction=vn.offset)
+                fallthru_addr = op.inputs[-1].offset + op.inputs[-1].size
 
-            self.state._inspect("instruction", BP_BEFORE, instruction=self._current_ins.address.offset)
-            offset = self.state.scratch.statement_offset
-            self.state.scratch.statement_offset = 0
-            for op in self._current_ins.ops[offset:]:
-                self._current_op = op
-                self._current_behavior = irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
-                l.debug("Executing p-code op: %s", self._current_op)
-                self._execute_current_op()
-            self.state._inspect("instruction", BP_AFTER)
+                # FIXME: Hacking this on here but ideally should use "scratch".
+                self._pcode_tmps = {}  # FIXME: Consider alignment requirements
+                self.state.scratch.ins_addr = decode_addr
+                continue
+
+            l.debug("Executing p-code op: %s", self._current_op)
+            self._current_behavior = irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
+            self._execute_current_op()
+
+            # FIXME: Handle inspection after all statements are executed
+            # self.state._inspect("instruction", BP_AFTER)
 
             self._current_op = None
             self._current_behavior = None
-            fallthru_addr = ins.address.offset + ins.length
 
         if not self.state.scratch.exit_handled:
             self.successors.add_successor(

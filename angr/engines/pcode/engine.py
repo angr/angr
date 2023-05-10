@@ -23,7 +23,7 @@ class HeavyPcodeMixin(
     PcodeEmulatorMixin,
 ):
     """
-    Execution engine based on P-code, Ghidra's IR.
+    P-Code Execution Engine.
 
     Responds to the following parameters to the step stack:
 
