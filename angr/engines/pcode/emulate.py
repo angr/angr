@@ -1,7 +1,6 @@
 import logging
 from typing import Union
 
-import pypcode.pypcode
 from pypcode import OpCode, Varnode, PcodeOp, Translation
 import claripy
 from claripy.ast.bv import BV
@@ -124,7 +123,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         # FIXME: Will need performance optimization
         # FIXME: Should not get trans object this way. There should be a faster mapping method than going through trans
-        reg_name = varnode.get_register_name()
+        reg_name = varnode.getRegisterName()
         try:
             reg_offset = self.state.project.arch.get_register_offset(reg_name.lower())
             l.debug("Mapped register '%s' to offset %x", reg_name, reg_offset)
@@ -248,7 +247,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code load operation.
         """
-        spc = self._current_op.inputs[0].get_space_from_const()
+        spc = self._current_op.inputs[0].getSpaceFromConst()
         off = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
         if spc.name in ("ram", "mem"):
@@ -264,7 +263,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code store operation.
         """
-        spc = self._current_op.inputs[0].get_space_from_const()
+        spc = self._current_op.inputs[0].getSpaceFromConst()
         off = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
         l.debug("Storing %s at offset %s", data, off)
@@ -279,12 +278,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code branch operation.
         """
-        dest_addr = self._current_op.inputs[0].get_addr()
-        if dest_addr.is_constant:
+        dest = self._current_op.inputs[0]
+        if dest.space.name == "const":
             expr = self.state.scratch.ins_addr
-            self.state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
+            self.state.scratch.statement_offset = dest.offset + self._current_op.seq.uniq
         else:
-            expr = dest_addr.offset
+            expr = dest.offset
 
         self.successors.add_successor(
             self.state,
@@ -303,13 +302,13 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         exit_state = self.state.copy()
         cond = self._get_value(self._current_op.inputs[1])
-        dest_addr = self._current_op.inputs[0].get_addr()
+        dest = self._current_op.inputs[0]
 
-        if dest_addr.is_constant:
+        if dest.space.name == "const":
             expr = exit_state.scratch.ins_addr
-            exit_state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
+            exit_state.scratch.statement_offset = dest.offset + self._current_op.seq.uniq
         else:
-            expr = dest_addr.offset
+            expr = dest.offset
 
         self.successors.add_successor(
             exit_state,
@@ -329,11 +328,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code return operation.
         """
-        ret_addr = self._get_value(self._current_op.inputs[0])
-
         self.successors.add_successor(
             self.state,
-            ret_addr,
+            self._get_value(self._current_op.inputs[0]),
             self.state.scratch.guard,
             "Ijk_Ret",
             exit_stmt_idx=DEFAULT_STATEMENT,
@@ -346,11 +343,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code indirect branch operation.
         """
-        expr = self._get_value(self._current_op.inputs[0])
-
         self.successors.add_successor(
             self.state,
-            expr,
+            self._get_value(self._current_op.inputs[0]),
             self.state.scratch.guard,
             "Ijk_Boring",
             exit_stmt_idx=DEFAULT_STATEMENT,
@@ -363,11 +358,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code call operation.
         """
-        expr = self._current_op.inputs[0].get_addr().offset
-
         self.successors.add_successor(
             self.state.copy(),  # FIXME: Check extra processing after call
-            expr,
+            self._current_op.inputs[0].offset,
             self.state.scratch.guard,
             "Ijk_Call",
             exit_stmt_idx=DEFAULT_STATEMENT,
