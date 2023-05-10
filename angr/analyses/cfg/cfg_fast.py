@@ -1269,6 +1269,12 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 pass
             else:
                 # it's outside permitted regions. skip.
+                if job.jumpkind == "Ijk_Call":
+                    # still add call edges so we will not lose track of the functions later, especially in decompiler
+                    _, _, cfg_node, _ = self._generate_cfgnode(job, job.func_addr)
+                    if cfg_node is not None:
+                        self._graph_add_edge(cfg_node, job.src_node, job.jumpkind, job.src_ins_addr, job.src_stmt_idx)
+                    job.apply_function_edges(self, clear=True)
                 raise AngrSkipJobNotice()
 
         # Do not calculate progress if the user doesn't care about the progress at all
