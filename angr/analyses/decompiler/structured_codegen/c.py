@@ -325,7 +325,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         "variable_manager",
         "demangled_name",
         "unified_local_vars",
-        "show_demangled_name"
+        "show_demangled_name",
     )
 
     def __init__(
