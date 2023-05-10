@@ -2091,7 +2091,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cfg=None,
         variable_kb=None,
         func_args: Optional[List[SimVariable]] = None,
-        binop_depth_cutoff: int = 16,
+        binop_depth_cutoff: int = 128,
         show_casts=True,
         braces_on_own_lines=True,
         use_compound_assignments=True,
