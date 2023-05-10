@@ -16,6 +16,7 @@ from .. import register_analysis
 from .reaching_definitions import ReachingDefinitionsAnalysis, ReachingDefinitionsModel
 from .function_handler import FunctionHandler, FunctionCallData
 from .external_codeloc import ExternalCodeLocation
+from .rd_state import ReachingDefinitionsState
 
 if TYPE_CHECKING:
     from angr.storage.memory_object import SimMemoryObject
@@ -35,6 +36,7 @@ __all__ = (
     "Definition",
     "ReachingDefinitionsAnalysis",
     "ReachingDefinitionsModel",
+    "ReachingDefinitionsState",
     "FunctionHandler",
     "FunctionCallData",
     "get_all_definitions",
