@@ -58,41 +58,47 @@ class PcodeEmulatorMixin(SimEngineBase):
         # FIXME: Vex models this as a known exit statement, which we should also
         # do here. For now, handle it this way.
         self.state.scratch.exit_handled = False
+        self._pcode_tmps = {}
 
-        fallthru_addr = None
+        fallthru_addr = self.irsb.addr
         self.state.scratch.ins_addr = self.irsb.addr
         last_imark_op_idx = 0
 
-        offset = self.state.scratch.statement_offset
-        assert offset == 0, "FIXME: Handle statement offset correctly"
+        # Note: start_op_idx is instruction relative
+        start_op_idx = self.state.scratch.statement_offset
         self.state.scratch.statement_offset = 0
+        assert start_op_idx == 0, "FIXME: Test statement_offset behavior"
 
-        # FIXME: Shouldn't use protected members of IRSB
-        for op_idx, op in enumerate(irsb._ops):
-            self._current_op = op
-            self._current_op_idx = op_idx - last_imark_op_idx
+        for op_idx, op in enumerate(irsb._ops[start_op_idx:]):  # FIXME: Shouldn't use protected members of IRSB
+            op_idx += start_op_idx
+
             if op.opcode == OpCode.IMARK:
+                if op_idx > 0:
+                    # Trigger BP for previous instruction once we reach next IMARK
+                    self.state._inspect("instruction", BP_AFTER)
+
                 decode_addr = op.inputs[0].offset
-                l.debug("Executing machine instruction @ %#x", decode_addr)
                 last_imark_op_idx = op_idx
+
+                # Note: instruction BP will not be triggered on p-code-relative jumps
+                l.debug("Executing machine instruction @ %#x", decode_addr)
                 for vn in op.inputs:
                     self.state._inspect("instruction", BP_BEFORE, instruction=vn.offset)
-                fallthru_addr = op.inputs[-1].offset + op.inputs[-1].size
 
                 # FIXME: Hacking this on here but ideally should use "scratch".
                 self._pcode_tmps = {}  # FIXME: Consider alignment requirements
                 self.state.scratch.ins_addr = decode_addr
+                fallthru_addr = op.inputs[-1].offset + op.inputs[-1].size
                 continue
 
-            l.debug("Executing p-code op: %s", self._current_op)
-            self._current_behavior = irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
+            self._current_op = op
+            self._current_op_idx = op_idx - last_imark_op_idx
+            l.debug("Executing P-Code op: %s", self._current_op)
             self._execute_current_op()
-
-            # FIXME: Handle inspection after all statements are executed
-            # self.state._inspect("instruction", BP_AFTER)
-
             self._current_op = None
-            self._current_behavior = None
+
+        if self.state.scratch.statement_offset == 0:
+            self.state._inspect("instruction", BP_AFTER)
 
         if not self.state.scratch.exit_handled:
             self.successors.add_successor(
@@ -108,7 +114,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute the current p-code operation.
         """
-        assert self._current_behavior is not None
+        self._current_behavior = self.irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
 
         if self._current_behavior.is_special:
             self._special_op_handlers[self._current_behavior.opcode]()
@@ -116,6 +122,8 @@ class PcodeEmulatorMixin(SimEngineBase):
             self._execute_unary()
         else:
             self._execute_binary()
+       
+        self._current_behavior = None
 
     def _map_register_name(self, varnode: Varnode) -> int:
         """
@@ -278,6 +286,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         dest = self._current_op.inputs[0]
         if dest.space.name == "const":
+            # P-Code-relative branch
             expr = self.state.scratch.ins_addr
             self.state.scratch.statement_offset = self._current_op_idx + dest.offset
         else:
@@ -303,6 +312,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         dest = self._current_op.inputs[0]
 
         if dest.space.name == "const":
+            # P-Code-relative branch
             expr = exit_state.scratch.ins_addr
             exit_state.scratch.statement_offset = self._current_op_idx + dest.offset
         else:
