@@ -2247,7 +2247,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         """
         Re-render text and re-generate all sorts of mapping information.
         """
-        self.cfunc.show_demangled_name = self.show_demangled_name
         self.cleanup()
         (
             self.text,

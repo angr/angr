@@ -154,7 +154,7 @@ options = [
         "show_demangled_name",
         category="Display",
         default_value=True,
-        clears_cache=False,
+        clears_cache=True,
     ),
     O(
         "Structuring algorithm",
