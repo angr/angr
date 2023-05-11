@@ -169,27 +169,26 @@ class PcodeEmulatorMixin(SimEngineBase):
         :param varnode: Varnode to store into.
         :param value:   Value to store.
         """
-        space_name = varnode.space.name
-
         # FIXME: Consider moving into behavior.py
         value = self._adjust_value_size(varnode.size * 8, value)
         assert varnode.size * 8 == value.size()
 
-        l.debug("Storing %s %x %s %d", space_name, varnode.offset, value, varnode.size)
-        if space_name == "register":
+        space = varnode.space
+        l.debug("Storing %s %x %s %d", space.name, varnode.offset, value, varnode.size)
+        if space.name == "register":
             self.state.registers.store(
                 self._map_register_name(varnode), value, size=varnode.size, endness=self.project.arch.register_endness
             )
 
-        elif space_name == "unique":
+        elif space.name == "unique":
             self._pcode_tmps[varnode.offset] = value
 
-        elif space_name in ("ram", "mem"):
+        elif space.name in ("ram", "mem"):
             l.debug("Storing %s to offset %s", value, varnode.offset)
             self.state.memory.store(varnode.offset, value, endness=self.project.arch.memory_endness)
 
         else:
-            raise AngrError(f"Attempted write to unhandled address space '{space_name}'")
+            raise AngrError(f"Attempted write to unhandled address space '{space.name}'")
 
     def _get_value(self, varnode: Varnode) -> BV:
         """
@@ -234,18 +233,18 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute the unary behavior of the current op.
         """
-        in1 = self._get_value(self._current_op.inputs[0])
-        out = self._current_behavior.evaluate_unary(self._current_op.output.size, self._current_op.inputs[0].size, in1)
+        in0 = self._get_value(self._current_op.inputs[0])
+        out = self._current_behavior.evaluate_unary(self._current_op.output.size, self._current_op.inputs[0].size, in0)
         self._set_value(self._current_op.output, out)
 
     def _execute_binary(self) -> None:
         """
         Execute the binary behavior of the current op.
         """
-        in1 = self._get_value(self._current_op.inputs[0])
-        in2 = self._get_value(self._current_op.inputs[1])
+        in0 = self._get_value(self._current_op.inputs[0])
+        in1 = self._get_value(self._current_op.inputs[1])
         out = self._current_behavior.evaluate_binary(
-            self._current_op.output.size, self._current_op.inputs[0].size, in1, in2
+            self._current_op.output.size, self._current_op.inputs[0].size, in0, in1
         )
         self._set_value(self._current_op.output, out)
 
@@ -253,30 +252,33 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code load operation.
         """
-        spc = self._current_op.inputs[0].getSpaceFromConst()
-        off = self._get_value(self._current_op.inputs[1])
+        space = self._current_op.inputs[0].getSpaceFromConst()
+        offset = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
-        if spc.name in ("ram", "mem"):
-            res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
-        elif spc.name in "register":
-            res = self.state.registers.load(off, size=out.size, endness=self.project.arch.register_endness)
+        if space.name in ("ram", "mem"):
+            res = self.state.memory.load(offset, out.size, endness=self.project.arch.memory_endness)
+        elif space.name in "register":
+            res = self.state.registers.load(offset, size=out.size, endness=self.project.arch.register_endness)
         else:
             raise AngrError("Load from unhandled address space")
-        l.debug("Loaded %s from offset %s", res, off)
+        l.debug("Loaded %s from offset %s", res, offset)
         self._set_value(out, res)
+
+        # CHECKME: wordsize condition in cpuid load
+
 
     def _execute_store(self) -> None:
         """
         Execute a p-code store operation.
         """
-        spc = self._current_op.inputs[0].getSpaceFromConst()
-        off = self._get_value(self._current_op.inputs[1])
+        space = self._current_op.inputs[0].getSpaceFromConst()
+        offset = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
-        l.debug("Storing %s at offset %s", data, off)
-        if spc.name in ("ram", "mem"):
-            self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
-        elif spc.name == "register":
-            self.state.registers.store(off, data, endness=self.project.arch.register_endness)
+        l.debug("Storing %s at offset %s", data, offset)
+        if space.name in ("ram", "mem"):
+            self.state.memory.store(offset, data, endness=self.project.arch.memory_endness)
+        elif space.name == "register":
+            self.state.registers.store(offset, data, endness=self.project.arch.register_endness)
         else:
             raise AngrError("Store to unhandled address space")
 
