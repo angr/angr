@@ -79,6 +79,7 @@ class FunctionCallData:
     caller_will_handle_single_ret: bool = False
     guessed_cc: bool = False
     guessed_prototype: bool = False
+    retaddr_popped: bool = False
 
     def has_clobbered(self, dest: Atom) -> bool:
         """
@@ -275,7 +276,7 @@ class FunctionHandler:
                 for reg in self.caller_saved_regs_as_atoms(state, data.cc):
                     if not data.has_clobbered(reg):
                         data.depends(reg)
-            if state.arch.call_pushes_ret:
+            if state.arch.call_pushes_ret and not data.retaddr_popped:
                 sp_atom = self.stack_pointer_as_atom(state)
                 if not data.has_clobbered(sp_atom):  # let the user override the stack pointer if they want
                     new_sp = None
