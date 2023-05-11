@@ -3039,6 +3039,13 @@ def _cpp_decl_to_type(decl: Any, extra_types: Dict[str, SimType], opaque_classes
             t = SimTypeReference(subt)
             return t
 
+        if decl.endswith("*"):
+            # pointer
+            subdecl = decl.rstrip("*").strip()
+            subt = _cpp_decl_to_type(subdecl, extra_types, opaque_classes=opaque_classes)
+            t = SimTypePointer(subt)
+            return t
+
         if decl.endswith(" const"):
             # drop const
             return _cpp_decl_to_type(decl[:-6].strip(), extra_types, opaque_classes=opaque_classes)
