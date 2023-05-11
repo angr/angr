@@ -257,10 +257,13 @@ class FunctionHandler:
         if data.name is not None and hasattr(self, f"handle_impl_{data.name}"):
             handler = getattr(self, f"handle_impl_{data.name}")
         elif data.address is not None:
-            if state.analysis.project.loader.main_object.contains_addr(data.address):
+            if (data.symbol is None and state.analysis.project.loader.main_object.contains_addr(data.address)) or (
+                data.symbol is not None and data.symbol.owner is state.analysis.project.loader.main_object
+            ):
                 handler = self.handle_local_function
             else:
                 handler = self.handle_external_function
+
         else:
             handler = self.handle_indirect_function
 
