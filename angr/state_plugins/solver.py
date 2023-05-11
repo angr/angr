@@ -1,8 +1,7 @@
-import binascii
 import functools
 import time
 import logging
-from typing import List, Type, TypeVar, overload, Optional
+from typing import List, Type, TypeVar, overload, Optional, Union
 
 from claripy import backend_manager
 
@@ -774,7 +773,11 @@ class SimSolver(SimStatePlugin):
     CastType = TypeVar("CastType", int, bytes)
 
     @staticmethod
-    def _cast_to(e, solution, cast_to: Optional[Type[CastType]]) -> CastType:
+    def _cast_to(
+        e: Union[claripy.ast.Bool, claripy.ast.BV, claripy.ast.FP],
+        solution: Union[bool, float, int],
+        cast_to: Optional[Type[CastType]],
+    ) -> CastType:
         """
         Casts a solution for the given expression to type `cast_to`.
 
@@ -798,7 +801,9 @@ class SimSolver(SimStatePlugin):
         if cast_to is bytes:
             if len(e) == 0:
                 return b""
-            return binascii.unhexlify(f"{solution:x}".zfill(len(e) // 4))
+            if len(e) % 8:
+                raise ValueError(f"bit string length is not a multiple of 8")
+            return solution.to_bytes(len(e) // 8, byteorder="big")
 
         if cast_to is not int:
             raise ValueError(
