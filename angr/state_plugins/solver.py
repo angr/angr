@@ -802,7 +802,7 @@ class SimSolver(SimStatePlugin):
             if len(e) == 0:
                 return b""
             if len(e) % 8:
-                raise ValueError(f"bit string length is not a multiple of 8")
+                raise ValueError("bit string length is not a multiple of 8")
             return solution.to_bytes(len(e) // 8, byteorder="big")
 
         if cast_to is not int:
