@@ -283,7 +283,11 @@ class FunctionHandler:
                     if sp_val is not None:
                         one_sp_val = sp_val.one_value()
                         if one_sp_val is not None:
-                            new_sp = MultiValues(one_sp_val + state.arch.call_sp_fix)
+                            # call_sp_fix is the sp movement after the call instruction executes, which means it is
+                            # usually a negative number if the stack grows towards a lower address. when we return,
+                            # we should subtract this negative number from the current stack pointer to keep the stack
+                            # balanced.
+                            new_sp = MultiValues(one_sp_val - state.arch.call_sp_fix)
                     data.depends(sp_atom, value=new_sp)
 
         # OUTPUT
