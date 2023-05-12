@@ -51,7 +51,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     ):
                         con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
                         new_expr = BinaryOp(
-                            expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed, bits=from_bits, **expr.tags
+                            expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed, bits=1, **expr.tags
                         )
                         return new_expr
 
