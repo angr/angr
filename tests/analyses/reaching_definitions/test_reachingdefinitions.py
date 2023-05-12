@@ -17,8 +17,8 @@ from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
-from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.atoms import AtomKind, GuardUse, Tmp, Register, MemoryLocation
+from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, OP_BEFORE, OP_AFTER
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_object import SimMemoryObject
@@ -433,6 +433,30 @@ class TestReachingDefinitions(TestCase):
             endness=project.arch.register_endness,
         )
         assert sp_0 == sp_1
+
+    def test_constants_not_stored_to_live_memory_defs(self):
+        # Ensure constants loaded from read-only sections are not stored back to memory definitions. If they are stored,
+        # we may accidentally pair them with TOP during state merging.
+        project = angr.Project(_binary_path("two_cond_func_call_with_const_arg", "armel"), auto_load_libs=False)
+        project.analyses.CFGFast()
+        project.analyses.CompleteCallingConventions(recover_variables=True)
+        rda = project.analyses.ReachingDefinitions("main", observe_all=True)
+
+        for info in rda.callsites_to("f"):
+            (defn,) = info.args_defns[0]
+            ld = rda.model.get_observation_by_insn(info.callsite, ObservationPointType.OP_BEFORE)
+
+            # Expect a singular mem predecessor
+            preds = rda.dep_graph.find_all_predecessors(defn, kind=AtomKind.MEMORY)
+            assert len(preds) == 1
+
+            # Verify not stored
+            with self.assertRaises(angr.errors.SimMemoryMissingError):
+                atom = preds[0].atom
+                ld.memory.load(atom.addr, atom.size)
+
+            # Verify expected constant value
+            assert ld.get_concrete_value_from_definition(defn) == 1337
 
 
 if __name__ == "__main__":
