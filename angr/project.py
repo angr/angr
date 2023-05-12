@@ -6,7 +6,7 @@ import pickle
 import string
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, cast
 
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
@@ -19,7 +19,7 @@ from .errors import AngrNoPluginError
 l = logging.getLogger(name=__name__)
 
 
-def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False, **kwargs):
+def load_shellcode(shellcode: Union[bytes, str], arch, start_offset=0, load_address=0, thumb=False, **kwargs):
     """
     Load a new project based on a snippet of assembly or bytecode.
 
@@ -31,13 +31,15 @@ def load_shellcode(shellcode, arch, start_offset=0, load_address=0, thumb=False,
     """
     if not isinstance(arch, archinfo.Arch):
         arch = archinfo.arch_from_id(arch)
-    if type(shellcode) is str:
-        shellcode = arch.asm(shellcode, load_address, thumb=thumb)
+    if isinstance(shellcode, str):
+        shellcode_bytes: bytes = arch.asm(shellcode, load_address, thumb=thumb)
+    else:
+        shellcode_bytes = shellcode
     if thumb:
         start_offset |= 1
 
     return Project(
-        BytesIO(shellcode),
+        BytesIO(shellcode_bytes),
         main_opts={
             "backend": "blob",
             "arch": arch,
@@ -92,7 +94,6 @@ class Project:
     :type storage:      defaultdict(list)
     """
 
-    analyses: "AnalysesHubWithDefault"
     arch: archinfo.Arch
 
     def __init__(
@@ -106,7 +107,7 @@ class Project:
         arch=None,
         simos=None,
         engine=None,
-        load_options: Dict[str, Any] = None,
+        load_options: Optional[Dict[str, Any]] = None,
         translation_cache=True,
         selfmodifying_code: bool = False,
         support_selfmodifying_code: Optional[bool] = None,  # deprecated. use selfmodifying_code instead
@@ -217,7 +218,7 @@ class Project:
 
         # Step 4.2: Analyses
         self._analyses_preset = analyses_preset
-        self.analyses = None
+        self._analyses = None
         self._initialize_analyses_hub()
 
         # Step 4.3: ...etc
@@ -234,14 +235,16 @@ class Project:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
         self.is_java_project = isinstance(self.arch, ArchSoot)
-        self.is_java_jni_project = isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support
+        self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
+            self.simos, "is_javavm_with_jni_support", False
+        )
 
         # Step 6: Register simprocedures as appropriate for library functions
-        if isinstance(self.arch, ArchSoot) and self.simos.is_javavm_with_jni_support:
+        if isinstance(self.arch, ArchSoot) and getattr(self.simos, "is_javavm_with_jni_support", False):
             # If we execute a Java archive that includes native JNI libraries,
             # we need to use the arch of the native simos for all (native) sim
             # procedures.
-            sim_proc_arch = self.simos.native_arch
+            sim_proc_arch = getattr(self.simos, "native_arch")
         else:
             sim_proc_arch = self.arch
         for obj in self.loader.initial_load_objects:
@@ -250,11 +253,22 @@ class Project:
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
 
+    @property
+    def analyses(self) -> "AnalysesHubWithDefault":
+        result = self._analyses
+        if result is None:
+            raise ValueError("Cannot access analyses this early in project lifecycle")
+        return result
+
+    @analyses.setter
+    def analyses(self, v: "AnalysesHubWithDefault"):
+        self._analyses = v
+
     def _initialize_analyses_hub(self):
         """
         Initializes self.analyses using a given preset.
         """
-        self.analyses = AnalysesHub(self)
+        self.analyses = cast("AnalysesHubWithDefault", AnalysesHub(self))
         self.analyses.use_plugin_preset(self._analyses_preset if self._analyses_preset is not None else "default")
 
     def _register_object(self, obj, sim_proc_arch):
@@ -272,7 +286,7 @@ class Project:
         # additionally provide libraries we _have_ loaded as a fallback fallback
         # this helps in the case that e.g. CLE picked up a linux arm libc to satisfy an android arm binary
         for lib in self.loader.all_objects:
-            if lib.provides in SIM_LIBRARIES:
+            if lib.provides is not None and lib.provides in SIM_LIBRARIES:
                 simlib = SIM_LIBRARIES[lib.provides]
                 if simlib not in missing_libs:
                     missing_libs.append(simlib)
@@ -443,7 +457,7 @@ class Project:
     #
 
     # pylint: disable=inconsistent-return-statements
-    def hook(self, addr, hook=None, length=0, kwargs=None, replace=False):
+    def hook(self, addr, hook=None, length=0, kwargs=None, replace: Optional[bool] = False):
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
         summaries of library functions, and can be used to instrument execution or to modify
@@ -543,7 +557,7 @@ class Project:
 
         del self._sim_procedures[addr]
 
-    def hook_symbol(self, symbol_name, simproc, kwargs=None, replace=None):
+    def hook_symbol(self, symbol_name, simproc, kwargs=None, replace: Optional[bool] = None):
         """
         Resolve a dependency in a binary. Looks up the address of the given symbol, and then hooks that
         address. If the symbol was not available in the loaded libraries, this address may be provided
@@ -571,12 +585,13 @@ class Project:
                 # it could be a previously unresolved weak symbol..?
                 new_sym = None
                 for reloc in self.loader.find_relevant_relocations(symbol_name):
+                    assert reloc.symbol is not None
                     if not reloc.symbol.is_weak:
                         raise Exception("Symbol is strong but we couldn't find its resolution? Report to @rhelmot.")
                     if new_sym is None:
                         new_sym = self.loader.extern_object.make_extern(symbol_name)
                     reloc.resolve(new_sym)
-                    reloc.relocate([])
+                    reloc.relocate()
 
                 if new_sym is None:
                     l.error("Could not find symbol %s", symbol_name)
@@ -725,8 +740,8 @@ class Project:
     #
 
     def __getstate__(self):
+        store_func, load_func = self.store_function, self.load_function
         try:
-            store_func, load_func = self.store_function, self.load_function
             self.store_function, self.load_function = None, None
             # ignore analyses. we re-initialize analyses when restoring from pickling so that we do not lose any newly
             # added analyses classes
@@ -781,10 +796,8 @@ class Project:
             if all(c in string.printable for c in container) and os.path.exists(container):
                 with open(container, "rb") as f:
                     return pickle.load(f)
-
-            # If container is a pickle string.
             else:
-                return pickle.loads(container)
+                raise ValueError(container)
 
         # If container is an open file
         elif isinstance(container, IOBase):

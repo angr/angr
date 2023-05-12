@@ -164,7 +164,7 @@ class Definition(Generic[A]):
         "_hash",
     )
 
-    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: Set[Tag] = None):
+    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: Optional[Set[Tag]] = None):
         self.atom: A = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy
