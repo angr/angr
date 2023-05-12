@@ -1,5 +1,5 @@
 # pylint:disable=line-too-long,multiple-statements
-from typing import Dict, Tuple, List, Optional, Union, Set, TYPE_CHECKING
+from typing import Dict, Tuple, List, Optional, Union, TYPE_CHECKING, Any, Set
 import logging
 from collections import defaultdict
 
@@ -128,7 +128,7 @@ class CFGBase(Analysis):
 
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
-        self._updated_nonreturning_functions = None
+        self._updated_nonreturning_functions: Optional[Set[int]] = None
 
         self._normalize = normalize
 
@@ -241,7 +241,7 @@ class CFGBase(Analysis):
             )
 
         self._regions_size = sum((end - start) for start, end in regions)
-        self._regions = SortedDict(regions)
+        self._regions: Dict[int, int] = SortedDict(regions)
 
         l.debug("CFG recovery covers %d regions:", len(self._regions))
         for start, end in self._regions.items():
@@ -405,7 +405,7 @@ class CFGBase(Analysis):
         return self._model.get_exit_stmt_idx(src_block, dst_block)
 
     @property
-    def graph(self) -> networkx.DiGraph:
+    def graph(self) -> "networkx.DiGraph[CFGNode]":
         raise NotImplementedError()
 
     def remove_edge(self, block_from, block_to):
@@ -1261,7 +1261,13 @@ class CFGBase(Analysis):
         self.normalized = True
 
     def _normalize_core(
-        self, graph: networkx.DiGraph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addresses_to_nodes
+        self,
+        graph: "networkx.DiGraph[CFGNode]",
+        callstack_key,
+        smallest_node,
+        other_nodes,
+        smallest_nodes,
+        end_addresses_to_nodes,
     ):
         # Break other nodes
         for n in other_nodes:
@@ -2012,6 +2018,7 @@ class CFGBase(Analysis):
 
         jumptable_entries: Set[int] = set()
         for jt in self.model.jump_tables.values():
+            assert jt.jumptable_entries is not None
             jumptable_entries |= set(jt.jumptable_entries)
 
         if not jumptable_entries:
@@ -2074,6 +2081,7 @@ class CFGBase(Analysis):
 
             self.kb.functions._add_node(addr, node, syscall=is_syscall)
             f = self.kb.functions.function(addr=addr)
+            assert f is not None
 
             blockaddr_to_function[addr] = f
 
@@ -2092,7 +2100,14 @@ class CFGBase(Analysis):
         return f
 
     def _is_tail_call_optimization(
-        self, g: networkx.DiGraph, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_function
+        self,
+        g: "networkx.DiGraph[CFGNode]",
+        src_addr,
+        dst_addr,
+        src_function,
+        all_edges: List[Tuple[CFGNode, CFGNode, Any]],
+        known_functions,
+        blockaddr_to_function,
     ):
         """
         If source and destination belong to the same function, and the following criteria apply:
@@ -2718,7 +2733,7 @@ class CFGBase(Analysis):
         irsb: pyvex.IRSB,
         func_addr: int,
         stmt_idx: Union[int, str] = DEFAULT_STATEMENT,
-    ) -> Tuple[bool, List[int], Optional[IndirectJump]]:
+    ) -> Tuple[bool, Set[int], Optional[IndirectJump]]:
         """
         Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
         indirect jump resolvers. If it cannot be resolved, we will see if this indirect jump has been resolved before.
@@ -2746,7 +2761,7 @@ class CFGBase(Analysis):
                 addr,
                 len(resolved_targets),
             )
-            return True, resolved_targets, None
+            return True, set(resolved_targets), None
 
         l.debug("Indirect jump at block %#x cannot be resolved by a timeless indirect jump resolver.", addr)
 
@@ -2757,10 +2772,11 @@ class CFGBase(Analysis):
                 if len(cfg_node.instruction_addrs) < 2:
                     # sanity check
                     # decoding failed when decoding the second instruction (or even the first instruction)
-                    return False, [], None
+                    return False, set(), None
                 ins_addr = cfg_node.instruction_addrs[-2]
             else:
                 ins_addr = cfg_node.instruction_addrs[-1]
+            assert jumpkind is not None
             ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=[])
             self.indirect_jumps[addr] = ij
             resolved = False

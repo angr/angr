@@ -4,7 +4,7 @@ import logging
 import math
 import re
 import string
-from typing import List, Set, Dict, Optional
+from typing import DefaultDict, List, Set, Dict, Optional
 from collections import defaultdict, OrderedDict
 from enum import Enum, unique
 
@@ -532,7 +532,7 @@ class CFGJob:
         )
 
 
-class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
+class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylint: disable=abstract-method
     """
     We find functions inside the given binary, and build a control-flow graph in very fast manners: instead of
     simulating program executions, keeping track of states, and performing expensive data-flow analysis, CFGFast will
@@ -804,7 +804,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._known_thunks = {}
 
         self._initial_state = None
-        self._next_addr = None
+        self._next_addr: Optional[int] = None
 
         # Create the segment list
         self._seg_list = SegmentList()
@@ -920,8 +920,8 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         # TODO: Take care of those functions that are already generated
         if self._next_addr is None:
-            self._next_addr = self._get_min_addr()
-            curr_addr = self._next_addr
+            self._next_addr = curr_addr = self._get_min_addr()
+            assert curr_addr is not None
         else:
             curr_addr = self._next_addr + 1
 
@@ -1164,7 +1164,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
     # Overridden methods from ForwardAnalysis
 
-    def _job_key(self, job):
+    def _job_key(self, job: CFGJob):
         return job.addr
 
     def _pre_analysis(self):
@@ -1175,8 +1175,8 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._known_thunks = self._find_thunks()
 
         # Initialize variables used during analysis
-        self._pending_jobs = PendingJobs(self.functions, self._deregister_analysis_job)
-        self._traced_addresses = set()
+        self._pending_jobs: PendingJobs = PendingJobs(self.functions, self._deregister_analysis_job)
+        self._traced_addresses: Set[int] = set()
         self._function_returns = defaultdict(set)
 
         # Sadly, not all calls to functions are explicitly made by call
@@ -1184,7 +1184,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # should record all exits from a single function, and then add
         # necessary calling edges in our call map during the post-processing
         # phase.
-        self._function_exits = defaultdict(set)
+        self._function_exits: DefaultDict[int, Set[int]] = defaultdict(set)
 
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(
@@ -1248,7 +1248,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         self._job_ctr = 0
 
-    def _pre_job_handling(self, job):  # pylint:disable=arguments-differ
+    def _pre_job_handling(self, job: CFGJob):  # pylint:disable=arguments-differ
         """
         Some pre job-processing tasks, like update progress bar.
 
@@ -1693,9 +1693,11 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         try:
             if self.project.is_hooked(addr):
                 procedure = self.project.hooked_by(addr)
+                assert procedure is not None
                 name = procedure.display_name
             else:
                 procedure = self.project.simos.syscall_from_addr(addr)
+                assert procedure is not None
                 name = procedure.display_name
 
             if addr not in self._nodes:
