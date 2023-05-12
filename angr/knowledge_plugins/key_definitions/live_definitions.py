@@ -671,6 +671,24 @@ class LiveDefinitions:
             return None
         return r.concrete_value
 
+    def get_values(self, spec: Union[Atom, Definition]) -> Optional[MultiValues]:
+        if isinstance(spec, Atom):
+            return self.get_value_from_atom(spec)
+        else:
+            return self.get_value_from_definition(spec)
+
+    def get_one_value(self, spec: Union[Atom, Definition]) -> Optional[claripy.ast.base.Base]:
+        if isinstance(spec, Atom):
+            return self.get_one_value_from_atom(spec)
+        else:
+            return self.get_one_value_from_definition(spec)
+
+    def get_concrete_value(self, spec: Union[Atom, Definition]) -> Optional[int]:
+        if isinstance(spec, Atom):
+            return self.get_concrete_value_from_atom(spec)
+        else:
+            return self.get_concrete_value_from_definition(spec)
+
     def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
         # get all current definitions
         try:
