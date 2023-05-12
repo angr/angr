@@ -378,6 +378,8 @@ class FunctionHandler:
     @staticmethod
     def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
         if not prototype.variadic:
+            sp_value = state.get_one_value(Register(state.arch.sp_offset, state.arch.bytes))
+            sp = state.get_stack_offset(sp_value) if sp_value is not None else None
             atoms = []
             for arg in cc.arg_locs(prototype):
                 atoms_set = set()
@@ -387,9 +389,7 @@ class FunctionHandler:
                             footprint_arg,
                             state.arch,
                             full_reg=True,
-                            sp=state.get_stack_offset(
-                                state.get_one_value(Register(state.arch.sp_offset, state.arch.bytes))
-                            ),
+                            sp=sp,
                         )
                     except ValueError:
                         continue
