@@ -1078,6 +1078,18 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert len(list(func.blocks)) == 1
         assert list(func.blocks)[0].size == 16
 
+    def test_armel_initial_register_value(self):
+        path = os.path.join(test_location, "armel", "vsftpd_armel_buildroot_201202_4.5.3")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True)
+        func = proj.kb.functions[0xDC68]
+        assert "got" in func.info
+        assert func.info["got"] == proj.arch.registers["r4"] + (0x375E8,)
+
+        assert 0x2C220 in cfg.model.memory_data
+        assert cfg.model.memory_data[0x2C220].content == b"Timeout."
+
 
 if __name__ == "__main__":
     unittest.main()

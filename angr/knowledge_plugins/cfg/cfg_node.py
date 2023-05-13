@@ -116,7 +116,7 @@ class CFGNode(Serializable):
             if irsb is not None:
                 self.instruction_addrs = irsb.instruction_addresses
 
-        self.irsb = None
+        self.irsb = irsb
         self.soot_block = soot_block
         self.has_return = False
         self._hash = None
