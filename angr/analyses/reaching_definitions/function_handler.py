@@ -178,11 +178,11 @@ class FunctionHandler:
         You can override this method to take full control over how data is processed, or override any of the following
         to use the higher-level interface (data.depends()):
 
-        - `handle_impl_<function name>`
-        - `handle_local_function`
-        - `handle_external_function`
-        - `handle_indirect_function`
-        - `handle_generic_function`
+        - `handle_impl_<function name>` - used for `<function name>`.
+        - `handle_local_function` - used for any function (excluding plt stubs) whose address is inside the main binary.
+        - `handle_external_function` - used for any function or plt stub whose address is outside the main binary.
+        - `handle_indirect_function` - used for any function whose target cannot be resolved.
+        - `handle_generic_function` - used as a default if none of the above are overridden.
 
         Each of them take the same signature as `handle_function`.
         """
