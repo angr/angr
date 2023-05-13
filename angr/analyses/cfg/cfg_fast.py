@@ -4,7 +4,7 @@ import logging
 import math
 import re
 import string
-from typing import List, Set, Dict, Optional
+from typing import List, Set, Dict, Tuple, Optional
 from collections import defaultdict, OrderedDict
 from enum import Enum, unique
 
@@ -3976,65 +3976,7 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                                 self._cascading_remove_lifted_blocks(cfg_job.src_node.addr & 0xFFFF_FFFE)
                             return None, None, None, None
 
-            initial_regs = None
-            if self.project.arch.name in {"MIPS64", "MIPS32"}:
-                initial_regs = [
-                    (
-                        self.project.arch.registers["t9"][0],
-                        self.project.arch.registers["t9"][1],
-                        current_function_addr,
-                    )
-                ]
-                if self.kb.functions.contains_addr(current_function_addr):
-                    func = self.kb.functions.get_by_addr(current_function_addr)
-                    if "gp" in func.info:
-                        initial_regs.append(
-                            (
-                                self.project.arch.registers["gp"][0],
-                                self.project.arch.registers["gp"][1],
-                                func.info["gp"],
-                            )
-                        )
-            elif self.project.arch.name == "X86":
-                # for x86 GCC-generated PIE binaries, detect calls to __x86.get_pc_thunk
-                if (
-                    cfg_job.jumpkind == "Ijk_FakeRet"
-                    and cfg_job.returning_source is not None
-                    and self.kb.functions.contains_addr(cfg_job.returning_source)
-                ):
-                    return_from_func = self.kb.functions.get_by_addr(cfg_job.returning_source)
-                    if "get_pc" in return_from_func.info:
-                        func = self.kb.functions.get_by_addr(current_function_addr)
-                        pc_reg = return_from_func.info["get_pc"]
-                        # the crazy thing is that GCC-generated code may adjust the register value accordingly after
-                        # returning! we must take into account the added offset (in the followin example, 0x8d36)
-                        #
-                        # e.g.
-                        #  000011A1 call    __x86_get_pc_thunk_bx
-                        #  000011A6 add     ebx, 8D36h
-                        #
-                        # this means, for the current block, the initial value of ebx is whatever __x86_get_pc_thunk_bx
-                        # returns. for future blocks in this function, the initial value of ebx must be the returning
-                        # value plus 0x8d36.
-                        pc_reg_offset, pc_reg_size = self.project.arch.registers[pc_reg]
-                        initial_regs = [(pc_reg_offset, pc_reg_size, addr)]
-                        # find adjustment
-                        adjustment = self._x86_gcc_pie_find_pc_register_adjustment(addr, pc_reg_offset)
-                        if adjustment is not None:
-                            func.info["pc_reg"] = (pc_reg, addr + adjustment)
-                        else:
-                            func.info["pc_reg"] = (pc_reg, addr)
-                if self.kb.functions.contains_addr(current_function_addr):
-                    func = self.kb.functions.get_by_addr(current_function_addr)
-                    if not initial_regs and "pc_reg" in func.info:
-                        pc_reg, pc_reg_value = func.info["pc_reg"]
-                        initial_regs = [
-                            (
-                                self.project.arch.registers[pc_reg][0],
-                                self.project.arch.registers[pc_reg][1],
-                                pc_reg_value,
-                            )
-                        ]
+            initial_regs = self._determine_initial_regs(addr, current_function_addr, cfg_job)
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
@@ -4295,6 +4237,55 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :param caller_gp:   The gp register value that the caller function has. MIPS-specific.
         """
         if is_arm_arch(self.project.arch):
+            if addr == func_addr and irsb.data_refs:
+                # this is the first block of a function. discover if GOT address is stored into one of the
+                # callee-saved registers
+
+                stmtid_to_data_addr = {}
+                for data_ref in irsb.data_refs:
+                    stmtid_to_data_addr[data_ref.stmt_idx] = data_ref.data_addr
+
+                irsb_with_stmts = self._lift(addr, size=irsb.size).vex
+                ins_id = -1
+                tmps: Dict[int, int] = {}
+                got_saving_regs = {
+                    self.project.arch.registers["r4"][0],
+                    self.project.arch.registers["r5"][0],
+                    self.project.arch.registers["r6"][0],
+                    self.project.arch.registers["lr"][0],
+                }  # there might be more registers used in the wild
+
+                const_reg_offset, const_value = None, None
+                for stmt_idx, stmt in enumerate(irsb_with_stmts.statements):
+                    if isinstance(stmt, pyvex.IRStmt.IMark):
+                        ins_id += 1
+                        if ins_id > 5:
+                            break
+                    elif (
+                        isinstance(stmt, pyvex.IRStmt.WrTmp)
+                        and isinstance(stmt.data, pyvex.IRExpr.Binop)
+                        and stmt.data.op == "Iop_Add32"
+                    ):
+                        if stmt_idx in stmtid_to_data_addr:
+                            tmps[stmt.tmp] = stmtid_to_data_addr[stmt_idx]
+                    elif (
+                        isinstance(stmt, pyvex.IRStmt.Put)
+                        and stmt.offset in got_saving_regs
+                        and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                        and stmt.data.tmp in tmps
+                    ):
+                        seg = self.project.loader.find_segment_containing(tmps[stmt.data.tmp])
+                        if seg is not None and seg.is_readable and not seg.is_executable:
+                            # found it!
+                            const_reg_offset = stmt.offset
+                            const_value = tmps[stmt.data.tmp]
+                            break
+
+                if const_reg_offset is not None:
+                    func = self.kb.functions.get_by_addr(func_addr)
+                    if "got" not in func.info:
+                        func.info["got"] = (const_reg_offset, self.project.arch.bytes, const_value)
+
             if self._arch_options.ret_jumpkind_heuristics:
                 if addr == func_addr:
                     self._arm_track_lr_on_stack(addr, irsb, self.functions[func_addr])
@@ -4365,6 +4356,89 @@ class CFGFast(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 # ret
                 func = self.kb.functions.get_by_addr(func_addr)
                 func.info["get_pc"] = "ebx"
+
+    def _determine_initial_regs(
+        self, addr: int, func_addr: int, cfg_job: CFGJob
+    ) -> Optional[List[Tuple[int, int, int]]]:
+        """
+        Return a list of initial registers that VEX will use to calculate pointer values and collect data references.
+
+        :return:
+        """
+
+        initial_regs = None
+
+        if self.project.arch.name in {"MIPS64", "MIPS32"}:
+            initial_regs = [
+                (
+                    self.project.arch.registers["t9"][0],
+                    self.project.arch.registers["t9"][1],
+                    func_addr,
+                )
+            ]
+            if self.kb.functions.contains_addr(func_addr):
+                func = self.kb.functions.get_by_addr(func_addr)
+                if "gp" in func.info:
+                    initial_regs.append(
+                        (
+                            self.project.arch.registers["gp"][0],
+                            self.project.arch.registers["gp"][1],
+                            func.info["gp"],
+                        )
+                    )
+        elif self.project.arch.name == "X86":
+            # for x86 GCC-generated PIE binaries, detect calls to __x86.get_pc_thunk
+            if (
+                cfg_job.jumpkind == "Ijk_FakeRet"
+                and cfg_job.returning_source is not None
+                and self.kb.functions.contains_addr(cfg_job.returning_source)
+            ):
+                return_from_func = self.kb.functions.get_by_addr(cfg_job.returning_source)
+                if "get_pc" in return_from_func.info:
+                    func = self.kb.functions.get_by_addr(func_addr)
+                    pc_reg = return_from_func.info["get_pc"]
+                    # the crazy thing is that GCC-generated code may adjust the register value accordingly after
+                    # returning! we must take into account the added offset (in the followin example, 0x8d36)
+                    #
+                    # e.g.
+                    #  000011A1 call    __x86_get_pc_thunk_bx
+                    #  000011A6 add     ebx, 8D36h
+                    #
+                    # this means, for the current block, the initial value of ebx is whatever __x86_get_pc_thunk_bx
+                    # returns. for future blocks in this function, the initial value of ebx must be the returning
+                    # value plus 0x8d36.
+                    pc_reg_offset, pc_reg_size = self.project.arch.registers[pc_reg]
+                    initial_regs = [(pc_reg_offset, pc_reg_size, addr)]
+                    # find adjustment
+                    adjustment = self._x86_gcc_pie_find_pc_register_adjustment(addr, pc_reg_offset)
+                    if adjustment is not None:
+                        func.info["pc_reg"] = (pc_reg, addr + adjustment)
+                    else:
+                        func.info["pc_reg"] = (pc_reg, addr)
+            if self.kb.functions.contains_addr(func_addr):
+                func = self.kb.functions.get_by_addr(func_addr)
+                if not initial_regs and "pc_reg" in func.info:
+                    pc_reg, pc_reg_value = func.info["pc_reg"]
+                    initial_regs = [
+                        (
+                            self.project.arch.registers[pc_reg][0],
+                            self.project.arch.registers[pc_reg][1],
+                            pc_reg_value,
+                        )
+                    ]
+        elif is_arm_arch(self.project.arch):
+            if self.kb.functions.contains_addr(func_addr):
+                func = self.kb.functions.get_by_addr(func_addr)
+                if "got" in func.info:
+                    initial_regs = [
+                        (
+                            func.info["got"][0],
+                            func.info["got"][1],
+                            func.info["got"][2],
+                        )
+                    ]
+
+        return initial_regs
 
     def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> Set[int]:
         to_remove = {addr}
