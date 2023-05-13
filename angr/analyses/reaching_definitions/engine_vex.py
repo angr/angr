@@ -432,8 +432,6 @@ class SimEngineRDVEX(
                     vs: MultiValues = self.state.memory_definitions.load(addr_v, size=size, endness=endness)
                     defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
-                    # try to load it from the static memory backer
-                    # TODO: Is this still required?
                     try:
                         val = self.project.loader.memory.unpack_word(addr_v, size=size)
                         section = self.project.loader.find_section_containing(addr_v)
@@ -445,9 +443,9 @@ class SimEngineRDVEX(
                         else:
                             v = self.state.annotate_with_def(claripy.BVV(val, size * self.arch.byte_width), missing_def)
                         vs = MultiValues(v)
-                        # write it back
-                        self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
-                        self.state.all_definitions.add(missing_def)
+                        if not section or section.is_writable:
+                            self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
+                            self.state.all_definitions.add(missing_def)
                         defs = {missing_def}
                     except KeyError:
                         continue
