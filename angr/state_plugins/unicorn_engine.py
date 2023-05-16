@@ -406,7 +406,7 @@ def _locate_lib(module: str, library: str) -> str:
 
     import pkg_resources  # pylint:disable=import-outside-toplevel
 
-    return pkg_resources.resource_filename(module, os.path.join("lib", library))
+    return pkg_resources.resource_filename(module, os.path.join(library))
 
 
 def _load_native():
