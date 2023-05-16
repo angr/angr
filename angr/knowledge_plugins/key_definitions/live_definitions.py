@@ -31,6 +31,10 @@ l = logging.getLogger(name=__name__)
 
 
 class DefinitionAnnotation(Annotation):
+    """
+    An annotation that attaches a `Definition` to an AST.
+    """
+
     __slots__ = ("definition",)
 
     def __init__(self, definition):
@@ -728,7 +732,7 @@ class LiveDefinitions:
         if not isinstance(atom.addr, HeapAddress):
             raise TypeError("Atom %r is not a heap location atom." % atom)
 
-        current_defs = self.get_definitions.get_objects_by_offset(atom)
+        current_defs = self.get_definitions(atom)
 
         for current_def in current_defs:
             self.add_heap_use_by_def(current_def, code_loc, expr=expr)
