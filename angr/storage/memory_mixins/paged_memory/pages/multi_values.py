@@ -16,12 +16,14 @@ class MultiValues:
         "_single_value",
     )
 
-    def __init__(self, v: Optional[claripy.ast.Base] = None, offset_to_values=None):
+    _single_value: Optional[claripy.ast.BV]
+
+    def __init__(self, v: Optional[claripy.ast.BV] = None, offset_to_values=None):
         if v is not None and offset_to_values is not None:
             raise TypeError("You cannot specify v and offset_to_values at the same time!")
 
         self._single_value = v if v is not None else None
-        self._values: Optional[Dict[int, Set[claripy.ast.Base]]] = (
+        self._values: Optional[Dict[int, Set[claripy.ast.BV]]] = (
             offset_to_values if offset_to_values is not None else None
         )
 
@@ -37,7 +39,7 @@ class MultiValues:
                 if not isinstance(vs, set):
                     raise TypeError("Each value in offset_to_values must be a set!")
 
-    def add_value(self, offset: int, value: claripy.ast.Base) -> None:
+    def add_value(self, offset: int, value: claripy.ast.BV) -> None:
         if self._single_value is not None:
             self._values = {0: {self._single_value}}
             self._single_value = None
@@ -98,9 +100,11 @@ class MultiValues:
                 for v in remaining_values:
                     self.add_value(offset, v)
 
-    def one_value(self) -> Optional[claripy.ast.Base]:
+    def one_value(self) -> Optional[claripy.ast.BV]:
         if self._single_value is not None:
             return self._single_value
+
+        assert self._values is not None
 
         if len(self._values) == 1 and len(self._values[0]) == 1:
             return next(iter(self._values[0]))
@@ -109,6 +113,8 @@ class MultiValues:
     def __len__(self) -> int:
         if self._single_value is not None:
             return self._single_value.length
+
+        assert self._values is not None
 
         max_offset = max(self._values.keys())
         max_len = max(x.size() for x in self._values[max_offset])
@@ -132,6 +138,8 @@ class MultiValues:
             return False
         if self._single_value is None and other._single_value is not None:
             return False
+        assert self._values is not None
+        assert other._values is not None
         if set(self._values.keys()) != set(other._values.keys()):
             return False
         for k in self._values.keys():
@@ -149,7 +157,7 @@ class MultiValues:
             return offset == 0
         return False if not self._values else offset in self._values
 
-    def __getitem__(self, offset: int) -> Set[claripy.ast.Base]:
+    def __getitem__(self, offset: int) -> Set[claripy.ast.BV]:
         if self._single_value is not None:
             if offset == 0:
                 return {self._single_value}
@@ -163,7 +171,7 @@ class MultiValues:
             return {0}
         return set() if not self._values else set(self._values.keys())
 
-    def values(self) -> Iterator[Set[claripy.ast.Base]]:
+    def values(self) -> Iterator[Set[claripy.ast.BV]]:
         if self._single_value is not None:
             yield {self._single_value}
         else:
@@ -171,7 +179,7 @@ class MultiValues:
                 return
             yield from self._values.values()
 
-    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.Base]]]:
+    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.BV]]]:
         if self._single_value is not None:
             yield 0, {self._single_value}
         else:

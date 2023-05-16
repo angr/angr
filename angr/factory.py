@@ -1,5 +1,5 @@
+from typing import List, Optional, Union, overload, Type
 import logging
-from typing import List, Optional, Union, overload
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
@@ -7,7 +7,7 @@ from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
 from .errors import AngrAssemblyError
-from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
+from .engines import UberEngine, ProcedureEngine, SimEngineConcrete, SimEngine
 from .sim_type import SimTypeFunction, SimTypeInt
 
 try:
@@ -25,20 +25,22 @@ class AngrObjectFactory:
     This factory provides access to important analysis elements.
     """
 
-    def __init__(self, project, default_engine=None):
+    def __init__(self, project, default_engine: Optional[Type[SimEngine]] = None):
         if default_engine is None:
-            if isinstance(project.arch, archinfo.ArchPcode):
+            if isinstance(project.arch, archinfo.ArchPcode) and UberEnginePcode is not None:
                 l.warning("Creating project with the experimental 'UberEnginePcode' engine")
-                default_engine = UberEnginePcode
+                default_engine_n = UberEnginePcode
             else:
-                default_engine = UberEngine
+                default_engine_n = UberEngine
+        else:
+            default_engine_n = default_engine
 
         if isinstance(project.arch, archinfo.ArchPcode):
             register_pcode_arch_default_cc(project.arch)
 
         self.project = project
         self._default_cc = DEFAULT_CC.get(project.arch.name, SimCCUnknown)
-        self.default_engine = default_engine(project)
+        self.default_engine = default_engine_n(project)
         self.procedure_engine = ProcedureEngine(project)
 
         if project.concrete_target:
@@ -365,7 +367,6 @@ class AngrObjectFactory:
 
     cc.SimRegArg = SimRegArg
     cc.SimStackArg = SimStackArg
-    _default_cc = None
     callable.PointerWrapper = PointerWrapper
     call_state.PointerWrapper = PointerWrapper
 

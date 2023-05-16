@@ -7,7 +7,6 @@ from collections import defaultdict
 import claripy
 from claripy.annotation import Annotation
 import archinfo
-from archinfo.arch import Endness
 
 from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
@@ -32,6 +31,10 @@ l = logging.getLogger(name=__name__)
 
 
 class DefinitionAnnotation(Annotation):
+    """
+    An annotation that attaches a `Definition` to an AST.
+    """
+
     __slots__ = ("definition",)
 
     def __init__(self, definition):
@@ -114,7 +117,7 @@ class LiveDefinitions:
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
 
-        self.register_definitions = (
+        self.register_definitions: MultiValuedMemory = (
             MultiValuedMemory(
                 memory_id="reg",
                 top_func=self.top,
@@ -125,7 +128,7 @@ class LiveDefinitions:
             if register_definitions is None
             else register_definitions
         )
-        self.stack_definitions = (
+        self.stack_definitions: MultiValuedMemory = (
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
@@ -135,7 +138,7 @@ class LiveDefinitions:
             if stack_definitions is None
             else stack_definitions
         )
-        self.memory_definitions = (
+        self.memory_definitions: MultiValuedMemory = (
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
@@ -145,7 +148,7 @@ class LiveDefinitions:
             if memory_definitions is None
             else memory_definitions
         )
-        self.heap_definitions = (
+        self.heap_definitions: MultiValuedMemory = (
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
@@ -287,7 +290,8 @@ class LiveDefinitions:
     @staticmethod
     def get_stack_offset(addr: claripy.ast.Base, had_stack_base=False) -> Optional[int]:
         if had_stack_base and addr.op == "BVV":
-            return addr._model_concrete.value
+            assert isinstance(addr, claripy.ast.BV)
+            return addr.concrete_value
         if "TOP" in addr.variables:
             return None
         if "stack_base" in addr.variables:
@@ -309,7 +313,7 @@ class LiveDefinitions:
         return None
 
     @staticmethod
-    def annotate_with_def(symvar: claripy.ast.Base, definition: Definition):
+    def annotate_with_def(symvar: claripy.ast.BV, definition: Definition) -> claripy.ast.BV:
         """
 
         :param symvar:
@@ -342,6 +346,7 @@ class LiveDefinitions:
         """
         Return the concrete value contained by the stack pointer.
         """
+        assert self.arch.sp_offset is not None
         sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
         sp_v = sp_values.one_value()
         if sp_v is None:
@@ -349,28 +354,35 @@ class LiveDefinitions:
             # definitions)
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
             assert len({self.get_stack_offset(v) for v in values}) == 1
-            return self.get_stack_address(values[0])
+            result = self.get_stack_address(values[0])
+            assert result is not None
+            return result
 
-        return self.get_stack_address(sp_v)
+        result = self.get_stack_address(sp_v)
+        assert result is not None
+        return result
 
-    def get_sp_offset(self) -> int:
+    def get_sp_offset(self) -> Optional[int]:
         """
         Return the offset of the stack pointer.
         """
+        assert self.arch.sp_offset is not None
         sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
         sp_v = sp_values.one_value()
         if sp_v is None:
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
             assert len({self.get_stack_offset(v) for v in values}) == 1
-            return self.get_stack_offset(values[0])
+            result = self.get_stack_offset(values[0])
+            return result
 
-        return self.get_stack_offset(sp_v)
+        result = self.get_stack_offset(sp_v)
+        return result
 
     def get_stack_address(self, offset: claripy.ast.Base) -> Optional[int]:
-        offset = self.get_stack_offset(offset)
-        if offset is None:
+        offset_int = self.get_stack_offset(offset)
+        if offset_int is None:
             return None
-        return self.stack_offset_to_stack_addr(offset)
+        return self.stack_offset_to_stack_addr(offset_int)
 
     def stack_offset_to_stack_addr(self, offset) -> int:
         if self.arch.bits == 32:
@@ -449,7 +461,7 @@ class LiveDefinitions:
         code_loc: CodeLocation,
         data: MultiValues,
         dummy=False,
-        tags: Set[Tag] = None,
+        tags: Optional[Set[Tag]] = None,
         endness=None,
         annotated=False,
     ) -> Optional[MultiValues]:
@@ -489,7 +501,7 @@ class LiveDefinitions:
                 self.memory_definitions.store(atom.addr, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, claripy.ast.Base):
                 if atom.addr.concrete:
-                    self.memory_definitions.store(atom.addr._model_concrete.value, d, size=atom.size, endness=endness)
+                    self.memory_definitions.store(atom.addr.concrete_value, d, size=atom.size, endness=endness)
                 elif self.is_stack_address(atom.addr):
                     stack_addr = self.get_stack_address(atom.addr)
                     if stack_addr is None:
@@ -586,7 +598,7 @@ class LiveDefinitions:
             return
         yield from LiveDefinitions.extract_defs_from_mv(values)
 
-    def get_stack_values(self, stack_offset: int, size: int, endness: Endness) -> Optional[MultiValues]:
+    def get_stack_values(self, stack_offset: int, size: int, endness: str) -> Optional[MultiValues]:
         stack_addr = self.stack_offset_to_stack_addr(stack_offset)
         try:
             return self.stack_definitions.load(stack_addr, size=size, endness=endness)
@@ -657,7 +669,7 @@ class LiveDefinitions:
         else:
             return None
 
-    def get_one_value_from_atom(self, atom: Atom) -> Optional[claripy.ast.base.Base]:
+    def get_one_value_from_atom(self, atom: Atom) -> Optional[claripy.ast.BV]:
         r = self.get_value_from_atom(atom)
         if r is None:
             return None
@@ -720,7 +732,7 @@ class LiveDefinitions:
         if not isinstance(atom.addr, HeapAddress):
             raise TypeError("Atom %r is not a heap location atom." % atom)
 
-        current_defs = self.heap_definitions.get_objects_by_offset(atom.addr.value)
+        current_defs = self.get_definitions(atom)
 
         for current_def in current_defs:
             self.add_heap_use_by_def(current_def, code_loc, expr=expr)

@@ -4,7 +4,7 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
-from typing import Union, Optional, Iterable, Set, Generator
+from typing import Union, Optional, Iterable, Set
 from typing import Type
 
 from itanium_demangler import parse
@@ -12,6 +12,8 @@ from itanium_demangler import parse
 from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
 import claripy
+
+from angr.block import Block
 
 from ...codenode import CodeNode, BlockNode, HookNode, SyscallNode
 from ...serializable import Serializable
@@ -354,10 +356,10 @@ class Function(Serializable):
         return self._block_sizes.get(addr, None)
 
     @property
-    def nodes(self) -> Generator[CodeNode, None, None]:
+    def nodes(self) -> Iterable[CodeNode]:
         return self.transition_graph.nodes()
 
-    def get_node(self, addr):
+    def get_node(self, addr) -> Block:
         return self._addr_to_block_node.get(addr, None)
 
     @property

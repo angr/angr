@@ -267,7 +267,7 @@ class CFGModel(Serializable):
         return None
 
     def get_any_node(
-        self, addr: int, is_syscall: bool = None, anyaddr: bool = False, force_fastpath: bool = False
+        self, addr: int, is_syscall: Optional[bool] = None, anyaddr: bool = False, force_fastpath: bool = False
     ) -> Optional[CFGNode]:
         """
         Get an arbitrary CFGNode (without considering their contexts) from our graph.
