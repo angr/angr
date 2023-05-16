@@ -921,7 +921,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # TODO: Take care of those functions that are already generated
         if self._next_addr is None:
             self._next_addr = curr_addr = self._get_min_addr()
-            assert curr_addr is not None
         else:
             curr_addr = self._next_addr + 1
 

@@ -603,7 +603,7 @@ class CFGBase(Analysis):
 
     # Methods for determining scanning scope
 
-    def _inside_regions(self, address: int) -> bool:
+    def _inside_regions(self, address: Optional[int]) -> bool:
         """
         Check if the address is inside any existing region.
 
@@ -632,7 +632,7 @@ class CFGBase(Analysis):
 
         return next(self._regions.irange())
 
-    def _next_address_in_regions(self, address: int) -> Optional[int]:
+    def _next_address_in_regions(self, address: Optional[int]) -> Optional[int]:
         """
         Return the next immediate address that is inside any of the regions.
 

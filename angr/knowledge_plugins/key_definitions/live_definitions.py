@@ -358,7 +358,7 @@ class LiveDefinitions:
         assert result is not None
         return result
 
-    def get_sp_offset(self) -> int:
+    def get_sp_offset(self) -> Optional[int]:
         """
         Return the offset of the stack pointer.
         """
@@ -369,11 +369,9 @@ class LiveDefinitions:
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
             assert len({self.get_stack_offset(v) for v in values}) == 1
             result = self.get_stack_offset(values[0])
-            assert result is not None
             return result
 
         result = self.get_stack_offset(sp_v)
-        assert result is not None
         return result
 
     def get_stack_address(self, offset: claripy.ast.Base) -> Optional[int]:
