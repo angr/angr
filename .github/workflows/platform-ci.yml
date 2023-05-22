@@ -1,6 +1,9 @@
 name: Test on Windows and macOS
 
 on:
+  push:
+    paths:
+      - "**"
   workflow_dispatch:
 
 jobs:
