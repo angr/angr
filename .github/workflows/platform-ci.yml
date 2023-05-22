@@ -78,5 +78,5 @@ jobs:
         name: Install angr
       - run: |
           source $HOME/venv/bin/activate
-          pytest -n auto angr
+          pytest angr
         name: Run pytest
