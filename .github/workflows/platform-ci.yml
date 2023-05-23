@@ -42,7 +42,7 @@ jobs:
         shell: cmd
       - run: |
           call %USERPROFILE%\venv\Scripts\activate
-          pytest -n auto angr
+          pytest angr
         name: Run pytest
         shell: cmd
 
