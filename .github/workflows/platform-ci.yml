@@ -10,6 +10,9 @@ jobs:
   windows:
     name: Test Windows
     runs-on: windows-2022
+    strategy:
+      matrix:
+        group: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -42,7 +45,7 @@ jobs:
         shell: cmd
       - run: |
           call %USERPROFILE%\venv\Scripts\activate
-          pytest angr
+          pytest --splits 5 --group ${ matrix.group } -n auto angr
         name: Run pytest
         shell: cmd
 
