@@ -67,9 +67,9 @@ jobs:
         with:
           repository: angr/binaries
           path: binaries
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
+      # - uses: actions/setup-python@v4
+      #   with:
+      #     python-version: "3.11"
       - run: $RUNNER_TOOL_CACHE/Python/3.11.3/arm64/bin/python -m venv $HOME/venv
         name: Create venv
         shell: bash
