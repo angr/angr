@@ -51,8 +51,14 @@ jobs:
         shell: cmd
 
   macos:
-    name: Test macOS
-    runs-on: macos-12
+    name: Test macOS x86_64
+    strategy:
+      matrix:
+        runs-on:
+          - macos-12
+          - [self-hosted, ARM64]
+      fail-fast: false
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v3
         with:
