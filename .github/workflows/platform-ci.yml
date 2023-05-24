@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-      - run: python -m venv $HOME/venv
+      - run: $RUNNER_TOOL_CACHE/Python/3.11.3/arm64/bin/python -m venv $HOME/venv
         name: Create venv
         shell: bash
       - run: |
