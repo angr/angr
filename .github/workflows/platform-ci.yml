@@ -13,6 +13,7 @@ jobs:
     strategy:
       matrix:
         group: [1, 2, 3, 4, 5]
+      fail-fast: false
     steps:
       - uses: actions/checkout@v3
         with:
@@ -45,7 +46,7 @@ jobs:
         shell: cmd
       - run: |
           call %USERPROFILE%\venv\Scripts\activate
-          pytest --splits 5 --group ${ matrix.group } -n auto angr
+          pytest --splits 5 --group ${{ matrix.group }} -n auto angr
         name: Run pytest
         shell: cmd
 
