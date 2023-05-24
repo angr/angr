@@ -106,7 +106,7 @@ jobs:
         with:
           repository: angr/binaries
           path: binaries
-      - run: ~/hostedtoolcache/Python/3.11.3/arm64/bin/python -m venv $HOME/venv
+      - run: ~/hostedtoolcache/Python/3.11.3/arm64/bin/python3 -m venv $HOME/venv
         name: Create venv
         shell: bash
       - run: |
