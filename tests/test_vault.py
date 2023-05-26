@@ -1,7 +1,10 @@
+import os
 import unittest
 
 import claripy
 import angr
+
+from common import bin_location
 
 
 class A:
@@ -135,7 +138,7 @@ class TestVault(unittest.TestCase):
 
     def test_project(self):
         v = angr.vaults.VaultDir()
-        p = angr.Project("/bin/false", auto_load_libs=False)
+        p = angr.Project(os.path.join(bin_location, "tests", "x86_64", "fauxware"), auto_load_libs=False)
         ps = v.store(p)
         pp = v.load(ps)
         assert p is pp
