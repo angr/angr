@@ -415,9 +415,9 @@ class CFBlanket(Analysis):
                                 obj,
                                 section,
                                 segment,
-                                next_addr,
+                                end_addr,
                             )
-                            bytes_ = self.project.loader.memory.load(next_addr, size)
+                            bytes_ = self.project.loader.memory.load(end_addr, size)
                         except KeyError:
                             # The address does not exist
                             bytes_ = None
