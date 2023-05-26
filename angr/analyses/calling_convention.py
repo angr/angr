@@ -372,7 +372,7 @@ class CallingConventionAnalysis(Analysis):
             l.warning("CFG is not provided. Skip calling convention analysis at call sites.")
             return []
 
-        node = self._cfg.get_any_node(self._function.addr)
+        node = self._cfg.model.get_any_node(self._function.addr)
         if node is None:
             l.warning("%r is not in the CFG. Skip calling convention analysis at call sites.", self._function)
 

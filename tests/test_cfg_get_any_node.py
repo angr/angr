@@ -19,9 +19,9 @@ class TestCfgGetAnyNode(unittest.TestCase):
         proj = angr.Project(test_file, auto_load_libs=False)
         cfg = proj.analyses.CFGFast()
 
-        for node1 in cfg.nodes():
+        for node1 in cfg.model.nodes():
             if node1.size == 0:
-                node2 = cfg.get_any_node(addr=node1.addr, anyaddr=True)
+                node2 = cfg.model.get_any_node(addr=node1.addr, anyaddr=True)
                 assert node2 is not None
 
 

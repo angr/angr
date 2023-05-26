@@ -109,7 +109,7 @@ class TestCfgemulate(unittest.TestCase):
         cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)
         end = time.time()
         duration = end - start
-        bbl_dict = cfg.nodes()
+        bbl_dict = cfg.model.nodes()
 
         l.info("CFG generated in %f seconds.", duration)
         l.info("Contains %d members in BBL dict.", len(bbl_dict))
@@ -175,10 +175,10 @@ class TestCfgemulate(unittest.TestCase):
             # can automatically find the node 0x4005ad.
         )
 
-        assert cfg.get_any_node(0x400580) is not None
-        assert cfg.get_any_node(0x40058F) is not None
-        assert cfg.get_any_node(0x40059E) is not None
-        assert cfg.get_any_node(0x4005AD) is None
+        assert cfg.model.get_any_node(0x400580) is not None
+        assert cfg.model.get_any_node(0x40058F) is not None
+        assert cfg.model.get_any_node(0x40059E) is not None
+        assert cfg.model.get_any_node(0x4005AD) is None
 
     def test_not_returning(self):
         # Make sure we are properly labeling functions that do not return in function manager
@@ -290,7 +290,7 @@ class TestCfgemulate(unittest.TestCase):
         cfg.normalize()
         cfg.unroll_loops(5)
 
-        assert len(cfg.get_all_nodes(0x400636)) == 7
+        assert len(cfg.model.get_all_nodes(0x400636)) == 7
 
     def test_thumb_mode(self):
         # In thumb mode, all addresses of instructions and in function manager should be odd numbers, which loyally
@@ -336,33 +336,33 @@ class TestCfgemulate(unittest.TestCase):
         assert putchar.returning
 
         # Since context sensitivity is 3, there should be two different putchar nodes
-        putchar_cfgnodes = cfg.get_all_nodes(putchar.addr)
+        putchar_cfgnodes = cfg.model.get_all_nodes(putchar.addr)
         assert len(putchar_cfgnodes) == 2
 
         # Each putchar node has a different predecessor as their PLT entry
-        plt_entry_0 = cfg.get_predecessors(putchar_cfgnodes[0])
+        plt_entry_0 = cfg.modelget_predecessors(putchar_cfgnodes[0])
         assert len(plt_entry_0) == 1
         plt_entry_0 = plt_entry_0[0]
 
-        plt_entry_1 = cfg.get_predecessors(putchar_cfgnodes[1])
+        plt_entry_1 = cfg.model.get_predecessors(putchar_cfgnodes[1])
         assert len(plt_entry_1) == 1
         plt_entry_1 = plt_entry_1[0]
 
         assert plt_entry_0 is not plt_entry_1
 
         # Each PLT entry should have a FakeRet edge
-        preds_0 = cfg.get_predecessors(plt_entry_0)
+        preds_0 = cfg.model.get_predecessors(plt_entry_0)
         assert len(preds_0) == 1
-        preds_1 = cfg.get_predecessors(plt_entry_1)
+        preds_1 = cfg.get_pmodel.redecessors(plt_entry_1)
         assert len(preds_1) == 1
 
         # Each predecessor must have a call edge and a FakeRet edge
-        edges_0 = cfg.get_successors_and_jumpkind(preds_0[0], excluding_fakeret=False)
+        edges_0 = cfg.model.get_successors_and_jumpkind(preds_0[0], excluding_fakeret=False)
         assert len(edges_0) == 2
         jumpkinds = {jumpkind for _, jumpkind in edges_0}
         assert jumpkinds == {"Ijk_Call", "Ijk_FakeRet"}
 
-        edges_1 = cfg.get_successors_and_jumpkind(preds_1[0], excluding_fakeret=False)
+        edges_1 = cfg.model.get_successors_and_jumpkind(preds_1[0], excluding_fakeret=False)
         assert len(edges_1) == 2
         jumpkinds = {jumpkind for _, jumpkind in edges_1}
         assert jumpkinds == {"Ijk_Call", "Ijk_FakeRet"}
@@ -536,8 +536,8 @@ class TestCfgemulate(unittest.TestCase):
             cfg = proj.analyses.CFGEmulated()
 
             for src, dst in edges[arch]:
-                src_node = cfg.get_any_node(src)
-                dst_node = cfg.get_any_node(dst)
+                src_node = cfg.model.get_any_node(src)
+                dst_node = cfg.model.get_any_node(dst)
                 assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
                     src_node,
                     dst_node,
@@ -605,15 +605,15 @@ class TestCfgemulate(unittest.TestCase):
             normalize=True,
         )
         for src, dst in edges:
-            src_node = target_function_cfg_emulated.get_any_node(src)
-            dst_node = target_function_cfg_emulated.get_any_node(dst)
+            src_node = target_function_cfg_emulated.model.get_any_node(src)
+            dst_node = target_function_cfg_emulated.model.get_any_node(dst)
             assert dst_node in src_node.successors, "CFG edge {}-{} is not found.".format(
                 src_node,
                 dst_node,
             )
 
         for node_addr, final_states_number in final_states_info.items():
-            node = target_function_cfg_emulated.get_any_node(node_addr)
+            node = target_function_cfg_emulated.model.get_any_node(node_addr)
             assert final_states_number == len(node.final_states), (
                 "CFG node 0x%x has incorrect final states." % node_addr
             )

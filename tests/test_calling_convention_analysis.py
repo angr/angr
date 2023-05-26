@@ -177,7 +177,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         }
 
         for func in funcs.values():
-            if func.is_simprocedure or func.alignment:
+            if func.is_simprocedure or func.is_alignment:
                 continue
             if func.calling_convention is None:
                 continue
