@@ -516,7 +516,16 @@ def _load_native():
             ctypes.POINTER(ctypes.c_uint64),
             ctypes.c_uint64,
         )
-        _setup_prototype(h, "set_fd_bytes", state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_uint64)
+        _setup_prototype(
+            h,
+            "set_fd_bytes",
+            state_t,
+            ctypes.c_uint64,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_uint64,
+            ctypes.c_uint64
+        )
         _setup_prototype(
             h,
             "set_random_syscall_data",
