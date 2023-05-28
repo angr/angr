@@ -524,7 +524,7 @@ def _load_native():
             ctypes.c_void_p,
             ctypes.c_void_p,
             ctypes.c_uint64,
-            ctypes.c_uint64
+            ctypes.c_uint64,
         )
         _setup_prototype(
             h,

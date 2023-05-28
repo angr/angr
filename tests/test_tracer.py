@@ -48,9 +48,9 @@ def tracer_cgc(
     )
     if add_options is not None and angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in add_options:
         if symbolic_stdin:
-            fd_data = {0: (stdin, b'\x01' * len(stdin))}
+            fd_data = {0: (stdin, b"\x01" * len(stdin))}
         else:
-            fd_data = {0: (stdin, b'\x00' * len(stdin))}
+            fd_data = {0: (stdin, b"\x00" * len(stdin))}
 
         t.set_fd_data(fd_data)
 
