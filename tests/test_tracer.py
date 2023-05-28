@@ -18,6 +18,7 @@ def tracer_cgc(
     add_options=None,
     remove_options=None,
     syscall_data=None,
+    symbolic_stdin=True,
 ):
     p = angr.Project(filename)
     p.simos.syscall_library.update(angr.SIM_LIBRARIES["cgcabi_tracer"])
@@ -46,7 +47,12 @@ def tracer_cgc(
         syscall_data=syscall_data,
     )
     if add_options is not None and angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in add_options:
-        t.set_fd_data({0: stdin})
+        if symbolic_stdin:
+            fd_data = {0: (stdin, b'\x01' * len(stdin))}
+        else:
+            fd_data = {0: (stdin, b'\x00' * len(stdin))}
+
+        t.set_fd_data(fd_data)
 
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -65,6 +71,7 @@ def trace_cgc_with_pov_file(
     add_options=None,
     remove_options=None,
     syscall_data=None,
+    symbolic_stdin=True,
 ):
     assert os.path.isfile(pov_file)
     pov = load_cgc_pov(pov_file)
@@ -78,6 +85,7 @@ def trace_cgc_with_pov_file(
         add_options=add_options,
         remove_options=remove_options,
         syscall_data=syscall_data,
+        symbolic_stdin=symbolic_stdin,
     )
     simgr = trace_result[0]
     simgr.run()
