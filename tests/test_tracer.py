@@ -354,6 +354,45 @@ def test_cgc_se1_palindrome_raw():
     assert simgr.crashed
 
 
+def test_concrete_execution_in_native_interface():
+    """
+    Test if concrete execution without any symbolic bytes is done correctly when receive syscall is handled in native
+    interface
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00052")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "KPRCA_00052_POV_00000.xml")
+    output_initial_bytes = (
+        b"Enter system password: \nWelcome to the CGC Pizzeria order management system.\n1. Input Order\n"
+        b"2. Update Order\n3. View One Orders\n4. View All Orders\n5. Delete Order\n6. Clear All Orders\n7. Logout\n"
+        b"Choice: Enter Pickup Name: Choose what the kind of pizza\n1. Pizza Pie - The classic!\n"
+        b"2. Pizza Sub - All the fun, on a bun\n3. Pizza Bowl - Our own twist\nChoice: Select Size\n1. Small\n"
+        b"2. Medium\n3. Large\nChoice: Successfully added a new Pizza Pie!\nSelect an option:\n1. Add Toppings\n"
+        b"2. Remove Toppings\n3. Add Sauce\n4. Remove Sauce\n5. Finished With Pizza\nChoice: Successfully added pizza!"
+        b"\n1. Add another Pizza\n2. Quit\nChoice: 0. Cancel\n==================================================\n  "
+        b"Item #1. Classic Pizza Pie, Size: SMALL\n    Selected Toppings\n\tNone\n    Sauce on the side\n\tNone\n"
+        b"--------------------------------------\n\t\tCalories: 1000\n\t\tCarbs   : 222\n\nPizza length... = 1\n\t\t"
+        b"Estimated wait time: 36 minute(s)\n==================================================\nChoice: "
+        b"Removed Item #1\n1. Add another Pizza\n2. Quit\nChoice: Order successfully added!\n1. Input Order\n"
+        b"2. Update Order\n3. View One Orders\n4. View All Orders\n5. Delete Order\n6. Clear All Orders\n7. Logout\n"
+        b"Choice: 1 - pov: Ordered 0 pizza(s)\n==================================================\n"
+        b"--------------------------------------\n\t\tCalories: 0\n\t\tCarbs   : 0\n\n"
+    )
+    add_options = {
+        angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL,
+        angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+        angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS,
+    }
+    trace_cgc_with_pov_file(
+        binary,
+        "concrete_execution_in_native_interface",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options,
+        symbolic_stdin=False,
+    )
+
+
 def test_d_flag_and_write_write_conflict_in_unicorn():
     """
     Check if d flag is handled correctly in unicorn native interface and write-write conflicts do not occur when
