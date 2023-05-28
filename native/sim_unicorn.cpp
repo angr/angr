@@ -2617,7 +2617,7 @@ void State::perform_cgc_receive() {
 		for (; curr_offset < actual_count; curr_offset++) {
 			if (tmp_taint_buf[curr_offset] != curr_taint_status) {
 				// Taint status of next byte differs. Update all previous ones
-				handle_write(buf + start_offset + slice_size, slice_size, true, (curr_taint_status == TAINT_SYMBOLIC));
+				handle_write(buf + start_offset, slice_size, true, (curr_taint_status == TAINT_SYMBOLIC));
 				if (stopped) {
 					free(tmp_buf);
 					return;
@@ -2632,7 +2632,7 @@ void State::perform_cgc_receive() {
 		}
 		if (start_offset != curr_offset) {
 			// Taint status of some more bytes need to be updated
-			handle_write(buf + start_offset + slice_size, slice_size, true, (curr_taint_status == TAINT_SYMBOLIC));
+			handle_write(buf + start_offset, slice_size, true, (curr_taint_status == TAINT_SYMBOLIC));
 			if (stopped) {
 				free(tmp_buf);
 				return;
