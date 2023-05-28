@@ -1922,7 +1922,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		// by this memory read. Let's process the block, rebuild its memory reads map and find the current instruction
 		// address
 		curr_block_details.vex_lift_result = lift_block(curr_block_details.block_addr, curr_block_details.block_size);
-		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0)) {
+		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0) ||
+		    (curr_block_details.vex_lift_result->size != curr_block_details.block_size)) {
 			// Failed to lift block to VEX.
 			if (is_mem_read_symbolic) {
 				// Since we are processing VEX block for the first time, there are no symbolic registers/VEX temps.
@@ -2306,7 +2307,8 @@ void State::start_propagating_taint() {
 	if ((arch == UC_ARCH_ARM) && (block_taint_cache.find(block_address) == block_taint_cache.end())) {
 		// Block was not lifted and processed before. So it could end in syscall
 		curr_block_details.vex_lift_result = lift_block(block_address, block_size);
-		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0)) {
+		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0) ||
+		    (curr_block_details.vex_lift_result->size != curr_block_details.block_size)) {
 			// Failed to lift block to VEX. We don't execute the block because it could end in a syscall.
 			stop(STOP_VEX_LIFT_FAILED);
 			return;
@@ -2330,16 +2332,10 @@ void State::start_propagating_taint() {
 			// Compute and cache taint sink-source relations for this block since there are symbolic registers.
 			if (curr_block_details.vex_lift_result == NULL) {
 				curr_block_details.vex_lift_result = lift_block(block_address, block_size);
-				if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0)) {
-					// Failed to lift block to VEX.
-					if (symbolic_registers.size() > 0) {
-						// There are symbolic registers but VEX lift failed so we can't propagate taint
-						stop(STOP_VEX_LIFT_FAILED);
-					}
-					else {
-						// There are no symbolic registers so let's attempt to execute the block.
-						curr_block_details.vex_lift_failed = true;
-					}
+				if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0) ||
+				    (curr_block_details.vex_lift_result->size != curr_block_details.block_size)) {
+					// There are symbolic registers but VEX lift failed so we can't propagate taint
+					stop(STOP_VEX_LIFT_FAILED);
 					return;
 				}
 			}
