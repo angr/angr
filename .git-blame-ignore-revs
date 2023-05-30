@@ -5,3 +5,4 @@
 2e627c88fc89e52984229b08c3f1ebc023dfcc2d # pyupgrade
 2d8158c6e7db52a426db8fd883160f417b683805 # Whitespace
 74e8f34cebf66f9efc27f8c4aa6968f2dd456852 # prefer builtins
+1961c860f3be91cbec9b8153f5a3f5be23a4658c # Black 2023
