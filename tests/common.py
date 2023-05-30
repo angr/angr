@@ -16,6 +16,11 @@ try:
 except ImportError:
     tracer = None
 
+try:
+    import unicorn
+except ImportError:
+    unicorn = None
+
 bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
 bin_priv_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries-private")
 
@@ -47,6 +52,10 @@ def slow_test(func):
 
 def skip_if_not_linux(func):
     return skipUnless(sys.platform.startswith("linux"), "Skipping Linux Test Cases")(func)
+
+
+def requires_unicorn(func):
+    return skipUnless(unicorn, "Unicorn is not installed")(func)
 
 
 TRACE_VERSION = 1
