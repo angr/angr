@@ -31,7 +31,7 @@ jobs:
       - run: |
           call %USERPROFILE%\venv\Scripts\activate
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
+          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1.post1"
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
           pip install git+https://github.com/angr/cle.git
@@ -72,7 +72,7 @@ jobs:
         shell: bash
       - run: |
           source $HOME/venv/bin/activate
-          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1"
+          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1.post1"
           pip install git+https://github.com/angr/archinfo.git
           pip install git+https://github.com/angr/pyvex.git
           pip install git+https://github.com/angr/cle.git
