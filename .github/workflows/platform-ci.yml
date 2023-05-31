@@ -50,6 +50,8 @@ jobs:
           pytest --splits 5 --group ${{ matrix.group }} -n auto angr
         name: Run pytest
         shell: cmd
+        env:
+          SKIP_SLOW_TESTS: true
 
   macos:
     name: Test macOS
@@ -85,3 +87,5 @@ jobs:
           source $HOME/venv/bin/activate
           pytest -n auto angr
         name: Run pytest
+        env:
+          SKIP_SLOW_TESTS: true
