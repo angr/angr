@@ -8,7 +8,7 @@ from claripy.ast.fp import FP
 
 
 class fmod(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ
 
     def run(self, x, y):
         val_len = self.arch.bytes * self.arch.byte_width
@@ -23,9 +23,9 @@ class fmod(angr.SimProcedure):
                 x = claripy.fpToSBV(rm, x, val_len)
             if isinstance(y, FP):
                 y = claripy.fpToSBV(rm, y, val_len)
-            if self.arch.memory_endness == 'Iend_LE':
-                x = x[63:64 - val_len]
-                y = y[63:64 - val_len]
+            if self.arch.memory_endness == "Iend_LE":
+                x = x[63 : 64 - val_len]
+                y = y[63 : 64 - val_len]
             else:
                 x = x[63:0]
                 y = y[63:0]

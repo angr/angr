@@ -8,7 +8,7 @@ import angr
 
 
 class div(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ
 
     def run(self, x, y):
         # in ARM, div function requires 3 arguments

@@ -4,9 +4,9 @@ import os
 import angr
 
 
-def find_base_addr_in_coredump(proj: 'angr.Project', so_filename: str) -> Optional[int]:
+def find_base_addr_in_coredump(proj: "angr.Project", so_filename: str) -> Optional[int]:
     coredump = proj.loader.main_object
-    all_sections: Dict[int, Any] = dict((sec.vaddr, sec) for sec in coredump.sections)
+    all_sections: Dict[int, Any] = {sec.vaddr: sec for sec in coredump.sections}
 
     coredump_so_sections: Dict[int, Any] = {}
     for vaddr_start, _, file_offset, file_path in coredump.filename_lookup:
@@ -18,11 +18,10 @@ def find_base_addr_in_coredump(proj: 'angr.Project', so_filename: str) -> Option
 
     so_baseaddr = min(coredump_so_sections)
 
-
     return so_baseaddr
 
 
-def diff_coredump(core_dump_location: str, so_filename: str, so_path: str) -> List[Tuple[Any,bytes,bytes]]:
+def diff_coredump(core_dump_location: str, so_filename: str, so_path: str) -> List[Tuple[Any, bytes, bytes]]:
     """
     Diffing memory content of a core dump against a reference .so library file and reporting differences.
 
@@ -42,9 +41,9 @@ def diff_coredump(core_dump_location: str, so_filename: str, so_path: str) -> Li
     print(f"[+] {so_filename} was loaded at base address {so_baseaddr:x}.")
 
     # load the original .so file at the given base address
-    so_proj = angr.Project(so_path, auto_load_libs=False, main_opts={'base_addr': so_baseaddr})
+    so_proj = angr.Project(so_path, auto_load_libs=False, main_opts={"base_addr": so_baseaddr})
 
-    diffs = [ ]
+    diffs = []
 
     # compare code and data sections
     for section in so_proj.loader.main_object.sections:
@@ -59,8 +58,9 @@ def diff_coredump(core_dump_location: str, so_filename: str, so_path: str) -> Li
             except KeyError:
                 print(f"[.] Executable section {section} is not found in the core dump.")
                 continue
-            so_content = so_proj.loader.main_object.memory.load(section.vaddr - so_proj.loader.main_object.mapped_base,
-                                                                section.memsize)
+            so_content = so_proj.loader.main_object.memory.load(
+                section.vaddr - so_proj.loader.main_object.mapped_base, section.memsize
+            )
             if coredump_content != so_content:
                 # found differences
                 print(f"[-] Found byte-level differences in {section}.")
@@ -74,11 +74,12 @@ def diff_coredump(core_dump_location: str, so_filename: str, so_path: str) -> Li
             except KeyError:
                 print(f"[.] Data section {section} is not found in the core dump.")
                 continue
-            so_content = so_proj.loader.main_object.memory.load(section.vaddr - so_proj.loader.main_object.mapped_base,
-                                                                section.memsize)
+            so_content = so_proj.loader.main_object.memory.load(
+                section.vaddr - so_proj.loader.main_object.mapped_base, section.memsize
+            )
             if coredump_content != so_content:
                 # found differences
-                if section.name in {'.got', '.got.plt', '.dynamic', '.bss'}:
+                if section.name in {".got", ".got.plt", ".dynamic", ".bss"}:
                     # they will be modified during runtime.
                     continue
                 print(f"[-] Found byte-level differences in {section}.")
@@ -147,39 +148,31 @@ def compare_state_graphs(graph0, base_addr_0: int, graph1, base_addr_1: int):
             else:
                 r = compare_value(abs_state_0[k], abs_state_1[k])
             if not r:
-                print("[-] Graph 0, State %d, %s = %s; Graph 1, State %d, %s = %s" % (
-                    idx,
-                    k,
-                    abs_state_0[k],
-                    idx,
-                    k,
-                    abs_state_1[k]
-                ))
+                print(
+                    "[-] Graph 0, State %d, %s = %s; Graph 1, State %d, %s = %s"
+                    % (idx, k, abs_state_0[k], idx, k, abs_state_1[k])
+                )
 
         # finally, check their edges
         out_edges_0 = list(graph0.out_edges(s0, data=True))
         out_edges_1 = list(graph1.out_edges(s1, data=True))
 
         if len(out_edges_0) != len(out_edges_1):
-            print("[-] Graph 0, State %d has %d successors; Graph 1, State %d has %d successors" % (
-                idx,
-                len(out_edges_0),
-                idx,
-                len(out_edges_1)
-            ))
+            print(
+                "[-] Graph 0, State %d has %d successors; Graph 1, State %d has %d successors"
+                % (idx, len(out_edges_0), idx, len(out_edges_1))
+            )
 
         # if there is only one edge, compare their edge data and successors...
         # TODO: Support multiple edges
         if len(out_edges_0) == len(out_edges_1) == 1:
             out_edge_0 = out_edges_0[0]
             out_edge_1 = out_edges_1[0]
-            time_delta_0 = out_edge_0[2]['time_delta']
-            time_delta_1 = out_edge_1[2]['time_delta']
+            time_delta_0 = out_edge_0[2]["time_delta"]
+            time_delta_1 = out_edge_1[2]["time_delta"]
 
             if time_delta_0 != time_delta_1:
-                print("[-] Graph 0, State %d has time delta of %s; Graph 1, State %d has time delta of %s" % (
-                idx,
-                time_delta_0,
-                idx,
-                time_delta_1
-            ))
+                print(
+                    "[-] Graph 0, State %d has time delta of %s; Graph 1, State %d has time delta of %s"
+                    % (idx, time_delta_0, idx, time_delta_1)
+                )

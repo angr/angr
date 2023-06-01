@@ -11,9 +11,16 @@ OP_TYPE_IMM = 2  # from capstone
 
 
 class RootCauseAnalysis(Analysis):
-    def __init__(self, arch, block_addr: int, stmt_idx: int, constraint=None, cross_insn_opt=False,
-                 expression_source: Optional[Dict[claripy.ast.BV,Tuple[int,int]]]=None,
-                 config_vars: Optional[Dict[claripy.ast.BV,Tuple[str,int,str,int]]]=None):
+    def __init__(
+        self,
+        arch,
+        block_addr: int,
+        stmt_idx: int,
+        constraint=None,
+        cross_insn_opt=False,
+        expression_source: Optional[Dict[claripy.ast.BV, Tuple[int, int]]] = None,
+        config_vars: Optional[Dict[claripy.ast.BV, Tuple[str, int, str, int]]] = None,
+    ):
         self.arch = arch
         self.block_addr = block_addr
         self.stmt_idx = stmt_idx
@@ -28,10 +35,10 @@ class RootCauseAnalysis(Analysis):
         block = self.project.factory.block(self.block_addr, cross_insn_opt=self.cross_insn_opt)
         stmt = block.vex.statements[self.stmt_idx]
 
-        causes: List[CauseBase] = [ ]
+        causes: List[CauseBase] = []
 
         # handle the most simple case: where the constraint was enforced
-        if self.constraint is not None and self.constraint.op in ('__eq__', '__ne__'):
+        if self.constraint is not None and self.constraint.op in ("__eq__", "__ne__"):
             # comparison. we report both the comparison itself and the constant (if there is any)
             if not self.constraint.args[1].symbolic:
                 # find its source
@@ -43,8 +50,19 @@ class RootCauseAnalysis(Analysis):
                             cause = InstrOperandCause(ins.address, idx, operand.value.imm)
                             causes.append(cause)
                     # x86
-                    if self.arch.name in ("X86", "AMD64") and \
-                            ins.mnemonic in {'cmp', 'je', 'jne', 'jg', 'jl', 'jge', 'jle', 'ja', 'jb', 'jae', 'jbe'}:
+                    if self.arch.name in ("X86", "AMD64") and ins.mnemonic in {
+                        "cmp",
+                        "je",
+                        "jne",
+                        "jg",
+                        "jl",
+                        "jge",
+                        "jle",
+                        "ja",
+                        "jb",
+                        "jae",
+                        "jbe",
+                    }:
                         # report it
                         cause = InstrOpcodeCause(ins.address, ins.mnemonic)
                         causes.append(cause)
@@ -65,7 +83,7 @@ class RootCauseAnalysis(Analysis):
         :return:
         """
 
-        causes = [ ]
+        causes = []
 
         r = self._expr_root_cause(expr)
         if r is not None:
@@ -101,7 +119,9 @@ class RootCauseAnalysis(Analysis):
 
         return causes
 
-    def _expr_root_cause(self, expr: claripy.ast.BV) -> Optional[Tuple[str,Union[Tuple[str,int,str,int],Tuple[int,int]]]]:
+    def _expr_root_cause(
+        self, expr: claripy.ast.BV
+    ) -> Optional[Tuple[str, Union[Tuple[str, int, str, int], Tuple[int, int]]]]:
         """
         For each expression, find where it is constructed in the program.
 
@@ -110,7 +130,7 @@ class RootCauseAnalysis(Analysis):
         """
 
         # if it's a configuration variable, return the location of the configuration variable
-        if expr.op in ('BVS', 'FPS') and expr in self.config_vars:
+        if expr.op in ("BVS", "FPS") and expr in self.config_vars:
             return "config_var", self.config_vars[expr]
 
         # try to determine where the expression is created
@@ -125,4 +145,4 @@ class RootCauseAnalysis(Analysis):
         return "expr", self.expression_source[expr]
 
 
-AnalysesHub.register_default('RootCause', RootCauseAnalysis)
+AnalysesHub.register_default("RootCause", RootCauseAnalysis)

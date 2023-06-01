@@ -118,15 +118,31 @@ explicit_attrs = {
         "generic_name": "unpack",
         "to_size": 128,
     },
-
-    'Iop_V256to64_0': { 'generic_name': 'unpack', 'to_size': 64, },
-    'Iop_V256to64_1': { 'generic_name': 'unpack', 'to_size': 64, },
-    'Iop_V256to64_2': { 'generic_name': 'unpack', 'to_size': 64, },
-    'Iop_V256to64_3': { 'generic_name': 'unpack', 'to_size': 64, },
-    'Iop_V256toV128_0': { 'generic_name': 'unpack', 'to_size': 128, },
-    'Iop_V256toV128_1': { 'generic_name': 'unpack', 'to_size': 128, },
-    'Iop_SetV128lo32': {}
-
+    "Iop_V256to64_0": {
+        "generic_name": "unpack",
+        "to_size": 64,
+    },
+    "Iop_V256to64_1": {
+        "generic_name": "unpack",
+        "to_size": 64,
+    },
+    "Iop_V256to64_2": {
+        "generic_name": "unpack",
+        "to_size": 64,
+    },
+    "Iop_V256to64_3": {
+        "generic_name": "unpack",
+        "to_size": 64,
+    },
+    "Iop_V256toV128_0": {
+        "generic_name": "unpack",
+        "to_size": 128,
+    },
+    "Iop_V256toV128_1": {
+        "generic_name": "unpack",
+        "to_size": 128,
+    },
+    "Iop_SetV128lo32": {},
 }
 
 for _vec_lanewidth in (8, 16, 32, 64):
@@ -1262,9 +1278,10 @@ class SimIROp:
 
     #   return accumulator
 
-
     @staticmethod
-    def _op_Iop_SetV128lo32(args): return args[0][127:32].concat(args[1])
+    def _op_Iop_SetV128lo32(args):
+        return args[0][127:32].concat(args[1])
+
 
 #
 # Op Handler

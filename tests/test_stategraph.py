@@ -14,24 +14,32 @@ from angr.analyses.state_graph_recovery import MinDelayBaseRule, RuleVerifier, I
 from angr.analyses.state_graph_recovery.apis import generate_patch, apply_patch, apply_patch_on_state, EditDataPatch
 
 
-binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
+binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
 
 
 # state graph acquired. define a rule
 class MinDelayRule_PedGreen(MinDelayBaseRule):
-    def node_a(self, graph: 'networkx.DiGraph'):
+    def node_a(self, graph: "networkx.DiGraph"):
         # ped light is green
         for node in graph.nodes():
-            if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 1 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 0 and dict(node)['time_delta'] is None:
+            if (
+                dict(node)["PEDESTRIAN_GREEN_LIGHT"] == 1
+                and dict(node)["PEDESTRIAN_RED_LIGHT"] == 0
+                and dict(node)["time_delta"] is None
+            ):
                 yield node
 
-    def node_b(self, graph: 'networkx.DiGraph', start: tuple):
+    def node_b(self, graph: "networkx.DiGraph", start: tuple):
         # ped light is red
         visited = [start]
         queue = [start]
         while queue:
             node = queue.pop(0)
-            if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 0 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 1 and dict(node)['time_delta'] is None:
+            if (
+                dict(node)["PEDESTRIAN_GREEN_LIGHT"] == 0
+                and dict(node)["PEDESTRIAN_RED_LIGHT"] == 1
+                and dict(node)["time_delta"] is None
+            ):
                 yield node
             for suc in graph.successors(node):
                 if suc not in visited:
@@ -40,19 +48,19 @@ class MinDelayRule_PedGreen(MinDelayBaseRule):
 
 
 class MinDelayRule_Orange(MinDelayBaseRule):
-    def node_a(self, graph: 'networkx.DiGraph'):
+    def node_a(self, graph: "networkx.DiGraph"):
         # ped light is orange
         for node in graph.nodes():
-            if dict(node)['ORANGE_LIGHT'] == 1 and dict(node)['RED_LIGHT'] == 0 and dict(node)['time_delta'] is None:
+            if dict(node)["ORANGE_LIGHT"] == 1 and dict(node)["RED_LIGHT"] == 0 and dict(node)["time_delta"] is None:
                 yield node
 
-    def node_b(self, graph: 'networkx.DiGraph', start: tuple):
+    def node_b(self, graph: "networkx.DiGraph", start: tuple):
         # ped light is red
         visited = [start]
         queue = [start]
         while queue:
             node = queue.pop(0)
-            if dict(node)['ORANGE_LIGHT'] == 0 and dict(node)['RED_LIGHT'] == 1 and dict(node)['time_delta'] is None:
+            if dict(node)["ORANGE_LIGHT"] == 0 and dict(node)["RED_LIGHT"] == 1 and dict(node)["time_delta"] is None:
                 yield node
             for suc in graph.successors(node):
                 if suc not in visited:
@@ -60,11 +68,9 @@ class MinDelayRule_Orange(MinDelayBaseRule):
                     queue.append(suc)
 
 
-
-
 class NoPedGreenCarGreen(IllegalNodeBaseRule):
-    def verify_node(self, graph: 'networkx.DiGraph', node) -> bool:
-        if dict(node)['GREEN_LIGHT'] == 1 and dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 1:
+    def verify_node(self, graph: "networkx.DiGraph", node) -> bool:
+        if dict(node)["GREEN_LIGHT"] == 1 and dict(node)["PEDESTRIAN_GREEN_LIGHT"] == 1:
             # both car green light and the pedestrian green light are on at the same time
             # this is bad!
             return False
@@ -76,12 +82,14 @@ def printstate(abs_state):
     try:
         from termcolor import colored, cprint
     except ImportError:
-        def colored(x, _): return x
 
-    light_on = '\u25cf'
-    light_off = '\u25cb'
-    switch_on = u"\U0001F532" if sys.platform != "win32" else "ON"
-    switch_off = u"\U0001F533" if sys.platform != "win32" else "OFF"
+        def colored(x, _):
+            return x
+
+    light_on = "\u25cf"
+    light_off = "\u25cb"
+    switch_on = "\U0001F532" if sys.platform != "win32" else "ON"
+    switch_off = "\U0001F533" if sys.platform != "win32" else "OFF"
 
     SWITCH_BUTTON = switch_off
     RED_LIGHT = light_off
@@ -113,40 +121,44 @@ def printstate(abs_state):
             print(state)
 
     print("SWITCH BUTTON  ", SWITCH_BUTTON)
-    print("CAR LIGHTS     ", colored(RED_LIGHT, 'red'), colored(ORANGE_LIGHT, 'yellow'), colored(GREEN_LIGHT, 'green'))
-    print("PED LIGHTS     ", colored(PEDESTRIAN_RED_LIGHT, 'red'), colored(PEDESTRIAN_GREEN_LIGHT, 'green'))
+    print("CAR LIGHTS     ", colored(RED_LIGHT, "red"), colored(ORANGE_LIGHT, "yellow"), colored(GREEN_LIGHT, "green"))
+    print("PED LIGHTS     ", colored(PEDESTRIAN_RED_LIGHT, "red"), colored(PEDESTRIAN_GREEN_LIGHT, "green"))
+
 
 def switch_on(state):
     # switch on
-    base_addr = int(data['variable_base_addr'], 16)
-    switch = next(x for x in data['variables'] if x['name'] == "SWITCH_BUTTON")
-    switch_value_addr = base_addr + int(switch['address'], 16)
+    base_addr = int(data["variable_base_addr"], 16)
+    switch = next(x for x in data["variables"] if x["name"] == "SWITCH_BUTTON")
+    switch_value_addr = base_addr + int(switch["address"], 16)
     switch_flag_addr = switch_value_addr + 1
     state.memory.store(switch_value_addr, claripy.BVV(0x1, 8), endness=state.memory.endness)  # value
     state.memory.store(switch_flag_addr, claripy.BVV(0x2, 8), endness=state.memory.endness)  # flag
 
+
 def _hook_py_extensions(proj, cfg):
-    proj.hook(cfg.kb.functions['PYTHON_EVAL_body__'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
-    proj.hook(cfg.kb.functions['PYTHON_POLL_body__'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
-    proj.hook(cfg.kb.functions['__publish_debug'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
-    proj.hook(cfg.kb.functions['__publish_py_ext'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
+    proj.hook(cfg.kb.functions["PYTHON_EVAL_body__"].addr, angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]())
+    proj.hook(cfg.kb.functions["PYTHON_POLL_body__"].addr, angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]())
+    proj.hook(cfg.kb.functions["__publish_debug"].addr, angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]())
+    proj.hook(cfg.kb.functions["__publish_py_ext"].addr, angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]())
 
 
 def _generate_field_desc(data, base_addr: int):
     # define abstract fields
     fields_desc = {}
     config_fields = {}
-    for variable in data['variables']:
-        if variable['type'] == 'output':
-            fields_desc[variable['name']] = (base_addr + int(variable['address'], 16),
-                                             variable.get('sort', "int"),
-                                             variable['size'],
-                                             )
-        elif variable['type'] == 'config':
-            config_fields[variable['name']] = (base_addr + int(variable['address'], 16),
-                                               variable.get('sort', "int"),
-                                               variable['size'],
-                                               )
+    for variable in data["variables"]:
+        if variable["type"] == "output":
+            fields_desc[variable["name"]] = (
+                base_addr + int(variable["address"], 16),
+                variable.get("sort", "int"),
+                variable["size"],
+            )
+        elif variable["type"] == "config":
+            config_fields[variable["name"]] = (
+                base_addr + int(variable["address"], 16),
+                variable.get("sort", "int"),
+                variable["size"],
+            )
 
     return fields_desc, config_fields
 
@@ -157,20 +169,21 @@ def test_patch_generation():
     proj = angr.Project(binary_path, auto_load_libs=False)
 
     from angr.analyses.state_graph_recovery.apis import DataItemCause
-    patch = generate_patch(proj.arch, [DataItemCause(0x44e3c0+0x1b0, "float", 4, "LIGHT_LEVEL")])
+
+    patch = generate_patch(proj.arch, [DataItemCause(0x44E3C0 + 0x1B0, "float", 4, "LIGHT_LEVEL")])
     patch_id = 0
     output_path = f"{binary_path}.patched.{patch_id:02d}"
     binary_dir = os.path.dirname(binary_path)
     output_path = f"{binary_dir}/patch.{patch_id:02d}.py"
     cfg = proj.analyses.CFG()
-    apply_patch(patch, binary_path, output_path, proj, cfg.kb.functions['__run'].addr)
+    apply_patch(patch, binary_path, output_path, proj, cfg.kb.functions["__run"].addr)
     return
 
 
 def test_find_violations():
     binary_path = sys.argv[1]
     variable_path = sys.argv[2]
-    
+
     proj = angr.Project(binary_path, auto_load_libs=False)
 
     global data
@@ -183,16 +196,16 @@ def test_find_violations():
     _hook_py_extensions(proj, cfg)
 
     # run the state initializer
-    init = cfg.kb.functions['config_init__']
+    init = cfg.kb.functions["config_init__"]
     init_callable = proj.factory.callable(init.addr, perform_merge=False)
     init_callable.perform_call()
     initial_state = init_callable.result_state
 
     assert initial_state is not None
 
-    base_addr = int(data['variable_base_addr'], 16)
-    time_addr = int(data['time_addr'], 16)
-    software = data['software']
+    base_addr = int(data["variable_base_addr"], 16)
+    time_addr = int(data["time_addr"], 16)
+    software = data["software"]
 
     # define abstract fields
     fields_desc, config_fields = _generate_field_desc(data, base_addr)
@@ -215,9 +228,17 @@ def test_find_violations():
         symbolic_config_var_to_fields[symbolic_v] = var_name, var_addr, var_type, var_size
 
     fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
-    func = cfg.kb.functions['__run']
-    sgr = proj.analyses.StateGraphRecovery(func, fields, software, time_addr, init_state=initial_state, switch_on=switch_on,
-                                           config_vars=set(config_vars.values()), printstate=printstate)
+    func = cfg.kb.functions["__run"]
+    sgr = proj.analyses.StateGraphRecovery(
+        func,
+        fields,
+        software,
+        time_addr,
+        init_state=initial_state,
+        switch_on=switch_on,
+        config_vars=set(config_vars.values()),
+        printstate=printstate,
+    )
     state_graph = sgr.state_graph
     pickle.dumps(sgr, -1)
 
@@ -234,20 +255,24 @@ def test_find_violations():
     for path in networkx.all_simple_paths(state_graph, src, dst):
         for a, b in zip(path, path[1:]):
             data = state_graph[a][b]
-            constraint = data['time_delta_constraint']
+            constraint = data["time_delta_constraint"]
 
-            if data['time_delta_src'] is None:
+            if data["time_delta_src"] is None:
                 continue
-            block_addr, stmt_idx = data['time_delta_src']  # this is the location where final constraint was verified
+            block_addr, stmt_idx = data["time_delta_src"]  # this is the location where final constraint was verified
 
             if constraint is not None and block_addr is not None and stmt_idx is not None:
                 print(f"[.] Found a time delta source: {constraint}@{block_addr:#x}:{stmt_idx}")
 
                 # root cause it
-                rc = proj.analyses.RootCause(proj.arch, block_addr, stmt_idx, constraint=constraint,
-                                             expression_source=sgr._expression_source,
-                                             config_vars=symbolic_config_var_to_fields,
-                                             )
+                rc = proj.analyses.RootCause(
+                    proj.arch,
+                    block_addr,
+                    stmt_idx,
+                    constraint=constraint,
+                    expression_source=sgr._expression_source,
+                    config_vars=symbolic_config_var_to_fields,
+                )
                 print("[.] All root causes:")
                 for idx, cause in enumerate(rc.causes):
                     print(idx, cause)
@@ -274,6 +299,7 @@ def test_find_violations():
 
     # output the graph to a dot file
     from networkx.drawing.nx_agraph import write_dot
+
     write_dot(sgr.state_graph, "state_graph.dot")
 
 
@@ -291,21 +317,21 @@ def test_verify_patched_binary():
     _hook_py_extensions(proj, cfg)
 
     # run the state initializer
-    init = cfg.kb.functions['config_init__']
+    init = cfg.kb.functions["config_init__"]
     init_callable = proj.factory.callable(init.addr, perform_merge=False)
     init_callable.perform_call()
     initial_state = init_callable.result_state
 
     assert initial_state is not None
 
-    base_addr = int(data['variable_base_addr'], 16)
-    time_addr = int(data['time_addr'], 16)
-    software = data['software']
+    base_addr = int(data["variable_base_addr"], 16)
+    time_addr = int(data["time_addr"], 16)
+    software = data["software"]
 
     def switch_on(state):
         # switch on
-        switch = next(x for x in data['variables'] if x['name'] == "SWITCH_BUTTON")
-        switch_value_addr = base_addr + int(switch['address'], 16)
+        switch = next(x for x in data["variables"] if x["name"] == "SWITCH_BUTTON")
+        switch_value_addr = base_addr + int(switch["address"], 16)
         switch_flag_addr = switch_value_addr + 1
         state.memory.store(switch_value_addr, claripy.BVV(0x1, 8), endness=proj.arch.memory_endness)  # value
         state.memory.store(switch_flag_addr, claripy.BVV(0x2, 8), endness=proj.arch.memory_endness)  # flag
@@ -334,7 +360,7 @@ def test_verify_patched_binary():
         # apply patches previously generated
 
         # Note that we must patch PED_GREEN_TIME since this variable is only updated during standstill
-        p0 = EditDataPatch(base_addr + 0x1d8, struct.pack("<Q", 41), name="PATCH_PED_GREEN_TIME")  # PED_GREEN_TIME
+        p0 = EditDataPatch(base_addr + 0x1D8, struct.pack("<Q", 41), name="PATCH_PED_GREEN_TIME")  # PED_GREEN_TIME
         apply_patch_on_state(p0, state)
 
         # PED_GREEN_TIME = MIN_WALK_TIME * (1.0 + 1.0 * LIGHT_LEVEL)
@@ -345,10 +371,18 @@ def test_verify_patched_binary():
         # apply_patch_on_state(p1, state)
 
     fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
-    func = cfg.kb.functions['__run']
-    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, software, init_state=initial_state, switch_on=switch_on,
-                                           config_vars=set(config_vars.values()), printstate=printstate,
-                                           patch_callback=patch_all)
+    func = cfg.kb.functions["__run"]
+    sgr = proj.analyses.StateGraphRecovery(
+        func,
+        fields,
+        time_addr,
+        software,
+        init_state=initial_state,
+        switch_on=switch_on,
+        config_vars=set(config_vars.values()),
+        printstate=printstate,
+        patch_callback=patch_all,
+    )
     state_graph = sgr.state_graph
 
     finder = RuleVerifier(state_graph)
@@ -366,11 +400,13 @@ def test_verify_patched_binary():
 
     # output the graph to a dot file
     from networkx.drawing.nx_agraph import write_dot
+
     write_dot(sgr.state_graph, "state_graph.patched.dot")
 
 
-def generate_state_graph(library_path: Optional[str], variables_data: Dict,
-                         project: Optional[angr.Project]=None) -> networkx.DiGraph:
+def generate_state_graph(
+    library_path: Optional[str], variables_data: Dict, project: Optional[angr.Project] = None
+) -> networkx.DiGraph:
     if project is None:
         proj = angr.Project(library_path, auto_load_libs=False)
     else:
@@ -380,17 +416,23 @@ def generate_state_graph(library_path: Optional[str], variables_data: Dict,
     _hook_py_extensions(proj, cfg)
 
     # run the state initializer
-    init = cfg.kb.functions['config_init__']
+    init = cfg.kb.functions["config_init__"]
     init_callable = proj.factory.callable(init.addr, perform_merge=False)
     init_callable.perform_call()
     initial_state = init_callable.result_state
 
     assert initial_state is not None
 
-    base_addr = int(variables_data['variable_base_addr'], 16) if isinstance(variables_data['variable_base_addr'], str) \
-        else variables_data['variable_base_addr']
-    time_addr = int(variables_data['time_addr'], 16) if isinstance(variables_data['time_addr'], str) \
-        else variables_data['time_addr']
+    base_addr = (
+        int(variables_data["variable_base_addr"], 16)
+        if isinstance(variables_data["variable_base_addr"], str)
+        else variables_data["variable_base_addr"]
+    )
+    time_addr = (
+        int(variables_data["time_addr"], 16)
+        if isinstance(variables_data["time_addr"], str)
+        else variables_data["time_addr"]
+    )
 
     # define abstract fields
     fields_desc, config_fields = _generate_field_desc(variables_data, base_addr)
@@ -413,9 +455,16 @@ def generate_state_graph(library_path: Optional[str], variables_data: Dict,
         symbolic_config_var_to_fields[symbolic_v] = var_name, var_addr, var_type, var_size
 
     fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
-    func = cfg.kb.functions['__run']
-    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on,
-                                           config_vars=set(config_vars.values()), printstate=printstate)
+    func = cfg.kb.functions["__run"]
+    sgr = proj.analyses.StateGraphRecovery(
+        func,
+        fields,
+        time_addr,
+        init_state=initial_state,
+        switch_on=switch_on,
+        config_vars=set(config_vars.values()),
+        printstate=printstate,
+    )
     state_graph = sgr.state_graph
 
     return state_graph
@@ -431,7 +480,7 @@ def mem_patch_object(obj, section, new_content: bytes):
             offset_in_backer = section_offset - backer_offset
             obj.memory._backers[idx] = (
                 backer_offset,
-                content[:offset_in_backer] + new_content[:len(content) - offset_in_backer]
+                content[:offset_in_backer] + new_content[: len(content) - offset_in_backer],
             )
             break
     else:
@@ -439,7 +488,6 @@ def mem_patch_object(obj, section, new_content: bytes):
 
 
 def test_load_coredump():
-
     base_dir = r"C:\Users\Fish\Desktop\temp\mitre"
 
     # this test loads a given core dump and compares it against a known binary on a section-by-section basis
@@ -460,13 +508,12 @@ def test_load_coredump():
     so_baseaddr = find_base_addr_in_coredump(proj_coredump, so_filename)
     so_filepath = os.path.join(base_dir, so_filename)
     # let's load the original binary at the same memory location
-    proj = angr.Project(so_filepath, main_opts={'base_addr': so_baseaddr}, auto_load_libs=False)
+    proj = angr.Project(so_filepath, main_opts={"base_addr": so_baseaddr}, auto_load_libs=False)
     # memory patch it
     mem_patch_object(proj.loader.main_object, diffs[0][0], diffs[0][1])
     print("[+] Patched runtime differences found in the core dump into the project.")
 
     # analyze differences - which bytes are different?
-    
 
     #
     # generate a state graph on the core dump
@@ -476,8 +523,8 @@ def test_load_coredump():
         data = json.load(f)
     # we also need to update addresses in the json file to reflect differences between static addresses and runtime
     # memory addresses
-    data["variable_base_addr"] = hex(int(data['variable_base_addr'], 16) + (so_baseaddr - 0x400000))
-    data["time_addr"] = hex(int(data['time_addr'], 16) + (so_baseaddr - 0x400000))
+    data["variable_base_addr"] = hex(int(data["variable_base_addr"], 16) + (so_baseaddr - 0x400000))
+    data["time_addr"] = hex(int(data["time_addr"], 16) + (so_baseaddr - 0x400000))
     print("[.] Generating a runtime state graph...")
     if os.path.isfile("runtime_state_graph.dump"):
         with open("runtime_state_graph.dump", "rb") as f:
