@@ -182,6 +182,160 @@ class StateGraphRecoveryAnalysis(Analysis):
         if self._switch_on is None:
             countdown_timer = 0
             switched_on = True
+            time_delta_and_sources = self._discover_time_deltas(init_state)
+
+            for delta, constraint, source in time_delta_and_sources:
+                if source is None:
+                    block_addr, stmt_idx = -1, -1
+                else:
+                    block_addr, stmt_idx = source
+                print(f"[.] Discovered a new time interval {delta} defined at {block_addr:#x}:{stmt_idx}")
+            if self._temp_addr is not None:
+                temp_delta_and_sources = self._discover_temp_deltas(init_state)
+                for delta, constraint, source in temp_delta_and_sources:
+                    if source is None:
+                        block_addr, stmt_idx = -1, -1
+                    else:
+                        block_addr, stmt_idx = source
+                    print(f"[.] Discovered a new temperature {delta} defined at {block_addr:#x}:{stmt_idx}")
+
+            if temp_delta_and_sources or time_delta_and_sources:
+
+                if temp_delta_and_sources:
+
+                    for temp_delta, temp_constraint, temp_src in temp_delta_and_sources:
+                        # append two states in queue
+                        op = temp_constraint.args[0].op
+                        prev = init_state.memory.load(self._temp_addr, 8,
+                                                      endness=self.project.arch.memory_endness).raw_to_fp()
+                        prev_temp = init_state.solver.eval(prev)
+                        if op in ['fpLEQ', 'fpLT', 'fpGEQ', 'fpGT']:
+                            if prev_temp < temp_delta:
+                                delta0, temp_constraint0, temp_src0 = None, None, None
+                                delta1, temp_constraint1, temp_src1 = temp_delta + 1.0, temp_constraint, temp_src
+
+                                new_state = self._initialize_state(init_state=init_state)
+
+                                # re-symbolize input fields, time counters, and update slice generator
+                                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                                symbolic_time_counters = self._symbolize_timecounter(new_state)
+                                symbolic_temperature = self._symbolize_temp(new_state)
+                                all_vars = set(symbolic_input_fields.values())
+                                all_vars |= set(symbolic_time_counters.values())
+                                all_vars |= set(symbolic_temperature.values())
+                                all_vars |= self.config_vars
+                                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                                state_queue.append(
+                                    (new_state, abs_state_id, abs_state, None, None, None, None, delta1,
+                                     temp_constraint1, temp_src1))
+                            elif prev_temp > temp_delta:
+                                delta0, temp_constraint0, temp_src0 = temp_delta - 1.0, temp_constraint, temp_src
+                                delta1, temp_constraint1, temp_src1 = None, None, None
+
+                                new_state = self._initialize_state(init_state=init_state)
+
+                                # re-symbolize input fields, time counters, and update slice generator
+                                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                                symbolic_time_counters = self._symbolize_timecounter(new_state)
+                                symbolic_temperature = self._symbolize_temp(new_state)
+                                all_vars = set(symbolic_input_fields.values())
+                                all_vars |= set(symbolic_time_counters.values())
+                                all_vars |= set(symbolic_temperature.values())
+                                all_vars |= self.config_vars
+                                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                                state_queue.append(
+                                    (new_state, abs_state_id, abs_state, None, None, None, None, delta0,
+                                     temp_constraint0, temp_src0))
+                            else:
+                                import ipdb;
+                                ipdb.set_trace()
+
+                        elif op in ['fpEQ']:
+                            # import ipdb; ipdb.set_trace()
+                            new_state = self._initialize_state(init_state=init_state)
+
+                            # re-symbolize input fields, time counters, and update slice generator
+                            symbolic_input_fields = self._symbolize_input_fields(new_state)
+                            symbolic_time_counters = self._symbolize_timecounter(new_state)
+                            symbolic_temperature = self._symbolize_temp(new_state)
+                            all_vars = set(symbolic_input_fields.values())
+                            all_vars |= set(symbolic_time_counters.values())
+                            all_vars |= set(symbolic_temperature.values())
+                            all_vars |= self.config_vars
+                            slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                            state_queue.append((new_state, abs_state_id, abs_state, None, None, None, None,
+                                                temp_delta, temp_constraint, temp_src))
+                            continue
+
+                        if time_delta_and_sources:
+                            # print(time_delta_constraint)
+                            for time_delta, time_constraint, time_src in time_delta_and_sources:
+                                # append state satisfy constraint
+                                new_state = self._initialize_state(init_state=init_state)
+
+                                # re-symbolize input fields, time counters, and update slice generator
+                                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                                symbolic_time_counters = self._symbolize_timecounter(new_state)
+                                symbolic_temperature = self._symbolize_temp(new_state)
+                                all_vars = set(symbolic_input_fields.values())
+                                all_vars |= set(symbolic_time_counters.values())
+                                all_vars |= set(symbolic_temperature.values())
+                                all_vars |= self.config_vars
+                                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                                state_queue.append((new_state, abs_state_id, abs_state, None, time_delta,
+                                                    time_constraint, time_src, delta0, temp_constraint0, temp_src0))
+
+                                # append state not satisfy constraint
+                                new_state = self._initialize_state(init_state=init_state)
+
+                                # re-symbolize input fields, time counters, and update slice generator
+                                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                                symbolic_time_counters = self._symbolize_timecounter(new_state)
+                                symbolic_temperature = self._symbolize_temp(new_state)
+                                all_vars = set(symbolic_input_fields.values())
+                                all_vars |= set(symbolic_time_counters.values())
+                                all_vars |= set(symbolic_temperature.values())
+                                all_vars |= self.config_vars
+                                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                                state_queue.append((new_state, abs_state_id, abs_state, None, time_delta,
+                                                    time_constraint, time_src, delta1, temp_constraint1, temp_src1))
+
+                # only discover time delta
+                else:
+                    for time_delta, time_constraint, time_src in time_delta_and_sources:
+                        new_state = self._initialize_state(init_state=init_state)
+
+                        # re-symbolize input fields, time counters, and update slice generator
+                        symbolic_input_fields = self._symbolize_input_fields(new_state)
+                        symbolic_time_counters = self._symbolize_timecounter(new_state)
+                        all_vars = set(symbolic_input_fields.values())
+                        all_vars |= set(symbolic_time_counters.values())
+                        if self._temp_addr is not None:
+                            symbolic_temperature = self._symbolize_temp(new_state)
+                            all_vars |= set(symbolic_temperature.values())
+                        all_vars |= self.config_vars
+                        slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                        state_queue.append((new_state, abs_state_id, abs_state, None, time_delta, time_constraint,
+                                            time_src, None, None, None))
+
+            else:
+                # if time_delta is None and prev_abs_state == abs_state:
+                #     continue
+                new_state = self._initialize_state(init_state=init_state)
+
+                # re-symbolize input fields, time counters, and update slice generator
+                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                symbolic_time_counters = self._symbolize_timecounter(new_state)
+
+                all_vars = set(symbolic_input_fields.values())
+                all_vars |= set(symbolic_time_counters.values())
+                if self._temp_addr is not None:
+                    symbolic_temperature = self._symbolize_temp(new_state)
+                    all_vars |= set(symbolic_temperature.values())
+                all_vars |= self.config_vars
+                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+
+                state_queue.append((new_state, abs_state_id, abs_state, None, None, None, None, None, None, None))
         else:
             countdown_timer = 2  # how many iterations to execute before switching on
             switched_on = False
@@ -608,7 +762,8 @@ class StateGraphRecoveryAnalysis(Analysis):
                             if constraint.args[0].args[1].args[2] is delta:
                                 if constraint.args[0].args[0].op == 'FPV':
                                     step = constraint.args[0].args[0]._model_concrete.value
-                                    if step != 0 and step < 10000:
+                                    # if step != 0 and step < 10000:
+                                    if step != 0:
                                         steps.append((
                                             step,
                                             constraint,
@@ -619,7 +774,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                             if constraint.args[0].args[0].args[2] is delta:
                                 if constraint.args[0].args[1].op == 'FPV':
                                     step = constraint.args[0].args[1]._model_concrete.value
-                                    if step != 0 and step < 10000:
+                                    if step != 0 :
                                         steps.append((
                                             step,
                                             constraint,
