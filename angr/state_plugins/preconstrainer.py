@@ -53,8 +53,9 @@ class SimStatePreconstrainer(SimStatePlugin):
         """
         if not isinstance(value, claripy.ast.Base):
             value = self.state.solver.BVV(value, len(variable))
-        elif value.op != "BVV":
-            raise ValueError("Passed a value to preconstrain that was not a BVV or a string")
+
+        elif value.op not in {"BVV", "FPV"}:
+            raise ValueError("Passed a value to preconstrain that was not a BVV or a FPV or a string")
 
         if variable.op not in claripy.operations.leaf_operations:
             l.warning(

@@ -1863,7 +1863,7 @@ _libc_decls = \
         # int lcong48_r (unsigned short int PARAM[7], struct drand48_data *BUFFER);
         "lcong48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 7), SimTypePointer(ALL_TYPES["drand48_data"], offset=0)], SimTypeInt(signed=True), arg_names=["param", "buffer"]),
         # div_t div (int NUMERATOR, int DENOMINATOR);
-        "div": None,
+        "div": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLongLong(signed=False), arg_names=["numerator", "denominator"]),
         # ldiv_t ldiv (long int NUMERATOR, long int DENOMINATOR);
         "ldiv": None,
         # lldiv_t lldiv (long long int NUMERATOR, long long int DENOMINATOR);
