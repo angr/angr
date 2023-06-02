@@ -10,7 +10,7 @@ import claripy
 from ..engine import SimEngineBase
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from ...misc.ux import once
-from ...errors import SimEngineError, SimTranslationError, SimError
+from ...errors import SimEngineError, SimTranslationError
 from ... import sim_options as o
 
 l = logging.getLogger(__name__)
@@ -99,11 +99,11 @@ class VEXLifter(SimEngineBase):
         There are many possible valid sets of parameters. You at the very least must pass some
         source of data, some source of an architecture, and some source of an address.
 
-        Sources of data in order of priority: insn_bytes, clemory, state
+        Sources of data in order of priority: insn_bytes, state, clemory
 
         Sources of an address, in order of priority: addr, state
 
-        Sources of an architecture, in order of priority: arch, clemory, state
+        Sources of an architecture, in order of priority: arch, state, clemory
 
         :param state:           A state to use as a data source.
         :param clemory:         A cle.memory.Clemory object to use as a data source.
@@ -130,7 +130,7 @@ class VEXLifter(SimEngineBase):
         if addr is None and not state:
             raise ValueError("Must provide state or addr!")
         if arch is None:
-            arch = clemory._arch if clemory else state.arch
+            arch = state.arch if state else clemory._arch  # FIXME: Protected access
         if arch.name.startswith("MIPS") and self._single_step:
             l.error("Cannot specify single-stepping on MIPS.")
             self._single_step = False
@@ -173,10 +173,7 @@ class VEXLifter(SimEngineBase):
         if offset is None:
             offset = 0
 
-        use_cache = self._use_cache
-        if skip_stmts or collect_data_refs:
-            # Do not cache the blocks if skip_stmts or collect_data_refs are enabled
-            use_cache = False
+        use_cache = self._use_cache and not (skip_stmts or collect_data_refs or state)
 
         # phase 2: thumb normalization
         thumb = int(thumb)
@@ -299,65 +296,34 @@ class VEXLifter(SimEngineBase):
 
         buff, size, offset = b"", 0, 0
 
-        # Load from the clemory if we can
-        smc = self.selfmodifying_code
-
-        # skip loading from the clemory if we're using the ultra page
-        # TODO: is this a good change? it neuters lookback optimizations
-        # we can try concrete loading the full page but that has drawbacks too...
-        # if state is not None and issubclass(getattr(state.memory, 'PAGE_TYPE', object), UltraPage):
-        #    smc = True
-
-        # when smc is not enabled or when state is not provided, we *always* attempt to load concrete data first
-        if not smc or not state:
-            if isinstance(clemory, cle.Clemory):
-                try:
-                    start, backer = next(clemory.backers(addr))
-                except StopIteration:
-                    pass
-                else:
-                    if start <= addr:
-                        offset = addr - start
-                        if isinstance(backer, (bytes, bytearray)):
-                            buff = pyvex.ffi.from_buffer(backer)
-                            size = len(backer) - offset
-                        elif isinstance(backer, list):
-                            raise SimTranslationError(
-                                "Cannot lift block for arch with strange byte width. If you "
-                                "think you ought to be able to, open an issue."
-                            )
-                        else:
-                            raise TypeError("Unsupported backer type %s." % type(backer))
-            elif state:
-                if state.memory.SUPPORTS_CONCRETE_LOAD:
-                    buff = state.memory.concrete_load(addr, max_size)
-                else:
-                    buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
-                size = len(buff)
-
-        # If that didn't work and if smc is enabled, try to load from the state
-        if smc and state and size == 0:
+        # Try to load from the state
+        if state:
             if state.memory.SUPPORTS_CONCRETE_LOAD:
                 buff = state.memory.concrete_load(addr, max_size)
             else:
-                buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
+                bv = state.memory.load(addr, max_size, inspect=False)
+                buff = state.solver.eval(bv, cast_to=bytes)
             size = len(buff)
-            if size < min(max_size, 10):  # arbitrary metric for doing the slow path
-                l.debug("SMC slow path")
-                buff_lst = []
-                symbolic_warned = False
-                for i in range(max_size):
-                    try:
-                        byte = state.memory.load(addr + i, 1, inspect=False)
-                        if byte.symbolic and not symbolic_warned:
-                            symbolic_warned = True
-                            l.warning("Executing symbolic code at %#x", addr + i)
-                        buff_lst.append(state.solver.eval(byte))
-                    except SimError:
-                        break
 
-                buff = bytes(buff_lst)
-                size = len(buff)
+        # Load from the clemory if we can
+        elif clemory is not None and isinstance(clemory, cle.Clemory):
+            try:
+                start, backer = next(clemory.backers(addr))
+            except StopIteration:
+                pass
+            else:
+                if start <= addr:
+                    offset = addr - start
+                    if isinstance(backer, (bytes, bytearray)):
+                        buff = pyvex.ffi.from_buffer(backer)
+                        size = len(backer) - offset
+                    elif isinstance(backer, list):
+                        raise SimTranslationError(
+                            "Cannot lift block for arch with strange byte width. If you "
+                            "think you ought to be able to, open an issue."
+                        )
+                    else:
+                        raise TypeError("Unsupported backer type %s." % type(backer))
 
         size = min(max_size, size)
         return buff, size, offset
