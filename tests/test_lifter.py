@@ -122,6 +122,23 @@ class LifterTestCases(unittest.TestCase):
         assert isinstance(stmts[15], pyvex.IRStmt.IMark)
         assert stmts[15].addr == 0x402106
 
+    def test_lift_from_state(self):
+        p = angr.load_shellcode("nop", "amd64")
+
+        # Check lifting from loader state
+        b = p.factory.block(0)
+        assert b.size == 1
+        assert b.instructions == 1
+        assert b.vex.default_exit_target == 1
+
+        # Check lifting from a different state
+        s = p.factory.blank_state()
+        s.memory.store(0, p.arch.asm(b"here: inc eax; jmp here"))
+        b = p.factory.block(0, backup_state=s)
+        assert b.size == 4
+        assert [(i.mnemonic, i.op_str) for i in b.disassembly.insns] == [("inc", "eax"), ("jmp", "0")]
+        assert b.vex.default_exit_target == 0
+
 
 if __name__ == "__main__":
     unittest.main()
