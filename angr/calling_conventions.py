@@ -1462,6 +1462,15 @@ class SimCCMicrosoftAMD64(SimCC):
     RETURN_ADDR = SimStackArg(0, 8)
     ARCH = archinfo.ArchAMD64
     STACK_ALIGNMENT = 16
+    CALLER_SAVED_REGS = [
+        "rdx",
+        "rcx",
+        "r8",
+        "r9",
+        "r10",
+        "r11",
+        "rax",
+    ]
 
     ArgSession = MicrosoftAMD64ArgSession
 
