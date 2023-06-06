@@ -26,7 +26,7 @@ from ..reaching_definitions.dep_graph import DepGraph
 from ..reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements, VMStackVariableAnnotation
-from ... import BP, BP_BEFORE, BP_AFTER
+from ... import BP, BP_BEFORE, BP_AFTER, state_plugins
 from ...knowledge_plugins import Function
 from ...knowledge_plugins.key_definitions import atoms
 from ...engines.light.data import SpOffset
@@ -665,7 +665,6 @@ class VMDeobfuscation(Analysis):
                 end_node_block_ids.append(cur_node.block_id)
         VM_1_func = Function(self.project.kb.functions, self.convert_addr_to_int(start_node.addr, start_node.block_id), 'VM_1', None, is_simprocedure=False)
         #set the calling convention
-        import ipdb;ipdb.set_trace()
         VM_1_func.calling_convention = self.project.factory._default_cc(self.project.arch)
         VM_1_func.prototype = SimTypeFunction([], SimTypeInt())
 
@@ -696,8 +695,13 @@ class VMDeobfuscation(Analysis):
                 VM_1_func.startpoint = new_cur_node
             for succ in succs:
                 if succ.is_simprocedure:
+                    # succ_func = Function(self.project.kb.functions, succ.addr, None, None, is_simprocedure=True)
+                    # succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
                     succ_func=self.project.kb.functions.function(succ.addr, create=True)
                     succ_func.prototype = self.project.hooked_by(succ_func.addr).prototype
+
+                    succ_func.returning = True
+                    succ_func.is_simprocedure = True
                     sim_proc_succ = new_cfg.get_successors(succ)
                     new_succ = self.create_new_node_with_block_id_addr(sim_proc_succ[0], decomp_model, new_cfg,
                                                                        new_block_id_embed_dict)
@@ -719,6 +723,12 @@ class VMDeobfuscation(Analysis):
                 VM_1_func._transit_to(new_cur_node, new_succ)
 
         VM_1_func.normalized = True
+        ## Add ret sites so that register_save_are_simplifier works
+        for node in VM_1_func.transition_graph.nodes():
+            if len(list(VM_1_func.transition_graph.successors(node))) == 0:
+                VM_1_func._ret_sites.add(node)
+                VM_1_func._ret_sites.add(list(VM_1_func.transition_graph.predecessors(node))[0])
+
         dec = self.project.analyses.Decompiler(VM_1_func)
         print("Decompilation result:")
         print(dec.codegen.text)
@@ -1494,7 +1504,7 @@ class VMDeobfuscation(Analysis):
                 new_model._nodes_by_addr[self.start_addr][0].input_state.registers.store(new_model._nodes_by_addr[self.start_addr][0].input_state.arch.registers['ss'][0], 0)
 
 
-
+        import ipdb;ipdb.set_trace()
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
 

@@ -188,6 +188,18 @@ class VariableRecoveryBase(Analysis):
                 varman._variables.discard(single_byte_var)
 
 
+def compare_object_without_annotations( obj1, obj2):
+    if obj1.is_bytes != obj2.is_bytes:
+        return False
+
+    if obj1.is_bytes:
+        return obj1.object == obj2.object
+    else:
+        without_annotations_other = obj2.object.__class__(obj2.object.op, obj2.object.args,
+                                                               length=obj2.object.length)
+        without_annotations_self = obj1.object.__class__(obj1.object.op, obj1.object.args,
+                                                             length=obj1.object.length)
+        return without_annotations_self.cache_key == without_annotations_other.cache_key
 class VariableRecoveryStateBase:
     """
     The base abstract state for variable recovery analysis.
@@ -455,7 +467,14 @@ class VariableRecoveryStateBase:
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
-        return mos_self == mos_other
+        # for var in mos_other.variables:
+        #     if var != 'top':
+        #         for var2 in mos_self.variables:
+        #             if var2 != "top":
+        #                 import ipdb;ipdb.set_trace()
+        return mos_self.base == mos_other.base and compare_object_without_annotations(mos_self, mos_other) and mos_self._length_equals(mos_other)
+
+        # return mos_self == mos_other
 
     def _make_phi_variable(self, values: set[claripy.ast.BV | claripy.ast.FP]) -> claripy.ast.Base | None:
         # we create a new phi variable if:
