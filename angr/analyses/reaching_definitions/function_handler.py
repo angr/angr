@@ -15,7 +15,6 @@ from angr.knowledge_plugins.functions import Function
 from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
 from angr.code_location import CodeLocation
 
-
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis
@@ -327,6 +326,7 @@ class FunctionHandler:
                 mv, defs = state.kill_and_add_definition(
                     effect.dest,
                     value,
+                    endness=state.arch.memory_endness,
                     uses=effect.sources_defns or set(),
                 )
                 # categorize the output defn as either ret or other based on the atoms
@@ -352,7 +352,7 @@ class FunctionHandler:
         assert data.cc is not None
         assert data.prototype is not None
         if data.prototype.returnty is not None:
-            data.ret_values = MultiValues(state.top(data.prototype.returnty.size))
+            data.ret_values = MultiValues(state.top(data.prototype.returnty.with_arch(state.arch).size))
         if data.guessed_prototype:
             # use all!
             # TODO should we use some number of stack variables as well?
