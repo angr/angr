@@ -108,7 +108,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         for func_addr in reversed(sorted_funcs):
             func = self.kb.functions.get_by_addr(func_addr)
             if (func.calling_convention is None or func.prototype is None) or self._force:
-                if func.alignment:
+                if func.is_alignment:
                     # skip all alignments
                     continue
 

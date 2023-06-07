@@ -1601,7 +1601,7 @@ class Function(Serializable):
         func.calling_convention = self.calling_convention
         func.prototype = self.prototype
         func._returning = self._returning
-        func.alignment = self.alignment
+        func.alignment = self.is_alignment
         func.startpoint = self.startpoint
         func._addr_to_block_node = self._addr_to_block_node.copy()
         func._block_sizes = self._block_sizes.copy()
