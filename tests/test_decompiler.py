@@ -787,8 +787,8 @@ class TestDecompiler(unittest.TestCase):
 
         m = re.search(
             r"if \([^\n]+ == 47 "
-            r"&& strcmp\([^\n]+\) == 0 "
-            r"&& stat\([^\n]+\) == 0 "
+            r"&& !strcmp\([^\n]+\)"
+            r"&& !stat\([^\n]+\)"
             r"&& [^\n]+ == [^\n]+ "
             r"&& [^\n]+ == [^\n]+\)",
             d.codegen.text,
@@ -1718,7 +1718,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert d.codegen.text.count("if (v0 == 0)") == 3 or d.codegen.text.count("if (v0 != 0)") == 3
+        assert d.codegen.text.count("if (!v0)") == 3 or d.codegen.text.count("if (v0)") == 3
         assert d.codegen.text.count("break;") > 0
 
     @structuring_algo("phoenix")
@@ -2259,9 +2259,9 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
         assert (
-            re.search(r"if \(\(unsigned int\)v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text)
+            re.search(r"if \(\(unsigned int\)v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text)
             is not None
-            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, \*\(v\d+\) == 0\)\)", d.codegen.text) is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
         )
 
     @for_all_structuring_algos
