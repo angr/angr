@@ -1694,7 +1694,7 @@ class CBinaryOp(CExpression):
             yield "BinaryOp %s" % (self.op), self
 
     def _has_const_null_rhs(self) -> bool:
-        return True if isinstance(self.rhs, CConstant) and self.rhs.value == 0 else False
+        return isinstance(self.rhs, CConstant) and self.rhs.value == 0
 
     #
     # Handlers
