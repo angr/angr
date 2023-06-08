@@ -787,8 +787,8 @@ class TestDecompiler(unittest.TestCase):
 
         m = re.search(
             r"if \([^\n]+ == 47 "
-            r"&& !strcmp\([^\n]+\)"
-            r"&& !stat\([^\n]+\)"
+            r"&& !strcmp\([^\n]+\) "
+            r"&& !stat\([^\n]+\) "
             r"&& [^\n]+ == [^\n]+ "
             r"&& [^\n]+ == [^\n]+\)",
             d.codegen.text,
