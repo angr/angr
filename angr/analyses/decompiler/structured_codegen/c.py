@@ -1572,6 +1572,7 @@ class CBinaryOp(CExpression):
 
     def __init__(self, op, lhs, rhs, tags: Optional[dict] = None, **kwargs):
         super().__init__(**kwargs)
+
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
@@ -1727,7 +1728,6 @@ class CBinaryOp(CExpression):
         else:
             yield from self._try_c_repr_chunks(self.lhs)
 
-        # if there is a null compare then neglect to yield operator and right hand side
         if not skip_op_and_rhs:
             # operator
             yield op, self
