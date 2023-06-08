@@ -1567,21 +1567,23 @@ class CBinaryOp(CExpression):
         "rhs",
         "tags",
         "common_type",
+        "_cstyle_null_cmp"
     )
 
     def __init__(self, op, lhs, rhs, tags: Optional[dict] = None, **kwargs):
         super().__init__(**kwargs)
-
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
         self.tags = tags
+        self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
 
         self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
         if self.op.startswith("Cmp"):
             self._type = SimTypeChar().with_arch(self.codegen.project.arch)
         else:
             self._type = self.common_type
+
 
     @staticmethod
     def compute_common_type(op: str, lhs_ty: SimType, rhs_ty: SimType) -> SimType:
@@ -1698,11 +1700,24 @@ class CBinaryOp(CExpression):
         else:
             yield "BinaryOp %s" % (self.op), self
 
+    def _has_const_null_rhs(self) -> bool:
+        return (True if
+            isinstance(self.rhs, CConstant) and
+            self.rhs.value == 0 else False)
+
     #
     # Handlers
     #
 
     def _c_repr_chunks(self, op):
+        skip_op_and_rhs = False
+        if self._cstyle_null_cmp:
+            if self._has_const_null_rhs() :
+                if self.op == 'CmpEQ':
+                    skip_op_and_rhs = True
+                    yield '!', None
+                elif self.op == 'CmpNE':
+                    skip_op_and_rhs = True
         # lhs
         if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
             paren = CClosingObject("(")
@@ -1711,18 +1726,21 @@ class CBinaryOp(CExpression):
             yield ")", paren
         else:
             yield from self._try_c_repr_chunks(self.lhs)
-        # operator
-        yield op, self
-        # rhs
-        if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
-            1 if self.op in ["Sub", "Div"] else 0
-        ):
-            paren = CClosingObject("(")
-            yield "(", paren
-            yield from self._try_c_repr_chunks(self.rhs)
-            yield ")", paren
-        else:
-            yield from self._try_c_repr_chunks(self.rhs)
+
+        # if there is a null compare then neglect to yield operator and right hand side
+        if not skip_op_and_rhs:
+            # operator
+            yield op, self
+            # rhs
+            if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
+                1 if self.op in ["Sub", "Div"] else 0
+            ):
+                paren = CClosingObject("(")
+                yield "(", paren
+                yield from self._try_c_repr_chunks(self.rhs)
+                yield ")", paren
+            else:
+                yield from self._try_c_repr_chunks(self.rhs)
 
     def _c_repr_chunks_add(self):
         yield from self._c_repr_chunks(" + ")
@@ -2097,6 +2115,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         use_compound_assignments=True,
         show_local_types=True,
         comment_gotos=False,
+        cstyle_null_cmp=True,
         flavor=None,
         stmt_comments=None,
         expr_comments=None,
@@ -2159,6 +2178,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.braces_on_own_lines = braces_on_own_lines
         self.use_compound_assignments = use_compound_assignments
         self.show_local_types = show_local_types
+        self.cstyle_null_cmp = cstyle_null_cmp
         self.expr_comments: Dict[int, str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: Dict[int, str] = stmt_comments if stmt_comments is not None else {}
         self.const_formats: Dict[Any, Dict[str, Any]] = const_formats if const_formats is not None else {}
@@ -2196,6 +2216,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.show_externs = value
             elif option.param == "show_demangled_name":
                 self.show_demangled_name = value
+            elif option.param == "cstyle_null_cmp":
+                self.cstyle_null_cmp = value
 
     def _analyze(self):
         self._variables_in_use = {}
