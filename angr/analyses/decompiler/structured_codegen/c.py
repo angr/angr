@@ -1561,14 +1561,7 @@ class CBinaryOp(CExpression):
     Binary operations.
     """
 
-    __slots__ = (
-        "op",
-        "lhs",
-        "rhs",
-        "tags",
-        "common_type",
-        "_cstyle_null_cmp"
-    )
+    __slots__ = ("op", "lhs", "rhs", "tags", "common_type", "_cstyle_null_cmp")
 
     def __init__(self, op, lhs, rhs, tags: Optional[dict] = None, **kwargs):
         super().__init__(**kwargs)
@@ -1583,7 +1576,6 @@ class CBinaryOp(CExpression):
             self._type = SimTypeChar().with_arch(self.codegen.project.arch)
         else:
             self._type = self.common_type
-
 
     @staticmethod
     def compute_common_type(op: str, lhs_ty: SimType, rhs_ty: SimType) -> SimType:
@@ -1701,9 +1693,7 @@ class CBinaryOp(CExpression):
             yield "BinaryOp %s" % (self.op), self
 
     def _has_const_null_rhs(self) -> bool:
-        return (True if
-            isinstance(self.rhs, CConstant) and
-            self.rhs.value == 0 else False)
+        return True if isinstance(self.rhs, CConstant) and self.rhs.value == 0 else False
 
     #
     # Handlers
@@ -1712,11 +1702,11 @@ class CBinaryOp(CExpression):
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False
         if self._cstyle_null_cmp:
-            if self._has_const_null_rhs() :
-                if self.op == 'CmpEQ':
+            if self._has_const_null_rhs():
+                if self.op == "CmpEQ":
                     skip_op_and_rhs = True
-                    yield '!', None
-                elif self.op == 'CmpNE':
+                    yield "!", None
+                elif self.op == "CmpNE":
                     skip_op_and_rhs = True
         # lhs
         if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
