@@ -178,6 +178,16 @@ options = [
         default_value=True,
         clears_cache=True,
     ),
+    O(
+        "C-style null compares",
+        "Rewrites the (x == 0) => (!x) && (x != 0) => (x)",
+        bool,
+        "codegen",
+        "cstyle_null_cmp",
+        category="Display",
+        default_value=True,
+        clears_cache=True,
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options
