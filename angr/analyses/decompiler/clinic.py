@@ -11,7 +11,7 @@ from ...knowledge_base import KnowledgeBase
 from ...knowledge_plugins.functions import Function
 from ...codenode import BlockNode
 from ...utils import timethis
-from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
+from ...calling_conventions import SimRegArg, SimStackArg, SimStructArg, SimFunctionArgument
 from ...sim_type import (
     SimTypeChar,
     SimTypeInt,
@@ -825,6 +825,13 @@ class Clinic(Analysis):
                             ident="arg_%d" % idx,
                             name="a%d" % idx,
                             region=self.function.addr,
+                        )
+                    elif isinstance(arg, SimStructArg):
+                        argvar = SimVariable(
+                            ident="arg_%d" % idx,
+                            name="a%d" % idx,
+                            region=self.function.addr,
+                            size=arg.size,
                         )
                     else:
                         raise TypeError("Unsupported function argument type %s." % type(arg))
