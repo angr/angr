@@ -122,7 +122,6 @@ class CallSiteMaker(Analysis):
                         args.append(None)
                 elif isinstance(arg_loc, SimStructArg):
                     l.warning("SimStructArg is not yet supported")
-                    pass
 
                 else:
                     raise NotImplementedError("Not implemented yet.")
