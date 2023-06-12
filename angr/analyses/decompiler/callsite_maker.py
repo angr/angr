@@ -8,7 +8,7 @@ from ailment import Stmt, Expr
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.errors import SimMemoryMissingError
 from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
-from angr.calling_conventions import SimRegArg, SimStackArg, SimCC
+from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
 
@@ -120,6 +120,9 @@ class CallSiteMaker(Analysis):
                         args.append(the_arg)
                     else:
                         args.append(None)
+                elif isinstance(arg_loc, SimStructArg):
+                    l.warning("SimStructArg is not yet supported")
+                    pass
 
                 else:
                     raise NotImplementedError("Not implemented yet.")
