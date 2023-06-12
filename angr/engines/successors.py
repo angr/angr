@@ -1,8 +1,12 @@
+from typing import TYPE_CHECKING
 import logging
 
 import claripy
 
 from archinfo.arch_soot import ArchSoot
+
+if TYPE_CHECKING:
+    from angr import SimState
 
 
 l = logging.getLogger(name=__name__)
@@ -35,21 +39,21 @@ class SimSuccessors:
     https://docs.angr.io/core-concepts/simulation#simsuccessors
     """
 
-    def __init__(self, addr, initial_state):
+    def __init__(self, addr: int | None, initial_state):
         self.addr = addr
-        self.initial_state = initial_state
+        self.initial_state: "SimState" = initial_state
 
-        self.successors = []
-        self.all_successors = []
-        self.flat_successors = []
-        self.unsat_successors = []
-        self.unconstrained_successors = []
+        self.successors: list["SimState"] = []
+        self.all_successors: list["SimState"] = []
+        self.flat_successors: list["SimState"] = []
+        self.unsat_successors: list["SimState"] = []
+        self.unconstrained_successors: list["SimState"] = []
 
         # the engine that should process or did process this request
         self.engine = None
         self.processed = False
         self.description = "SimSuccessors"
-        self.sort = None
+        self.sort: str | None = None
         self.artifacts = {}
 
     @classmethod
