@@ -2306,7 +2306,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 if callee_function is not None:
                     call_returning = self._is_call_returning(cfg_node, callee_function.addr)
                 else:
-                    call_returning = True if self._indirect_calls_always_return else None
+                    call_returning = (
+                        True if (new_function_addr is None and self._indirect_calls_always_return) else None
+                    )
 
                 if call_returning is True:
                     fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=True)
