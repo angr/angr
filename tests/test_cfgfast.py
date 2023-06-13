@@ -963,6 +963,14 @@ class TestCfgfast(unittest.TestCase):
         # Check the number of basic blocks
         assert len(list(cfg.functions[0xA0013D].blocks)) == 7
 
+    def test_indirect_calls_always_return_overly_aggressive(self):
+        path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        node = cfg.model.get_any_node(0x404DB4)
+        assert node is not None
+        assert node.function_address == 0x40F770
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
