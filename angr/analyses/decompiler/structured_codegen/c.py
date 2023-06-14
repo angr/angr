@@ -770,11 +770,7 @@ class CDoWhileLoop(CLoop):
             yield "{", brace
             yield " ", None
             yield "}", brace
-        if self.codegen.braces_on_own_lines:
-            yield "\n", None
-            yield indent_str, None
-        else:
-            yield " ", None
+        yield " ", None
         yield "while ", self
         yield "(", paren
         if self.condition is None:
