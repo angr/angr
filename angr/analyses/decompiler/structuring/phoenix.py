@@ -1185,7 +1185,12 @@ class PhoenixStructurer(StructurerBase):
             if entry_addr in converted_nodes:
                 continue
 
-            entry_node = next(iter(nn for nn in node_a_successors if nn.addr == entry_addr), None)
+            if entry_addr == self._region.head.addr:
+                # do not make the region head part of the switch-case construct (because it will lead to the removal
+                # of the region head node). replace this entry with a goto statement later.
+                entry_node = None
+            else:
+                entry_node = next(iter(nn for nn in node_a_successors if nn.addr == entry_addr), None)
             if entry_node is None:
                 # Missing entries. They are probably *after* the entire switch-case construct. Replace it with an empty
                 # Goto node.
