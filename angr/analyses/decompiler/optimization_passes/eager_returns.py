@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Dict, List
+from typing import Any, Tuple, Dict, List, TYPE_CHECKING
 from itertools import count
 import copy
 import logging
@@ -11,6 +11,9 @@ from ailment.expression import Const
 
 from ..condition_processor import ConditionProcessor, EmptyBlockNotice
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+if TYPE_CHECKING:
+    from ailment import Block
 
 
 _l = logging.getLogger(name=__name__)
@@ -137,6 +140,9 @@ class EagerReturnsSimplifier(OptimizationPass):
                 # does not meet the threshold
                 continue
 
+            if any(self._is_indirect_jump_ailblock(src) for src, _ in in_edges):
+                continue
+
             to_update[region_head] = in_edges, region
 
         for region_head, (in_edges, region) in to_update.items():
@@ -248,3 +254,12 @@ class EagerReturnsSimplifier(OptimizationPass):
             region_head = pred_node
 
         return region, region_head
+
+    @staticmethod
+    def _is_indirect_jump_ailblock(block: "Block") -> bool:
+        if block.statements and isinstance(block.statements[-1], Jump):
+            last_stmt = block.statements[-1]
+            if not isinstance(last_stmt.target, Const):
+                # it's an indirect jump (assuming the AIL block is properly optimized)
+                return True
+        return False

@@ -2341,6 +2341,21 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 0
 
+    @structuring_algo("phoenix")
+    def test_eager_returns_simplifier_no_duplication_of_default_case(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "default:" in d.codegen.text
+        assert "case 1:" in d.codegen.text
+        assert "case 50:" not in d.codegen.text
+        assert "case 51:" not in d.codegen.text
+        assert "case 52:" not in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
