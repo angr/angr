@@ -80,6 +80,17 @@ class SimCCPowerPC(SimCC):
     RETURN_VAL = SimRegArg("r3", 4)
 
 
+class SimCCXtensa(SimCC):
+    """
+    Default CC for Xtensa
+    """
+
+    ARG_REGS = ["i2", "i3", "i4", "i5", "i6", "i7"]
+    FP_ARG_REGS = []  # TODO: ???
+    RETURN_ADDR = SimRegArg("a0", 4)
+    RETURN_VAL = SimRegArg("o2", 4)
+
+
 def register_pcode_arch_default_cc(arch: ArchPcode):
     if arch.name not in DEFAULT_CC:
         # we have a bunch of manually specified mappings
@@ -91,6 +102,7 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
             "SuperH4:LE:32:default": SimCCSH4,
             "pa-risc:BE:32:default": SimCCPARISC,
             "PowerPC:BE:32:e200": SimCCPowerPC,
+            "Xtensa:LE:32:default": SimCCXtensa,
         }
         if arch.name in manual_cc_mapping:
             # first attempt: manually specified mappings
