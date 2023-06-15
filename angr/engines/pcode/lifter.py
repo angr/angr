@@ -841,7 +841,7 @@ class PcodeBasicBlockLifter:
 
         # Translate
         addr = baseaddr + bytes_offset
-        result = self.context.translate(data[bytes_offset:], addr, max_inst, max_bytes, True)
+        result = self.context.translate(data[bytes_offset : bytes_offset + max_bytes], addr, max_inst, max_bytes, True)
         irsb._instructions = result.instructions
 
         # Post-process block to mark exits and next block
@@ -1249,8 +1249,9 @@ class PcodeLifterEngineMixin(SimEngineBase):
                     if start <= addr:
                         offset = addr - start
                         if isinstance(backer, (bytes, bytearray)):
-                            buff = backer[offset:]
-                            size = len(backer) - offset
+                            avail = len(backer) - offset
+                            size = min(avail, max_size)
+                            buff = backer[offset : offset + size]
                         elif isinstance(backer, list):
                             raise SimTranslationError(
                                 "Cannot lift block for arch with strange byte width. If you think you ought to be able "
