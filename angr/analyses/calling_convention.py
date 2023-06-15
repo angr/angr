@@ -8,6 +8,7 @@ import networkx
 from pyvex.stmt import Put
 from pyvex.expr import RdTmp
 from archinfo.arch_arm import is_arm_arch, ArchARMHF
+import ailment
 
 from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc, unify_arch_name
 from ..sim_type import (
@@ -355,7 +356,7 @@ class CallingConventionAnalysis(Analysis):
             observation_points=observation_points,
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        fact = self._collect_callsite_fact(caller_block_addr, call_insn_addr, rda.model)
+        fact = self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)
         return fact
 
     def _extract_and_analyze_callsites(
@@ -461,7 +462,7 @@ class CallingConventionAnalysis(Analysis):
 
     def _collect_callsite_fact(
         self,
-        caller_block_addr: int,
+        caller_block,
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
     ) -> CallSiteFact:
@@ -472,8 +473,8 @@ class CallingConventionAnalysis(Analysis):
         default_cc_cls = default_cc(self.project.arch.name)
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
-            self._analyze_callsite_return_value_uses(cc, caller_block_addr, rda, fact)
-            self._analyze_callsite_arguments(cc, caller_block_addr, call_insn_addr, rda, fact)
+            self._analyze_callsite_return_value_uses(cc, caller_block.addr, rda, fact)
+            self._analyze_callsite_arguments(cc, caller_block, call_insn_addr, rda, fact)
 
         return fact
 
@@ -517,7 +518,7 @@ class CallingConventionAnalysis(Analysis):
     def _analyze_callsite_arguments(
         self,
         cc: SimCC,
-        caller_block_addr: int,
+        caller_block,
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
         fact: CallSiteFact,
@@ -531,8 +532,13 @@ class CallingConventionAnalysis(Analysis):
             if (
                 isinstance(d.atom, Register)
                 and not isinstance(d.codeloc, ExternalCodeLocation)
-                and not (d.codeloc.block_addr == caller_block_addr and d.codeloc.stmt_idx == DEFAULT_STATEMENT)
+                and not (d.codeloc.block_addr == caller_block.addr and d.codeloc.stmt_idx == DEFAULT_STATEMENT)
             ):
+                # do an extra check because of how entry and callN work on Xtensa
+                if isinstance(caller_block, ailment.Block) and self._likely_saving_temp_reg(
+                    caller_block, d, all_reg_defs
+                ):
+                    continue
                 defs_by_reg_offset[d.offset].append(d)
         defined_reg_offsets = set(defs_by_reg_offset.keys())
         if self.project.arch.bits in {32, 64}:
@@ -832,6 +838,23 @@ class CallingConventionAnalysis(Analysis):
 
         # fallback
         return SimTypeInt() if cc.arch.bits == 32 else SimTypeLongLong()
+
+    @staticmethod
+    def _likely_saving_temp_reg(ail_block: ailment.Block, d: "Definition", all_reg_defs: Set["Definition"]) -> bool:
+        if d.codeloc.block_addr == ail_block.addr and d.codeloc.stmt_idx < len(ail_block.statements):
+            stmt = ail_block.statements[d.codeloc.stmt_idx]
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Register):
+                src_offset = stmt.src.reg_offset
+                src_reg_def = next(
+                    iter(
+                        d_ for d_ in all_reg_defs if isinstance(d_.atom, Register) and d_.atom.reg_offset == src_offset
+                    ),
+                    None,
+                )
+                if src_reg_def is not None:
+                    if isinstance(src_reg_def.codeloc, ExternalCodeLocation):
+                        return True
+        return False
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")

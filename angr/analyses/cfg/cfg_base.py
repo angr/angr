@@ -1375,7 +1375,12 @@ class CFGBase(Analysis):
             new_successors = [i for i in [smallest_node] + other_nodes if i.addr == smallest_node.addr]
             if new_successors:
                 new_successor = new_successors[0]
-                graph.add_edge(new_node, new_successor, jumpkind="Ijk_Boring", ins_addr=new_node.instruction_addrs[-1])
+                graph.add_edge(
+                    new_node,
+                    new_successor,
+                    jumpkind="Ijk_Boring",
+                    ins_addr=new_node.instruction_addrs[-1] if new_node.instruction_addrs else new_node.addr,
+                )
             else:
                 # We gotta create a new one
                 l.error("normalize(): Please report it to Fish.")
@@ -2673,7 +2678,10 @@ class CFGBase(Analysis):
 
         # pre-check: if re-lifting the block with full optimization (cross-instruction-optimization enabled) gives us
         # a constant next expression, we don't need to resolve it
-        relifted = self.project.factory.block(block.addr, size=block.size, opt_level=1, cross_insn_opt=True).vex
+        try:
+            relifted = self.project.factory.block(block.addr, size=block.size, opt_level=1, cross_insn_opt=True).vex
+        except SimError:
+            return False, []
         if isinstance(relifted.next, pyvex.IRExpr.Const):
             # yes!
             return True, [relifted.next.con.value]
@@ -2774,8 +2782,11 @@ class CFGBase(Analysis):
                     # decoding failed when decoding the second instruction (or even the first instruction)
                     return False, set(), None
                 ins_addr = cfg_node.instruction_addrs[-2]
-            else:
+            elif cfg_node.instruction_addrs:
                 ins_addr = cfg_node.instruction_addrs[-1]
+            else:
+                # fallback
+                ins_addr = addr
             assert jumpkind is not None
             ij = IndirectJump(addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=[])
             self.indirect_jumps[addr] = ij

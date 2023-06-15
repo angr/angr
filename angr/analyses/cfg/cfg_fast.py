@@ -2867,7 +2867,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             unresolvable_target_addr = self._unresolvable_call_target_addr
             simprocedure_name = "UnresolvableCallTarget"
         else:
-            raise AngrCFGError("It should be impossible")
+            l.error("Unsupported jumpkind in _indirect_jump_unresolved: %s", jump.jumpkind)
+            unresolvable_target_addr = self._unresolvable_jump_target_addr
+            simprocedure_name = "UnresolvableJumpTarget"
 
         dst_node = CFGNode(
             unresolvable_target_addr,
