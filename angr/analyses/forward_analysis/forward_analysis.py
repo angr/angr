@@ -379,14 +379,13 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
                 continue
             except AngrSkipJobNotice:
                 # consume and skip this job
-                self._job_info_queue = self._job_info_queue[1:]
+                self._job_info_queue.pop(0)
                 self._job_map.pop(self._job_key(job_info.job), None)
                 continue
 
             # remove the job info from the map
             self._job_map.pop(self._job_key(job_info.job), None)
-
-            self._job_info_queue = self._job_info_queue[1:]
+            self._job_info_queue.pop(0)
 
             self._process_job_and_get_successors(job_info)
 
