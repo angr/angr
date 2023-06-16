@@ -385,17 +385,23 @@ class PCodeIRSBConverter(Converter):
         Convert a p-code load operation
         """
         spc = self._current_op.inputs[0].get_space_from_const()
-        assert spc.name in ["ram", "mem"]
-        off = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
-        res = Load(
-            self._manager.next_atom(),
-            off,
-            self._current_op.output.size,
-            self._manager.arch.memory_endness,
-            ins_addr=self._manager.ins_addr,
-        )
-        stmt = self._set_value(out, res)
+        assert spc.name in {"ram", "mem", "register"}
+        if spc.name == "register":
+            # load from register
+            res = self._get_value(self._current_op.inputs[1])
+            stmt = self._set_value(out, res)
+        else:
+            # load from memory
+            off = self._get_value(self._current_op.inputs[1])
+            res = Load(
+                self._manager.next_atom(),
+                off,
+                self._current_op.output.size,
+                self._manager.arch.memory_endness,
+                ins_addr=self._manager.ins_addr,
+            )
+            stmt = self._set_value(out, res)
         self._statements.append(stmt)
 
     def _convert_store(self) -> None:
