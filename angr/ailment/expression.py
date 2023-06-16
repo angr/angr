@@ -1210,3 +1210,21 @@ class StackBaseOffset(BasePointerOffset):
 
     def copy(self) -> "StackBaseOffset":
         return StackBaseOffset(self.idx, self.bits, self.offset, **self.tags)
+
+
+def negate(expr: Expression) -> Expression:
+    if isinstance(expr, UnaryOp) and expr.op == "Not":
+        # unpack
+        return expr.operand
+    if isinstance(expr, BinaryOp) and expr.op in BinaryOp.COMPARISON_NEGATION:
+        return BinaryOp(
+            expr.idx,
+            BinaryOp.COMPARISON_NEGATION[expr.op],
+            [expr.operands[1], expr.operands[0]],
+            expr.signed,
+            bits=expr.bits,
+            floating_point=expr.floating_point,
+            rounding_mode=expr.rounding_mode,
+            **expr.tags,
+        )
+    return UnaryOp(None, "Not", expr, **expr.tags)
