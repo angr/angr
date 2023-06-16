@@ -57,14 +57,11 @@ class OuterWalker(SequenceWalker):
 
     @staticmethod
     def _swap_expr_op(new_op: str, atom: Expression) -> Optional[Expression]:
-        if new_op != atom.op:
-            # swap
-            new_expr = BinaryOp(
-                atom.idx, new_op, (atom.operands[1], atom.operands[0]), atom.signed, bits=atom.bits, **atom.tags
-            )
-            return new_expr
-
-        return atom
+        # swap
+        new_expr = BinaryOp(
+            atom.idx, new_op, (atom.operands[1], atom.operands[0]), atom.signed, bits=atom.bits, **atom.tags
+        )
+        return new_expr
 
 
 class ExpressionReplacer(AILBlockWalker):

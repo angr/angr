@@ -23,9 +23,6 @@ class CascadingConditionTransformer(SequenceWalker):
 
         self.walk(node)
 
-    def _negate_ailexpr(self, expr: ailment.Expression) -> ailment.Expression:
-        return ailment.UnaryOp(None, "Not", expr, **expr.tags)
-
     def _handle_Condition(self, cond_node: ConditionNode, **kwargs):
         if (
             cond_node.false_node is not None
@@ -46,7 +43,7 @@ class CascadingConditionTransformer(SequenceWalker):
             if isinstance(cond_node.condition, claripy.ast.Base):
                 cond_0 = claripy.Not(cond_node.condition)
             else:
-                cond_0 = self._negate_ailexpr(cond_node.condition)
+                cond_0 = ailment.expression.negate(cond_node.condition)
             node_0 = cond_node.false_node
             remaining_node = cond_node.true_node
 
@@ -66,7 +63,7 @@ class CascadingConditionTransformer(SequenceWalker):
                 if isinstance(structured.condition, claripy.ast.Base):
                     negated_structured_condition = claripy.Not(structured.condition)
                 else:
-                    negated_structured_condition = self._negate_ailexpr(structured.condition)
+                    negated_structured_condition = ailment.expression.negate(structured.condition)
                 cond_and_nodes = [
                     (cond_0, node_0),
                     (negated_structured_condition, structured.false_node),
