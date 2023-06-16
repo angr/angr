@@ -78,6 +78,11 @@ class NodePath:
     def append(self, elem: Tuple[Type, Any]):
         self._path.append(elem)
 
+    def next(self, elem: Tuple[Type, Any]) -> "NodePath":
+        o = self.copy()
+        o.append(elem)
+        return o
+
     def _locate_node_in_sequence_node(self, node, node_idx: int) -> Optional[BaseNode]:
         if type(node) is not SequenceNode:
             return None

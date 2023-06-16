@@ -1,6 +1,8 @@
 from .refactor_pass import RefactorPass
 from ..structuring.structurer_nodes import ConditionNode
 
+from ailment.expression import negate
+
 
 CascadingIfElseCase = -1
 
@@ -23,7 +25,7 @@ class ConditionNodeSwapScopes(RefactorPass):
         new_node = ConditionNode(
             self._node.addr,
             self._node.reaching_condition,
-            self._node.condition,
+            negate(self._node.condition),
             self._node.false_node,
             self._node.true_node,
         )

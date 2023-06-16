@@ -1,7 +1,6 @@
 from typing import List, Tuple, Any
 
 from ..optimization_passes.optimization_pass import SequenceOptimizationPass, OptimizationPassStage
-from ..optimization_passes import _all_optimization_passes
 from ..structurer_node_path import NodePath
 
 
@@ -55,8 +54,3 @@ class Refactoring(SequenceOptimizationPass):
                 self._refactor_vector.pop(-1)
 
         self.out_seq = seq
-
-
-_all_optimization_passes.append(
-    (Refactoring, True),
-)

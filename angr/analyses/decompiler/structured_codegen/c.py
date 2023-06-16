@@ -2724,20 +2724,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
     def _handle_Code(self, node, path: Optional[NodePath] = None, **kwargs):
-        if path is not None:
-            path = path.copy()
-            path.append((CodeNode, None))
+        path = path.next((CodeNode, None)) if path is not None else None
         return self._handle(node.node, is_expr=False, path=path)
 
     def _handle_Sequence(self, seq, path: Optional[NodePath] = None, **kwargs):
         lines = []
 
         for idx, node in enumerate(seq.nodes):
-            if path is not None:
-                subpath = path.copy()
-                subpath.append((SequenceNode, idx))
-            else:
-                subpath = None
+            subpath = path.next((SequenceNode, idx)) if path is not None else None
             lines.append(self._handle(node, path=subpath, is_expr=False))
 
         if not lines:
@@ -2752,6 +2746,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return CWhileLoop(
                 None if loop_node.condition is None else self._handle(loop_node.condition),
                 None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
+                path=path,
                 tags=tags,
                 codegen=self,
             )
@@ -2759,6 +2754,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return CDoWhileLoop(
                 self._handle(loop_node.condition),
                 None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
+                path=path,
                 tags=tags,
                 codegen=self,
             )
@@ -2768,6 +2764,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 None if loop_node.condition is None else self._handle(loop_node.condition),
                 None if loop_node.iterator is None else self._handle(loop_node.iterator),
                 None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
+                path=path,
                 tags=tags,
                 codegen=self,
             )
@@ -2778,12 +2775,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Condition(self, condition_node: ConditionNode, path: Optional[NodePath] = None, **kwargs):
         tags = {"ins_addr": condition_node.addr}
 
-        if condition_node.true_node:
-            if path is not None:
-                subpath = path.copy()
-                subpath.append((ConditionNode, ConditionNodeChildren.TrueNode))
-            else:
-                subpath = None
+        if condition_node.true_node is not None:
+            subpath = path.next((ConditionNode, ConditionNodeChildren.TrueNode)) if path is not None else None
             true_node = self._handle(condition_node.true_node, path=subpath, is_expr=False)
         else:
             true_node = None
@@ -2791,11 +2784,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         condition_and_nodes = [(self._handle(condition_node.condition), true_node)]
 
         if condition_node.false_node is not None:
-            if path is not None:
-                subpath = path.copy()
-                subpath.append((ConditionNode, ConditionNodeChildren.FalseNode))
-            else:
-                subpath = None
+            subpath = path.next((ConditionNode, ConditionNodeChildren.FalseNode)) if path is not None else None
             else_node = self._handle(condition_node.false_node, path=subpath, is_expr=False)
         else:
             else_node = None
@@ -2814,19 +2803,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         condition_and_nodes = []
         for idx, (cond, node) in enumerate(cond_node.condition_and_nodes):
-            if path is not None:
-                subpath = path.copy()
-                subpath.append((CascadingConditionNode, idx))
-            else:
-                subpath = None
+            subpath = path.next((CascadingConditionNode, idx)) if path is not None else None
             condition_and_nodes.append((self._handle(cond), self._handle(node, path=subpath, is_expr=False)))
 
         if cond_node.else_node is not None:
-            if path is not None:
-                subpath = path.copy()
-                subpath.append((CascadingConditionNode, CascadingConditionElseNode))
-            else:
-                subpath = None
+            subpath = path.next((CascadingConditionNode, CascadingConditionElseNode)) if path is not None else None
             else_node = self._handle(cond_node.else_node, path=subpath)
         else:
             else_node = None
