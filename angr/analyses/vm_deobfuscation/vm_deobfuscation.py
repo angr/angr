@@ -21,7 +21,8 @@ from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLo
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 from ailment.manager import Manager
 
-from pyvex.const import U64
+from pyvex.const import U64, U32
+
 from ..reaching_definitions.dep_graph import DepGraph
 from ..reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..analysis import Analysis
@@ -30,7 +31,7 @@ from ... import BP, BP_BEFORE, BP_AFTER, state_plugins
 from ...knowledge_plugins import Function
 from ...knowledge_plugins.key_definitions import atoms
 from ...engines.light.data import SpOffset
-from ...sim_type import SimTypeFunction, SimTypeInt
+from ...sim_type import SimTypeFunction, SimTypeInt, SimTypeArray, SimTypeLong, SimTypePointer, SimTypeTop
 from ...storage.memory_mixins import TopListPagesMemory, DefaultListPagesMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
@@ -326,7 +327,10 @@ def remove_breakpoints(state):
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vsp_reg, prev_unroll_vm_addrs=None, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_state=None, remove_insts=None, constant_prop_func_replacements=None,semantic_verf_hooks=None,decomp_start_end_node_str=None):
+    def __init__(self, vsp_reg, prev_unroll_vm_addrs=None, start_addr=None, start_state=None, cfg_fast_graph=None,
+                 avoid_runs=None, vm_start_addr=None, verification_state=None, remove_insts=None,
+                 constant_prop_func_replacements=None, semantic_verf_hooks=None, decomp_start_end_node_str=None,
+                 decomp_function_addresses=None,decomp_function_prototypes=None):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -583,7 +587,8 @@ class VMDeobfuscation(Analysis):
         with open(pickled_file_name, "rb") as final_cfg_pickle:
             new_cfg = pickle.load(final_cfg_pickle)
 
-        self.try_decompilation(new_cfg, decomp_start_end_node_str)
+        self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
+                               decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks)
 
 
         verification_state_copy = verification_state.copy()
@@ -593,11 +598,11 @@ class VMDeobfuscation(Analysis):
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
-    def try_decompilation(self, new_cfg, decomp_start_end_node_str):
+    def try_decompilation(self, new_cfg, decomp_start_end_node_str, decomp_function_addresses=None,decomp_function_prototypes=None, semantic_verf_hooks=[]):
         visited_nodes = {}
 
         traversal_start_node = decomp_start_end_node_str[0][0]
-        end_points = decomp_start_end_node_str[1][0]
+        end_points = decomp_start_end_node_str[1]
         end_node_block_ids = []
         node_stack = []
         start_node= None
@@ -610,7 +615,11 @@ class VMDeobfuscation(Analysis):
         VM_1_func = Function(self.project.kb.functions, self.convert_addr_to_int(start_node.addr, start_node.block_id), 'VM_1', None, is_simprocedure=False)
         #set the calling convention
         VM_1_func.calling_convention = self.project.factory._default_cc(self.project.arch)
-        VM_1_func.prototype = SimTypeFunction([], SimTypeInt())
+        # prototype for toy samples
+        #VM_1_func.prototype = SimTypeFunction([], SimTypeInt())
+
+        #prototype for the huffman sample
+        VM_1_func.prototype = SimTypeFunction([SimTypePointer(SimTypeLong(True), label="long *")], SimTypePointer(SimTypeTop()))
 
         self.project.kb.functions[VM_1_func.addr] = VM_1_func
         VM_1_func.startpoint = start_node
@@ -629,26 +638,40 @@ class VMDeobfuscation(Analysis):
             node_stack = succs + node_stack
 
             # Don't add sim procs
-            if cur_node.is_simprocedure:
+            if cur_node.is_simprocedure or cur_node.addr in decomp_function_addresses:
                 continue
 
             # new block_id for cur_node
             #new_cur_node = copy.deepcopy(cur_node)
-            new_cur_node = self.create_new_node_with_block_id_addr(cur_node, decomp_model, new_cfg, new_block_id_embed_dict)
+            new_cur_node = self.create_new_node_with_block_id_addr(cur_node, decomp_model, new_cfg, new_block_id_embed_dict, end_node_block_ids, decomp_function_addresses=decomp_function_addresses)
             if str(cur_node) == traversal_start_node:
                 VM_1_func.startpoint = new_cur_node
             for succ in succs:
                 if succ.is_simprocedure:
+                    succ_func = None
                     # succ_func = Function(self.project.kb.functions, succ.addr, None, None, is_simprocedure=True)
                     # succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
-                    succ_func=self.project.kb.functions.function(succ.addr, create=True)
-                    succ_func.prototype = self.project.hooked_by(succ_func.addr).prototype
+                    for name, sim_proc in semantic_verf_hooks:
+                        if succ.name == name:
+                            succ_proc = sim_proc
+
+                    if succ_proc:
+                        succ_func=self.project.kb.functions.function(succ.addr, create=True)
+                        succ_func.prototype = succ_proc.prototype
+                        if succ_func.prototype._arch is None:
+                            succ_func.prototype._arch = self.project.arch
+                            succ_func.prototype.returnty._arch = self.project.arch
+                        succ_func.calling_convention = succ_proc.cc
+                    else:
+                        import ipdb;ipdb.set_trace()
 
                     succ_func.returning = True
                     succ_func.is_simprocedure = True
                     sim_proc_succ = new_cfg.get_successors(succ)
                     new_succ = self.create_new_node_with_block_id_addr(sim_proc_succ[0], decomp_model, new_cfg,
-                                                                       new_block_id_embed_dict)
+                                                                       new_block_id_embed_dict,
+                                                                       end_node_block_ids,
+                                                                       decomp_function_addresses=decomp_function_addresses)
 
                     VM_1_func._call_to(new_cur_node, succ_func, new_succ)
                     VM_1_func._return_from_call(succ_func, new_succ)
@@ -662,8 +685,46 @@ class VMDeobfuscation(Analysis):
                     #     new_succ = self.create_new_node_with_block_id_addr(sim_proc_succ[0], decomp_model, new_cfg, new_block_id_embed_dict)
                     #     VM_1_func._transit_to(new_cur_node, new_succ)
                     continue
+                elif succ.addr in decomp_function_addresses:
+                    succ_func = Function(self.project.kb.functions, succ.addr, None, None, is_simprocedure=False)
+                    succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
 
-                new_succ = self.create_new_node_with_block_id_addr(succ, decomp_model, new_cfg, new_block_id_embed_dict)
+                    if succ.addr in decomp_function_prototypes:
+                        import ipdb;ipdb.set_trace()
+                        succ_func.prototype = decomp_function_prototypes[succ.addr]
+
+                    succ_func.returning = True
+
+                    func_node = succ
+                    func_stack = [func_node]
+                    # skip the functions nodes, and add only the return node
+                    while len(func_stack) != 0:
+                        cur_func_node = func_stack.pop(0)
+                        print(cur_func_node)
+                        if cur_func_node.block_id in visited_nodes:
+                            continue
+                        # mark these as visited so that we don't visit them again in the outer loop
+                        visited_nodes[cur_func_node.block_id] = True
+
+                        if cur_func_node.addr in decomp_function_addresses[succ.addr]:
+                            func_ret_node = new_cfg.get_successors(cur_func_node)[0]
+                            new_func_ret_node = self.create_new_node_with_block_id_addr(func_ret_node, decomp_model, new_cfg,
+                                                                               new_block_id_embed_dict,
+                                                                                end_node_block_ids,
+                                                                               decomp_function_addresses=decomp_function_addresses)
+                            VM_1_func._call_to(new_cur_node, succ_func, new_func_ret_node)
+                            VM_1_func._return_from_call(succ_func, new_func_ret_node)
+                            node_stack = [func_ret_node] + node_stack
+                            continue
+
+
+                        func_stack = new_cfg.get_successors(cur_func_node) + func_stack
+                    continue
+
+
+                new_succ = self.create_new_node_with_block_id_addr(succ, decomp_model, new_cfg, new_block_id_embed_dict,
+                                                                   end_node_block_ids,
+                                                                   decomp_function_addresses=decomp_function_addresses)
                 VM_1_func._transit_to(new_cur_node, new_succ)
 
         VM_1_func.normalized = True
@@ -679,7 +740,7 @@ class VMDeobfuscation(Analysis):
         import ipdb;
         ipdb.set_trace()
 
-    def create_new_node_with_block_id_addr(self, old_node, new_model, old_graph, new_block_id_embed_dict):
+    def create_new_node_with_block_id_addr(self, old_node, new_model, old_graph, new_block_id_embed_dict, end_node_block_ids, decomp_function_addresses=[]):
         if old_node.block_id in new_block_id_embed_dict:
             return new_block_id_embed_dict[old_node.block_id]
 
@@ -690,17 +751,24 @@ class VMDeobfuscation(Analysis):
             return old_node
 
         successors = list(old_graph.graph.successors(old_node))
-        if len(successors) != 0:
-            if old_node.irsb.jumpkind == "Ijk_Call":
-                if len(successors) > 1:
-                    import ipdb;ipdb.set_trace()
-                elif len(successors)==1 and not successors[0].is_simprocedure:
-                    new_jumpkind = "Ijk_Boring"
+        is_ret_node = False
+        if old_node.block_id in end_node_block_ids:
+            is_ret_node = True
 
-            elif old_node.irsb.jumpkind in ["Ijk_Ret", "Ijk_Boring"] and successors[0].is_simprocedure:
+        if is_ret_node:
+            new_jumpkind = "Ijk_Ret"
+
+        elif len(successors) != 0:
+            if old_node.irsb.jumpkind in ["Ijk_Ret", "Ijk_Boring"] and (successors[0].is_simprocedure or successors[0].addr in decomp_function_addresses):
                 new_jumpkind = "Ijk_Call"
 
-            elif old_node.irsb.jumpkind == "Ijk_Ret" and not successors[0].is_simprocedure:
+            elif old_node.irsb.jumpkind == "Ijk_Call":
+                if len(successors) > 1:
+                    import ipdb;ipdb.set_trace()
+                elif len(successors) == 1 and not successors[0].is_simprocedure and successors[0].addr not in decomp_function_addresses:
+                    new_jumpkind = "Ijk_Boring"
+
+            elif old_node.irsb.jumpkind == "Ijk_Ret" and not successors[0].is_simprocedure and successors[0].addr not in decomp_function_addresses:
                 new_jumpkind = "Ijk_Boring"
 
 
@@ -711,18 +779,59 @@ class VMDeobfuscation(Analysis):
 
                 cmp_tmp_no = len(old_node.irsb.tyenv.types)
                 true_addr_int = self.convert_addr_to_int(successors[0].addr, successors[0].block_id)
-                true_addr = pyvex.expr.Const(U64(true_addr_int))
-                false_addr_int = self.convert_addr_to_int(successors[1].addr, successors[1].block_id)
-                jmp_tmp_no = old_node.irsb.next.tmp
-                cmp_stmt = pyvex.stmt.WrTmp(cmp_tmp_no, pyvex.expr.Binop("Iop_CmpEQ64", [true_addr, pyvex.expr.RdTmp(jmp_tmp_no)]))
-                exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
-                                U64(true_addr_int),
-                                "Ijk_Boring",
-                                self.project.arch.registers['ip'][0])
+                if self.project.arch.bits == 64:
+                    true_addr = pyvex.expr.Const(U64(true_addr_int))
+                    false_addr_int = self.convert_addr_to_int(successors[1].addr, successors[1].block_id)
+                    jmp_tmp_no = old_node.irsb.next.tmp
+                    cmp_stmt = pyvex.stmt.WrTmp(cmp_tmp_no, pyvex.expr.Binop("Iop_CmpEQ64", [true_addr, pyvex.expr.RdTmp(jmp_tmp_no)]))
+                    exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
+                                    U64(true_addr_int),
+                                    "Ijk_Boring",
+                                    self.project.arch.registers['ip'][0])
 
-                new_statements = new_statements + [cmp_stmt, exit_stmt]
-                new_next = pyvex.expr.Const(U64(false_addr_int))
+                    new_statements = new_statements + [cmp_stmt, exit_stmt]
+                    new_next = pyvex.expr.Const(U64(false_addr_int))
+                elif self.project.arch.bits == 32:
+                    true_addr = pyvex.expr.Const(U32(true_addr_int))
+                    false_addr_int = self.convert_addr_to_int(successors[1].addr, successors[1].block_id)
+                    jmp_tmp_no = old_node.irsb.next.tmp
+                    cmp_stmt = pyvex.stmt.WrTmp(cmp_tmp_no, pyvex.expr.Binop("Iop_CmpEQ32",
+                                                                             [true_addr, pyvex.expr.RdTmp(jmp_tmp_no)]))
+                    exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(cmp_tmp_no),
+                                                U32(true_addr_int),
+                                                "Ijk_Boring",
+                                                self.project.arch.registers['ip'][0])
+
+                    new_statements = new_statements + [cmp_stmt, exit_stmt]
+                    new_next = pyvex.expr.Const(U32(false_addr_int))
+                else:
+                    import ipdb;ipdb.set_trace()
+
                 old_node.irsb.tyenv.types.append('Ity_I1')
+
+            elif len(successors) == 2 and isinstance(old_node.irsb.statements[-1], pyvex.stmt.Exit):
+                # For existing branches we need to replace the addrs with the new hashed addresses
+                true_addr_block_id = None
+                false_addr_block_id = None
+                for succ in successors:
+                    if succ.addr == old_node.irsb.statements[-1].dst.value:
+                        true_addr_block_id = succ.block_id
+                    elif succ.addr == old_node.irsb.next.con.value:
+                        false_addr_block_id = succ.block_id
+                    else:
+                        import ipdb;ipdb.set_trace()
+
+                true_addr_int = self.convert_addr_to_int(old_node.irsb.statements[-1].dst.value, true_addr_block_id)
+
+                false_addr_int = self.convert_addr_to_int(old_node.irsb.next.con.value, false_addr_block_id)
+
+                exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(old_node.irsb.statements[-1].guard.tmp),
+                                            U32(true_addr_int),
+                                            "Ijk_Boring",
+                                            self.project.arch.registers['ip'][0])
+                new_next = pyvex.expr.Const(U32(false_addr_int))
+                new_statements = new_statements[:-1] + [exit_stmt]
+
         elif len(successors) == 0 and old_node.irsb.jumpkind == "Ijk_Call":
             new_jumpkind = "Ijk_Ret"
             ## Last node return from here?
