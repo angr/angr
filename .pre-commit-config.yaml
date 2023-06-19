@@ -60,7 +60,7 @@ repos:
     -   id: rm-unneeded-f-str
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.6.0
+    rev: v3.7.0
     hooks:
     -   id: pyupgrade
         args: [--py38-plus]
