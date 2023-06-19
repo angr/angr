@@ -131,6 +131,18 @@ def test_ccall():
     assert s.solver.is_true(sf == 0)
     assert s.solver.is_true(of == 0)
 
+    l.debug("Testing pc_actions_SHR")
+    l.debug("(64-bit) SHR 0xffffffffffffffff 1")
+    result = s.solver.BVV(0x7FFFFFFFFFFFFFFF, 64)
+    subshifted_result = s.solver.BVV(0xFFFFFFFFFFFFFFFF, 64)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_SHR(s, 64, result, subshifted_result, None, platform="AMD64")
+    assert s.solver.is_true(cf == 1)
+    assert s.solver.is_true(pf == 1)
+    assert s.solver.is_true(af == 0)
+    assert s.solver.is_true(zf == 0)
+    assert s.solver.is_true(sf == 0)
+    assert s.solver.is_true(of == 1)
+
     l.debug("Testing amd64_actions_ADCX")
 
     l.debug("(ADCX, 32-bit) 0xffffffff + 1...")
