@@ -585,6 +585,7 @@ class ReachingDefinitionsState:
 
     def downsize(self):
         self.all_definitions = set()
+        self.live_definitions.reset_uses()
 
     def pointer_to_atoms(self, pointer: MultiValues, size: int, endness: str) -> Set[MemoryLocation]:
         """

@@ -423,9 +423,11 @@ class ReachingDefinitionsAnalysis(
 
         # update all definitions and all uses
         self.all_definitions |= state.all_definitions
-        state.downsize()
         for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
+
+        # drop definitions and uses because we will not need them anymore
+        state.downsize()
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state
