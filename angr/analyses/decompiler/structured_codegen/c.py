@@ -172,6 +172,7 @@ def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
             return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
     return None
 
+
 def is_simple_return_node(node: Union[Block, SequenceNode], graph) -> bool:
     last_block = None
     if isinstance(node, SequenceNode):
@@ -184,6 +185,7 @@ def is_simple_return_node(node: Union[Block, SequenceNode], graph) -> bool:
         last_block = node
 
     return last_block and not [succ for succ in graph.successors(last_block)]
+
 
 #
 #   C Representation Classes

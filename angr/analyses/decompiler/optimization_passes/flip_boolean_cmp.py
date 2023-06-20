@@ -13,12 +13,12 @@ class FlipBooleanCmp(SequenceOptimizationPass):
     In the scenario in which a false node has no apparent successors, flip and allow c structured code gen to remove
     redundant else scope.
     """
+
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux", "windows", "cgc"]
     STAGE = OptimizationPassStage.AFTER_STRUCTURING
     NAME = "flip boolean comparison"
     DESCRIPTION = "when false node has no successors, flip condition so else scope can be simplified"
-    
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -36,4 +36,3 @@ class FlipBooleanCmp(SequenceOptimizationPass):
             if is_simple_return_node(node.false_node, self._graph):
                 node.condition.op = BinaryOp.COMPARISON_NEGATION[node.condition.op]
                 node.true_node, node.false_node = node.false_node, node.true_node
-
