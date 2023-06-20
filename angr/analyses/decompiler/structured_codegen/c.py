@@ -172,6 +172,18 @@ def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
             return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
     return None
 
+def is_simple_return_node(node: Union[Block, SequenceNode], graph) -> bool:
+    last_block = None
+    if isinstance(node, SequenceNode):
+        for n in node.nodes:
+            if not isinstance(n, Block):
+                break
+        else:
+            last_block = n
+    elif isinstance(node, Block):
+        last_block = node
+
+    return last_block and not [succ for succ in graph.successors(last_block)]
 
 #
 #   C Representation Classes
@@ -2780,27 +2792,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
 
-        true_node = condition_node.true_node
-        do_simplify_else = False
-
-        if self.simplify_else_scope:
-            last_block = None
-            if isinstance(true_node, SequenceNode):
-                for node in true_node.nodes:
-                    if not isinstance(node, Block):
-                        break
-                else:
-                    last_block = node
-            elif isinstance(true_node, Block):
-                last_block = true_node
-
-            if last_block and not [*self.clinic.graph.successors(last_block)]:
-                do_simplify_else = True
-
         code = CIfElse(
             condition_and_nodes,
             else_node=else_node,
-            simplify_else_scope=do_simplify_else,
+            simplify_else_scope=is_simple_return_node(condition_node.true_node, self.clinic.graph),
             tags=tags,
             codegen=self,
         )

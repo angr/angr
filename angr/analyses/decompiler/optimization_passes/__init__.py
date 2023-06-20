@@ -19,6 +19,7 @@ from .ret_addr_save_simplifier import RetAddrSaveSimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp
 
+
 _all_optimization_passes = [
     (RegisterSaveAreaSimplifier, True),
     (StackCanarySimplifier, True),
