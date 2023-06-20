@@ -877,7 +877,6 @@ class CIfElse(CStatement):
         brace = CClosingObject("{")
 
         first_node = True
-        remove_else_scope = False
 
         for condition, node in self.condition_and_nodes:
             if first_node:
