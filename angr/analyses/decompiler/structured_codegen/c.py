@@ -837,15 +837,21 @@ class CIfElse(CStatement):
     Represents an if-else construct in C.
     """
 
-    __slots__ = ("condition_and_nodes", "else_node", "tags")
+    __slots__ = ("condition_and_nodes", "else_node", "simplify_else_scope", "tags")
 
     def __init__(
-        self, condition_and_nodes: List[Tuple[CExpression, Optional[CStatement]]], else_node=None, tags=None, **kwargs
+        self,
+        condition_and_nodes: List[Tuple[CExpression, Optional[CStatement]]],
+        else_node=None,
+        simplify_else_scope=True,
+        tags=None,
+        **kwargs
     ):
         super().__init__(**kwargs)
 
         self.condition_and_nodes = condition_and_nodes
         self.else_node = else_node
+        self.simplify_else_scope = simplify_else_scope
         self.tags = tags
 
         if not self.condition_and_nodes:
@@ -857,6 +863,7 @@ class CIfElse(CStatement):
         brace = CClosingObject("{")
 
         first_node = True
+        remove_else_scope = False
 
         for condition, node in self.condition_and_nodes:
             if first_node:
@@ -888,25 +895,27 @@ class CIfElse(CStatement):
 
         if self.else_node is not None:
             brace = CClosingObject("{")
-
-            if self.codegen.braces_on_own_lines:
+            if self.simplify_else_scope:
                 yield "\n", None
-                yield indent_str, None
+                yield from self.else_node.c_repr_chunks(indent=indent)
             else:
-                yield " ", None
-            yield "else", self
-            if self.codegen.braces_on_own_lines:
+                if self.codegen.braces_on_own_lines:
+                    yield "\n", None
+                    yield indent_str, None
+                else:
+                    yield " ", None
+                yield "else", self
+                if self.codegen.braces_on_own_lines:
+                    yield "\n", None
+                    yield indent_str, None
+                else:
+                    yield " ", None
+                yield "{", brace
                 yield "\n", None
+                yield from self.else_node.c_repr_chunks(indent=indent + INDENT_DELTA)
                 yield indent_str, None
-            else:
-                yield " ", None
-            yield "{", brace
-            yield "\n", None
-            yield from self.else_node.c_repr_chunks(indent=indent + INDENT_DELTA)
-            yield indent_str, None
-            yield "}", brace
+                yield "}", brace
         yield "\n", None
-
 
 class CIfBreak(CStatement):
     """
@@ -2109,6 +2118,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         externs=None,
         const_formats=None,
         show_demangled_name=True,
+        clinic=None,
+        simplify_else_scope=True,
     ):
         super().__init__(flavor=flavor)
 
@@ -2171,7 +2182,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.externs = externs or set()
         self.show_externs = show_externs
         self.show_demangled_name = show_demangled_name
-
+        self.clinic = clinic
+        self.simplify_else_scope = simplify_else_scope
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -2767,9 +2779,27 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
 
+        true_node = condition_node.true_node
+        do_simplify_else=False
+
+        if self.simplify_else_scope:
+            last_block = None
+            if isinstance(true_node, SequenceNode):
+                for node in true_node.nodes:
+                    if not isinstance(node, Block):
+                        break
+                else:
+                    last_block = node
+            elif isinstance(true_node, Block):
+                last_block = true_node
+
+            if last_block and not [*self.clinic.graph.successors(last_block)]:
+                do_simplify_else=True
+
         code = CIfElse(
             condition_and_nodes,
             else_node=else_node,
+            simplify_else_scope=do_simplify_else,
             tags=tags,
             codegen=self,
         )

@@ -231,7 +231,8 @@ class Decompiler(Analysis):
         )
         seq_node = s.result
         seq_node = self._run_post_structuring_simplification_passes(
-            seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager
+            seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager,
+            graph=clinic.graph
         )
         self._update_progress(85.0, text="Generating code")
 
@@ -243,6 +244,7 @@ class Decompiler(Analysis):
             self.func,
             seq_node,
             cfg=self._cfg,
+            clinic=clinic,
             flavor=self._flavor,
             func_args=clinic.arg_list,
             kb=self.kb,
