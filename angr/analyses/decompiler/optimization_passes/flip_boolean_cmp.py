@@ -1,9 +1,8 @@
 from typing import List
 
 from ailment.expression import BinaryOp
-from ailment.block import Block
 
-from ..structuring.structurer_nodes import ConditionNode, SequenceNode
+from ..structuring.structurer_nodes import ConditionNode
 from ..structured_codegen.c import is_simple_return_node
 from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
@@ -31,7 +30,6 @@ class FlipBooleanCmp(SequenceOptimizationPass):
 
     def _analyze(self, cache=None):
         condition_nodes: List[ConditionNode] = cache or []
-        last_block = None
         for node in condition_nodes:
             if is_simple_return_node(node.false_node, self._graph):
                 node.condition.op = BinaryOp.COMPARISON_NEGATION[node.condition.op]
