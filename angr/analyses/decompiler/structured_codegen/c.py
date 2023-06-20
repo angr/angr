@@ -845,7 +845,7 @@ class CIfElse(CStatement):
         else_node=None,
         simplify_else_scope=True,
         tags=None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
 
@@ -916,6 +916,7 @@ class CIfElse(CStatement):
                 yield indent_str, None
                 yield "}", brace
         yield "\n", None
+
 
 class CIfBreak(CStatement):
     """
@@ -2780,7 +2781,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
 
         true_node = condition_node.true_node
-        do_simplify_else=False
+        do_simplify_else = False
 
         if self.simplify_else_scope:
             last_block = None
@@ -2794,7 +2795,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 last_block = true_node
 
             if last_block and not [*self.clinic.graph.successors(last_block)]:
-                do_simplify_else=True
+                do_simplify_else = True
 
         code = CIfElse(
             condition_and_nodes,
