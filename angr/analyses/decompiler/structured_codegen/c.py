@@ -174,6 +174,16 @@ def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
 
 
 def is_simple_return_node(node: Union[Block, SequenceNode], graph) -> bool:
+    """
+    will check if a "simple return" is contained within the node
+    a simple returns looks like this:
+
+    if (cond) {           if (cond) {
+        return 0;             return 0;
+    } else {       ---->  }
+        ...               ...
+    }
+    """
     last_block = None
     if isinstance(node, SequenceNode):
         for n in node.nodes:
