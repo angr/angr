@@ -184,7 +184,7 @@ def is_simple_return_node(node: Union[Block, SequenceNode], graph) -> bool:
     elif isinstance(node, Block):
         last_block = node
 
-    return last_block and not [succ for succ in graph.successors(last_block)]
+    return last_block and not list(graph.successors(last_block))
 
 
 #
