@@ -161,7 +161,7 @@ def test_simple():
     # simplify it
     s = p.analyses.RegionSimplifier(main_func, rs.result)
 
-    codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg)
+    codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg, clinic=clinic)
     print(codegen.text)
 
 
