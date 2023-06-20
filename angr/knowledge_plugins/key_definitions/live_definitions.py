@@ -215,6 +215,12 @@ class LiveDefinitions:
 
         return rd
 
+    def reset_uses(self):
+        self.stack_uses = Uses()
+        self.register_uses = Uses()
+        self.memory_uses = Uses()
+        self.heap_uses = Uses()
+
     def _get_weakref(self):
         return weakref.proxy(self)
 
