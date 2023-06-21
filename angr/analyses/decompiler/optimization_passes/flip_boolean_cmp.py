@@ -9,15 +9,16 @@ from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 class FlipBooleanCmp(SequenceOptimizationPass):
     """
-    In the scenario in which a false node has no apparent successors, flip and allow c structured code gen to remove
-    redundant else scope.
+    In the scenario in which a false node has no apparent successors, flip the condition on that if-stmt.
+    This is only useful when StructuredCodeGenerator has simplify_else_scopes enabled, as this will allow the
+    flipped if-stmt to remove the redundant else.
     """
 
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux", "windows", "cgc"]
     STAGE = OptimizationPassStage.AFTER_STRUCTURING
-    NAME = "flip boolean comparison"
-    DESCRIPTION = "when false node has no successors, flip condition so else scope can be simplified"
+    NAME = "Flip small ret booleans"
+    DESCRIPTION = "When false node has no successors, flip condition so else scope can be simplified later"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)

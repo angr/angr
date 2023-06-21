@@ -185,8 +185,12 @@ def is_simple_return_node(node: Union[Block, SequenceNode], graph) -> bool:
 
     Any block can end in a return as long as it does not have condition inside.
     """
+    # sanity check: we need a graph to understand returning blocks
+    if graph is None:
+        return False
+
     last_block = None
-    if isinstance(node, SequenceNode):
+    if isinstance(node, SequenceNode) and node.nodes:
         for n in node.nodes:
             if not isinstance(n, Block):
                 break
@@ -2143,7 +2147,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         externs=None,
         const_formats=None,
         show_demangled_name=True,
-        clinic=None,
+        ail_graph=None,
         simplify_else_scope=True,
     ):
         super().__init__(flavor=flavor)
@@ -2207,7 +2211,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.externs = externs or set()
         self.show_externs = show_externs
         self.show_demangled_name = show_demangled_name
-        self.clinic = clinic
+        self.ail_graph = ail_graph
         self.simplify_else_scope = simplify_else_scope
         self.text = None
         self.map_pos_to_node = None
@@ -2809,7 +2813,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         code = CIfElse(
             condition_and_nodes,
             else_node=else_node,
-            simplify_else_scope=self.simplify_else_scope and is_simple_return_node(condition_node.true_node, self.clinic.graph),
+            simplify_else_scope=self.simplify_else_scope and is_simple_return_node(condition_node.true_node, self.ail_graph),
             tags=tags,
             codegen=self,
         )
