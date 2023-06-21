@@ -243,7 +243,7 @@ class Decompiler(Analysis):
             self.func,
             seq_node,
             cfg=self._cfg,
-            clinic=clinic,
+            ail_graph=clinic.graph,
             flavor=self._flavor,
             func_args=clinic.arg_list,
             kb=self.kb,
