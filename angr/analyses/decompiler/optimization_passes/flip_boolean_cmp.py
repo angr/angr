@@ -1,6 +1,6 @@
 from typing import List
 
-from ailment.expression import BinaryOp, Op
+from ailment.expression import BinaryOp, UnaryOp, Op
 
 from ..structuring.structurer_nodes import ConditionNode
 from ..structured_codegen.c import is_simple_return_node
@@ -32,7 +32,6 @@ class FlipBooleanCmp(SequenceOptimizationPass):
     def _analyze(self, cache=None):
         condition_nodes: List[ConditionNode] = cache or []
         for node in condition_nodes:
-            breakpoint()
             if isinstance(node.condition, Op) and is_simple_return_node(node.false_node, self._graph):
                 if isinstance(node.condition, UnaryOp) and node.condition.op == "Not":
                     node.condition = node.condition.operand
