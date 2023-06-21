@@ -2366,11 +2366,12 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         text = d.codegen.text
-        good_if_return = 'if (!a0)\n    {\n        return 1;\n    }\n'
-        first_if_location = text.find('if')
+        good_if_return = "if (!a0)\n    {\n        return 1;\n    }\n"
+        first_if_location = text.find("if")
         assert first_if_location != -1
         assert first_if_location == text.find(good_if_return)
-        assert not text[first_if_location + len(good_if_return):].startswith('    else')
+        assert not text[first_if_location + len(good_if_return) :].startswith("    else")
+
 
 if __name__ == "__main__":
     unittest.main()
