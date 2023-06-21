@@ -554,8 +554,9 @@ class StateGraphRecoveryAnalysis(Analysis):
                         state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, time_delta, time_constraint, time_src, None, None, None))
 
             else:
-                # if time_delta is None and prev_abs_state == abs_state:
-                #     continue
+            # if time_delta is None and prev_abs_state == abs_state:
+            #     continue
+            # if self._temp_addr:
                 new_state = self._initialize_state(init_state=next_state)
 
                 # re-symbolize input fields, time counters, and update slice generator
@@ -571,6 +572,8 @@ class StateGraphRecoveryAnalysis(Analysis):
                 slice_gen = SliceGenerator(all_vars, bp=expression_bp)
 
                 state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, None, None, None, None, None, None))
+
+
 
         # test
         # from networkx.drawing.nx_agraph import write_dot
@@ -623,6 +626,8 @@ class StateGraphRecoveryAnalysis(Analysis):
                                                       )
                     self.state_graph.remove_node(state_node)
                     break   # TODO: this could be wrong if there is multiple nodes need to be divided
+
+
 
     def _discover_time_deltas(self, state: 'SimState') -> List[Tuple[int,claripy.ast.Base,Tuple[int,int]]]:
         """
@@ -762,8 +767,8 @@ class StateGraphRecoveryAnalysis(Analysis):
                             if constraint.args[0].args[1].args[2] is delta:
                                 if constraint.args[0].args[0].op == 'FPV':
                                     step = constraint.args[0].args[0]._model_concrete.value
-                                    # if step != 0 and step < 10000:
-                                    if step != 0:
+                                    if step != 0 and step < 10000:
+                                    # if step != 0:
                                         steps.append((
                                             step,
                                             constraint,
@@ -774,7 +779,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                             if constraint.args[0].args[0].args[2] is delta:
                                 if constraint.args[0].args[1].op == 'FPV':
                                     step = constraint.args[0].args[1]._model_concrete.value
-                                    if step != 0 :
+                                    if step != 0 and step < 10000:
                                         steps.append((
                                             step,
                                             constraint,
@@ -1047,6 +1052,28 @@ class StateGraphRecoveryAnalysis(Analysis):
             # print(s)
             if len(simgr.active) > 1:
                 import ipdb; ipdb.set_trace()
+
+            # if s.addr == 0x21d5:
+            #     print("IN READ!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            #     # import ipdb; ipdb.set_trace()
+            # if s.addr == 0x2245:
+            #     print("IN CHECk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            #     # import ipdb; ipdb.set_trace()
+            # if s.addr == 0x2315:
+            #     print("IN IDLE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            #     # import ipdb; ipdb.set_trace()
+            # if s.addr == 0x2349:
+            #     print("IN PREHEAT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            # if s.addr == 0x2377:
+            #     print("IN COOK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            #     # import ipdb; ipdb.set_trace()
+            # if s.addr == 0x23e3:
+            #     print("IN COOL!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            #     import ipdb; ipdb.set_trace()
+            # if s.addr == 0x2405:
+            #     print("IN COMPLETE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            # if s.addr == 0x2415:
+            #     print("IN TOOHOT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
             simgr.stash(lambda x: x.addr == self._ret_trap, from_stash='active', to_stash='finished')
 
