@@ -2241,6 +2241,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.show_demangled_name = value
             elif option.param == "cstyle_null_cmp":
                 self.cstyle_null_cmp = value
+            elif option.param == "simplify_else_scope":
+                self.simplify_else_scope = value
 
     def _analyze(self):
         self._variables_in_use = {}
@@ -2807,7 +2809,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         code = CIfElse(
             condition_and_nodes,
             else_node=else_node,
-            simplify_else_scope=is_simple_return_node(condition_node.true_node, self.clinic.graph),
+            simplify_else_scope=self.simplify_else_scope and is_simple_return_node(condition_node.true_node, self.clinic.graph),
             tags=tags,
             codegen=self,
         )
