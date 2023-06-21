@@ -2813,7 +2813,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         code = CIfElse(
             condition_and_nodes,
             else_node=else_node,
-            simplify_else_scope=self.simplify_else_scope and is_simple_return_node(condition_node.true_node, self.ail_graph),
+            simplify_else_scope=self.simplify_else_scope
+            and is_simple_return_node(condition_node.true_node, self.ail_graph),
             tags=tags,
             codegen=self,
         )
