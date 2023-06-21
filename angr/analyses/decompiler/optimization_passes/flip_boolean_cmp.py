@@ -14,8 +14,8 @@ class FlipBooleanCmp(SequenceOptimizationPass):
     flipped if-stmt to remove the redundant else.
     """
 
-    ARCHES = ["X86", "AMD64"]
-    PLATFORMS = ["linux", "windows", "cgc"]
+    ARCHES = None
+    PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_STRUCTURING
     NAME = "Flip small ret booleans"
     DESCRIPTION = "When false node has no successors, flip condition so else scope can be simplified later"
