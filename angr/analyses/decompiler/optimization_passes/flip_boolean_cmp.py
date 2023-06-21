@@ -32,9 +32,10 @@ class FlipBooleanCmp(SequenceOptimizationPass):
     def _analyze(self, cache=None):
         condition_nodes: List[ConditionNode] = cache or []
         for node in condition_nodes:
+            breakpoint()
             if isinstance(node.condition, Op) and is_simple_return_node(node.false_node, self._graph):
-                if node.condition.op == "Not":
-                    node.condition = node.condition.op.operand
+                if isinstance(node.condition, UnaryOp) and node.condition.op == "Not":
+                    node.condition = node.condition.operand
                 elif node.condition.op in BinaryOp.COMPARISON_NEGATION:
                     node.condition.op = BinaryOp.COMPARISON_NEGATION[node.condition.op]
                 else:
