@@ -1,7 +1,7 @@
 from typing import List
 
 import ailment
-from ailment.expression import BinaryOp, UnaryOp, Op
+from ailment.expression import Op
 
 from ..structuring.structurer_nodes import ConditionNode
 from ..structured_codegen.c import is_simple_return_node
