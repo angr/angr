@@ -161,7 +161,7 @@ def test_simple():
     # simplify it
     s = p.analyses.RegionSimplifier(main_func, rs.result)
 
-    codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg)
+    codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg, ail_graph=clinic.graph)
     print(codegen.text)
 
 
@@ -185,7 +185,7 @@ def test_simple_loop():
     # simplify it
     s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
     print(codegen.text)
 
     assert len(codegen.map_pos_to_node._posmap) > 1
@@ -212,7 +212,7 @@ def test_recursive_structuring():
     # simplify it
     s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
     print(codegen.text)
 
 
@@ -236,7 +236,7 @@ def test_while_true_break():
     # simplify it
     s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 
     print(codegen.text)
 
@@ -261,7 +261,7 @@ def test_while():
     # simplify it
     s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
+    codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 
     print(codegen.text)
 

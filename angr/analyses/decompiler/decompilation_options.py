@@ -188,6 +188,16 @@ options = [
         default_value=True,
         clears_cache=True,
     ),
+    O(
+        "Simplified else",
+        "Removes redundant else scopes",
+        bool,
+        "codegen",
+        "simplify_else_scope",
+        category="Display",
+        default_value=True,
+        clears_cache=True,
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options
