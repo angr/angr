@@ -757,14 +757,17 @@ class CallingConventionAnalysis(Analysis):
                 else:
                     int_args.append(arg)
 
+        stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
+        stack_int_args = [a for a in stack_args if not a.is_fp]
+        stack_fp_args = [a for a in stack_args if a.is_fp]
         # match int args first
         for reg_name in cc.ARG_REGS:
             try:
                 arg = next(iter(a for a in int_args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
             except StopIteration:
                 # have we reached the end of the args list?
-                if [a for a in int_args if isinstance(a, SimRegArg)]:
-                    # nope
+                if [a for a in int_args if isinstance(a, SimRegArg)] or len(stack_int_args) > 0:
+                    # haven't reached the end yet or there are stack args
                     arg = SimRegArg(reg_name, self.project.arch.bytes)
                 else:
                     break
@@ -779,8 +782,8 @@ class CallingConventionAnalysis(Analysis):
                     arg = next(iter(a for a in fp_args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
                 except StopIteration:
                     # have we reached the end of the args list?
-                    if [a for a in fp_args if isinstance(a, SimRegArg)]:
-                        # nope
+                    if [a for a in fp_args if isinstance(a, SimRegArg)] or len(stack_fp_args) > 0:
+                        # haven't reached the end yet or there are stack args
                         arg = SimRegArg(reg_name, self.project.arch.bytes)
                     else:
                         break
@@ -788,7 +791,6 @@ class CallingConventionAnalysis(Analysis):
                 if arg in fp_args:
                     fp_args.remove(arg)
 
-        stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
         return reg_args + int_args + fp_args + stack_args
 
     def _guess_arg_type(self, arg: SimFunctionArgument, cc: Optional[SimCC] = None) -> SimType:
