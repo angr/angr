@@ -1220,7 +1220,7 @@ def negate(expr: Expression) -> Expression:
         return BinaryOp(
             expr.idx,
             BinaryOp.COMPARISON_NEGATION[expr.op],
-            [expr.operands[1], expr.operands[0]],
+            expr.operands,
             expr.signed,
             bits=expr.bits,
             floating_point=expr.floating_point,
