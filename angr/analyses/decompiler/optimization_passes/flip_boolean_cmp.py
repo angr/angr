@@ -1,5 +1,6 @@
 from typing import List
 
+import ailment
 from ailment.expression import BinaryOp, UnaryOp, Op
 
 from ..structuring.structurer_nodes import ConditionNode
@@ -33,11 +34,5 @@ class FlipBooleanCmp(SequenceOptimizationPass):
         condition_nodes: List[ConditionNode] = cache or []
         for node in condition_nodes:
             if isinstance(node.condition, Op) and is_simple_return_node(node.false_node, self._graph):
-                if isinstance(node.condition, UnaryOp) and node.condition.op == "Not":
-                    node.condition = node.condition.operand
-                elif node.condition.op in BinaryOp.COMPARISON_NEGATION:
-                    node.condition.op = BinaryOp.COMPARISON_NEGATION[node.condition.op]
-                else:
-                    continue
-
+                node.condition = ailment.expression.negate(node.condition)
                 node.true_node, node.false_node = node.false_node, node.true_node
