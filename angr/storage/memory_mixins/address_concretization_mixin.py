@@ -278,6 +278,9 @@ class AddressConcretizationMixin(MemoryMixin):
         # Do not even try to concretize the address, therefore we can avoid the BackendError
         # if self.state.solver.symbolic(addr):
         try:
+            # Add atleast to handle the case when ast is in solver.constraints
+            self.state.solver.eval_atleast(addr, 2)
+            # Add atmost to support the cases of indirect jumps/calls with symbolic target
             self.state.solver.eval_atmost(addr, 32)
             try:
                 concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))
