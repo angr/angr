@@ -11,7 +11,7 @@ from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump, Label
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
-from angr.utils.graph import GraphUtils
+from angr.utils.graph import GraphUtils, TemporaryNode
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph, PostDominators
@@ -1922,9 +1922,6 @@ class PhoenixStructurer(StructurerBase):
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
-            if not graph.has_edge(src, dst):
-                # the edge might be from full_graph but not in graph
-                continue
             if not dominates(idoms, src, dst) and not dominates(inv_idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
@@ -2009,7 +2006,8 @@ class PhoenixStructurer(StructurerBase):
             )
             new_src = SequenceNode(src.addr, nodes=[src, goto_node])
 
-        graph.remove_edge(src, dst)
+        if graph.has_edge(src, dst):
+            graph.remove_edge(src, dst)
         if new_src is not None:
             self.replace_nodes(graph, src, new_src)
         if full_graph is not None:
@@ -2265,14 +2263,16 @@ class PhoenixStructurer(StructurerBase):
         # the first heuristic to try is checking every edge in the list, remove it,
         # then count how many post-dominators exist in the graph. Most post-dominators win.
         edge_postdom_count = {}
+        entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
         for edge in edges:
-            graph.remove_edge(*edge)
-            post_dom_graph = PostDominators(
-                graph, [node for node in graph.nodes if graph.in_degree(node) == 0][0]
-            ).post_dom
-            post_doms = set(post_dom for _, post_dom in post_dom_graph.edges if post_dom is not None)
+            graph_copy = networkx.DiGraph(graph)
+            graph_copy.remove_edge(*edge)
+            post_dom_graph = PostDominators(graph_copy, entry_node).post_dom
+            post_doms = set()
+            for postdom_node, dominatee in post_dom_graph.edges():
+                if not isinstance(postdom_node, TemporaryNode) and not isinstance(dominatee, TemporaryNode):
+                    post_doms.add((postdom_node, dominatee))
             edge_postdom_count[edge] = len(post_doms)
-            graph.add_edge(*edge)
 
         max_cnt = max(edge_postdom_count.values())
         best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_cnt]
