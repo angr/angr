@@ -2254,40 +2254,41 @@ class PhoenixStructurer(StructurerBase):
                 break
         return None
 
-    @staticmethod
-    def _order_virtualizable_edges(graph: nx.DiGraph, edges: List, node_seq: Dict[Any, int]) -> List:
+    def _order_virtualizable_edges(self, graph: nx.DiGraph, edges: List, node_seq: Dict[Any, int]) -> List:
         """
         Returns a list of edges that are ordered by the best edges to virtualize first.
         The criteria for "best" is defined by a variety of heuristics described below.
         """
-        # the first heuristic to try is checking every edge in the list, remove it,
-        # then count how many post-dominators exist in the graph. Most post-dominators win.
-        edge_postdom_count = {}
-        entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
-        for edge in edges:
-            graph_copy = networkx.DiGraph(graph)
-            graph_copy.remove_edge(*edge)
-            post_dom_graph = PostDominators(graph_copy, entry_node).post_dom
-            post_doms = set()
-            for postdom_node, dominatee in post_dom_graph.edges():
-                if not isinstance(postdom_node, TemporaryNode) and not isinstance(dominatee, TemporaryNode):
-                    post_doms.add((postdom_node, dominatee))
-            edge_postdom_count[edge] = len(post_doms)
+        if len(edges) <= 1:
+            return edges
 
-        max_cnt = max(edge_postdom_count.values())
-        best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_cnt]
-        if len(best_edges) == 1:
-            l.debug(f"Edge choices: {edges}")
-            l.debug(f"Best edge chosen here: {best_edges[0]}")
-            return best_edges
+        best_edges = edges
+        if self._phoenix_improved:
+            # the first heuristic to try is checking every edge in the list, remove it,
+            # then count how many post-dominators exist in the graph. Most post-dominators win.
+            edge_postdom_count = {}
+            entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+            for edge in edges:
+                graph_copy = networkx.DiGraph(graph)
+                graph_copy.remove_edge(*edge)
+                post_dom_graph = PostDominators(graph_copy, entry_node).post_dom
+                post_doms = set()
+                for postdom_node, dominatee in post_dom_graph.edges():
+                    if not isinstance(postdom_node, TemporaryNode) and not isinstance(dominatee, TemporaryNode):
+                        post_doms.add((postdom_node, dominatee))
+                edge_postdom_count[edge] = len(post_doms)
 
-        # we have a tie. as a second heuristic, we check if any of the edges to virtualize go to a simple return
-        # node. if so, we prioritize that edge.
+            max_cnt = max(edge_postdom_count.values())
+            best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_cnt]
+            import ipdb; ipdb.set_trace()
+            if len(best_edges) == 1:
+                return best_edges
 
-        # TODO: this heuristic is not implemented yet.
+            # we have a tie. as a second heuristic, we check if any of the edges to virtualize go to a simple return
+            # node; if so, we prioritize that edge.
+            # TODO: this heuristic is not implemented yet.
 
-        # we have a tie again! final tiebreaker: we use the custom chick_order (random name), which is a bit more
-        # complex.
+        # if we have another tie, or we never used improved heuristics, then we do the chick_order.
         return PhoenixStructurer._chick_order_edges(best_edges, node_seq)
 
     @staticmethod
