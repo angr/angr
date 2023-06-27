@@ -2280,7 +2280,9 @@ class PhoenixStructurer(StructurerBase):
 
             max_cnt = max(edge_postdom_count.values())
             best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_cnt]
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
             if len(best_edges) == 1:
                 return best_edges
 
