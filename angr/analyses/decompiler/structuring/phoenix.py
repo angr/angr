@@ -6,6 +6,7 @@ import logging
 import networkx
 
 import claripy
+import networkx as nx
 from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump, Label
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
@@ -13,7 +14,7 @@ from ailment.expression import Const, UnaryOp, MultiStatementExpression
 from angr.utils.graph import GraphUtils
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
+from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph, PostDominators
 from ..sequence_walker import SequenceWalker
 from ..utils import (
     remove_last_statement,
@@ -1938,7 +1939,7 @@ class PhoenixStructurer(StructurerBase):
         node_seq = {nn: idx for (idx, nn) in enumerate(ordered_nodes)}
 
         if all_edges_wo_dominance:
-            all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance, node_seq)
+            all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -1946,7 +1947,7 @@ class PhoenixStructurer(StructurerBase):
             return True
 
         if secondary_edges:
-            secondary_edges = self._chick_order_edges(secondary_edges, node_seq)
+            secondary_edges = self._order_virtualizable_edges(full_graph, secondary_edges, node_seq)
             # virtualize the first edge
             src, dst = secondary_edges[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -2254,6 +2255,40 @@ class PhoenixStructurer(StructurerBase):
                     return PhoenixStructurer._remove_first_statement_if_jump(nn)
                 break
         return None
+
+    @staticmethod
+    def _order_virtualizable_edges(graph: nx.DiGraph, edges: List, node_seq: Dict[Any, int]) -> List:
+        """
+        Returns a list of edges that are ordered by the best edges to virtualize first.
+        The criteria for "best" is defined by a variety of heuristics described below.
+        """
+        # the first heuristic to try is checking every edge in the list, remove it,
+        # then count how many post-dominators exist in the graph. Most post-dominators win.
+        edge_postdom_count = {}
+        for edge in edges:
+            graph.remove_edge(*edge)
+            post_dom_graph = PostDominators(
+                graph, [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+            ).post_dom
+            post_doms = set(post_dom for _, post_dom in post_dom_graph.edges if post_dom is not None)
+            edge_postdom_count[edge] = len(post_doms)
+            graph.add_edge(*edge)
+
+        max_cnt = max(edge_postdom_count.values())
+        best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_cnt]
+        if len(best_edges) == 1:
+            l.debug(f"Edge choices: {edges}")
+            l.debug(f"Best edge chosen here: {best_edges[0]}")
+            return best_edges
+
+        # we have a tie. as a second heuristic, we check if any of the edges to virtualize go to a simple return
+        # node. if so, we prioritize that edge.
+
+        # TODO: this heuristic is not implemented yet.
+
+        # we have a tie again! final tiebreaker: we use the custom chick_order (random name), which is a bit more
+        # complex.
+        return PhoenixStructurer._chick_order_edges(best_edges, node_seq)
 
     @staticmethod
     def _chick_order_edges(edges: List, node_seq: Dict[Any, int]) -> List:
