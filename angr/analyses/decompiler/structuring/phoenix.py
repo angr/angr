@@ -11,7 +11,7 @@ from ailment.block import Block
 from ailment.statement import Statement, ConditionalJump, Jump, Label
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
-from angr.utils.graph import GraphUtils
+from angr.utils.graph import GraphUtils, TemporaryNode
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph, PostDominators
@@ -1914,16 +1914,18 @@ class PhoenixStructurer(StructurerBase):
         other_edges = []
         idoms = networkx.immediate_dominators(full_graph, head)
         if networkx.is_directed_acyclic_graph(full_graph):
+            _, inv_idoms = inverted_idoms(full_graph)
             acyclic_graph = full_graph
         else:
             acyclic_graph = to_acyclic_graph(full_graph, loop_heads=[head])
+            _, inv_idoms = inverted_idoms(acyclic_graph)
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
-            if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
+            if not dominates(idoms, src, dst) and not dominates(inv_idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
-            elif not dominates(idoms, src, dst):
+            elif not dominates(idoms, src, dst) and dominates(inv_idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     secondary_edges.append((src, dst))
             else:
@@ -1931,7 +1933,7 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         ordered_nodes = GraphUtils.quasi_topological_sort_nodes(acyclic_graph, loop_heads=[head])
-        node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
+        node_seq = {nn: idx for (idx, nn) in enumerate(ordered_nodes)}
 
         if all_edges_wo_dominance:
             all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
@@ -2261,14 +2263,16 @@ class PhoenixStructurer(StructurerBase):
         # the first heuristic to try is checking every edge in the list, remove it,
         # then count how many post-dominators exist in the graph. Most post-dominators win.
         edge_postdom_count = {}
+        entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
         for edge in edges:
-            graph.remove_edge(*edge)
-            post_dom_graph = PostDominators(
-                graph, [node for node in graph.nodes if graph.in_degree(node) == 0][0]
-            ).post_dom
-            post_doms = set(post_dom for _, post_dom in post_dom_graph.edges if post_dom is not None)
+            graph_copy = networkx.DiGraph(graph)
+            graph_copy.remove_edge(*edge)
+            post_dom_graph = PostDominators(graph_copy, entry_node).post_dom
+            post_doms = set()
+            for postdom_node, dominatee in post_dom_graph.edges():
+                if not isinstance(postdom_node, TemporaryNode) and not isinstance(dominatee, TemporaryNode):
+                    post_doms.add((postdom_node, dominatee))
             edge_postdom_count[edge] = len(post_doms)
-            graph.add_edge(*edge)
 
         max_cnt = max(edge_postdom_count.values())
         best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_cnt]
