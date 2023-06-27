@@ -39,6 +39,7 @@ from .structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
 )
 from .structurer_base import StructurerBase
+from ..structured_codegen.c import is_simple_return_node
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -2280,15 +2281,22 @@ class PhoenixStructurer(StructurerBase):
 
             max_cnt = max(edge_postdom_count.values())
             best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_cnt]
-            import ipdb
-
-            ipdb.set_trace()
             if len(best_edges) == 1:
                 return best_edges
 
             # we have a tie. as a second heuristic, we check if any of the edges to virtualize go to a simple return
             # node; if so, we prioritize that edge.
-            # TODO: this heuristic is not implemented yet.
+            candidate_edges = best_edges
+            best_edges = []
+            for src, dst in candidate_edges:
+                if graph.has_node(dst) and is_simple_return_node(dst, graph):
+                    best_edges.append((src, dst))
+
+            # we can generate a set with no edges, so we need to check that as well
+            if len(best_edges) == 1:
+                return best_edges
+            elif not best_edges:
+                best_edges = candidate_edges
 
         # if we have another tie, or we never used improved heuristics, then we do the chick_order.
         return PhoenixStructurer._chick_order_edges(best_edges, node_seq)
