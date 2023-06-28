@@ -4,7 +4,7 @@ import ailment
 from ailment.expression import Op
 
 from ..structuring.structurer_nodes import ConditionNode
-from ..structured_codegen.c import is_simple_return_node
+from ..utils import is_simple_return_node
 from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 
