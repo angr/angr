@@ -13,7 +13,7 @@ from ailment.expression import Const, UnaryOp, MultiStatementExpression
 from angr.utils.graph import GraphUtils
 from ....knowledge_plugins.cfg import IndirectJumpType
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ....utils.graph import dominates, inverted_idoms, to_acyclic_graph
+from ....utils.graph import dominates, to_acyclic_graph
 from ..sequence_walker import SequenceWalker
 from ..utils import (
     remove_last_statement,
@@ -1913,21 +1913,16 @@ class PhoenixStructurer(StructurerBase):
         other_edges = []
         idoms = networkx.immediate_dominators(full_graph, head)
         if networkx.is_directed_acyclic_graph(full_graph):
-            _, inv_idoms = inverted_idoms(full_graph)
             acyclic_graph = full_graph
         else:
             acyclic_graph = to_acyclic_graph(full_graph, loop_heads=[head])
-            _, inv_idoms = inverted_idoms(acyclic_graph)
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
-            if not graph.has_edge(src, dst):
-                # the edge might be from full_graph but not in graph
-                continue
-            if not dominates(idoms, src, dst) and not dominates(inv_idoms, dst, src):
+            if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
-            elif not dominates(idoms, src, dst) and dominates(inv_idoms, dst, src):
+            elif not dominates(idoms, src, dst):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     secondary_edges.append((src, dst))
             else:
@@ -1935,7 +1930,7 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         ordered_nodes = GraphUtils.quasi_topological_sort_nodes(acyclic_graph, loop_heads=[head])
-        node_seq = {nn: idx for (idx, nn) in enumerate(ordered_nodes)}
+        node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
 
         if all_edges_wo_dominance:
             all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance, node_seq)
@@ -2008,7 +2003,8 @@ class PhoenixStructurer(StructurerBase):
             )
             new_src = SequenceNode(src.addr, nodes=[src, goto_node])
 
-        graph.remove_edge(src, dst)
+        if graph.has_edge(src, dst):
+            graph.remove_edge(src, dst)
         if new_src is not None:
             self.replace_nodes(graph, src, new_src)
         if full_graph is not None:
