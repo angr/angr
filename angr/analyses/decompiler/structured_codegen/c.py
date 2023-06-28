@@ -983,12 +983,8 @@ class CIfBreak(CStatement):
             yield indent_str, None
         else:
             yield " ", None
-        yield "{", brace
-        yield "\n", None
-        yield self.indent_str(indent=indent + INDENT_DELTA), self
+        yield self.indent_str(indent=INDENT_DELTA), self
         yield "break;\n", self
-        yield indent_str, None
-        yield "}", brace
         yield "\n", None
 
 
