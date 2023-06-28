@@ -909,17 +909,22 @@ class CIfElse(CStatement):
             yield "(", paren
             yield from condition.c_repr_chunks()
             yield ")", paren
+
             if self.codegen.braces_on_own_lines:
                 yield "\n", None
                 yield indent_str, None
             else:
                 yield " ", None
-            yield "{", brace
-            yield "\n", None
-            if node is not None:
-                yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
-            yield indent_str, None
-            yield "}", brace
+
+            if isinstance(node, CStatements) and len(node.statements) == 1 and node is not None:
+                yield from node.c_repr_chunks(indent=INDENT_DELTA)
+            else:
+                yield "{", brace
+                yield "\n", None
+                if node is not None:
+                    yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
+                yield indent_str, None
+                yield "}", brace
 
         if self.else_node is not None:
             brace = CClosingObject("{")
@@ -938,11 +943,15 @@ class CIfElse(CStatement):
                     yield indent_str, None
                 else:
                     yield " ", None
-                yield "{", brace
-                yield "\n", None
-                yield from self.else_node.c_repr_chunks(indent=indent + INDENT_DELTA)
-                yield indent_str, None
-                yield "}", brace
+                if isinstance(self.else_node, CStatements) and len(self.else_node.statements) == 1:
+                    yield from self.else_node.c_repr_chunks(indent=INDENT_DELTA)
+                else:
+                    yield "{", brace
+                    yield "\n", None
+                    yield from self.else_node.c_repr_chunks(indent=indent + INDENT_DELTA)
+                    yield indent_str, None
+                    yield "}", brace
+
         yield "\n", None
 
 
