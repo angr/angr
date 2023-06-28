@@ -2786,7 +2786,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             condition_and_nodes,
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
-                                and structured_node_is_simple_return(condition_node.true_node, self.ail_graph),
+            and structured_node_is_simple_return(condition_node.true_node, self.ail_graph),
             tags=tags,
             codegen=self,
         )
