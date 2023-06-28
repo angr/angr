@@ -389,7 +389,6 @@ def is_simple_return_node(node: Union["SequenceNode", "MultiNode"], graph: netwo
 
         return blocks
 
-
     # sanity check: we need a graph to understand returning blocks
     if graph is None:
         return False
