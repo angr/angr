@@ -359,10 +359,7 @@ def remove_labels(graph: networkx.DiGraph):
 
 
 def is_simple_return_node(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
-    def flatten_packed_node(
-        packed_node: Union["SequenceNode", "MultiNode"]
-    ) -> List[ailment.Block]:
-
+    def flatten_packed_node(packed_node: Union["SequenceNode", "MultiNode"]) -> List[ailment.Block]:
         if not packed_node or not packed_node.nodes:
             return []
 

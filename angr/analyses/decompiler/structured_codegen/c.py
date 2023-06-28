@@ -173,6 +173,7 @@ def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
             return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
     return None
 
+
 #
 #   C Representation Classes
 #
