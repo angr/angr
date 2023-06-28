@@ -359,7 +359,23 @@ def remove_labels(graph: networkx.DiGraph):
 
 
 def is_simple_return_node(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
+    """
+    Will check if a "simple return" is contained within the node a simple returns looks like this:
+    if (cond) {
+      // simple return
+      ...
+      return 0;
+    }
+    ...
+
+    Any block can end in a return as long as it does not have condition inside.
+    """
+
     def flatten_packed_node(packed_node: Union["SequenceNode", "MultiNode"]) -> List[ailment.Block]:
+        """
+        Unpacks nested SequenceNode and MultiNodes so we can handle nested instances of blocks
+        when determining whether a node is a simple return.
+        """
         if not packed_node or not packed_node.nodes:
             return []
 
@@ -373,17 +389,7 @@ def is_simple_return_node(node: Union["SequenceNode", "MultiNode"], graph: netwo
 
         return blocks
 
-    """
-    Will check if a "simple return" is contained within the node a simple returns looks like this:
-    if (cond) {
-      // simple return
-      ...
-      return 0;
-    }
-    ...
 
-    Any block can end in a return as long as it does not have condition inside.
-    """
     # sanity check: we need a graph to understand returning blocks
     if graph is None:
         return False
