@@ -4,7 +4,7 @@ import ailment
 from ailment.expression import Op
 
 from ..structuring.structurer_nodes import ConditionNode
-from ..utils import is_simple_return_node
+from ..utils import structured_node_is_simple_return
 from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 
@@ -33,6 +33,6 @@ class FlipBooleanCmp(SequenceOptimizationPass):
     def _analyze(self, cache=None):
         condition_nodes: List[ConditionNode] = cache or []
         for node in condition_nodes:
-            if isinstance(node.condition, Op) and is_simple_return_node(node.false_node, self._graph):
+            if isinstance(node.condition, Op) and structured_node_is_simple_return(node.false_node, self._graph):
                 node.condition = ailment.expression.negate(node.condition)
                 node.true_node, node.false_node = node.false_node, node.true_node

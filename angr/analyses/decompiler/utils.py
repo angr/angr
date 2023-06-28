@@ -358,7 +358,7 @@ def remove_labels(graph: networkx.DiGraph):
     return new_graph
 
 
-def is_simple_return_node(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
+def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
     if (cond) {
@@ -368,24 +368,20 @@ def is_simple_return_node(node: Union["SequenceNode", "MultiNode"], graph: netwo
     }
     ...
 
-    Any block can end in a return as long as it does not have condition inside.
+    Returns tue on any block ending in linear statements and a return.
     """
 
-    def flatten_packed_node(packed_node: Union["SequenceNode", "MultiNode"]) -> List[ailment.Block]:
-        """
-        Unpacks nested SequenceNode and MultiNodes so we can handle nested instances of blocks
-        when determining whether a node is a simple return.
-        """
+    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> List[ailment.Block]:
         if not packed_node or not packed_node.nodes:
             return []
 
         blocks = []
         if packed_node.nodes is not None:
-            for node in packed_node.nodes:
-                if isinstance(node, (SequenceNode, MultiNode)):
-                    blocks += flatten_packed_node(node)
+            for _node in packed_node.nodes:
+                if isinstance(_node, (SequenceNode, MultiNode)):
+                    blocks += _flatten_structured_node(_node)
                 else:
-                    blocks.append(node)
+                    blocks.append(_node)
 
         return blocks
 
@@ -395,8 +391,8 @@ def is_simple_return_node(node: Union["SequenceNode", "MultiNode"], graph: netwo
 
     last_block = None
     if isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
-        flat_blocks = flatten_packed_node(node)
-        if all(isinstance(block, (ailment.Block)) for block in flat_blocks):
+        flat_blocks = _flatten_structured_node(node)
+        if all(isinstance(block, ailment.Block) for block in flat_blocks):
             last_block = flat_blocks[-1]
     elif isinstance(node, ailment.Block):
         last_block = node

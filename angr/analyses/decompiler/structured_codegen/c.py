@@ -30,7 +30,7 @@ from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
 from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
-from ..utils import is_simple_return_node
+from ..utils import structured_node_is_simple_return
 from ....errors import UnsupportedNodeTypeError
 from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
@@ -2786,7 +2786,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             condition_and_nodes,
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
-            and is_simple_return_node(condition_node.true_node, self.ail_graph),
+                                and structured_node_is_simple_return(condition_node.true_node, self.ail_graph),
             tags=tags,
             codegen=self,
         )
