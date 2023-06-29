@@ -55,8 +55,7 @@ def for_all_structuring_algos(func):
 
 
 def disable_decompiler_option(params: List[str], values):
-    options = angr.analyses.decompiler.decompilation_options.options
-    return zip([opt for opt in angr.analyses.decompiler.decompilation_options.options if opt.param in params], values)
+    return list(zip([opt for opt in angr.analyses.decompiler.decompilation_options.options if opt.param in params], values))
 
 
 def structuring_algo(algo: str):
