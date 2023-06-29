@@ -873,7 +873,7 @@ class CIfElse(CStatement):
         condition_and_nodes: List[Tuple[CExpression, Optional[CStatement]]],
         else_node=None,
         simplify_else_scope=True,
-        simple_stmt_cmp=False,
+        simple_stmt_cmp=True,
         tags=None,
         **kwargs,
     ):
@@ -2859,6 +2859,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             condition_and_nodes,
             else_node=else_node,
             tags=tags,
+            simple_stmt_cmp=self.simple_stmt_cmp,
             codegen=self,
         )
         return code
@@ -3027,6 +3028,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ifelse = CIfElse(
             [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self))],
             else_node=else_node,
+            simple_stmt_cmp=self.simple_stmt_cmp,
             tags=stmt.tags,
             codegen=self,
         )
