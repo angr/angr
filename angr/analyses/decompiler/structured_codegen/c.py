@@ -2866,12 +2866,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_ConditionalBreak(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
 
-        return CIfBreak(
-            self._handle(node.condition),
-            simple_stmt_cmp=self.simple_stmt_cmp,
-            tags=tags,
-            codegen=self
-        )
+        return CIfBreak(self._handle(node.condition), simple_stmt_cmp=self.simple_stmt_cmp, tags=tags, codegen=self)
 
     def _handle_Break(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
