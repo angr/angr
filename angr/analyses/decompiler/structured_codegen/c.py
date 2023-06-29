@@ -917,8 +917,7 @@ class CIfElse(CStatement):
             else:
                 yield " ", None
 
-            omit_if_brace = (isinstance(node, CStatements) and len(node.statements) == 1) or \
-                isinstance(node, CContinue)
+            omit_if_brace = (isinstance(node, CStatements) and len(node.statements) == 1) or isinstance(node, CContinue)
 
             if self.simple_stmt_cmp and omit_if_brace and node is not None:
                 yield from node.c_repr_chunks(indent=INDENT_DELTA)
@@ -931,9 +930,8 @@ class CIfElse(CStatement):
                 yield "}", brace
 
         omit_else_brace = (
-            isinstance(self.else_node, CStatements) and
-            len(self.else_node.statements) == 1) or \
-                isinstance(self.else_node, CContinue)
+            isinstance(self.else_node, CStatements) and len(self.else_node.statements) == 1
+        ) or isinstance(self.else_node, CContinue)
 
         if self.else_node is not None:
             brace = CClosingObject("{")

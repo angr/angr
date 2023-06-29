@@ -203,7 +203,7 @@ options = [
         "Omits braces for single statement if/else blocks",
         bool,
         "codegen",
-        "simple_stmt_cmp",  
+        "simple_stmt_cmp",
         category="Display",
         default_value=True,
         clears_cache=True,
