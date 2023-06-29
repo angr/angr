@@ -29,6 +29,7 @@ WORKER = is_testing or bool(
     os.environ.get("WORKER", False)
 )  # this variable controls whether we print the decompilation code or not
 
+
 def disable_decompiler_option(params: List[str], values):
     return list(
         zip([opt for opt in angr.analyses.decompiler.decompilation_options.options if opt.param in params], values)
@@ -51,7 +52,9 @@ def for_all_structuring_algos(func):
         ret_vals = []
         structurer_option = get_structurer_option()
         for structurer in STRUCTURER_CLASSES:
-            new_opts = orig_opts + [(structurer_option, structurer)] + disable_decompiler_option(["simple_stmt_cmp"], [False])
+            new_opts = (
+                orig_opts + [(structurer_option, structurer)] + disable_decompiler_option(["simple_stmt_cmp"], [False])
+            )
             ret_vals.append(func(*args, decompiler_options=new_opts, **kwargs))
 
         return ret_vals
