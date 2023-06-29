@@ -969,17 +969,20 @@ class CIfBreak(CStatement):
 
     __slots__ = (
         "condition",
+        "simple_stmt_cmp",
         "tags",
     )
 
-    def __init__(self, condition, tags=None, **kwargs):
+    def __init__(self, condition, simple_stmt_cmp=True, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
+        self.simple_stmt_cmp = simple_stmt_cmp
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
+        brace = CClosingObject("{")
         paren = CClosingObject("(")
 
         yield indent_str, None
@@ -992,8 +995,16 @@ class CIfBreak(CStatement):
             yield indent_str, None
         else:
             yield " ", None
-        yield self.indent_str(indent=INDENT_DELTA), self
-        yield "break;\n", self
+        if self.simple_stmt_cmp:
+            yield self.indent_str(indent=INDENT_DELTA), self
+            yield "break;\n", self
+        else:
+            yield "{", brace
+            yield "\n", None
+            yield self.indent_str(indent=indent + INDENT_DELTA), self
+            yield "break;\n", self
+            yield indent_str, None
+            yield "}", brace
         yield "\n", None
 
 
@@ -2855,7 +2866,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_ConditionalBreak(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
 
-        return CIfBreak(self._handle(node.condition), tags=tags, codegen=self)
+        return CIfBreak(
+            self._handle(node.condition),
+            simple_stmt_cmp=self.simple_stmt_cmp,
+            tags=tags,
+            codegen=self
+        )
 
     def _handle_Break(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
