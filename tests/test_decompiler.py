@@ -5,6 +5,8 @@ import re
 import unittest
 from functools import wraps
 
+from typing import List
+
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import SimTypeInt, SimTypePointer
@@ -51,6 +53,15 @@ def for_all_structuring_algos(func):
 
     return _for_all_structuring_algos
 
+def disable_decompiler_option(params: List[str], values):
+    options=angr.analyses.decompiler.decompilation_options.options
+    return zip(
+        [
+            opt for opt in angr.analyses.decompiler.decompilation_options.options
+            if opt.param in params
+        ],
+        values
+    )
 
 def structuring_algo(algo: str):
     def _structuring_algo(func):
@@ -403,9 +414,6 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        options = angr.analyses.decompiler.decompilation_options.options
-        decompiler_options.append(([opt for opt in options if opt.param == "simple_stmt_cmp"][0], False))
-
         # disable eager returns simplifier
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
             "AMD64", "linux"
@@ -418,7 +426,9 @@ class TestDecompiler(unittest.TestCase):
 
         f = cfg.functions[0x404410]
         dec = p.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+            f, cfg=cfg.model,
+            options=disable_decompiler_option(['simple_stmt_cmp'], [False]),
+            optimization_passes=all_optimization_passes
         )
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
@@ -1019,13 +1029,13 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "adams")
         p = angr.Project(bin_path, auto_load_libs=False)
 
-        options = angr.analyses.decompiler.decompilation_options.options
-        decompiler_options.append(([opt for opt in options if opt.param == "simple_stmt_cmp"][0], False))
-
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep()(
+            func,cfg=cfg.model,
+            options=disable_decompiler_option(['simple_stmt_cmp'], [False]),
+        )
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1622,7 +1632,9 @@ class TestDecompiler(unittest.TestCase):
         ]
 
         d = proj.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+            f, cfg=cfg.model,
+            options=disable_decompiler_option(['simple_stmt_cmp'], [False]),
+            optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(d)
 
@@ -1773,13 +1785,11 @@ class TestDecompiler(unittest.TestCase):
             for p in all_optimization_passes
             if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
         ]
-        options = angr.analyses.decompiler.decompilation_options.options
-        decompiler_options.append(([opt for opt in options if opt.param == "simple_stmt_cmp"][0], False))
         f = proj.kb.functions["argmatch_to_argument"]
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=decompiler_options,
+            options=disable_decompiler_option(['simple_stmt_cmp'], [False]),
             optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
