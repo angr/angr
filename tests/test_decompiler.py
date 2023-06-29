@@ -403,11 +403,8 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
 
-        options=angr.analyses.decompiler.decompilation_options.options
-        decompiler_options.append((
-            [opt for opt in options if opt.param == 'simple_stmt_cmp'][0],
-            False
-        ))
+        options = angr.analyses.decompiler.decompilation_options.options
+        decompiler_options.append(([opt for opt in options if opt.param == "simple_stmt_cmp"][0], False))
 
         # disable eager returns simplifier
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
@@ -1022,11 +1019,8 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "adams")
         p = angr.Project(bin_path, auto_load_libs=False)
 
-        options=angr.analyses.decompiler.decompilation_options.options
-        decompiler_options.append((
-            [opt for opt in options if opt.param == 'simple_stmt_cmp'][0],
-            False
-        ))
+        options = angr.analyses.decompiler.decompilation_options.options
+        decompiler_options.append(([opt for opt in options if opt.param == "simple_stmt_cmp"][0], False))
 
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
@@ -1779,11 +1773,8 @@ class TestDecompiler(unittest.TestCase):
             for p in all_optimization_passes
             if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
         ]
-        options=angr.analyses.decompiler.decompilation_options.options
-        decompiler_options.append((
-            [opt for opt in options if opt.param == 'simple_stmt_cmp'][0],
-            False
-        ))
+        options = angr.analyses.decompiler.decompilation_options.options
+        decompiler_options.append(([opt for opt in options if opt.param == "simple_stmt_cmp"][0], False))
         f = proj.kb.functions["argmatch_to_argument"]
         d = proj.analyses[Decompiler].prep()(
             f,
