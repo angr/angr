@@ -198,6 +198,16 @@ options = [
         default_value=True,
         clears_cache=True,
     ),
+    O(
+        "Simple Statement Compare",
+        "Omits braces for single statement if/else blocks",
+        bool,
+        "codegen",
+        "simple_stmt_cmp",  
+        category="Display",
+        default_value=True,
+        clears_cache=True,
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options

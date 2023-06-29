@@ -866,13 +866,14 @@ class CIfElse(CStatement):
     Represents an if-else construct in C.
     """
 
-    __slots__ = ("condition_and_nodes", "else_node", "simplify_else_scope", "tags")
+    __slots__ = ("condition_and_nodes", "else_node", "simplify_else_scope", "simple_stmt_cmp", "tags")
 
     def __init__(
         self,
         condition_and_nodes: List[Tuple[CExpression, Optional[CStatement]]],
         else_node=None,
         simplify_else_scope=True,
+        simple_stmt_cmp=True,
         tags=None,
         **kwargs,
     ):
@@ -881,6 +882,7 @@ class CIfElse(CStatement):
         self.condition_and_nodes = condition_and_nodes
         self.else_node = else_node
         self.simplify_else_scope = simplify_else_scope
+        self.simple_stmt_cmp = simple_stmt_cmp
         self.tags = tags
 
         if not self.condition_and_nodes:
@@ -914,8 +916,11 @@ class CIfElse(CStatement):
                 yield indent_str, None
             else:
                 yield " ", None
-            if (isinstance(node, CStatements) and len(node.statements) == 1) or \
-                    isinstance(node, CContinue) and node is not None:
+
+            omit_if_brace = (isinstance(node, CStatements) and len(node.statements) == 1) or \
+                isinstance(node, CContinue)
+
+            if self.simple_stmt_cmp and omit_if_brace and node is not None:
                 yield from node.c_repr_chunks(indent=INDENT_DELTA)
             else:
                 yield "{", brace
@@ -924,6 +929,11 @@ class CIfElse(CStatement):
                     yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
                 yield indent_str, None
                 yield "}", brace
+
+        omit_else_brace = (
+            isinstance(self.else_node, CStatements) and
+            len(self.else_node.statements) == 1) or \
+                isinstance(self.else_node, CContinue)
 
         if self.else_node is not None:
             brace = CClosingObject("{")
@@ -942,8 +952,8 @@ class CIfElse(CStatement):
                     yield indent_str, None
                 else:
                     yield " ", None
-                if (isinstance(self.else_node, CStatements) and len(self.else_node.statements) == 1) or \
-                        isinstance(self.else_node, CContinue):
+
+                if self.simple_stmt_cmp and omit_else_brace:
                     yield from self.else_node.c_repr_chunks(indent=INDENT_DELTA)
                 else:
                     yield "{", brace
@@ -2152,6 +2162,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         show_demangled_name=True,
         ail_graph=None,
         simplify_else_scope=True,
+        simple_stmt_cmp=True
     ):
         super().__init__(flavor=flavor)
 
@@ -2216,6 +2227,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.show_demangled_name = show_demangled_name
         self.ail_graph = ail_graph
         self.simplify_else_scope = simplify_else_scope
+        self.simple_stmt_cmp = simple_stmt_cmp
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -2250,6 +2262,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.cstyle_null_cmp = value
             elif option.param == "simplify_else_scope":
                 self.simplify_else_scope = value
+            elif option.param == "simple_stmt_cmp":
+                self.simple_stmt_cmp = value
 
     def _analyze(self):
         self._variables_in_use = {}
@@ -2818,6 +2832,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
             and is_simple_return_node(condition_node.true_node, self.ail_graph),
+            simple_stmt_cmp=self.simple_stmt_cmp,
             tags=tags,
             codegen=self,
         )
