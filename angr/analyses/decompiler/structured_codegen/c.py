@@ -2830,6 +2830,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
             and is_simple_return_node(condition_node.true_node, self.ail_graph),
+            simple_stmt_cmp=self.simple_stmt_cmp,
             tags=tags,
             codegen=self,
         )
