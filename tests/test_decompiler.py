@@ -1780,8 +1780,8 @@ class TestDecompiler(unittest.TestCase):
         # break should always be followed by a curly brace, not another statement
         t = d.codegen.text.replace(" ", "").replace("\n", "")
         if "break;" in t:
-            assert "break;" in t
-            t = t.replace("break;", "")
+            assert "break;}" in t
+            t = t.replace("break;}", "")
             assert "break;" not in t
 
         # continue should always be followed by a curly brace, not another statement
