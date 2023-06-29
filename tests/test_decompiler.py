@@ -53,15 +53,11 @@ def for_all_structuring_algos(func):
 
     return _for_all_structuring_algos
 
+
 def disable_decompiler_option(params: List[str], values):
-    options=angr.analyses.decompiler.decompilation_options.options
-    return zip(
-        [
-            opt for opt in angr.analyses.decompiler.decompilation_options.options
-            if opt.param in params
-        ],
-        values
-    )
+    options = angr.analyses.decompiler.decompilation_options.options
+    return zip([opt for opt in angr.analyses.decompiler.decompilation_options.options if opt.param in params], values)
+
 
 def structuring_algo(algo: str):
     def _structuring_algo(func):
@@ -426,9 +422,10 @@ class TestDecompiler(unittest.TestCase):
 
         f = cfg.functions[0x404410]
         dec = p.analyses[Decompiler].prep()(
-            f, cfg=cfg.model,
-            options=disable_decompiler_option(['simple_stmt_cmp'], [False]),
-            optimization_passes=all_optimization_passes
+            f,
+            cfg=cfg.model,
+            options=disable_decompiler_option(["simple_stmt_cmp"], [False]),
+            optimization_passes=all_optimization_passes,
         )
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
@@ -1033,8 +1030,9 @@ class TestDecompiler(unittest.TestCase):
         func = cfg.functions["main"]
 
         dec = p.analyses[Decompiler].prep()(
-            func,cfg=cfg.model,
-            options=disable_decompiler_option(['simple_stmt_cmp'], [False]),
+            func,
+            cfg=cfg.model,
+            options=disable_decompiler_option(["simple_stmt_cmp"], [False]),
         )
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
@@ -1632,9 +1630,10 @@ class TestDecompiler(unittest.TestCase):
         ]
 
         d = proj.analyses[Decompiler].prep()(
-            f, cfg=cfg.model,
-            options=disable_decompiler_option(['simple_stmt_cmp'], [False]),
-            optimization_passes=all_optimization_passes
+            f,
+            cfg=cfg.model,
+            options=disable_decompiler_option(["simple_stmt_cmp"], [False]),
+            optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
 
@@ -1789,7 +1788,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=disable_decompiler_option(['simple_stmt_cmp'], [False]),
+            options=disable_decompiler_option(["simple_stmt_cmp"], [False]),
             optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
