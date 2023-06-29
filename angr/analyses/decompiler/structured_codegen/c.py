@@ -914,8 +914,11 @@ class CIfElse(CStatement):
                 yield indent_str, None
             else:
                 yield " ", None
-            if (isinstance(node, CStatements) and len(node.statements) == 1) or \
-                    isinstance(node, CContinue) and node is not None:
+            if (
+                (isinstance(node, CStatements) and len(node.statements) == 1)
+                or isinstance(node, CContinue)
+                and node is not None
+            ):
                 yield from node.c_repr_chunks(indent=INDENT_DELTA)
             else:
                 yield "{", brace
@@ -942,8 +945,9 @@ class CIfElse(CStatement):
                     yield indent_str, None
                 else:
                     yield " ", None
-                if (isinstance(self.else_node, CStatements) and len(self.else_node.statements) == 1) or \
-                        isinstance(self.else_node, CContinue):
+                if (isinstance(self.else_node, CStatements) and len(self.else_node.statements) == 1) or isinstance(
+                    self.else_node, CContinue
+                ):
                     yield from self.else_node.c_repr_chunks(indent=INDENT_DELTA)
                 else:
                     yield "{", brace
