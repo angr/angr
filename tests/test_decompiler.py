@@ -29,6 +29,11 @@ WORKER = is_testing or bool(
     os.environ.get("WORKER", False)
 )  # this variable controls whether we print the decompilation code or not
 
+def disable_decompiler_option(params: List[str], values):
+    return list(
+        zip([opt for opt in angr.analyses.decompiler.decompilation_options.options if opt.param in params], values)
+    )
+
 
 def for_all_structuring_algos(func):
     """
@@ -46,18 +51,12 @@ def for_all_structuring_algos(func):
         ret_vals = []
         structurer_option = get_structurer_option()
         for structurer in STRUCTURER_CLASSES:
-            new_opts = orig_opts + [(structurer_option, structurer)]
+            new_opts = orig_opts + [(structurer_option, structurer)] + disable_decompiler_option(["simple_stmt_cmp"], [False])
             ret_vals.append(func(*args, decompiler_options=new_opts, **kwargs))
 
         return ret_vals
 
     return _for_all_structuring_algos
-
-
-def disable_decompiler_option(params: List[str], values):
-    return list(
-        zip([opt for opt in angr.analyses.decompiler.decompilation_options.options if opt.param in params], values)
-    )
 
 
 def structuring_algo(algo: str):
@@ -405,7 +404,7 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen.text.count("switch (") == 3  # there are three switch-cases in total
 
     @for_all_structuring_algos
-    def test_decompiling_true_a_x86_64_1(self, decompiler_options=[]):
+    def test_decompiling_true_a_x86_64_1(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -423,7 +422,6 @@ class TestDecompiler(unittest.TestCase):
 
         f = cfg.functions[0x404410]
 
-        decompiler_options += disable_decompiler_option(["simple_stmt_cmp"], [False])
         dec = p.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
@@ -1025,14 +1023,13 @@ class TestDecompiler(unittest.TestCase):
             assert code.count("else if") == 3
 
     @for_all_structuring_algos
-    def test_decompiling_missing_function_call(self, decompiler_options=[]):
+    def test_decompiling_missing_function_call(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "adams")
         p = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        decompiler_options += disable_decompiler_option(["simple_stmt_cmp"], [False])
         dec = p.analyses[Decompiler].prep()(
             func,
             cfg=cfg.model,
@@ -1615,7 +1612,7 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen.text.count("goto") == 1  # should have only one goto
 
     @for_all_structuring_algos
-    def test_decompiling_tee_O2_x2nrealloc(self, decompiler_options=[]):
+    def test_decompiling_tee_O2_x2nrealloc(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tee_O2")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1633,7 +1630,6 @@ class TestDecompiler(unittest.TestCase):
             if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
         ]
 
-        decompiler_options += disable_decompiler_option(["simple_stmt_cmp"], [False])
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
@@ -1773,7 +1769,7 @@ class TestDecompiler(unittest.TestCase):
         assert "==47" in spaceless_text or "!=47" in spaceless_text
 
     @for_all_structuring_algos
-    def test_decompiling_dd_argmatch_to_argument_noeagerreturns(self, decompiler_options=[]):
+    def test_decompiling_dd_argmatch_to_argument_noeagerreturns(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1791,7 +1787,6 @@ class TestDecompiler(unittest.TestCase):
         ]
         f = proj.kb.functions["argmatch_to_argument"]
 
-        decompiler_options += disable_decompiler_option(["simple_stmt_cmp"], [False])
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
@@ -1814,7 +1809,7 @@ class TestDecompiler(unittest.TestCase):
             assert "continue;" not in t
 
     @for_all_structuring_algos
-    def test_decompiling_dd_argmatch_to_argument_eagerreturns(self, decompiler_options=[]):
+    def test_decompiling_dd_argmatch_to_argument_eagerreturns(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1822,7 +1817,6 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["argmatch_to_argument"]
 
-        decompiler_options += disable_decompiler_option(["simple_stmt_cmp"], [False])
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
