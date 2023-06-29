@@ -873,7 +873,7 @@ class CIfElse(CStatement):
         condition_and_nodes: List[Tuple[CExpression, Optional[CStatement]]],
         else_node=None,
         simplify_else_scope=True,
-        simple_stmt_cmp=True,
+        simple_stmt_cmp=False,
         tags=None,
         **kwargs,
     ):
