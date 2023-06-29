@@ -2160,6 +2160,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         show_demangled_name=True,
         ail_graph=None,
         simplify_else_scope=True,
+        simple_stmt_cmp=True,
     ):
         super().__init__(flavor=flavor)
 
@@ -2224,6 +2225,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.show_demangled_name = show_demangled_name
         self.ail_graph = ail_graph
         self.simplify_else_scope = simplify_else_scope
+        self.simple_stmt_cmp = simple_stmt_cmp
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -2258,6 +2260,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.cstyle_null_cmp = value
             elif option.param == "simplify_else_scope":
                 self.simplify_else_scope = value
+            elif option.param == "simple_stmt_cmp":
+                self.simple_stmt_cmp = value
 
     def _analyze(self):
         self._variables_in_use = {}
