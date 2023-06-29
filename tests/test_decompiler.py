@@ -1639,6 +1639,8 @@ class TestDecompiler(unittest.TestCase):
 
         if not decompiler_options:
             decompiler_options = disable_decompiler_option(["simple_stmt_cmp"], [False])
+        else:
+            decompiler_options += disable_decompiler_option(["simple_stmt_cmp"], [False])
 
         d = proj.analyses[Decompiler].prep()(
             f,
@@ -1832,6 +1834,8 @@ class TestDecompiler(unittest.TestCase):
 
         if not decompiler_options:
             decompiler_options = disable_decompiler_option(["simple_stmt_cmp"], [False])
+        else:
+            decompiler_options += disable_decompiler_option(["simple_stmt_cmp"], [False])
 
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
