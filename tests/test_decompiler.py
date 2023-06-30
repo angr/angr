@@ -2388,7 +2388,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         text = d.codegen.text
-        good_if_return = "if (!a0)\n        return 1;\n"
+        good_if_return = "if (!a0)\n    {\n        return 1;\n    }\n" 
         first_if_location = text.find("if")
 
         # the first if in the program should have no else, and that first else should be a simple return
