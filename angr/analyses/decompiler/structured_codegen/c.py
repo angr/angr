@@ -30,6 +30,7 @@ from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
 from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
+from ..utils import structured_node_is_simple_return
 from ....errors import UnsupportedNodeTypeError
 from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
@@ -171,35 +172,6 @@ def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
         if seg is not None and seg.is_readable:
             return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
     return None
-
-
-def is_simple_return_node(node: Union[Block, SequenceNode], graph) -> bool:
-    """
-    Will check if a "simple return" is contained within the node a simple returns looks like this:
-    if (cond) {
-      // simple return
-      ...
-      return 0;
-    }
-    ...
-
-    Any block can end in a return as long as it does not have condition inside.
-    """
-    # sanity check: we need a graph to understand returning blocks
-    if graph is None:
-        return False
-
-    last_block = None
-    if isinstance(node, SequenceNode) and node.nodes:
-        for n in node.nodes:
-            if not isinstance(n, Block):
-                break
-        else:
-            last_block = n
-    elif isinstance(node, Block):
-        last_block = node
-
-    return last_block and last_block in graph and not list(graph.successors(last_block))
 
 
 #
@@ -2814,7 +2786,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             condition_and_nodes,
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
-            and is_simple_return_node(condition_node.true_node, self.ail_graph),
+            and structured_node_is_simple_return(condition_node.true_node, self.ail_graph),
             tags=tags,
             codegen=self,
         )
