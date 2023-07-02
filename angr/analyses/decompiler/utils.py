@@ -1,5 +1,5 @@
 # pylint:disable=wrong-import-position
-from typing import Optional, Tuple, Any, Union
+from typing import Optional, Tuple, Any, Union, List
 
 import networkx
 
@@ -356,6 +356,48 @@ def remove_labels(graph: networkx.DiGraph):
         new_graph.add_edge(nodes_map[src], nodes_map[dst])
 
     return new_graph
+
+
+def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
+    """
+    Will check if a "simple return" is contained within the node a simple returns looks like this:
+    if (cond) {
+      // simple return
+      ...
+      return 0;
+    }
+    ...
+
+    Returns tue on any block ending in linear statements and a return.
+    """
+
+    def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> List[ailment.Block]:
+        if not packed_node or not packed_node.nodes:
+            return []
+
+        blocks = []
+        if packed_node.nodes is not None:
+            for _node in packed_node.nodes:
+                if isinstance(_node, (SequenceNode, MultiNode)):
+                    blocks += _flatten_structured_node(_node)
+                else:
+                    blocks.append(_node)
+
+        return blocks
+
+    # sanity check: we need a graph to understand returning blocks
+    if graph is None:
+        return False
+
+    last_block = None
+    if isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
+        flat_blocks = _flatten_structured_node(node)
+        if all(isinstance(block, ailment.Block) for block in flat_blocks):
+            last_block = flat_blocks[-1]
+    elif isinstance(node, ailment.Block):
+        last_block = node
+
+    return last_block and last_block in graph and not list(graph.successors(last_block))
 
 
 # delayed import
