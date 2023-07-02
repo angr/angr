@@ -1798,6 +1798,7 @@ class TestDecompiler(unittest.TestCase):
             for p in all_optimization_passes
             if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
         ]
+
         f = proj.kb.functions["argmatch_to_argument"]
 
         d = proj.analyses[Decompiler].prep()(
