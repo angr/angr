@@ -981,8 +981,9 @@ class CIfBreak(CStatement):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
-        brace = CClosingObject("{")
         paren = CClosingObject("(")
+        brace = CClosingObject("{")
+
 
         yield indent_str, None
         yield "if ", self
