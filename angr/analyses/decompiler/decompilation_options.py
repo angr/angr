@@ -199,11 +199,11 @@ options = [
         clears_cache=True,
     ),
     O(
-        "Simple Statement Compare",
+        "C-Style ifs",
         "Omits braces for single statement if/else blocks",
         bool,
         "codegen",
-        "simple_stmt_cmp",
+        "cstyle_ifs",
         category="Display",
         default_value=True,
         clears_cache=True,

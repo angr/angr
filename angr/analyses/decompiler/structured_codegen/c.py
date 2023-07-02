@@ -866,14 +866,14 @@ class CIfElse(CStatement):
     Represents an if-else construct in C.
     """
 
-    __slots__ = ("condition_and_nodes", "else_node", "simplify_else_scope", "simple_stmt_cmp", "tags")
+    __slots__ = ("condition_and_nodes", "else_node", "simplify_else_scope", "cstyle_ifs", "tags")
 
     def __init__(
         self,
         condition_and_nodes: List[Tuple[CExpression, Optional[CStatement]]],
         else_node=None,
         simplify_else_scope=True,
-        simple_stmt_cmp=True,
+        cstyle_ifs=True,
         tags=None,
         **kwargs,
     ):
@@ -882,7 +882,7 @@ class CIfElse(CStatement):
         self.condition_and_nodes = condition_and_nodes
         self.else_node = else_node
         self.simplify_else_scope = simplify_else_scope
-        self.simple_stmt_cmp = simple_stmt_cmp
+        self.cstyle_ifs = cstyle_ifs
         self.tags = tags
 
         if not self.condition_and_nodes:
@@ -917,23 +917,22 @@ class CIfElse(CStatement):
             else:
                 yield " ", None
 
-            omit_if_brace = (isinstance(node, CStatements) and len(node.statements) == 1) or isinstance(node, CContinue)
-
-            if self.simple_stmt_cmp and omit_if_brace and node is not None:
-                yield from node.c_repr_chunks(indent=INDENT_DELTA)
-            else:
-                yield "{", brace
-                yield "\n", None
-                if node is not None:
-                    yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
-                yield indent_str, None
-                yield "}", brace
-
-        omit_else_brace = (
-            isinstance(self.else_node, CStatements) and len(self.else_node.statements) == 1
-        ) or isinstance(self.else_node, CContinue)
+            if node is not None:
+                is_single_stmt_if = (isinstance(node, CStatements) and len(node.statements) == 1) or isinstance(node, CContinue)
+                if self.cstyle_ifs and is_single_stmt_if:
+                    yield from node.c_repr_chunks(indent=INDENT_DELTA)
+                else:
+                    yield "{", brace
+                    yield "\n", None
+                    if node is not None:
+                        yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
+                    yield indent_str, None
+                    yield "}", brace
 
         if self.else_node is not None:
+            is_single_stmt_else = (
+                isinstance(self.else_node, CStatements) and len(self.else_node.statements) == 1
+            ) or isinstance(self.else_node, CContinue)
             brace = CClosingObject("{")
             if self.simplify_else_scope:
                 yield "\n", None
@@ -951,7 +950,7 @@ class CIfElse(CStatement):
                 else:
                     yield " ", None
 
-                if self.simple_stmt_cmp and omit_else_brace:
+                if self.cstyle_ifs and is_single_stmt_else:
                     yield from self.else_node.c_repr_chunks(indent=INDENT_DELTA)
                 else:
                     yield "{", brace
@@ -969,15 +968,15 @@ class CIfBreak(CStatement):
 
     __slots__ = (
         "condition",
-        "simple_stmt_cmp",
+        "cstyle_ifs",
         "tags",
     )
 
-    def __init__(self, condition, simple_stmt_cmp=True, tags=None, **kwargs):
+    def __init__(self, condition, cstyle_ifs=True, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
-        self.simple_stmt_cmp = simple_stmt_cmp
+        self.cstyle_ifs = cstyle_ifs
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -995,7 +994,7 @@ class CIfBreak(CStatement):
             yield indent_str, None
         else:
             yield " ", None
-        if self.simple_stmt_cmp:
+        if self.cstyle_ifs:
             yield self.indent_str(indent=INDENT_DELTA), self
             yield "break;\n", self
         else:
@@ -2171,7 +2170,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         show_demangled_name=True,
         ail_graph=None,
         simplify_else_scope=True,
-        simple_stmt_cmp=True,
+        cstyle_ifs=True,
     ):
         super().__init__(flavor=flavor)
 
@@ -2236,7 +2235,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.show_demangled_name = show_demangled_name
         self.ail_graph = ail_graph
         self.simplify_else_scope = simplify_else_scope
-        self.simple_stmt_cmp = simple_stmt_cmp
+        self.cstyle_ifs = cstyle_ifs
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
@@ -2271,8 +2270,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.cstyle_null_cmp = value
             elif option.param == "simplify_else_scope":
                 self.simplify_else_scope = value
-            elif option.param == "simple_stmt_cmp":
-                self.simple_stmt_cmp = value
+            elif option.param == "cstyle_ifs":
+                self.cstyle_ifs = value
 
     def _analyze(self):
         self._variables_in_use = {}
@@ -2841,7 +2840,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
             and is_simple_return_node(condition_node.true_node, self.ail_graph),
-            simple_stmt_cmp=self.simple_stmt_cmp,
+            cstyle_ifs=self.cstyle_ifs,
             tags=tags,
             codegen=self,
         )
@@ -2859,7 +2858,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             condition_and_nodes,
             else_node=else_node,
             tags=tags,
-            simple_stmt_cmp=self.simple_stmt_cmp,
+            cstyle_ifs=self.cstyle_ifs,
             codegen=self,
         )
         return code
@@ -2867,7 +2866,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_ConditionalBreak(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
 
-        return CIfBreak(self._handle(node.condition), simple_stmt_cmp=self.simple_stmt_cmp, tags=tags, codegen=self)
+        return CIfBreak(self._handle(node.condition), cstyle_ifs=self.cstyle_ifs, tags=tags, codegen=self)
 
     def _handle_Break(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
@@ -3028,7 +3027,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ifelse = CIfElse(
             [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self))],
             else_node=else_node,
-            simple_stmt_cmp=self.simple_stmt_cmp,
+            cstyle_ifs=self.cstyle_ifs,
             tags=stmt.tags,
             codegen=self,
         )
