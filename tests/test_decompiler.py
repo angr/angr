@@ -2395,6 +2395,10 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_od_else_simplification(self, decompiler_options=None):
+        if decompiler_options is None:
+            decompiler_options = []
+
+        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "od_gccO2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
