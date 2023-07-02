@@ -1574,6 +1574,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                             if len(solns) > 2:
                                 import ipdb;ipdb.set_trace()
+                            for addr_mba in self.project.load_addr_mba_to_jump_addr_mapping.keys():
+                                if addr_mba.args[0] is state_var_ast:
+                                    for soln in solns:
+                                        if soln[1] is True:
+                                            ## tuple of (mba_state_var, jumpaddress, loadaddress)
+                                            self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append((True, soln[0], addr_mba.args[1].args[0]))
+                                        elif soln[1] is False:
+                                            ## tuple of (mba_state_var, jumpaddress, loadaddress)
+                                            self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append((False, soln[0], addr_mba.args[2].args[0]))
 
                             for soln_pair in solns:
                                 new_state = sim_successors.unconstrained_successors[0].copy()
