@@ -30,7 +30,7 @@ WORKER = is_testing or bool(
 )  # this variable controls whether we print the decompilation code or not
 
 
-def disable_decompiler_option(params: List[str], values):
+def set_decompiler_option(params: List[str], values):
     return list(
         zip([opt for opt in angr.analyses.decompiler.decompilation_options.options if opt.param in params], values)
     )
@@ -52,9 +52,7 @@ def for_all_structuring_algos(func):
         ret_vals = []
         structurer_option = get_structurer_option()
         for structurer in STRUCTURER_CLASSES:
-            new_opts = (
-                orig_opts + [(structurer_option, structurer)] + disable_decompiler_option(["simple_stmt_cmp"], [False])
-            )
+            new_opts = orig_opts + [(structurer_option, structurer)]
             ret_vals.append(func(*args, decompiler_options=new_opts, **kwargs))
 
         return ret_vals
@@ -408,6 +406,10 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_1(self, decompiler_options=None):
+        if decompiler_options is None:
+            decompiler_options = []
+
+        decompiler_options += set_decompiler_option(['cstyle_ifs'], [False])
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -1616,6 +1618,10 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_tee_O2_x2nrealloc(self, decompiler_options=None):
+        if decompiler_options is None:
+            decompiler_options = []
+
+        decompiler_options += set_decompiler_option(['cstyle_ifs'], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tee_O2")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1773,6 +1779,10 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_dd_argmatch_to_argument_noeagerreturns(self, decompiler_options=None):
+        if decompiler_options is None:
+            decompiler_options = []
+
+        decompiler_options += set_decompiler_option(['cstyle_ifs'], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1813,6 +1823,10 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_dd_argmatch_to_argument_eagerreturns(self, decompiler_options=None):
+        if decompiler_options is None:
+            decompiler_options = []
+
+        decompiler_options += set_decompiler_option(['cstyle_ifs'], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
