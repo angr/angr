@@ -890,7 +890,9 @@ class CIfElse(CStatement):
                 yield " ", None
 
             if node is not None:
-                is_single_stmt_if = (isinstance(node, CStatements) and len(node.statements) == 1) or isinstance(node, CContinue)
+                is_single_stmt_if = (isinstance(node, CStatements) and len(node.statements) == 1) or isinstance(
+                    node, CContinue
+                )
                 if self.cstyle_ifs and is_single_stmt_if:
                     yield from node.c_repr_chunks(indent=INDENT_DELTA)
                 else:
@@ -955,7 +957,6 @@ class CIfBreak(CStatement):
         indent_str = self.indent_str(indent=indent)
         paren = CClosingObject("(")
         brace = CClosingObject("{")
-
 
         yield indent_str, None
         yield "if ", self

@@ -409,7 +409,7 @@ class TestDecompiler(unittest.TestCase):
         if decompiler_options is None:
             decompiler_options = []
 
-        decompiler_options += set_decompiler_option(['cstyle_ifs'], [False])
+        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -1621,7 +1621,7 @@ class TestDecompiler(unittest.TestCase):
         if decompiler_options is None:
             decompiler_options = []
 
-        decompiler_options += set_decompiler_option(['cstyle_ifs'], [False])
+        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tee_O2")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1782,7 +1782,7 @@ class TestDecompiler(unittest.TestCase):
         if decompiler_options is None:
             decompiler_options = []
 
-        decompiler_options += set_decompiler_option(['cstyle_ifs'], [False])
+        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1827,7 +1827,7 @@ class TestDecompiler(unittest.TestCase):
         if decompiler_options is None:
             decompiler_options = []
 
-        decompiler_options += set_decompiler_option(['cstyle_ifs'], [False])
+        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
