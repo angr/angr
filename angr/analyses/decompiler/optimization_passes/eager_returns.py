@@ -25,6 +25,7 @@ class AILCallCounter(AILBlockWalkerBase):
     """
     Helper class to count AIL Calls in a block
     """
+
     calls = 0
 
     def _handle_Call(self, stmt_idx: int, stmt: "Call", block: Optional["Block"]):
