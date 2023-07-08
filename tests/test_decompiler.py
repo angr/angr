@@ -2374,6 +2374,29 @@ class TestDecompiler(unittest.TestCase):
         assert first_if_location == text.find(good_if_return)
         assert not text[first_if_location + len(good_if_return) :].startswith("    else")
 
+    @structuring_algo("phoenix")
+    def test_sensitive_eager_returns(self, decompiler_options=None):
+        """
+        Tests the feature to stop eager returns from triggering on return sites that have
+        too many calls. In the `foo` function, this should cause no return duplication.
+        See test_sensitive_eager_returns.c for more details.
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "test_sensitive_eager_returns")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        # eager returns should trigger here
+        f1 = proj.kb.functions["bar"]
+        d = proj.analyses[Decompiler](f1, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert d.codegen.text.count("goto ") == 0
+
+        # eager returns should not trigger here
+        f2 = proj.kb.functions["foo"]
+        d = proj.analyses[Decompiler](f2, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert d.codegen.text.count("goto ") == 1
+
 
 if __name__ == "__main__":
     unittest.main()
