@@ -674,7 +674,9 @@ class CFGBase(Analysis):
             all_bytes = self._fast_memory_load_bytes(start, size)
 
         if all_bytes is None:
-            return True
+            # failed to load bytes in this region. it might be because the region is not fully mapped (i.e., there are
+            # holes). we assume this region is good for analysis.
+            return False
 
         if len(all_bytes) < size:
             l.warning(
