@@ -43,7 +43,7 @@ repos:
 #
 
 -   repo: https://github.com/asottile/setup-cfg-fmt
-    rev: v2.3.0
+    rev: v2.4.0
     hooks:
     -   id: setup-cfg-fmt
         args: ["--include-version-classifiers"]
@@ -60,7 +60,7 @@ repos:
     -   id: rm-unneeded-f-str
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.7.0
+    rev: v3.9.0
     hooks:
     -   id: pyupgrade
         args: [--py38-plus]
@@ -93,7 +93,7 @@ repos:
     -   id: check-builtin-literals
     -   id: check-docstring-first
 
--   repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.275
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.0.277
     hooks:
     - id: ruff
