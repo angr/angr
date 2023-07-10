@@ -898,8 +898,7 @@ class CIfElse(CStatement):
                 else:
                     yield "{", brace
                     yield "\n", None
-                    if node is not None:
-                        yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
+                    yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
                     yield indent_str, None
                     yield "}", brace
 

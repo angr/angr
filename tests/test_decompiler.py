@@ -5,7 +5,7 @@ import re
 import unittest
 from functools import wraps
 
-from typing import List
+from typing import List, Tuple
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
@@ -30,10 +30,16 @@ WORKER = is_testing or bool(
 )  # this variable controls whether we print the decompilation code or not
 
 
-def set_decompiler_option(params: List[str], values):
-    return list(
-        zip([opt for opt in angr.analyses.decompiler.decompilation_options.options if opt.param in params], values)
-    )
+def set_decompiler_option(decompiler_options: List[Tuple], params: List[Tuple]) -> List[Tuple]:
+    if decompiler_options is None:
+        decompiler_options = [] 
+
+    for param, value in params:
+        for option in angr.analyses.decompiler.decompilation_options.options:
+            if param == option.param:
+                decompiler_options.append((option, value))
+
+    return decompiler_options
 
 
 def for_all_structuring_algos(func):
@@ -406,10 +412,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_1(self, decompiler_options=None):
-        if decompiler_options is None:
-            decompiler_options = []
-
-        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -430,7 +432,7 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=decompiler_options,
+            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)]),
             optimization_passes=all_optimization_passes,
         )
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
@@ -1618,10 +1620,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_tee_O2_x2nrealloc(self, decompiler_options=None):
-        if decompiler_options is None:
-            decompiler_options = []
-
-        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tee_O2")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1642,7 +1640,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=decompiler_options,
+            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)]),
             optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
@@ -1779,10 +1777,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_dd_argmatch_to_argument_noeagerreturns(self, decompiler_options=None):
-        if decompiler_options is None:
-            decompiler_options = []
-
-        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1804,7 +1798,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=decompiler_options,
+            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)]),
             optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
@@ -1824,10 +1818,6 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_decompiling_dd_argmatch_to_argument_eagerreturns(self, decompiler_options=None):
-        if decompiler_options is None:
-            decompiler_options = []
-
-        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1835,7 +1825,11 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["argmatch_to_argument"]
 
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep()(
+            f,
+            cfg=cfg.model,
+            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)])
+        )
         self._print_decompilation_result(d)
 
         # return should always be followed by a curly brace, not another statement
@@ -2395,15 +2389,15 @@ class TestDecompiler(unittest.TestCase):
 
     @for_all_structuring_algos
     def test_od_else_simplification(self, decompiler_options=None):
-        if decompiler_options is None:
-            decompiler_options = []
-
-        decompiler_options += set_decompiler_option(["cstyle_ifs"], [False])
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "od_gccO2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["skip"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep()(
+            f,
+            cfg=cfg.model,
+            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)])
+        )
         self._print_decompilation_result(d)
 
         text = d.codegen.text
