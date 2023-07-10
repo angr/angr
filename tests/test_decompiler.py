@@ -32,7 +32,7 @@ WORKER = is_testing or bool(
 
 def set_decompiler_option(decompiler_options: List[Tuple], params: List[Tuple]) -> List[Tuple]:
     if decompiler_options is None:
-        decompiler_options = [] 
+        decompiler_options = []
 
     for param, value in params:
         for option in angr.analyses.decompiler.decompilation_options.options:
@@ -432,7 +432,7 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)]),
+            options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
             optimization_passes=all_optimization_passes,
         )
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
@@ -1640,7 +1640,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)]),
+            options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
             optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
@@ -1798,7 +1798,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)]),
+            options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
             optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
@@ -1826,9 +1826,7 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["argmatch_to_argument"]
 
         d = proj.analyses[Decompiler].prep()(
-            f,
-            cfg=cfg.model,
-            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)])
+            f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)])
         )
         self._print_decompilation_result(d)
 
@@ -2394,9 +2392,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["skip"]
         d = proj.analyses[Decompiler].prep()(
-            f,
-            cfg=cfg.model,
-            options=set_decompiler_option(decompiler_options, [('cstyle_ifs', False)])
+            f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)])
         )
         self._print_decompilation_result(d)
 
