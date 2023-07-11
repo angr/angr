@@ -198,6 +198,16 @@ options = [
         default_value=True,
         clears_cache=True,
     ),
+    O(
+        "C-Style ifs",
+        "Omits braces for single statement if/else blocks",
+        bool,
+        "codegen",
+        "cstyle_ifs",
+        category="Display",
+        default_value=True,
+        clears_cache=True,
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options

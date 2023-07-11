@@ -5,6 +5,8 @@ import re
 import unittest
 from functools import wraps
 
+from typing import List, Tuple
+
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import SimTypeInt, SimTypePointer
@@ -26,6 +28,18 @@ l = logging.Logger(__name__)
 WORKER = is_testing or bool(
     os.environ.get("WORKER", False)
 )  # this variable controls whether we print the decompilation code or not
+
+
+def set_decompiler_option(decompiler_options: List[Tuple], params: List[Tuple]) -> List[Tuple]:
+    if decompiler_options is None:
+        decompiler_options = []
+
+    for param, value in params:
+        for option in angr.analyses.decompiler.decompilation_options.options:
+            if param == option.param:
+                decompiler_options.append((option, value))
+
+    return decompiler_options
 
 
 def for_all_structuring_algos(func):
@@ -414,8 +428,12 @@ class TestDecompiler(unittest.TestCase):
         ]
 
         f = cfg.functions[0x404410]
+
         dec = p.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+            f,
+            cfg=cfg.model,
+            options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
+            optimization_passes=all_optimization_passes,
         )
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         self._print_decompilation_result(dec)
@@ -1019,7 +1037,11 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep()(
+            func,
+            cfg=cfg.model,
+            options=decompiler_options,
+        )
         assert dec.codegen is not None, "Failed to decompile function %r." % func
         self._print_decompilation_result(dec)
         code = dec.codegen.text
@@ -1616,7 +1638,10 @@ class TestDecompiler(unittest.TestCase):
         ]
 
         d = proj.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+            f,
+            cfg=cfg.model,
+            options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
+            optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
 
@@ -1769,10 +1794,11 @@ class TestDecompiler(unittest.TestCase):
         ]
 
         f = proj.kb.functions["argmatch_to_argument"]
+
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=decompiler_options,
+            options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
             optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
@@ -1798,7 +1824,10 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["argmatch_to_argument"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)])
+        )
         self._print_decompilation_result(d)
 
         # return should always be followed by a curly brace, not another statement
@@ -2362,7 +2391,9 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["skip"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)])
+        )
         self._print_decompilation_result(d)
 
         text = d.codegen.text
