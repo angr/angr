@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Dict, List, TYPE_CHECKING
+from typing import Any, Tuple, Dict, List, TYPE_CHECKING, Optional
 from itertools import count
 import copy
 import logging
@@ -8,15 +8,29 @@ import networkx
 
 from ailment.statement import Jump
 from ailment.expression import Const
+from ailment.block_walker import AILBlockWalkerBase
 
 from ..condition_processor import ConditionProcessor, EmptyBlockNotice
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
     from ailment import Block
+    from ailment.statement import Call
 
 
 _l = logging.getLogger(name=__name__)
+
+
+class AILCallCounter(AILBlockWalkerBase):
+    """
+    Helper class to count AIL Calls in a block
+    """
+
+    calls = 0
+
+    def _handle_Call(self, stmt_idx: int, stmt: "Call", block: Optional["Block"]):
+        self.calls += 1
+        super()._handle_Call(stmt_idx, stmt, block)
 
 
 class EagerReturnsSimplifier(OptimizationPass):
@@ -60,6 +74,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         # settings
         max_level=2,
         min_indegree=2,
+        max_calls_in_regions=2,
         reaching_definitions=None,
         **kwargs,
     ):
@@ -71,6 +86,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         self.min_indegree = min_indegree
         self.node_idx = count(start=node_idx_start)
         self._rd = reaching_definitions
+        self.max_calls_in_region = max_calls_in_regions
 
         self.analyze()
 
@@ -143,6 +159,11 @@ class EagerReturnsSimplifier(OptimizationPass):
             if any(self._is_indirect_jump_ailblock(src) for src, _ in in_edges):
                 continue
 
+            # to assure we are not copying like crazy, set a max amount of code (which is estimated in calls)
+            # that can be copied in a region
+            if self._number_of_calls_in(region) > self.max_calls_in_region:
+                continue
+
             to_update[region_head] = in_edges, region
 
         for region_head, (in_edges, region) in to_update.items():
@@ -182,6 +203,14 @@ class EagerReturnsSimplifier(OptimizationPass):
             graph_changed = True
 
         return graph_changed
+
+    @staticmethod
+    def _number_of_calls_in(graph: networkx.DiGraph) -> int:
+        counter = AILCallCounter()
+        for node in graph.nodes:
+            counter.walk(node)
+
+        return counter.calls
 
     @staticmethod
     def _single_entry_region(graph, end_node) -> Tuple[networkx.DiGraph, Any]:
