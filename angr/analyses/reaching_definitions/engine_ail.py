@@ -37,6 +37,7 @@ class SimEngineRDAIL(
         project,
         function_handler: Optional[FunctionHandler] = None,
         stack_pointer_tracker=None,
+        use_callee_saved_regs_at_return=True,
     ):
         super().__init__()
         self.project = project
@@ -44,6 +45,7 @@ class SimEngineRDAIL(
         self._visited_blocks = None
         self._dep_graph = None
         self._stack_pointer_tracker = stack_pointer_tracker
+        self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
 
         self._stmt_handlers = {
             ailment.Stmt.Assignment: self._ail_handle_Assignment,
@@ -297,8 +299,9 @@ class SimEngineRDAIL(
             else:
                 cc = cc_cls(self.project.arch)
 
-        if cc is not None:
-            # callee-saved args
+        if self._use_callee_saved_regs_at_return and cc is not None:
+            # handle callee-saved registers: add uses for these registers so that the restoration statements are not
+            # considered dead assignments.
             for reg in self.arch.register_list:
                 if (
                     reg.general_purpose
