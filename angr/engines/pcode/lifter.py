@@ -396,14 +396,34 @@ class IRSB:
         """
         A set of the static jump targets of the basic block.
         """
-        raise NotImplementedError()
+        exits = set()
+
+        if self.exit_statements:
+            for _, _, stmt in self.exit_statements:
+                if stmt.dst is not None:
+                    exits.add(stmt.dst)
+
+        if self.next is not None:
+            exits.add(self.next)
+
+        return exits
 
     @property
     def constant_jump_targets_and_jumpkinds(self):
         """
         A dict of the static jump targets of the basic block to their jumpkind.
         """
-        raise NotImplementedError()
+        exits = {}
+
+        if self.exit_statements:
+            for _, _, stmt in self.exit_statements:
+                if stmt.dst is not None:
+                    exits[stmt.dst] = stmt.jumpkind
+
+        if self.next is not None:
+            exits[self.next] = self.jumpkind
+
+        return exits
 
     #
     # private methods
