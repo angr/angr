@@ -1053,7 +1053,7 @@ class TestDecompiler(unittest.TestCase):
         # make sure all break statements are followed by either "case " or "}"
         replaced = code_without_spaces.replace("break;case", "")
         replaced = replaced.replace("break;default:", "")
-        replaced = replaced.replace("break;}", "")
+        replaced = replaced.replace("break;", "")
         assert "break" not in replaced
 
         # ensure if-else removal does not incorrectly remove else nodes
