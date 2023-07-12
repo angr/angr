@@ -880,7 +880,7 @@ class CIfElse(CStatement):
                 self.cstyle_ifs
                 and first_node
                 and self._is_single_stmt_node(node)
-                and (self.else_node is None or self._is_single_stmt_node(self.else_node))
+                and (self.else_node is None or self._is_single_stmt_node(self.else_node) or self.simplify_else_scope)
             )
 
             if first_node:
@@ -920,7 +920,8 @@ class CIfElse(CStatement):
         if self.else_node is not None:
             brace = CClosingObject("{")
             if self.simplify_else_scope:
-                yield "\n", None
+                if not single_stmt_else:
+                    yield "\n", None
                 yield from self.else_node.c_repr_chunks(indent=indent)
             else:
                 if single_stmt_else:
@@ -952,7 +953,7 @@ class CIfElse(CStatement):
                     yield indent_str, None
                     yield "}", brace
 
-        if not first_node_is_single_stmt_if:
+        if not first_node_is_single_stmt_if and not self.simplify_else_scope:
             yield "\n", None
 
 
