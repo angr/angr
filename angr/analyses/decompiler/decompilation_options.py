@@ -199,8 +199,8 @@ options = [
         clears_cache=True,
     ),
     O(
-        "C-Style ifs",
-        "Omits braces for single statement if/else blocks",
+        "C-style if statements",
+        "Omits braces for single statement if blocks that have no else",
         bool,
         "codegen",
         "cstyle_ifs",
