@@ -937,7 +937,8 @@ class CFGModel(Serializable):
     # Util methods
     #
 
-    def _addr_in_exec_memory_regions(self, addr: int, exec_mem_regions: List[Tuple[int, int]]) -> bool:
+    @staticmethod
+    def _addr_in_exec_memory_regions(addr: int, exec_mem_regions: List[Tuple[int, int]]) -> bool:
         for start, end in exec_mem_regions:
             if start <= addr < end:
                 return True
