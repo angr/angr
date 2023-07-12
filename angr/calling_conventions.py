@@ -1981,6 +1981,9 @@ class SimCCN64(SimCC):  # TODO: add n32
     ARCH = archinfo.ArchMIPS64
 
 
+SimCCO64 = SimCCN64  # compatibility
+
+
 class SimCCN64LinuxSyscall(SimCCSyscall):
     ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
     FP_ARG_REGS = []  # TODO: ???
