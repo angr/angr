@@ -21,8 +21,7 @@ class PatchManager(KnowledgeBasePlugin):
     """
     A placeholder-style implementation for a binary patch manager. This class should be significantly changed in the
     future when all data about loaded binary objects are loaded into angr knowledge base from CLE. As of now, it only
-    stores byte-level replacements. Other angr components may choose to use or not use information provided by this
-    manager. In other words, it is not transparent.
+    stores byte-level replacements.
 
     Patches should not overlap, but it's user's responsibility to check for and avoid overlapping patches.
     """
@@ -32,16 +31,20 @@ class PatchManager(KnowledgeBasePlugin):
 
         self._patches: Dict[int, Patch] = SortedDict()
         self._kb = kb
+        self._patched_entry_state = None
 
     def add_patch(self, addr, new_bytes, comment: Optional[str] = None):
         self._patches[addr] = Patch(addr, new_bytes, comment=comment)
+        self._patched_entry_state = None
 
     def add_patch_obj(self, patch: Patch):
         self._patches[patch.addr] = patch
+        self._patched_entry_state = None
 
     def remove_patch(self, addr):
         if addr in self._patches:
             del self._patches[addr]
+        self._patched_entry_state = None
 
     def patch_addrs(self):
         return self._patches.keys()
@@ -111,6 +114,17 @@ class PatchManager(KnowledgeBasePlugin):
                 )
 
         return binary_bytes
+
+    def apply_patches_to_state(self, state):
+        for patch in self._patches.values():
+            state.memory.store(patch.addr, patch.new_bytes)
+
+    @property
+    def patched_entry_state(self):
+        if self._patched_entry_state is None:
+            self._patched_entry_state = self._kb._project.factory.entry_state()
+            self.apply_patches_to_state(self._patched_entry_state)
+        return self._patched_entry_state
 
 
 KnowledgeBasePlugin.register_default("patches", PatchManager)
