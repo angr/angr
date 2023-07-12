@@ -174,7 +174,9 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             self.stmt_idx = DEFAULT_STATEMENT
             handler = "_handle_function"
             if hasattr(self, handler):
-                func_addr = self._expr(self.block.vex.next)
+                func_addr = (
+                    self.block.vex.next if isinstance(self.block.vex.next, int) else self._expr(self.block.vex.next)
+                )
                 if func_addr is not None:
                     getattr(self, handler)(func_addr)
                 else:
