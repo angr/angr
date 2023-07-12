@@ -860,16 +860,27 @@ class CIfElse(CStatement):
         if not self.condition_and_nodes:
             raise ValueError("You must specify at least one condition")
 
+    @staticmethod
+    def _is_single_stmt_node(node):
+        return (isinstance(node, CStatements) and len(node.statements) == 1) or \
+            isinstance(node, (CBreak, CContinue, CReturn, CGoto))
+
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
         paren = CClosingObject("(")
         brace = CClosingObject("{")
 
         first_node = True
-
+        first_node_is_single_stmt_if = False
         for condition, node in self.condition_and_nodes:
+            # omit braces in the event that you want c-style if-statements that have only a single statement
+            # and have no else scope or an else with also a single statement
+            omit_braces = self.cstyle_ifs and first_node and self._is_single_stmt_node(node) and \
+                          (self.else_node is None or self._is_single_stmt_node(self.else_node))
+
             if first_node:
                 first_node = False
+                first_node_is_single_stmt_if = omit_braces
                 yield indent_str, None
             else:
                 if self.codegen.braces_on_own_lines:
@@ -883,17 +894,14 @@ class CIfElse(CStatement):
             yield "(", paren
             yield from condition.c_repr_chunks()
             yield ")", paren
-            if self.codegen.braces_on_own_lines:
+            if self.codegen.braces_on_own_lines or omit_braces:
                 yield "\n", None
                 yield indent_str, None
             else:
                 yield " ", None
 
             if node is not None:
-                is_single_stmt_if = (isinstance(node, CStatements) and len(node.statements) == 1) or isinstance(
-                    node, CContinue
-                )
-                if self.cstyle_ifs and is_single_stmt_if:
+                if omit_braces:
                     yield from node.c_repr_chunks(indent=INDENT_DELTA)
                 else:
                     yield "{", brace
@@ -902,28 +910,34 @@ class CIfElse(CStatement):
                     yield indent_str, None
                     yield "}", brace
 
+        single_stmt_else = first_node_is_single_stmt_if and len(self.condition_and_nodes) == 1
         if self.else_node is not None:
-            is_single_stmt_else = (
-                isinstance(self.else_node, CStatements) and len(self.else_node.statements) == 1
-            ) or isinstance(self.else_node, CContinue)
             brace = CClosingObject("{")
             if self.simplify_else_scope:
                 yield "\n", None
                 yield from self.else_node.c_repr_chunks(indent=indent)
             else:
-                if self.codegen.braces_on_own_lines:
-                    yield "\n", None
-                    yield indent_str, None
+                if single_stmt_else:
+                    if self.codegen.braces_on_own_lines:
+                        yield indent_str, None
+                    else:
+                        yield " ", None
+                        yield indent_str, None
                 else:
-                    yield " ", None
+                    if self.codegen.braces_on_own_lines:
+                        yield "\n", None
+                        yield indent_str, None
+                    else:
+                        yield " ", None
+
                 yield "else", self
-                if self.codegen.braces_on_own_lines:
+                if self.codegen.braces_on_own_lines or single_stmt_else:
                     yield "\n", None
                     yield indent_str, None
                 else:
                     yield " ", None
 
-                if self.cstyle_ifs and is_single_stmt_else:
+                if single_stmt_else:
                     yield from self.else_node.c_repr_chunks(indent=INDENT_DELTA)
                 else:
                     yield "{", brace
@@ -931,7 +945,9 @@ class CIfElse(CStatement):
                     yield from self.else_node.c_repr_chunks(indent=indent + INDENT_DELTA)
                     yield indent_str, None
                     yield "}", brace
-        yield "\n", None
+
+        if not first_node_is_single_stmt_if:
+            yield "\n", None
 
 
 class CIfBreak(CStatement):
@@ -962,7 +978,7 @@ class CIfBreak(CStatement):
         yield "(", paren
         yield from self.condition.c_repr_chunks()
         yield ")", paren
-        if self.codegen.braces_on_own_lines:
+        if self.codegen.braces_on_own_lines or self.cstyle_ifs:
             yield "\n", None
             yield indent_str, None
         else:
@@ -977,7 +993,8 @@ class CIfBreak(CStatement):
             yield "break;\n", self
             yield indent_str, None
             yield "}", brace
-        yield "\n", None
+        if not self.cstyle_ifs:
+            yield "\n", None
 
 
 class CBreak(CStatement):
