@@ -488,6 +488,7 @@ class ArgSession:
     __slots__ = (
         "cc",
         "fp_iter",
+        "db_iter",
         "int_iter",
         "both_iter",
     )
@@ -495,15 +496,17 @@ class ArgSession:
     def __init__(self, cc):
         self.cc = cc
         self.fp_iter = cc.fp_args
+        self.db_iter = cc.db_args
         self.int_iter = cc.int_args
         self.both_iter = cc.memory_args
 
     def getstate(self):
-        return (self.fp_iter.getstate(), self.int_iter.getstate(), self.both_iter.getstate())
+        return (self.fp_iter.getstate(), self.db_iter.getstate(), self.int_iter.getstate(), self.both_iter.getstate())
 
     def setstate(self, state):
-        fp, int_, both = state
+        fp, db, int_, both = state
         self.fp_iter.setstate(fp)
+        self.db_iter.setstate(db)
         self.int_iter.setstate(int_)
         self.both_iter.setstate(both)
 
@@ -551,6 +554,7 @@ class SimCC:
 
     ARG_REGS: List[str] = []  # A list of all the registers used for integral args, in order (names or offsets)
     FP_ARG_REGS: List[str] = []  # A list of all the registers used for floating point args, in order
+    DB_ARG_REGS: List[str] = []  # A list of all the registers used for double precision args, in order
     STACKARG_SP_BUFF = 0  # The amount of stack space reserved between the saved return address
     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0  # The amount of stack space reserved for the return address
@@ -603,6 +607,12 @@ class SimCC:
         if self.FP_ARG_REGS is None:
             raise NotImplementedError()
         return SerializableListIterator([SimRegArg(reg, self.arch.bytes) for reg in self.FP_ARG_REGS])
+
+    @property
+    def db_args(self):
+        if self.DB_ARG_REGS is None:
+            raise NotImplementedError()
+        return SerializableListIterator([SimRegArg(reg, self.arch.bytes) for reg in self.DB_ARG_REGS])
 
     def is_fp_arg(self, arg):
         """
@@ -704,9 +714,12 @@ class SimCC:
             l.warning("Function argument type cannot be BOT. Treating it as a 32-bit int.")
             arg_type = SimTypeInt().with_arch(self.arch)
         is_fp = isinstance(arg_type, SimTypeFloat)
+        is_dbl = isinstance(arg_type, SimTypeDouble)
         size = arg_type.size // self.arch.byte_width
         try:
-            if is_fp:
+            if is_dbl:
+                arg = next(session.db_iter)
+            elif is_fp:
                 arg = next(session.fp_iter)
             else:
                 arg = next(session.int_iter)
@@ -1743,8 +1756,9 @@ class SimCCARM(SimCC):
 
 class SimCCARMHF(SimCCARM):
     ARG_REGS = ["r0", "r1", "r2", "r3"]
-    FP_ARG_REGS = [f"s{i}" for i in range(16)]  # regular arg regs are used as fp arg regs
+    FP_ARG_REGS = [f"s{i}" for i in range(32)]  # regular arg regs are used as fp arg regs
     FP_RETURN_VAL = SimRegArg("s0", 32)
+    DB_ARG_REGS = [f"d{i}" for i in range(16)]
     CALLER_SAVED_REGS = []
     RETURN_ADDR = SimRegArg("lr", 4)
     RETURN_VAL = SimRegArg("r0", 4)  # TODO Return val can also include reg r1
