@@ -2234,8 +2234,7 @@ class CFGBase(Analysis):
                     callback(g, src, dst, data, blockaddr_to_function, known_functions, all_out_edges)
 
                     jumpkind = data.get("jumpkind", "")
-                    if not (jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys")):
-                        # Only follow non call edges
+                    if not (jumpkind in ("Ijk_Call", "Ijk_Ret") or jumpkind.startswith("Ijk_Sys")):
                         if dst not in stack and dst not in traversed:
                             stack.add(dst)
 
