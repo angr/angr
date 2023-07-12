@@ -602,7 +602,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         low_priority=False,
         cfb=None,
         model=None,
-        use_patches=False,
         elf_eh_frame=True,
         exceptions=True,
         skip_unmapped_addrs=True,
@@ -789,8 +788,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._cross_references = cross_references
         # You need data refs to get cross refs
         self._collect_data_ref = data_references or self._cross_references
-
-        self._use_patches = use_patches
 
         self._arch_options = (
             arch_options if arch_options is not None else CFGArchOptions(self.project.arch, **extra_arch_options)
@@ -4618,24 +4615,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs):  # pylint:disable=arguments-differ
         kwargs["extra_stop_points"] = set(self._known_thunks)
-        if self._use_patches:
-            # let's see if there is a patch at this location
-            all_patches = self.kb.patches.get_all_patches(addr, VEX_IRSB_MAX_SIZE)
-            if all_patches:
-                # Use bytes from patches instead
-                offset = addr
-                byte_string = b""
-                for p in all_patches:
-                    if offset < p.addr:
-                        byte_string += self._fast_memory_load_bytes(offset, p.addr - offset)
-                        offset = p.addr
-                    assert p.addr <= offset < p.addr + len(p)
-                    byte_string += p.new_bytes[
-                        offset - p.addr : min(VEX_IRSB_MAX_SIZE - (offset - addr), p.addr + len(p) - offset)
-                    ]
-                    offset = p.addr + len(p)
-                kwargs["byte_string"] = byte_string
-        return super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
+        b = super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
+        return b
 
     #
     # Public methods
