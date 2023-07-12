@@ -862,8 +862,9 @@ class CIfElse(CStatement):
 
     @staticmethod
     def _is_single_stmt_node(node):
-        return (isinstance(node, CStatements) and len(node.statements) == 1) or \
-            isinstance(node, (CBreak, CContinue, CReturn, CGoto))
+        return (isinstance(node, CStatements) and len(node.statements) == 1) or isinstance(
+            node, (CBreak, CContinue, CReturn, CGoto)
+        )
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -875,8 +876,12 @@ class CIfElse(CStatement):
         for condition, node in self.condition_and_nodes:
             # omit braces in the event that you want c-style if-statements that have only a single statement
             # and have no else scope or an else with also a single statement
-            omit_braces = self.cstyle_ifs and first_node and self._is_single_stmt_node(node) and \
-                          (self.else_node is None or self._is_single_stmt_node(self.else_node))
+            omit_braces = (
+                self.cstyle_ifs
+                and first_node
+                and self._is_single_stmt_node(node)
+                and (self.else_node is None or self._is_single_stmt_node(self.else_node))
+            )
 
             if first_node:
                 first_node = False
