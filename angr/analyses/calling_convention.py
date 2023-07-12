@@ -633,6 +633,7 @@ class CallingConventionAnalysis(Analysis):
 
         reg_vars_with_single_access: List[SimRegisterVariable] = []
 
+        def_cc = default_cc(self.project.arch.name)
         for variable in variables:
             if isinstance(variable, SimStackVariable):
                 # a stack variable. convert it to a stack argument.
@@ -646,7 +647,7 @@ class CallingConventionAnalysis(Analysis):
                     args.add(arg)
             elif isinstance(variable, SimRegisterVariable):
                 # a register variable, convert it to a register argument
-                if not self._is_sane_register_variable(variable):
+                if not self._is_sane_register_variable(variable, def_cc=def_cc):
                     continue
                 reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
                 arg = SimRegArg(reg_name, variable.size)
@@ -691,7 +692,7 @@ class CallingConventionAnalysis(Analysis):
 
         return args.difference(restored_reg_vars)
 
-    def _is_sane_register_variable(self, variable: SimRegisterVariable) -> bool:
+    def _is_sane_register_variable(self, variable: SimRegisterVariable, def_cc: Optional[SimCC] = None) -> bool:
         """
         Filters all registers that are surly not members of function arguments.
         This can be seen as a workaround, since VariableRecoveryFast sometimes gives input variables of cc_ndep (which
@@ -703,8 +704,14 @@ class CallingConventionAnalysis(Analysis):
         """
 
         arch = self.project.arch
-        arch_name = unify_arch_name(self.project.arch.name)
+        arch_name = arch.name
+        if ":" in arch_name:
+            # for pcode architectures, we only leave registers that are known to be used as input arguments
+            if def_cc is not None:
+                return arch.translate_register_name(variable.reg, size=variable.size) in def_cc.ARG_REGS
+            return True
 
+        # VEX
         if arch_name == "AARCH64":
             return 16 <= variable.reg < 80  # x0-x7
 

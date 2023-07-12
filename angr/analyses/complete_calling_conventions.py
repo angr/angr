@@ -288,6 +288,12 @@ class CompleteCallingConventionsAnalysis(Analysis):
             return func.calling_convention, func.prototype, self.kb.variables.get_function_manager(func_addr)
 
         if self._recover_variables and self.function_needs_variable_recovery(func):
+            # special case: we don't have a PCode-engine variable recovery analysis for PCode architectures!
+            if ":" in self.project.arch.name:
+                # this is a pcode architecture
+                if not self._func_graphs or func.addr not in self._func_graphs:
+                    return None, None, None
+
             _l.info("Performing variable recovery on %r...", func)
             try:
                 _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(

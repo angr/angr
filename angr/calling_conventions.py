@@ -2173,6 +2173,11 @@ DEFAULT_CC: Dict[str, Type[SimCC]] = {
 
 def register_default_cc(arch: str, cc: Type[SimCC]):
     DEFAULT_CC[arch] = cc
+    if arch not in CC:
+        CC[arch] = [cc]
+    else:
+        if cc not in CC[arch]:
+            CC[arch].append(cc)
 
 
 ARCH_NAME_ALIASES = {

@@ -23,18 +23,9 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
     Optimizes away register spilling effects, including callee-saved registers.
     """
 
-    ARCHES = [
-        "X86",
-        "AMD64",
-        "ARM",
-        "ARMEL",
-        "ARMHF",
-        "ARMCortexM",
-        "MIPS32",
-        "MIPS64",
-    ]
-    PLATFORMS = ["cgc", "linux"]
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    ARCHES = None
+    PLATFORMS = None
+    STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Simplify register save areas"
     DESCRIPTION = __doc__.strip()
 

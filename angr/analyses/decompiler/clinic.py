@@ -468,7 +468,7 @@ class Clinic(Analysis):
                                         reg_name=cc.cc.RETURN_VAL.reg_name,
                                     )
 
-        # finally, recovery the calling convention of the current function
+        # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
             self.project.analyses.CompleteCallingConventions(
                 recover_variables=True,
