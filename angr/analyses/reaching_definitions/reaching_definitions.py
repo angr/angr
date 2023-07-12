@@ -6,6 +6,8 @@ import ailment
 import pyvex
 
 from angr.analyses import ForwardAnalysis
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.utils.timing import timethis
 from ...block import Block
 from ...knowledge_plugins.cfg.cfg_node import CFGNode
 from ...codenode import CodeNode
@@ -20,7 +22,7 @@ from ..analysis import Analysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
-from .subject import Subject
+from .subject import Subject, SubjectType
 from .function_handler import FunctionHandler, FunctionCallRelationships
 from .dep_graph import DepGraph
 
@@ -30,6 +32,11 @@ if TYPE_CHECKING:
     ObservationPoint = Tuple[Literal["insn", "node", "stmt"], Union[int, Tuple[int, int, int]], ObservationPointType]
 
 l = logging.getLogger(name=__name__)
+
+from cProfile import Profile
+
+pr = Profile()
+counter = 0
 
 
 class ReachingDefinitionsAnalysis(
@@ -97,6 +104,7 @@ class ReachingDefinitionsAnalysis(
         :param dep_graph:                       Set this to True to generate a dependency graph for the subject. It will
                                                 be available as `result.dep_graph`.
         """
+        global counter
 
         if isinstance(subject, str):
             subject = self.kb.functions[subject]
@@ -105,6 +113,12 @@ class ReachingDefinitionsAnalysis(
         else:
             self._subject = subject
         self._graph_visitor = self._subject.visitor
+
+        from angr.analyses.reaching_definitions.subject import SubjectType
+
+        # if self._subject.type == SubjectType.Function:
+        #    counter += 1
+        #    pr.enable()
 
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=self._graph_visitor
@@ -144,6 +158,10 @@ class ReachingDefinitionsAnalysis(
 
         self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
+        self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
+            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None
+        )
+
         self._engine_vex = SimEngineRDVEX(
             self.project,
             functions=self.kb.functions,
@@ -157,12 +175,13 @@ class ReachingDefinitionsAnalysis(
         )
 
         self._visited_blocks: Set[Any] = visited_blocks or set()
-        self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
-            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None
-        )
         self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
+
+        # if self._subject.type == SubjectType.Function:
+        #    pr.disable()
+        #    pr.dump_stats(f"profiling_{counter}.profile")
 
     @property
     def observed_results(self) -> Dict[Tuple[str, int, int], LiveDefinitions]:
@@ -401,23 +420,36 @@ class ReachingDefinitionsAnalysis(
             block_key = node.addr
         elif isinstance(node, CFGNode):
             if node.is_simprocedure or node.is_syscall:
-                return False, state.copy()
+                return False, state.copy(discard_tmpdefs=True)
             block = node.block
             engine = self._engine_vex
             block_key = node.addr
         else:
             l.warning("Unsupported node type %s.", node.__class__)
-            return False, state.copy()
+            return False, state.copy(discard_tmpdefs=True)
 
         self.node_observe(node.addr, state, OP_BEFORE)
 
-        state = state.copy()
+        if self.subject.type == SubjectType.Function:
+            node_parents = [
+                CodeLocation(pred.addr, 0, block_idx=pred.idx if isinstance(pred, ailment.Block) else None)
+                for pred in self._graph_visitor.predecessors(node)
+            ]
+            if node.addr == self.subject.content.addr:
+                node_parents += [ExternalCodeLocation()]
+            self.model.at_new_block(
+                CodeLocation(block.addr, 0, block_idx=block.idx if isinstance(block, ailment.Block) else None),
+                node_parents,
+            )
+
+        state = state.copy(discard_tmpdefs=True)
         state = engine.process(
             state,
             block=block,
             fail_fast=self._fail_fast,
             visited_blocks=self._visited_blocks,
             dep_graph=self._dep_graph,
+            model=self.model,
         )
 
         self._node_iterations[block_key] += 1

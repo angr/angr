@@ -8,6 +8,7 @@ from ailment import Stmt, Expr
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.knowledge_plugins.key_definitions.atoms import Register
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable, SimMemoryVariable
@@ -378,26 +379,17 @@ class SimEnginePropagatorAIL(
         reg_defat = None
         if self._reaching_definitions is not None:
             codeloc = self._codeloc()
-            key = "stmt", (codeloc.block_addr, codeloc.block_idx, codeloc.stmt_idx), OP_BEFORE
-            if key in self._reaching_definitions.observed_results:
-                o = self._reaching_definitions.observed_results[key]
-                try:
-                    mv = o.register_definitions.load(expr.reg_offset, size=expr.size)
-                except SimMemoryMissingError:
-                    mv = None
-                if mv is not None:
-                    reg_defs = o.extract_defs_from_mv(mv)
-                    reg_defat_codelocs = {reg_def.codeloc for reg_def in reg_defs}
-                    if len(reg_defat_codelocs) == 1:
-                        reg_defat = next(iter(reg_defat_codelocs))
-                        defat_key = "stmt", (reg_defat.block_addr, reg_defat.block_idx, reg_defat.stmt_idx), OP_BEFORE
-                        if defat_key not in self._reaching_definitions.observed_results:
-                            # the observation point does not exist. probably it's because te observation point is in a
-                            # callee function.
-                            reg_defat = None
-                        if isinstance(reg_defat, ExternalCodeLocation):
-                            # there won't be an observed result for external code location. give up
-                            reg_defat = None
+            reg_defat_defs = self._reaching_definitions.get_defs(
+                Register(expr.reg_offset, expr.size), codeloc, OP_BEFORE
+            )
+            reg_defat_codelocs = {reg_def.codeloc for reg_def in reg_defat_defs}
+            if len(reg_defat_codelocs) == 1:
+                reg_defat = next(iter(reg_defat_codelocs))
+                if reg_defat.stmt_idx is None:
+                    # the observation point is in a callee function
+                    reg_defat = None
+                if isinstance(reg_defat, ExternalCodeLocation):
+                    reg_defat = None
 
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
@@ -1139,36 +1131,17 @@ class SimEnginePropagatorAIL(
             l.warning("Unknown where the expression is defined. Assume the definition is out-dated.")
             return True, False
 
-        key_defat = "stmt", (expr_defat.block_addr, expr_defat.block_idx, expr_defat.stmt_idx), OP_AFTER
-        if key_defat not in self._reaching_definitions.observed_results:
-            l.warning(
-                "Required reaching definition state at instruction address %#x is not found. Assume the definition is "
-                "out-dated.",
-                expr_defat.ins_addr,
-            )
-            return True, False
-
-        key_currloc = "stmt", (current_loc.block_addr, current_loc.block_idx, current_loc.stmt_idx), OP_BEFORE
-        if key_currloc not in self._reaching_definitions.observed_results:
-            l.warning(
-                "Required reaching definition state at instruction address %#x is not found. Assume the definition is "
-                "out-dated.",
-                current_loc.ins_addr,
-            )
-            return True, False
-
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
         walker = OutdatedDefinitionWalker(
             expr,
             expr_defat,
-            self._reaching_definitions.observed_results[key_defat],
             current_loc,
-            self._reaching_definitions.observed_results[key_currloc],
             self.state,
             self.arch,
             avoid=avoid,
             extract_offset_to_sp=self.extract_offset_to_sp,
+            rda=self._reaching_definitions,
         )
         walker.walk_expression(expr)
         return walker.out_dated, walker.has_avoid

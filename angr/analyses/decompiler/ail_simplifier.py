@@ -35,7 +35,7 @@ from .ccall_rewriters import CCALL_REWRITERS
 
 if TYPE_CHECKING:
     from ailment.manager import Manager
-    from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+    from angr.analyses.reaching_definitions import ReachingDefinitionsModel
 
 
 _l = logging.getLogger(__name__)
@@ -103,7 +103,7 @@ class AILSimplifier(Analysis):
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
+        self._reaching_definitions: Optional["ReachingDefinitionsModel"] = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
@@ -191,7 +191,7 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
-    def _compute_reaching_definitions(self) -> "ReachingDefinitionsAnalysis":
+    def _compute_reaching_definitions(self) -> "ReachingDefinitionsModel":
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
@@ -199,16 +199,11 @@ class AILSimplifier(Analysis):
             subject=self.func,
             func_graph=self.func_graph,
             # init_context=(),    <-- in case of fire break glass
-            observe_all=True,  # observe_callback=self._simplify_function_rd_observe_callback
+            observe_all=False,
             use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-        )
+        ).model
         self._reaching_definitions = rd
         return rd
-
-    @staticmethod
-    # pylint:disable=unused-argument
-    def _simplify_function_rd_observe_callback(ob_type, **kwargs):
-        return ob_type == "node" or (ob_type == "insn" and kwargs.get("op_type", None) == OP_BEFORE)
 
     def _compute_propagation(self):
         # Propagate expressions or return the existing result
@@ -772,7 +767,7 @@ class AILSimplifier(Analysis):
                 # ensure the expression that we want to replace with is still up-to-date
                 replace_with_original_def = self._find_atom_def_at(replace_with, rd, def_.codeloc)
                 if replace_with_original_def is not None and not self._check_atom_last_def(
-                    replace_with, used_expr.size, u.ins_addr, rd, replace_with_original_def
+                    replace_with, used_expr.size, u, rd, replace_with_original_def
                 ):
                     all_uses_replaced = False
                     continue
@@ -813,26 +808,20 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _find_atom_def_at(atom, rd, codeloc: CodeLocation) -> Optional[Definition]:
         if isinstance(atom, Register):
-            observ = rd.observed_results[("insn", codeloc.ins_addr, OP_BEFORE)]
-            try:
-                reg_vals = observ.register_definitions.load(atom.reg_offset, size=atom.size)
-                defs = list(observ.extract_defs_from_mv(reg_vals))
-                return defs[0] if len(defs) == 1 else None
-            except SimMemoryMissingError:
-                pass
+            all_defs = rd.find_defs_at(codeloc, OP_BEFORE)
+            defs = {d for d in all_defs if isinstance(d.atom, atoms.Register) and d.atom.reg_offset == atom.reg_offset}
+            return next(iter(defs)) if len(defs) == 1 else None
+
         return None
 
     @staticmethod
-    def _check_atom_last_def(atom, size, ins_addr, rd, the_def) -> bool:
+    def _check_atom_last_def(atom, size, codeloc, rd, the_def) -> bool:
         if isinstance(atom, Register):
-            observ = rd.observed_results[("insn", ins_addr, OP_BEFORE)]
-            try:
-                reg_vals = observ.register_definitions.load(atom.reg_offset, size=size)
-                for existing_def in observ.extract_defs_from_mv(reg_vals):
-                    if existing_def.codeloc != the_def.codeloc:
-                        return False
-            except SimMemoryMissingError:
-                pass
+            all_defs = rd.find_defs_at(codeloc, OP_BEFORE)
+            defs = {d for d in all_defs if isinstance(d.atom, atoms.Register) and d.atom.reg_offset == atom.reg_offset}
+            for d in defs:
+                if d.codeloc != the_def.codeloc:
+                    return False
 
         return True
 
@@ -961,10 +950,9 @@ class AILSimplifier(Analysis):
                 defsite_defs_per_atom = defaultdict(set)
                 for dd in defsite_all_expr_uses:
                     defsite_defs_per_atom[dd.atom].add(dd)
-                usesite_rdstate = rd.observed_results[("stmt", (u.block_addr, u.block_idx, u.stmt_idx), 0)]
                 usesite_expr_def_outdated = False
                 for defsite_expr_atom, defsite_expr_uses in defsite_defs_per_atom.items():
-                    usesite_expr_uses = set(usesite_rdstate.get_definitions(defsite_expr_atom))
+                    usesite_expr_uses = set(rd.get_defs(defsite_expr_atom, u, OP_BEFORE))
                     if not usesite_expr_uses:
                         # the atom is not defined at the use site - it's fine
                         continue
