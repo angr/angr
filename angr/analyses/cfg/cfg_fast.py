@@ -809,7 +809,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
-        self._function_prologue_addrs = None
         self._remaining_function_prologue_addrs = None
 
         # exception handling
@@ -1228,12 +1227,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._updated_nonreturning_functions = set()
 
         if self._use_function_prologues and self.project.concrete_target is None:
-            self._function_prologue_addrs = sorted(self._func_addrs_from_prologues())
-            # make a copy of those prologue addresses, so that we can pop from the list
-            self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
-
-            # make function_prologue_addrs a set for faster lookups
-            self._function_prologue_addrs = set(self._function_prologue_addrs)
+            self._remaining_function_prologue_addrs = sorted(self._func_addrs_from_prologues())
 
         # assumption management
         self._decoding_assumptions: Dict[int, DecodingAssumption] = {}
