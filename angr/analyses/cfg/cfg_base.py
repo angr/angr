@@ -227,8 +227,12 @@ class CFGBase(Analysis):
             if end < start:
                 raise AngrCFGError("Invalid region bounds (end precedes start)")
 
+        # Block factory returns patched state by default, so ensure we are also analyzing the patched state
+        if self._base_state is None and self.project.kb.patches.values():
+            self._base_state = self.project.kb.patches.patched_entry_state
+
         if exclude_sparse_regions:
-            regions = [r for r in regions if not self._is_region_extremely_sparse(*r, base_state=base_state)]
+            regions = [r for r in regions if not self._is_region_extremely_sparse(*r, base_state=self._base_state)]
 
         if skip_specific_regions:
             if base_state is not None:
@@ -2239,8 +2243,7 @@ class CFGBase(Analysis):
                     callback(g, src, dst, data, blockaddr_to_function, known_functions, all_out_edges)
 
                     jumpkind = data.get("jumpkind", "")
-                    if not (jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys")):
-                        # Only follow non call edges
+                    if not (jumpkind in ("Ijk_Call", "Ijk_Ret") or jumpkind.startswith("Ijk_Sys")):
                         if dst not in stack and dst not in traversed:
                             stack.add(dst)
 

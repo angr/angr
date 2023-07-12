@@ -766,6 +766,13 @@ class Function(Serializable):
         self.transition_graph = networkx.classes.digraph.DiGraph()
         self._local_transition_graph = None
 
+        self._ret_sites = set()
+        self._jumpout_sites = set()
+        self._callout_sites = set()
+        self._retout_sites = set()
+        self._endpoints = defaultdict(set)
+        self._call_sites = {}
+
     def _confirm_fakeret(self, src, dst):
         if src not in self.transition_graph or dst not in self.transition_graph[src]:
             raise AngrValueError(f"FakeRet edge ({src}, {dst}) is not in transition graph.")

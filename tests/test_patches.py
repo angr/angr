@@ -1,4 +1,6 @@
+# pylint:disable=no-self-use
 import os
+import unittest
 
 import angr
 
@@ -6,20 +8,36 @@ import angr
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
-def test_patch_vulnerable_fauxware_amd64():
-    binpath = os.path.join(test_location, "x86_64", "vulns", "vulnerable_fauxware")
-    proj = angr.Project(binpath, auto_load_libs=False)
+class PatchTests(unittest.TestCase):
+    """
+    Basic PatchManager tests
+    """
 
-    proj.kb.patches.add_patch(0x40094C, b"\x0a")
-    patched = proj.kb.patches.apply_patches_to_binary()
+    def test_patch_vulnerable_fauxware_amd64(self):
+        binpath = os.path.join(test_location, "x86_64", "vulns", "vulnerable_fauxware")
+        proj = angr.Project(binpath, auto_load_libs=False)
 
-    # manual patch
-    with open(binpath, "rb") as f:
-        binary_data = f.read()
-    binary_data = binary_data[:0x94C] + b"\x0a" + binary_data[0x94D:]
+        proj.kb.patches.add_patch(0x40094C, b"\x0a")
+        patched = proj.kb.patches.apply_patches_to_binary()
 
-    assert patched == binary_data
+        # manual patch
+        with open(binpath, "rb") as f:
+            binary_data = f.read()
+        binary_data = binary_data[:0x94C] + b"\x0a" + binary_data[0x94D:]
+
+        assert patched == binary_data
+
+    def test_block_factory_returns_patched_bytes(self):
+        binpath = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(binpath, auto_load_libs=False)
+
+        addr = 0x4007D3
+        patch_bytes = proj.arch.keystone.asm("inc rax; leave; ret", addr, as_bytes=True)[0]
+        proj.kb.patches.add_patch(addr, patch_bytes)
+
+        b = proj.factory.block(addr)
+        assert b.bytes == patch_bytes
 
 
 if __name__ == "__main__":
-    test_patch_vulnerable_fauxware_amd64()
+    unittest.main()

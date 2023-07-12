@@ -987,7 +987,7 @@ class Disassembly(Analysis):
         elif ranges is not None:
             cfg = self.project.kb.cfgs.get_most_accurate()
             fallback = True
-            if cfg is not None:
+            if self._block_bytes is None and cfg is not None:
                 try:
                     self._graph = cfg.graph
                     for start, end in ranges:
@@ -1111,7 +1111,7 @@ class Disassembly(Analysis):
                 aligned_block_addr = block.addr
                 cs = self.project.arch.capstone
             if block.bytestr is None:
-                bytestr = self.project.loader.memory.load(aligned_block_addr, block.size)
+                bytestr = self.project.factory.block(aligned_block_addr, block.size).bytes
             else:
                 bytestr = block.bytestr
             self.block_to_insn_addrs[block.addr] = []

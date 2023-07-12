@@ -1,7 +1,7 @@
 # pylint:disable=no-member
 import pickle
 import logging
-from typing import Optional, List, Dict, Tuple, DefaultDict, Callable, TYPE_CHECKING
+from typing import Optional, List, Dict, Tuple, DefaultDict, Callable, TYPE_CHECKING, Set
 from collections import defaultdict
 import bisect
 import string
@@ -21,7 +21,9 @@ from .memory_data import MemoryData, MemoryDataSort
 from .indirect_jump import IndirectJump
 
 if TYPE_CHECKING:
+    from angr.knowledge_base.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
+    from angr.knowledge_plugins.functions import Function
     from angr.analyses.cfg.segment_list import SegmentList
 
 
@@ -48,6 +50,7 @@ class CFGModel(Serializable):
         "_node_addrs",
         "is_arm",
         "normalized",
+        "edges_to_repair",
     )
 
     def __init__(self, ident, cfg_manager=None, is_arm=False):
@@ -78,6 +81,8 @@ class CFGModel(Serializable):
         self._node_addrs: List[int] = []
 
         self.normalized = False
+
+        self.edges_to_repair = []
 
     #
     # Properties
@@ -211,6 +216,7 @@ class CFGModel(Serializable):
         model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
         model._nodes_by_addr = self._nodes_by_addr.copy()
         model._nodes = self._nodes.copy()
+        model.edges_to_repair = self.edges_to_repair.copy()
 
         return model
 
@@ -345,6 +351,16 @@ class CFGModel(Serializable):
                     results.append(cfg_node)
 
         return results
+
+    def get_all_nodes_intersecting_region(self, addr: int, size: int = 1) -> Set[CFGNode]:
+        """
+        Get all CFGNodes that intersect the given region.
+
+        :param addr: Minimum address of target region.
+        :param size: Size of region, in bytes.
+        """
+        end_addr = addr + size
+        return {n for n in self.nodes() if not (addr >= (n.addr + n.size) or n.addr >= end_addr)}
 
     def nodes(self):
         """
@@ -921,8 +937,112 @@ class CFGModel(Serializable):
     # Util methods
     #
 
-    def _addr_in_exec_memory_regions(self, addr: int, exec_mem_regions: List[Tuple[int, int]]) -> bool:
+    @staticmethod
+    def _addr_in_exec_memory_regions(addr: int, exec_mem_regions: List[Tuple[int, int]]) -> bool:
         for start, end in exec_mem_regions:
             if start <= addr < end:
                 return True
         return False
+
+    def remove_node_and_graph_node(self, node: CFGNode) -> None:
+        """
+        Like `remove_node`, but also removes node from the graph.
+
+        :param node: The node to remove.
+        """
+        self.graph.remove_node(node)
+        self.remove_node(node.addr, node)  # FIXME: block_id param
+
+    def get_intersecting_functions(
+        self,
+        addr: int,
+        size: int = 1,
+        kb: Optional["KnowledgeBase"] = None,
+    ) -> Set["Function"]:
+        """
+        Find all functions with nodes intersecting [addr, addr + size).
+
+        :param addr: Minimum address of target region.
+        :param size: Size of region, in bytes.
+        :param kb:   Knowledge base to search for functions in.
+        """
+        if kb is None:
+            if self.project is None:
+                raise AngrCFGError("Please provide knowledge base")
+            kb = self.project.kb
+
+        functions = set()
+        for func_addr in {n.function_address for n in self.get_all_nodes_intersecting_region(addr, size)}:
+            try:
+                func = kb.functions.get_by_addr(func_addr)
+            except KeyError:
+                l.error("Function %#x not found in KB", func_addr)
+                continue
+            functions.add(func)
+        return functions
+
+    def find_function_for_reflow_into_addr(
+        self, addr: int, kb: Optional["KnowledgeBase"] = None
+    ) -> Optional["Function"]:
+        """
+        Look for a function that flows into a new node at addr.
+
+        :param addr: Address of new block.
+        :param kb:   Knowledge base to search for functions in.
+        """
+        if kb is None:
+            if self.project is None:
+                raise AngrCFGError("Please provide knowledge base")
+            kb = self.project.kb
+
+        # FIXME: Track nodecodes as nodes in CFG and use graph to resolve instead of analyzing IRSBs here
+
+        func = kb.functions.floor_func(addr)
+        if func is None:
+            return None
+
+        for block in func.blocks:
+            irsb = block.vex
+            if (
+                irsb.jumpkind == "Ijk_Call" and irsb.addr + irsb.size == addr
+            ) or addr in irsb.constant_jump_targets_and_jumpkinds:
+                return func
+
+        return None
+
+    def clear_region_for_reflow(self, addr: int, size: int = 1, kb: Optional["KnowledgeBase"] = None) -> None:
+        """
+        Remove nodes in the graph intersecting region [addr, addr + size).
+
+        Any functions that intersect the range, and their associated nodes in the CFG, will also be removed from the
+        knowledge base for analysis.
+
+        :param addr: Minimum address of target region.
+        :param size: Size of the region, in bytes.
+        :param kb:   Knowledge base to search for functions in.
+        """
+        if kb is None and self.project is not None:
+            kb = self.project.kb
+
+        to_remove = {a for a in self.insn_addr_to_memory_data if addr <= a < (addr + size)}
+        for a in to_remove:
+            del self.insn_addr_to_memory_data[a]
+
+        if kb:
+            for func in self.get_intersecting_functions(addr, size, kb):
+                # Save incoming edges to the function for repairs on future edits
+                self.edges_to_repair.extend(list(self.graph.in_edges(self.get_all_nodes(func.addr), data=True)))
+
+                for block in func.blocks:
+                    for ins_addr in block.instruction_addrs:
+                        self.insn_addr_to_memory_data.pop(ins_addr, None)
+
+                    for node in self.get_all_nodes(block.addr):
+                        self.remove_node_and_graph_node(node)
+
+                del kb.functions[func.addr]
+
+        # FIXME: Gather any additional edges to nodes that are not part of a function
+
+        for node in self.get_all_nodes_intersecting_region(addr, size):
+            self.remove_node_and_graph_node(node)

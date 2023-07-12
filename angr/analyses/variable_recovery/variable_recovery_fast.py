@@ -332,15 +332,25 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
             ret_addr_offset = self.project.arch.bytes
-            ret_addr_var = SimStackVariable(
-                ret_addr_offset,
-                self.project.arch.bytes,
-                base="bp",
-                name="ret_addr",
-                region=self.function.addr,
-                category="return_address",
-                ident=internal_manager.next_variable_ident("stack"),
+            # find existing variable
+            ret_addr_var = next(
+                iter(
+                    v
+                    for v in internal_manager.find_variables_by_stack_offset(ret_addr_offset)
+                    if v.category == "return_address"
+                ),
+                None,
             )
+            if ret_addr_var is None:
+                ret_addr_var = SimStackVariable(
+                    ret_addr_offset,
+                    self.project.arch.bytes,
+                    base="bp",
+                    name="ret_addr",
+                    region=self.function.addr,
+                    category="return_address",
+                    ident=internal_manager.next_variable_ident("stack"),
+                )
             ret_addr = claripy.BVS("ret_addr", self.project.arch.bits)
             ret_addr = state.annotate_with_variables(ret_addr, [(0, ret_addr_var)])
             state.stack_region.store(

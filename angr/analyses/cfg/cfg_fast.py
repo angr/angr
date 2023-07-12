@@ -602,7 +602,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         low_priority=False,
         cfb=None,
         model=None,
-        use_patches=False,
         elf_eh_frame=True,
         exceptions=True,
         skip_unmapped_addrs=True,
@@ -731,7 +730,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             )
             cross_references = extra_cross_references
 
-        # data references collection and force smart scan mst be enabled at the same time. otherwise decoding errors
+        # data references collection and force smart scan must be enabled at the same time. otherwise decoding errors
         # caused by decoding data will lead to incorrect cascading re-lifting, which is suboptimal
         if force_smart_scan and not data_references:
             l.warning(
@@ -790,8 +789,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # You need data refs to get cross refs
         self._collect_data_ref = data_references or self._cross_references
 
-        self._use_patches = use_patches
-
         self._arch_options = (
             arch_options if arch_options is not None else CFGArchOptions(self.project.arch, **extra_arch_options)
         )
@@ -812,7 +809,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
-        self._function_prologue_addrs = None
         self._remaining_function_prologue_addrs = None
 
         # exception handling
@@ -1175,8 +1171,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         # Initialize variables used during analysis
         self._pending_jobs: PendingJobs = PendingJobs(self.functions, self._deregister_analysis_job)
-        self._traced_addresses: Set[int] = set()
+        self._traced_addresses: Set[int] = {a for a, n in self._nodes_by_addr.items() if n}
         self._function_returns = defaultdict(set)
+
+        # Populate known objects in segment tracker
+        # FIXME: Cache the segment list, or add a new CFG analysis state tracking object
+        for n in self.model.nodes():
+            self._seg_list.occupy(n.addr, n.size, "code")
+        for d in self.model.memory_data.values():
+            self._seg_list.occupy(d.addr, d.size, d.sort)
 
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
@@ -1231,12 +1234,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._updated_nonreturning_functions = set()
 
         if self._use_function_prologues and self.project.concrete_target is None:
-            self._function_prologue_addrs = sorted(self._func_addrs_from_prologues())
-            # make a copy of those prologue addresses, so that we can pop from the list
-            self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
-
-            # make function_prologue_addrs a set for faster lookups
-            self._function_prologue_addrs = set(self._function_prologue_addrs)
+            self._remaining_function_prologue_addrs = sorted(self._func_addrs_from_prologues())
 
         # assumption management
         self._decoding_assumptions: Dict[int, DecodingAssumption] = {}
@@ -1461,7 +1459,31 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 self._insert_job(job)
                 self._register_analysis_job(addr, job)
 
+    def _repair_edges(self):
+        remaining_edges_to_repair = []
+
+        for edge in self._model.edges_to_repair:
+            (src, dst, data) = edge
+
+            if not self._model.graph.has_node(src):
+                continue  # Source no longer in the graph, drop it
+
+            new_dst = self._model.get_any_node(dst.addr)
+            if new_dst is None:
+                # The node may be defined in a later edit. Keep it for subsequent analyses.
+                l.debug("Cannot repair edge %s at this time, destination node does not exist", edge)
+                remaining_edges_to_repair.append(edge)
+                continue
+
+            if not self._model.graph.has_edge(src, new_dst):
+                l.debug("Repairing edge: %s", edge)
+                self._graph_add_edge(new_dst, src, data["jumpkind"], data["ins_addr"], data["stmt_idx"])
+
+        self._model.edges_to_repair = remaining_edges_to_repair
+
     def _post_analysis(self):
+        self._repair_edges()
+
         self._make_completed_functions()
 
         if self._normalize:
@@ -2857,7 +2879,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         :return:    None
         """
 
-        # add a node from this node to UnresolvableJumpTarget or UnresolvalbeCallTarget node,
+        # add a node from this node to UnresolvableJumpTarget or UnresolvableCallTarget node,
         # depending on its jump kind
         src_node = self._nodes[jump.addr]
         if jump.jumpkind == "Ijk_Boring":
@@ -4618,24 +4640,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs):  # pylint:disable=arguments-differ
         kwargs["extra_stop_points"] = set(self._known_thunks)
-        if self._use_patches:
-            # let's see if there is a patch at this location
-            all_patches = self.kb.patches.get_all_patches(addr, VEX_IRSB_MAX_SIZE)
-            if all_patches:
-                # Use bytes from patches instead
-                offset = addr
-                byte_string = b""
-                for p in all_patches:
-                    if offset < p.addr:
-                        byte_string += self._fast_memory_load_bytes(offset, p.addr - offset)
-                        offset = p.addr
-                    assert p.addr <= offset < p.addr + len(p)
-                    byte_string += p.new_bytes[
-                        offset - p.addr : min(VEX_IRSB_MAX_SIZE - (offset - addr), p.addr + len(p) - offset)
-                    ]
-                    offset = p.addr + len(p)
-                kwargs["byte_string"] = byte_string
-        return super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
+        b = super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
+        return b
 
     #
     # Public methods
