@@ -103,7 +103,7 @@ options = [
         "codegen",
         "comment_gotos",
         category="Display",
-        default_value=True,
+        default_value=False,
         clears_cache=False,
     ),
     O(
