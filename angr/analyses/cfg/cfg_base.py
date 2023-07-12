@@ -227,8 +227,12 @@ class CFGBase(Analysis):
             if end < start:
                 raise AngrCFGError("Invalid region bounds (end precedes start)")
 
+        # Block factory returns patched state by default, so ensure we are also analyzing the patched state
+        if self._base_state is None and self.project.kb.patches.values():
+            self._base_state = self.project.kb.patches.patched_entry_state
+
         if exclude_sparse_regions:
-            regions = [r for r in regions if not self._is_region_extremely_sparse(*r, base_state=base_state)]
+            regions = [r for r in regions if not self._is_region_extremely_sparse(*r, base_state=self._base_state)]
 
         if skip_specific_regions:
             if base_state is not None:
