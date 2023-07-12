@@ -1752,7 +1752,11 @@ class SimCCARMHF(SimCCARM):
     ARCH = archinfo.ArchARMHF
 
     def next_arg(self, session, arg_type):
-        return SimCC.next_arg(self, session, arg_type)
+        try:
+            arg = SimCC.next_arg(self, session, arg_type)
+        except ValueError:
+            arg = SimCC.next_arg(self, session, SimTypePointer(SimTypeBottom()).with_arch(self.arch))
+        return arg
 
 
 class SimCCARMLinuxSyscall(SimCCSyscall):
