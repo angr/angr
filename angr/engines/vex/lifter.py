@@ -173,10 +173,10 @@ class VEXLifter(SimEngineBase):
         if offset is None:
             offset = 0
 
-        use_cache = self._use_cache
-        if skip_stmts or collect_data_refs:
-            # Do not cache the blocks if skip_stmts or collect_data_refs are enabled
-            use_cache = False
+        have_patches = self.project and self.project.kb.patches.items()
+
+        # FIXME: cache ignores provided state
+        use_cache = self._use_cache and not (skip_stmts or collect_data_refs or have_patches)
 
         # phase 2: thumb normalization
         thumb = int(thumb)
@@ -299,17 +299,21 @@ class VEXLifter(SimEngineBase):
 
         buff, size, offset = b"", 0, 0
 
-        # Load from the clemory if we can
-        smc = self.selfmodifying_code
+        # XXX: Prioritize loading from patched state, if we have patches
+        have_patches = self.project and self.project.kb.patches.items()
+        if state is None and have_patches:
+            state = self.project.kb.patches.patched_entry_state
+
+        load_from_state = self.selfmodifying_code or have_patches
 
         # skip loading from the clemory if we're using the ultra page
         # TODO: is this a good change? it neuters lookback optimizations
         # we can try concrete loading the full page but that has drawbacks too...
         # if state is not None and issubclass(getattr(state.memory, 'PAGE_TYPE', object), UltraPage):
-        #    smc = True
+        #    load_from_state = True
 
-        # when smc is not enabled or when state is not provided, we *always* attempt to load concrete data first
-        if not smc or not state:
+        # Load from the clemory if we can
+        if not load_from_state or not state:
             if isinstance(clemory, cle.Clemory):
                 try:
                     start, backer = next(clemory.backers(addr))
@@ -335,8 +339,8 @@ class VEXLifter(SimEngineBase):
                     buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
                 size = len(buff)
 
-        # If that didn't work and if smc is enabled, try to load from the state
-        if smc and state and size == 0:
+        # If that didn't work and if load_from_state is enabled, try to load from the state
+        if load_from_state and state and size == 0:
             if state.memory.SUPPORTS_CONCRETE_LOAD:
                 buff = state.memory.concrete_load(addr, max_size)
             else:
