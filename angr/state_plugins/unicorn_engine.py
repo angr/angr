@@ -516,7 +516,16 @@ def _load_native():
             ctypes.POINTER(ctypes.c_uint64),
             ctypes.c_uint64,
         )
-        _setup_prototype(h, "set_fd_bytes", state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_uint64)
+        _setup_prototype(
+            h,
+            "set_fd_bytes",
+            state_t,
+            ctypes.c_uint64,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+        )
         _setup_prototype(
             h,
             "set_random_syscall_data",
@@ -1277,9 +1286,11 @@ class Unicorn(SimStatePlugin):
         # Pass all concrete fd bytes to native interface so that it can handle relevant syscalls
         if fd_bytes is not None:
             for fd_num, fd_data in fd_bytes.items():
-                fd_bytes_p = int(ffi.cast("uint64_t", ffi.from_buffer(memoryview(fd_data))))
+                # fd_data is a tuple whose first element is fd data and second is taints for each fd byte
+                fd_bytes_p = int(ffi.cast("uint64_t", ffi.from_buffer(memoryview(fd_data[0]))))
+                fd_taint_p = int(ffi.cast("uint64_t", ffi.from_buffer(memoryview(fd_data[1]))))
                 read_pos = self.state.solver.eval(self.state.posix.fd.get(fd_num).read_pos)
-                _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data), read_pos)
+                _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, fd_taint_p, len(fd_data[0]), read_pos)
         else:
             l.info("Input fds concrete data not specified. Handling some syscalls in native interface could fail.")
 
