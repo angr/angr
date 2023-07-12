@@ -342,7 +342,7 @@ class VEXLifter(SimEngineBase):
             else:
                 buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
             size = len(buff)
-            if size < min(max_size, 10):  # arbitrary metric for doing the slow path
+            if self.selfmodifying_code and size < min(max_size, 10):  # arbitrary metric for doing the slow path
                 l.debug("SMC slow path")
                 buff_lst = []
                 symbolic_warned = False
