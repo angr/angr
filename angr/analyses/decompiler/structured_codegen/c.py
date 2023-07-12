@@ -900,15 +900,16 @@ class CIfElse(CStatement):
             else:
                 yield " ", None
 
+            if not omit_braces:
+                yield "{", brace
+                yield "\n", None
+
             if node is not None:
-                if omit_braces:
-                    yield from node.c_repr_chunks(indent=INDENT_DELTA)
-                else:
-                    yield "{", brace
-                    yield "\n", None
-                    yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
-                    yield indent_str, None
-                    yield "}", brace
+                yield from node.c_repr_chunks(indent=INDENT_DELTA + indent if not omit_braces else INDENT_DELTA)
+
+            if not omit_braces:
+                yield indent_str, None
+                yield "}", brace
 
         single_stmt_else = first_node_is_single_stmt_if and len(self.condition_and_nodes) == 1
         if self.else_node is not None:
