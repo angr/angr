@@ -99,6 +99,7 @@ class AILSimplifier(Analysis):
         narrow_expressions=False,
         only_consts=False,
         fold_callexprs_into_conditions=False,
+        use_callee_saved_regs_at_return=True,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -113,6 +114,7 @@ class AILSimplifier(Analysis):
         self._narrow_expressions = narrow_expressions
         self._only_consts = only_consts
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
+        self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
 
         self._calls_to_remove: Set[CodeLocation] = set()
         self._assignments_to_remove: Set[CodeLocation] = set()
@@ -198,6 +200,7 @@ class AILSimplifier(Analysis):
             func_graph=self.func_graph,
             # init_context=(),    <-- in case of fire break glass
             observe_all=True,  # observe_callback=self._simplify_function_rd_observe_callback
+            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
         )
         self._reaching_definitions = rd
         return rd

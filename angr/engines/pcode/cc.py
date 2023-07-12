@@ -102,6 +102,7 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
             "SuperH4:LE:32:default": SimCCSH4,
             "pa-risc:BE:32:default": SimCCPARISC,
             "PowerPC:BE:32:e200": SimCCPowerPC,
+            "PowerPC:BE:32:MPC8270": SimCCPowerPC,
             "Xtensa:LE:32:default": SimCCXtensa,
         }
         if arch.name in manual_cc_mapping:

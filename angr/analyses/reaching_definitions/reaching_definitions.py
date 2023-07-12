@@ -66,6 +66,7 @@ class ReachingDefinitionsAnalysis(
         observe_callback=None,
         canonical_size=8,
         stack_pointer_tracker=None,
+        use_callee_saved_regs_at_return=True,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -115,6 +116,7 @@ class ReachingDefinitionsAnalysis(
         self._observation_points = observation_points
         self._init_state = init_state
         self._canonical_size = canonical_size
+        self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
 
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
@@ -151,6 +153,7 @@ class ReachingDefinitionsAnalysis(
             self.project,
             function_handler=self._function_handler,
             stack_pointer_tracker=stack_pointer_tracker,
+            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
         )
 
         self._visited_blocks: Set[Any] = visited_blocks or set()

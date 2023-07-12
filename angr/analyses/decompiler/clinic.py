@@ -29,7 +29,7 @@ from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
 from ..reaching_definitions import ReachingDefinitionsAnalysis
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
-from .optimization_passes import get_default_optimization_passes, OptimizationPassStage
+from .optimization_passes import get_default_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -91,6 +91,8 @@ class Clinic(Analysis):
         self._reset_variable_names = reset_variable_names
         self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
+
+        self._register_save_areas_removed: bool = False
 
         self._new_block_addrs = set()
 
@@ -468,7 +470,7 @@ class Clinic(Analysis):
                                         reg_name=cc.cc.RETURN_VAL.reg_name,
                                     )
 
-        # finally, recovery the calling convention of the current function
+        # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
             self.project.analyses.CompleteCallingConventions(
                 recover_variables=True,
@@ -758,6 +760,7 @@ class Clinic(Analysis):
             narrow_expressions=narrow_expressions,
             only_consts=only_consts,
             fold_callexprs_into_conditions=fold_callexprs_into_conditions,
+            use_callee_saved_regs_at_return=not self._register_save_areas_removed,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -799,6 +802,11 @@ class Clinic(Analysis):
             if a.out_graph:
                 # use the new graph
                 ail_graph = a.out_graph
+                if isinstance(a, RegisterSaveAreaSimplifier):
+                    # register save area has been removed - we should no longer use callee-saved registers in RDA
+                    self._register_save_areas_removed = True
+                    # clear the cached RDA result
+                    self.reaching_definitions = None
 
         return ail_graph
 
@@ -849,7 +857,10 @@ class Clinic(Analysis):
 
         # Computing reaching definitions
         rd = self.project.analyses.ReachingDefinitions(
-            subject=self.function, func_graph=ail_graph, observe_callback=self._make_callsites_rd_observe_callback
+            subject=self.function,
+            func_graph=ail_graph,
+            observe_callback=self._make_callsites_rd_observe_callback,
+            use_callee_saved_regs_at_return=not self._register_save_areas_removed,
         )
 
         class TempClass:  # pylint:disable=missing-class-docstring

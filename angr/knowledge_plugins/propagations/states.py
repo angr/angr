@@ -620,6 +620,8 @@ class PropagatorAILState(PropagatorState):
             return True
         if isinstance(value, ailment.Expr.Const) or (isinstance(value, int) and value == 0):
             return True
+        if isinstance(value, ailment.Expr.StackBaseOffset):
+            return True
         # more hacks: also store the eq comparisons
         if isinstance(value, ailment.Expr.BinaryOp) and value.op == "CmpEQ":
             if all(isinstance(arg, (ailment.Expr.Const, ailment.Expr.Tmp)) for arg in value.operands):

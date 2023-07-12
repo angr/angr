@@ -1971,8 +1971,8 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
         return state.regs.v0
 
 
-class SimCCO64(SimCC):  # TODO: add n32 and n64
-    ARG_REGS = ["a0", "a1", "a2", "a3"]
+class SimCCN64(SimCC):  # TODO: add n32
+    ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
     CALLER_SAVED_REGS = ["t9", "gp"]
     FP_ARG_REGS = []  # TODO: ???
     STACKARG_SP_BUFF = 32
@@ -1981,7 +1981,10 @@ class SimCCO64(SimCC):  # TODO: add n32 and n64
     ARCH = archinfo.ArchMIPS64
 
 
-class SimCCO64LinuxSyscall(SimCCSyscall):
+SimCCO64 = SimCCN64  # compatibility
+
+
+class SimCCN64LinuxSyscall(SimCCSyscall):
     ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
     FP_ARG_REGS = []  # TODO: ???
     RETURN_VAL = SimRegArg("v0", 8)
@@ -2136,7 +2139,7 @@ CC = {
         SimCCO32,
     ],
     "MIPS64": [
-        SimCCO64,
+        SimCCN64,
     ],
     "PPC32": [
         SimCCPowerPC,
@@ -2160,7 +2163,7 @@ DEFAULT_CC: Dict[str, Type[SimCC]] = {
     "ARMHF": SimCCARMHF,
     "ARMCortexM": SimCCARM,
     "MIPS32": SimCCO32,
-    "MIPS64": SimCCO64,
+    "MIPS64": SimCCN64,
     "PPC32": SimCCPowerPC,
     "PPC64": SimCCPowerPC64,
     "AARCH64": SimCCAArch64,
@@ -2173,6 +2176,11 @@ DEFAULT_CC: Dict[str, Type[SimCC]] = {
 
 def register_default_cc(arch: str, cc: Type[SimCC]):
     DEFAULT_CC[arch] = cc
+    if arch not in CC:
+        CC[arch] = [cc]
+    else:
+        if cc not in CC[arch]:
+            CC[arch].append(cc)
 
 
 ARCH_NAME_ALIASES = {
@@ -2269,8 +2277,8 @@ SYSCALL_CC: Dict[str, Dict[str, Type[SimCCSyscall]]] = {
         "Linux": SimCCO32LinuxSyscall,
     },
     "MIPS64": {
-        "default": SimCCO64LinuxSyscall,
-        "Linux": SimCCO64LinuxSyscall,
+        "default": SimCCN64LinuxSyscall,
+        "Linux": SimCCN64LinuxSyscall,
     },
     "PPC32": {
         "default": SimCCPowerPCLinuxSyscall,
