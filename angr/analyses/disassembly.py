@@ -1111,7 +1111,7 @@ class Disassembly(Analysis):
                 aligned_block_addr = block.addr
                 cs = self.project.arch.capstone
             if block.bytestr is None:
-                bytestr = self.project.loader.memory.load(aligned_block_addr, block.size)
+                bytestr = self.project.factory.block(aligned_block_addr, block.size).bytes
             else:
                 bytestr = block.bytestr
             self.block_to_insn_addrs[block.addr] = []
