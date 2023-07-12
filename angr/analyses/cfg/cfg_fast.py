@@ -1459,7 +1459,31 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 self._insert_job(job)
                 self._register_analysis_job(addr, job)
 
+    def _repair_edges(self):
+        remaining_edges_to_repair = []
+
+        for edge in self._model.edges_to_repair:
+            (src, dst, data) = edge
+
+            if not self._model.graph.has_node(src):
+                continue  # Source no longer in the graph, drop it
+
+            new_dst = self._model.get_any_node(dst.addr)
+            if new_dst is None:
+                # The node may be defined in a later edit. Keep it for subsequent analyses.
+                l.debug("Cannot repair edge %s at this time, destination node does not exist", edge)
+                remaining_edges_to_repair.append(edge)
+                continue
+
+            if not self._model.graph.has_edge(src, new_dst):
+                l.debug("Repairing edge: %s", edge)
+                self._graph_add_edge(new_dst, src, data["jumpkind"], data["ins_addr"], data["stmt_idx"])
+
+        self._model.edges_to_repair = remaining_edges_to_repair
+
     def _post_analysis(self):
+        self._repair_edges()
+
         self._make_completed_functions()
 
         if self._normalize:
