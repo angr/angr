@@ -90,9 +90,6 @@ class VariableRecoveryBase(Analysis):
         self._instates: Dict[Any, VariableRecoveryStateBase] = {}
         self._dominance_frontiers = None
 
-        if func.addr in self.variable_manager:
-            del self.variable_manager[func.addr]
-
     #
     # Public methods
     #
