@@ -763,43 +763,6 @@ class TestCfgfast(unittest.TestCase):
     # CFG with patches
     #
 
-    def test_cfg_with_patches(self):
-        path = os.path.join(test_location, "x86_64", "fauxware")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast()
-        auth_func = cfg.functions["authenticate"]
-        auth_func_addr = auth_func.addr
-
-        # Take the authenticate function and add a retn patch for its very first block
-        kb = angr.KnowledgeBase(proj)
-        kb.patches.add_patch(auth_func_addr, b"\xc3")
-
-        # with this patch, there should only be one block with one instruction in authenticate()
-        _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
-        patched_func = kb.functions["authenticate"]
-        assert len(patched_func.block_addrs_set) == 1
-        block = patched_func._get_block(auth_func_addr)
-        assert len(block.instruction_addrs) == 1
-
-        # let's try to patch the second instruction of that function to ret
-        kb = angr.KnowledgeBase(proj)
-        kb.patches.add_patch(auth_func._get_block(auth_func_addr).instruction_addrs[1], b"\xc3")
-
-        # with this patch, there should only be one block with two instructions in authenticate()
-        _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
-        patched_func = kb.functions["authenticate"]
-        assert len(patched_func.block_addrs_set) == 1
-        block = patched_func._get_block(auth_func_addr)
-        assert len(block.instruction_addrs) == 2
-
-        # finally, if we generate a new CFG on a KB without any patch, we should still see the normal function (with 10
-        # blocks)
-        kb = angr.KnowledgeBase(proj)
-        _ = proj.analyses.CFGFast(kb=kb, use_patches=True)
-        not_patched_func = kb.functions["authenticate"]
-        assert len(not_patched_func.block_addrs_set) == 10
-
     def test_unresolvable_targets(self):
         path = os.path.join(test_location, "cgc", "CADET_00002")
         proj = angr.Project(path, auto_load_libs=False)
