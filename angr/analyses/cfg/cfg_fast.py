@@ -1171,8 +1171,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         # Initialize variables used during analysis
         self._pending_jobs: PendingJobs = PendingJobs(self.functions, self._deregister_analysis_job)
-        self._traced_addresses: Set[int] = set()
+        self._traced_addresses: Set[int] = {a for a, n in self._nodes_by_addr.items() if n}
         self._function_returns = defaultdict(set)
+
+        # Populate known objects in segment tracker
+        # FIXME: Cache the segment list, or add a new CFG analysis state tracking object
+        for n in self.model.nodes():
+            self._seg_list.occupy(n.addr, n.size, "code")
+        for d in self.model.memory_data.values():
+            self._seg_list.occupy(d.addr, d.size, d.sort)
 
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
