@@ -730,7 +730,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             )
             cross_references = extra_cross_references
 
-        # data references collection and force smart scan mst be enabled at the same time. otherwise decoding errors
+        # data references collection and force smart scan must be enabled at the same time. otherwise decoding errors
         # caused by decoding data will lead to incorrect cascading re-lifting, which is suboptimal
         if force_smart_scan and not data_references:
             l.warning(
@@ -2854,7 +2854,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         :return:    None
         """
 
-        # add a node from this node to UnresolvableJumpTarget or UnresolvalbeCallTarget node,
+        # add a node from this node to UnresolvableJumpTarget or UnresolvableCallTarget node,
         # depending on its jump kind
         src_node = self._nodes[jump.addr]
         if jump.jumpkind == "Ijk_Boring":
