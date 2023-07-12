@@ -10,7 +10,7 @@ from pyvex.expr import RdTmp
 from archinfo.arch_arm import is_arm_arch, ArchARMHF
 import ailment
 
-from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc, unify_arch_name
+from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc
 from ..sim_type import (
     SimTypeInt,
     SimTypeFunction,
