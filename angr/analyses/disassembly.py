@@ -987,7 +987,7 @@ class Disassembly(Analysis):
         elif ranges is not None:
             cfg = self.project.kb.cfgs.get_most_accurate()
             fallback = True
-            if cfg is not None:
+            if self._block_bytes is None and cfg is not None:
                 try:
                     self._graph = cfg.graph
                     for start, end in ranges:
