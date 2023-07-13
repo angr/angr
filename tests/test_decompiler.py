@@ -1640,7 +1640,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(
             f,
             cfg=cfg.model,
-            options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)]),
+            options=decompiler_options,
             optimization_passes=all_optimization_passes,
         )
         self._print_decompilation_result(d)
@@ -1649,8 +1649,8 @@ class TestDecompiler(unittest.TestCase):
         lines = [line.strip("\n ") for line in d.codegen.text.split("\n")]
         for i, line in enumerate(lines):
             if line.startswith("xalloc_die();"):
-                assert lines[i - 1] == "{"
-                assert lines[i + 1] == "}"
+                assert lines[i - 1].strip().startswith("if")
+                assert lines[i + 1].strip() == "}"
                 break
         else:
             assert False, "xalloc_die() is not found"
@@ -2392,12 +2392,12 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["skip"]
         d = proj.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)])
+            f, cfg=cfg.model, options=decompiler_options
         )
         self._print_decompilation_result(d)
 
         text = d.codegen.text
-        good_if_return = "if (!a0)\n    {\n        return 1;\n    }\n"
+        good_if_return = "if (!a0)\n        return 1;\n"
         first_if_location = text.find("if")
 
         # the first if in the program should have no else, and that first else should be a simple return
