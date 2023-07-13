@@ -844,7 +844,7 @@ class CIfElse(CStatement):
         self,
         condition_and_nodes: List[Tuple[CExpression, Optional[CStatement]]],
         else_node=None,
-        simplify_else_scope=True,
+        simplify_else_scope=False,
         cstyle_ifs=True,
         tags=None,
         **kwargs,
@@ -2836,7 +2836,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             condition_and_nodes,
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
-            and structured_node_is_simple_return(condition_node.true_node, self.ail_graph),
+            and structured_node_is_simple_return(condition_node.true_node, self.ail_graph)
+            and else_node is not None,
             cstyle_ifs=self.cstyle_ifs,
             tags=tags,
             codegen=self,
