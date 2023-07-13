@@ -23,6 +23,7 @@ from ..utils import (
     is_empty_or_label_only_node,
     has_nonlabel_statements,
     first_nonlabel_statement,
+    structured_node_is_simple_return
 )
 from .structurer_nodes import (
     ConditionNode,
@@ -39,7 +40,6 @@ from .structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
 )
 from .structurer_base import StructurerBase
-from ..structured_codegen.c import is_simple_return_node
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -1915,18 +1915,16 @@ class PhoenixStructurer(StructurerBase):
         other_edges = []
         idoms = networkx.immediate_dominators(full_graph, head)
         if networkx.is_directed_acyclic_graph(full_graph):
-            _, inv_idoms = inverted_idoms(full_graph)
             acyclic_graph = full_graph
         else:
             acyclic_graph = to_acyclic_graph(full_graph, loop_heads=[head])
-            _, inv_idoms = inverted_idoms(acyclic_graph)
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
-            if not dominates(idoms, src, dst) and not dominates(inv_idoms, dst, src):
+            if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
-            elif not dominates(idoms, src, dst) and dominates(inv_idoms, dst, src):
+            elif not dominates(idoms, src, dst) and dominates(idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     secondary_edges.append((src, dst))
             else:
@@ -1934,7 +1932,7 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         ordered_nodes = GraphUtils.quasi_topological_sort_nodes(acyclic_graph, loop_heads=[head])
-        node_seq = {nn: idx for (idx, nn) in enumerate(ordered_nodes)}
+        node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
 
         if all_edges_wo_dominance:
             all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
@@ -2289,7 +2287,7 @@ class PhoenixStructurer(StructurerBase):
             candidate_edges = best_edges
             best_edges = []
             for src, dst in candidate_edges:
-                if graph.has_node(dst) and is_simple_return_node(dst, graph):
+                if graph.has_node(dst) and structured_node_is_simple_return(dst, graph):
                     best_edges.append((src, dst))
 
             # we can generate a set with no edges, so we need to check that as well
