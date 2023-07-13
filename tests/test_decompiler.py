@@ -2391,9 +2391,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["skip"]
-        d = proj.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options
-        )
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         text = d.codegen.text
