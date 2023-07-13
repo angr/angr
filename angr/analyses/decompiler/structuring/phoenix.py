@@ -1921,7 +1921,7 @@ class PhoenixStructurer(StructurerBase):
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
-            if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
+            if not dominates(idoms, src, dst):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
             elif not dominates(idoms, src, dst) and dominates(idoms, dst, src):
@@ -2262,14 +2262,26 @@ class PhoenixStructurer(StructurerBase):
             return edges
 
         best_edges = edges
-        if self._phoenix_improved:
+        # TODO: the graph we have here is not an accurate graph and can have no "entry node". We need a better graph.
+        try:
+            entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+        except IndexError:
+            entry_node = None
+
+        if self._phoenix_improved and entry_node is not None:
             # the first heuristic to try is checking every edge in the list, remove it,
             # then count how many post-dominators exist in the graph. Most post-dominators win.
             edge_postdom_count = {}
-            entry_node = [node for node in graph.nodes if graph.in_degree(node) == 0][0]
+            edge_sibling_count = {}
             for edge in edges:
+                _, dst = edge
                 graph_copy = networkx.DiGraph(graph)
                 graph_copy.remove_edge(*edge)
+                sibling_cnt = graph_copy.in_degree(dst)
+                if not sibling_cnt:
+                    continue
+
+                edge_sibling_count[edge] = sibling_cnt
                 post_dom_graph = PostDominators(graph_copy, entry_node).post_dom
                 post_doms = set()
                 for postdom_node, dominatee in post_dom_graph.edges():
@@ -2277,8 +2289,21 @@ class PhoenixStructurer(StructurerBase):
                         post_doms.add((postdom_node, dominatee))
                 edge_postdom_count[edge] = len(post_doms)
 
-            max_cnt = max(edge_postdom_count.values())
-            best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_cnt]
+            # for our first decision, edges that share the least amount of edge siblings should
+            # be virtualized
+            min_sibling_count = min(edge_sibling_count.values())
+            best_edges = [edge for edge, cnt in edge_sibling_count.items() if cnt == min_sibling_count]
+            if len(best_edges) == 1:
+                return best_edges
+
+            for edge in list(edge_postdom_count.keys()):
+                if edge not in best_edges:
+                    del edge_postdom_count[edge]
+
+            # next, any edge virtualization which increases the overall post-dominators of the graph
+            # ought to be virtualized
+            max_postdom_count = max(edge_postdom_count.values())
+            best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_postdom_count]
             if len(best_edges) == 1:
                 return best_edges
 
