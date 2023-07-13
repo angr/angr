@@ -1921,10 +1921,10 @@ class PhoenixStructurer(StructurerBase):
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
-            if not dominates(idoms, src, dst):
+            if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
-            elif not dominates(idoms, src, dst) and dominates(idoms, dst, src):
+            elif not dominates(idoms, src, dst):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     secondary_edges.append((src, dst))
             else:
