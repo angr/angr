@@ -525,7 +525,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield header_cmt, None
 
         # return type
-        yield self.functy.returnty.c_repr(name="").strip(" "), None
+        yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
         yield " ", None
         # function name
         if self.demangled_name and self.show_demangled_name:
@@ -1880,7 +1880,7 @@ class CTypeCast(CExpression):
         paren = CClosingObject("(")
         if self.codegen.show_casts:
             yield "(", paren
-            yield f"{self.dst_type.c_repr(name=None)}", self
+            yield f"{self.dst_type.c_repr(name=None)}", self.dst_type
             yield ")", paren
 
         if isinstance(self.expr, CBinaryOp):
