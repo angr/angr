@@ -177,7 +177,7 @@ class StateGraphRecoveryAnalysis(Analysis):
 
         abs_state = self.fields.generate_abstract_state(init_state)
         abs_state_id = next(abs_state_id_ctr)
-        self.state_graph.add_node((('NODE_CTR', abs_state_id),) + abs_state)
+        self.state_graph.add_node((('NODE_CTR', abs_state_id),) + abs_state, outvars = dict(abs_state))
         state_queue = [(init_state, abs_state_id, abs_state, None, None, None, None, None, None, None)]
         if self._switch_on is None:
             countdown_timer = 0
@@ -394,6 +394,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                 continue
 
             known_transitions.append(transition)
+            self.state_graph.add_node((('NODE_CTR', abs_state_id),) + abs_state, outvars=dict(abs_state))
             self.state_graph.add_edge((('NODE_CTR', prev_abs_state_id),) + prev_abs_state,
                                       (('NODE_CTR', abs_state_id),) + abs_state,
                                       time_delta=time_delta,
@@ -598,6 +599,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                         new_id = next(abs_state_id_ctr)
                         print(f"new_id:{new_id}")
                         pre_edge_data = self.state_graph.get_edge_data(pre_node, state_node)
+                        self.state_graph.add_node((('NODE_CTR', new_id),) + state_node[1:], outvars=dict(state_node[1:]))
                         self.state_graph.add_edge(pre_node,
                                                   (('NODE_CTR', new_id),) + state_node[1:],
                                                   time_delta=pre_edge_data['time_delta'],
