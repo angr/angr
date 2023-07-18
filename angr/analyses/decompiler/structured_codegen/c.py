@@ -174,6 +174,71 @@ def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
     return None
 
 
+def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
+    """
+    Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
+    """
+    if isinstance(ty, SimStruct):
+        if full:
+            # struct def preamble
+            yield indent_str, None
+            yield "typedef struct ", None
+            yield ty.name, ty
+            yield " {\n", None
+
+            # each of the fields
+            # fields should be indented
+            new_indent_str = (
+                " " * 4
+            ) + indent_str  # TODO: hardcoded as 4 character space indents, which is same as SimStruct.c_repr
+            for k, v in ty.fields.items():
+                yield new_indent_str, None
+                yield from type_to_c_repr_chunks(v, name=k, name_type=CStructFieldNameDef(k), full=False, indent_str="")
+                yield ";\n", None
+
+            # struct def postamble
+            yield "} ", None
+            yield ty.name, ty
+            yield ";\n\n", None
+
+        else:
+            assert name
+            assert name_type
+            yield indent_str, None
+            yield ty.name, ty
+            yield " ", None
+            if name:
+                yield name, name_type
+    elif isinstance(ty, SimType):
+        assert name
+        assert name_type
+        raw_type_str = ty.c_repr(name=name)
+        assert name in raw_type_str
+
+        type_pre, type_post = raw_type_str.split(name, 1)
+
+        if type_pre.endswith(" "):
+            type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
+            type_pre = type_pre.rstrip(" ")
+        else:
+            type_pre_spaces = ""
+
+        yield indent_str, None
+        yield type_pre, ty
+        if type_pre_spaces:
+            yield type_pre_spaces, None
+        yield name, name_type
+        yield type_post, CArrayTypeLength(type_post)
+    # This case was used when generating externs, apparently there can be cases where the name is not known
+    elif ty is None:
+        assert name
+        assert name_type
+        yield "<missing-type> ", None
+        yield name, name_type
+    else:
+        assert False
+
+
 #
 #   C Representation Classes
 #
@@ -256,7 +321,7 @@ class CConstruct:
                                 pos_to_node.add_mapping(pos, len(s), obj)
 
                 # add (), {}, [], and [20] to mapping for highlighting as well as the full functions name
-                elif isinstance(obj, (CClosingObject, CFunction, CArrayTypeLength)):
+                elif isinstance(obj, (CClosingObject, CFunction, CArrayTypeLength, CStructFieldNameDef)):
                     if s is None:
                         continue
 
@@ -429,23 +494,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:
-                    if isinstance(var_type, SimType):
-                        raw_type_str = var_type.c_repr(name=name)
-                    else:
-                        raw_type_str = f"{var_type} {name}"
-
-                    assert name in raw_type_str
-                    type_pre, type_post = raw_type_str.split(name, 1)
-                    if type_pre.endswith(" "):
-                        type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
-                        type_pre = type_pre.rstrip(" ")
-                    else:
-                        type_pre_spaces = ""
-                    yield type_pre, var_type
-                    if type_pre_spaces:
-                        yield type_pre_spaces, None
-                    yield name, cvariable
-                    yield type_post, CArrayTypeLength(type_post)
+                    yield from type_to_c_repr_chunks(var_type, name=name, name_type=cvariable)
                     yield ";  // ", None
                     yield variable.loc_repr(self.codegen.project.arch), None
                 # multiple types
@@ -478,41 +527,17 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                                 field = field.pts_to
                         if isinstance(field, SimStruct) and field not in local_types:
                             local_types.append(field)
-                c_repr = ty.c_repr(full=True)
-                c_repr = f"typedef {c_repr} {ty._name}"
-                first = True
-                for line in c_repr.split("\n"):
-                    if first:
-                        first = False
-                    else:
-                        yield "\n", None
-                    yield indent_str, None
-                    yield line, None
-                yield ";\n\n", None
+
+                yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
         if self.codegen.show_externs and self.codegen.cexterns:
             for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
                 if v.type is None:
                     varname = v.c_repr()
-                    raw_typed_varname = f"<missing-type> {varname}"
                 else:
                     varname = v.variable.name
-                    raw_typed_varname = v.type.c_repr(name=varname)
-                # FIXME: Add a .c_repr_chunks() to SimType so that we no longer need to parse the string output
-                varname_pos = raw_typed_varname.rfind(varname)
-                type_pre = raw_typed_varname[:varname_pos]
-                if type_pre.endswith(" "):
-                    type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
-                    type_pre = type_pre.rstrip(" ")
-                else:
-                    type_pre_spaces = ""
-                type_post = raw_typed_varname[varname_pos + len(varname) :]
                 yield "extern ", None
-                yield type_pre, v.type
-                if type_pre_spaces:
-                    yield type_pre_spaces, None
-                yield varname, v
-                yield type_post, v.type
+                yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
                 yield ";\n", None
             yield "\n", None
 
@@ -546,22 +571,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 variable_name = variable.name
             else:
                 variable_name = arg.c_repr()
-            raw_type_str: str = arg_type.c_repr(name=variable_name)
-            # FIXME: Add a .c_repr_chunks() to SimType so that we no longer need to parse the string output
-            assert variable_name in raw_type_str
-            varname_pos = raw_type_str.rfind(variable_name)
-            type_pre, type_post = raw_type_str[:varname_pos], raw_type_str[varname_pos + len(variable_name) :]
-            if type_pre.endswith(" "):
-                type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
-                type_pre = type_pre.rstrip(" ")
-            else:
-                type_pre_spaces = ""
 
-            yield type_pre, arg_type
-            if type_pre_spaces:
-                yield type_pre_spaces, None
-            yield variable_name, arg
-            yield type_post, arg_type
+            yield from type_to_c_repr_chunks(arg_type, name=variable_name, name_type=variable, full=False)
+
         yield ")", paren
         # function body
         if self.codegen.braces_on_own_lines:
@@ -2152,6 +2164,19 @@ class CArrayTypeLength:
 
     def __init__(self, text):
         self.text = text
+
+
+class CStructFieldNameDef:
+    """A class to represent the name of a defined field in a struct.
+    Needed because it's not a CVariable or a CStructField (because
+    CStructField is the access of a CStructField).
+    Example: In "struct foo { int bar; }, this would be "bar".
+    """
+
+    __slots__ = ("name",)
+
+    def __init__(self, name):
+        self.name = name
 
 
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
