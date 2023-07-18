@@ -255,8 +255,8 @@ class CConstruct:
                             if pos_to_node is not None:
                                 pos_to_node.add_mapping(pos, len(s), obj)
 
-                # add (), {}, and [] to mapping for highlighting as well as the full functions name
-                elif isinstance(obj, (CClosingObject, CFunction)):
+                # add (), {}, [], and [20] to mapping for highlighting as well as the full functions name
+                elif isinstance(obj, (CClosingObject, CFunction, CArrayTypeLength)):
                     if s is None:
                         continue
 
@@ -445,7 +445,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     if type_pre_spaces:
                         yield type_pre_spaces, None
                     yield name, cvariable
-                    yield type_post, var_type
+                    yield type_post, CArrayTypeLength(type_post)
                     yield ";  // ", None
                     yield variable.loc_repr(self.codegen.project.arch), None
                 # multiple types
@@ -2140,6 +2140,18 @@ class CClosingObject:
 
     def __init__(self, opening_symbol):
         self.opening_symbol = opening_symbol
+
+
+class CArrayTypeLength:
+    """
+    A class to represent the type information of fixed-size array lengths.
+    Examples: In "char foo[20]", this would be the "[20]".
+    """
+
+    __slots__ = ("text",)
+
+    def __init__(self, text):
+        self.text = text
 
 
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
