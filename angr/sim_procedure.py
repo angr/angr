@@ -449,7 +449,11 @@ class SimProcedure:
             ret_addr = self._compute_ret_addr(expr)  # pylint:disable=assignment-from-no-return
         elif self.use_state_arguments:
             # in case we guess the prototype wrong, use the return value's size as a hint to fix it
-            if self.guessed_prototype and isinstance(expr, claripy.ast.bv.BV) and self.prototype.returnty.size != len(expr):
+            if (
+                self.guessed_prototype
+                and isinstance(expr, claripy.ast.bv.BV)
+                and self.prototype.returnty.size != len(expr)
+            ):
                 self.fix_prototype_returnty(len(expr))
 
             ret_addr = self.cc.teardown_callsite(self.state, return_val=expr, prototype=self.prototype)
