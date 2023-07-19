@@ -4,6 +4,7 @@ import itertools
 import logging
 from typing import TYPE_CHECKING, Union, Tuple
 
+import claripy
 from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
 
@@ -410,6 +411,12 @@ class SimProcedure:
         p = procedure(project=self.project, **kwargs)
         return p.execute(self.state, None, arguments=e_args)
 
+    def fix_prototype_returnty(self, ret_size):
+        if ret_size not in [8, 16, 32, 64]:
+            raise NotImplementedError(f"return type of size {ret_size} is not handled!")
+        returnty = SimTypeNum(ret_size, signed=False, label=f"u{ret_size}")
+        self.prototype.returnty = returnty
+
     def ret(self, expr=None):
         """
         Add an exit representing a return from this function.
@@ -441,7 +448,15 @@ class SimProcedure:
         if isinstance(self.addr, SootAddressDescriptor):
             ret_addr = self._compute_ret_addr(expr)  # pylint:disable=assignment-from-no-return
         elif self.use_state_arguments:
-            ret_addr = self.cc.teardown_callsite(self.state, expr, prototype=self.prototype)
+            # in case we guess the prototype wrong, use the return value's size as a hint to fix it
+            if (
+                self.guessed_prototype
+                and isinstance(expr, claripy.ast.bv.BV)
+                and self.prototype.returnty.size != len(expr)
+            ):
+                self.fix_prototype_returnty(len(expr))
+
+            ret_addr = self.cc.teardown_callsite(self.state, return_val=expr, prototype=self.prototype)
 
         if not self.should_add_successors:
             l.debug("Returning without setting exits due to 'internal' call.")
@@ -569,6 +584,6 @@ class SimProcedure:
 from . import sim_options as o
 from angr.errors import SimProcedureError, SimShadowStackError
 from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DEFAULT_CC, SimTypeFunction, SimTypePointer, SimTypeChar, ArgSession
+from angr.calling_conventions import DEFAULT_CC, SimTypeFunction, SimTypePointer, SimTypeChar, ArgSession, SimTypeNum
 from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from .sim_type import parse_signature, parse_type
