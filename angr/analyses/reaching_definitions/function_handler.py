@@ -371,9 +371,14 @@ class FunctionHandler:
             for atom in data.ret_atoms:
                 data.depends(atom, *sources, apply_at_callsite=True)
 
-    handle_indirect_function = handle_generic_function
-    handle_local_function = handle_generic_function
-    handle_external_function = handle_generic_function
+    def handle_indirect_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+        self.handle_generic_function(state, data)
+
+    def handle_local_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+        self.handle_generic_function(state, data)
+
+    def handle_external_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+        self.handle_generic_function(state, data)
 
     @staticmethod
     def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
