@@ -1,11 +1,8 @@
 name: Test on Windows and macOS
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   macos:
