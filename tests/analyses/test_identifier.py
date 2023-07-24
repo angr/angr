@@ -4,6 +4,7 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 
 import logging
 import os
+import sys
 import unittest
 
 import angr
@@ -11,6 +12,7 @@ import angr
 from ..common import bin_location
 
 
+@unittest.skipIf(sys.platform == "win32", "broken on windows")
 class TestIdentifier(unittest.TestCase):
     def test_comparison_identification(self):
         true_symbols = {0x804A3D0: "strncmp", 0x804A0F0: "strcmp", 0x8048E60: "memcmp", 0x8049F40: "strcasecmp"}

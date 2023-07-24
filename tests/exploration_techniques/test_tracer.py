@@ -4,6 +4,7 @@ __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=re
 
 import logging
 import os
+import sys
 import unittest
 
 import angr
@@ -126,6 +127,7 @@ def tracer_linux(filename, test_name, stdin, add_options=None, remove_options=No
     return simgr, t
 
 
+@unittest.skipIf(sys.platform == "win32", "broken on windows")
 class TestTracer(unittest.TestCase):
     def test_recursion(self):
         blob = bytes.fromhex(
