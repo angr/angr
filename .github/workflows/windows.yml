@@ -40,6 +40,7 @@ jobs:
           source $HOME/venv/bin/activate
           pip install --no-build-isolation ./angr[testing]
         name: Install angr
+        shell: cmd
       - run: |
           source $HOME/venv/bin/activate
           pytest -n auto angr
