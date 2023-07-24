@@ -46,3 +46,4 @@ jobs:
         name: Run pytest
         env:
           SKIP_SLOW_TESTS: true
+        shell: cmd
