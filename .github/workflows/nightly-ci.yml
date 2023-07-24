@@ -11,3 +11,5 @@ jobs:
     with:
       nightly: true
     secrets: inherit
+  macos:
+    uses: ./macos.yml

@@ -3,7 +3,7 @@ import logging
 import unittest
 import os
 
-from common import compile_c, has_32_bit_compiler_support
+from common import compile_c, has_32_bit_compiler_support, skip_if_not_linux
 
 import pyvex
 
@@ -2870,6 +2870,7 @@ class TestJumpTableResolver(unittest.TestCase):
         ]
 
 
+@skip_if_not_linux
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """
     Call table tests for JumpTableResolver
