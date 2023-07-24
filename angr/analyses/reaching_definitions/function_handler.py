@@ -1,13 +1,13 @@
 from typing import TYPE_CHECKING, List, Set, Optional, Union
 from dataclasses import dataclass, field
 import logging
-
 from cle import Symbol
 from cle.backends import ELF
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.sim_type import SimTypeBottom
 from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, SpOffset
+from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.calling_conventions import SimCC
 from angr.sim_type import SimTypeFunction
 from angr.knowledge_plugins.key_definitions.definition import Definition
@@ -34,6 +34,7 @@ class FunctionEffect:
     value: Optional[MultiValues] = None
     sources_defns: Optional[Set[Definition]] = None
     apply_at_callsite: bool = False
+    tags: Optional[Set[Tag]] = None
 
 
 @dataclass
@@ -116,11 +117,15 @@ class FunctionCallData:
         *sources: Atom,
         value: Optional[MultiValues] = None,
         apply_at_callsite: bool = False,
+        tags: Optional[Set[Tag]] = None,
     ):
         """
         Mark a single effect of the current function, including the atom being modified, the input atoms on which that
         output atom depends, the precise (or imprecise!) value to store, and whether the effect should be applied
         during the function or afterwards, at the callsite.
+
+        The tags are used to annotate the Definition of the Atom that will be created,
+        when the function effects are applied to the state.
 
         The atom being modified may be None to mark uses of the source atoms which do not have any explicit sinks.
         """
@@ -131,7 +136,9 @@ class FunctionCallData:
                 self.address,
             )
         else:
-            self.effects.append(FunctionEffect(dest, set(sources), value=value, apply_at_callsite=apply_at_callsite))
+            self.effects.append(
+                FunctionEffect(dest, set(sources), value=value, apply_at_callsite=apply_at_callsite, tags=tags)
+            )
 
 
 # pylint: disable=unused-argument, no-self-use
@@ -328,6 +335,7 @@ class FunctionHandler:
                     value,
                     endness=state.arch.memory_endness,
                     uses=effect.sources_defns or set(),
+                    tags=effect.tags,
                 )
                 # categorize the output defn as either ret or other based on the atoms
                 for defn in defs:
