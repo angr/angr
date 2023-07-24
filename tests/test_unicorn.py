@@ -6,7 +6,7 @@ import re
 import angr
 from angr import options as so
 
-from common import slow_test
+from common import requires_unicorn, slow_test
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..")
 
@@ -31,6 +31,7 @@ def _compare_trace(trace, expected):
         assert trace_item_str == expected_str
 
 
+@requires_unicorn
 def test_stops():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
@@ -174,10 +175,12 @@ def run_longinit(arch):
     assert s.posix.dumps(1) == b"You entered AAAAAAAAA and BBBBBBBBB!\n"
 
 
+@requires_unicorn
 def test_longinit_i386():
     run_longinit("i386")
 
 
+@requires_unicorn
 def test_longinit_x86_64():
     run_longinit("x86_64")
 
@@ -197,6 +200,7 @@ def broken_fauxware_arm():
     )
 
 
+@requires_unicorn
 def test_fauxware():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "fauxware"), auto_load_libs=False)
     s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
@@ -213,6 +217,7 @@ def test_fauxware():
     )
 
 
+@requires_unicorn
 def test_fauxware_aggressive():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "fauxware"), auto_load_libs=False)
     s_unicorn = p.factory.entry_state(
@@ -229,6 +234,7 @@ def test_fauxware_aggressive():
     assert len(pg.deadended) == 1
 
 
+@requires_unicorn
 def test_partial_reads():
     """
     This test case if unicorn engine correctly handles case when symbolic taint is introduced by the second partial read
@@ -279,6 +285,7 @@ def run_similarity(binpath, depth, prehook=None):
     cc.run(depth=depth)
 
 
+@requires_unicorn
 @slow_test
 def test_similarity_fauxware():
     def cooldown(pg):
@@ -289,6 +296,7 @@ def test_similarity_fauxware():
     run_similarity(os.path.join("binaries", "tests", "i386", "fauxware"), 1000, prehook=cooldown)
 
 
+@requires_unicorn
 def test_fp():
     with open(os.path.join(test_location, "binaries", "tests_src", "manyfloatsum.c")) as fp:
         type_cache = angr.sim_type.parse_defns(fp.read())
@@ -313,6 +321,7 @@ def test_fp():
         assert answer == result_concrete
 
 
+@requires_unicorn
 def test_unicorn_pickle():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "fauxware"), auto_load_libs=False)
 
@@ -365,6 +374,7 @@ def test_unicorn_pickle():
     )
 
 
+@requires_unicorn
 def test_concrete_transmits():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "cgc", "PIZZA_00001"), auto_load_libs=False)
     inp = bytes.fromhex("320a310a0100000005000000330a330a340a")
@@ -395,6 +405,7 @@ def test_concrete_transmits():
     )
 
 
+@requires_unicorn
 def test_inspect():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
@@ -444,6 +455,7 @@ def test_inspect():
     assert collect_trace(so.unicorn) == collect_trace(set())
 
 
+@requires_unicorn
 def test_explore():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
@@ -465,6 +477,7 @@ def test_explore():
     assert pg_explore_avoid.avoid[0].addr == addr
 
 
+@requires_unicorn
 def test_single_step():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
@@ -486,6 +499,7 @@ def test_single_step():
     assert successors2[0].addr == step5
 
 
+@requires_unicorn
 def test_symbolic_flags_preserved_on_stop():
     """
     Test if symbolic flags are preserved when unicorn engine stops. This is needed for cases where compare is performed
