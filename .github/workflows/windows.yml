@@ -9,6 +9,9 @@ jobs:
   windows:
     name: Test Windows
     runs-on: windows-2022
+    strategy:
+      matrix:
+        runnner_id: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -42,7 +45,7 @@ jobs:
         shell: cmd
       - run: |
           call %USERPROFILE%\venv\Scripts\activate
-          pytest -n auto angr
+          pytest -n auto --splits 10 --group ${{ matrix.runner_id }} angr
         name: Run pytest
         env:
           SKIP_SLOW_TESTS: true
