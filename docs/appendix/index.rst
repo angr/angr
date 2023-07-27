@@ -5,7 +5,6 @@ Appendix
    :maxdepth: 1
 
    cheatsheet
-   faq
    ops
    options
    more-examples
