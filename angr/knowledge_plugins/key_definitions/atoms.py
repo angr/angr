@@ -301,3 +301,24 @@ class MemoryLocation(Atom):
 
     def _identity(self):
         return self.addr, self.size, self.endness
+
+
+class AbstractSink(Atom):
+    """
+    Represents the abstract idea of a data sink
+
+    This is useful for dataflow analysis tasks that aim to answer more questions such as
+    "does this value/object containing sensitive data reach a function that sends it out to the network?"
+
+    A FunctionHandler that implements a network send function can then simply declare that a value passed is sent out
+    `data.depends(AbstractSink("network"), Atom.reg("rax", arch=state.arch))`
+
+    """
+
+    def __init__(self, name):
+        # Sinks have no real sizes, so we just set it to 0
+        super().__init__(size=0)
+        self.name = name
+
+    def _identity(self):
+        return self.name
