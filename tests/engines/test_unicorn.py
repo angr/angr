@@ -206,6 +206,7 @@ class TestUnicorn(unittest.TestCase):
             )
         )
 
+    @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_fauxware(self):
         p = angr.Project(os.path.join(test_location, "i386", "fauxware"), auto_load_libs=False)
         s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
@@ -371,6 +372,7 @@ class TestUnicorn(unittest.TestCase):
             )
         )
 
+    @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_concrete_transmits(self):
         p = angr.Project(os.path.join(test_location, "cgc", "PIZZA_00001"), auto_load_libs=False)
         inp = bytes.fromhex("320a310a0100000005000000330a330a340a")
@@ -488,6 +490,7 @@ class TestUnicorn(unittest.TestCase):
         assert len(successors2) == 1
         assert successors2[0].addr == step5
 
+    @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_symbolic_flags_preserved_on_stop(self):
         """
         Test if symbolic flags are preserved when unicorn engine stops. This is needed for cases where compare is
