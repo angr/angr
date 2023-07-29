@@ -836,11 +836,11 @@ class CForLoop(CStatement):
             else:
                 yield " ", None
 
-                yield "{", brace
-                yield "\n", None
-                yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-                yield indent_str, None
-                yield "}", brace
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
         else:
             yield ";", None
         yield "\n", None
