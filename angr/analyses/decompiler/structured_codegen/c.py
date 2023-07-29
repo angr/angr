@@ -829,17 +829,18 @@ class CForLoop(CStatement):
             yield from self.iterator.c_repr_chunks(indent=0, asexpr=True)
         yield ")", paren
 
-        if self.codegen.braces_on_own_lines:
-            yield "\n", None
-            yield indent_str, None
-        else:
-            yield " ", None
         if self.body is not None:
-            yield "{", brace
-            yield "\n", None
-            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-            yield indent_str, None
-            yield "}", brace
+            if self.codegen.braces_on_own_lines:
+                yield "\n", None
+                yield indent_str, None
+            else:
+                yield " ", None
+
+                yield "{", brace
+                yield "\n", None
+                yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+                yield indent_str, None
+                yield "}", brace
         else:
             yield ";", None
         yield "\n", None
