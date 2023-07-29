@@ -2014,7 +2014,9 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("phoenix")
     def test_decompiling_who_scan_entries(self, decompiler_options=None):
-        # order of edge virtualization matters. suboptimal order will lead to more gotos.
+        # order of edge virtualization matters. the default edge virtualization order (post-ordering) will lead to two
+        # gotos. virtualizing 0x401361 -> 0x4012b5 will lead to only one goto (because it's the edge that the
+        # compiler's optimizations created).
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "who.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -2024,7 +2026,13 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         # it should make somewhat sense
-        assert d.codegen.text.count("goto ") == 1
+        assert d.codegen.text.count("goto ") == 2
+
+        # a bug in propagator was leading to the removal of the comparison at 0x4012b8
+        lines = d.codegen.text.split("\n")
+        label_4012b8_index = lines.index("LABEL_4012b8:")
+        assert label_4012b8_index != -1
+        assert lines[label_4012b8_index + 1].endswith("== 2)")
 
     @structuring_algo("phoenix")
     def test_decompiling_tr_build_spec_list(self, decompiler_options=None):
@@ -2050,9 +2058,9 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert d.codegen.text.count("goto ") == 3
-        assert d.codegen.text.count("goto LABEL_400d08;") == 2
-        # goto 400e40 this is the fake goto that can be eliminated if cross-jumping reverter is present
-        assert d.codegen.text.count("goto LABEL_400e40;") == 1
+        assert d.codegen.text.count("goto LABEL_400d08;") == 1
+        assert d.codegen.text.count("goto LABEL_400d2a;") == 1
+        assert d.codegen.text.count("goto LABEL_400e1c;") == 1
 
     @structuring_algo("phoenix")
     def test_decompiling_sha384sum_digest_bsd_split_3(self, decompiler_options=None):
@@ -2077,8 +2085,8 @@ class TestDecompiler(unittest.TestCase):
         )
         self._print_decompilation_result(d)
 
-        # there should only be two or even fewer gotos
-        assert d.codegen.text.count("goto ") == 2
+        # there should only be three or even fewer gotos
+        assert d.codegen.text.count("goto ") == 3
 
     @for_all_structuring_algos
     def test_eliminating_stack_canary_reused_stack_chk_fail_call(self, decompiler_options=None):
