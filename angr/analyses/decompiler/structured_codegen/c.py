@@ -937,17 +937,12 @@ class CIfElse(CStatement):
                 yield from self.else_node.c_repr_chunks(indent=indent)
             else:
                 if single_stmt_else:
-                    if self.codegen.braces_on_own_lines:
-                        yield indent_str, None
-                    else:
-                        yield " ", None
-                        yield indent_str, None
+                    yield indent_str, None
+                elif self.codegen.braces_on_own_lines:
+                    yield "\n", None
+                    yield indent_str, None
                 else:
-                    if self.codegen.braces_on_own_lines:
-                        yield "\n", None
-                        yield indent_str, None
-                    else:
-                        yield " ", None
+                    yield " ", None
 
                 yield "else", self
                 if self.codegen.braces_on_own_lines or single_stmt_else:
