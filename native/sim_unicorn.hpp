@@ -765,6 +765,7 @@ class State {
 		uint64_t cgc_random_bbl;
 		int32_t cgc_receive_sysno;
 		uint64_t cgc_receive_bbl;
+		uint64_t cgc_receive_max_size;
 		int32_t cgc_transmit_sysno;
 		uint64_t cgc_transmit_bbl;
 		bool handle_symbolic_syscalls;

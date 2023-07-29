@@ -2600,6 +2600,10 @@ void State::perform_cgc_receive() {
 		return;
 	}
 
+	if ((cgc_receive_max_size != 0) && (count > cgc_receive_max_size)) {
+		count = cgc_receive_max_size;
+	}
+
 	// Perform read
 	char *tmp_buf = (char *)malloc(count);
 	taint_t *tmp_taint_buf;
@@ -3032,11 +3036,12 @@ bool simunicorn_is_interrupt_handled(State *state) {
 
 extern "C"
 void simunicorn_set_cgc_syscall_details(State *state, uint32_t transmit_num, uint64_t transmit_bbl,
-  uint32_t receive_num, uint64_t receive_bbl, uint32_t random_num, uint64_t random_bbl) {
+  uint32_t receive_num, uint64_t receive_bbl, uint64_t receive_size, uint32_t random_num, uint64_t random_bbl) {
 	state->cgc_random_sysno = random_num;
 	state->cgc_random_bbl = random_bbl;
 	state->cgc_receive_sysno = receive_num;
 	state->cgc_receive_bbl = receive_bbl;
+	state->cgc_receive_max_size = receive_size;
 	state->cgc_transmit_sysno = transmit_num;
 	state->cgc_transmit_bbl = transmit_bbl;
 }
