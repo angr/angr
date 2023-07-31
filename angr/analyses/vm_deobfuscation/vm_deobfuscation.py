@@ -610,6 +610,8 @@ class VMDeobfuscation(Analysis):
 
 
         verification_state_copy = verification_state.copy()
+        self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
+        import ipdb;ipdb.set_trace()
         self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
@@ -3252,6 +3254,21 @@ class VMDeobfuscation(Analysis):
             graphviz_node.attr["shape"] = "box"
         A.layout(prog="dot")
         A.draw(path=filename, format="svg")
+
+    def draw_png_graph(self, cfg, filename):
+        print("saving graph "+str(filename))
+        A = nx.nx_agraph.to_agraph(cfg.graph)
+        for node in cfg.graph.nodes():
+            stmt_str = str(node)
+            # if node.irsb != None:
+            #     for ind, stmt in enumerate(node.irsb.statements):
+            #         stmt_str = stmt_str + "\l" + stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
+
+            graphviz_node = A.get_node(str(node))
+            graphviz_node.attr["label"] = stmt_str
+            graphviz_node.attr["shape"] = "box"
+        A.layout(prog="dot")
+        A.draw(path=filename, format="png")
 
     ### Drawing a graph comparing the removed x86 instructions vs the instructions that were kept(or a part of their statemnts was left beind after simplifications)
     def draw_original_graph(self, cfg, filename, proj):

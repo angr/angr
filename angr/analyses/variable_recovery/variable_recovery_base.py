@@ -196,9 +196,9 @@ def compare_object_without_annotations( obj1, obj2):
         return obj1.object == obj2.object
     else:
         without_annotations_other = obj2.object.__class__(obj2.object.op, obj2.object.args,
-                                                               length=obj2.object.length)
+                                                               length=obj2.object.length,  skip_child_annotations=True)
         without_annotations_self = obj1.object.__class__(obj1.object.op, obj1.object.args,
-                                                             length=obj1.object.length)
+                                                             length=obj1.object.length,  skip_child_annotations=True)
         return without_annotations_self.cache_key == without_annotations_other.cache_key
 class VariableRecoveryStateBase:
     """
@@ -472,7 +472,12 @@ class VariableRecoveryStateBase:
         #         for var2 in mos_self.variables:
         #             if var2 != "top":
         #                 import ipdb;ipdb.set_trace()
-        return mos_self.base == mos_other.base and compare_object_without_annotations(mos_self, mos_other) and mos_self._length_equals(mos_other)
+        if mos_self == mos_other:
+            return True
+        elif type(mos_other) != type(mos_self):
+            return False
+        else:
+            return mos_self.base == mos_other.base and compare_object_without_annotations(mos_self, mos_other) and mos_self._length_equals(mos_other)
 
         # return mos_self == mos_other
 
