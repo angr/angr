@@ -5,14 +5,13 @@ import logging
 import claripy
 from ailment import Stmt, Expr
 
-from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.atoms import Register
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable, SimMemoryVariable
-from ..reaching_definitions.reaching_definitions import OP_BEFORE, OP_AFTER
+from ..reaching_definitions.reaching_definitions import OP_BEFORE
 from .engine_base import SimEnginePropagatorBase
 
 if TYPE_CHECKING:

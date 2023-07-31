@@ -7,7 +7,6 @@ import pyvex
 
 from angr.analyses import ForwardAnalysis
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
-from angr.utils.timing import timethis
 from ...block import Block
 from ...knowledge_plugins.cfg.cfg_node import CFGNode
 from ...codenode import CodeNode
@@ -113,8 +112,6 @@ class ReachingDefinitionsAnalysis(
         else:
             self._subject = subject
         self._graph_visitor = self._subject.visitor
-
-        from angr.analyses.reaching_definitions.subject import SubjectType
 
         # if self._subject.type == SubjectType.Function:
         #    counter += 1

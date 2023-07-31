@@ -18,7 +18,6 @@ from ailment.expression import (
     BinaryOp,
 )
 
-from ...errors import SimMemoryMissingError
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
