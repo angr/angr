@@ -318,6 +318,10 @@ class ReachingDefinitionsState:
         sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
         self.register_definitions.store(self.arch.sp_offset, sp)
 
+        ex_loc = ExternalCodeLocation(call_string)
+        if self.analysis is not None:
+            self.analysis.model.at_new_stmt(ex_loc)
+
         if cc is not None:
             prototype = self.analysis.kb.functions[func_addr].prototype
             if prototype is not None:
@@ -328,20 +332,20 @@ class ReachingDefinitionsState:
                             # FIXME: implement reg_offset handling in SimRegArg
                             reg_offset = self.arch.registers[arg.reg_name][0]
                             reg_atom = Register(reg_offset, self.arch.bytes)
-                            reg_def = Definition(
-                                reg_atom, ExternalCodeLocation(call_string), tags={ParameterTag(function=func_addr)}
-                            )
+                            reg_def = Definition(reg_atom, ex_loc, tags={ParameterTag(function=func_addr)})
                             self.all_definitions.add(reg_def)
+                            if self.analysis is not None:
+                                self.analysis.model.add_def(reg_def, ex_loc)
                             reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
                             self.register_definitions.store(reg_offset, reg)
 
                         # initialize stack parameters
                         elif isinstance(arg, SimStackArg):
                             ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
-                            ml_def = Definition(
-                                ml_atom, ExternalCodeLocation(call_string), tags={ParameterTag(function=func_addr)}
-                            )
+                            ml_def = Definition(ml_atom, ex_loc, tags={ParameterTag(function=func_addr)})
                             self.all_definitions.add(ml_def)
+                            if self.analysis is not None:
+                                self.analysis.model.add_def(ml_def, ex_loc)
                             ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
                             stack_address = self.get_stack_address(self.stack_address(arg.stack_offset))
                             self.stack_definitions.store(stack_address, ml, endness=self.arch.memory_endness)
@@ -354,15 +358,19 @@ class ReachingDefinitionsState:
                 raise TypeError("rtoc_value must be provided on PPC64.")
             offset, size = self.arch.registers["rtoc"]
             rtoc_atom = Register(offset, size)
-            rtoc_def = Definition(rtoc_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
+            rtoc_def = Definition(rtoc_atom, ex_loc, tags={InitialValueTag()})
             self.all_definitions.add(rtoc_def)
+            if self.analysis is not None:
+                self.analysis.model.add_def(rtoc_def, ex_loc)
             rtoc = self.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
             self.register_definitions.store(offset, rtoc)
         elif self.arch.name.startswith("MIPS64"):
             offset, size = self.arch.registers["t9"]
             t9_atom = Register(offset, size)
-            t9_def = Definition(t9_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
+            t9_def = Definition(t9_atom, ex_loc, tags={InitialValueTag()})
             self.all_definitions.add(t9_def)
+            if self.analysis is not None:
+                self.analysis.model.add_def(t9_def, ex_loc)
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(offset, t9)
         elif self.arch.name.startswith("MIPS"):
@@ -370,12 +378,17 @@ class ReachingDefinitionsState:
                 l.warning("func_addr must not be None to initialize a function in mips")
             t9_offset = self.arch.registers["t9"][0]
             t9_atom = Register(t9_offset, self.arch.bytes)
-            t9_def = Definition(t9_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
+            t9_def = Definition(t9_atom, ex_loc, tags={InitialValueTag()})
             self.all_definitions.add(t9_def)
+            if self.analysis is not None:
+                self.analysis.model.add_def(t9_def, ex_loc)
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(t9_offset, t9)
 
-    def copy(self) -> "ReachingDefinitionsState":
+        if self.analysis is not None:
+            self.analysis.model.complete_loc()
+
+    def copy(self, discard_tmpdefs=False) -> "ReachingDefinitionsState":
         rd = ReachingDefinitionsState(
             self.codeloc,
             self.arch,
@@ -383,7 +396,7 @@ class ReachingDefinitionsState:
             track_tmps=self._track_tmps,
             track_consts=self._track_consts,
             analysis=self.analysis,
-            live_definitions=self.live_definitions.copy(),
+            live_definitions=self.live_definitions.copy(discard_tmpdefs=discard_tmpdefs),
             canonical_size=self._canonical_size,
             heap_allocator=self.heap_allocator,
             environment=self._environment,
@@ -412,8 +425,12 @@ class ReachingDefinitionsState:
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
         """
+        existing_defs = set(self.live_definitions.get_definitions(atom))
 
         self.live_definitions.kill_definitions(atom)
+
+        for def_ in existing_defs:
+            self.analysis.model.kill_def(def_)
 
     def kill_and_add_definition(
         self,
@@ -427,6 +444,7 @@ class ReachingDefinitionsState:
         override_codeloc: Optional[CodeLocation] = None,
     ) -> Tuple[Optional[MultiValues], Set[Definition]]:
         codeloc = override_codeloc or self.codeloc
+        existing_defs = set(self.live_definitions.get_definitions(atom))
         mv = self.live_definitions.kill_and_add_definition(
             atom, codeloc, data, dummy=dummy, tags=tags, endness=endness, annotated=annotated
         )
@@ -493,16 +511,19 @@ class ReachingDefinitionsState:
         else:
             defs = set()
 
+        for def_ in existing_defs:
+            self.analysis.model.kill_def(def_)
+        for def_ in defs:
+            self.analysis.model.add_def(def_, codeloc)
+
         return mv, defs
 
     def add_use(self, atom: Atom, expr: Optional[Any] = None) -> None:
         self.codeloc_uses.update(self.get_definitions(atom))
-
         self.live_definitions.add_use(atom, self.codeloc, expr=expr)
 
     def add_use_by_def(self, definition: Definition, expr: Optional[Any] = None) -> None:
         self.codeloc_uses.add(definition)
-
         self.live_definitions.add_use_by_def(definition, self.codeloc, expr=expr)
 
     def add_tmp_use(self, tmp: int, expr: Optional[Any] = None) -> None:

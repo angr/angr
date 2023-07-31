@@ -123,15 +123,19 @@ class BlockSimplifier(Analysis):
 
     def _compute_reaching_definitions(self, block):
         def observe_callback(ob_type, addr=None, op_type=None, **kwargs) -> bool:  # pylint:disable=unused-argument
-            return ob_type == "stmt" or ob_type == "node" and addr == block.addr and op_type == OP_AFTER
+            return ob_type == "node" and addr == block.addr and op_type == OP_AFTER
 
         if self._reaching_definitions is None:
-            self._reaching_definitions = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
-                subject=block,
-                track_tmps=True,
-                stack_pointer_tracker=self._stack_pointer_tracker,
-                observe_all=False,
-                observe_callback=observe_callback,
+            self._reaching_definitions = (
+                self.project.analyses[ReachingDefinitionsAnalysis]
+                .prep()(
+                    subject=block,
+                    track_tmps=True,
+                    stack_pointer_tracker=self._stack_pointer_tracker,
+                    observe_all=False,
+                    observe_callback=observe_callback,
+                )
+                .model
             )
         return self._reaching_definitions
 
