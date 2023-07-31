@@ -319,7 +319,8 @@ class ReachingDefinitionsState:
         self.register_definitions.store(self.arch.sp_offset, sp)
 
         ex_loc = ExternalCodeLocation(call_string)
-        self.analysis.model.at_new_stmt(ex_loc)
+        if self.analysis is not None:
+            self.analysis.model.at_new_stmt(ex_loc)
 
         if cc is not None:
             prototype = self.analysis.kb.functions[func_addr].prototype
@@ -333,7 +334,8 @@ class ReachingDefinitionsState:
                             reg_atom = Register(reg_offset, self.arch.bytes)
                             reg_def = Definition(reg_atom, ex_loc, tags={ParameterTag(function=func_addr)})
                             self.all_definitions.add(reg_def)
-                            self.analysis.model.add_def(reg_def, ex_loc)
+                            if self.analysis is not None:
+                                self.analysis.model.add_def(reg_def, ex_loc)
                             reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
                             self.register_definitions.store(reg_offset, reg)
 
@@ -342,7 +344,8 @@ class ReachingDefinitionsState:
                             ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
                             ml_def = Definition(ml_atom, ex_loc, tags={ParameterTag(function=func_addr)})
                             self.all_definitions.add(ml_def)
-                            self.analysis.model.add_def(ml_def, ex_loc)
+                            if self.analysis is not None:
+                                self.analysis.model.add_def(ml_def, ex_loc)
                             ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
                             stack_address = self.get_stack_address(self.stack_address(arg.stack_offset))
                             self.stack_definitions.store(stack_address, ml, endness=self.arch.memory_endness)
@@ -357,7 +360,8 @@ class ReachingDefinitionsState:
             rtoc_atom = Register(offset, size)
             rtoc_def = Definition(rtoc_atom, ex_loc, tags={InitialValueTag()})
             self.all_definitions.add(rtoc_def)
-            self.analysis.model.add_def(rtoc_def, ex_loc)
+            if self.analysis is not None:
+                self.analysis.model.add_def(rtoc_def, ex_loc)
             rtoc = self.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
             self.register_definitions.store(offset, rtoc)
         elif self.arch.name.startswith("MIPS64"):
@@ -365,7 +369,8 @@ class ReachingDefinitionsState:
             t9_atom = Register(offset, size)
             t9_def = Definition(t9_atom, ex_loc, tags={InitialValueTag()})
             self.all_definitions.add(t9_def)
-            self.analysis.model.add_def(t9_def, ex_loc)
+            if self.analysis is not None:
+                self.analysis.model.add_def(t9_def, ex_loc)
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(offset, t9)
         elif self.arch.name.startswith("MIPS"):
@@ -375,11 +380,13 @@ class ReachingDefinitionsState:
             t9_atom = Register(t9_offset, self.arch.bytes)
             t9_def = Definition(t9_atom, ex_loc, tags={InitialValueTag()})
             self.all_definitions.add(t9_def)
-            self.analysis.model.add_def(t9_def, ex_loc)
+            if self.analysis is not None:
+                self.analysis.model.add_def(t9_def, ex_loc)
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(t9_offset, t9)
 
-        self.analysis.model.complete_loc()
+        if self.analysis is not None:
+            self.analysis.model.complete_loc()
 
     def copy(self, discard_tmpdefs=False) -> "ReachingDefinitionsState":
         rd = ReachingDefinitionsState(
