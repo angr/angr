@@ -1,4 +1,4 @@
-# pylint:disable=no-member
+# pylint:disable=no-member,global-statement
 import os
 import time
 from functools import wraps

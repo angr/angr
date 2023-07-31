@@ -32,11 +32,6 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-from cProfile import Profile
-
-pr = Profile()
-counter = 0
-
 
 class ReachingDefinitionsAnalysis(
     ForwardAnalysis[ReachingDefinitionsState, NodeType, object, object], Analysis
@@ -103,7 +98,6 @@ class ReachingDefinitionsAnalysis(
         :param dep_graph:                       Set this to True to generate a dependency graph for the subject. It will
                                                 be available as `result.dep_graph`.
         """
-        global counter
 
         if isinstance(subject, str):
             subject = self.kb.functions[subject]
@@ -112,10 +106,6 @@ class ReachingDefinitionsAnalysis(
         else:
             self._subject = subject
         self._graph_visitor = self._subject.visitor
-
-        # if self._subject.type == SubjectType.Function:
-        #    counter += 1
-        #    pr.enable()
 
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=self._graph_visitor
@@ -175,10 +165,6 @@ class ReachingDefinitionsAnalysis(
         self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
-
-        # if self._subject.type == SubjectType.Function:
-        #    pr.disable()
-        #    pr.dump_stats(f"profiling_{counter}.profile")
 
     @property
     def observed_results(self) -> Dict[Tuple[str, int, int], LiveDefinitions]:

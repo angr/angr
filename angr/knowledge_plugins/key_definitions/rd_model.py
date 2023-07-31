@@ -1,6 +1,5 @@
 from typing import Dict, List, Tuple, Set, Union, Optional, TYPE_CHECKING, overload
 
-from angr.code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, SpOffset
 from .uses import Uses
 from .live_definitions import LiveDefinitions
@@ -112,7 +111,7 @@ class ReachingDefinitionsModel:
         # TODO: Merge self.liveness
 
     def get_observation_by_insn(
-        self, ins_addr: Union[int, CodeLocation], kind: ObservationPointType
+        self, ins_addr: Union[int, "CodeLocation"], kind: ObservationPointType
     ) -> Optional[LiveDefinitions]:
         if isinstance(ins_addr, int):
             return self.observed_results.get(("insn", ins_addr, kind), None)
@@ -121,7 +120,7 @@ class ReachingDefinitionsModel:
         return self.observed_results.get(("insn", ins_addr.ins_addr, kind))
 
     def get_observation_by_node(
-        self, node_addr: Union[int, CodeLocation], kind: ObservationPointType
+        self, node_addr: Union[int, "CodeLocation"], kind: ObservationPointType
     ) -> Optional[LiveDefinitions]:
         if isinstance(node_addr, int):
             return self.observed_results.get(("node", node_addr, kind), None)
@@ -129,7 +128,7 @@ class ReachingDefinitionsModel:
             return self.observed_results.get(("node", node_addr.block_addr, kind))
 
     @overload
-    def get_observation_by_stmt(self, codeloc: CodeLocation, kind: ObservationPointType) -> Optional[LiveDefinitions]:
+    def get_observation_by_stmt(self, codeloc: "CodeLocation", kind: ObservationPointType) -> Optional[LiveDefinitions]:
         ...
 
     @overload

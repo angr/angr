@@ -766,7 +766,7 @@ class AILSimplifier(Analysis):
                 # ensure the expression that we want to replace with is still up-to-date
                 replace_with_original_def = self._find_atom_def_at(replace_with, rd, def_.codeloc)
                 if replace_with_original_def is not None and not self._check_atom_last_def(
-                    replace_with, used_expr.size, u, rd, replace_with_original_def
+                    replace_with, u, rd, replace_with_original_def
                 ):
                     all_uses_replaced = False
                     continue
@@ -807,17 +807,15 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _find_atom_def_at(atom, rd, codeloc: CodeLocation) -> Optional[Definition]:
         if isinstance(atom, Register):
-            all_defs = rd.find_defs_at(codeloc, OP_BEFORE)
-            defs = {d for d in all_defs if isinstance(d.atom, atoms.Register) and d.atom.reg_offset == atom.reg_offset}
+            defs = rd.find_defs_at(atom, codeloc, OP_BEFORE)
             return next(iter(defs)) if len(defs) == 1 else None
 
         return None
 
     @staticmethod
-    def _check_atom_last_def(atom, size, codeloc, rd, the_def) -> bool:
+    def _check_atom_last_def(atom, codeloc, rd, the_def) -> bool:
         if isinstance(atom, Register):
-            all_defs = rd.find_defs_at(codeloc, OP_BEFORE)
-            defs = {d for d in all_defs if isinstance(d.atom, atoms.Register) and d.atom.reg_offset == atom.reg_offset}
+            defs = rd.get_defs(atom, codeloc, OP_BEFORE)
             for d in defs:
                 if d.codeloc != the_def.codeloc:
                     return False
