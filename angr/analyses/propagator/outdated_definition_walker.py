@@ -1,3 +1,4 @@
+# pylint:disable=consider-using-in
 from typing import Optional, Callable, TYPE_CHECKING
 
 from ailment import Block, Stmt, Expr, AILBlockWalker
@@ -70,9 +71,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             self.out_dated = True
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
-        if self.avoid is not None and (
-            expr == self.avoid or expr.addr == self.avoid
-        ):  # pylint:disable=consider-using-in
+        if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):
             self.has_avoid = True
 
         if isinstance(expr.addr, Expr.StackBaseOffset):

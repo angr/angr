@@ -807,7 +807,7 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _find_atom_def_at(atom, rd, codeloc: CodeLocation) -> Optional[Definition]:
         if isinstance(atom, Register):
-            defs = rd.find_defs_at(atom, codeloc, OP_BEFORE)
+            defs = rd.get_defs(atom, codeloc, OP_BEFORE)
             return next(iter(defs)) if len(defs) == 1 else None
 
         return None
