@@ -2312,7 +2312,7 @@ SYSCALL_CC: Dict[str, Dict[str, Type[SimCCSyscall]]] = {
     },
     "RISCV64": {
         "default": SimCCRISCV64LinuxSyscall,
-        "Linux" : SimCCRISCV64LinuxSyscall,
+        "Linux": SimCCRISCV64LinuxSyscall,
     },
 }
 
