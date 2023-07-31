@@ -608,7 +608,6 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         self._analyze()
         self._initial_state = None
 
-        #Merge all replacements from nodes that do not have any successors
         for node in graph.nodes():
             ## end points which are not reachable are skippe from replacements collections
             if node.block_id in self._states:
