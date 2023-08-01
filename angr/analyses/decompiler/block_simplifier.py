@@ -210,6 +210,9 @@ class BlockSimplifier(Analysis):
                         # don't replace
                         r = False
                         new_stmt = None
+                    elif isinstance(stmt, Call) and isinstance(old, Register) and isinstance(new, Register):
+                        r = False
+                        new_stmt = None
                     elif isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
                         # special case: do not replace the ret_expr of a call statement to another call statement
                         r = False
