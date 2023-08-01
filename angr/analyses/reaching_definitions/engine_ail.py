@@ -100,19 +100,25 @@ class SimEngineRDAIL(
 
     def _set_codeloc(self):
         # TODO do we want a better mechanism to specify context updates?
-        self.state.move_codelocs(
-            CodeLocation(
-                self.block.addr,
-                self.stmt_idx,
-                ins_addr=self.ins_addr,
-                block_idx=self.block.idx,
-                context=self.state.codeloc.context,
-            )
+        new_codeloc = CodeLocation(
+            self.block.addr,
+            self.stmt_idx,
+            ins_addr=self.ins_addr,
+            block_idx=self.block.idx,
+            context=self.state.codeloc.context,
         )
+        self.state.move_codelocs(new_codeloc)
+        self.state.analysis.model.at_new_stmt(new_codeloc)
 
     #
     # AIL statement handlers
     #
+
+    def _process_Stmt(self, whitelist=None):
+        super()._process_Stmt(whitelist=whitelist)
+
+        if self.state.analysis:
+            self.state.analysis.model.complete_loc()
 
     def _handle_Stmt(self, stmt):
         if self.state.analysis:

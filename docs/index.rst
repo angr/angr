@@ -26,6 +26,7 @@ These libraries are:
    advanced-topics/index
    extending-angr/index
    examples
+   faq
    appendix/index
    api
 

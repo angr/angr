@@ -196,7 +196,7 @@ class LiveDefinitions:
             ctnt += ", %d tmpdefs" % len(self.tmps)
         return "<%s>" % ctnt
 
-    def copy(self) -> "LiveDefinitions":
+    def copy(self, discard_tmpdefs=False) -> "LiveDefinitions":
         rd = LiveDefinitions(
             self.arch,
             track_tmps=self.track_tmps,
@@ -205,12 +205,12 @@ class LiveDefinitions:
             stack_definitions=self.stack_definitions.copy(),
             heap_definitions=self.heap_definitions.copy(),
             memory_definitions=self.memory_definitions.copy(),
-            tmps=self.tmps.copy(),
+            tmps=self.tmps.copy() if not discard_tmpdefs else None,
             register_uses=self.register_uses.copy(),
             stack_uses=self.stack_uses.copy(),
             heap_uses=self.heap_uses.copy(),
             memory_uses=self.memory_uses.copy(),
-            tmp_uses=self.tmp_uses.copy(),
+            tmp_uses=self.tmp_uses.copy() if not discard_tmpdefs else None,
         )
 
         return rd
@@ -600,8 +600,15 @@ class LiveDefinitions:
                 size=size,
                 endness=endness,
             )
-        except SimMemoryMissingError:
-            return
+        except SimMemoryMissingError as ex:
+            # load values and stop at the missing location
+            if ex.missing_addr > reg_offset:
+                values: MultiValues = self.register_definitions.load(
+                    reg_offset, size=ex.missing_addr - reg_offset, endness=endness
+                )
+            else:
+                # nothing we can do
+                return
         yield from LiveDefinitions.extract_defs_from_mv(values)
 
     def get_stack_values(self, stack_offset: int, size: int, endness: str) -> Optional[MultiValues]:

@@ -481,6 +481,7 @@ def _load_native():
             ctypes.c_uint64,
             ctypes.c_uint32,
             ctypes.c_uint64,
+            ctypes.c_uint64,
             ctypes.c_uint32,
             ctypes.c_uint64,
         )
@@ -1273,7 +1274,14 @@ class Unicorn(SimStatePlugin):
                     )
 
             _UC_NATIVE.set_cgc_syscall_details(
-                self._uc_state, 2, cgc_transmit_addr, 3, cgc_receive_addr, 7, cgc_random_addr
+                self._uc_state,
+                2,
+                cgc_transmit_addr,
+                3,
+                cgc_receive_addr,
+                self.state.cgc.max_receive_size,
+                7,
+                cgc_random_addr,
             )
 
         # set memory map callback so we can call it explicitly

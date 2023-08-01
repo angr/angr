@@ -90,9 +90,11 @@ class SimEngineRDVEX(
 
     def _set_codeloc(self):
         # TODO do we want a better mechanism to specify context updates?
-        self.state.move_codelocs(
-            CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self.state.codeloc.context)
+        new_codeloc = CodeLocation(
+            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self.state.codeloc.context
         )
+        self.state.move_codelocs(new_codeloc)
+        self.state.analysis.model.at_new_stmt(new_codeloc)
 
     #
     # VEX statement handlers
