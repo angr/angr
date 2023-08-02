@@ -487,16 +487,10 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0x12345678, 32), claripy.BVV(13, 32))
         self._test_other_unary_common(OpCode.POPCOUNT, claripy.BVV(0xFFFFFFFF, 32), claripy.BVV(32, 32))
 
-    # x OpCode.BOOL_AND
-    # x OpCode.BOOL_NEGATE
-    # x OpCode.BOOL_OR
-    # x OpCode.BOOL_XOR
-    # x OpCode.BRANCH
-    # x OpCode.BRANCHIND
-    # x OpCode.CALL
-    # x OpCode.CALLIND
-    # x OpCode.CBRANCH
-    # x OpCode.COPY
+    # TODO: Add tests for the following ops:
+    # * = FIXME
+    # ! = Not Implemented
+    #
     # ! OpCode.CPOOLREF
     #   OpCode.FLOAT_ABS
     #   OpCode.FLOAT_ADD
@@ -516,40 +510,13 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
     #   OpCode.FLOAT_SQRT
     #   OpCode.FLOAT_SUB
     #   OpCode.FLOAT_TRUNC
-    # x OpCode.INT_2COMP
-    # x OpCode.INT_ADD
-    # x OpCode.INT_AND
     #   OpCode.INT_CARRY
-    # x OpCode.INT_DIV
-    # x OpCode.INT_EQUAL
-    # x OpCode.INT_LEFT
-    # x OpCode.INT_LESS
-    # x OpCode.INT_LESSEQUAL
-    # x OpCode.INT_MULT
-    # x OpCode.INT_NEGATE
-    # x OpCode.INT_NOTEQUAL
-    # x OpCode.INT_OR
-    # x OpCode.INT_REM
-    # x OpCode.INT_RIGHT
     #   OpCode.INT_SBORROW
     #   OpCode.INT_SCARRY
     # * OpCode.INT_SDIV
-    # x OpCode.INT_SEXT
-    # x OpCode.INT_SLESS
-    # x OpCode.INT_SLESSEQUAL
     # * OpCode.INT_SREM
-    # x OpCode.INT_SRIGHT
-    # x OpCode.INT_SUB
-    # x OpCode.INT_XOR
-    # x OpCode.INT_ZEXT
-    # x OpCode.LOAD
     # ! OpCode.NEW
-    # x OpCode.POPCOUNT
     #   OpCode.RETURN
-    # x OpCode.STORE
-
-    # * = FIXME
-    # ! = Not Implemented
 
 
 if __name__ == "__main__":
