@@ -21,11 +21,16 @@ class MultiValueMergerMixin(MemoryMixin):
         # try to merge it in the traditional way
         if len(values_set) > self._element_limit:
             # strip annotations from each value and see how many raw values there are in total
-            stripped_values_set = {v._apply_to_annotations(lambda alist: None) for v in values_set}
+            # We have to use cache_key to determine uniqueness here, because if __hash__ collides,
+            # python implicitly calls __eq__ to determine if the two objects are actually the same
+            # and that just results in a new AST for a BV. Python then tries to convert that AST to a bool
+            # which fails with the safeguard in claripy.ast.bool.Bool.__bool__.
+            stripped_values_set = {v._apply_to_annotations(lambda alist: None).cache_key for v in values_set}
             if len(stripped_values_set) > 1:
                 ret_val = self._top_func(merged_size * self.state.arch.byte_width)
             else:
-                ret_val = next(iter(stripped_values_set))
+                # Get the AST back from the cache_key
+                ret_val = next(iter(stripped_values_set)).ast
             # migrate annotations
             annotations = []
             for v in values_set:
