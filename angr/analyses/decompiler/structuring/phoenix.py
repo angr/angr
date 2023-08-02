@@ -2578,19 +2578,6 @@ class PhoenixStructurer(StructurerBase):
                 elif not best_edges:
                     best_edges = candidate_edges
 
-                # H4: the edge that goes to a Loop node should be virtualized first
-                # IDK WHY THIS IS GOOD!?!??!
-                # candidate_edges = best_edges
-                # best_edges = []
-                # for src, dst in candidate_edges:
-                #    if isinstance(dst, LoopNode):
-                #        best_edges.append((src, dst))
-
-                # if len(best_edges) == 1:
-                #    return best_edges
-                # elif not best_edges:
-                #    best_edges = candidate_edges
-
         # if we have another tie, or we never used improved heuristics, then we do the chick_order.
         return PhoenixStructurer._chick_order_edges(best_edges, node_seq)
 
