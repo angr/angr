@@ -2444,11 +2444,8 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
-        target_addrs = {0x4045d8, 0x404575}
-        target_nodes = [
-            node for node in d.codegen.ail_graph.nodes
-            if node.addr in target_addrs
-        ]
+        target_addrs = {0x4045D8, 0x404575}
+        target_nodes = [node for node in d.codegen.ail_graph.nodes if node.addr in target_addrs]
 
         for target_node in target_nodes:
             # these are the two calls, their last arg should actually be r14
