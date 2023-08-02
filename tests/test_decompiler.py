@@ -2434,6 +2434,26 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
         assert d.codegen.text.count("goto ") == 1
 
+    @for_all_structuring_algos
+    def test_proper_argument_simplification(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "true_a")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=True)
+
+        f = proj.kb.functions[0x404410]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        target_addrs = {0x4045d8, 0x404575}
+        target_nodes = [
+            node for node in d.codegen.ail_graph.nodes
+            if node.addr in target_addrs
+        ]
+
+        for target_node in target_nodes:
+            # these are the two calls, their last arg should actually be r14
+            assert str(target_node.statements[-1].args[2]).startswith("r14")
+
 
 if __name__ == "__main__":
     unittest.main()
