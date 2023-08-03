@@ -2541,19 +2541,19 @@ class PhoenixStructurer(StructurerBase):
                 # H1: the edge that has the least amount of sibling edges should be virtualized first
                 # this is believed to reduce the amount of virtualization needed in future rounds and increase
                 # the edges that enter a single outer-scope if-stmt
-                if edge_sibling_count:
-                    min_sibling_count = min(edge_sibling_count.values())
-                    best_edges = [edge for edge, cnt in edge_sibling_count.items() if cnt == min_sibling_count]
-                    if len(best_edges) == 1:
-                        return best_edges
+                #if edge_sibling_count:
+                #    min_sibling_count = min(edge_sibling_count.values())
+                #    best_edges = [edge for edge, cnt in edge_sibling_count.items() if cnt == min_sibling_count]
+                #    if len(best_edges) == 1:
+                #        return best_edges
 
-                    # create the next heuristic based on the best edges from the previous heuristic
-                    filtered_edge_postdom_count = edge_postdom_count.copy()
-                    for edge in list(edge_postdom_count.keys()):
-                        if edge not in best_edges:
-                            del filtered_edge_postdom_count[edge]
-                    if filtered_edge_postdom_count:
-                        edge_postdom_count = filtered_edge_postdom_count
+                #    # create the next heuristic based on the best edges from the previous heuristic
+                #    filtered_edge_postdom_count = edge_postdom_count.copy()
+                #    for edge in list(edge_postdom_count.keys()):
+                #        if edge not in best_edges:
+                #            del filtered_edge_postdom_count[edge]
+                #    if filtered_edge_postdom_count:
+                #        edge_postdom_count = filtered_edge_postdom_count
 
                 # H2: the edge, when removed, that causes the most post-dominators of the graph should be virtualized
                 # first. this is believed to make the code more linear looking be reducing the amount of scopes.
