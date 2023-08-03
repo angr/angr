@@ -1307,7 +1307,9 @@ class Clinic(Analysis):
             return None
 
         # relift the head and the ITE instruction
-        new_head = self.project.factory.block(block_addr, size=ite_ins_addr - block_addr + ite_insn_size)
+        new_head = self.project.factory.block(
+            block_addr, size=ite_ins_addr - block_addr + ite_insn_size, cross_insn_opt=False
+        )
         new_head_ail = ailment.IRSBConverter.convert(new_head.vex, self._ail_manager)
         # remove all statements between the ITE expression and the very end of the block
         ite_expr_stmt_idx = None
@@ -1376,7 +1378,6 @@ class Clinic(Analysis):
 
         original_block_in_edges = list(ail_graph.in_edges(original_block))
         original_block_out_edges = list(ail_graph.out_edges(original_block))
-        ail_graph.remove_node(original_block)
 
         # build the target block if the target block does not exist in the current function
         end_block_addr = ite_ins_addr + ite_insn_size
@@ -1384,16 +1385,33 @@ class Clinic(Analysis):
             end_block = self.project.factory.block(
                 ite_ins_addr + ite_insn_size,
                 size=block_addr + original_block.original_size - (ite_ins_addr + ite_insn_size),
+                cross_insn_opt=False,
             )
             end_block_ail = ailment.IRSBConverter.convert(end_block.vex, self._ail_manager)
+        else:
+            end_block_ail = next(iter(b for b in ail_graph if b.addr == end_block_addr))
 
+        # last check: if the first instruction of the end block has Sar, then we bail (due to the peephole optimization
+        # SarToSignedDiv)
+        for stmt in end_block_ail.statements:
+            if stmt.ins_addr > end_block_ail.addr:
+                break
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.src, ailment.Expr.BinaryOp)
+                and stmt.src.op == "Sar"
+            ):
+                return None
+
+        ail_graph.remove_node(original_block)
+
+        if end_block_ail not in ail_graph:
+            # newly created. add it and the necessary edges into the graph
             for _, dst in original_block_out_edges:
                 if dst is original_block:
                     ail_graph.add_edge(end_block_ail, new_head_ail)
                 else:
                     ail_graph.add_edge(end_block_ail, dst)
-        else:
-            end_block_ail = next(iter(b for b in ail_graph if b.addr == end_block_addr))
 
         # in edges
         for src, _ in original_block_in_edges:
