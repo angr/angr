@@ -1398,7 +1398,7 @@ class Clinic(Analysis):
         # in edges
         for src, _ in original_block_in_edges:
             if src is original_block:
-                raise Exception("Unexpected...")
+                raise ValueError("Unexpected...")
             ail_graph.add_edge(src, new_head_ail)
 
         # triangle
