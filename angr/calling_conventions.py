@@ -1813,6 +1813,24 @@ class SimCCAArch64LinuxSyscall(SimCCSyscall):
         return state.regs.x8
 
 
+class SimCCRISCV64LinuxSyscall(SimCCSyscall):
+    # TODO: Make sure all the information is correct
+    ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
+    FP_ARG_REGS = []  # TODO: ???
+    RETURN_VAL = SimRegArg("a0", 8)
+    RETURN_ADDR = SimRegArg("ip_at_syscall", 4)
+    ARCH = archinfo.ArchRISCV64
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.a0
+
+
 class SimCCO32(SimCC):
     ARG_REGS = ["a0", "a1", "a2", "a3"]
     FP_ARG_REGS = [
@@ -2291,6 +2309,10 @@ SYSCALL_CC: Dict[str, Dict[str, Type[SimCCSyscall]]] = {
     "S390X": {
         "default": SimCCS390XLinuxSyscall,
         "Linux": SimCCS390XLinuxSyscall,
+    },
+    "RISCV64": {
+        "default": SimCCRISCV64LinuxSyscall,
+        "Linux": SimCCRISCV64LinuxSyscall,
     },
 }
 
