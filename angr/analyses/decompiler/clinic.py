@@ -1380,7 +1380,7 @@ class Clinic(Analysis):
 
         # build the target block if the target block does not exist in the current function
         end_block_addr = ite_ins_addr + ite_insn_size
-        if block_addr < end_block_addr <= block_addr + original_block.original_size:
+        if block_addr < end_block_addr < block_addr + original_block.original_size:
             end_block = self.project.factory.block(
                 ite_ins_addr + ite_insn_size,
                 size=block_addr + original_block.original_size - (ite_ins_addr + ite_insn_size),
