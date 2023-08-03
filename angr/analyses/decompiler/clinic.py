@@ -1303,7 +1303,7 @@ class Clinic(Analysis):
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
         # lift the ite instruction to get its size
         ite_insn_size = self.project.factory.block(ite_ins_addr, num_inst=1).size
-        if ite_insn_size == 0:
+        if ite_insn_size <= 1:  # we need an address for true_block and another address for false_block
             return None
 
         # relift the head and the ITE instruction
@@ -1323,8 +1323,8 @@ class Clinic(Analysis):
         ite_expr: ailment.Expr.ITE = ite_expr_stmt.src
         new_head_ail.statements = new_head_ail.statements[:ite_expr_stmt_idx]
         # build the conditional jump
-        true_block_addr = ite_ins_addr + 1
-        false_block_addr = ite_ins_addr + 2
+        true_block_addr = ite_ins_addr
+        false_block_addr = ite_ins_addr + 1
         cond_jump_stmt = ailment.Stmt.ConditionalJump(
             ite_expr_stmt.idx,
             ite_expr.cond,
