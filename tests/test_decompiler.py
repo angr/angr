@@ -2394,6 +2394,19 @@ class TestDecompiler(unittest.TestCase):
         assert "case 52:" not in d.codegen.text
 
     @for_all_structuring_algos
+    def test_df_add_uint_with_neg_flag_ite_expressions(self, decompiler_options=None):
+        # properly handling cmovz and cmovnz in amd64 binaries
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "df.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x400EA0]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # ITE expressions should not exist. we convert them to if-then-else properly.
+        assert "?" not in d.codegen.text
+
+    @for_all_structuring_algos
     def test_od_else_simplification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "od_gccO2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)

@@ -176,6 +176,7 @@ class Clinic(Analysis):
         self._convert_all()
 
         ail_graph = self._make_ailgraph()
+        self._rewrite_ite_expressions(ail_graph)
         self._remove_redundant_jump_blocks(ail_graph)
         if self._insert_labels:
             self._insert_block_labels(ail_graph)
@@ -1283,6 +1284,130 @@ class Clinic(Analysis):
                 graph.add_edge(src, dst, **data)
 
         return graph
+
+    def _rewrite_ite_expressions(self, ail_graph):
+        for block in list(ail_graph):
+            ite_ins_addrs = []
+            for stmt in block.statements:
+                if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE):
+                    if stmt.ins_addr not in ite_ins_addrs:
+                        ite_ins_addrs.append(stmt.ins_addr)
+
+            if ite_ins_addrs:
+                block_addr = block.addr
+                for ite_ins_addr in ite_ins_addrs:
+                    block_addr = self._create_triangle_for_ite_expression(ail_graph, block_addr, ite_ins_addr)
+                    if block_addr is None or block_addr >= block.addr + block.original_size:
+                        break
+
+    def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
+        # lift the ite instruction to get its size
+        ite_insn_size = self.project.factory.block(ite_ins_addr, num_inst=1).size
+        if ite_insn_size == 0:
+            return None
+
+        # relift the head and the ITE instruction
+        new_head = self.project.factory.block(block_addr, size=ite_ins_addr - block_addr + ite_insn_size)
+        new_head_ail = ailment.IRSBConverter.convert(new_head.vex, self._ail_manager)
+        # remove all statements between the ITE expression and the very end of the block
+        ite_expr_stmt_idx = None
+        ite_expr_stmt = None
+        for idx, stmt in enumerate(new_head_ail.statements):
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE):
+                ite_expr_stmt_idx = idx
+                ite_expr_stmt = stmt
+                break
+        if ite_expr_stmt_idx is None:
+            return None
+
+        ite_expr: ailment.Expr.ITE = ite_expr_stmt.src
+        new_head_ail.statements = new_head_ail.statements[:ite_expr_stmt_idx]
+        # build the conditional jump
+        true_block_addr = ite_ins_addr + 1
+        false_block_addr = ite_ins_addr + 2
+        cond_jump_stmt = ailment.Stmt.ConditionalJump(
+            ite_expr_stmt.idx,
+            ite_expr.cond,
+            ailment.Expr.Const(None, None, true_block_addr, self.project.arch.bits),
+            ailment.Expr.Const(None, None, false_block_addr, self.project.arch.bits),
+            **ite_expr_stmt.tags,
+        )
+        new_head_ail.statements.append(cond_jump_stmt)
+
+        # build the true block
+        true_block = self.project.factory.block(ite_ins_addr, num_inst=1)
+        true_block_ail = ailment.IRSBConverter.convert(true_block.vex, self._ail_manager)
+        true_block_ail.addr = true_block_addr
+
+        ite_expr_stmt_idx = None
+        ite_expr_stmt = None
+        for idx, stmt in enumerate(true_block_ail.statements):
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE):
+                ite_expr_stmt_idx = idx
+                ite_expr_stmt = stmt
+                break
+        if ite_expr_stmt_idx is None:
+            return None
+
+        true_block_ail.statements[ite_expr_stmt_idx] = ailment.Stmt.Assignment(
+            ite_expr_stmt.idx, ite_expr_stmt.dst, ite_expr_stmt.src.iftrue, **ite_expr_stmt.tags
+        )
+
+        # build the false block
+        false_block = self.project.factory.block(ite_ins_addr, num_inst=1)
+        false_block_ail = ailment.IRSBConverter.convert(false_block.vex, self._ail_manager)
+        false_block_ail.addr = false_block_addr
+
+        ite_expr_stmt_idx = None
+        ite_expr_stmt = None
+        for idx, stmt in enumerate(false_block_ail.statements):
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE):
+                ite_expr_stmt_idx = idx
+                ite_expr_stmt = stmt
+                break
+        if ite_expr_stmt_idx is None:
+            return None
+
+        false_block_ail.statements[ite_expr_stmt_idx] = ailment.Stmt.Assignment(
+            ite_expr_stmt.idx, ite_expr_stmt.dst, ite_expr_stmt.src.iffalse, **ite_expr_stmt.tags
+        )
+
+        original_block = next(iter(b for b in ail_graph if b.addr == block_addr))
+
+        original_block_in_edges = list(ail_graph.in_edges(original_block))
+        original_block_out_edges = list(ail_graph.out_edges(original_block))
+        ail_graph.remove_node(original_block)
+
+        # build the target block if the target block does not exist in the current function
+        end_block_addr = ite_ins_addr + ite_insn_size
+        if block_addr < end_block_addr <= block_addr + original_block.original_size:
+            end_block = self.project.factory.block(
+                ite_ins_addr + ite_insn_size,
+                size=block_addr + original_block.original_size - (ite_ins_addr + ite_insn_size),
+            )
+            end_block_ail = ailment.IRSBConverter.convert(end_block.vex, self._ail_manager)
+
+            for _, dst in original_block_out_edges:
+                if dst is original_block:
+                    ail_graph.add_edge(end_block_ail, new_head_ail)
+                else:
+                    ail_graph.add_edge(end_block_ail, dst)
+        else:
+            end_block_ail = next(iter(b for b in ail_graph if b.addr == end_block_addr))
+
+        # in edges
+        for src, _ in original_block_in_edges:
+            if src is original_block:
+                raise Exception("Unexpected...")
+            ail_graph.add_edge(src, new_head_ail)
+
+        # triangle
+        ail_graph.add_edge(new_head_ail, true_block_ail)
+        ail_graph.add_edge(new_head_ail, false_block_ail)
+        ail_graph.add_edge(true_block_ail, end_block_ail)
+        ail_graph.add_edge(false_block_ail, end_block_ail)
+
+        return end_block_ail.addr
 
     @staticmethod
     def _remove_redundant_jump_blocks(ail_graph):

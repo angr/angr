@@ -52,7 +52,7 @@ class FunctionCallData:
 
     Function handler contract:
 
-    - If redefine_locals is unset, do not adjust any artifacts of the function call abstration, such as the stack
+    - If redefine_locals is unset, do not adjust any artifacts of the function call abstraction, such as the stack
       pointer, the caller saved registers, etc.
     - If caller_will_handle_single_ret is set, and there is a single entry in `ret_atoms`, do not apply to the state
       effects modifying this atom. Instead, set `ret_values` and `ret_values_deps` to the values and deps which are

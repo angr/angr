@@ -88,6 +88,8 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                         expr.signed,
                         **expr.tags,
                     )
+            if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
+                return UnaryOp(expr.idx, "Neg", expr.operands[1], **expr.tags)
 
         elif expr.op == "And":
             if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
