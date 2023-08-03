@@ -256,6 +256,11 @@ class SimEngineRDAIL(
         ip = Register(self.arch.ip_offset, self.arch.bytes)
         self.state.kill_definitions(ip)
 
+        statement = self.block.statements[self.stmt_idx]
+        caller_will_handle_single_ret = True
+        if hasattr(statement, "dst") and statement.dst != stmt.ret_expr:
+            caller_will_handle_single_ret = False
+
         data = FunctionCallData(
             self.state.codeloc,
             self._function_handler.make_function_codeloc(
@@ -267,7 +272,7 @@ class SimEngineRDAIL(
             name=func_name,
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
             redefine_locals=stmt.args is None and not is_expr,
-            caller_will_handle_single_ret=True,
+            caller_will_handle_single_ret=caller_will_handle_single_ret,
             ret_atoms={Atom.from_ail_expr(stmt.ret_expr, self.arch)} if stmt.ret_expr is not None else None,
         )
 
