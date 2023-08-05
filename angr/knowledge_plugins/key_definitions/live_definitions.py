@@ -495,6 +495,9 @@ class LiveDefinitions:
             except SimMemoryError:
                 l.warning("Failed to store register definition %s at %d.", d, atom.reg_offset, exc_info=True)
         elif isinstance(atom, MemoryLocation):
+            if endness is None:
+                endness = atom.endness
+
             if isinstance(atom.addr, SpOffset):
                 if atom.addr.offset is not None:
                     stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)

@@ -137,7 +137,13 @@ class FunctionCallData:
             )
         else:
             self.effects.append(
-                FunctionEffect(dest, set(sources), value=value, apply_at_callsite=apply_at_callsite, tags=tags)
+                FunctionEffect(
+                    dest,
+                    set(sources),
+                    value=value,
+                    apply_at_callsite=apply_at_callsite,
+                    tags=tags,
+                )
             )
 
 
@@ -333,7 +339,7 @@ class FunctionHandler:
                 mv, defs = state.kill_and_add_definition(
                     effect.dest,
                     value,
-                    endness=state.arch.memory_endness,
+                    endness=None,
                     uses=effect.sources_defns or set(),
                     tags=effect.tags,
                 )
