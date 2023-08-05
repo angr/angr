@@ -120,12 +120,18 @@ class ReachingDefinitionsModel:
         return self.observed_results.get(("insn", ins_addr.ins_addr, kind))
 
     def get_observation_by_node(
-        self, node_addr: Union[int, "CodeLocation"], kind: ObservationPointType
+        self, node_addr: Union[int, "CodeLocation"], kind: ObservationPointType, node_idx: Optional[int] = None
     ) -> Optional[LiveDefinitions]:
         if isinstance(node_addr, int):
-            return self.observed_results.get(("node", node_addr, kind), None)
+            key = ("node", node_addr, kind) if node_idx is None else ("node", (node_addr, node_idx), kind)
+            return self.observed_results.get(key, None)
         else:
-            return self.observed_results.get(("node", node_addr.block_addr, kind))
+            key = (
+                ("node", node_addr.block_addr, kind)
+                if node_idx is None
+                else ("node", (node_addr.block_addr, node_idx), kind)
+            )
+            return self.observed_results.get(key, None)
 
     @overload
     def get_observation_by_stmt(self, codeloc: "CodeLocation", kind: ObservationPointType) -> Optional[LiveDefinitions]:
@@ -150,3 +156,16 @@ class ReachingDefinitionsModel:
                 return self.observed_results.get(("stmt", (arg1.block_addr, arg1.stmt_idx), arg2), None)
             else:
                 return self.observed_results.get(("stmt", (arg1.block_addr, arg1.stmt_idx, block_idx), arg2), None)
+
+    def get_observation_by_exit(
+        self,
+        node_addr: int,
+        stmt_idx: int,
+        src_node_idx: Optional[int] = None,
+    ) -> Optional[LiveDefinitions]:
+        key = (
+            ("exit", (node_addr, stmt_idx), ObservationPointType.OP_AFTER)
+            if src_node_idx is None
+            else ("exit", (node_addr, src_node_idx, stmt_idx), ObservationPointType.OP_AFTER)
+        )
+        return self.observed_results.get(key, None)
