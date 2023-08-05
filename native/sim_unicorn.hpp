@@ -796,6 +796,10 @@ class State {
 		// Concrete writes to re-execute to avoid write-write conflicts
 		std::unordered_map<uint64_t, uint8_t> concrete_writes_to_reexecute;
 
+		// Concrete writes performed by syscalls. Used to determine if any write-write conflicts occur when syscall is
+		// re-executed.
+		std::unordered_set<address_t> syscall_concrete_writes;
+
 		// List of instructions that should be executed symbolically; used to store data to return
 		std::vector<sym_block_details_t> block_details_to_return;
 

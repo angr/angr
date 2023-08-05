@@ -872,6 +872,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 				// address to later update concrete value to write.
 				block_concrete_writes_to_reexecute.emplace(byte_addr);
 			}
+			else if (syscall_concrete_writes.find(byte_addr) != syscall_concrete_writes.end()) {
+				// Mark write for re-execution since value will be overwritten by a previously executed syscall that
+				// will be re-executed.
+				block_concrete_writes_to_reexecute.emplace(byte_addr);
+			}
 			else if ((symbolic_mem_writes.count(byte_addr) > 0) || (block_symbolic_mem_writes.count(byte_addr) > 0)) {
 				// A previous symbolic write to same location will be re-executed and so re-execute concrete write.
 				block_concrete_writes_to_reexecute.emplace(byte_addr);
@@ -2618,6 +2623,13 @@ void State::perform_cgc_receive() {
 		// of bytes with same taint
 		taint_t curr_taint_status = tmp_taint_buf[0];
 		uint64_t start_offset = 0, curr_offset = 1, slice_size = 1;
+		for (int i = 0; i < actual_count; i++) {
+			if (tmp_taint_buf[i] == TAINT_STATUS_CONCRETE) {
+				// Track address of concrete write by syscall for finding write-write conflicts with other concrete
+				// writes
+				syscall_concrete_writes.emplace(buf + i);
+			}
+		}
 		for (; curr_offset < actual_count; curr_offset++) {
 			if (tmp_taint_buf[curr_offset] != curr_taint_status) {
 				// Taint status of next byte differs. Update all previous ones
