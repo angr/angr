@@ -269,6 +269,14 @@ class SimEngineRDVEX(
         _ = self._expr(stmt.guard)
         target = stmt.dst.value
         self.state.mark_guard(target)
+        if self.state.analysis is not None:
+            self.state.analysis.exit_observe(
+                self.block.addr,
+                self.stmt_idx,
+                self.block,
+                self.state,
+                node_idx=self.block.block_idx if hasattr(self.block, "block_idx") else None,
+            )
         if (
             self.block.instruction_addrs
             and self.ins_addr in self.block.instruction_addrs

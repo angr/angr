@@ -28,7 +28,9 @@ from .dep_graph import DepGraph
 if TYPE_CHECKING:
     from typing import Literal
 
-    ObservationPoint = Tuple[Literal["insn", "node", "stmt"], Union[int, Tuple[int, int, int]], ObservationPointType]
+    ObservationPoint = Tuple[
+        Literal["insn", "node", "stmt", "exit"], Union[int, Tuple[int, int], Tuple[int, int, int]], ObservationPointType
+    ]
 
 l = logging.getLogger(name=__name__)
 
@@ -228,11 +230,18 @@ class ReachingDefinitionsAnalysis(
 
         return self.observed_results[key]
 
-    def node_observe(self, node_addr: int, state: ReachingDefinitionsState, op_type: ObservationPointType) -> None:
+    def node_observe(
+        self,
+        node_addr: int,
+        state: ReachingDefinitionsState,
+        op_type: ObservationPointType,
+        node_idx: Optional[int] = None,
+    ) -> None:
         """
         :param node_addr:   Address of the node.
         :param state:       The analysis state.
-        :param op_type:     Type of the bbservation point. Must be one of the following: OP_BEFORE, OP_AFTER.
+        :param op_type:     Type of the observation point. Must be one of the following: OP_BEFORE, OP_AFTER.
+        :param node_idx:    ID of the node. Used in AIL to differentiate blocks with the same address.
         """
 
         key = None
@@ -241,15 +250,21 @@ class ReachingDefinitionsAnalysis(
 
         if self._observe_all:
             observe = True
-            key: ObservationPoint = ("node", node_addr, op_type)
+            key: ObservationPoint = (
+                ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
+            )
         elif self._observation_points is not None:
-            key: ObservationPoint = ("node", node_addr, op_type)
+            key: ObservationPoint = (
+                ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
+            )
             if key in self._observation_points:
                 observe = True
         elif self._observe_callback is not None:
-            observe = self._observe_callback("node", addr=node_addr, state=state, op_type=op_type)
+            observe = self._observe_callback("node", addr=node_addr, state=state, op_type=op_type, node_idx=node_idx)
             if observe:
-                key: ObservationPoint = ("node", node_addr, op_type)
+                key: ObservationPoint = (
+                    ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
+                )
 
         if observe:
             self.observed_results[key] = state.live_definitions
@@ -351,6 +366,52 @@ class ReachingDefinitionsAnalysis(
             # it's an AIL block
             self.observed_results[key] = state.live_definitions.copy()
 
+    def exit_observe(
+        self,
+        node_addr: int,
+        exit_stmt_idx: int,
+        block: Union[Block, ailment.Block],
+        state: ReachingDefinitionsState,
+        node_idx: Optional[int] = None,
+    ):
+        observe = False
+        key = None
+
+        if self._observe_all:
+            observe = True
+            key = (
+                ("exit", (node_addr, exit_stmt_idx), ObservationPointType.OP_AFTER)
+                if node_idx is None
+                else ("exit", (node_addr, node_idx, exit_stmt_idx), ObservationPointType.OP_AFTER)
+            )
+        elif self._observation_points is not None:
+            key = (
+                ("exit", (node_addr, exit_stmt_idx), ObservationPointType.OP_AFTER)
+                if node_idx is None
+                else ("exit", (node_addr, node_idx, exit_stmt_idx), ObservationPointType.OP_AFTER)
+            )
+            if key in self._observation_points:
+                observe = True
+        elif self._observe_callback is not None:
+            observe = self._observe_callback(
+                "exit",
+                node_addr=node_addr,
+                exit_stmt_idx=exit_stmt_idx,
+                block=block,
+                state=state,
+            )
+            if observe:
+                key = (
+                    ("exit", (node_addr, exit_stmt_idx), ObservationPointType.OP_AFTER)
+                    if node_idx is None
+                    else ("exit", (node_addr, node_idx, exit_stmt_idx), ObservationPointType.OP_AFTER)
+                )
+
+        if not observe:
+            return
+
+        self.observed_results[key] = state.live_definitions.copy()
+
     @property
     def subject(self):
         return self._subject
@@ -411,6 +472,7 @@ class ReachingDefinitionsAnalysis(
             l.warning("Unsupported node type %s.", node.__class__)
             return False, state.copy(discard_tmpdefs=True)
 
+        state = state.copy(discard_tmpdefs=True)
         self.node_observe(node.addr, state, OP_BEFORE)
 
         if self.subject.type == SubjectType.Function:
@@ -425,7 +487,6 @@ class ReachingDefinitionsAnalysis(
                 node_parents,
             )
 
-        state = state.copy(discard_tmpdefs=True)
         state = engine.process(
             state,
             block=block,
