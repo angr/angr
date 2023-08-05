@@ -158,6 +158,13 @@ def refine_locs_with_struct_type(
             for field, field_ty in arg_type.fields.items()
         }
         return SimStructArg(arg_type, locs)
+    if isinstance(arg_type, SimUnion):
+        # Treat a SimUnion as functionality equivalent to its longest member
+        for member in arg_type.members.values():
+            if member.size == arg_type.size:
+                break
+        return refine_locs_with_struct_type(arch, locs, member, offset)
+
     raise TypeError("I don't know how to lay out a %s" % arg_type)
 
 
