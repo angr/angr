@@ -1001,6 +1001,7 @@ class Clinic(Analysis):
             kb=tmp_kb,
             track_sp=False,
             func_args=arg_list,
+            unify_variables=False,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]
