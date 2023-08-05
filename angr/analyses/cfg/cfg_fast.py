@@ -2714,30 +2714,28 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             for segment in self.project.loader.main_object.segments:
                 if segment.vaddr + segment.memsize == data_addr:
                     # yeah!
-                    new_data = self.model.add_memory_data(data_addr, MemoryDataSort.SegmentBoundary, data_size=0)
-                    if new_data or self._cross_references:
-                        cr = XRef(
-                            ins_addr=insn_addr,
-                            block_addr=irsb_addr,
-                            stmt_idx=stmt_idx,
-                            memory_data=self.model.memory_data[data_addr],
-                            xref_type=XRefType.Offset,
-                        )
-                        self.kb.xrefs.add_xref(cr)
+                    self.model.add_memory_data(data_addr, MemoryDataSort.SegmentBoundary, data_size=0)
+                    cr = XRef(
+                        ins_addr=insn_addr,
+                        block_addr=irsb_addr,
+                        stmt_idx=stmt_idx,
+                        memory_data=self.model.memory_data[data_addr],
+                        xref_type=XRefType.Offset,
+                    )
+                    self.kb.xrefs.add_xref(cr)
                     break
 
             return
 
-        new_data = self.model.add_memory_data(data_addr, data_type, data_size=data_size)
-        if new_data or self._cross_references:
-            cr = XRef(
-                ins_addr=insn_addr,
-                block_addr=irsb_addr,
-                stmt_idx=stmt_idx,
-                memory_data=self.model.memory_data[data_addr],
-                xref_type=XRefType.Offset,
-            )
-            self.kb.xrefs.add_xref(cr)
+        self.model.add_memory_data(data_addr, data_type, data_size=data_size)
+        cr = XRef(
+            ins_addr=insn_addr,
+            block_addr=irsb_addr,
+            stmt_idx=stmt_idx,
+            memory_data=self.model.memory_data[data_addr],
+            xref_type=XRefType.Offset,
+        )
+        self.kb.xrefs.add_xref(cr)
 
         if is_arm_arch(self.project.arch):
             if (irsb_addr & 1) == 1 and data_addr == (insn_addr & 0xFFFF_FFFF_FFFF_FFFE) + 4:
