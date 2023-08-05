@@ -214,10 +214,6 @@ class Instruction(DisassemblyPiece):
         assert hasattr(self.insn, "operands")
 
         op_str = self.insn.op_str
-        # NOTE: the size of dummy_operands is not necessarily equal to
-        # operands count of capstone disasm result. If we check
-        # len(self.operands) == len(self.insn.operands)
-        # special cases in arm disassembly will mess up the code
         dummy_operands = self.split_arm_op_string(op_str)
 
         for operand in dummy_operands:
@@ -278,16 +274,16 @@ class Instruction(DisassemblyPiece):
 
     @staticmethod
     def split_arm_op_string(op_str: str):
-        # Split arm operand string by comma outside brackets
+        # Split arm operand string with commas outside the square brackets
         pieces = []
-        outside_brackets = True
+        in_square_brackets = False
         cur_opr = ""
         for c in op_str:
-            if c == "[" or c == "{":
-                outside_brackets = False
-            if c == "]" or c == "}":
-                outside_brackets = True
-            if c == "," and outside_brackets:
+            if c == "[":
+                in_square_brackets = True
+            if c == "]":
+                in_square_brackets = False
+            if c == "," and not in_square_brackets:
                 pieces.append(cur_opr)
                 cur_opr = ""
                 continue

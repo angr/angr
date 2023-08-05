@@ -40,12 +40,12 @@ class TestDisassembly(TestCase):
 
     def test_arm32_dissect_instructions(self):
         proj = angr.load_shellcode(
-            b"\x00\xc0\x2d\xe9" b"\x10\xf9\xf9\xe9",
+            b"\x00\xc0\x2d\xe9\x10\xf9\xf9\xe9",
             "ARM",
             0,
         )
-        # push {lr, pc}
-        # ldmib sb!, {r4, r8, fp, ip, sp, lr, pc}^
+        # push    {lr, pc}
+        # ldmib   sb!, {r4, r8, fp, ip, sp, lr, pc}^
 
         block = proj.factory.block(0)
         disasm = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
@@ -54,6 +54,18 @@ class TestDisassembly(TestCase):
         assert all(i in rendered_insns[0] for i in ("{", "}", "lr", "pc"))
         assert "sb!" in rendered_insns[1]
         assert rendered_insns[1].endswith("^")
+
+    def test_arm32_thumb_dissect_instructions(self):
+        proj = angr.load_shellcode(b"\x00\xf9\x01\x1a", "ARM", 0, thumb=True)
+        # vst1.8  {d1, d2}, [r0], r1
+
+        block = proj.factory.block(0, thumb=True)
+        disasm = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)], thumb=True)
+        insns = [r for r in disasm.raw_result if isinstance(r, Instruction)]
+
+        disassembly_operands = insns[0].operands
+        capstone_operands = insns[0].insn.operands
+        assert len(disassembly_operands) == len(capstone_operands)
 
     def test_mips32_missing_offset_in_instructions(self):
         proj = angr.load_shellcode(
