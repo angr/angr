@@ -241,6 +241,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         track_sp=True,
         func_args: Optional[List[SimVariable]] = None,
         store_live_variables=False,
+        unify_variables=True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -268,6 +269,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._job_ctr = 0
         self._track_sp = track_sp and self.project.arch.sp_offset is not None
         self._func_args = func_args
+        self._unify_variables = unify_variables
 
         self._ail_engine = SimEngineVRAIL(self.project, self.kb, call_info=call_info)
         self._vex_engine = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
@@ -459,6 +461,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                     state.downsize_region(state.register_region),
                     state.downsize_region(state.stack_region),
                 )
+
+        if self._unify_variables:
+            self.variable_manager[self.function.addr].unify_variables()
 
         # unify type variables for global variables
         for var, typevars in self.var_to_typevars.items():
