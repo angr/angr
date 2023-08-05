@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,no-self-use
 from typing import TYPE_CHECKING
 import os
 from unittest import main, TestCase
@@ -53,6 +54,8 @@ class CustomFunctionHandler(FunctionHandler):
         self.strcpy_addr = None
         self.sscanf_str_addr = None
         self.sscanf_str = None
+        self.sscanf_fmtstr_addr = None
+        self.sscanf_fmtstr = None
         self.sscanf_out_value = None
         self.malloc_sizes = []
 
