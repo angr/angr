@@ -268,8 +268,8 @@ class Project:
         """
         Initializes self.analyses using a given preset.
         """
-        self.analyses = cast("AnalysesHubWithDefault", AnalysesHub(self))
-        self.analyses.use_plugin_preset(self._analyses_preset if self._analyses_preset is not None else "default")
+        self._analyses = cast("AnalysesHubWithDefault", AnalysesHub(self))
+        self._analyses.use_plugin_preset(self._analyses_preset if self._analyses_preset is not None else "default")
 
     def _register_object(self, obj, sim_proc_arch):
         """
