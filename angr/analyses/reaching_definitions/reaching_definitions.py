@@ -473,7 +473,7 @@ class ReachingDefinitionsAnalysis(
             return False, state.copy(discard_tmpdefs=True)
 
         state = state.copy(discard_tmpdefs=True)
-        self.node_observe(node.addr, state, OP_BEFORE)
+        self.node_observe(node.addr, state.copy(), OP_BEFORE)
 
         if self.subject.type == SubjectType.Function:
             node_parents = [
