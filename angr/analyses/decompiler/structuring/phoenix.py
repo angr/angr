@@ -2546,7 +2546,7 @@ class PhoenixStructurer(StructurerBase):
             # H1: the edge that has the least amount of sibling edges should be virtualized first
             # this is believed to reduce the amount of virtualization needed in future rounds and increase
             # the edges that enter a single outer-scope if-stmt
-            #if edge_sibling_count:
+            # if edge_sibling_count:
             #    min_sibling_count = min(edge_sibling_count.values())
             #    best_edges = [edge for edge, cnt in edge_sibling_count.items() if cnt == min_sibling_count]
             #    if len(best_edges) == 1:
