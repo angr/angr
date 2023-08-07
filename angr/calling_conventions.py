@@ -163,7 +163,7 @@ def refine_locs_with_struct_type(
         for member in arg_type.members.values():
             if member.size == arg_type.size:
                 return refine_locs_with_struct_type(arch, locs, member, offset)
-                
+
     raise TypeError("I don't know how to lay out a %s" % arg_type)
 
 
