@@ -643,6 +643,7 @@ class ConditionProcessor:
 
         _mapping = {
             "Not": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
+            "__neg__": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
             "__invert__": lambda cond_, tags: _unary_op_reduce("BitwiseNeg", cond_.args[0], tags),
             "And": lambda cond_, tags: _binary_op_reduce("LogicalAnd", cond_.args, tags),
             "Or": lambda cond_, tags: _binary_op_reduce("LogicalOr", cond_.args, tags),
