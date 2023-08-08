@@ -209,6 +209,9 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             return
         self.tmps[tmp] = data
 
+    def _handle_Dirty(self, stmt):
+        raise NotImplementedError("Please implement the Put handler with your own logic.")
+
     def _handle_Put(self, stmt):
         raise NotImplementedError("Please implement the Put handler with your own logic.")
 

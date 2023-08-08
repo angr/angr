@@ -3,6 +3,7 @@ import logging
 
 import claripy
 import pyvex
+import archinfo
 
 from ...engines.light import SimEngineLightVEXMixin
 from ...calling_conventions import DEFAULT_CC, SimRegArg
@@ -121,6 +122,16 @@ class SimEnginePropagatorVEX(
     #
     # VEX statement handlers
     #
+    def _handle_Dirty(self, stmt):
+        if (archinfo.arch_riscv64.is_riscv_arch(self.project.arch)):
+            helper = str(stmt.cee) 
+            if helper not in ("riscv_dirtyhelper_CSR_rw", 
+                            "riscv_dirtyhelper_CSR_s",
+                            "riscv_dirtyhelper_CSR_c",
+                            "riscv_dirtyhelper_mret"):
+                super()._handle_Dirty(stmt)
+            else:   
+                pass
 
     def _handle_WrTmp(self, stmt):
         super()._handle_WrTmp(stmt)
