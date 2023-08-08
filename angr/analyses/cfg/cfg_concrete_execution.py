@@ -9,6 +9,7 @@ import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
+from angr.utils.graph import GraphUtils
 
 
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
@@ -30,7 +31,6 @@ from ..forward_analysis.visitors.graph import GraphVisitor
 from ...engines.successors import SimSuccessors
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_utils import CFGUtils
 from .cfg_vm_deobfuscation import CFGVMDeobfuscation, StorageState, DataSensitiveEngine
 from .cfg_emulated import CFGEmulated
 
@@ -67,7 +67,7 @@ class EmulatedCFGVisitor(GraphVisitor):
         return list(self.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
+        sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self.graph)
         if nodes is not None:
             sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
         return sorted_nodes
@@ -311,7 +311,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         self._node_addr_visiting_order = [ ]
 
         if self._base_graph:
-            sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self._base_graph)
+            sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._base_graph)
             self._node_addr_visiting_order = [ n.addr for n in sorted_nodes ]
 
         self._sanitize_parameters()

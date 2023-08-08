@@ -1,4 +1,4 @@
-from ...cfg.cfg_utils import CFGUtils
+from angr.utils.graph import GraphUtils
 from .graph import GraphVisitor
 
 
@@ -16,7 +16,7 @@ class DataSensitiveFunctionSubGraphVisitor(GraphVisitor):
         return list(self.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
+        sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self.graph)
 
         new_sorted_nodes = []
         reached_starting_node = False
