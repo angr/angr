@@ -10,6 +10,7 @@ import networkx
 import pyvex
 from archinfo import ArchARM
 from angr import options as o
+from angr.utils.graph import GraphUtils
 from .data_sensitive_vex_engine.engine_vex import DataSensitiveHeavyVEXMixin
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
 from ...engines.unicorn import SimEngineUnicorn
@@ -36,7 +37,6 @@ from ..forward_analysis import ForwardAnalysis
 from ..forward_analysis.visitors.graph import GraphVisitor
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name=__name__)
 
@@ -170,7 +170,7 @@ class EmulatedCFGVisitor(GraphVisitor):
         return list(self.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
+        sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self.graph)
         if nodes is not None:
             sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
         return sorted_nodes
@@ -504,7 +504,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._node_addr_visiting_order = [ ]
 
         if self._base_graph:
-            sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self._base_graph)
+            sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._base_graph)
             self._node_addr_visiting_order = [ n.addr for n in sorted_nodes ]
 
         self._sanitize_parameters()
