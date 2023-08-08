@@ -213,7 +213,10 @@ class SimEngineRDVEX(
                     atom = MemoryLocation(a, size)
                     tags = None
                 elif self.state.is_stack_address(a):
-                    atom = MemoryLocation(SpOffset(self.arch.bits, self.state.get_stack_offset(a)), size)
+                    offset = self.state.get_stack_offset(a)
+                    if offset is None:
+                        continue
+                    atom = MemoryLocation(SpOffset(self.arch.bits, offset), size)
                     function_address = None  # we cannot get the function address in the middle of a store if a CFG
                     # does not exist. you should backpatch the function address later using
                     # the 'ins_addr' metadata entry.
