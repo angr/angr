@@ -8,6 +8,7 @@ import networkx
 import ailment
 import claripy
 import pyvex
+from angr.utils.graph import GraphUtils
 from ..propagator.top_checker_mixin import TopCheckerMixin
 from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveRdTmp, DataSensitiveU64, DataSensitiveU32
 from ...engines.light import SimEngineLightVEXMixin
@@ -22,7 +23,6 @@ from ...engines.failure import SimEngineFailure
 from ...engines.syscall import SimEngineSyscall
 from ...engines.hook import HooksMixin
 from ...engines.soot import SootMixin
-from ..cfg.cfg_utils import CFGUtils
 from .. import register_analysis
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotation, VMStackVariableAnnotation
@@ -450,7 +450,7 @@ class EmulatedCFGVisitor(GraphVisitor):
         return list(self.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
+        sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self.graph)
         if nodes is not None:
             sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
         return sorted_nodes
