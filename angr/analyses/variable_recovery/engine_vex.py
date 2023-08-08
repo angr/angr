@@ -389,6 +389,26 @@ class SimEngineVRVEX(
         r = self.state.top(result_size)
         return RichR(r)
 
+    def _handle_Mod(self, expr):
+        arg0, arg1 = expr.args
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        result_size = expr.result_size(self.tyenv)
+        if r0.data.concrete and r1.data.concrete and r1.data.concrete_value != 0:
+            # constants
+            try:
+                if result_size != r1.data.size():
+                    remainder = r0.data.SMod(claripy.SignExt(result_size - r1.data.size(), r1.data))
+                else:
+                    remainder = r0.data.SMod(r1.data)
+                return RichR(remainder)
+            except ZeroDivisionError:
+                pass
+
+        r = self.state.top(result_size)
+        return RichR(r)
+
     def _handle_Shr(self, expr):
         arg0, arg1 = expr.args
         r0 = self._expr(arg0)

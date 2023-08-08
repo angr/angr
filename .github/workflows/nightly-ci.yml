@@ -12,4 +12,4 @@ jobs:
       nightly: true
     secrets: inherit
   macos:
-    uses: ./macos.yml
+    uses: ./.github/workflows/macos.yml

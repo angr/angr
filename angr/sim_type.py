@@ -849,7 +849,7 @@ class SimTypeFunction(SimType):
     _fields = ("args", "returnty")
     base = False
 
-    def __init__(self, args, returnty, label=None, arg_names=None, variadic=False):
+    def __init__(self, args: List[SimType], returnty: Optional[SimType], label=None, arg_names=None, variadic=False):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
@@ -857,7 +857,7 @@ class SimTypeFunction(SimType):
         :param variadic: Whether the function accepts varargs
         """
         super().__init__(label=label)
-        self.args = args
+        self.args: List[SimType] = args
         self.returnty: Optional[SimType] = returnty
         self.arg_names = arg_names if arg_names else ()
         self.variadic = variadic

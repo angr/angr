@@ -235,6 +235,9 @@ class PropagatorState:
 
         return state, merge_occurred
 
+    def init_replacements(self):
+        self._replacements = defaultdict(dict)
+
     def add_replacement(self, codeloc, old: CodeLocation, new):
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.

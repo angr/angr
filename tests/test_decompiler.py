@@ -2014,7 +2014,9 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("phoenix")
     def test_decompiling_who_scan_entries(self, decompiler_options=None):
-        # order of edge virtualization matters. suboptimal order will lead to more gotos.
+        # order of edge virtualization matters. the default edge virtualization order (post-ordering) will lead to two
+        # gotos. virtualizing 0x401361 -> 0x4012b5 will lead to only one goto (because it's the edge that the
+        # compiler's optimizations created).
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "who.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -2024,7 +2026,13 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         # it should make somewhat sense
-        assert d.codegen.text.count("goto ") == 1
+        assert d.codegen.text.count("goto ") == 2
+
+        # a bug in propagator was leading to the removal of the comparison at 0x4012b8
+        lines = d.codegen.text.split("\n")
+        label_4012b8_index = lines.index("LABEL_4012b8:")
+        assert label_4012b8_index != -1
+        assert lines[label_4012b8_index + 1].endswith("== 2)")
 
     @structuring_algo("phoenix")
     def test_decompiling_tr_build_spec_list(self, decompiler_options=None):
@@ -2050,9 +2058,9 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert d.codegen.text.count("goto ") == 3
-        assert d.codegen.text.count("goto LABEL_400d08;") == 2
-        # goto 400e40 this is the fake goto that can be eliminated if cross-jumping reverter is present
-        assert d.codegen.text.count("goto LABEL_400e40;") == 1
+        assert d.codegen.text.count("goto LABEL_400d08;") == 1
+        assert d.codegen.text.count("goto LABEL_400d2a;") == 1
+        assert d.codegen.text.count("goto LABEL_400e1c;") == 1
 
     @structuring_algo("phoenix")
     def test_decompiling_sha384sum_digest_bsd_split_3(self, decompiler_options=None):
@@ -2077,8 +2085,8 @@ class TestDecompiler(unittest.TestCase):
         )
         self._print_decompilation_result(d)
 
-        # there should only be two or even fewer gotos
-        assert d.codegen.text.count("goto ") == 2
+        # there should only be three or even fewer gotos
+        assert d.codegen.text.count("goto ") == 3
 
     @for_all_structuring_algos
     def test_eliminating_stack_canary_reused_stack_chk_fail_call(self, decompiler_options=None):
@@ -2386,6 +2394,19 @@ class TestDecompiler(unittest.TestCase):
         assert "case 52:" not in d.codegen.text
 
     @for_all_structuring_algos
+    def test_df_add_uint_with_neg_flag_ite_expressions(self, decompiler_options=None):
+        # properly handling cmovz and cmovnz in amd64 binaries
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "df.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x400EA0]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # ITE expressions should not exist. we convert them to if-then-else properly.
+        assert "?" not in d.codegen.text
+
+    @for_all_structuring_algos
     def test_od_else_simplification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "od_gccO2.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -2425,6 +2446,23 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler](f2, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
         assert d.codegen.text.count("goto ") == 1
+
+    @for_all_structuring_algos
+    def test_proper_argument_simplification(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "true_a")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=True)
+
+        f = proj.kb.functions[0x404410]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        target_addrs = {0x4045D8, 0x404575}
+        target_nodes = [node for node in d.codegen.ail_graph.nodes if node.addr in target_addrs]
+
+        for target_node in target_nodes:
+            # these are the two calls, their last arg should actually be r14
+            assert str(target_node.statements[-1].args[2]).startswith("r14")
 
 
 if __name__ == "__main__":

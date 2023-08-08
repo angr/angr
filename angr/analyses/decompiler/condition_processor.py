@@ -93,7 +93,8 @@ _ail2claripy_op_mapping = {
     "Div": lambda expr, conv, _: conv(expr.operands[0], nobool=True) / conv(expr.operands[1], nobool=True),
     "Mod": lambda expr, conv, _: conv(expr.operands[0], nobool=True) % conv(expr.operands[1], nobool=True),
     "Not": lambda expr, conv, _: claripy.Not(conv(expr.operand)),
-    "Neg": lambda expr, conv, _: ~conv(expr.operand),
+    "Neg": lambda expr, conv, _: -conv(expr.operand),
+    "BitwiseNeg": lambda expr, conv, _: ~conv(expr.operand),
     "Xor": lambda expr, conv, _: conv(expr.operands[0], nobool=True) ^ conv(expr.operands[1], nobool=True),
     "And": lambda expr, conv, _: conv(expr.operands[0], nobool=True) & conv(expr.operands[1], nobool=True),
     "Or": lambda expr, conv, _: conv(expr.operands[0], nobool=True) | conv(expr.operands[1], nobool=True),
@@ -642,7 +643,8 @@ class ConditionProcessor:
 
         _mapping = {
             "Not": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
-            "__invert__": lambda cond_, tags: _unary_op_reduce("Neg", cond_.args[0], tags),
+            "__neg__": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
+            "__invert__": lambda cond_, tags: _unary_op_reduce("BitwiseNeg", cond_.args[0], tags),
             "And": lambda cond_, tags: _binary_op_reduce("LogicalAnd", cond_.args, tags),
             "Or": lambda cond_, tags: _binary_op_reduce("LogicalOr", cond_.args, tags),
             "__le__": lambda cond_, tags: _binary_op_reduce("CmpLE", cond_.args, tags, signed=True),

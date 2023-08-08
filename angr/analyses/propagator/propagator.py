@@ -257,6 +257,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             # make a copy of the state if it's not the initial state
             state = state.copy()
             state._equivalence.clear()
+            state.init_replacements()
         else:
             # clear self._initial_state so that we *do not* run this optimization again!
             self._initial_state = None

@@ -1,15 +1,16 @@
+# pylint:disable=consider-using-in
 from typing import Optional, Callable, TYPE_CHECKING
 
 from ailment import Block, Stmt, Expr, AILBlockWalker
 
-from ...errors import SimMemoryMissingError
 from ...code_location import CodeLocation
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ...knowledge_plugins.key_definitions import atoms
 
 if TYPE_CHECKING:
     from archinfo import Arch
     from .propagator import PropagatorAILState
-    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-    from angr.knowledge_plugins.key_definitions import LiveDefinitions
+    from angr.analyses.reaching_definitions import ReachingDefinitionsModel
 
 
 class OutdatedDefinitionWalker(AILBlockWalker):
@@ -21,20 +22,17 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self,
         expr,
         expr_defat: CodeLocation,
-        livedefs_defat: "LiveDefinitions",
         current_loc: CodeLocation,
-        livedefs_currentloc: "LiveDefinitions",
         state: "PropagatorAILState",
         arch: "Arch",
         avoid: Optional[Expr.Expression] = None,
         extract_offset_to_sp: Callable = None,
+        rda: "ReachingDefinitionsModel" = None,
     ):
         super().__init__()
         self.expr = expr
         self.expr_defat = expr_defat
-        self.livedefs_defat = livedefs_defat
         self.current_loc = current_loc
-        self.livedefs_currentloc = livedefs_currentloc
         self.state = state
         self.avoid = avoid
         self.arch = arch
@@ -45,6 +43,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self.expr_handlers[Expr.VEXCCallExpression] = self._handle_VEXCCallExpression
         self.out_dated = False
         self.has_avoid = False
+        self.rda = rda
 
     # pylint:disable=unused-argument
     def _handle_Tmp(self, expr_idx: int, expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
@@ -63,19 +62,8 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             self.has_avoid = True
 
         # is the used register still alive at this point?
-        try:
-            reg_vals: "MultiValues" = self.livedefs_defat.register_definitions.load(expr.reg_offset, size=expr.size)
-            defs_defat = list(self.livedefs_defat.extract_defs_from_mv(reg_vals))
-        except SimMemoryMissingError:
-            defs_defat = []
-
-        try:
-            reg_vals: "MultiValues" = self.livedefs_currentloc.register_definitions.load(
-                expr.reg_offset, size=expr.size
-            )
-            defs_currentloc = list(self.livedefs_currentloc.extract_defs_from_mv(reg_vals))
-        except SimMemoryMissingError:
-            defs_currentloc = []
+        defs_defat = self.rda.get_defs(atoms.Register(expr.reg_offset, expr.size), self.expr_defat, OP_AFTER)
+        defs_currentloc = self.rda.get_defs(atoms.Register(expr.reg_offset, expr.size), self.current_loc, OP_BEFORE)
 
         codelocs_defat = {def_.codeloc for def_ in defs_defat}
         codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
@@ -83,31 +71,19 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             self.out_dated = True
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
-        if self.avoid is not None and (  # pylint:disable=consider-using-in
-            expr == self.avoid or expr.addr == self.avoid
-        ):
+        if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):
             self.has_avoid = True
 
         if isinstance(expr.addr, Expr.StackBaseOffset):
             sp_offset = self.extract_offset_to_sp(expr.addr)
 
             if sp_offset is not None:
-                stack_addr = self.livedefs_defat.stack_offset_to_stack_addr(sp_offset)
-                try:
-                    mem_vals: "MultiValues" = self.livedefs_defat.stack_definitions.load(
-                        stack_addr, size=expr.size, endness=expr.endness
-                    )
-                    defs_defat = list(self.livedefs_defat.extract_defs_from_mv(mem_vals))
-                except SimMemoryMissingError:
-                    defs_defat = []
-
-                try:
-                    mem_vals: "MultiValues" = self.livedefs_currentloc.stack_definitions.load(
-                        stack_addr, size=expr.size, endness=expr.endness
-                    )
-                    defs_currentloc = list(self.livedefs_defat.extract_defs_from_mv(mem_vals))
-                except SimMemoryMissingError:
-                    defs_currentloc = []
+                defs_defat = self.rda.get_defs(
+                    atoms.MemoryLocation(atoms.SpOffset(expr.bits, sp_offset), expr.size), self.expr_defat, OP_AFTER
+                )
+                defs_currentloc = self.rda.get_defs(
+                    atoms.MemoryLocation(atoms.SpOffset(expr.bits, sp_offset), expr.size), self.current_loc, OP_BEFORE
+                )
 
                 codelocs_defat = {def_.codeloc for def_ in defs_defat}
                 codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
@@ -126,21 +102,9 @@ class OutdatedDefinitionWalker(AILBlockWalker):
 
         elif isinstance(expr.addr, Expr.Const):
             mem_addr = expr.addr.value
-            try:
-                mem_vals: "MultiValues" = self.livedefs_defat.memory_definitions.load(
-                    mem_addr, size=expr.size, endness=expr.endness
-                )
-                defs_defat = list(self.livedefs_defat.extract_defs_from_mv(mem_vals))
-            except SimMemoryMissingError:
-                defs_defat = []
 
-            try:
-                mem_vals: "MultiValues" = self.livedefs_currentloc.memory_definitions.load(
-                    mem_addr, size=expr.size, endness=expr.endness
-                )
-                defs_currentloc = list(self.livedefs_defat.extract_defs_from_mv(mem_vals))
-            except SimMemoryMissingError:
-                defs_currentloc = []
+            defs_defat = self.rda.get_defs(atoms.MemoryLocation(mem_addr, expr.size), self.expr_defat, OP_AFTER)
+            defs_currentloc = self.rda.get_defs(atoms.MemoryLocation(mem_addr, expr.size), self.current_loc, OP_BEFORE)
 
             codelocs_defat = {def_.codeloc for def_ in defs_defat}
             codelocs_currentloc = {def_.codeloc for def_ in defs_currentloc}
