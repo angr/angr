@@ -18,4 +18,4 @@ build:
 
 search:
   ignore:
-    - *
+    - '*'
