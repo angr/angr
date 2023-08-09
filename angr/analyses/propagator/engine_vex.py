@@ -123,15 +123,17 @@ class SimEnginePropagatorVEX(
     # VEX statement handlers
     #
     def _handle_Dirty(self, stmt):
-        # For RISCV CSR and mret operations, the Dirty statement is skipped. 
-        if (archinfo.arch_riscv64.is_riscv_arch(self.project.arch)):
-            helper = str(stmt.cee) 
-            if helper in ("riscv_dirtyhelper_CSR_rw", 
-                            "riscv_dirtyhelper_CSR_s",
-                            "riscv_dirtyhelper_CSR_c",
-                            "riscv_dirtyhelper_mret"):
+        # For RISCV CSR and mret operations, the Dirty statement is skipped.
+        if archinfo.arch_riscv64.is_riscv_arch(self.project.arch):
+            helper = str(stmt.cee)
+            if helper in (
+                "riscv_dirtyhelper_CSR_rw",
+                "riscv_dirtyhelper_CSR_s",
+                "riscv_dirtyhelper_CSR_c",
+                "riscv_dirtyhelper_mret",
+            ):
                 pass
-            else:   
+            else:
                 super()._handle_Dirty(stmt)
 
     def _handle_WrTmp(self, stmt):
