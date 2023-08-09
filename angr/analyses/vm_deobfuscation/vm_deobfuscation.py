@@ -77,19 +77,19 @@ class CLibFunctionHandler(FunctionHandler):
     def __init__(self, project):
         self.project = project
 
-    def hook(self, analysis):
-        return self
-
-    def handle_local_function(self, state, function_address, call_stack,
-                              maximum_local_call_depth, visited_blocks, dep_graph,
-                              src_ins_addr=None,
-                              codeloc=None):
-       # We skip local functions that we have a CFG for, this is only for lib functions that we are hooking e.g.printf scanf in windows binaries that seem to be statically compiled
-        if self.project.is_hooked(codeloc.block_addr):
-            executed_rda = False
-        else:
-            executed_rda = True
-        return executed_rda, state, visited_blocks, dep_graph
+    # def hook(self, analysis):
+    #     return self
+    #
+    # def handle_local_function(self, state, function_address, call_stack,
+    #                           maximum_local_call_depth, visited_blocks, dep_graph,
+    #                           src_ins_addr=None,
+    #                           codeloc=None):
+    #    # We skip local functions that we have a CFG for, this is only for lib functions that we are hooking e.g.printf scanf in windows binaries that seem to be statically compiled
+    #     if self.project.is_hooked(codeloc.block_addr):
+    #         executed_rda = False
+    #     else:
+    #         executed_rda = True
+    #     return executed_rda, state, visited_blocks, dep_graph
 
 
 class StatementNode:
@@ -334,7 +334,7 @@ class VMDeobfuscation(Analysis):
                  avoid_runs=None, vm_start_addr=None, verification_state=None, remove_insts=None,
                  constant_prop_func_replacements=None, semantic_verf_hooks=None, decomp_start_end_node_str=None,
                  decomp_function_addresses=None, decomp_function_prototypes=None,
-                 decomp_main_func_prototype=None):
+                 decomp_main_func_prototype=None,  keep_sp_changes_dae=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -342,6 +342,7 @@ class VMDeobfuscation(Analysis):
         self.start_addr = start_addr
         self.verification_state = verification_state
         self.constant_prop_func_replacements = constant_prop_func_replacements
+        calls_as_rets = {}
 
 
         if self.project.arch.bits == 32:
@@ -398,11 +399,6 @@ class VMDeobfuscation(Analysis):
     #     self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
     #     initial_cfg = self.new_model_graph(cfg.graph, proj, 'initial_cfg')
     #
-    #     # new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(sub_graph, proj, start_addr=0x43aab6,
-    #     #                                                                        start_state=None,
-    #     #                                                                        prev_symbolic_expr_locations_blockwise=None,
-    #     #                                                                        vm_vpc=4281418)  # start_state=saved_start_state)
-    #
     #     # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
     #     new_cfg, symbolic_expr_locations_blockwise = self.symbolizer(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
     #
@@ -410,8 +406,6 @@ class VMDeobfuscation(Analysis):
     #
     #     start_state_copy = start_state.copy()
     #     self.project.kb.cfgs.cfgs = {}
-    #
-    #    #import ipdb;ipdb.set_trace()
     #
     #     global debug
     #     debug = True
@@ -426,7 +420,6 @@ class VMDeobfuscation(Analysis):
     #         pickle.dump(self.project.load_addr_mba_to_jump_addr_mapping, load_addr_mba_to_jump_addr_mapping)
     #
     #     print("DONE")
-    #     import ipdb;ipdb.set_trace()
     #
     #     import gc
     #     gc.collect()
@@ -441,33 +434,23 @@ class VMDeobfuscation(Analysis):
     #
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "symbolify_cfg.svg"))
     #
-    #     # filter the locations that we symbolize during constant propagation based on the previous analysis, to reduce the load on constant prop
-    #     # new_symbolic_expr_locations_blockwise = defaultdict(lambda: defaultdict(list))
-    #     # for codeloc, expr in to_use_symbolic_exprs:
-    #     #     for expr_list in symbolic_expr_locations_blockwise[codeloc.block_id].values():
-    #     #         for cur_expr in expr_list:
-    #     #             if cur_expr == expr:
-    #     #                 new_symbolic_expr_locations_blockwise[codeloc.block_id][codeloc].append(expr)
-    #     #
-    #     # import ipdb;ipdb.set_trace()
-    #     # symbolic_expr_locations_blockwise = new_symbolic_expr_locations_blockwise
-    #
     #     start_state_copy = start_state.copy()
     #     new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
     #
-    #     start_state_copy = start_state.copy()
-    #
-    #
-    #     #p.join()
     #     import gc
     #     gc.collect()
-    #     # new_cfg, symbolic_expr_locations_blockwise = self.constant_propagation(new_cfg, proj, start_addr, None,
-    #     #                                                                        start_state=None,
-    #     #                                                                        prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
     #     ## This is constant propgation along with finding non-constants
     #     new_cfg, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
     #     symbolic_expr_locations_blockwise = None
     #     self.project.kb.cfgs.cfgs = {}
+    #
+    #     import pickle
+    #     pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
+    #     # with open(pickled_file_name,'wb') as initial_full_cfg_pickle:
+    #     #     pickle.dump(new_cfg, initial_full_cfg_pickle)
+    #     #
+    #     with open(pickled_file_name, 'rb') as initial_full_cfg_pickle:
+    #         new_cfg = pickle.load(initial_full_cfg_pickle)
     #
     #     import gc
     #     gc.collect()
@@ -478,13 +461,9 @@ class VMDeobfuscation(Analysis):
     #         node.final_states = None
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
     #
-    #     # verification_state_copy = verification_state.copy()
-    #     # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy,
-    #     #                                    start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
-    #     # import ipdb;ipdb.set_trace()
-    #     start_state_copy = start_state.copy()
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-    #     #
+    #     # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
+    #     # calls_as_rets is used later during decompilation to adjust stack argument offset for cdcel because the ret has different offsets compared to a normal call
+    #     new_cfg, calls_as_rets = self.replace_jumpkinds(new_cfg)
     #
     #     # # this is a simplification pass to remove all push x, ret to x type of jumps
     #     new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
@@ -492,7 +471,7 @@ class VMDeobfuscation(Analysis):
     #
     #
     #     # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
-    #     new_cfg = self.remove_useless_jump_instructions(new_cfg, proj, start_addr, None, initial_cfg)
+    #     new_cfg = self.remove_useless_jump_instructions(new_cfg)
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "remove_useless_jump.svg"))
     #
     #     import pickle
@@ -500,12 +479,12 @@ class VMDeobfuscation(Analysis):
     #     with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
     #         pickle.dump(new_cfg, mid_way_cfg_pickle)
     #
-    #     # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
-    #     #     new_cfg = pickle.load(mid_way_cfg_pickle)
+    #     with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
+    #         new_cfg = pickle.load(mid_way_cfg_pickle)
     #
     #
     #     for i in range(4):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
     #
     #         new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
@@ -515,6 +494,7 @@ class VMDeobfuscation(Analysis):
     #         new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
     #
     #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+    #
     #
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
     #     import pickle
@@ -526,17 +506,15 @@ class VMDeobfuscation(Analysis):
     #     #     new_cfg = pickle.load(mid_way_cfg_pickle)
     #
     #
-    #     new_cfg = self.replace_jumpkinds(new_cfg)
-    #
     #     #### These need to be after join basic blocks becasue of the way RDA considers a libc func call as internal instead of external
     #     for i in range(4):
     #         global to_break
     #         to_break = True
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
     #
     #     for i in range(4):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
     #
     #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
@@ -551,10 +529,10 @@ class VMDeobfuscation(Analysis):
     #     # import ipdb;ipdb.set_trace()
     #
     #     for i in range(2):
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
     #     for i in range(2):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
     #
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
@@ -564,10 +542,10 @@ class VMDeobfuscation(Analysis):
     #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
     #
     #     for i in range(8):
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
     #
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
     #
     #         new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
@@ -585,10 +563,10 @@ class VMDeobfuscation(Analysis):
     #         new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
     #
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
     #
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
 
         import pickle
@@ -598,6 +576,10 @@ class VMDeobfuscation(Analysis):
 
         with open(pickled_file_name, "rb") as final_cfg_pickle:
             new_cfg = pickle.load(final_cfg_pickle)
+        #
+        # verification_state_copy = verification_state.copy()
+        # import ipdb;ipdb.set_trace()
+        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
         pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
         with open(pickled_file_name,'rb') as load_addr_mba_to_jump_addr_mapping_pickle:
@@ -606,11 +588,11 @@ class VMDeobfuscation(Analysis):
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
-                               decomp_main_func_prototype=decomp_main_func_prototype)
+                               decomp_main_func_prototype=decomp_main_func_prototype, calls_as_rets=calls_as_rets)
 
 
         verification_state_copy = verification_state.copy()
-        self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
+        # self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
         import ipdb;ipdb.set_trace()
         self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
@@ -618,7 +600,8 @@ class VMDeobfuscation(Analysis):
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
-    def try_decompilation(self, new_cfg, decomp_start_end_node_str, decomp_function_addresses=None, decomp_function_prototypes=None, semantic_verf_hooks=[], decomp_main_func_prototype=None):
+    def try_decompilation(self, new_cfg, decomp_start_end_node_str, decomp_function_addresses=None, decomp_function_prototypes=None,
+                          semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}):
         visited_nodes = {}
 
         traversal_start_node = decomp_start_end_node_str[0][0]
@@ -646,8 +629,8 @@ class VMDeobfuscation(Analysis):
         new_block_id_embed_dict = {}
         # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
         # These are addresses for huffman, that are manually specified becasue the Rets are already converted to calls in replace_jumpkinds, so we loos that information when using pickled cfg
-        calls_as_rets = {0x41f6bb: 'Ijk_Ret', 0x41c6c2: 'Ijk_Ret', 0x461de0: 'Ijk_Ret', 0x451af1: 'Ijk_Ret'}
-
+        #calls_as_rets = {0x41f6bb: 'Ijk_Ret', 0x41c6c2: 'Ijk_Ret', 0x461de0: 'Ijk_Ret', 0x451af1: 'Ijk_Ret'}
+        import ipdb;ipdb.set_trace()
         ## convert to new encoded addresses
         for node in new_cfg.nodes():
             if not node.is_simprocedure:
@@ -938,11 +921,30 @@ class VMDeobfuscation(Analysis):
         return int.from_bytes(bytes(str(block_id.vm_vpc)+str(addr), 'utf-8'), "big")
 
     def replace_jumpkinds(self, new_cfg):
+        calls_as_rets = {}
         for node in new_cfg.nodes():
             succs = list(new_cfg.get_successors(node))
-            if len(succs) == 1 and succs[0].is_simprocedure and node.irsb.jumpkind == "Ijk_Ret":
-                node.irsb.jumpkind = "Ijk_Call"
-        return new_cfg
+            if len(succs) == 1 and not node.is_simprocedure and node.irsb.jumpkind == "Ijk_Ret":
+                if succs[0].is_simprocedure:
+                    node.irsb.jumpkind = "Ijk_Call"
+                    for stmt in reversed(node.irsb.statements):
+                        if isinstance(stmt, pyvex.stmt.IMark):
+                            calls_as_rets[stmt.addr] = "Ijk_Ret"
+                            break
+                elif len(succs[0].irsb.statements) < 2:
+                    # the succ is probaby just a jump to the simprocedure
+                    succs_of_succ = list(new_cfg.get_successors(succs[0]))
+                    if len(succs_of_succ) == 1:
+                        if succs_of_succ[0].is_simprocedure:
+                            import ipdb;
+                            ipdb.set_trace()
+                            node.irsb.jumpkind = "Ijk_Call"
+                            for stmt in reversed(node.irsb.statements):
+                                if isinstance(stmt, pyvex.stmt.IMark):
+                                    calls_as_rets[stmt.addr] = "Ijk_Ret"
+                                    break
+
+        return new_cfg, calls_as_rets
     def symbolizer(self, cfg, proj, start_addr, q, start_state=None, options=None,
                              prev_symbolic_expr_locations_blockwise=None, vm_vpc=None,
                              return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None, do_replacements=False):
@@ -1103,10 +1105,10 @@ class VMDeobfuscation(Analysis):
                     node.irsb.next = pyvex.expr.Const(DataSensitiveU64(list(cfg.graph.successors(node))[0].addr, list(cfg.graph.successors(node))[0].block_id))
 
             # # we are changin the jumpkinds that are IjK_Ret to Ijk_Call so that _process_block_end() in RDA treats the sim_procedures as a function
-            if not node.is_simprocedure and len(list(cfg.graph.successors(node))) == 1 and \
-                    list(cfg.graph.successors(node))[0].is_simprocedure:
-                if node.irsb.jumpkind == 'Ijk_Ret':
-                    node.irsb.jumpkind = 'Ijk_Boring'
+            # if not node.is_simprocedure and len(list(cfg.graph.successors(node))) == 1 and \
+            #         list(cfg.graph.successors(node))[0].is_simprocedure:
+            #     if node.irsb.jumpkind == 'Ijk_Ret':
+            #         node.irsb.jumpkind = 'Ijk_Boring'
 
             # this pass is to simplify push x, retn to x kind of jumps
             if not node.is_simprocedure:
@@ -1124,6 +1126,7 @@ class VMDeobfuscation(Analysis):
                                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
                                 rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                                                track_tmps=True,
+                                                                               track_consts = False,
                                                                                function_handler=CLibFunctionHandler(
                                                                                    self.project),
                                                                                observation_points=[
@@ -1306,7 +1309,7 @@ class VMDeobfuscation(Analysis):
         return cfg
 
     # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
-    def remove_useless_jump_instructions(self, cfg, proj, start_addr, start_state, orig_cfg):
+    def remove_useless_jump_instructions(self, cfg):
         print("Remove useless jmp insts")
         #new_model = self.new_model_graph(cfg.graph, proj, 'remove_useless_jumps')
         new_model = cfg
@@ -1619,7 +1622,6 @@ class VMDeobfuscation(Analysis):
                 new_model._nodes_by_addr[self.start_addr][0].input_state.registers.store(new_model._nodes_by_addr[self.start_addr][0].input_state.arch.registers['ss'][0], 0)
 
 
-        import ipdb;ipdb.set_trace()
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
 
@@ -1630,6 +1632,7 @@ class VMDeobfuscation(Analysis):
                 print(node)
                 print(final_state.posix.dumps(1))
         print("Done")
+        import ipdb;ipdb.set_trace()
         if semantic_verf_hooks:
             for symbol_addr, proc in semantic_verf_hooks:
                 if isinstance(symbol_addr, str):
@@ -1720,6 +1723,7 @@ class VMDeobfuscation(Analysis):
             cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
+                                                           track_consts=False,
                                                            function_handler=CLibFunctionHandler(self.project),
                                                            observation_points=[('node', node.addr, OP_AFTER)]
                                                            )
@@ -1730,6 +1734,9 @@ class VMDeobfuscation(Analysis):
             replace_get_dict = {}
             all_defs = rd.all_definitions
             for d in all_defs:
+                # skip the definitions that are added for function calls after the current block
+                if d.codeloc.block_addr != node.irsb.addr:
+                    continue
                 if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                     continue
 
@@ -1740,6 +1747,9 @@ class VMDeobfuscation(Analysis):
 
                 if isinstance(d.atom, atoms.Register) and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Put):
                     for use in uses:
+                        if use.stmt_idx is None:
+                            # this is a sim procedure function use
+                            continue
                         #make sure that other stmts don't define parts of a register e.g. put(cl) i.e. there's only one definition used at the location of the use
                         if len(rd.all_uses.get_uses_by_location(use)) == 1:
                             # This is an internal function or a sim procedure for which I have not written a rda handler
@@ -1748,6 +1758,8 @@ class VMDeobfuscation(Analysis):
 
                 elif isinstance(d.atom, atoms.Tmp) and isinstance(node.irsb.statements[d.codeloc.stmt_idx].data, pyvex.expr.Get):
                     for use in uses:
+                        if use.stmt_idx is None:
+                            continue
                         # This is an internal function or a sim procedure for which I have not written a rda handler
                         if isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.Put) and node.irsb.statements[use.stmt_idx].offset == node.irsb.statements[d.codeloc.stmt_idx].data.offset and (node.irsb.statements[use.stmt_idx].data.result_size(node.irsb.tyenv) == node.irsb.statements[d.codeloc.stmt_idx].data.result_size(node.irsb.tyenv)):
                             to_remove.append(use.stmt_idx)
@@ -1913,6 +1925,7 @@ class VMDeobfuscation(Analysis):
             cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
+                                                           track_consts=False,
                                                            function_handler=CLibFunctionHandler(self.project),
                                                            observation_points=[('node', node.addr, OP_AFTER)]
                                                            )
@@ -1982,88 +1995,7 @@ class VMDeobfuscation(Analysis):
 
 
 # Eliminated dead stack-memdefs and regdefs in the whoel CFG
-    def testing_whole_vm_RDA_deadassignment_elimination(self, cfg, proj, start_state=None):
-        dsa_new_model = self.new_model_graph(cfg.graph, proj, 'test_rda_dae')
-        #start_state = ReachingDefinitionsState()
-        for node in dsa_new_model.nodes():
-            if node.addr == self.vm_start_addr:
-                start_node = node
-                break
-
-        rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
-                                                       track_tmps=True,
-                                                       function_handler=CLibFunctionHandler(self.project),
-                                                       max_iterations=3
-                                                       )
-
-        # Find dead assignments
-        dead_defs_locs = set()
-        all_defs = rd.all_definitions
-
-        # There can be multiple memory definitions for the same location with different stack offset because of rd_state merging
-        for d in all_defs:
-            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
-                continue
-
-            #### Looking for def-use that look like => Stle(addr).... LDle(addr), removed defs that Look like STle(addr).....Put(rax)=addr because it was causing some incomplete elimination in (discount VM)0x400587
-            if isinstance(d.atom, atoms.MemoryLocation):
-                uses = rd.all_uses.get_uses(d)
-                no_uses = 0
-                for use in uses:
-                    # making sure we only count the uses that are Loads, not just any variable having that memory adddress
-                    if isinstance(cfg.get_node(use.block_id).irsb.statements[use.stmt_idx], pyvex.stmt.WrTmp):
-                        if isinstance(cfg.get_node(use.block_id).irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
-                            no_uses = no_uses + 1
-                if no_uses == 0 and d.atom.is_on_stack:
-                    dead_defs_locs.add(d.codeloc)
-
-
-#        Remove dead assignments
-        for node in dsa_new_model.nodes():
-            new_statements = []
-            if not node.is_simprocedure:
-                for idx, stmt in enumerate(node.irsb.statements):
-                    if isinstance(stmt, pyvex.stmt.IMark):
-                        cur_ins_addr = stmt.addr
-
-                    stmt_loc = CodeLocation(node.irsb.addr,
-                                idx,
-                                block_id=node.block_id,
-                                ins_addr=cur_ins_addr,
-                                context=None)
-
-                    # is it a dead virgin?
-                    if stmt_loc in dead_defs_locs:
-                        continue
-
-                    new_statements.append(stmt)
-
-                node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
-                                                   node.irsb.addr,
-                                                   statements=new_statements,
-                                                   tyenv=node.irsb.tyenv,
-                                                   nxt=node.irsb.next,
-                                                   direct_next=node.irsb.direct_next,
-                                                   jumpkind=node.irsb.jumpkind,
-                                                   size=node.irsb.size)
-
-            # Returning a new CFGVMDeobfuscation object with the updated graph
-        if start_state:
-            initial_input_state = start_state
-        else:
-            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
-                                                           mode='fastpath',
-                                                           add_options=angr.sim_options.refs | {
-                                                               angr.sim_options.REPLACEMENT_SOLVER,
-                                                               angr.sim_options.DO_CCALLS})
-            if proj.arch.bits == 32:
-                initial_input_state.registers.store(initial_input_state.arch.registers['ss'][0], 0)
-        dsa_new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
-        new_cfg = proj.analyses.CFGVMDeobfuscation(model=dsa_new_model, keep_state=True, iropt_level=1,
-                                                   resolve_indirect_jumps=True, max_iterations=1)
-        return new_cfg
-
-    def testing_new_improved_whole_vm_RDA_deadassignment_elimination(self, cfg, proj, start_state=None):
+    def testing_new_improved_whole_vm_RDA_deadassignment_elimination(self, cfg, proj, keep_sp_changes_dae=False):
         print("Whole CFG RDA based dead ass elimination")
         #dsa_new_model = self.new_model_graph(cfg.graph, proj, 'test_rda_dae')
         dsa_new_model =cfg
@@ -2080,10 +2012,13 @@ class VMDeobfuscation(Analysis):
 
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
                                                        track_tmps=True,
+                                                       track_consts=False,
                                                        function_handler=CLibFunctionHandler(self.project),
                                                        max_iterations=3,
                                                        observation_points=leaf_nodes_list
                                                        )
+        rd.model.liveness.def_to_liveness = None
+        rd.model.liveness.loc_to_defs = None
         all_live_defs = list(rd.observed_results.values())
         merged_live_defs, merge_occured= all_live_defs[0].merge(*[live_definitions for live_definitions in all_live_defs[1:]])
 
@@ -2122,8 +2057,9 @@ class VMDeobfuscation(Analysis):
             # so we only remove a definition if the definition is not alive anymore at the end of the block
             if isinstance(d.atom, atoms.Register) and not uses:
                 ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
-                if d.atom.reg_offset == self.project.arch.sp_offset:
-                    continue
+                if keep_sp_changes_dae:
+                    if d.atom.reg_offset == self.project.arch.sp_offset:
+                        continue
                 vs: 'MultiValues' = merged_live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
             else:
                 continue
@@ -2186,7 +2122,7 @@ class VMDeobfuscation(Analysis):
 
         return dsa_new_model
     # Eliminates dead memdefs, tmpdefs and regdefs in a single basic block
-    def _eliminate_dead_assignments(self, cfg, proj, start_state=None):
+    def _eliminate_dead_assignments(self, cfg, proj, keep_sp_changes_dae=False):
 
         #dsa_new_model = self.new_model_graph(cfg.graph, proj, 'dae')
         dsa_new_model = cfg
@@ -2201,9 +2137,12 @@ class VMDeobfuscation(Analysis):
             cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
+                                                           track_consts=False,
                                                            function_handler=CLibFunctionHandler(self.project),
                                                            observation_points=[('node', node.addr, OP_AFTER)]
                                                            )
+            rd.model.liveness.def_to_liveness = None
+            rd.model.liveness.loc_to_defs = None
 
             used_tmp_indices = set(rd.one_result.tmp_uses.keys())
             live_defs = rd.one_result
@@ -2235,8 +2174,9 @@ class VMDeobfuscation(Analysis):
                         defs_ = set()
                         if isinstance(d.atom, atoms.Register):
                             ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
-                            if d.atom.reg_offset == self.project.arch.sp_offset:
-                                continue
+                            if keep_sp_changes_dae:
+                                if d.atom.reg_offset == self.project.arch.sp_offset:
+                                    continue
                             try:
                                 vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
                             except:
@@ -2376,7 +2316,7 @@ class VMDeobfuscation(Analysis):
         for node in list(new_model.nodes()):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
-                result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True,  observation_points=[('node', node.addr, OP_AFTER)], dep_graph=DepGraph())
+                result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, track_consts=False, observation_points=[('node', node.addr, OP_AFTER)], dep_graph=DepGraph())
 
                 ## create stmt dependency graph
                 stmt_graph = StatementGraph()
