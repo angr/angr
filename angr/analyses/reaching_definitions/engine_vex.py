@@ -682,7 +682,7 @@ class SimEngineRDVEX(
             # we do not support division between two real multivalues
             r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
-            if expr1_v == 0:
+            if expr1_v.concrete and expr1_v.concrete_value == 0:
                 r = MultiValues(self.state.top(bits))
             elif expr0.count() == 1 and 0 in expr0:
                 vs = {v / expr1_v for v in expr0[0]}
