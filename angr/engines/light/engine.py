@@ -210,7 +210,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         self.tmps[tmp] = data
 
     def _handle_Dirty(self, stmt):
-        raise NotImplementedError("Please implement the Dirty handler with your own logic.")
+        self.l.error("Unimplemented Dirty node for current architecture.")
 
     def _handle_Put(self, stmt):
         raise NotImplementedError("Please implement the Put handler with your own logic.")

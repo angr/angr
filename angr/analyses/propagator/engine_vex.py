@@ -134,7 +134,7 @@ class SimEnginePropagatorVEX(
             ):
                 pass
             else:
-                super()._handle_Dirty(stmt)
+                self.l.warning("Unimplemented Dirty node for current architecture.")
 
     def _handle_WrTmp(self, stmt):
         super()._handle_WrTmp(stmt)
