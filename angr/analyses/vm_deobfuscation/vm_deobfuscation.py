@@ -575,6 +575,8 @@ class VMDeobfuscation(Analysis):
         with open(pickled_file_name, 'rb') as calls_as_rets_pickle:
             calls_as_rets = pickle.load(calls_as_rets_pickle)
 
+        self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
+
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
                                decomp_main_func_prototype=decomp_main_func_prototype, calls_as_rets=calls_as_rets)
@@ -584,7 +586,7 @@ class VMDeobfuscation(Analysis):
         # self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
         import ipdb;ipdb.set_trace()
         self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-        self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
+        self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result_enc_addr.svg"))
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
