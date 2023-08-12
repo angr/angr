@@ -378,16 +378,10 @@ class VMDeobfuscation(Analysis):
     #         node.final_states = None
     #
     #
-    #     #self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
-    #
     #     # removing path terminators, cause...............they causing problems
     #     cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
     #
-    #     # removing fakeret nodes, cause...............they causing problems
-    #  #   cfg = self.new_model_without_fakeret(cfg.graph, proj, 'without_path_fakeret')
-    #
     #     cfg = self.keep_only_one_graph(cfg, start_addr)
-    #     #self.draw_graph(cfg, os.path.join(folder_name, "one_graph_input.svg"))
     #
     #     start_state_copy = start_state.copy()
     #     cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
@@ -446,11 +440,11 @@ class VMDeobfuscation(Analysis):
     #
     #     import pickle
     #     pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
-    #     # with open(pickled_file_name,'wb') as initial_full_cfg_pickle:
-    #     #     pickle.dump(new_cfg, initial_full_cfg_pickle)
+    #     with open(pickled_file_name,'wb') as initial_full_cfg_pickle:
+    #         pickle.dump(new_cfg, initial_full_cfg_pickle)
     #     #
-    #     with open(pickled_file_name, 'rb') as initial_full_cfg_pickle:
-    #         new_cfg = pickle.load(initial_full_cfg_pickle)
+    #     # with open(pickled_file_name, 'rb') as initial_full_cfg_pickle:
+    #     #     new_cfg = pickle.load(initial_full_cfg_pickle)
     #
     #     import gc
     #     gc.collect()
@@ -464,6 +458,10 @@ class VMDeobfuscation(Analysis):
     #     # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
     #     # calls_as_rets is used later during decompilation to adjust stack argument offset for cdcel because the ret has different offsets compared to a normal call
     #     new_cfg, calls_as_rets = self.replace_jumpkinds(new_cfg)
+    #     import pickle
+    #     pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
+    #     with open(pickled_file_name,'wb') as calls_as_rets_pickle:
+    #         pickle.dump(calls_as_rets, calls_as_rets_pickle)
     #
     #     # # this is a simplification pass to remove all push x, ret to x type of jumps
     #     new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
@@ -479,8 +477,8 @@ class VMDeobfuscation(Analysis):
     #     with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
     #         pickle.dump(new_cfg, mid_way_cfg_pickle)
     #
-    #     with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
-    #         new_cfg = pickle.load(mid_way_cfg_pickle)
+    #     # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
+    #     #     new_cfg = pickle.load(mid_way_cfg_pickle)
     #
     #
     #     for i in range(4):
@@ -493,10 +491,7 @@ class VMDeobfuscation(Analysis):
     #
     #         new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
     #
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
     #
-    #
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
     #     import pickle
     #     pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
     #     with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
@@ -517,16 +512,9 @@ class VMDeobfuscation(Analysis):
     #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
     #
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
     #
     #     new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-    #
-    #     # verification_state_copy = verification_state.copy()
-    #     # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy,
-    #     #                                    start_addr=start_addr, semantic_verf_hooks=semantic_verf_hooks)
-    #     # import ipdb;ipdb.set_trace()
     #
     #     for i in range(2):
     #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
@@ -539,7 +527,6 @@ class VMDeobfuscation(Analysis):
     #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
     #
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
     #
     #     for i in range(8):
     #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
@@ -554,7 +541,6 @@ class VMDeobfuscation(Analysis):
     #         new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
     #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
     #
-    #     #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
     #
     #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
     #     self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
@@ -585,6 +571,9 @@ class VMDeobfuscation(Analysis):
         with open(pickled_file_name,'rb') as load_addr_mba_to_jump_addr_mapping_pickle:
             self.project.load_addr_mba_to_jump_addr_mapping = pickle.load(load_addr_mba_to_jump_addr_mapping_pickle)
 
+        pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
+        with open(pickled_file_name, 'rb') as calls_as_rets_pickle:
+            calls_as_rets = pickle.load(calls_as_rets_pickle)
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
@@ -630,7 +619,6 @@ class VMDeobfuscation(Analysis):
         # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
         # These are addresses for huffman, that are manually specified becasue the Rets are already converted to calls in replace_jumpkinds, so we loos that information when using pickled cfg
         #calls_as_rets = {0x41f6bb: 'Ijk_Ret', 0x41c6c2: 'Ijk_Ret', 0x461de0: 'Ijk_Ret', 0x451af1: 'Ijk_Ret'}
-        import ipdb;ipdb.set_trace()
         ## convert to new encoded addresses
         for node in new_cfg.nodes():
             if not node.is_simprocedure:
@@ -936,8 +924,6 @@ class VMDeobfuscation(Analysis):
                     succs_of_succ = list(new_cfg.get_successors(succs[0]))
                     if len(succs_of_succ) == 1:
                         if succs_of_succ[0].is_simprocedure:
-                            import ipdb;
-                            ipdb.set_trace()
                             node.irsb.jumpkind = "Ijk_Call"
                             for stmt in reversed(node.irsb.statements):
                                 if isinstance(stmt, pyvex.stmt.IMark):
@@ -2197,8 +2183,6 @@ class VMDeobfuscation(Analysis):
                                 defs_.update(live_defs.extract_defs(value))
 
                         if d not in defs_:
-                            if d.codeloc.block_id and d.codeloc.block_id.vm_vpc == 5368833408 and d.codeloc.ins_addr == 0x14006a455:
-                                import ipdb;ipdb.set_trace()
                             dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
             new_statements = []
