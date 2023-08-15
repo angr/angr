@@ -387,7 +387,7 @@ angr 4.6.5.25
 -------------
 
 New state constructor - ``call_state``. Comes with a refactor to ``SimCC``, a refactor to ``callable``, and the removal of ``PathGroup.call``.
-All these changes are thoroughly documented, in ``angr-doc/docs/structured_data.md``
+All these changes are thoroughly documented, in ``angr/docs/advanced-topics/structured_data.md``
 
 Refactor of ``SimType`` to make it easier to use types - they can be instanciated without a SimState and one can be added later.
 Comes with some usability improvements to SimMemView.
