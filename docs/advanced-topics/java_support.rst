@@ -56,16 +56,16 @@ There are multiple examples available:
 
 
 * Easy Java crackmes: `java_crackme1
-  <https://github.com/angr/angr-doc/tree/master/examples/java_crackme1>`_,
+  <https://github.com/angr/angr-examples/tree/master/examples/java_crackme1>`_,
   `java_simple3
-  <https://github.com/angr/angr-doc/tree/master/examples/java_simple3>`_,
+  <https://github.com/angr/angr-examples/tree/master/examples/java_simple3>`_,
   `java_simple4
-  <https://github.com/angr/angr-doc/tree/master/examples/java_simple4>`_
+  <https://github.com/angr/angr-examples/tree/master/examples/java_simple4>`_
 * A more complex example (solving a CTF challenge): `ictf2017_javaisnotfun
-  <https://github.com/angr/angr-doc/tree/master/examples/ictf2017_javaisnotfun>`_,
+  <https://github.com/angr/angr-examples/tree/master/examples/ictf2017_javaisnotfun>`_,
   `blogpost <https://angr.io/blog/java_angr/>`_
 * Symbolically executing an Android app (using a mix of Java and native code):
   `java_androidnative1
-  <https://github.com/angr/angr-doc/tree/master/examples/java_androidnative1>`_
+  <https://github.com/angr/angr-examples/tree/master/examples/java_androidnative1>`_
 * Many other low-level tests: `test_java
   <https://github.com/angr/angr/blob/master/tests/test_java.py>`_

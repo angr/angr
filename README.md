@@ -54,7 +54,7 @@ project.execute()
 # Quick Start
 
 - [Install Instructions](https://docs.angr.io/introductory-errata/install)
-- Documentation as [HTML](https://docs.angr.io/) and as a [Github repository](https://github.com/angr/angr-doc)
+- Documentation as [HTML](https://docs.angr.io/) and sources in the angr [Github repository](https://github.com/angr/angr/tree/master/docs)
 - Dive right in: [top-level-accessible methods](https://docs.angr.io/core-concepts/toplevel)
 - [Examples using angr to solve CTF challenges](https://docs.angr.io/examples).
 - [API Reference](https://angr.io/api-doc/)

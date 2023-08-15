@@ -29,7 +29,7 @@ This is a basic script that explains how to use angr to symbolically execute a
 program and produce concrete input satisfying certain conditions.
 
 Binary, source, and script are found `here.
-<https://github.com/angr/angr-doc/tree/master/examples/fauxware>`_
+<https://github.com/angr/angr-examples/tree/master/examples/fauxware>`_
 
 Reversing
 ---------
@@ -54,9 +54,9 @@ be found at the b01lers github `here
 <https://github.com/b01lers/b01lers-ctf-2020/tree/master/rev/100_little_engine>`_.
 
 The angr solution script is `here
-<https://github.com/angr/angr-doc/tree/master/examples/b01lersctf2020_little_engine/solve.py>`_
+<https://github.com/angr/angr-examples/tree/master/examples/b01lersctf2020_little_engine/solve.py>`_
 and the binary is `here
-<https://github.com/angr/angr-doc/tree/master/examples/b01lersctf2020_little_engine/engine>`_.
+<https://github.com/angr/angr-examples/tree/master/examples/b01lersctf2020_little_engine/engine>`_.
 
 Whitehat CTF 2015 - Crypto 400
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -73,9 +73,9 @@ Since angr cannot solve the actual crypto part of the challenge, we use it just
 to reduce the keyspace, and brute-force the rest.
 
 You can find this script `here
-<https://github.com/angr/angr-doc/tree/master/examples/whitehat_crypto400/solve.py>`_
+<https://github.com/angr/angr-examples/tree/master/examples/whitehat_crypto400/solve.py>`_
 and the binary `here
-<https://github.com/angr/angr-doc/tree/master/examples/whitehat_crypto400/whitehat_crypto400>`_.
+<https://github.com/angr/angr-examples/tree/master/examples/whitehat_crypto400/whitehat_crypto400>`_.
 
 CSAW CTF 2015 Quals - Reversing 500, "wyvern"
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -88,9 +88,9 @@ CSAW CTF 2015 Quals - Reversing 500, "wyvern"
 
 angr can outright solve this challenge with very little assistance from the
 user. The script to do so is `here
-<https://github.com/angr/angr-doc/tree/master/examples/csaw_wyvern/solve.py>_`
+<https://github.com/angr/angr-examples/tree/master/examples/csaw_wyvern/solve.py>_`
 and the binary is `here
-<https://github.com/angr/angr-doc/tree/master/examples/csaw_wyvern/wyvern>`_.
+<https://github.com/angr/angr-examples/tree/master/examples/csaw_wyvern/wyvern>`_.
 
 TUMCTF 2016 - zwiebel
 ^^^^^^^^^^^^^^^^^^^^^
@@ -114,9 +114,9 @@ The long-term goal of optimizing angr is to execute this script within 10
 minutes. Pretty ambitious :P
 
 Here is the `binary
-<https://github.com/angr/angr-doc/tree/master/examples/tumctf2016_zwiebel/zwiebel>`_
+<https://github.com/angr/angr-examples/tree/master/examples/tumctf2016_zwiebel/zwiebel>`_
 and the `script
-<https://github.com/angr/angr-doc/tree/master/examples/tumctf2016_zwiebel/solve.py>`_.
+<https://github.com/angr/angr-examples/tree/master/examples/tumctf2016_zwiebel/solve.py>`_.
 
 FlareOn 2015 - Challenge 5
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -128,7 +128,7 @@ FlareOn 2015 - Challenge 5
    Concepts presented: Windows support
 
 This is another `reversing challenge
-<https://github.com/angr/angr-doc/tree/master/examples/flareon2015_5/sender>`_
+<https://github.com/angr/angr-examples/tree/master/examples/flareon2015_5/sender>`_
 from the FlareOn challenges.
 
 "The challenge is designed to teach you about PCAP file parsing and traffic
@@ -166,7 +166,7 @@ somehow.
 angr easily solves this problem. We only have to direct it to the right
 direction at every branch, and the solver finds the flag at a glance.
 
-Files are `here <https://github.com/angr/angr-doc/tree/master/examples/0ctf_trace>`_.
+Files are `here <https://github.com/angr/angr-examples/tree/master/examples/0ctf_trace>`_.
 
 ASIS CTF Finals 2015 - license
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -182,9 +182,9 @@ read operations of the flag file, we actually pass in a filesystem with the
 correct file created.
 
 Here is the `binary
-<https://github.com/angr/angr-doc/tree/master/examples/asisctffinals2015_license/license>`_
+<https://github.com/angr/angr-examples/tree/master/examples/asisctffinals2015_license/license>`_
 and the `script
-<https://github.com/angr/angr-doc/tree/master/examples/asisctffinals2015_license/solve.py>`_.
+<https://github.com/angr/angr-examples/tree/master/examples/asisctffinals2015_license/solve.py>`_.
 
 DEFCON Quals 2017 - Crackme2000
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -197,7 +197,7 @@ DEFCON Quals 2017 - Crackme2000
 
 DEFCON Quals had a whole category for automatic reversing in 2017. Our scripts
 are `here
-<https:////github.com/angr/angr-doc/tree/master/examples/defcon2017quals_crackme2000>`_.
+<https:////github.com/angr/angr-examples/tree/master/examples/defcon2017quals_crackme2000>`_.
 
 Vulnerability Discovery
 -----------------------
@@ -220,9 +220,9 @@ hit the right path, angr has to solve for a password argument, but angr solved
 this in less than 2 seconds on my machine using the standard Python interpreter.
 The script might look large, but that's only because I've heavily commented it
 to be more helpful to beginners. The challenge binary is `here
-<https://github.com/angr/angr-doc/tree/master/examples/strcpy_find/strcpy_test>`_
+<https://github.com/angr/angr-examples/tree/master/examples/strcpy_find/strcpy_test>`_
 and the script is `here
-<https://github.com/angr/angr-doc/tree/master/examples/strcpy_find/solve.py>`_.
+<https://github.com/angr/angr-examples/tree/master/examples/strcpy_find/solve.py>`_.
 
 CGC crash identification
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -239,7 +239,7 @@ Challenge: `link
 The binary can run in the DECREE VM: `link
 <http://repo.cybergrandchallenge.com/boxes/>`_ A copy of the original challenge
 and the angr solution is provided `here
-<https://github.com/angr/angr-doc/tree/master/examples/CADET_00001>`_
+<https://github.com/angr/angr-examples/tree/master/examples/CADET_00001>`_
 CADET_00001.adapted (by Jacopo Corbetta) is the same program, modified to be
 runnable in an Intel x86 Linux machine.
 
@@ -254,9 +254,9 @@ Grub "back to 28" bug
 This is the demonstration presented at 32c3. The script uses angr to discover
 the input to crash grub's password entry prompt.
 
-`script <https://github.com/angr/angr-doc/tree/master/examples/grub/solve.py>`_ -
+`script <https://github.com/angr/angr-examples/tree/master/examples/grub/solve.py>`_ -
 `vulnerable module
-<https://github.com/angr/angr-doc/tree/master/examples/grub/crypto.mod>`_
+<https://github.com/angr/angr-examples/tree/master/examples/grub/crypto.mod>`_
 
 Exploitation
 ------------
@@ -274,7 +274,7 @@ Insomnihack Simple AEG
 Demonstration for Insomni'hack 2016.  The script is a very simple implementation
 of AEG.
 
-`script <https://github.com/angr/angr-doc/tree/master/examples/insomnihack_aeg/solve.py>`_
+`script <https://github.com/angr/angr-examples/tree/master/examples/insomnihack_aeg/solve.py>`_
 
 SecuInside 2016 Quals - mbrainfuzz - symbolic exploration for exploitability conditions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -294,7 +294,7 @@ executed. angr is used to find the way through the binary to the memcpy() and to
 generate valid inputs to every checking function individually.
 
 The sample binaries and the script are located `here
-<https://github.com/angr/angr-doc/tree/master/examples/secuinside2016mbrainfuzz>`_
+<https://github.com/angr/angr-examples/tree/master/examples/secuinside2016mbrainfuzz>`_
 and additional information be found at the author's `Write-Up
 <https://tasteless.eu/post/2016/07/secuinside-mbrainfuzz/>`_.
 
@@ -314,6 +314,6 @@ removed the checks from the binary, used angrop to build the ropchains, and
 instrumented them with the inputs to pass the checks.
 
 The various challenge files are located `here
-<https://github.com/angr/angr-doc/tree/master/examples/secconquals2016_ropsynth>`_,
+<https://github.com/angr/angr-examples/tree/master/examples/secconquals2016_ropsynth>`_,
 with the actual solve script `here
-<https://github.com/angr/angr-doc/tree/master/examples/secconquals2016_ropsynth/solve.py>`_.
+<https://github.com/angr/angr-examples/tree/master/examples/secconquals2016_ropsynth/solve.py>`_.
