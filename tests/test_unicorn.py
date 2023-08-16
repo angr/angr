@@ -5,10 +5,11 @@ import re
 import sys
 import unittest
 
+from common import slow_test
+
 import angr
 from angr import options as so
 
-from common import slow_test
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..")
 
@@ -511,34 +512,4 @@ def test_symbolic_flags_preserved_on_stop():
 
 
 if __name__ == "__main__":
-    import logging
-
-    logging.getLogger("angr.state_plugins.unicorn_engine").setLevel("DEBUG")
-    logging.getLogger("angr.engines.unicorn_engine").setLevel("INFO")
-    logging.getLogger("angr.factory").setLevel("DEBUG")
-    logging.getLogger("angr.project").setLevel("DEBUG")
-    # logging.getLogger('claripy.backends.backend_z3').setLevel('DEBUG')
-
-    import sys
-
-    if len(sys.argv) > 1:
-        for arg in sys.argv[1:]:
-            print("test_" + arg)
-            res = globals()["test_" + arg]()
-            if hasattr(res, "__iter__"):
-                for ft in res:
-                    fo = ft[0]
-                    fa = ft[1:]
-                    print("...", fa)
-                    fo(*fa)
-    else:
-        for fk, fv in list(globals().items()):
-            if fk.startswith("test_") and callable(fv):
-                print(fk)
-                res = fv()
-                if hasattr(res, "__iter__"):
-                    for ft in res:
-                        fo = ft[0]
-                        fa = ft[1:]
-                        print("...", fa)
-                        fo(*fa)
+    unittest.main()
