@@ -39,5 +39,3 @@ jobs:
           source $HOME/venv/bin/activate
           pytest -n auto angr
         name: Run pytest
-        env:
-          SKIP_SLOW_TESTS: true
