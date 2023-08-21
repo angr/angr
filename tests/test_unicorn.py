@@ -450,6 +450,7 @@ def test_inspect():
     assert collect_trace(so.unicorn) == collect_trace(set())
 
 
+@unittest.skipIf(sys.platform == "win32", "broken on windows")
 def test_explore():
     p = angr.Project(os.path.join(test_location, "binaries", "tests", "i386", "uc_stop"), auto_load_libs=False)
 
