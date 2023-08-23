@@ -1980,6 +1980,14 @@ class CConstant(CExpression):
         self._fmt_setter["neg"] = v
 
     @property
+    def fmt_char(self):
+        return self.fmt.get("char", False)
+
+    @fmt_char.setter
+    def fmt_char(self, v: bool):
+        self._fmt_setter["char"] = v
+
+    @property
     def type(self):
         return self._type
 
@@ -2034,10 +2042,18 @@ class CConstant(CExpression):
                 elif value < 0:
                     value = value + 2**self._type.size
 
-            if self.fmt_hex:
-                str_value = hex(value)
-            else:
-                str_value = str(value)
+            str_value = None
+            if self.fmt_char:
+                try:
+                    str_value = f"'{chr(value)}'"
+                except ValueError:
+                    str_value = None
+
+            if str_value is None:
+                if self.fmt_hex:
+                    str_value = hex(value)
+                else:
+                    str_value = str(value)
 
             yield str_value, self
         else:
