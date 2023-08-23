@@ -42,7 +42,7 @@ class TestReachingDefinitionsState(TestCase):
         )
 
         rtoc_offset = arch.registers["rtoc"][0]
-        rtoc_definition_value = state.register_definitions.load(rtoc_offset, size=8)
+        rtoc_definition_value = state.registers.load(rtoc_offset, size=8)
 
         self.assertIsNotNone(rtoc_definition_value.one_value())
         v = rtoc_definition_value.one_value()

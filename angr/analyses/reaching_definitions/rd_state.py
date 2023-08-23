@@ -205,7 +205,7 @@ class ReachingDefinitionsState:
     #
 
     @property
-    def tmp_definitions(self):
+    def tmps(self):
         return self.live_definitions.tmps
 
     @property
@@ -217,20 +217,20 @@ class ReachingDefinitionsState:
         return self.live_definitions.register_uses
 
     @property
-    def register_definitions(self) -> MultiValuedMemory:
-        return self.live_definitions.register_definitions
+    def registers(self) -> MultiValuedMemory:
+        return self.live_definitions.registers
 
     @property
-    def stack_definitions(self) -> MultiValuedMemory:
-        return self.live_definitions.stack_definitions
+    def stack(self) -> MultiValuedMemory:
+        return self.live_definitions.stack
 
     @property
     def stack_uses(self):
         return self.live_definitions.stack_uses
 
     @property
-    def heap_definitions(self) -> MultiValuedMemory:
-        return self.live_definitions.heap_definitions
+    def heap(self) -> MultiValuedMemory:
+        return self.live_definitions.heap
 
     @property
     def heap_uses(self):
@@ -241,8 +241,8 @@ class ReachingDefinitionsState:
         return self.live_definitions.memory_uses
 
     @property
-    def memory_definitions(self) -> MultiValuedMemory:
-        return self.live_definitions.memory_definitions
+    def memory(self) -> MultiValuedMemory:
+        return self.live_definitions.memory
 
     @property
     def uses_by_codeloc(self):
@@ -316,7 +316,7 @@ class ReachingDefinitionsState:
         sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
         sp_def = Definition(sp_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
         sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
-        self.register_definitions.store(self.arch.sp_offset, sp)
+        self.registers.store(self.arch.sp_offset, sp)
 
         ex_loc = ExternalCodeLocation(call_string)
         if self.analysis is not None:
@@ -337,7 +337,7 @@ class ReachingDefinitionsState:
                             if self.analysis is not None:
                                 self.analysis.model.add_def(reg_def, ex_loc)
                             reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
-                            self.register_definitions.store(reg_offset, reg)
+                            self.registers.store(reg_offset, reg)
 
                         # initialize stack parameters
                         elif isinstance(arg, SimStackArg):
@@ -348,7 +348,7 @@ class ReachingDefinitionsState:
                                 self.analysis.model.add_def(ml_def, ex_loc)
                             ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
                             stack_address = self.get_stack_address(self.stack_address(arg.stack_offset))
-                            self.stack_definitions.store(stack_address, ml, endness=self.arch.memory_endness)
+                            self.stack.store(stack_address, ml, endness=self.arch.memory_endness)
                         else:
                             raise TypeError("Unsupported parameter type %s." % type(arg).__name__)
 
@@ -363,7 +363,7 @@ class ReachingDefinitionsState:
             if self.analysis is not None:
                 self.analysis.model.add_def(rtoc_def, ex_loc)
             rtoc = self.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
-            self.register_definitions.store(offset, rtoc)
+            self.registers.store(offset, rtoc)
         elif self.arch.name.startswith("MIPS64"):
             offset, size = self.arch.registers["t9"]
             t9_atom = Register(offset, size)
@@ -372,7 +372,7 @@ class ReachingDefinitionsState:
             if self.analysis is not None:
                 self.analysis.model.add_def(t9_def, ex_loc)
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
-            self.register_definitions.store(offset, t9)
+            self.registers.store(offset, t9)
         elif self.arch.name.startswith("MIPS"):
             if func_addr is None:
                 l.warning("func_addr must not be None to initialize a function in mips")
@@ -383,7 +383,7 @@ class ReachingDefinitionsState:
             if self.analysis is not None:
                 self.analysis.model.add_def(t9_def, ex_loc)
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
-            self.register_definitions.store(t9_offset, t9)
+            self.registers.store(t9_offset, t9)
 
         if self.analysis is not None:
             self.analysis.model.complete_loc()

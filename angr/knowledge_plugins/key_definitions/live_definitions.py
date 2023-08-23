@@ -8,6 +8,7 @@ import claripy
 from claripy.annotation import Annotation
 import archinfo
 
+from angr.misc.ux import deprecated
 from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -81,10 +82,10 @@ class LiveDefinitions:
         "project",
         "arch",
         "track_tmps",
-        "register_definitions",
-        "stack_definitions",
-        "heap_definitions",
-        "memory_definitions",
+        "registers",
+        "stack",
+        "heap",
+        "memory",
         "tmps",
         "register_uses",
         "stack_uses",
@@ -101,10 +102,10 @@ class LiveDefinitions:
         arch: archinfo.Arch,
         track_tmps: bool = False,
         canonical_size=8,
-        register_definitions=None,
-        stack_definitions=None,
-        memory_definitions=None,
-        heap_definitions=None,
+        registers=None,
+        stack=None,
+        memory=None,
+        heap=None,
         tmps=None,
         register_uses=None,
         stack_uses=None,
@@ -117,7 +118,7 @@ class LiveDefinitions:
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
 
-        self.register_definitions: MultiValuedMemory = (
+        self.registers: MultiValuedMemory = (
             MultiValuedMemory(
                 memory_id="reg",
                 top_func=self.top,
@@ -125,46 +126,46 @@ class LiveDefinitions:
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 endness=self.arch.register_endness,
             )
-            if register_definitions is None
-            else register_definitions
+            if registers is None
+            else registers
         )
-        self.stack_definitions: MultiValuedMemory = (
+        self.stack: MultiValuedMemory = (
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
             )
-            if stack_definitions is None
-            else stack_definitions
+            if stack is None
+            else stack
         )
-        self.memory_definitions: MultiValuedMemory = (
+        self.memory: MultiValuedMemory = (
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
             )
-            if memory_definitions is None
-            else memory_definitions
+            if memory is None
+            else memory
         )
-        self.heap_definitions: MultiValuedMemory = (
+        self.heap: MultiValuedMemory = (
             MultiValuedMemory(
                 memory_id="mem",
                 top_func=self.top,
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
             )
-            if heap_definitions is None
-            else heap_definitions
+            if heap is None
+            else heap
         )
         self.tmps: Dict[int, Set[Definition]] = {} if tmps is None else tmps
 
         # set state
-        self.register_definitions.set_state(self)
-        self.stack_definitions.set_state(self)
-        self.memory_definitions.set_state(self)
-        self.heap_definitions.set_state(self)
+        self.registers.set_state(self)
+        self.stack.set_state(self)
+        self.memory.set_state(self)
+        self.heap.set_state(self)
 
         self.register_uses = Uses() if register_uses is None else register_uses
         self.stack_uses = Uses() if stack_uses is None else stack_uses
@@ -174,21 +175,25 @@ class LiveDefinitions:
 
         self.uses_by_codeloc: Dict[CodeLocation, Set[Definition]] = defaultdict(set)
 
+    @deprecated("registers")
     @property
-    def registers(self) -> MultiValuedMemory:
-        return self.register_definitions
+    def register_definitions(self) -> MultiValuedMemory:
+        return self.registers
 
+    @deprecated("stack")
     @property
-    def stack(self) -> MultiValuedMemory:
-        return self.stack_definitions
+    def stack_definitions(self) -> MultiValuedMemory:
+        return self.stack
 
+    @deprecated("memory")
     @property
-    def memory(self) -> MultiValuedMemory:
-        return self.memory_definitions
+    def memory_definitions(self) -> MultiValuedMemory:
+        return self.memory
 
+    @deprecated("heap")
     @property
-    def heap(self) -> MultiValuedMemory:
-        return self.heap_definitions
+    def heap_definitions(self) -> MultiValuedMemory:
+        return self.heap
 
     def __repr__(self):
         ctnt = "LiveDefs"
@@ -201,10 +206,10 @@ class LiveDefinitions:
             self.arch,
             track_tmps=self.track_tmps,
             canonical_size=self._canonical_size,
-            register_definitions=self.register_definitions.copy(),
-            stack_definitions=self.stack_definitions.copy(),
-            heap_definitions=self.heap_definitions.copy(),
-            memory_definitions=self.memory_definitions.copy(),
+            registers=self.registers.copy(),
+            stack=self.stack.copy(),
+            heap=self.heap.copy(),
+            memory=self.memory.copy(),
             tmps=self.tmps.copy() if not discard_tmpdefs else None,
             register_uses=self.register_uses.copy(),
             stack_uses=self.stack_uses.copy(),
@@ -353,7 +358,7 @@ class LiveDefinitions:
         Return the concrete value contained by the stack pointer.
         """
         assert self.arch.sp_offset is not None
-        sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
+        sp_values: MultiValues = self.registers.load(self.arch.sp_offset, size=self.arch.bytes)
         sp_v = sp_values.one_value()
         if sp_v is None:
             # multiple values of sp exists. still return a value if there is only one value (maybe with different
@@ -373,7 +378,7 @@ class LiveDefinitions:
         Return the offset of the stack pointer.
         """
         assert self.arch.sp_offset is not None
-        sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
+        sp_values: MultiValues = self.registers.load(self.arch.sp_offset, size=self.arch.bytes)
         sp_v = sp_values.one_value()
         if sp_v is None:
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
@@ -404,10 +409,10 @@ class LiveDefinitions:
     def merge(self, *others) -> Tuple["LiveDefinitions", bool]:
         state = self.copy()
 
-        merge_occurred = state.register_definitions.merge([other.register_definitions for other in others], None)
-        merge_occurred |= state.heap_definitions.merge([other.heap_definitions for other in others], None)
-        merge_occurred |= state.memory_definitions.merge([other.memory_definitions for other in others], None)
-        merge_occurred |= state.stack_definitions.merge([other.stack_definitions for other in others], None)
+        merge_occurred = state.registers.merge([other.registers for other in others], None)
+        merge_occurred |= state.heap.merge([other.heap for other in others], None)
+        merge_occurred |= state.memory.merge([other.memory for other in others], None)
+        merge_occurred |= state.stack.merge([other.stack for other in others], None)
 
         for other in others:
             other: LiveDefinitions
@@ -429,21 +434,21 @@ class LiveDefinitions:
         """
 
         if isinstance(atom, Register):
-            self.register_definitions.erase(atom.reg_offset, size=atom.size)
+            self.registers.erase(atom.reg_offset, size=atom.size)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 if atom.addr.offset is not None:
                     stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
-                    self.stack_definitions.erase(stack_addr, size=atom.size)
+                    self.stack.erase(stack_addr, size=atom.size)
                 else:
                     l.warning("Skip stack storing since the stack offset is None.")
             elif isinstance(atom.addr, HeapAddress):
-                self.heap_definitions.erase(atom.addr.value, size=atom.size)
+                self.heap.erase(atom.addr.value, size=atom.size)
             elif isinstance(atom.addr, int):
-                self.memory_definitions.erase(atom.addr, size=atom.size)
+                self.memory.erase(atom.addr, size=atom.size)
             elif isinstance(atom.addr, claripy.ast.Base):
                 if atom.addr.concrete:
-                    self.memory_definitions.erase(atom.addr._model_concrete.value, size=atom.size)
+                    self.memory.erase(atom.addr._model_concrete.value, size=atom.size)
                 elif self.is_stack_address(atom.addr):
                     stack_addr = self.get_stack_address(atom.addr)
                     if stack_addr is None:
@@ -451,7 +456,7 @@ class LiveDefinitions:
                             "Failed to convert stack address %s to a concrete stack address. Skip the store.", atom.addr
                         )
                     else:
-                        self.stack_definitions.erase(stack_addr, size=atom.size)
+                        self.stack.erase(stack_addr, size=atom.size)
                 else:
                     return
             else:
@@ -486,7 +491,7 @@ class LiveDefinitions:
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
             try:
-                self.register_definitions.store(
+                self.registers.store(
                     atom.reg_offset,
                     d,
                     size=atom.size,
@@ -501,16 +506,16 @@ class LiveDefinitions:
             if isinstance(atom.addr, SpOffset):
                 if atom.addr.offset is not None:
                     stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
-                    self.stack_definitions.store(stack_addr, d, size=atom.size, endness=endness)
+                    self.stack.store(stack_addr, d, size=atom.size, endness=endness)
                 else:
                     l.warning("Skip stack storing since the stack offset is None.")
             elif isinstance(atom.addr, HeapAddress):
-                self.heap_definitions.store(atom.addr.value, d, size=atom.size, endness=endness)
+                self.heap.store(atom.addr.value, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, int):
-                self.memory_definitions.store(atom.addr, d, size=atom.size, endness=endness)
+                self.memory.store(atom.addr, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, claripy.ast.Base):
                 if atom.addr.concrete:
-                    self.memory_definitions.store(atom.addr.concrete_value, d, size=atom.size, endness=endness)
+                    self.memory.store(atom.addr.concrete_value, d, size=atom.size, endness=endness)
                 elif self.is_stack_address(atom.addr):
                     stack_addr = self.get_stack_address(atom.addr)
                     if stack_addr is None:
@@ -518,7 +523,7 @@ class LiveDefinitions:
                             "Failed to convert stack address %s to a concrete stack address. Skip the store.", atom.addr
                         )
                     else:
-                        self.stack_definitions.store(stack_addr, d, size=atom.size, endness=endness)
+                        self.stack.store(stack_addr, d, size=atom.size, endness=endness)
                 else:
                     return None
             else:
@@ -598,7 +603,7 @@ class LiveDefinitions:
 
     def get_register_definitions(self, reg_offset: int, size: int, endness=None) -> Iterable[Definition]:
         try:
-            values: MultiValues = self.register_definitions.load(
+            values: MultiValues = self.registers.load(
                 reg_offset,
                 size=size,
                 endness=endness,
@@ -606,7 +611,7 @@ class LiveDefinitions:
         except SimMemoryMissingError as ex:
             # load values and stop at the missing location
             if ex.missing_addr > reg_offset:
-                values: MultiValues = self.register_definitions.load(
+                values: MultiValues = self.registers.load(
                     reg_offset, size=ex.missing_addr - reg_offset, endness=endness
                 )
             else:
@@ -617,7 +622,7 @@ class LiveDefinitions:
     def get_stack_values(self, stack_offset: int, size: int, endness: str) -> Optional[MultiValues]:
         stack_addr = self.stack_offset_to_stack_addr(stack_offset)
         try:
-            return self.stack_definitions.load(stack_addr, size=size, endness=endness)
+            return self.stack.load(stack_addr, size=size, endness=endness)
         except SimMemoryMissingError:
             return None
 
@@ -629,14 +634,14 @@ class LiveDefinitions:
 
     def get_heap_definitions(self, heap_addr: int, size: int, endness) -> Iterable[Definition]:
         try:
-            mv: MultiValues = self.heap_definitions.load(heap_addr, size=size, endness=endness)
+            mv: MultiValues = self.heap.load(heap_addr, size=size, endness=endness)
         except SimMemoryMissingError:
             return
         yield from LiveDefinitions.extract_defs_from_mv(mv)
 
     def get_memory_definitions(self, addr: int, size: int, endness) -> Iterable[Definition]:
         try:
-            values = self.memory_definitions.load(addr, size=size, endness=endness)
+            values = self.memory.load(addr, size=size, endness=endness)
         except SimMemoryMissingError:
             return
         yield from LiveDefinitions.extract_defs_from_mv(values)
@@ -659,24 +664,24 @@ class LiveDefinitions:
     def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
         if isinstance(atom, Register):
             try:
-                return self.register_definitions.load(atom.reg_offset, size=atom.size)
+                return self.registers.load(atom.reg_offset, size=atom.size)
             except SimMemoryMissingError:
                 return None
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
                 try:
-                    return self.stack_definitions.load(stack_addr, size=atom.size, endness=atom.endness)
+                    return self.stack.load(stack_addr, size=atom.size, endness=atom.endness)
                 except SimMemoryMissingError:
                     return None
             elif isinstance(atom.addr, HeapAddress):
                 try:
-                    return self.heap_definitions.load(atom.addr.value, size=atom.size, endness=atom.endness)
+                    return self.heap.load(atom.addr.value, size=atom.size, endness=atom.endness)
                 except SimMemoryMissingError:
                     return None
             elif isinstance(atom.addr, int):
                 try:
-                    return self.memory_definitions.load(atom.addr, size=atom.size, endness=atom.endness)
+                    return self.memory.load(atom.addr, size=atom.size, endness=atom.endness)
                 except SimMemoryMissingError:
                     return None
             else:
@@ -720,7 +725,7 @@ class LiveDefinitions:
     def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
         # get all current definitions
         try:
-            mvs: MultiValues = self.register_definitions.load(reg_offset, size=size)
+            mvs: MultiValues = self.registers.load(reg_offset, size=size)
         except SimMemoryMissingError:
             return
 

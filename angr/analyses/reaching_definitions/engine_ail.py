@@ -415,7 +415,7 @@ class SimEngineRDAIL(
 
         # first check if it is ever defined
         try:
-            value: MultiValues = self.state.register_definitions.load(reg_offset, size=size)
+            value: MultiValues = self.state.registers.load(reg_offset, size=size)
         except SimMemoryMissingError as ex:
             # the full value does not exist, but we handle partial existence, too
             missing_defs = None
@@ -424,7 +424,7 @@ class SimEngineRDAIL(
                 i = 0
                 while i < size:
                     try:
-                        value: MultiValues = self.state.register_definitions.load(reg_offset + i, size=1)
+                        value: MultiValues = self.state.registers.load(reg_offset + i, size=1)
                     except SimMemoryMissingError as ex_:
                         i += ex_.missing_size
                         continue
@@ -498,7 +498,7 @@ class SimEngineRDAIL(
                 # a concrete address
                 concrete_addr: int = addr._model_concrete.value
                 try:
-                    vs: MultiValues = self.state.memory_definitions.load(concrete_addr, size=size, endness=expr.endness)
+                    vs: MultiValues = self.state.memory.load(concrete_addr, size=size, endness=expr.endness)
                     defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
                     continue
@@ -510,7 +510,7 @@ class SimEngineRDAIL(
                 if stack_offset is not None:
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
-                        vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=expr.endness)
+                        vs: MultiValues = self.state.stack.load(stack_addr, size=size, endness=expr.endness)
                         defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                     except SimMemoryMissingError:
                         continue

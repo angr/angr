@@ -300,13 +300,13 @@ class BlockSimplifier(Analysis):
                     defs_ = set()
                     if isinstance(d.atom, atoms.Register):
                         try:
-                            vs: "MultiValues" = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                            vs: "MultiValues" = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
                         except SimMemoryMissingError:
                             vs = None
                     elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                         stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
                         try:
-                            vs: "MultiValues" = live_defs.stack_definitions.load(
+                            vs: "MultiValues" = live_defs.stack.load(
                                 stack_addr, size=d.atom.size, endness=d.atom.endness
                             )
                         except SimMemoryMissingError:
