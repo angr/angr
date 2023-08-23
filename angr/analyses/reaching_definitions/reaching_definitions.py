@@ -21,6 +21,7 @@ from ..analysis import Analysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
+from .rd_initializer import RDAStateInitializer
 from .subject import Subject, SubjectType
 from .function_handler import FunctionHandler, FunctionCallRelationships
 from .dep_graph import DepGraph
@@ -61,6 +62,7 @@ class ReachingDefinitionsAnalysis(
         observation_points: "Iterable[ObservationPoint]" = None,
         init_state: ReachingDefinitionsState = None,
         init_context=None,
+        state_initializer: Optional["RDAStateInitializer"] = None,
         cc=None,
         function_handler: "Optional[FunctionHandler]" = None,
         observe_all=False,
@@ -136,6 +138,11 @@ class ReachingDefinitionsAnalysis(
         if self._init_state is not None:
             self._init_state = self._init_state.copy()
             self._init_state.analysis = self
+            # There should never be an initializer needed then
+            self._state_initializer = None
+        else:
+            self._state_initializer = state_initializer
+
         self._init_context = init_context
 
         self._observe_all = observe_all
@@ -435,6 +442,7 @@ class ReachingDefinitionsAnalysis(
                 track_consts=self._track_consts,
                 analysis=self,
                 canonical_size=self._canonical_size,
+                initializer=self._state_initializer,
             )
 
     # pylint: disable=no-self-use,arguments-differ

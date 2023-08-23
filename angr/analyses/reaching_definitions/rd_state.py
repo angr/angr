@@ -4,7 +4,6 @@ import logging
 import archinfo
 import claripy
 
-from ...analyses.reaching_definitions.call_trace import CallTrace
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...storage.memory_mixins import MultiValuedMemory
 from ...knowledge_plugins.key_definitions import LiveDefinitions
@@ -15,17 +14,15 @@ from ...knowledge_plugins.key_definitions.atoms import (
     MemoryLocation,
     ConstantSrc,
 )
-from ...knowledge_plugins.functions.function import Function
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.environment import Environment
-from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
+from ...knowledge_plugins.key_definitions.tag import Tag
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
-from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .external_codeloc import ExternalCodeLocation
 from .heap_allocator import HeapAllocator
 from .subject import Subject, SubjectType
+from .rd_initializer import RDAStateInitializer
 
 if TYPE_CHECKING:
     from .reaching_definitions import ReachingDefinitionsAnalysis
@@ -92,6 +89,7 @@ class ReachingDefinitionsState:
         environment: Environment = None,
         sp_adjusted: bool = False,
         all_definitions: Optional[Set[Definition]] = None,
+        initializer: Optional["RDAStateInitializer"] = None,
     ):
         # handy short-hands
         self.codeloc = codeloc
@@ -105,16 +103,6 @@ class ReachingDefinitionsState:
 
         self.all_definitions: Set[Definition] = set() if all_definitions is None else all_definitions
 
-        if live_definitions is None:
-            # the first time this state is created. initialize it
-            self.live_definitions = LiveDefinitions(
-                self.arch, track_tmps=self._track_tmps, canonical_size=canonical_size
-            )
-            self._set_initialization_values(subject, rtoc_value)
-        else:
-            # this state is a copy from a previous state. skip the initialization
-            self.live_definitions = live_definitions
-
         self.heap_allocator = heap_allocator or HeapAllocator(canonical_size)
         self._environment: Environment = environment or Environment()
 
@@ -125,6 +113,21 @@ class ReachingDefinitionsState:
         # this variable is not copied to new states because it only tracks if an exit statement is observed in a single
         # block and is always set to False at the beginning of the analysis of each block.
         self.exit_observed: bool = False
+
+        # initialize the live definitions
+        # This must stay at the end of the __init__ method, because the _set_initialization_values method will call
+        # the state initializer which might need to access some of the above attributes, e.g. the heap_allocator
+        # to do its job
+
+        if live_definitions is None:
+            # the first time this state is created. initialize it
+            self.live_definitions = LiveDefinitions(
+                self.arch, track_tmps=self._track_tmps, canonical_size=canonical_size
+            )
+            self._set_initialization_values(subject, rtoc_value, initializer=initializer)
+        else:
+            # this state is a copy from a previous state. skip the initialization
+            self.live_definitions = live_definitions
 
     #
     # Util methods for working with the memory model
@@ -270,123 +273,28 @@ class ReachingDefinitionsState:
         ctnt = "RDState-%r" % (self.live_definitions)
         return "{%s}" % ctnt
 
-    def _set_initialization_values(self, subject: Subject, rtoc_value: Optional[int] = None):
+    def _set_initialization_values(
+        self, subject: Subject, rtoc_value: Optional[int] = None, initializer: Optional[RDAStateInitializer] = None
+    ):
+        if initializer is None:
+            initializer = RDAStateInitializer(self.arch)
+
         if subject.type == SubjectType.Function:
             if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
                 raise ValueError("The architecture being ppc64, the parameter `rtoc_value` should be provided.")
 
-            self._initialize_function(
-                subject.cc,
-                subject.content.addr,
-                rtoc_value,
-            )
+            initializer.initialize_function_state(self, subject.cc, subject.content.addr, rtoc_value)
         elif subject.type == SubjectType.CallTrace:
             if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
                 raise ValueError("The architecture being ppc64, the parameter `rtoc_value` should be provided.")
 
-            self._initialize_function(
-                subject.cc,
-                subject.content.current_function_address(),
-                rtoc_value,
+            initializer.initialize_function_state(
+                self, subject.cc, subject.content.current_function_address(), rtoc_value
             )
         elif subject.type == SubjectType.Block:
             pass
 
         return self
-
-    def _generate_call_string(self, current_address: int) -> Tuple[int, ...]:
-        if isinstance(self._subject.content, Function):
-            return (self._subject.content.addr,)
-        elif isinstance(self._subject.content, CallTrace):
-            if any(current_address == x.caller_func_addr for x in self._subject.content.callsites):
-                callsites = iter(reversed([x.caller_func_addr for x in self._subject.content.callsites]))
-                for call_addr in callsites:
-                    if current_address == call_addr:
-                        break
-                return tuple(callsites)
-            else:
-                return tuple(x.caller_func_addr for x in self._subject.content.callsites)
-        else:
-            l.warning("Subject with unknown content-type")
-            return None
-
-    def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int] = None):
-        # initialize stack pointer
-        call_string = self._generate_call_string(func_addr)
-        sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp_atom, ExternalCodeLocation(call_string), tags={InitialValueTag()})
-        sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
-        self.registers.store(self.arch.sp_offset, sp)
-
-        ex_loc = ExternalCodeLocation(call_string)
-        if self.analysis is not None:
-            self.analysis.model.at_new_stmt(ex_loc)
-
-        if cc is not None:
-            prototype = self.analysis.kb.functions[func_addr].prototype
-            if prototype is not None:
-                for loc in cc.arg_locs(prototype):
-                    for arg in loc.get_footprint():
-                        # initialize register parameters
-                        if isinstance(arg, SimRegArg):
-                            # FIXME: implement reg_offset handling in SimRegArg
-                            reg_offset = self.arch.registers[arg.reg_name][0]
-                            reg_atom = Register(reg_offset, self.arch.bytes)
-                            reg_def = Definition(reg_atom, ex_loc, tags={ParameterTag(function=func_addr)})
-                            self.all_definitions.add(reg_def)
-                            if self.analysis is not None:
-                                self.analysis.model.add_def(reg_def, ex_loc)
-                            reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
-                            self.registers.store(reg_offset, reg)
-
-                        # initialize stack parameters
-                        elif isinstance(arg, SimStackArg):
-                            ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
-                            ml_def = Definition(ml_atom, ex_loc, tags={ParameterTag(function=func_addr)})
-                            self.all_definitions.add(ml_def)
-                            if self.analysis is not None:
-                                self.analysis.model.add_def(ml_def, ex_loc)
-                            ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
-                            stack_address = self.get_stack_address(self.stack_address(arg.stack_offset))
-                            self.stack.store(stack_address, ml, endness=self.arch.memory_endness)
-                        else:
-                            raise TypeError("Unsupported parameter type %s." % type(arg).__name__)
-
-        # architecture dependent initialization
-        if self.arch.name.startswith("PPC64"):
-            if rtoc_value is None:
-                raise TypeError("rtoc_value must be provided on PPC64.")
-            offset, size = self.arch.registers["rtoc"]
-            rtoc_atom = Register(offset, size)
-            rtoc_def = Definition(rtoc_atom, ex_loc, tags={InitialValueTag()})
-            self.all_definitions.add(rtoc_def)
-            if self.analysis is not None:
-                self.analysis.model.add_def(rtoc_def, ex_loc)
-            rtoc = self.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
-            self.registers.store(offset, rtoc)
-        elif self.arch.name.startswith("MIPS64"):
-            offset, size = self.arch.registers["t9"]
-            t9_atom = Register(offset, size)
-            t9_def = Definition(t9_atom, ex_loc, tags={InitialValueTag()})
-            self.all_definitions.add(t9_def)
-            if self.analysis is not None:
-                self.analysis.model.add_def(t9_def, ex_loc)
-            t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
-            self.registers.store(offset, t9)
-        elif self.arch.name.startswith("MIPS"):
-            if func_addr is None:
-                l.warning("func_addr must not be None to initialize a function in mips")
-            t9_offset = self.arch.registers["t9"][0]
-            t9_atom = Register(t9_offset, self.arch.bytes)
-            t9_def = Definition(t9_atom, ex_loc, tags={InitialValueTag()})
-            self.all_definitions.add(t9_def)
-            if self.analysis is not None:
-                self.analysis.model.add_def(t9_def, ex_loc)
-            t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
-            self.registers.store(t9_offset, t9)
-
-        if self.analysis is not None:
-            self.analysis.model.complete_loc()
 
     def copy(self, discard_tmpdefs=False) -> "ReachingDefinitionsState":
         rd = ReachingDefinitionsState(

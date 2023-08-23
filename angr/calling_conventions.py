@@ -1,6 +1,6 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
 import logging
-from typing import Optional, List, Dict, Type
+from typing import Optional, List, Dict, Type, Union
 from collections import defaultdict
 
 import claripy
@@ -263,7 +263,7 @@ class SimFunctionArgument:
     def refine(self, size, arch=None, offset=None, is_fp=None):
         raise NotImplementedError
 
-    def get_footprint(self):
+    def get_footprint(self) -> List[Union["SimRegArg", "SimStackArg"]]:
         """
         Return a list of SimRegArg and SimStackArgs that are the base components used for this location
         """
