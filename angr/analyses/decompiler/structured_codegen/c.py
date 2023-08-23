@@ -3530,13 +3530,14 @@ class FieldReferenceCleanup(CStructuredCodeWalker):
 class PointerArithmeticFixer(CStructuredCodeWalker):
     @classmethod
     def handle_CBinaryOp(cls, obj):
-        obj = super().handle_CBinaryOp(obj)
+        obj: CBinaryOp = super().handle_CBinaryOp(obj)
         if (
             obj.op in ("Add", "Sub")
             and isinstance(obj.type, SimTypePointer)
             and not isinstance(obj.type.pts_to, SimTypeBottom)
+            and not isinstance(obj.rhs, CConstant)
         ):
-            obj = obj.codegen._access_reference(obj, obj.type.pts_to)
+            return obj.codegen._access_reference(obj, obj.type.pts_to)
         return obj
 
 
