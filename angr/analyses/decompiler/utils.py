@@ -368,7 +368,7 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     }
     ...
 
-    Returns tue on any block ending in linear statements and a return.
+    Returns true on any block ending in linear statements and a return.
     """
 
     def _flatten_structured_node(packed_node: Union["SequenceNode", "MultiNode"]) -> List[ailment.Block]:
