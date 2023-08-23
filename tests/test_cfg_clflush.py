@@ -20,7 +20,7 @@ class TestCfgClflush(unittest.TestCase):
             symbols=False,
             function_prologues=False,
         )
-        node = cfg.get_any_node(0x4121AA)
+        node = cfg.model.get_any_node(0x4121AA)
         assert node is not None
         assert len(node.successors) == 1
 
@@ -29,7 +29,7 @@ class TestCfgClflush(unittest.TestCase):
         p = angr.Project(bin_path, auto_load_libs=False)
         # build a CFG of function 0x12190
         cfg = p.analyses.CFGEmulated(starts=(0x412190,))
-        node = cfg.get_any_node(0x4121AA)
+        node = cfg.model.get_any_node(0x4121AA)
         assert node is not None
         assert len(node.successors) == 1
 

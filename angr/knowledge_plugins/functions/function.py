@@ -569,7 +569,7 @@ class Function(Serializable):
         s += "  SP difference: %d\n" % self.sp_delta
         s += "  Has return: %s\n" % self.has_return
         s += "  Returning: %s\n" % ("Unknown" if self.returning is None else self.returning)
-        s += "  Alignment: %s\n" % (self.alignment)
+        s += "  Alignment: %s\n" % (self.is_alignment)
         s += f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
         s += "  Blocks: [%s]\n" % ", ".join(["%#x" % i for i in self.block_addrs])
         s += "  Calling convention: %s" % self.calling_convention

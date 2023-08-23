@@ -320,7 +320,7 @@ class SyncController(KnowledgeBasePlugin):
 
     def get_func_addr_from_addr(self, addr):
         try:
-            func_addr = self._kb.cfgs.get_most_accurate().get_any_node(addr, anyaddr=True).function_address
+            func_addr = self._kb.cfgs.get_most_accurate().model.get_any_node(addr, anyaddr=True).function_address
         except AttributeError:
             func_addr = -1
 

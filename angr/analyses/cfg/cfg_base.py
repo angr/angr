@@ -395,7 +395,7 @@ class CFGBase(Analysis):
         :rtype: iterator
         """
 
-        return self.nodes()
+        return self.model.nodes()
 
     def get_loop_back_edges(self):
         return self._loop_back_edges

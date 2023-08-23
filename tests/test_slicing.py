@@ -27,17 +27,17 @@ def test_find_exits():
     cdg = slicing_test.analyses.CDG(cfg)
     ddg = slicing_test.analyses.DDG(cfg)
 
-    source = cfg.get_any_node(0x40059E)
+    source = cfg.model.get_any_node(0x40059E)
 
     # Test the conditional exit
-    target = cfg.get_any_node(0x400594)
+    target = cfg.model.get_any_node(0x400594)
     bs_1 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[(target, -1)], no_construct=True)
     all_exits = bs_1._find_exits(source, target)
 
     assert all_exits == {18: [0x400594], DEFAULT_STATEMENT: None}
 
     # Test the default exit
-    target = cfg.get_any_node(0x4005A4)
+    target = cfg.model.get_any_node(0x4005A4)
     bs_2 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[(target, -1)], no_construct=True)
     all_exits = bs_2._find_exits(source, target)
 
@@ -58,7 +58,7 @@ def test_control_flow_slicing():
     duration = end - start
     l.info("CFG generation is done in %f seconds.", duration)
 
-    target = cfg.get_any_node(0x400594)
+    target = cfg.model.get_any_node(0x400594)
     bs = slicing_test.analyses.BackwardSlice(cfg, None, None, targets=[(target, -1)], control_flow_slice=True)
     anno_cfg = bs.annotated_cfg()
     assert anno_cfg.get_whitelisted_statements(0x40057C) is None
@@ -84,7 +84,7 @@ def broken_backward_slice():
     cdg = slicing_test.analyses.CDG(cfg=cfg)
     ddg = slicing_test.analyses.DDG(cfg=cfg)
 
-    target = cfg.get_any_node(0x4005D3)
+    target = cfg.model.get_any_node(0x4005D3)
     bs = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[(target, -1)], control_flow_slice=False)
     anno_cfg = bs.annotated_cfg()
     assert anno_cfg.get_whitelisted_statements(0x40057C) == [2, 3, 7, 20, 21]
@@ -149,7 +149,7 @@ def test_fauxware():
     cdg = b.analyses.CDG(cfg)
     ddg = b.analyses.DDG(cfg)
     target_func = cfg.kb.functions.function(name="exit")
-    target_node = cfg.get_any_node(target_func.addr)
+    target_node = cfg.model.get_any_node(target_func.addr)
 
     bs = b.analyses.BackwardSlice(cfg, cdg=cdg, ddg=ddg, targets=[(target_node, -1)])
 
