@@ -1,6 +1,7 @@
+from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, Any, TYPE_CHECKING, overload, Type
 import weakref
-from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, Any, TYPE_CHECKING
 import logging
+from enum import Enum, auto
 
 from collections import defaultdict
 
@@ -18,12 +19,16 @@ from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .uses import Uses
+from angr.misc.ux import deprecated
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject
 
 
 l = logging.getLogger(name=__name__)
+
+class DerefSize(Enum):
+    NULL_TERMINATE = auto()
 
 
 #
@@ -652,15 +657,19 @@ class LiveDefinitions:
             result |= set(self.get_definitions(atom))
         return result
 
+    @deprecated("get_values")
     def get_value_from_definition(self, definition: Definition) -> Optional[MultiValues]:
         return self.get_value_from_atom(definition.atom)
 
+    @deprecated("get_one_value")
     def get_one_value_from_definition(self, definition: Definition) -> Optional[claripy.ast.bv.BV]:
         return self.get_one_value_from_atom(definition.atom)
 
+    @deprecated("get_concrete_value")
     def get_concrete_value_from_definition(self, definition: Definition) -> Optional[int]:
         return self.get_concrete_value_from_atom(definition.atom)
 
+    @deprecated("get_values")
     def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
         if isinstance(atom, Register):
             try:
@@ -690,12 +699,14 @@ class LiveDefinitions:
         else:
             return None
 
+    @deprecated("get_one_value")
     def get_one_value_from_atom(self, atom: Atom) -> Optional[claripy.ast.bv.BV]:
         r = self.get_value_from_atom(atom)
         if r is None:
             return None
         return r.one_value()
 
+    @deprecated("get_concrete_value")
     def get_concrete_value_from_atom(self, atom: Atom) -> Optional[int]:
         r = self.get_one_value_from_atom(atom)
         if r is None:
@@ -704,23 +715,60 @@ class LiveDefinitions:
             return None
         return r.concrete_value
 
-    def get_values(self, spec: Union[Atom, Definition]) -> Optional[MultiValues]:
-        if isinstance(spec, Atom):
-            return self.get_value_from_atom(spec)
+    def get_values(self, spec: Union[Atom, Definition[Atom]]) -> Optional[MultiValues]:
+        if isinstance(spec, Definition):
+            atom = spec.atom
         else:
-            return self.get_value_from_definition(spec)
+            atom = spec
+
+        if isinstance(atom, Register):
+            try:
+                return self.register_definitions.load(atom.reg_offset, size=atom.size)
+            except SimMemoryMissingError:
+                return None
+        elif isinstance(atom, MemoryLocation):
+            if isinstance(atom.addr, SpOffset):
+                stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
+                try:
+                    return self.stack_definitions.load(stack_addr, size=atom.size, endness=atom.endness)
+                except SimMemoryMissingError:
+                    return None
+            elif isinstance(atom.addr, HeapAddress):
+                try:
+                    return self.heap_definitions.load(atom.addr.value, size=atom.size, endness=atom.endness)
+                except SimMemoryMissingError:
+                    return None
+            elif isinstance(atom.addr, int):
+                try:
+                    return self.memory_definitions.load(atom.addr, size=atom.size, endness=atom.endness)
+                except SimMemoryMissingError:
+                    return None
+            else:
+                # ignore RegisterOffset
+                return None
+        else:
+            return None
 
     def get_one_value(self, spec: Union[Atom, Definition]) -> Optional[claripy.ast.bv.BV]:
-        if isinstance(spec, Atom):
-            return self.get_one_value_from_atom(spec)
-        else:
-            return self.get_one_value_from_definition(spec)
+        r = self.get_values(spec)
+        if r is None:
+            return None
+        return r.one_value()
 
-    def get_concrete_value(self, spec: Union[Atom, Definition]) -> Optional[int]:
-        if isinstance(spec, Atom):
-            return self.get_concrete_value_from_atom(spec)
-        else:
-            return self.get_concrete_value_from_definition(spec)
+    @overload
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[int] = ...) -> Optional[int]: ...
+    @overload
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[bytes] = ...) -> Optional[bytes]: ...
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Union[Type[int], Type[bytes]] = int) -> Union[int, bytes, None]:
+        r = self.get_one_value(spec)
+        if r is None:
+            return None
+        if r.symbolic:
+            return None
+        result = r.concrete_value
+        if issubclass(cast_to, bytes):
+            return result.to_bytes(len(r) // 8, 'big')
+        return result
 
     def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
         # get all current definitions
@@ -792,3 +840,82 @@ class LiveDefinitions:
 
         self.tmp_uses[def_.atom.tmp_idx].add(code_loc)
         self.uses_by_codeloc[code_loc].add(def_)
+
+    @overload
+    def deref(self, pointer: Union[MultiValues, Atom, Definition, Set[Atom]], size: Union[int, DerefSize], endness: archinfo.Endness) -> Set[MemoryLocation]: ...
+    @overload
+    def deref(self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness) -> Optional[MemoryLocation]: ...
+
+    def deref(self, pointer, size, endness):
+        if isinstance(pointer, (Atom, Definition)):
+            pointer = self.get_values(pointer)
+            if pointer is None:
+                return set()
+
+        if isinstance(pointer, set):
+            result = set()
+            for ptr_atom in pointer:
+                atom = self.deref(ptr_atom, size, endness)
+                if atom is not None:
+                    result.add(atom)
+            return result
+
+        if isinstance(pointer, MultiValues):
+            result = set()
+            for vs in pointer.values():
+                for value in vs:
+                    atom = self.deref(value, size, endness)
+                    if atom is not None:
+                        result.add(atom)
+            return result
+
+        if isinstance(pointer, int):
+            addr = pointer
+        else:
+            assert isinstance(pointer, claripy.ast.BV)
+            if self.is_top(pointer):
+                return None
+
+            # TODO this can be simplified with the walrus operator
+            stack_offset = self.get_stack_offset(pointer)
+            if stack_offset is not None:
+                addr = SpOffset(len(pointer), stack_offset)
+            else:
+                heap_offset = self.get_heap_offset(pointer)
+                if heap_offset is not None:
+                    addr = HeapAddress(heap_offset)
+                elif pointer.op == "BVV":
+                    addr = pointer.args[0]
+                else:
+                    # cannot resolve
+                    return None
+
+        if isinstance(size, DerefSize):
+            assert size == DerefSize.NULL_TERMINATE
+            for size in range(4096):  # arbitrary
+                if self.get_concrete_value(MemoryLocation(addr + size, 1, endness)) == 0:
+                    break
+            else:
+                l.warning("Could not resolve cstring dereference at %s to a concrete size", hex(addr) if isinstance(addr, int) else addr)
+                size = 4096
+
+        return MemoryLocation(addr, size, endness)
+
+    @staticmethod
+    def is_heap_address(addr: claripy.ast.Base) -> bool:
+        return "heap_base" in addr.variables
+
+    @staticmethod
+    def get_heap_offset(addr: claripy.ast.Base) -> Optional[int]:
+        if "heap_base" in addr.variables:
+            if addr.op == "BVS":
+                return 0
+            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                return addr.args[1]._model_concrete.value
+        return None
+
+    def heap_address(self, offset: int) -> claripy.ast.Base:
+        base = claripy.BVS("heap_base", self.arch.bits, explicit_name=True)
+        if offset:
+            return base + offset
+        return base

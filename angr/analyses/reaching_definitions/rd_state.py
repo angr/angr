@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Tuple, Any, TYPE_CHECKING, Iterator, Union
+from typing import Optional, Iterable, Set, Tuple, Any, TYPE_CHECKING, Iterator, Union, overload, Type
 import logging
 
 import archinfo
@@ -6,7 +6,7 @@ import claripy
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...storage.memory_mixins import MultiValuedMemory
-from ...knowledge_plugins.key_definitions import LiveDefinitions
+from ...knowledge_plugins.key_definitions import LiveDefinitions, DerefSize, Definition
 from ...knowledge_plugins.key_definitions.atoms import (
     Atom,
     GuardUse,
@@ -14,7 +14,6 @@ from ...knowledge_plugins.key_definitions.atoms import (
     MemoryLocation,
     ConstantSrc,
 )
-from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.environment import Environment
 from ...knowledge_plugins.key_definitions.tag import Tag
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
@@ -23,6 +22,7 @@ from ...code_location import CodeLocation
 from .heap_allocator import HeapAllocator
 from .subject import Subject, SubjectType
 from .rd_initializer import RDAStateInitializer
+from angr.misc.ux import deprecated
 
 if TYPE_CHECKING:
     from .reaching_definitions import ReachingDefinitionsAnalysis
@@ -140,23 +140,15 @@ class ReachingDefinitionsState:
         return self.live_definitions.is_top(*args)
 
     def heap_address(self, offset: int) -> claripy.ast.Base:
-        base = claripy.BVS("heap_base", self.arch.bits, explicit_name=True)
-        if offset:
-            return base + offset
-        return base
+        return self.live_definitions.heap_address(offset)
 
     @staticmethod
     def is_heap_address(addr: claripy.ast.Base) -> bool:
-        return "heap_base" in addr.variables
+        return LiveDefinitions.is_heap_address(addr)
 
     @staticmethod
     def get_heap_offset(addr: claripy.ast.Base) -> Optional[int]:
-        if "heap_base" in addr.variables:
-            if addr.op == "BVS":
-                return 0
-            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                return addr.args[1]._model_concrete.value
-        return None
+        return LiveDefinitions.get_heap_offset(addr)
 
     def stack_address(self, offset: int) -> claripy.ast.Base:
         return self.live_definitions.stack_address(offset)
@@ -491,8 +483,12 @@ class ReachingDefinitionsState:
     def get_one_value(self, spec: Union[Atom, Definition]) -> Optional[claripy.ast.bv.BV]:
         return self.live_definitions.get_one_value(spec)
 
-    def get_concrete_value(self, spec: Union[Atom, Definition]) -> Optional[int]:
-        return self.live_definitions.get_concrete_value(spec)
+    @overload
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[int] = ...) -> Optional[int]: ...
+    @overload
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[bytes] = ...) -> Optional[bytes]: ...
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Union[Type[int], Type[bytes]] = int) -> Union[int, bytes, None]:
+        return self.live_definitions.get_concrete_value(spec, cast_to)
 
     def mark_guard(self, target):
         atom = GuardUse(target)
@@ -516,6 +512,7 @@ class ReachingDefinitionsState:
         self.all_definitions = set()
         self.live_definitions.reset_uses()
 
+    @deprecated("deref")
     def pointer_to_atoms(self, pointer: MultiValues, size: int, endness: str) -> Set[MemoryLocation]:
         """
         Given a MultiValues, return the set of atoms that loading or storing to the pointer with that value
@@ -530,6 +527,7 @@ class ReachingDefinitionsState:
 
         return result
 
+    @deprecated("deref")
     def pointer_to_atom(self, value: claripy.ast.base.Base, size: int, endness: str) -> Optional[MemoryLocation]:
         if self.is_top(value):
             return None
@@ -549,3 +547,11 @@ class ReachingDefinitionsState:
                 return None
 
         return MemoryLocation(addr, size, endness)
+
+    @overload
+    def deref(self, pointer: Union[MultiValues, Atom, Definition, Set[Atom]], size: Union[int, DerefSize], endness: archinfo.Endness) -> Set[MemoryLocation]: ...
+    @overload
+    def deref(self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness) -> Optional[MemoryLocation]: ...
+
+    def deref(self, pointer, size, endness):
+        return self.live_definitions.deref(pointer, size, endness)
