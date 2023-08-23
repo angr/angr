@@ -5,4 +5,12 @@ from .uses import Uses
 from .definition import Definition
 from . import atoms
 
-__all__ = ('ReachingDefinitionsModel', 'KeyDefinitionManager', 'LiveDefinitions', 'DerefSize', 'Uses', 'atoms', 'Definition')
+__all__ = (
+    "ReachingDefinitionsModel",
+    "KeyDefinitionManager",
+    "LiveDefinitions",
+    "DerefSize",
+    "Uses",
+    "atoms",
+    "Definition",
+)

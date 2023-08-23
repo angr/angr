@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
+
 class DerefSize(Enum):
     NULL_TERMINATE = auto()
 
@@ -756,10 +757,16 @@ class LiveDefinitions:
         return r.one_value()
 
     @overload
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[int] = ...) -> Optional[int]: ...
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[int] = ...) -> Optional[int]:
+        ...
+
     @overload
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[bytes] = ...) -> Optional[bytes]: ...
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Union[Type[int], Type[bytes]] = int) -> Union[int, bytes, None]:
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[bytes] = ...) -> Optional[bytes]:
+        ...
+
+    def get_concrete_value(
+        self, spec: Union[Atom, Definition[Atom]], cast_to: Union[Type[int], Type[bytes]] = int
+    ) -> Union[int, bytes, None]:
         r = self.get_one_value(spec)
         if r is None:
             return None
@@ -767,7 +774,7 @@ class LiveDefinitions:
             return None
         result = r.concrete_value
         if issubclass(cast_to, bytes):
-            return result.to_bytes(len(r) // 8, 'big')
+            return result.to_bytes(len(r) // 8, "big")
         return result
 
     def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Optional[Any] = None) -> None:
@@ -842,9 +849,19 @@ class LiveDefinitions:
         self.uses_by_codeloc[code_loc].add(def_)
 
     @overload
-    def deref(self, pointer: Union[MultiValues, Atom, Definition, Set[Atom]], size: Union[int, DerefSize], endness: archinfo.Endness) -> Set[MemoryLocation]: ...
+    def deref(
+        self,
+        pointer: Union[MultiValues, Atom, Definition, Set[Atom]],
+        size: Union[int, DerefSize],
+        endness: archinfo.Endness,
+    ) -> Set[MemoryLocation]:
+        ...
+
     @overload
-    def deref(self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness) -> Optional[MemoryLocation]: ...
+    def deref(
+        self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness
+    ) -> Optional[MemoryLocation]:
+        ...
 
     def deref(self, pointer, size, endness):
         if isinstance(pointer, (Atom, Definition)):
@@ -896,7 +913,10 @@ class LiveDefinitions:
                 if self.get_concrete_value(MemoryLocation(addr + size, 1, endness)) == 0:
                     break
             else:
-                l.warning("Could not resolve cstring dereference at %s to a concrete size", hex(addr) if isinstance(addr, int) else addr)
+                l.warning(
+                    "Could not resolve cstring dereference at %s to a concrete size",
+                    hex(addr) if isinstance(addr, int) else addr,
+                )
                 size = 4096
 
         return MemoryLocation(addr, size, endness)

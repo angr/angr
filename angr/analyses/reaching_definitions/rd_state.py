@@ -484,10 +484,16 @@ class ReachingDefinitionsState:
         return self.live_definitions.get_one_value(spec)
 
     @overload
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[int] = ...) -> Optional[int]: ...
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[int] = ...) -> Optional[int]:
+        ...
+
     @overload
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[bytes] = ...) -> Optional[bytes]: ...
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Union[Type[int], Type[bytes]] = int) -> Union[int, bytes, None]:
+    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[bytes] = ...) -> Optional[bytes]:
+        ...
+
+    def get_concrete_value(
+        self, spec: Union[Atom, Definition[Atom]], cast_to: Union[Type[int], Type[bytes]] = int
+    ) -> Union[int, bytes, None]:
         return self.live_definitions.get_concrete_value(spec, cast_to)
 
     def mark_guard(self, target):
@@ -549,9 +555,19 @@ class ReachingDefinitionsState:
         return MemoryLocation(addr, size, endness)
 
     @overload
-    def deref(self, pointer: Union[MultiValues, Atom, Definition, Set[Atom]], size: Union[int, DerefSize], endness: archinfo.Endness) -> Set[MemoryLocation]: ...
+    def deref(
+        self,
+        pointer: Union[MultiValues, Atom, Definition, Set[Atom]],
+        size: Union[int, DerefSize],
+        endness: archinfo.Endness,
+    ) -> Set[MemoryLocation]:
+        ...
+
     @overload
-    def deref(self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness) -> Optional[MemoryLocation]: ...
+    def deref(
+        self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness
+    ) -> Optional[MemoryLocation]:
+        ...
 
     def deref(self, pointer, size, endness):
         return self.live_definitions.deref(pointer, size, endness)
