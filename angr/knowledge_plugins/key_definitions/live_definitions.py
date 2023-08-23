@@ -14,7 +14,7 @@ from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SpOffset
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
@@ -743,7 +743,19 @@ class LiveDefinitions:
                 try:
                     return self.memory_definitions.load(atom.addr, size=atom.size, endness=atom.endness)
                 except SimMemoryMissingError:
-                    return None
+                    pass
+                if self.project is not None:
+                    try:
+                        bytestring = self.project.loader.memory.load(atom.addr, size=atom.size)
+                        if atom.endness == archinfo.Endness.LE:
+                            bytestring = b"".join(reversed(bytestring))
+                        mv = MultiValues(
+                            self.annotate_with_def(claripy.BVV(bytestring), Definition(atom, ExternalCodeLocation()))
+                        )
+                        return mv
+                    except KeyError:
+                        pass
+                return None
             else:
                 # ignore RegisterOffset
                 return None
