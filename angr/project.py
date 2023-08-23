@@ -180,7 +180,7 @@ class Project:
             )
             raise Exception("Incompatible options for the project")
 
-        if self.concrete_target and self.arch.name not in ["X86", "AMD64", "ARMHF", "MIPS32"]:
+        if self.concrete_target and self.arch.name not in ["X86", "AMD64", "ARMHF", "ARMEL", "MIPS32"]:
             l.critical("Concrete execution does not support yet the selected architecture. Aborting.")
             raise Exception("Incompatible options for the project")
 
