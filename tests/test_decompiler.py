@@ -2477,10 +2477,9 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
         text = d.codegen.text
         # all scopes in the program should never be followed by code or tabs
-        for i in re.finditer('{', text):
+        for i in re.finditer("{", text):
             idx = i.start()
-            assert text[idx+1] == "\n"
-
+            assert text[idx + 1] == "\n"
 
 
 if __name__ == "__main__":
