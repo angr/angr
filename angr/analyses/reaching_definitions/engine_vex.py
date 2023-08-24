@@ -350,7 +350,7 @@ class SimEngineRDVEX(
 
         reg_atom = Register(reg_offset, size, self.arch)
         try:
-            values: MultiValues = self.state.register_definitions.load(reg_offset, size=size)
+            values: MultiValues = self.state.registers.load(reg_offset, size=size)
         except SimMemoryMissingError:
             top = self.state.top(size * self.arch.byte_width)
             # annotate it
@@ -416,7 +416,7 @@ class SimEngineRDVEX(
                     loaded_stack_offsets.add(stack_offset)
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
-                        vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=endness)
+                        vs: MultiValues = self.state.stack.load(stack_addr, size=size, endness=endness)
                         # extract definitions
                         defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                     except SimMemoryMissingError:
@@ -429,7 +429,7 @@ class SimEngineRDVEX(
                 # Load data from the heap
                 heap_offset = self.state.get_heap_offset(addr)
                 try:
-                    vs: MultiValues = self.state.heap_definitions.load(heap_offset, size=size, endness=endness)
+                    vs: MultiValues = self.state.heap.load(heap_offset, size=size, endness=endness)
                     defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
                     continue
@@ -442,7 +442,7 @@ class SimEngineRDVEX(
 
                 # Load data from a global region
                 try:
-                    vs: MultiValues = self.state.memory_definitions.load(addr_v, size=size, endness=endness)
+                    vs: MultiValues = self.state.memory.load(addr_v, size=size, endness=endness)
                     defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
                     try:
@@ -457,7 +457,7 @@ class SimEngineRDVEX(
                             v = self.state.annotate_with_def(claripy.BVV(val, size * self.arch.byte_width), missing_def)
                         vs = MultiValues(v)
                         if not section or section.is_writable:
-                            self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
+                            self.state.memory.store(addr_v, vs, size=size, endness=endness)
                             self.state.all_definitions.add(missing_def)
                         defs = {missing_def}
                     except KeyError:

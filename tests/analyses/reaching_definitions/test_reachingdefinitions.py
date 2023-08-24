@@ -33,7 +33,7 @@ class InsnAndNodeObserveTestingUtils:
                 lambda attr: {
                     assertion(getattr(live_definition_1, attr)._pages, getattr(live_definition_2, attr)._pages)
                 },
-                ["register_definitions", "stack_definitions", "memory_definitions"],
+                ["registers", "stack", "memory"],
             )
         )
         assertion(getattr(live_definition_1, "tmps"), getattr(live_definition_2, "tmps"))
@@ -120,9 +120,9 @@ class TestReachingDefinitions(TestCase):
             unsorted_result = map(
                 lambda x: {
                     "key": x[0],
-                    "register_definitions": self._extract_all_definitions_from_storage(x[1].register_definitions),
-                    "stack_definitions": self._extract_all_definitions_from_storage(x[1].stack_definitions),
-                    "memory_definitions": self._extract_all_definitions_from_storage(x[1].memory_definitions),
+                    "register_definitions": self._extract_all_definitions_from_storage(x[1].registers),
+                    "stack_definitions": self._extract_all_definitions_from_storage(x[1].stack),
+                    "memory_definitions": self._extract_all_definitions_from_storage(x[1].memory),
                 },
                 [(k, v) for k, v in rda.observed_results.items() if k[0] != "stmt"],
             )
@@ -410,7 +410,7 @@ class TestReachingDefinitions(TestCase):
         project = angr.Project(bin_path, auto_load_libs=False)
         cfg = project.analyses[CFGFast].prep()()
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=cfg.kb.functions["main"], observe_all=True)
-        mv = rda.model.observed_results[("insn", 0x400765, OP_BEFORE)].register_definitions.load(
+        mv = rda.model.observed_results[("insn", 0x400765, OP_BEFORE)].registers.load(
             project.arch.registers["edx"][0],
             size=4,
             endness=project.arch.register_endness,
@@ -422,12 +422,12 @@ class TestReachingDefinitions(TestCase):
         project = angr.Project(bin_path, auto_load_libs=False)
         cfg = project.analyses[CFGFast].prep()(normalize=True)
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=cfg.kb.functions[0x93E0], observe_all=True)
-        sp_0 = rda.model.observed_results[("insn", 0x9410, OP_BEFORE)].register_definitions.load(
+        sp_0 = rda.model.observed_results[("insn", 0x9410, OP_BEFORE)].registers.load(
             project.arch.sp_offset,
             size=4,
             endness=project.arch.register_endness,
         )
-        sp_1 = rda.model.observed_results[("insn", 0x9410, OP_AFTER)].register_definitions.load(
+        sp_1 = rda.model.observed_results[("insn", 0x9410, OP_AFTER)].registers.load(
             project.arch.sp_offset,
             size=4,
             endness=project.arch.register_endness,

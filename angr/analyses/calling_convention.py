@@ -526,8 +526,8 @@ class CallingConventionAnalysis(Analysis):
         # determine if potential register and stack arguments are set
         state = rda.observed_results[("insn", call_insn_addr, OP_BEFORE)]
         defs_by_reg_offset: Dict[int, List["Definition"]] = defaultdict(list)
-        all_reg_defs: Set["Definition"] = get_all_definitions(state.register_definitions)
-        all_stack_defs: Set["Definition"] = get_all_definitions(state.stack_definitions)
+        all_reg_defs: Set["Definition"] = get_all_definitions(state.registers)
+        all_stack_defs: Set["Definition"] = get_all_definitions(state.stack)
         for d in all_reg_defs:
             if (
                 isinstance(d.atom, Register)
