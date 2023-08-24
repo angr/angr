@@ -20,10 +20,10 @@ class FlipBooleanWalker(SequenceWalker):
         self._graph = graph
 
     def _handle_Sequence(self, seq_node, **kwargs):
-        # type 1:
+        # Type 1:
         # if (cond) { ... }  else  { return; }   -->   if (!cond) { return; } else { ... }
         #
-        # type 2:
+        # Type 2:
         # if (cond) { ... } return;    -->    if (!cond) return; ...
         type1_condition_nodes = [node for node in seq_node.nodes if isinstance(node, ConditionNode) and node.false_node]
         type2_condition_nodes: List[Tuple[int, ConditionNode, Any]] = []
