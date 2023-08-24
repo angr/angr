@@ -3528,15 +3528,49 @@ class FieldReferenceCleanup(CStructuredCodeWalker):
 
 
 class PointerArithmeticFixer(CStructuredCodeWalker):
+    """
+    Before calling this fixer class, pointer arithmetics are purely integer-based and ignoring the pointer type.
+
+    For example, in the following case:
+
+    struct A* a_ptr;  // assume struct A is 24 bytes in size
+    a_ptr = a_ptr + 24;
+
+    It means adding 24 to the address of a_ptr, without considering the size of struct A. This fixer class will make
+    pointer arithmetics aware of the pointer type. In this case, the fixer class will convert the code to
+    a_ptr = a_ptr + 1.
+    """
+
     @classmethod
     def handle_CBinaryOp(cls, obj):
-        obj = super().handle_CBinaryOp(obj)
+        obj: CBinaryOp = super().handle_CBinaryOp(obj)
         if (
             obj.op in ("Add", "Sub")
             and isinstance(obj.type, SimTypePointer)
             and not isinstance(obj.type.pts_to, SimTypeBottom)
         ):
-            obj = obj.codegen._access_reference(obj, obj.type.pts_to)
+            out = obj.codegen._access_reference(obj, obj.type.pts_to)
+            if (
+                isinstance(out, CUnaryOp)
+                and out.op == "Reference"
+                and isinstance(out.operand, CIndexedVariable)
+                and isinstance(out.operand.index, CConstant)
+            ):
+                # rewrite &a[1] to a + 1
+                const = out.operand.index
+                if isinstance(const.value, int) and const.value < 0:
+                    op = "Sub"
+                    const = CConstant(
+                        -const.value,
+                        const.type,
+                        reference_values=const.reference_values,
+                        tags=const.tags,
+                        codegen=const.codegen,
+                    )
+                else:
+                    op = "Add"
+                return CBinaryOp(op, out.operand.variable, const, out.operand.tags, codegen=out.codegen)
+            return out
         return obj
 
 

@@ -1577,7 +1577,7 @@ class TestDecompiler(unittest.TestCase):
         assert "b_ptr = &c_ptr->c2[argc];" in d.codegen.text
         assert "c_ptr->c3[argc] = argc;" in d.codegen.text
         assert "c_ptr->c2[argc].b2.a2 = argc;" in d.codegen.text
-        assert "b_ptr = &b_ptr[1];" in d.codegen.text
+        assert "b_ptr += 1;" in d.codegen.text
         assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
 
     @for_all_structuring_algos
