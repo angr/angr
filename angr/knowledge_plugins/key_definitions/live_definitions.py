@@ -14,7 +14,7 @@ from ...storage.memory_mixins import MultiValuedMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
+from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc, AbstractSink
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .uses import Uses
@@ -534,6 +534,8 @@ class LiveDefinitions:
             else:
                 self.tmps[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
                 return None
+        elif isinstance(atom, AbstractSink):
+            return d
         else:
             raise NotImplementedError()
 
@@ -592,6 +594,9 @@ class LiveDefinitions:
                 return
         elif isinstance(atom, Tmp):
             yield from self.get_tmp_definitions(atom.tmp_idx)
+        elif isinstance(atom, AbstractSink):
+            # AbstractSinks never have definitions
+            yield from []
         else:
             raise TypeError("Unsupported atom type %s." % type(atom))
 
