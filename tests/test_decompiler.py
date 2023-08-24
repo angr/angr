@@ -2464,6 +2464,23 @@ class TestDecompiler(unittest.TestCase):
             # these are the two calls, their last arg should actually be r14
             assert str(target_node.statements[-1].args[2]).startswith("r14")
 
+    @for_all_structuring_algos
+    def test_else_if_scope_printing(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x401900]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        # all scopes in the program should never be followed by code or tabs
+        for i in re.finditer("{", text):
+            idx = i.start()
+            assert text[idx + 1] == "\n"
+
 
 if __name__ == "__main__":
     unittest.main()

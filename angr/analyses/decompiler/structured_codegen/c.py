@@ -892,7 +892,10 @@ class CIfElse(CStatement):
             omit_braces = (
                 self.cstyle_ifs
                 and first_node
+                and len(self.condition_and_nodes) == 1
+                # no else-if tree can exist
                 and self._is_single_stmt_node(node)
+                # no else, else is also single-stmt, or else will not exist after pass
                 and (self.else_node is None or self._is_single_stmt_node(self.else_node) or self.simplify_else_scope)
             )
 
