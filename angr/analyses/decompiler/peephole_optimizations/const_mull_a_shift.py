@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from typing import Union
 
 from ailment.expression import Convert, BinaryOp, Const
@@ -6,6 +7,10 @@ from .base import PeepholeOptimizationExprBase
 
 
 class ConstMullAShift(PeepholeOptimizationExprBase):
+    """
+    Convert expressions with right shifts into expressions with divisions.
+    """
+
     __slots__ = ()
 
     NAME = "Conv(64->32, (N * a) >> M) => a / N1"
