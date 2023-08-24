@@ -33,7 +33,7 @@ class InsnAndNodeObserveTestingUtils:
                 lambda attr: {
                     assertion(getattr(live_definition_1, attr)._pages, getattr(live_definition_2, attr)._pages)
                 },
-                ["register_definitions", "stack_definitions", "memory_definitions"],
+                ["registers", "stack", "memory"],
             )
         )
         assertion(getattr(live_definition_1, "tmps"), getattr(live_definition_2, "tmps"))
