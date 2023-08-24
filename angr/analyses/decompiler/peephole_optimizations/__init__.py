@@ -9,7 +9,7 @@ from .arm_cmpf import ARMCmpF
 from .bswap import Bswap
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .constant_derefs import ConstantDereferences
-from .conv_const_mull_a_shift import ConvConstMullAShift
+from .const_mull_a_shift import ConstMullAShift
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .remove_empty_if_body import RemoveEmptyIfBody
 from .remove_redundant_ite_branch import RemoveRedundantITEBranches
