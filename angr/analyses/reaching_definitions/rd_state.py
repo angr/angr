@@ -125,6 +125,9 @@ class ReachingDefinitionsState:
                 self.arch, track_tmps=self._track_tmps, canonical_size=canonical_size
             )
             self._set_initialization_values(subject, rtoc_value, initializer=initializer)
+            
+            if self.analysis is not None:
+                self.live_definitions.project = self.analysis.project
         else:
             # this state is a copy from a previous state. skip the initialization
             self.live_definitions = live_definitions
@@ -477,22 +480,26 @@ class ReachingDefinitionsState:
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         yield from self.live_definitions.get_definitions(atom)
 
-    def get_values(self, spec: Union[Atom, Definition]) -> Optional[MultiValues]:
+    def get_values(self, spec: Union[Atom, Definition, Iterable[Atom]]) -> Optional[MultiValues]:
         return self.live_definitions.get_values(spec)
 
     def get_one_value(self, spec: Union[Atom, Definition]) -> Optional[claripy.ast.bv.BV]:
         return self.live_definitions.get_one_value(spec)
 
     @overload
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[int] = ...) -> Optional[int]:
+    def get_concrete_value(
+        self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Type[int] = ...
+    ) -> Optional[int]:
         ...
 
     @overload
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[bytes] = ...) -> Optional[bytes]:
+    def get_concrete_value(
+        self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Type[bytes] = ...
+    ) -> Optional[bytes]:
         ...
 
     def get_concrete_value(
-        self, spec: Union[Atom, Definition[Atom]], cast_to: Union[Type[int], Type[bytes]] = int
+        self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Union[Type[int], Type[bytes]] = int
     ) -> Union[int, bytes, None]:
         return self.live_definitions.get_concrete_value(spec, cast_to)
 
@@ -557,17 +564,17 @@ class ReachingDefinitionsState:
     @overload
     def deref(
         self,
-        pointer: Union[MultiValues, Atom, Definition, Set[Atom]],
+        pointer: Union[MultiValues, Atom, Definition, Iterable[Atom], Iterable[Definition]],
         size: Union[int, DerefSize],
-        endness: archinfo.Endness,
+        endness: archinfo.Endness = ...,
     ) -> Set[MemoryLocation]:
         ...
 
     @overload
     def deref(
-        self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness
+        self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness = ...
     ) -> Optional[MemoryLocation]:
         ...
 
-    def deref(self, pointer, size, endness):
+    def deref(self, pointer, size, endness=archinfo.Endness.BE):
         return self.live_definitions.deref(pointer, size, endness)

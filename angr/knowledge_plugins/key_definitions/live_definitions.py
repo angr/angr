@@ -22,6 +22,7 @@ from .uses import Uses
 from angr.misc.ux import deprecated
 
 if TYPE_CHECKING:
+    from angr.project import Project
     from angr.storage import SimMemoryObject
 
 
@@ -119,7 +120,7 @@ class LiveDefinitions:
         memory_uses=None,
         tmp_uses=None,
     ):
-        self.project = None
+        self.project: Optional["Project"] = None
         self.arch = arch
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
@@ -224,6 +225,7 @@ class LiveDefinitions:
             tmp_uses=self.tmp_uses.copy() if not discard_tmpdefs else None,
         )
 
+        rd.project = self.project
         return rd
 
     def reset_uses(self):
@@ -716,11 +718,22 @@ class LiveDefinitions:
             return None
         return r.concrete_value
 
-    def get_values(self, spec: Union[Atom, Definition[Atom]]) -> Optional[MultiValues]:
+    def get_values(self, spec: Union[Atom, Definition[Atom], Iterable[Atom]]) -> Optional[MultiValues]:
         if isinstance(spec, Definition):
             atom = spec.atom
-        else:
+        elif isinstance(spec, Atom):
             atom = spec
+        else:
+            result = None
+            for atom in spec:
+                r = self.get_values(atom)
+                if r is None:
+                    continue
+                if result is None:
+                    result = r
+                else:
+                    result = result.merge(r)
+            return result
 
         if isinstance(atom, Register):
             try:
@@ -746,9 +759,9 @@ class LiveDefinitions:
                     pass
                 if self.project is not None:
                     try:
-                        bytestring = self.project.loader.memory.load(atom.addr, size=atom.size)
+                        bytestring = self.project.loader.memory.load(atom.addr, atom.size)
                         if atom.endness == archinfo.Endness.LE:
-                            bytestring = b"".join(reversed(bytestring))
+                            bytestring = bytes(reversed(bytestring))
                         mv = MultiValues(
                             self.annotate_with_def(claripy.BVV(bytestring), Definition(atom, ExternalCodeLocation()))
                         )
@@ -769,15 +782,19 @@ class LiveDefinitions:
         return r.one_value()
 
     @overload
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[int] = ...) -> Optional[int]:
+    def get_concrete_value(
+        self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Type[int] = ...
+    ) -> Optional[int]:
         ...
 
     @overload
-    def get_concrete_value(self, spec: Union[Atom, Definition[Atom]], cast_to: Type[bytes] = ...) -> Optional[bytes]:
+    def get_concrete_value(
+        self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Type[bytes] = ...
+    ) -> Optional[bytes]:
         ...
 
     def get_concrete_value(
-        self, spec: Union[Atom, Definition[Atom]], cast_to: Union[Type[int], Type[bytes]] = int
+        self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Union[Type[int], Type[bytes]] = int
     ) -> Union[int, bytes, None]:
         r = self.get_one_value(spec)
         if r is None:
@@ -863,19 +880,19 @@ class LiveDefinitions:
     @overload
     def deref(
         self,
-        pointer: Union[MultiValues, Atom, Definition, Set[Atom]],
+        pointer: Union[MultiValues, Atom, Definition, Iterable[Atom], Iterable[Definition]],
         size: Union[int, DerefSize],
-        endness: archinfo.Endness,
+        endness: archinfo.Endness = ...,
     ) -> Set[MemoryLocation]:
         ...
 
     @overload
     def deref(
-        self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness
+        self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness = ...
     ) -> Optional[MemoryLocation]:
         ...
 
-    def deref(self, pointer, size, endness):
+    def deref(self, pointer, size, endness=archinfo.Endness.BE):
         if isinstance(pointer, (Atom, Definition)):
             pointer = self.get_values(pointer)
             if pointer is None:
@@ -884,9 +901,7 @@ class LiveDefinitions:
         if isinstance(pointer, set):
             result = set()
             for ptr_atom in pointer:
-                atom = self.deref(ptr_atom, size, endness)
-                if atom is not None:
-                    result.add(atom)
+                result.update(self.deref(ptr_atom, size, endness))
             return result
 
         if isinstance(pointer, MultiValues):
@@ -923,6 +938,7 @@ class LiveDefinitions:
             assert size == DerefSize.NULL_TERMINATE
             for size in range(4096):  # arbitrary
                 if self.get_concrete_value(MemoryLocation(addr + size, 1, endness)) == 0:
+                    size += 1
                     break
             else:
                 l.warning(

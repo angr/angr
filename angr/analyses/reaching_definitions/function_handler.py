@@ -1,8 +1,10 @@
-from typing import TYPE_CHECKING, List, Set, Optional, Union
+from typing import TYPE_CHECKING, Iterable, List, Set, Optional, Union, Callable
 from dataclasses import dataclass, field
 import logging
 from cle import Symbol
 from cle.backends import ELF
+import claripy
+from functools import wraps
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.sim_type import SimTypeBottom
@@ -113,9 +115,9 @@ class FunctionCallData:
 
     def depends(
         self,
-        dest: Optional[Atom],
-        *sources: Atom,
-        value: Optional[MultiValues] = None,
+        dest: Union[Atom, Iterable[Atom], None],
+        *sources: Union[Atom, Iterable[Atom]],
+        value: Union[MultiValues, claripy.ast.BV, bytes, int, None] = None,
         apply_at_callsite: bool = False,
         tags: Optional[Set[Tag]] = None,
     ):
@@ -129,6 +131,22 @@ class FunctionCallData:
 
         The atom being modified may be None to mark uses of the source atoms which do not have any explicit sinks.
         """
+        if dest is None and value is not None:
+            raise TypeError("Cannot provide value without a destination to write it to")
+
+        if dest is not None and not isinstance(dest, Atom):
+            for dest2 in dest:
+                self.depends(dest2, *sources, value=value, apply_at_callsite=apply_at_callsite, tags=tags)
+            return
+
+        if isinstance(value, int):
+            assert dest is not None
+            value = claripy.BVV(value, dest.size * 8)
+        elif isinstance(value, bytes):
+            value = claripy.BVV(value)
+        if isinstance(value, claripy.ast.BV):
+            value = MultiValues(value)
+        assert value is None or isinstance(value, MultiValues)
         if dest is not None and self.has_clobbered(dest):
             l.warning(
                 "Function handler for %s seems to be implemented incorrectly - "
@@ -139,12 +157,64 @@ class FunctionCallData:
             self.effects.append(
                 FunctionEffect(
                     dest,
-                    set(sources),
+                    set().union(*({src} if isinstance(src, Atom) else set(src) for src in sources)),
                     value=value,
                     apply_at_callsite=apply_at_callsite,
                     tags=tags,
                 )
             )
+
+    def reset_prototype(self, prototype: SimTypeFunction, state: "ReachingDefinitionsState") -> Set[Atom]:
+        self.prototype = prototype.with_arch(state.arch)
+
+        args_atoms_from_values = set()
+        if self.args_atoms is None and self.args_values is not None:
+            self.args_atoms = [
+                set().union(
+                    *({defn.atom for defn in state.extract_defs(value)} for values in mv.values() for value in values)
+                )
+                for mv in self.args_values
+            ]
+            for atoms_set in self.args_atoms:
+                args_atoms_from_values |= atoms_set
+        elif self.args_atoms is None and self.cc is not None and self.prototype is not None:
+            self.args_atoms = FunctionHandler.c_args_as_atoms(state, self.cc, self.prototype)
+        if self.ret_atoms is None and self.cc is not None and self.prototype is not None:
+            if self.prototype.returnty is not None:
+                self.ret_atoms = FunctionHandler.c_return_as_atoms(state, self.cc, self.prototype)
+        return args_atoms_from_values
+
+
+class FunctionCallDataUnwrapped(FunctionCallData):
+    address_multi: MultiValues
+    address: int
+    symbol: Symbol
+    function: Function
+    name: str
+    cc: SimCC
+    prototype: SimTypeFunction
+    args_atoms: List[Set[Atom]]
+    args_values: List[MultiValues]
+    ret_atoms: Set[Atom]
+
+    def __init__(self, inner: FunctionCallData):
+        d = dict(inner.__dict__)
+        for k, v in d.items():
+            assert v is not None or k not in type(self).__annotations__, (
+                "Failed to unwrap field %s - this function is more complicated than you're ready for!" % k
+            )
+            assert v is not None, "Members of FunctionCallDataUnwrapped may not be None"
+        super().__init__(**d)
+
+    @staticmethod
+    @wraps
+    def decorate(
+        f: Callable[["FunctionHandler", "ReachingDefinitionsState", "FunctionCallDataUnwrapped"], None]
+    ) -> Callable[["FunctionHandler", "ReachingDefinitionsState", FunctionCallData], None]:
+        def inner(self: "FunctionHandler", state: "ReachingDefinitionsState", data: FunctionCallData):
+            f(self, state, FunctionCallDataUnwrapped(data))
+
+        return inner
 
 
 # pylint: disable=unused-argument, no-self-use
@@ -249,21 +319,7 @@ class FunctionHandler:
             data.prototype = state.analysis.project.factory.function_prototype()
             data.guessed_prototype = True
 
-        args_atoms_from_values = set()
-        if data.args_atoms is None and data.args_values is not None:
-            data.args_atoms = [
-                set().union(
-                    *({defn.atom for defn in state.extract_defs(value)} for values in mv.values() for value in values)
-                )
-                for mv in data.args_values
-            ]
-            for atoms_set in data.args_atoms:
-                args_atoms_from_values |= atoms_set
-        elif data.args_atoms is None and data.cc is not None and data.prototype is not None:
-            data.args_atoms = self.c_args_as_atoms(state, data.cc, data.prototype)
-        if data.ret_atoms is None and data.cc is not None and data.prototype is not None:
-            if data.prototype.returnty is not None:
-                data.ret_atoms = self.c_return_as_atoms(state, data.cc, data.prototype)
+        args_atoms_from_values = data.reset_prototype(data.prototype, state)
 
         # PROCESS
         state.move_codelocs(data.function_codeloc)
