@@ -646,7 +646,7 @@ class VEXIRSBConverter(Converter):
             manager.vex_stmt_idx = vex_stmt_idx
             try:
                 converted = VEXStmtConverter.convert(idx, stmt, manager)
-                if type(converted) is list:
+                if isinstance(converted, list):
                     # got multiple statements
                     statements.extend(converted)
                     idx += len(converted)
