@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import logging
 from cle import Symbol
 from cle.backends import ELF
+from archinfo import Endness
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.sim_type import SimTypeBottom
@@ -33,6 +34,7 @@ class FunctionEffect:
     sources: Set[Atom]
     value: Optional[MultiValues] = None
     sources_defns: Optional[Set[Definition]] = None
+    endness: Endness = None
     apply_at_callsite: bool = False
     tags: Optional[Set[Tag]] = None
 
@@ -116,6 +118,7 @@ class FunctionCallData:
         dest: Optional[Atom],
         *sources: Atom,
         value: Optional[MultiValues] = None,
+        endness: Endness = None,
         apply_at_callsite: bool = False,
         tags: Optional[Set[Tag]] = None,
     ):
@@ -141,6 +144,7 @@ class FunctionCallData:
                     dest,
                     set(sources),
                     value=value,
+                    endness=endness,
                     apply_at_callsite=apply_at_callsite,
                     tags=tags,
                 )
@@ -339,7 +343,7 @@ class FunctionHandler:
                 mv, defs = state.kill_and_add_definition(
                     effect.dest,
                     value,
-                    endness=None,
+                    endness=effect.endness,
                     uses=effect.sources_defns or set(),
                     tags=effect.tags,
                 )
