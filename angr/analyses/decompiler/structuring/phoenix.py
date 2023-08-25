@@ -113,8 +113,6 @@ class PhoenixStructurer(StructurerBase):
         self.dowhile_known_tail_nodes: set = set()
 
         self._phoenix_improved = self._improve_structurer
-        # original Phoenix algorithm used Post-Order traversal.
-        self._use_post_order = not self._phoenix_improved
         self._edge_virtualization_hints = []
 
         self._use_multistmtexprs = use_multistmtexprs
@@ -2136,8 +2134,7 @@ class PhoenixStructurer(StructurerBase):
             if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
-            # in the event of no post-ordering, we must compute bidirectional dominance
-            elif not dominates(idoms, src, dst) and (self._use_post_order or dominates(idoms, dst, src)):
+            elif not dominates(idoms, src, dst):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     secondary_edges.append((src, dst))
             else:
@@ -2145,9 +2142,7 @@ class PhoenixStructurer(StructurerBase):
                     other_edges.append((src, dst))
 
         ordered_nodes = GraphUtils.quasi_topological_sort_nodes(acyclic_graph, loop_heads=[head])
-        node_seq = {
-            nn: ((len(ordered_nodes) - idx) if self._use_post_order else idx) for (idx, nn) in enumerate(ordered_nodes)
-        }  # post-order
+        node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
 
         if all_edges_wo_dominance:
             all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
@@ -2543,45 +2538,45 @@ class PhoenixStructurer(StructurerBase):
                         post_doms.add((postdom_node, dominatee))
                 edge_postdom_count[edge] = len(post_doms)
 
-            # H1: the edge that has the least amount of sibling edges should be virtualized first
-            # this is believed to reduce the amount of virtualization needed in future rounds and increase
-            # the edges that enter a single outer-scope if-stmt
-            # if edge_sibling_count:
-            #    min_sibling_count = min(edge_sibling_count.values())
-            #    best_edges = [edge for edge, cnt in edge_sibling_count.items() if cnt == min_sibling_count]
-            #    if len(best_edges) == 1:
-            #        return best_edges
+                # H1: the edge that has the least amount of sibling edges should be virtualized first
+                # this is believed to reduce the amount of virtualization needed in future rounds and increase
+                # the edges that enter a single outer-scope if-stmt
+                if edge_sibling_count:
+                    min_sibling_count = min(edge_sibling_count.values())
+                    best_edges = [edge for edge, cnt in edge_sibling_count.items() if cnt == min_sibling_count]
+                    if len(best_edges) == 1:
+                        return best_edges
 
-            #    # create the next heuristic based on the best edges from the previous heuristic
-            #    filtered_edge_postdom_count = edge_postdom_count.copy()
-            #    for edge in list(edge_postdom_count.keys()):
-            #        if edge not in best_edges:
-            #            del filtered_edge_postdom_count[edge]
-            #    if filtered_edge_postdom_count:
-            #        edge_postdom_count = filtered_edge_postdom_count
+                    # create the next heuristic based on the best edges from the previous heuristic
+                    filtered_edge_postdom_count = edge_postdom_count.copy()
+                    for edge in list(edge_postdom_count.keys()):
+                        if edge not in best_edges:
+                            del filtered_edge_postdom_count[edge]
+                    if filtered_edge_postdom_count:
+                        edge_postdom_count = filtered_edge_postdom_count
 
-            # H2: the edge, when removed, that causes the most post-dominators of the graph should be virtualized
-            # first. this is believed to make the code more linear looking be reducing the amount of scopes.
-            # informally, we believe post-dominators to be an inverse indicator of the number of scopes present
-            if edge_postdom_count:
-                max_postdom_count = max(edge_postdom_count.values())
-                best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_postdom_count]
+                # H2: the edge, when removed, that causes the most post-dominators of the graph should be virtualized
+                # first. this is believed to make the code more linear looking be reducing the amount of scopes.
+                # informally, we believe post-dominators to be an inverse indicator of the number of scopes present
+                if edge_postdom_count:
+                    max_postdom_count = max(edge_postdom_count.values())
+                    best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_postdom_count]
+                    if len(best_edges) == 1:
+                        return best_edges
+
+                # H3: the edge that goes directly to a return statement should be virtualized first
+                # this is believed to be good because it can be corrected in later optimization by duplicating
+                # the return
+                candidate_edges = best_edges
+                best_edges = []
+                for src, dst in candidate_edges:
+                    if graph.has_node(dst) and structured_node_is_simple_return(dst, graph):
+                        best_edges.append((src, dst))
+
                 if len(best_edges) == 1:
                     return best_edges
-
-            # H3: the edge that goes directly to a return statement should be virtualized first
-            # this is believed to be good because it can be corrected in later optimization by duplicating
-            # the return
-            candidate_edges = best_edges
-            best_edges = []
-            for src, dst in candidate_edges:
-                if graph.has_node(dst) and structured_node_is_simple_return(dst, graph, use_packed_successors=True):
-                    best_edges.append((src, dst))
-
-            if len(best_edges) == 1:
-                return best_edges
-            elif not best_edges:
-                best_edges = candidate_edges
+                elif not best_edges:
+                    best_edges = candidate_edges
 
         # if we have another tie, or we never used improved heuristics, then we do the chick_order.
         return PhoenixStructurer._chick_order_edges(best_edges, node_seq)
