@@ -8,7 +8,7 @@ from sortedcontainers import SortedDict
 
 import pyvex
 from claripy.utils.orderedset import OrderedSet
-from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource, Hex
+from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource, Hex, Coff
 from cle.backends import NamedRegion
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
@@ -759,7 +759,7 @@ class CFGBase(Analysis):
                             tpl = (segment.min_addr, segment.max_addr + 1)
                             memory_regions.append(tpl)
 
-            elif isinstance(b, PE):
+            elif isinstance(b, (Coff, PE)):
                 for section in b.sections:
                     if section.is_executable:
                         tpl = (section.min_addr, section.max_addr + 1)
