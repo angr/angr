@@ -3911,7 +3911,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         )
                     ]
         elif is_arm_arch(self.project.arch):
-            if addr != current_function_addr:
+            if addr != current_function_addr and self.kb.functions.contains_addr(current_function_addr):
                 func = self.kb.functions.get_by_addr(current_function_addr)
                 if "constant_r4" in func.info:
                     initial_regs = [
