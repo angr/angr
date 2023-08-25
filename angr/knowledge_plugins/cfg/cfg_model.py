@@ -660,7 +660,7 @@ class CFGModel(Serializable):
 
             # let's see what sort of data it is
             if memory_data.sort in (MemoryDataSort.Unknown, MemoryDataSort.Unspecified) or (
-                memory_data.sort == MemoryDataSort.Integer and memory_data.size == self.project.arch.bytes
+                memory_data.sort == MemoryDataSort.Integer and memory_data.size in (0, self.project.arch.bytes)
             ):
                 data_type, data_size = self._guess_data_type(
                     data_addr,
