@@ -68,8 +68,8 @@ def _op_with_unified_size(op, conv, operand0, operand1):
     return op(conv(operand0, nobool=True), conv(operand1, nobool=True))
 
 
-def _dummy_bvs(condition, condition_mapping):
-    var = claripy.BVS("ailexpr_%s" % repr(condition), condition.bits, explicit_name=True)
+def _dummy_bvs(condition, condition_mapping, name_suffix=""):
+    var = claripy.BVS(f"ailexpr_{repr(condition)}{name_suffix}", condition.bits, explicit_name=True)
     condition_mapping[var.args[0]] = condition
     return var
 
@@ -698,9 +698,11 @@ class ConditionProcessor:
 
         if isinstance(
             condition,
-            (ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE, ailment.Stmt.Call),
+            (ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE),
         ):
             return _dummy_bvs(condition, self._condition_mapping)
+        elif isinstance(condition, ailment.Stmt.Call):
+            return _dummy_bvs(condition, self._condition_mapping, name_suffix=hex(condition.tags.get("ins_addr", 0)))
         elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
             # does it have a variable associated?
             if condition.variable is not None:
