@@ -71,6 +71,7 @@ class ReachingDefinitionsAnalysis(
         canonical_size=8,
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
+        interfunction_level: int = 0,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -100,6 +101,8 @@ class ReachingDefinitionsAnalysis(
                                                 for operations where sizes are necessary.
         :param dep_graph:                       Set this to True to generate a dependency graph for the subject. It will
                                                 be available as `result.dep_graph`.
+        :param interfunction_level:             The number of functions we should recurse into. This parameter is only
+                                                used if function_handler is not provided.
         """
 
         if isinstance(subject, str):
