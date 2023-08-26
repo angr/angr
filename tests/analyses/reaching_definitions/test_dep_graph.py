@@ -5,11 +5,10 @@ import networkx
 
 import claripy
 
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 
 
 _PAST_N = set()

@@ -6,7 +6,7 @@ import networkx
 import claripy
 from cle.loader import Loader
 
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from ...knowledge_plugins.key_definitions.atoms import (
     Atom,
     MemoryLocation,
@@ -19,7 +19,6 @@ from ...knowledge_plugins.key_definitions.atoms import (
 from ...knowledge_plugins.key_definitions.definition import Definition, DefinitionMatchPredicate
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.cfg import CFGModel
-from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
     pass
@@ -219,6 +218,12 @@ class DepGraph:
             if predicate.matches(defn):
                 result.append(defn)
         return result
+
+    @overload
+    def find_all_predecessors(
+        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], **kwargs: Any
+    ) -> List[Definition[Atom]]:
+        ...
 
     @overload
     def find_all_predecessors(

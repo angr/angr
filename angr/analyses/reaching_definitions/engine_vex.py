@@ -16,9 +16,8 @@ from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, Parameter
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
-from .external_codeloc import ExternalCodeLocation
 from .function_handler import FunctionCallData
 
 if TYPE_CHECKING:

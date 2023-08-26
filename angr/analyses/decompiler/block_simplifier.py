@@ -6,10 +6,11 @@ from ailment.statement import Statement, Assignment, Call, Store, Jump
 from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
 from ailment import AILBlockWalker
 
+from angr.code_location import ExternalCodeLocation
+
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
-from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from ...analyses.propagator import PropagatorAnalysis
 from ...analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from ...errors import SimMemoryMissingError

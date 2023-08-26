@@ -10,8 +10,7 @@ import claripy
 
 import angr
 from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
-from angr.code_location import CodeLocation
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph

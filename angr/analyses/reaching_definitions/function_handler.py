@@ -16,12 +16,32 @@ from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.functions import Function
 from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
 from angr.code_location import CodeLocation
+from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
+
 
 if TYPE_CHECKING:
+    from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis
 
 l = logging.getLogger(__name__)
+
+
+def get_exit_livedefinitions(func: Function, rda_model: "ReachingDefinitionsModel"):
+    """
+    Get LiveDefinitions at all exits of a function, merge them, and return.
+    """
+    lds = []
+    for block in func.endpoints:
+        ld = rda_model.get_observation_by_node(block.addr, ObservationPointType.OP_AFTER)
+        if ld is None:
+            continue
+        lds.append(ld)
+    if len(lds) == 1:
+        return lds[0]
+    if len(lds) == 0:
+        return None
+    return lds[0].merge(*lds[1:])[0]
 
 
 @dataclass
@@ -222,6 +242,9 @@ class FunctionHandler:
     """
     A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
+
+    def __init__(self, interfunction_level: int = 0):
+        self.interfunction_level: int = interfunction_level
 
     def hook(self, analysis: "ReachingDefinitionsAnalysis") -> "FunctionHandler":
         """
@@ -445,10 +468,38 @@ class FunctionHandler:
         self.handle_generic_function(state, data)
 
     def handle_local_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
-        self.handle_generic_function(state, data)
+        if self.interfunction_level > 0 and data.function is not None and state.analysis is not None:
+            self.interfunction_level -= 1
+            try:
+                self.recurse_analysis(state, data)
+            finally:
+                self.interfunction_level += 1
+        else:
+            self.handle_generic_function(state, data)
 
     def handle_external_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
         self.handle_generic_function(state, data)
+
+    def recurse_analysis(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+        """
+        Precondition: ``data.function`` MUST NOT BE NONE in order to call this method.
+        """
+        assert state.analysis is not None
+        assert data.function is not None
+        sub_rda = state.analysis.project.analyses.ReachingDefinitions(
+            data.function,
+            observe_all=state.analysis._observe_all,
+            dep_graph=state.dep_graph,
+            function_handler=self,
+            init_state=state,
+        )
+        # migrate data from sub_rda to its parent
+        state.analysis.function_calls.update(sub_rda.function_calls)
+        state.analysis.model.observed_results.update(sub_rda.model.observed_results)
+
+        sub_ld = get_exit_livedefinitions(data.function, sub_rda.model)
+        if sub_ld is not None:
+            state.live_definitions = sub_ld
 
     @staticmethod
     def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:

@@ -6,7 +6,6 @@ import ailment
 import pyvex
 
 from angr.analyses import ForwardAnalysis
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from ...block import Block
 from ...knowledge_plugins.cfg.cfg_node import CFGNode
 from ...codenode import CodeNode
@@ -14,7 +13,7 @@ from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from ...misc.ux import deprecated
 from ..forward_analysis.visitors.graph import NodeType
 from ..analysis import Analysis

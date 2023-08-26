@@ -18,7 +18,7 @@ from ...knowledge_plugins.key_definitions.environment import Environment
 from ...knowledge_plugins.key_definitions.tag import Tag
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
 from ...engines.light import SpOffset
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from .heap_allocator import HeapAllocator
 from .subject import Subject, SubjectType
 from .rd_initializer import RDAStateInitializer
@@ -142,7 +142,7 @@ class ReachingDefinitionsState:
     def is_top(self, *args):
         return self.live_definitions.is_top(*args)
 
-    def heap_address(self, offset: int) -> claripy.ast.Base:
+    def heap_address(self, offset: Union[int, HeapAddress]) -> claripy.ast.BV:
         return self.live_definitions.heap_address(offset)
 
     @staticmethod
@@ -153,7 +153,7 @@ class ReachingDefinitionsState:
     def get_heap_offset(addr: claripy.ast.Base) -> Optional[int]:
         return LiveDefinitions.get_heap_offset(addr)
 
-    def stack_address(self, offset: int) -> claripy.ast.Base:
+    def stack_address(self, offset: int) -> claripy.ast.BV:
         return self.live_definitions.stack_address(offset)
 
     def is_stack_address(self, addr: claripy.ast.Base) -> bool:
@@ -477,7 +477,9 @@ class ReachingDefinitionsState:
             self.codeloc_uses.add(definition)
             self.live_definitions.add_memory_use_by_def(definition, self.codeloc, expr=expr)
 
-    def get_definitions(self, atom: Atom) -> Iterable[Definition]:
+    def get_definitions(
+        self, atom: Union[Atom, Definition, Iterable[Atom], Iterable[Definition]]
+    ) -> Iterable[Definition]:
         yield from self.live_definitions.get_definitions(atom)
 
     def get_values(self, spec: Union[Atom, Definition, Iterable[Atom]]) -> Optional[MultiValues]:
@@ -572,7 +574,10 @@ class ReachingDefinitionsState:
 
     @overload
     def deref(
-        self, pointer: Union[int, claripy.ast.BV], size: Union[int, DerefSize], endness: archinfo.Endness = ...
+        self,
+        pointer: Union[int, claripy.ast.BV, HeapAddress, SpOffset],
+        size: Union[int, DerefSize],
+        endness: archinfo.Endness = ...,
     ) -> Optional[MemoryLocation]:
         ...
 
