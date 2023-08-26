@@ -15,7 +15,7 @@ from angr.sim_type import SimTypeFunction
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.functions import Function
 from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 
 
@@ -395,6 +395,8 @@ class FunctionHandler:
         for effect in data.effects:
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
+                if not effect.sources_defns:
+                    effect.sources_defns = {Definition(atom, ExternalCodeLocation()) for atom in effect.sources}
                 other_input_defns |= effect.sources_defns - all_args_defns
         # apply the effects, with the ones marked with apply_at_callsite=False applied first
         for effect in sorted(data.effects, key=lambda effect: effect.apply_at_callsite):

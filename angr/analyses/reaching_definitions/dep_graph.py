@@ -1,4 +1,18 @@
-from typing import Optional, Dict, Set, Iterable, Union, List, TYPE_CHECKING, Tuple, overload, Literal, Any, Iterator
+from typing import (
+    Optional,
+    Dict,
+    Set,
+    Iterable,
+    Type,
+    Union,
+    List,
+    TYPE_CHECKING,
+    Tuple,
+    overload,
+    Literal,
+    Any,
+    Iterator,
+)
 from dataclasses import dataclass
 
 import networkx
@@ -16,7 +30,7 @@ from ...knowledge_plugins.key_definitions.atoms import (
     ConstantSrc,
     GuardUse,
 )
-from ...knowledge_plugins.key_definitions.definition import Definition, DefinitionMatchPredicate
+from ...knowledge_plugins.key_definitions.definition import A, Definition, DefinitionMatchPredicate
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.cfg import CFGModel
 
@@ -221,8 +235,12 @@ class DepGraph:
 
     @overload
     def find_all_predecessors(
-        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], **kwargs: Any
-    ) -> List[Definition[Atom]]:
+        self,
+        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        *,
+        kind: Type[A],
+        **kwargs: Any,
+    ) -> List[Definition[A]]:
         ...
 
     @overload
@@ -295,6 +313,12 @@ class DepGraph:
     def find_all_predecessors(
         self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], *, const_val: int = ..., **kwargs: Any
     ) -> List[Definition[ConstantSrc]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], **kwargs: Any
+    ) -> List[Definition[Atom]]:
         ...
 
     def find_all_predecessors(self, starts, **kwargs):
