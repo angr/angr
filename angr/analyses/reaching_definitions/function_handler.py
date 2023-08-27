@@ -491,6 +491,8 @@ class FunctionHandler:
         sub_rda = state.analysis.project.analyses.ReachingDefinitions(
             data.function,
             observe_all=state.analysis._observe_all,
+            observation_points=state.analysis._observation_points,
+            observe_callback=state.analysis._observe_callback,
             dep_graph=state.dep_graph,
             function_handler=self,
             init_state=state,

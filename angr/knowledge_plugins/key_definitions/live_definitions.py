@@ -980,7 +980,9 @@ class LiveDefinitions:
         if isinstance(size, DerefSize):
             assert size == DerefSize.NULL_TERMINATE
             for size in range(4096):  # arbitrary
-                if self.get_concrete_value(MemoryLocation(addr + size, 1, endness)) == 0:
+                # truly evil that this is an abstraction we have to contend with
+                mv = self.get_values(MemoryLocation(addr + size, 1, endness))
+                if mv is not None and 0 in mv and any(one.op == "BVV" and one.args[0] == 0 for one in mv[0]):
                     size += 1
                     break
             else:
