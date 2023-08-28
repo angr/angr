@@ -57,7 +57,7 @@ from .state_plugins.inspect import BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPY
 from .state_plugins.inspect import BP
 from .state_plugins import SimStatePlugin
 
-from .project import *
+from .project import Project, load_shellcode
 from .errors import *
 from .blade import Blade
 from .simos import SimOS
@@ -93,3 +93,54 @@ from . import sim_manager as manager
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
+
+__all__ = (
+    "SimProcedure",
+    "SIM_PROCEDURES",
+    "SIM_LIBRARIES",
+    "sim_options",
+    "options",
+    "BP_BEFORE",
+    "BP_AFTER",
+    "BP_BOTH",
+    "BP_IPDB",
+    "BP_IPYTHON",
+    "BP",
+    "SimStatePlugin",
+    "Project",
+    "load_shellcode",
+    "Blade",
+    "SimOS",
+    "Block",
+    "SimulationManager",
+    "Analysis",
+    "register_analysis",
+    "analyses",
+    "knowledge_plugins",
+    "exploration_techniques",
+    "ExplorationTechnique",
+    "types",
+    "StateHierarchy",
+    "SimState",
+    "engines",
+    "DEFAULT_CC",
+    "SYSCALL_CC",
+    "PointerWrapper",
+    "SimCC",
+    "SimFileBase",
+    "SimFile",
+    "SimPackets",
+    "SimFileStream",
+    "SimPacketsStream",
+    "SimFileDescriptor",
+    "SimFileDescriptorDuplex",
+    "SimMount",
+    "SimHostFilesystem",
+    "SimHeapBrk",
+    "SimHeapPTMalloc",
+    "PTChunk",
+    "concretization_strategies",
+    "Server",
+    "manager",
+    "SimProcedures",
+)

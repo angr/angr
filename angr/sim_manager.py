@@ -164,6 +164,21 @@ class SimulationManager:
         except AttributeError:
             return SimulationManager._fetch_states(self, stash=item)
 
+    active: List[SimState]
+    stashed: List[SimState]
+    pruned: List[SimState]
+    unsat: List[SimState]
+    deadended: List[SimState]
+    unconstrained: List[SimState]
+    found: List[SimState]
+    one_active: SimState
+    one_stashed: SimState
+    one_pruned: SimState
+    one_unsat: SimState
+    one_deadended: SimState
+    one_unconstrained: SimState
+    one_found: SimState
+
     def __dir__(self):
         return (
             list(self.__dict__)
