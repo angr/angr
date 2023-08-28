@@ -10,7 +10,7 @@ from angr.sim_variable import SimRegisterVariable
 from angr.misc.ux import once
 
 from ...engines.light import SpOffset
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping
 from .tag import Tag
 from ...sim_variable import SimVariable
@@ -36,6 +36,7 @@ class DefinitionMatchPredicate:
     global_addr: Optional[int] = None
     tmp_idx: Optional[int] = None
     const_val: Optional[int] = None
+    extern: Optional[bool] = None
 
     @staticmethod
     def construct(predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
@@ -95,6 +96,8 @@ class DefinitionMatchPredicate:
         if self.bbl_addr is not None and defn.codeloc.block_addr != self.bbl_addr:
             return False
         if self.ins_addr is not None and defn.codeloc.ins_addr != self.ins_addr:
+            return False
+        if self.extern is not None and isinstance(defn.codeloc, ExternalCodeLocation) != self.extern:
             return False
 
         if self.kind is not None:

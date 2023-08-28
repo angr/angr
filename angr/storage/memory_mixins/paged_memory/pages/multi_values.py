@@ -20,15 +20,26 @@ class MultiValues:
     )
 
     _single_value: Optional[claripy.ast.BV]
+    _values: Optional[Dict[int, Set[claripy.ast.BV]]]
 
-    def __init__(self, v: Optional[claripy.ast.BV] = None, offset_to_values=None):
+    def __init__(
+        self,
+        v: Union[claripy.ast.BV, "MultiValues", None, Dict[int, Set[claripy.ast.BV]]] = None,
+        offset_to_values=None,
+    ):
         if v is not None and offset_to_values is not None:
             raise TypeError("You cannot specify v and offset_to_values at the same time!")
 
-        self._single_value = v if v is not None else None
-        self._values: Optional[Dict[int, Set[claripy.ast.BV]]] = (
-            offset_to_values if offset_to_values is not None else None
+        self._single_value = (
+            None
+            if v is None
+            else v
+            if isinstance(v, claripy.ast.BV)
+            else v._single_value
+            if isinstance(v, MultiValues)
+            else None
         )
+        self._values = offset_to_values if offset_to_values is not None else v if isinstance(v, dict) else None
 
         # if only one value is passed in, assign it to self._single_value
         if self._values:
@@ -226,7 +237,11 @@ class MultiValues:
             other = claripy.BVV(other)
         if isinstance(other, claripy.ast.BV):
             other = MultiValues(other)
-        return self.merge(MultiValues(offset_to_values={k + len(self) // 8: v for k, v in other.items()}))
+        result = MultiValues(self)
+        for k, v in other.items():
+            for v2 in v:
+                result.add_value(k, v2)
+        return result
 
     #
     # Private methods
