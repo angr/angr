@@ -100,7 +100,7 @@ class MultiValues:
                 for v in remaining_values:
                     self.add_value(offset, v)
 
-    def one_value(self) -> Optional[claripy.ast.BV]:
+    def one_value(self) -> Optional[claripy.ast.bv.BV]:
         if self._single_value is not None:
             return self._single_value
 
@@ -171,7 +171,7 @@ class MultiValues:
             return {0}
         return set() if not self._values else set(self._values.keys())
 
-    def values(self) -> Iterator[Set[claripy.ast.BV]]:
+    def values(self) -> Iterator[Set[claripy.ast.bv.BV]]:
         if self._single_value is not None:
             yield {self._single_value}
         else:
@@ -179,7 +179,7 @@ class MultiValues:
                 return
             yield from self._values.values()
 
-    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.BV]]]:
+    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.bv.BV]]]:
         if self._single_value is not None:
             yield 0, {self._single_value}
         else:

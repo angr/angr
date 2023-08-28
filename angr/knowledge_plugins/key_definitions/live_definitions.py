@@ -288,7 +288,7 @@ class LiveDefinitions:
                 return True
         return False
 
-    def stack_address(self, offset: int) -> claripy.ast.Base:
+    def stack_address(self, offset: int) -> Optional[claripy.ast.bv.BV]:
         base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
         if offset:
             return base + offset
@@ -655,7 +655,7 @@ class LiveDefinitions:
     def get_value_from_definition(self, definition: Definition) -> Optional[MultiValues]:
         return self.get_value_from_atom(definition.atom)
 
-    def get_one_value_from_definition(self, definition: Definition) -> Optional[claripy.ast.base.Base]:
+    def get_one_value_from_definition(self, definition: Definition) -> Optional[claripy.ast.bv.BV]:
         return self.get_one_value_from_atom(definition.atom)
 
     def get_concrete_value_from_definition(self, definition: Definition) -> Optional[int]:
@@ -690,7 +690,7 @@ class LiveDefinitions:
         else:
             return None
 
-    def get_one_value_from_atom(self, atom: Atom) -> Optional[claripy.ast.BV]:
+    def get_one_value_from_atom(self, atom: Atom) -> Optional[claripy.ast.bv.BV]:
         r = self.get_value_from_atom(atom)
         if r is None:
             return None
@@ -710,7 +710,7 @@ class LiveDefinitions:
         else:
             return self.get_value_from_definition(spec)
 
-    def get_one_value(self, spec: Union[Atom, Definition]) -> Optional[claripy.ast.base.Base]:
+    def get_one_value(self, spec: Union[Atom, Definition]) -> Optional[claripy.ast.bv.BV]:
         if isinstance(spec, Atom):
             return self.get_one_value_from_atom(spec)
         else:
