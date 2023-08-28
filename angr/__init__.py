@@ -87,6 +87,7 @@ from .state_plugins.filesystem import SimMount, SimHostFilesystem
 from .state_plugins.heap import SimHeapBrk, SimHeapPTMalloc, PTChunk
 from . import concretization_strategies
 from .distributed import Server
+from .knowledge_base import KnowledgeBase
 
 # for compatibility reasons
 from . import sim_manager as manager
@@ -143,4 +144,5 @@ __all__ = (
     "Server",
     "manager",
     "SimProcedures",
+    "KnowledgeBase",
 )

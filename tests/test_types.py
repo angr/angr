@@ -224,7 +224,7 @@ def test_arg_names():
     assert sig.arg_names == ["param_1", "param_2"]
 
     # Check that arg_names survive a with_arch call
-    nsig = sig.with_arch(angr.archinfo.ArchAMD64())
+    nsig = sig.with_arch(archinfo.ArchAMD64())
     assert sig.arg_names == nsig.arg_names, "Function type generated with .with_arch() doesn't have identical arg_names"
 
     # If for some reason only some of the parameters are named,
