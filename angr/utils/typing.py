@@ -8,7 +8,7 @@ def unwrap(thing: Optional[_T]) -> _T:
     return thing
 
 
-def only(thing: Iterable[_T]) -> _T:
+def one(thing: Iterable[_T]) -> _T:
     try:
         (result,) = thing
     except ValueError as e:
