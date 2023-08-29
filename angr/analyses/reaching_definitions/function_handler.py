@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING, Iterable, List, Set, Optional, Union, Callable
 from dataclasses import dataclass, field
 import logging
+from functools import wraps
 from cle import Symbol
 from cle.backends import ELF
 import claripy
-from functools import wraps
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.sim_type import SimTypeBottom
@@ -206,6 +206,11 @@ class FunctionCallData:
 
 
 class FunctionCallDataUnwrapped(FunctionCallData):
+    """
+    A subclass of FunctionCallData which asserts that many of its members are non-None at construction time.
+    Typechecks be gone!
+    """
+
     address_multi: MultiValues
     address: int
     symbol: Symbol
@@ -219,8 +224,9 @@ class FunctionCallDataUnwrapped(FunctionCallData):
 
     def __init__(self, inner: FunctionCallData):
         d = dict(inner.__dict__)
+        annotations = type(self).__annotations__  # pylint: ignore=no-member
         for k, v in d.items():
-            assert v is not None or k not in type(self).__annotations__, (
+            assert v is not None or k not in annotations, (
                 "Failed to unwrap field %s - this function is more complicated than you're ready for!" % k
             )
             assert v is not None, "Members of FunctionCallDataUnwrapped may not be None"
@@ -231,6 +237,11 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     def decorate(
         f: Callable[["FunctionHandler", "ReachingDefinitionsState", "FunctionCallDataUnwrapped"], None]
     ) -> Callable[["FunctionHandler", "ReachingDefinitionsState", FunctionCallData], None]:
+        """
+        Decorate a function handler method with this to make it take a FunctionCallDataUnwrapped instead of a
+        FunctionCallData.
+        """
+
         def inner(self: "FunctionHandler", state: "ReachingDefinitionsState", data: FunctionCallData):
             f(self, state, FunctionCallDataUnwrapped(data))
 
@@ -417,7 +428,7 @@ class FunctionHandler:
                 data.ret_values_deps = effect.sources_defns
             else:
                 # mark definition
-                mv, defs = state.kill_and_add_definition(
+                _, defs = state.kill_and_add_definition(
                     effect.dest,
                     value,
                     endness=None,

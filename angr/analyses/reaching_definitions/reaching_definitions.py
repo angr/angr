@@ -133,8 +133,10 @@ class ReachingDefinitionsAnalysis(
             self._dep_graph = dep_graph
 
         if function_handler is None:
-            self._function_handler = FunctionHandler().hook(self)
+            self._function_handler = FunctionHandler(interfunction_level).hook(self)
         else:
+            if interfunction_level != 0:
+                l.warning("RDA(interfunction_level=XXX) doesn't do anything if you provide a function handler")
             self._function_handler = function_handler.hook(self)
 
         if self._init_state is not None:

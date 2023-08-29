@@ -9,16 +9,16 @@ import claripy
 from claripy.annotation import Annotation
 import archinfo
 
-from ...errors import SimMemoryMissingError, SimMemoryError
-from ...storage.memory_mixins import MultiValuedMemory
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...engines.light import SpOffset
-from ...code_location import CodeLocation, ExternalCodeLocation
+from angr.misc.ux import deprecated
+from angr.errors import SimMemoryMissingError, SimMemoryError
+from angr.storage.memory_mixins import MultiValuedMemory
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.engines.light import SpOffset
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .uses import Uses
-from angr.misc.ux import deprecated
 
 if TYPE_CHECKING:
     from angr.project import Project
@@ -29,6 +29,13 @@ l = logging.getLogger(name=__name__)
 
 
 class DerefSize(Enum):
+    """
+    An enum for specialized kinds of dereferences
+
+    NULL_TERMINATE -    Dereference until the first byte which could be a literal null. Return a value including the
+                        terminator.
+    """
+
     NULL_TERMINATE = auto()
 
 
@@ -606,33 +613,41 @@ class LiveDefinitions:
             self.other_uses.add_use(definition, code_loc, expr)
 
     def get_definitions(
-        self, atom: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]]]
+        self, thing: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]], MultiValues]
     ) -> Iterable[Definition[Atom]]:
-        if isinstance(atom, Atom):
+        if isinstance(thing, MultiValues):
+            for vs in thing.values():
+                for v in vs:
+                    for anno in v.annotations:
+                        if isinstance(anno, DefinitionAnnotation):
+                            yield anno.definition
+            return
+        elif isinstance(thing, Atom):
             pass
-        elif isinstance(atom, Definition):
-            atom = atom.atom
+        elif isinstance(thing, Definition):
+            thing = thing.atom
         else:
-            for atom2 in atom:
+            for atom2 in thing:
                 yield from self.get_definitions(atom2)
             return
 
-        if isinstance(atom, Register):
-            yield from self.get_register_definitions(atom.reg_offset, atom.size)
-        elif isinstance(atom, MemoryLocation):
-            if isinstance(atom.addr, SpOffset):
-                yield from self.get_stack_definitions(atom.addr.offset, atom.size, atom.endness)
-            elif isinstance(atom.addr, HeapAddress):
-                yield from self.get_heap_definitions(atom.addr.value, size=atom.size, endness=atom.endness)
-            elif isinstance(atom.addr, int):
-                yield from self.get_memory_definitions(atom.addr, atom.size, atom.endness)
+        if isinstance(thing, Register):
+            yield from self.get_register_definitions(thing.reg_offset, thing.size)
+        elif isinstance(thing, MemoryLocation):
+            if isinstance(thing.addr, SpOffset):
+                yield from self.get_stack_definitions(thing.addr.offset, thing.size, thing.endness)
+            elif isinstance(thing.addr, HeapAddress):
+                yield from self.get_heap_definitions(thing.addr.value, size=thing.size, endness=thing.endness)
+            elif isinstance(thing.addr, int):
+                yield from self.get_memory_definitions(thing.addr, thing.size, thing.endness)
             else:
                 return
-        elif isinstance(atom, Tmp):
-            yield from self.get_tmp_definitions(atom.tmp_idx)
+        elif isinstance(thing, Tmp):
+            yield from self.get_tmp_definitions(thing.tmp_idx)
         else:
-            for mv in self.others.get(atom, ()):
-                yield from LiveDefinitions.extract_defs_from_mv(mv)
+            for mvs in self.others.get(thing, {}).values():
+                for mv in mvs:
+                    yield from self.get_definitions(mv)
 
     def get_tmp_definitions(self, tmp_idx: int) -> Iterable[Definition]:
         if tmp_idx in self.tmps:
@@ -979,11 +994,11 @@ class LiveDefinitions:
 
         if isinstance(size, DerefSize):
             assert size == DerefSize.NULL_TERMINATE
-            for size in range(4096):  # arbitrary
+            for sz in range(4096):  # arbitrary
                 # truly evil that this is an abstraction we have to contend with
-                mv = self.get_values(MemoryLocation(addr + size, 1, endness))
+                mv = self.get_values(MemoryLocation(addr + sz, 1, endness))
                 if mv is not None and 0 in mv and any(one.op == "BVV" and one.args[0] == 0 for one in mv[0]):
-                    size += 1
+                    size = sz + 1
                     break
             else:
                 l.warning(
