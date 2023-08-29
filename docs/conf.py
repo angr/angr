@@ -37,7 +37,6 @@ autoclass_content = "class"
 autodoc_default_options = {
     "members": True,
     "member-order": "bysource",
-    "inherited-members": True,
     "show-inheritance": True,
     "special-members": "__init__",
     "undoc-members": True,
