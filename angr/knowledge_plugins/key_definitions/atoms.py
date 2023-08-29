@@ -301,3 +301,12 @@ class MemoryLocation(Atom):
 
     def _identity(self):
         return self.addr, self.size, self.endness
+
+
+atom_kind_mapping = {
+    AtomKind.REGISTER: Register,
+    AtomKind.MEMORY: MemoryLocation,
+    AtomKind.TMP: Tmp,
+    AtomKind.GUARD: GuardUse,
+    AtomKind.CONSTANT: ConstantSrc,
+}

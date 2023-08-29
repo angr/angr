@@ -1,8 +1,10 @@
-from typing import TYPE_CHECKING, List, Set, Optional, Union
+from typing import TYPE_CHECKING, Iterable, List, Set, Optional, Union, Callable
 from dataclasses import dataclass, field
 import logging
+from functools import wraps
 from cle import Symbol
 from cle.backends import ELF
+import claripy
 
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.sim_type import SimTypeBottom
@@ -13,13 +15,33 @@ from angr.sim_type import SimTypeFunction
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.functions import Function
 from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
+
 
 if TYPE_CHECKING:
+    from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
     from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis
 
 l = logging.getLogger(__name__)
+
+
+def get_exit_livedefinitions(func: Function, rda_model: "ReachingDefinitionsModel"):
+    """
+    Get LiveDefinitions at all exits of a function, merge them, and return.
+    """
+    lds = []
+    for block in func.endpoints:
+        ld = rda_model.get_observation_by_node(block.addr, ObservationPointType.OP_AFTER)
+        if ld is None:
+            continue
+        lds.append(ld)
+    if len(lds) == 1:
+        return lds[0]
+    if len(lds) == 0:
+        return None
+    return lds[0].merge(*lds[1:])[0]
 
 
 @dataclass
@@ -113,9 +135,9 @@ class FunctionCallData:
 
     def depends(
         self,
-        dest: Optional[Atom],
-        *sources: Atom,
-        value: Optional[MultiValues] = None,
+        dest: Union[Atom, Iterable[Atom], None],
+        *sources: Union[Atom, Iterable[Atom]],
+        value: Union[MultiValues, claripy.ast.BV, bytes, int, None] = None,
         apply_at_callsite: bool = False,
         tags: Optional[Set[Tag]] = None,
     ):
@@ -129,6 +151,22 @@ class FunctionCallData:
 
         The atom being modified may be None to mark uses of the source atoms which do not have any explicit sinks.
         """
+        if dest is None and value is not None:
+            raise TypeError("Cannot provide value without a destination to write it to")
+
+        if dest is not None and not isinstance(dest, Atom):
+            for dest2 in dest:
+                self.depends(dest2, *sources, value=value, apply_at_callsite=apply_at_callsite, tags=tags)
+            return
+
+        if isinstance(value, int):
+            assert dest is not None
+            value = claripy.BVV(value, dest.size * 8)
+        elif isinstance(value, bytes):
+            value = claripy.BVV(value)
+        if isinstance(value, claripy.ast.BV):
+            value = MultiValues(value)
+        assert value is None or isinstance(value, MultiValues)
         if dest is not None and self.has_clobbered(dest):
             l.warning(
                 "Function handler for %s seems to be implemented incorrectly - "
@@ -139,12 +177,75 @@ class FunctionCallData:
             self.effects.append(
                 FunctionEffect(
                     dest,
-                    set(sources),
+                    set().union(*({src} if isinstance(src, Atom) else set(src) for src in sources)),
                     value=value,
                     apply_at_callsite=apply_at_callsite,
                     tags=tags,
                 )
             )
+
+    def reset_prototype(self, prototype: SimTypeFunction, state: "ReachingDefinitionsState") -> Set[Atom]:
+        self.prototype = prototype.with_arch(state.arch)
+
+        args_atoms_from_values = set()
+        if self.args_atoms is None and self.args_values is not None:
+            self.args_atoms = [
+                set().union(
+                    *({defn.atom for defn in state.extract_defs(value)} for values in mv.values() for value in values)
+                )
+                for mv in self.args_values
+            ]
+            for atoms_set in self.args_atoms:
+                args_atoms_from_values |= atoms_set
+        elif self.args_atoms is None and self.cc is not None and self.prototype is not None:
+            self.args_atoms = FunctionHandler.c_args_as_atoms(state, self.cc, self.prototype)
+        if self.ret_atoms is None and self.cc is not None and self.prototype is not None:
+            if self.prototype.returnty is not None:
+                self.ret_atoms = FunctionHandler.c_return_as_atoms(state, self.cc, self.prototype)
+        return args_atoms_from_values
+
+
+class FunctionCallDataUnwrapped(FunctionCallData):
+    """
+    A subclass of FunctionCallData which asserts that many of its members are non-None at construction time.
+    Typechecks be gone!
+    """
+
+    address_multi: MultiValues
+    address: int
+    symbol: Symbol
+    function: Function
+    name: str
+    cc: SimCC
+    prototype: SimTypeFunction
+    args_atoms: List[Set[Atom]]
+    args_values: List[MultiValues]
+    ret_atoms: Set[Atom]
+
+    def __init__(self, inner: FunctionCallData):
+        d = dict(inner.__dict__)
+        annotations = type(self).__annotations__  # pylint: disable=no-member
+        for k, v in d.items():
+            assert v is not None or k not in annotations, (
+                "Failed to unwrap field %s - this function is more complicated than you're ready for!" % k
+            )
+            assert v is not None, "Members of FunctionCallDataUnwrapped may not be None"
+        super().__init__(**d)
+
+    @staticmethod
+    @wraps
+    def decorate(
+        f: Callable[["FunctionHandler", "ReachingDefinitionsState", "FunctionCallDataUnwrapped"], None]
+    ) -> Callable[["FunctionHandler", "ReachingDefinitionsState", FunctionCallData], None]:
+        """
+        Decorate a function handler method with this to make it take a FunctionCallDataUnwrapped instead of a
+        FunctionCallData.
+        """
+
+        def inner(self: "FunctionHandler", state: "ReachingDefinitionsState", data: FunctionCallData):
+            f(self, state, FunctionCallDataUnwrapped(data))
+
+        return inner
 
 
 # pylint: disable=unused-argument, no-self-use
@@ -152,6 +253,9 @@ class FunctionHandler:
     """
     A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
+
+    def __init__(self, interfunction_level: int = 0):
+        self.interfunction_level: int = interfunction_level
 
     def hook(self, analysis: "ReachingDefinitionsAnalysis") -> "FunctionHandler":
         """
@@ -249,21 +353,7 @@ class FunctionHandler:
             data.prototype = state.analysis.project.factory.function_prototype()
             data.guessed_prototype = True
 
-        args_atoms_from_values = set()
-        if data.args_atoms is None and data.args_values is not None:
-            data.args_atoms = [
-                set().union(
-                    *({defn.atom for defn in state.extract_defs(value)} for values in mv.values() for value in values)
-                )
-                for mv in data.args_values
-            ]
-            for atoms_set in data.args_atoms:
-                args_atoms_from_values |= atoms_set
-        elif data.args_atoms is None and data.cc is not None and data.prototype is not None:
-            data.args_atoms = self.c_args_as_atoms(state, data.cc, data.prototype)
-        if data.ret_atoms is None and data.cc is not None and data.prototype is not None:
-            if data.prototype.returnty is not None:
-                data.ret_atoms = self.c_return_as_atoms(state, data.cc, data.prototype)
+        args_atoms_from_values = data.reset_prototype(data.prototype, state)
 
         # PROCESS
         state.move_codelocs(data.function_codeloc)
@@ -316,6 +406,8 @@ class FunctionHandler:
         for effect in data.effects:
             if effect.sources_defns is None and effect.sources:
                 effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
+                if not effect.sources_defns:
+                    effect.sources_defns = {Definition(atom, ExternalCodeLocation()) for atom in effect.sources}
                 other_input_defns |= effect.sources_defns - all_args_defns
         # apply the effects, with the ones marked with apply_at_callsite=False applied first
         for effect in sorted(data.effects, key=lambda effect: effect.apply_at_callsite):
@@ -336,7 +428,7 @@ class FunctionHandler:
                 data.ret_values_deps = effect.sources_defns
             else:
                 # mark definition
-                mv, defs = state.kill_and_add_definition(
+                _, defs = state.kill_and_add_definition(
                     effect.dest,
                     value,
                     endness=None,
@@ -389,10 +481,40 @@ class FunctionHandler:
         self.handle_generic_function(state, data)
 
     def handle_local_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
-        self.handle_generic_function(state, data)
+        if self.interfunction_level > 0 and data.function is not None and state.analysis is not None:
+            self.interfunction_level -= 1
+            try:
+                self.recurse_analysis(state, data)
+            finally:
+                self.interfunction_level += 1
+        else:
+            self.handle_generic_function(state, data)
 
     def handle_external_function(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
         self.handle_generic_function(state, data)
+
+    def recurse_analysis(self, state: "ReachingDefinitionsState", data: FunctionCallData) -> None:
+        """
+        Precondition: ``data.function`` MUST NOT BE NONE in order to call this method.
+        """
+        assert state.analysis is not None
+        assert data.function is not None
+        sub_rda = state.analysis.project.analyses.ReachingDefinitions(
+            data.function,
+            observe_all=state.analysis._observe_all,
+            observation_points=state.analysis._observation_points,
+            observe_callback=state.analysis._observe_callback,
+            dep_graph=state.dep_graph,
+            function_handler=self,
+            init_state=state,
+        )
+        # migrate data from sub_rda to its parent
+        state.analysis.function_calls.update(sub_rda.function_calls)
+        state.analysis.model.observed_results.update(sub_rda.model.observed_results)
+
+        sub_ld = get_exit_livedefinitions(data.function, sub_rda.model)
+        if sub_ld is not None:
+            state.live_definitions = sub_ld
 
     @staticmethod
     def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:

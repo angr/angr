@@ -16,9 +16,8 @@ from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from .subject import SubjectType
-from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
 from .function_handler import FunctionHandler, FunctionCallData
 

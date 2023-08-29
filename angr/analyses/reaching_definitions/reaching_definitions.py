@@ -6,7 +6,6 @@ import ailment
 import pyvex
 
 from angr.analyses import ForwardAnalysis
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from ...block import Block
 from ...knowledge_plugins.cfg.cfg_node import CFGNode
 from ...codenode import CodeNode
@@ -14,7 +13,7 @@ from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from ...misc.ux import deprecated
 from ..forward_analysis.visitors.graph import NodeType
 from ..analysis import Analysis
@@ -72,6 +71,7 @@ class ReachingDefinitionsAnalysis(
         canonical_size=8,
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
+        interfunction_level: int = 0,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -101,6 +101,8 @@ class ReachingDefinitionsAnalysis(
                                                 for operations where sizes are necessary.
         :param dep_graph:                       Set this to True to generate a dependency graph for the subject. It will
                                                 be available as `result.dep_graph`.
+        :param interfunction_level:             The number of functions we should recurse into. This parameter is only
+                                                used if function_handler is not provided.
         """
 
         if isinstance(subject, str):
@@ -131,8 +133,10 @@ class ReachingDefinitionsAnalysis(
             self._dep_graph = dep_graph
 
         if function_handler is None:
-            self._function_handler = FunctionHandler().hook(self)
+            self._function_handler = FunctionHandler(interfunction_level).hook(self)
         else:
+            if interfunction_level != 0:
+                l.warning("RDA(interfunction_level=XXX) doesn't do anything if you provide a function handler")
             self._function_handler = function_handler.hook(self)
 
         if self._init_state is not None:

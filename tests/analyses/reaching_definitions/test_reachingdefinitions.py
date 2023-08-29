@@ -10,8 +10,7 @@ import claripy
 
 import angr
 from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
-from angr.code_location import CodeLocation
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
@@ -89,8 +88,8 @@ class TestReachingDefinitions(TestCase):
         result = _extract_result(reaching_definition)
 
         # Uncomment these to regenerate the reference results... if you dare
-        with open(result_path, "wb") as result_file:
-            pickle.dump(result, result_file)
+        # with open(result_path, "wb") as result_file:
+        #    pickle.dump(result, result_file)
         with open(result_path, "rb") as result_file:
             expected_result = pickle.load(result_file)
 

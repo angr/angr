@@ -1,4 +1,18 @@
-from typing import Optional, Dict, Set, Iterable, Union, List, TYPE_CHECKING, Tuple, overload, Literal, Any, Iterator
+from typing import (
+    Optional,
+    Dict,
+    Set,
+    Iterable,
+    Type,
+    Union,
+    List,
+    TYPE_CHECKING,
+    Tuple,
+    overload,
+    Literal,
+    Any,
+    Iterator,
+)
 from dataclasses import dataclass
 
 import networkx
@@ -6,7 +20,7 @@ import networkx
 import claripy
 from cle.loader import Loader
 
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from ...knowledge_plugins.key_definitions.atoms import (
     Atom,
     MemoryLocation,
@@ -16,10 +30,9 @@ from ...knowledge_plugins.key_definitions.atoms import (
     ConstantSrc,
     GuardUse,
 )
-from ...knowledge_plugins.key_definitions.definition import Definition, DefinitionMatchPredicate
+from ...knowledge_plugins.key_definitions.definition import A, Definition, DefinitionMatchPredicate
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.cfg import CFGModel
-from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
     pass
@@ -225,6 +238,16 @@ class DepGraph:
         self,
         starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
         *,
+        kind: Type[A],
+        **kwargs: Any,
+    ) -> List[Definition[A]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self,
+        starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
+        *,
         kind: Literal[AtomKind.REGISTER] = ...,
         **kwargs: Any,
     ) -> List[Definition[Register]]:
@@ -290,6 +313,12 @@ class DepGraph:
     def find_all_predecessors(
         self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], *, const_val: int = ..., **kwargs: Any
     ) -> List[Definition[ConstantSrc]]:
+        ...
+
+    @overload
+    def find_all_predecessors(
+        self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], **kwargs: Any
+    ) -> List[Definition[Atom]]:
         ...
 
     def find_all_predecessors(self, starts, **kwargs):

@@ -428,7 +428,6 @@ Analysis
 .. automodule:: angr.analyses.reaching_definitions.rd_state
 .. automodule:: angr.analyses.reaching_definitions.subject
 .. automodule:: angr.analyses.reaching_definitions.engine_ail
-.. automodule:: angr.analyses.reaching_definitions.external_codeloc
 .. automodule:: angr.analyses.cfg_slice_to_sink
 .. automodule:: angr.analyses.cfg_slice_to_sink.cfg_slice_to_sink
 .. automodule:: angr.analyses.cfg_slice_to_sink.graph

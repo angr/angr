@@ -1,6 +1,9 @@
-from typing import Dict, Optional, Set, Tuple, Iterator
+from typing import Dict, Optional, Set, Tuple, Iterator, Union
+import archinfo
 
 import claripy
+
+from angr.storage.memory_object import bv_slice
 
 
 class MultiValues:
@@ -17,15 +20,26 @@ class MultiValues:
     )
 
     _single_value: Optional[claripy.ast.BV]
+    _values: Optional[Dict[int, Set[claripy.ast.BV]]]
 
-    def __init__(self, v: Optional[claripy.ast.BV] = None, offset_to_values=None):
+    def __init__(
+        self,
+        v: Union[claripy.ast.BV, "MultiValues", None, Dict[int, Set[claripy.ast.BV]]] = None,
+        offset_to_values=None,
+    ):
         if v is not None and offset_to_values is not None:
             raise TypeError("You cannot specify v and offset_to_values at the same time!")
 
-        self._single_value = v if v is not None else None
-        self._values: Optional[Dict[int, Set[claripy.ast.BV]]] = (
-            offset_to_values if offset_to_values is not None else None
+        self._single_value = (
+            None
+            if v is None
+            else v
+            if isinstance(v, claripy.ast.BV)
+            else v._single_value
+            if isinstance(v, MultiValues)
+            else None
         )
+        self._values = offset_to_values if offset_to_values is not None else v if isinstance(v, dict) else None
 
         # if only one value is passed in, assign it to self._single_value
         if self._values:
@@ -40,7 +54,16 @@ class MultiValues:
                     raise TypeError("Each value in offset_to_values must be a set!")
 
     def add_value(self, offset: int, value: claripy.ast.BV) -> None:
+        if len(value) == 0:
+            return
         if self._single_value is not None:
+            if len(self._single_value) == 0:
+                if offset == 0:
+                    self._single_value = value
+                else:
+                    self._single_value = None
+                    self._values = {offset: {value}}
+                return
             self._values = {0: {self._single_value}}
             self._single_value = None
 
@@ -194,6 +217,31 @@ class MultiValues:
         if self._values is None:
             return 0
         return len(self._values)
+
+    def extract(self, offset: int, length: int, endness: archinfo.Endness) -> "MultiValues":
+        end = offset + length
+        result = MultiValues(claripy.BVV(b""))
+        for obj_offset, values in self.items():
+            for value in values:
+                obj_length = len(value) // 8
+                slice_start = max(0, offset - obj_offset)
+                slice_end = min(obj_length, end - obj_offset)
+                sliced = bv_slice(value, slice_start, slice_end - slice_start, endness == archinfo.Endness.LE, 8)
+                if len(sliced):
+                    result.add_value(max(0, obj_offset - offset), sliced)
+
+        return result
+
+    def concat(self, other: Union["MultiValues", claripy.ast.BV, bytes]) -> "MultiValues":
+        if isinstance(other, bytes):
+            other = claripy.BVV(other)
+        if isinstance(other, claripy.ast.BV):
+            other = MultiValues(other)
+        result = MultiValues(self)
+        for k, v in other.items():
+            for v2 in v:
+                result.add_value(k, v2)
+        return result
 
     #
     # Private methods

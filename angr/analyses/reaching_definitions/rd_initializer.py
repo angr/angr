@@ -5,7 +5,6 @@ import claripy
 from archinfo import Arch
 from angr.sim_type import SimType, SimTypeFunction
 from angr.analyses.reaching_definitions.subject import Subject
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from angr.analyses.reaching_definitions.call_trace import CallTrace
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimFunctionArgument
 from angr.engines.light import SpOffset
@@ -13,6 +12,7 @@ from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.key_definitions.tag import ParameterTag, InitialValueTag
+from angr.code_location import ExternalCodeLocation
 
 l = logging.getLogger(name=__name__)
 

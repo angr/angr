@@ -10,6 +10,8 @@ from pyvex.expr import RdTmp
 from archinfo.arch_arm import is_arm_arch, ArchARMHF
 import ailment
 
+from angr.code_location import ExternalCodeLocation
+
 from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc
 from ..sim_type import (
     SimTypeInt,
@@ -32,7 +34,6 @@ from ..knowledge_plugins.functions import Function
 from ..utils.constants import DEFAULT_STATEMENT
 from .. import SIM_PROCEDURES
 from .reaching_definitions import get_all_definitions
-from .reaching_definitions.external_codeloc import ExternalCodeLocation
 from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
 
 if TYPE_CHECKING:

@@ -148,7 +148,7 @@ class SimLabeledMemoryObject(SimMemoryObject):
         self.label = label
 
 
-def bv_slice(value, offset, size, rev, bw):
+def bv_slice(value: claripy.ast.BV, offset: int, size: int, rev: bool, bw: int) -> claripy.ast.BV:
     """
     Extremely cute utility to pretend you've serialized a value to stored bytes, sliced it a la python slicing, and then
     deserialized those bytes to an integer again.
@@ -176,4 +176,6 @@ def bv_slice(value, offset, size, rev, bw):
         return value
 
     bitstart = len(value) - offset * bw
+    if size == 0:
+        return claripy.BVV(b"")
     return value[bitstart - 1 : bitstart - size * bw]
