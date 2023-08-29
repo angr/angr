@@ -212,7 +212,7 @@ pretty hefty Python magic. The short version of how to use it is:
 
 * Use array[index] notation to specify an address
 * Use ``.<type>`` to specify that the memory should be interpreted as
-  &lt;type&gt; (common values: char, short, int, long, size_t, uint8_t,
+  :class:`type` (common values: char, short, int, long, size_t, uint8_t,
   uint16_t...)
 * From there, you can either:
 
