@@ -4,6 +4,12 @@ import logging
 import archinfo
 import claripy
 
+from angr.misc.ux import deprecated
+from angr.knowledge_plugins.key_definitions.environment import Environment
+from angr.knowledge_plugins.key_definitions.tag import Tag
+from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
+from angr.engines.light import SpOffset
+from angr.code_location import CodeLocation
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...storage.memory_mixins import MultiValuedMemory
 from ...knowledge_plugins.key_definitions import LiveDefinitions, DerefSize, Definition
@@ -14,12 +20,6 @@ from ...knowledge_plugins.key_definitions.atoms import (
     MemoryLocation,
     ConstantSrc,
 )
-from angr.misc.ux import deprecated
-from angr.knowledge_plugins.key_definitions.environment import Environment
-from angr.knowledge_plugins.key_definitions.tag import Tag
-from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
-from angr.engines.light import SpOffset
-from angr.code_location import CodeLocation
 from .heap_allocator import HeapAllocator
 from .subject import Subject, SubjectType
 from .rd_initializer import RDAStateInitializer

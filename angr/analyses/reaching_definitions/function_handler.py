@@ -224,7 +224,7 @@ class FunctionCallDataUnwrapped(FunctionCallData):
 
     def __init__(self, inner: FunctionCallData):
         d = dict(inner.__dict__)
-        annotations = type(self).__annotations__  # pylint: ignore=no-member
+        annotations = type(self).__annotations__  # pylint: disable=no-member
         for k, v in d.items():
             assert v is not None or k not in annotations, (
                 "Failed to unwrap field %s - this function is more complicated than you're ready for!" % k
