@@ -87,7 +87,10 @@ class BufferOverflowTests(unittest.TestCase):
                 with compiled_program(prefix_length, buffer_length, suffix_length) as binary_path:
                     offset = crash_offset(binary_path, ("main", "read", 1))
                     payload = b"A" * offset
-                    assert subprocess.run([binary_path], input=payload, stderr=subprocess.PIPE, check=False).returncode == 0
+                    assert (
+                        subprocess.run([binary_path], input=payload, stderr=subprocess.PIPE, check=False).returncode
+                        == 0
+                    )
 
     def test_program_with_segfault(self):
         for prefix_length, buffer_length, suffix_length in self.length_combinations:
@@ -95,7 +98,10 @@ class BufferOverflowTests(unittest.TestCase):
                 with compiled_program(prefix_length, buffer_length, suffix_length) as binary_path:
                     offset = crash_offset(binary_path, ("main", "read", 1))
                     payload = b"A" * (offset + 1)
-                    assert subprocess.run([binary_path], input=payload, stderr=subprocess.PIPE, check=False).returncode == -11
+                    assert (
+                        subprocess.run([binary_path], input=payload, stderr=subprocess.PIPE, check=False).returncode
+                        == -11
+                    )
 
 
 if __name__ == "__main__":
