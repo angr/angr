@@ -162,7 +162,7 @@ class SequenceWalker:
             self._handle(node.iterator)
         if node.condition is not None:
             self._handle(node.condition, parent=node, label="condition")
-        seq_node = self._handle(node.sequence_node, **kwargs)
+        seq_node = self._handle(node.sequence_node, parent=node, label="body", index=0)
         if seq_node is not None:
             return LoopNode(
                 node.sort,

@@ -2495,6 +2495,42 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
         assert re.search(r"\[read_packet\([^)]*\)\] = 0;", text) is not None
 
+    @structuring_algo("phoenix")
+    def test_ifelsesimplifier_insert_node_into_while_body(self, decompiler_options=None):
+        # https://github.com/angr/angr/issues/4082
+
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "angr_4082_cache")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x4030D0]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        text = text.replace(" ", "").replace("\n", "")
+        # Incorrect:
+        #     while (true)
+        #     {
+        #         if (v9 >= v10)
+        #             return v9;
+        #     }
+        # Expected:
+        #     while (true)
+        #     {
+        #         if (v9 >= v10)
+        #             return v9;
+        #         v8 = 0;
+        #         if (read(0x29, &v8, 0x4) != 4)
+        #         {
+        #             printf("failed to get number\n");
+        #             exit(0x1); /* do not return */
+        #         }
+        #
+        # we should not see a right curly brace after return v9;
+        assert re.search(r"while\(true\){if\(v\d+>=v\d+\)returnv\d+;v\d+=0;", text) is not None
+
 
 if __name__ == "__main__":
     unittest.main()
