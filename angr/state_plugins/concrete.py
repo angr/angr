@@ -177,7 +177,7 @@ class Concrete(SimStatePlugin):
                 # removing version and extension information from the library name
                 cle_mapping_name = re.findall(r"[\w']+", cle_mapping_name)
                 concrete_mapping_name = re.findall(r"[\w']+", concrete_mapping_name)
-                return cle_mapping_name[0] == concrete_mapping_name[0]
+                return (cle_mapping_name[0] == concrete_mapping_name[0]) if len(concrete_mapping_name) else False
 
         l.debug("Synchronizing CLE backend with the concrete process memory mapping")
         try:
