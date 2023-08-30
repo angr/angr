@@ -2321,7 +2321,7 @@ class TestDecompiler(unittest.TestCase):
         assert "Other Possible Types" not in d.codegen.text
 
         # check that the variable used in free is different from the one used in atoi
-        m = re.search(r"free\(([^)]+)", d.codegen.text)
+        m = re.search(r"free\([^v]*([^)]+)", d.codegen.text)
         assert m
 
         var_name = m.group(1)
@@ -2451,7 +2451,7 @@ class TestDecompiler(unittest.TestCase):
     def test_proper_argument_simplification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=True)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=not WORKER)
 
         f = proj.kb.functions[0x404410]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
@@ -2480,6 +2480,20 @@ class TestDecompiler(unittest.TestCase):
         for i in re.finditer("{", text):
             idx = i.start()
             assert text[idx + 1] == "\n"
+
+    @for_all_structuring_algos
+    def test_fauxware_read_packet_call_folding_into_store_stmt(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fauxware_read_packet")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        assert re.search(r"\[read_packet\([^)]*\)\] = 0;", text) is not None
 
 
 if __name__ == "__main__":
