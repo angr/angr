@@ -406,6 +406,15 @@ class VariableManagerInternal(Serializable):
     ):
         # TODO can this line be removed, should we be only adding to _variables in add_variable?
         self._variables.add(variable)
+        atom_hash = (hash(atom) & 0xFFFF_FFFF) if atom is not None else None
+        if overwrite:
+            self._variable_accesses[variable] = {VariableAccess(variable, sort, location, offset, atom_hash=atom_hash)}
+        else:
+            self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
+        self.record_variable(location, variable, offset, overwrite=overwrite, atom=atom)
+
+    def record_variable(self, location: "CodeLocation", variable, offset, overwrite=False, atom=None):
+        self._variables.add(variable)
         var_and_offset = variable, offset
         atom_hash = (hash(atom) & 0xFFFF_FFFF) if atom is not None else None
         key = (
@@ -414,14 +423,12 @@ class VariableManagerInternal(Serializable):
             else (location.block_addr, location.block_idx, location.stmt_idx)
         )
         if overwrite:
-            self._variable_accesses[variable] = {VariableAccess(variable, sort, location, offset, atom_hash=atom_hash)}
             self._insn_to_variable[location.ins_addr] = {var_and_offset}
             self._stmt_to_variable[key] = {var_and_offset}
             self._variable_to_stmt[variable].add(key)
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash] = {var_and_offset}
         else:
-            self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
             self._insn_to_variable[location.ins_addr].add(var_and_offset)
             self._stmt_to_variable[key].add(var_and_offset)
             self._variable_to_stmt[variable].add(key)

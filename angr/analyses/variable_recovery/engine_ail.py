@@ -222,7 +222,9 @@ class SimEngineVRAIL(
                 ty = typeconsts.int_type(expr.size * self.state.arch.byte_width)
             v = claripy.BVV(expr.value, expr.bits)
         r = RichR(v, typevar=ty)
-        self._reference(r, self._codeloc())
+        codeloc = self._codeloc()
+        self._ensure_variable_existence(r, codeloc)
+        self._reference(r, codeloc)
         return r
 
     def _ail_handle_BinaryOp(self, expr):
@@ -275,6 +277,7 @@ class SimEngineVRAIL(
 
         value_v = self.state.stack_address(expr.offset)
         richr = RichR(value_v, typevar=typevar)
+        self._ensure_variable_existence(richr, self._codeloc(), src_expr=expr)
         if self._reference_spoffset:
             self._reference(richr, self._codeloc(), src=expr)
 

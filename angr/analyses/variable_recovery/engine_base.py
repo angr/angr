@@ -139,8 +139,8 @@ class SimEngineVRBase(SimEngineLight):
     # Logic
     #
 
-    def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
-        data: claripy.ast.Base = richr.data
+    def _ensure_variable_existence(self, richr_addr: RichR, codeloc: CodeLocation, src_expr=None):
+        data: claripy.ast.Base = richr_addr.data
 
         if data is None:
             return
@@ -224,11 +224,54 @@ class SimEngineVRBase(SimEngineLight):
                 variable_manager.set_variable("global", global_var_addr, variable)
                 l.debug("Identified a new global variable %s at %#x.", variable, self.ins_addr)
                 existing_vars = [(variable, 0)]
-            else:
-                variable, _ = next(iter(existing_vars))
 
         else:
             return
+
+        # record all variables
+        for var, offset in existing_vars:
+            if offset == 0:
+                offset = None
+            variable_manager.record_variable(codeloc, var, offset, atom=src_expr)
+
+    def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
+        data: claripy.ast.Base = richr.data
+
+        if data is None:
+            return
+
+        if self.state.is_stack_address(data):
+            # this is a stack address
+            # extract stack offset
+            stack_offset: Optional[int] = self.state.get_stack_offset(data)
+
+            variable_manager = self.variable_manager[self.func_addr]
+            var_candidates: List[Tuple[SimVariable, int]] = variable_manager.find_variables_by_stmt(
+                self.block.addr, self.stmt_idx, "memory"
+            )
+
+            # find the correct variable
+            existing_vars: List[Tuple[SimVariable, int]] = []
+            for candidate, offset in var_candidates:
+                if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
+                    existing_vars.append((candidate, offset))
+        elif self.state.is_global_variable_address(data):
+            # this is probably an address for a global variable
+            global_var_addr = data._model_concrete.value
+            variable_manager = self.variable_manager["global"]
+            # special case for global variables: find existing variable by base address
+            existing_vars = list((var, 0) for var in variable_manager.get_global_variables(global_var_addr))
+        else:
+            return
+
+        if not existing_vars:
+            l.warning(
+                "_reference() is called on expressions without variables associated. Did you call "
+                "_ensure_variable_existence() first?"
+            )
+            return
+        else:
+            variable, _ = existing_vars[0]
 
         if not self.state.typevars.has_type_variable_for(variable, codeloc):
             variable_typevar = typevars.TypeVariable()
@@ -236,7 +279,7 @@ class SimEngineVRBase(SimEngineLight):
         # we do not add any type constraint here because we are not sure if the given memory address will ever be
         # accessed or not
 
-        # find all variables
+        # invoke variable_manager.reference_at for every variable
         for var, offset in existing_vars:
             if offset == 0:
                 offset = None
@@ -261,6 +304,7 @@ class SimEngineVRBase(SimEngineLight):
         data: claripy.ast.Base = richr.data
 
         # lea
+        self._ensure_variable_existence(richr, codeloc, src_expr=src)
         self._reference(richr, codeloc, src=src)
 
         # handle register writes
@@ -337,7 +381,7 @@ class SimEngineVRBase(SimEngineLight):
             if self.state.is_stack_address(addr):
                 stack_offset = self.state.get_stack_offset(addr)
                 if stack_offset is not None:
-                    # Storing data to stack
+                    # fast path: Storing data to stack
                     self._store_to_stack(stack_offset, data, size, stmt=stmt)
                     stored = True
 
@@ -345,7 +389,7 @@ class SimEngineVRBase(SimEngineLight):
             # storing to a location specified by a pointer whose value cannot be determined at this point
             self._store_to_variable(richr_addr, size, stmt=stmt)
 
-    def _store_to_stack(self, stack_offset, data: RichR, size, stmt=None, endness=None):
+    def _store_to_stack(self, stack_offset, data: RichR, size, offset=0, stmt=None, endness=None):
         if stmt is None:
             existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(
                 self.block.addr, self.stmt_idx, "memory"
@@ -362,7 +406,7 @@ class SimEngineVRBase(SimEngineLight):
                 ident=self.variable_manager[self.func_addr].next_variable_ident("stack"),
                 region=self.func_addr,
             )
-            variable_offset = 0
+            variable_offset = offset
             if isinstance(stack_offset, int):
                 self.variable_manager[self.func_addr].set_variable("stack", stack_offset, variable)
                 l.debug("Identified a new stack variable %s at %#x.", variable, self.ins_addr)

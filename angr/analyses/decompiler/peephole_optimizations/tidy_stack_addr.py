@@ -9,6 +9,10 @@ if TYPE_CHECKING:
 
 
 class TidyStackAddr(PeepholeOptimizationExprBase):
+    """
+    Consolidate StackBaseOffset objects and constant offsets within each stack address expression.
+    """
+
     __slots__ = ()
 
     NAME = "Tidy stack addresses"
@@ -18,13 +22,12 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
         if expr.op not in ("Add", "Sub"):
             return None
 
-        if expr.op in ("Add", "Sub"):
-            has_binop = any(isinstance(operand, BinaryOp) for operand in expr.operands)
-            if not has_binop:
-                return None
-            # fast path: StackBaseOffset +/- N stays untouched
-            if isinstance(expr.operands[0], StackBaseOffset) and isinstance(expr.operands[1], Const):
-                return None
+        has_binop = any(isinstance(operand, BinaryOp) for operand in expr.operands)
+        if not has_binop:
+            return None
+        # fast path: StackBaseOffset +/- N stays untouched
+        if isinstance(expr.operands[0], StackBaseOffset) and isinstance(expr.operands[1], Const):
+            return None
 
         # consolidate all expressions into a list of expressions with their signs (True for +, False for -)
         all_operands: List[Tuple[bool, "Expression"]] = []
@@ -37,7 +40,7 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
                     stack.insert(0, (sign, item.operands[0]))
                     stack.insert(0, (sign, item.operands[1]))
                     continue
-                elif item.op == "Sub":
+                if item.op == "Sub":
                     stack.insert(0, (sign, item.operands[0]))
                     stack.insert(0, (not sign, item.operands[1]))
                     continue
@@ -59,6 +62,7 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
             if isinstance(obj, StackBaseOffset):
                 stackbaseoffset_indices.append(idx)
 
+        has_changes = False
         # collect constants
         for i, stackbaseoffset_index in enumerate(stackbaseoffset_indices):
             stackbaseoffset_const = 0
@@ -71,6 +75,7 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
             for j in range(i + 1, next_stackbaseoffset_index):
                 positive, obj = all_operands[j]
                 if isinstance(obj, Const):
+                    has_changes = True
                     if positive:
                         stackbaseoffset_const += obj.value
                     else:
@@ -81,6 +86,9 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
                 else:
                     stackbaseoffset_obj.offset += -stackbaseoffset_const
             stackbaseoffset_objs.append((stackbaseoffset_sign, stackbaseoffset_obj))
+
+        if not has_changes:
+            return None
 
         # building the final expression
         expr = None
