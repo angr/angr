@@ -37,6 +37,7 @@ from .rewrite_bit_extractions import RewriteBitExtractions
 from .remove_redundant_ite_comparisons import RemoveRedundantITEComparisons
 from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
 from .sar_to_signed_div import SarToSignedDiv
+from .tidy_stack_addr import TidyStackAddr
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 

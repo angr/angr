@@ -251,27 +251,35 @@ class VariableRecoveryStateBase:
         return False
 
     @staticmethod
-    def extract_stack_offset_from_addr(addr: claripy.ast.Base) -> claripy.ast.Base:
+    def extract_stack_offset_from_addr(addr: claripy.ast.Base) -> Optional[claripy.ast.Base]:
         r = None
         if addr.op == "BVS":
-            r = claripy.BVV(0, addr.size())
+            if addr.args[0] == "stack_base":
+                return claripy.BVV(0, addr.size())
+            return None
         elif addr.op == "BVV":
             r = addr
         elif addr.op == "__add__":
-            r = sum(VariableRecoveryStateBase.extract_stack_offset_from_addr(arg) for arg in addr.args)
+            arg_offsets = []
+            for arg in addr.args:
+                arg_offset = VariableRecoveryStateBase.extract_stack_offset_from_addr(arg)
+                if arg_offset is None:
+                    return None
+                arg_offsets.append(arg_offset)
+            r = sum(arg_offsets)
         elif addr.op == "__sub__":
             r1 = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr.args[0])
             r2 = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr.args[1])
+            if r1 is None or r2 is None:
+                return None
             r = r1 - r2
-        else:
-            # NOTE: The original code here didn't support mul or
-            # anything like that, so let's specify it as 0
-            r = claripy.BVV(0, addr.size())
         return r
 
     def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
         if "stack_base" in addr.variables:
             r = VariableRecoveryStateBase.extract_stack_offset_from_addr(addr)
+            if r is None:
+                return None
 
             # extract_stack_offset_from_addr should ensure that r is a BVV
             assert r.concrete
