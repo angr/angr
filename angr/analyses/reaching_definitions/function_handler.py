@@ -32,7 +32,7 @@ def get_exit_livedefinitions(func: Function, rda_model: "ReachingDefinitionsMode
     Get LiveDefinitions at all exits of a function, merge them, and return.
     """
     lds = []
-    for block in func.endpoints:
+    for block in func.ret_sites:
         ld = rda_model.get_observation_by_node(block.addr, ObservationPointType.OP_AFTER)
         if ld is None:
             continue
@@ -515,6 +515,7 @@ class FunctionHandler:
         sub_ld = get_exit_livedefinitions(data.function, sub_rda.model)
         if sub_ld is not None:
             state.live_definitions = sub_ld
+        data.retaddr_popped = True
 
     @staticmethod
     def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
