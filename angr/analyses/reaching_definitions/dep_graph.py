@@ -248,7 +248,7 @@ class DepGraph:
         self,
         starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
         *,
-        kind: Literal[AtomKind.REGISTER] = ...,
+        kind: Literal[AtomKind.REGISTER] = AtomKind.REGISTER,
         **kwargs: Any,
     ) -> List[Definition[Register]]:
         ...
@@ -258,7 +258,7 @@ class DepGraph:
         self,
         starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
         *,
-        kind: Literal[AtomKind.MEMORY] = ...,
+        kind: Literal[AtomKind.MEMORY] = AtomKind.MEMORY,
         **kwargs: Any,
     ) -> List[Definition[MemoryLocation]]:
         ...
@@ -268,7 +268,7 @@ class DepGraph:
         self,
         starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
         *,
-        kind: Literal[AtomKind.TMP] = ...,
+        kind: Literal[AtomKind.TMP] = AtomKind.TMP,
         **kwargs: Any,
     ) -> List[Definition[Tmp]]:
         ...
@@ -278,7 +278,7 @@ class DepGraph:
         self,
         starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
         *,
-        kind: Literal[AtomKind.CONSTANT] = ...,
+        kind: Literal[AtomKind.CONSTANT] = AtomKind.CONSTANT,
         **kwargs: Any,
     ) -> List[Definition[ConstantSrc]]:
         ...
@@ -288,7 +288,7 @@ class DepGraph:
         self,
         starts: Union[Definition[Atom], Iterable[Definition[Atom]]],
         *,
-        kind: Literal[AtomKind.GUARD] = ...,
+        kind: Literal[AtomKind.GUARD] = AtomKind.GUARD,
         **kwargs: Any,
     ) -> List[Definition[GuardUse]]:
         ...
@@ -332,7 +332,11 @@ class DepGraph:
         seen = set(queue)
         while queue:
             thing = queue.pop()
-            for pred in self.graph.pred[thing]:
+            try:
+                preds = self.graph.pred[thing]
+            except KeyError:
+                continue
+            for pred in preds:
                 if pred in seen:
                     continue
                 queue.append(pred)

@@ -39,7 +39,15 @@ class MultiValues:
             if isinstance(v, MultiValues)
             else None
         )
-        self._values = offset_to_values if offset_to_values is not None else v if isinstance(v, dict) else None
+        self._values = (
+            offset_to_values
+            if offset_to_values is not None
+            else v
+            if isinstance(v, dict)
+            else v._values
+            if isinstance(v, MultiValues)
+            else None
+        )
 
         # if only one value is passed in, assign it to self._single_value
         if self._values:
@@ -218,7 +226,7 @@ class MultiValues:
             return 0
         return len(self._values)
 
-    def extract(self, offset: int, length: int, endness: archinfo.Endness) -> "MultiValues":
+    def extract(self, offset: int, length: int, endness: str) -> "MultiValues":
         end = offset + length
         result = MultiValues(claripy.BVV(b""))
         for obj_offset, values in self.items():
@@ -237,10 +245,11 @@ class MultiValues:
             other = claripy.BVV(other)
         if isinstance(other, claripy.ast.BV):
             other = MultiValues(other)
+        offset = len(self) // 8
         result = MultiValues(self)
         for k, v in other.items():
             for v2 in v:
-                result.add_value(k, v2)
+                result.add_value(k + offset, v2)
         return result
 
     #
