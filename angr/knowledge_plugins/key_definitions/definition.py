@@ -115,11 +115,11 @@ class DefinitionMatchPredicate:
                     if defn.atom.arch is not None:
                         if self.reg_name != defn.atom.name:
                             return False
-                        else:
-                            log.warning(
-                                "Attempting to match by register name against a definition which does not have an arch"
-                            )
-                            return False
+                    else:
+                        log.warning(
+                            "Attempting to match by register name against a definition which does not have an arch"
+                        )
+                        return False
                 else:
                     raise TypeError(self.reg_name)
         elif isinstance(defn.atom, MemoryLocation):
