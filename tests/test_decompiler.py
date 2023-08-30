@@ -2497,7 +2497,6 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("phoenix")
     def test_ifelsesimplifier_insert_node_into_while_body(self, decompiler_options=None):
-
         # https://github.com/angr/angr/issues/4082
 
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "angr_4082_cache")
