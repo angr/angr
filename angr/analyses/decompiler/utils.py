@@ -226,6 +226,15 @@ def insert_node(parent, insert_location: str, node, node_idx: Optional[Union[int
             raise TypeError(
                 f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, ' f"default."
             )
+    elif isinstance(parent, LoopNode):
+        if label == "condition":
+            raise ValueError("Cannot insert nodes into a condition expression.")
+        elif label == "body":
+            if not isinstance(parent.sequence_node, SequenceNode):
+                parent.sequence_node = SequenceNode(parent.sequence_node.addr, nodes=[parent.sequence_node])
+            insert_node(parent.sequence_node, insert_location, node, node_idx)
+        else:
+            raise NotImplementedError()
     else:
         raise NotImplementedError()
 
