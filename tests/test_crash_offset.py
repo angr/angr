@@ -25,7 +25,7 @@ def crash_offset(program_path, function_call):
     caller_node = next(iter(node for node in cfg.get_all_predecessors(callee_node) if node.name == caller.name))
     call_address = list(caller_node.instruction_addrs)[-1]
 
-    rda = project.analyses.ReachingDefinitions(subject=caller, observation_points={('insn', call_address, OP_BEFORE)})
+    rda = project.analyses.ReachingDefinitions(subject=caller, observation_points={("insn", call_address, OP_BEFORE)})
     definitions = rda.get_reaching_definitions_by_insn(call_address, OP_BEFORE)
     argument_value = definitions.registers.load(*argument_register).one_value()
     base_value = definitions.registers.load(*base_register).one_value()
@@ -54,11 +54,11 @@ def compiled_program(prefix_length, buffer_length, suffix_length):
     }}
     """
 
-    program_code = program_template.format(prefix_length=prefix_length,
-                                           buffer_length=buffer_length,
-                                           suffix_length=suffix_length)
+    program_code = program_template.format(
+        prefix_length=prefix_length, buffer_length=buffer_length, suffix_length=suffix_length
+    )
 
-    with tempfile.NamedTemporaryFile(suffix='.c', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".c", delete=False) as f:
         program_path = f.name
         f.write(program_code.encode())
 
@@ -79,32 +79,21 @@ class BufferOverflowTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.length_combinations = [
-            (10, 20, 30),
-            (5, 25, 35),
-            (15, 15, 35),
-            (20, 10, 40)
-        ]
+        self.length_combinations = [(10, 20, 30), (5, 25, 35), (15, 15, 35), (20, 10, 40)]
 
     def test_program_no_segfault(self):
         for prefix_length, buffer_length, suffix_length in self.length_combinations:
-            with self.subTest(prefix_length=prefix_length,
-                              buffer_length=buffer_length,
-                              suffix_length=suffix_length):
-
+            with self.subTest(prefix_length=prefix_length, buffer_length=buffer_length, suffix_length=suffix_length):
                 with compiled_program(prefix_length, buffer_length, suffix_length) as binary_path:
-                    offset = crash_offset(binary_path, ('main', 'read', 1))
+                    offset = crash_offset(binary_path, ("main", "read", 1))
                     payload = b"A" * offset
                     assert subprocess.run([binary_path], input=payload, stderr=subprocess.PIPE).returncode == 0
 
     def test_program_with_segfault(self):
         for prefix_length, buffer_length, suffix_length in self.length_combinations:
-            with self.subTest(prefix_length=prefix_length,
-                              buffer_length=buffer_length,
-                              suffix_length=suffix_length):
-
+            with self.subTest(prefix_length=prefix_length, buffer_length=buffer_length, suffix_length=suffix_length):
                 with compiled_program(prefix_length, buffer_length, suffix_length) as binary_path:
-                    offset = crash_offset(binary_path, ('main', 'read', 1))
+                    offset = crash_offset(binary_path, ("main", "read", 1))
                     payload = b"A" * (offset + 1)
                     assert subprocess.run([binary_path], input=payload, stderr=subprocess.PIPE).returncode == -11
 
