@@ -5,6 +5,7 @@ import angr
 
 from common import bin_location
 
+
 class TestPyVEX(TestCase):
     def test_full_binary(self):
         p = angr.Project(
@@ -18,4 +19,3 @@ class TestPyVEX(TestCase):
         simgr.step()
         assert b.jumpkind == "Ijk_Sys_syscall"
         assert simgr.active[0].regs.ip_at_syscall.args[0] == 0x13FB
-
