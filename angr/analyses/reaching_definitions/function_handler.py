@@ -184,8 +184,12 @@ class FunctionCallData:
                 )
             )
 
-    def reset_prototype(self, prototype: SimTypeFunction, state: "ReachingDefinitionsState") -> Set[Atom]:
+    def reset_prototype(
+        self, prototype: SimTypeFunction, state: "ReachingDefinitionsState", soft_reset: bool = False
+    ) -> Set[Atom]:
         self.prototype = prototype.with_arch(state.arch)
+        if not soft_reset:
+            self.args_atoms = self.args_values = self.ret_atoms = None
 
         args_atoms_from_values = set()
         if self.args_atoms is None and self.args_values is not None:
@@ -353,7 +357,7 @@ class FunctionHandler:
             data.prototype = state.analysis.project.factory.function_prototype()
             data.guessed_prototype = True
 
-        args_atoms_from_values = data.reset_prototype(data.prototype, state)
+        args_atoms_from_values = data.reset_prototype(data.prototype, state, soft_reset=True)
 
         # PROCESS
         state.move_codelocs(data.function_codeloc)
