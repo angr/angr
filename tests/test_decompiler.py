@@ -2405,6 +2405,8 @@ class TestDecompiler(unittest.TestCase):
 
         # ITE expressions should not exist. we convert them to if-then-else properly.
         assert "?" not in d.codegen.text
+        # ensure there are no empty scopes
+        assert "{}" not in d.codegen.text.replace(" ", "").replace("\n", "")
 
     @for_all_structuring_algos
     def test_od_else_simplification(self, decompiler_options=None):
