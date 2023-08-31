@@ -4,8 +4,9 @@ from . import MemoryMixin
 
 
 class MultiValueMergerMixin(MemoryMixin):
-    def __init__(self, *args, element_limit=5, top_func=None, phi_maker=None, **kwargs):
+    def __init__(self, *args, element_limit=5, annotation_limit=40, top_func=None, phi_maker=None, **kwargs):
         self._element_limit = element_limit
+        self._annotation_limit = annotation_limit
         self._top_func: Callable = top_func
         self._phi_maker: Optional[Callable] = phi_maker
 
@@ -33,10 +34,14 @@ class MultiValueMergerMixin(MemoryMixin):
                 ret_val = next(iter(stripped_values_set)).ast
             # migrate annotations
             annotations = []
+            annotations_set = set()
             for v in values_set:
-                annotations += list(v.annotations)
+                for anno in v.annotations:
+                    if anno not in annotations_set:
+                        annotations.append(anno)
+                        annotations_set.add(anno)
             if annotations:
-                ret_val = ret_val.annotate(*annotations)
+                ret_val = ret_val.annotate(*annotations[: self._annotation_limit])
             merged_val = {ret_val}
         else:
             merged_val = values_set
@@ -45,6 +50,7 @@ class MultiValueMergerMixin(MemoryMixin):
     def copy(self, memo=None):
         copied = super().copy(memo)
         copied._element_limit = self._element_limit
+        copied._annotation_limit = self._annotation_limit
         copied._top_func = self._top_func
         copied._phi_maker = self._phi_maker
         return copied
