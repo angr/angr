@@ -2552,8 +2552,8 @@ class TestDecompiler(unittest.TestCase):
 
         self._print_decompilation_result(d)
         text = d.codegen.text
-        # there should be a ternary expression in the code (c ? a : b);
-        assert re.search(r"\(.+\?.+:.+\);", text) is not None
+        # there should be a ternary assignment in the code: x = (c ? a : b);
+        assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None
 
 
 if __name__ == "__main__":
