@@ -568,7 +568,7 @@ class ReachingDefinitionsState:
         self,
         pointer: Union[MultiValues, Atom, Definition, Iterable[Atom], Iterable[Definition]],
         size: Union[int, DerefSize],
-        endness: archinfo.Endness = ...,
+        endness: str = ...,
     ) -> Set[MemoryLocation]:
         ...
 
@@ -577,9 +577,24 @@ class ReachingDefinitionsState:
         self,
         pointer: Union[int, claripy.ast.BV, HeapAddress, SpOffset],
         size: Union[int, DerefSize],
-        endness: archinfo.Endness = ...,
+        endness: str = ...,
     ) -> Optional[MemoryLocation]:
         ...
 
-    def deref(self, pointer, size, endness=archinfo.Endness.BE):
+    def deref(
+        self,
+        pointer: Union[
+            MultiValues,
+            Atom,
+            Definition,
+            Iterable[Atom],
+            Iterable[Definition],
+            int,
+            claripy.ast.BV,
+            HeapAddress,
+            SpOffset,
+        ],
+        size: Union[int, DerefSize],
+        endness: str = archinfo.Endness.BE,
+    ):
         return self.live_definitions.deref(pointer, size, endness)
