@@ -822,6 +822,9 @@ class SimEngineRDVEX(
                 return self.state.top(bits)
             e1 = e1._model_concrete.value
 
+            if e1 > bits:
+                return claripy.BVV(0, bits)
+
             if claripy.is_true(e0 >> (bits - 1) == 0):
                 head = claripy.BVV(0, bits)
             else:
