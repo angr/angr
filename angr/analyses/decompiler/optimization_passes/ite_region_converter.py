@@ -1,8 +1,8 @@
 # pylint:disable=unnecessary-pass
 import logging
 
-from ailment.statement import ConditionalJump, Assignment, Statement, Jump, Label
-from ailment.expression import Const, ITE, Expression
+from ailment.statement import ConditionalJump, Assignment, Jump
+from ailment.expression import ITE
 
 from ....utils.graph import subgraph_between_nodes
 from ..utils import remove_labels, to_ail_supergraph
@@ -79,8 +79,12 @@ class ITERegionConverter(OptimizationPass):
                 elif child.addr == if_stmt.false_target.value:
                     false_child = child
 
-            if true_child is None or false_child is None or \
-                    true_child not in super_graph or false_child not in super_graph:
+            if (
+                true_child is None
+                or false_child is None
+                or true_child not in super_graph
+                or false_child not in super_graph
+            ):
                 continue
 
             # verify the only statements in the two children are assignments
@@ -91,13 +95,18 @@ class ITERegionConverter(OptimizationPass):
 
             true_stmt = true_stmts[0]
             false_stmt = false_stmts[0]
-            if not isinstance(true_stmt, Assignment) or not isinstance(false_stmt, Assignment) or \
-                    not true_stmt.dst.likes(false_stmt.dst):
+            if (
+                not isinstance(true_stmt, Assignment)
+                or not isinstance(false_stmt, Assignment)
+                or not true_stmt.dst.likes(false_stmt.dst)
+            ):
                 continue
 
             # must contain a single common predecessor
-            if (len(list(super_graph.predecessors(true_child))) != 1 or
-                    len(list(super_graph.predecessors(false_child))) != 1):
+            if (
+                len(list(super_graph.predecessors(true_child))) != 1
+                or len(list(super_graph.predecessors(false_child))) != 1
+            ):
                 continue
 
             # must contain the same common successor
@@ -140,9 +149,7 @@ class ITERegionConverter(OptimizationPass):
         new_region_head.statements += region_tail.statements
 
         # destroy all the old region blocks
-        region_nodes = subgraph_between_nodes(
-            self._graph, region_head, [region_tail], include_frontier=True
-        )
+        region_nodes = subgraph_between_nodes(self._graph, region_head, [region_tail], include_frontier=True)
         for node in region_nodes:
             self._remove_block(node)
 
