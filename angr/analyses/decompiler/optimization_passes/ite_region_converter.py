@@ -35,15 +35,17 @@ class ITERegionConverter(OptimizationPass):
         if not ite_assign_regions:
             return
 
+        graph_updated = False
         for region_head, region_tail, true_stmt, false_stmt in ite_assign_regions:
-            self._convert_region_to_ternary_expr(region_head, region_tail, true_stmt, false_stmt)
+            graph_updated |= self._convert_region_to_ternary_expr(region_head, region_tail, true_stmt, false_stmt)
 
-        self.out_graph = self._graph
+        if graph_updated:
+            self.out_graph = self._graph
 
     def _find_ite_assignment_regions(self):
         # find all the if-stmt blocks in a graph with no single successor edges
         super_graph = to_ail_supergraph(remove_labels(self._graph))
-        if_stmt_blocks = list()
+        if_stmt_blocks = []
         for node in super_graph.nodes():
             if not node.statements:
                 continue
@@ -65,7 +67,7 @@ class ITERegionConverter(OptimizationPass):
                     super_to_normal_node[super_node] = node
 
         # validate each if-stmt block matches a ternary schema
-        ite_candidates = list()
+        ite_candidates = []
         for if_stmt_block in if_stmt_blocks:
             if_stmt = if_stmt_block.statements[-1]
             children = list(super_graph.successors(if_stmt_block))
@@ -128,6 +130,9 @@ class ITERegionConverter(OptimizationPass):
         return ite_candidates
 
     def _convert_region_to_ternary_expr(self, region_head, region_tail, true_stmt, false_stmt):
+        if region_head not in self._graph or region_tail not in self._graph:
+            return False
+
         # record old edges
         preds = list(self._graph.predecessors(region_head))
         succs = list(self._graph.successors(region_tail))
@@ -157,3 +162,5 @@ class ITERegionConverter(OptimizationPass):
         self._graph.add_node(new_region_head)
         self._graph.add_edges_from([(pred, new_region_head) for pred in preds])
         self._graph.add_edges_from([(new_region_head, succ) for succ in succs])
+
+        return True
