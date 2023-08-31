@@ -23,21 +23,29 @@ class ITERegionConverter(OptimizationPass):
     NAME = "Transforms ITE-assignment regions into ternary expression assignments"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
+    def __init__(self, func, max_updates=10, **kwargs):
         super().__init__(func, **kwargs)
+        self._max_updates = max_updates
         self.analyze()
 
     def _check(self):
         return True, None
 
     def _analyze(self, cache=None):
-        ite_assign_regions = self._find_ite_assignment_regions()
-        if not ite_assign_regions:
-            return
-
         graph_updated = False
-        for region_head, region_tail, true_stmt, false_stmt in ite_assign_regions:
-            graph_updated |= self._convert_region_to_ternary_expr(region_head, region_tail, true_stmt, false_stmt)
+        for _ in range(self._max_updates):
+            round_update = False
+            ite_assign_regions = self._find_ite_assignment_regions()
+            if not ite_assign_regions:
+                break
+
+            for region_head, region_tail, true_stmt, false_stmt in ite_assign_regions:
+                round_update |= self._convert_region_to_ternary_expr(region_head, region_tail, true_stmt, false_stmt)
+
+            if not round_update:
+                break
+
+            graph_updated |= True
 
         if graph_updated:
             self.out_graph = self._graph
