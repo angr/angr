@@ -14,13 +14,13 @@ _l = logging.getLogger(__name__)
 
 class ITERegionConverter(OptimizationPass):
     """
-    Transforms regions of the form `if (c) {x = a} else {x = b}` into `x = c ? a : b`.
+    Transform regions of the form `if (c) {x = a} else {x = b}` into `x = c ? a : b`.
     """
 
     ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM", "MIPS32", "MIPS64"]
     PLATFORMS = ["windows", "linux", "cgc"]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
-    NAME = "Transforms ITE-assignment regions into ternary expression assignments"
+    NAME = "Transform ITE-assignment regions into ternary expression assignments"
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, max_updates=10, **kwargs):
