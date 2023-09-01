@@ -655,6 +655,7 @@ class PhoenixStructurer(StructurerBase):
                         self._remove_last_statement_if_jump(src_block)
 
                 else:
+                    self.virtualized_edges.add((src, dst))
                     fullgraph.remove_edge(src, dst)
                     if fullgraph.in_degree[dst] == 0:
                         # drop this node
@@ -692,7 +693,7 @@ class PhoenixStructurer(StructurerBase):
                         graph.remove_edge(src, continue_node)
                     fullgraph.remove_edge(src, continue_node)
                 else:
-                    # virtualize the edge.
+                    # remove the edge.
                     graph.remove_edge(src, continue_node)
                     fullgraph.remove_edge(src, continue_node)
                     # replace it with the original node plus the continue node
@@ -2005,9 +2006,11 @@ class PhoenixStructurer(StructurerBase):
 
         if graph.has_edge(src, dst):
             graph.remove_edge(src, dst)
+            self.virtualized_edges.add((src, dst))
         if new_src is not None:
             self.replace_nodes(graph, src, new_src)
         if full_graph is not None:
+            self.virtualized_edges.add((src, dst))
             full_graph.remove_edge(src, dst)
             if new_src is not None:
                 self.replace_nodes(full_graph, src, new_src)

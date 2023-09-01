@@ -68,6 +68,9 @@ class StructurerBase(Analysis):
         # intermediate states
         self._new_sequences = []
 
+        # store all virtualized edges (edges that are removed and replaced with a goto)
+        self.virtualized_edges = set()
+
         self.result = None
 
     def _analyze(self):
