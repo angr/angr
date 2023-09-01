@@ -1,8 +1,8 @@
 from typing import DefaultDict, Optional, List, Set, Tuple, TYPE_CHECKING
 
-from angr.knowledge_plugins.key_definitions.atoms import Tmp
-
 from collections import defaultdict
+
+from angr.knowledge_plugins.key_definitions.atoms import Tmp
 
 from .constants import ObservationPointType, OP_BEFORE, OP_AFTER
 
