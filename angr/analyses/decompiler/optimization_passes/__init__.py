@@ -33,7 +33,7 @@ _all_optimization_passes = [
     (X86GccGetPcSimplifier, True),
     (ITERegionConverter, True),
     (LoweredSwitchSimplifier, False),
-    (EagerReturnsSimplifier, False),
+    (EagerReturnsSimplifier, True),
     (ITEExprConverter, True),
     (ExprOpSwapper, True),
     (FlipBooleanCmp, True),
