@@ -1,5 +1,7 @@
 from typing import DefaultDict, Optional, List, Set, Tuple, TYPE_CHECKING
 
+from angr.knowledge_plugins.key_definitions.atoms import Tmp
+
 from collections import defaultdict
 
 from .constants import ObservationPointType, OP_BEFORE, OP_AFTER
@@ -66,7 +68,13 @@ class Liveness:
             else:
                 pred_max_stmt_id = self._node_max_stmt_id[(pred_codeloc.block_addr, pred_codeloc.block_idx)]
             pred_key = pred_codeloc.block_addr, pred_codeloc.block_idx, pred_max_stmt_id, OP_AFTER
-            pred_defs = self.loc_to_defs[pred_key]
+            all_pred_defs = self.loc_to_defs[pred_key]
+
+            # remove tmp defs
+            pred_defs = set()
+            for pred_def in all_pred_defs:
+                if not isinstance(pred_def.atom, Tmp):
+                    pred_defs.add(pred_def)
             for pred_def in pred_defs:
                 self.def_to_liveness[pred_def].add(loc)
             self.loc_to_defs[key] |= pred_defs
