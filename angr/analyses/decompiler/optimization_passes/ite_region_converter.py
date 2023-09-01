@@ -19,7 +19,7 @@ class ITERegionConverter(OptimizationPass):
 
     ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM", "MIPS32", "MIPS64"]
     PLATFORMS = ["windows", "linux", "cgc"]
-    STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Transform ITE-assignment regions into ternary expression assignments"
     DESCRIPTION = __doc__.strip()
 
