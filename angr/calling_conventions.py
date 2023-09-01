@@ -7,6 +7,7 @@ import claripy
 import archinfo
 from archinfo import RegisterName
 
+from .errors import AngrTypeError
 from .sim_type import (
     SimType,
     SimTypeChar,
@@ -668,7 +669,7 @@ class SimCC:
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
         if isinstance(ty, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
-            raise TypeError(
+            raise AngrTypeError(
                 f"{self} doesn't know how to return aggregate types. Consider overriding return_val to "
                 "implement its ABI logic"
             )
