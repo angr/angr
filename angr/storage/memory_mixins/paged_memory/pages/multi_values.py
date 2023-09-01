@@ -230,8 +230,13 @@ class MultiValues:
         end = offset + length
         result = MultiValues(claripy.BVV(b""))
         for obj_offset, values in self.items():
+            if obj_offset >= end:
+                break
             for value in values:
                 obj_length = len(value) // 8
+                if obj_offset + obj_length < offset:
+                    continue
+
                 slice_start = max(0, offset - obj_offset)
                 slice_end = min(obj_length, end - obj_offset)
                 sliced = bv_slice(value, slice_start, slice_end - slice_start, endness == archinfo.Endness.LE, 8)
