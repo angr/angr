@@ -1,7 +1,7 @@
 # pylint:disable=unnecessary-pass
 import logging
 
-from ailment.statement import ConditionalJump, Assignment, Jump
+from ailment.statement import ConditionalJump, Assignment, Jump, Label
 from ailment.expression import ITE
 
 from ....utils.graph import subgraph_between_nodes
@@ -125,6 +125,10 @@ class ITERegionConverter(OptimizationPass):
                 continue
             common_successor = true_successors[0]
 
+            # common successor must end the region
+            if len(list(super_graph.predecessors(common_successor))) != 2:
+                continue
+
             # lastly, normalize the region we will be editing
             region_head = super_to_normal_node.get(if_stmt_block, None)
             tail_blocks = list(self.blocks_by_addr.get(common_successor.addr, []))
@@ -159,7 +163,7 @@ class ITERegionConverter(OptimizationPass):
         new_assignment = true_stmt.copy()
         new_assignment.src = ternary_expr
         new_region_head.statements[-1] = new_assignment
-        new_region_head.statements += region_tail.statements
+        new_region_head.statements += [stmt for stmt in region_tail.statements if not isinstance(stmt, Label)]
 
         # destroy all the old region blocks
         region_nodes = subgraph_between_nodes(self._graph, region_head, [region_tail], include_frontier=True)
