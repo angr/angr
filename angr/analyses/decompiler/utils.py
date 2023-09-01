@@ -367,7 +367,9 @@ def remove_labels(graph: networkx.DiGraph):
     return new_graph
 
 
-def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
+def structured_node_is_simple_return(
+    node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph, use_packed_successors=False
+) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
     if (cond) {
@@ -406,7 +408,14 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     elif isinstance(node, ailment.Block):
         last_block = node
 
-    return last_block and last_block in graph and not list(graph.successors(last_block))
+    valid_last_stmt = last_block is not None
+    if valid_last_stmt and last_block.statements:
+        valid_last_stmt = not isinstance(last_block.statements[-1], (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump))
+
+    if use_packed_successors:
+        last_block = node
+
+    return valid_last_stmt and last_block in graph and not list(graph.successors(last_block))
 
 
 # delayed import
