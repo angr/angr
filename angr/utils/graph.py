@@ -3,6 +3,7 @@ from collections import defaultdict
 import logging
 
 import networkx
+import networkx.algorithms
 
 
 def shallow_reverse(g) -> networkx.DiGraph:
@@ -750,15 +751,27 @@ class GraphUtils:
                     break
 
         if loop_head is None:
-            # find the first node in the strongly connected component that is the successor to any node in
-            # ordered_nodes
             for parent_node in reversed(ordered_nodes):
-                for n in scc:
-                    if n in graph[parent_node]:
-                        loop_head = n
-                        break
-
-                if loop_head is not None:
+                # find all successors to this node
+                succs = set(graph.successors(parent_node))
+                scc_succs = scc.intersection(succs)
+                if len(scc_succs) == 1:
+                    loop_head = next(iter(scc_succs))
+                    break
+                if len(scc_succs) > 1:
+                    # calculate the distance between each pair of nodes within scc_succs, pick the one with the
+                    # shortest total distance
+                    scc_node_distance = defaultdict(int)
+                    for scc_succ in scc_succs:
+                        for other_node in scc_succs:
+                            if other_node is scc_succ:
+                                continue
+                            scc_node_distance[scc_succ] += networkx.algorithms.shortest_path_length(
+                                graph, scc_succ, other_node
+                            )
+                    distance_to_node = {v: k for k, v in scc_node_distance.items()}
+                    lowest_distance = min(distance_to_node)
+                    loop_head = distance_to_node[lowest_distance]
                     break
 
         if loop_head is None:
