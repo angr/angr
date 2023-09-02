@@ -74,7 +74,7 @@ class RecursiveStructurer(Analysis):
                 # Get the parent region
                 parent_region = parent_map.get(current_region, None)
                 # structure this region
-                st = self.project.analyses[self.structurer_cls].prep()(
+                st: StructurerBase = self.project.analyses[self.structurer_cls].prep()(
                     current_region.copy(),
                     parent_map=parent_map,
                     condition_processor=self.cond_proc,
@@ -92,7 +92,9 @@ class RecursiveStructurer(Analysis):
                 if st.result is None:
                     self._replace_region_with_region(parent_region, current_region, st._region)
                 else:
-                    self._replace_region_with_node(parent_region, current_region, st._region, st.result)
+                    self._replace_region_with_node(
+                        parent_region, current_region, st._region, st.result, st.virtualized_edges
+                    )
 
         if self.structurer_cls is DreamStructurer:
             # rewrite conditions in the result to remove all jump table entry conditions
@@ -120,8 +122,8 @@ class RecursiveStructurer(Analysis):
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
     @staticmethod
-    def _replace_region_with_node(parent_region, sub_region, updated_sub_region, node):
-        parent_region.replace_region(sub_region, updated_sub_region, node)
+    def _replace_region_with_node(parent_region, sub_region, updated_sub_region, node, virtualized_edges):
+        parent_region.replace_region(sub_region, updated_sub_region, node, virtualized_edges)
 
     @staticmethod
     def _replace_region_with_region(parent_region, sub_region, new_region):
