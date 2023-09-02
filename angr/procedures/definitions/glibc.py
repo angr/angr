@@ -6827,6 +6827,8 @@ _libc_decls = {
     "__errno_location": SimTypeFunction([], SimTypePointer(SimTypeInt())),
 }
 
+_libc_decls["__sprintf_chk"] = _libc_decls["sprintf"]
+
 proto_count = 0
 unsupported_count = 0
 
