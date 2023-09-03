@@ -7,6 +7,7 @@ from .optimization_pass import OptimizationPassStage
 from .stack_canary_simplifier import StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .expr_op_swapper import ExprOpSwapper
+from .ite_region_converter import ITERegionConverter
 from .ite_expr_converter import ITEExprConverter
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .multi_simplifier import MultiSimplifier
@@ -30,6 +31,7 @@ _all_optimization_passes = [
     (ConstantDereferencesSimplifier, True),
     (RetAddrSaveSimplifier, True),
     (X86GccGetPcSimplifier, True),
+    (ITERegionConverter, True),
     (LoweredSwitchSimplifier, False),
     (EagerReturnsSimplifier, True),
     (ITEExprConverter, True),

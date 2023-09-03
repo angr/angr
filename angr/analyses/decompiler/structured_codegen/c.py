@@ -2110,7 +2110,7 @@ class CITE(CExpression):
         paren = CClosingObject("(")
         yield "(", paren
         yield from self.cond.c_repr_chunks()
-        yield "? ", self
+        yield " ? ", self
         yield from self.iftrue.c_repr_chunks()
         yield " : ", self
         yield from self.iffalse.c_repr_chunks()
