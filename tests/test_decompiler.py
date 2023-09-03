@@ -2555,6 +2555,34 @@ class TestDecompiler(unittest.TestCase):
         # there should be a ternary assignment in the code: x = (c ? a : b);
         assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None
 
+    @for_all_structuring_algos
+    def test_ternary_propagation(self, decompiler_options=None):
+        """
+        Tests that single-use ternary expression assignments are propagated:
+        x = (c ? a : b);
+        puts(x)
+
+        =>
+
+        puts(c ? a : b);
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stty.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["display_speed"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        # all ternary assignments should be destroyed
+        assert re.search(r".+ = \(.+\?.+:.+\);", text) is None
+
+        # normal ternary expressions should exist in both calls
+        ternary_exprs = re.findall(r"\(.+\?.+:.+\);", text)
+        assert len(ternary_exprs) == 2
+
 
 if __name__ == "__main__":
     unittest.main()
