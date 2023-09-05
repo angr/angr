@@ -112,10 +112,10 @@ class PagedMemoryMixin(MemoryMixin):
         if endness is None:
             endness = self.endness
 
-        if type(size) is not int:
+        if not isinstance(size, int):
             raise TypeError("Need size to be resolved to an int by this point")
 
-        if type(addr) is not int:
+        if not isinstance(addr, int):
             raise TypeError("Need addr to be resolved to an int by this point")
 
         pageno, pageoff = self._divide_addr(addr)
@@ -166,10 +166,10 @@ class PagedMemoryMixin(MemoryMixin):
         if endness is None:
             endness = self.endness
 
-        if type(size) is not int:
+        if not isinstance(size, int):
             raise TypeError("Need size to be resolved to an int by this point")
 
-        if type(addr) is not int:
+        if not isinstance(addr, int):
             raise TypeError("Need addr to be resolved to an int by this point")
 
         # l.debug("%s.store(%#x, %s, %s)", self.id, addr, data, endness)
@@ -234,10 +234,10 @@ class PagedMemoryMixin(MemoryMixin):
         sub_gen.close()
 
     def erase(self, addr, size=None, **kwargs) -> None:
-        if type(size) is not int:
+        if not isinstance(size, int):
             raise TypeError("Need size to be resolved to an int by this point")
 
-        if type(addr) is not int:
+        if not isinstance(addr, int):
             raise TypeError("Need addr to be resolved to an int by this point")
 
         pageno, pageoff = self._divide_addr(addr)

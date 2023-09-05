@@ -1105,7 +1105,7 @@ class SimSolver(SimStatePlugin):
         """
         Returns True if the expression `e` is symbolic.
         """
-        if type(e) in (int, bytes, float, bool):
+        if isinstance(e, (int, bytes, float, bool)):
             return False
         return e.symbolic
 
