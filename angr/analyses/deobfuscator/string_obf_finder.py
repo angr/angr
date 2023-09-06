@@ -125,7 +125,7 @@ class StringObfuscationFinder(Analysis):
                         continue
                     if not self._is_string_reasonable(old_value) and self._is_string_reasonable(out):
                         # found it!
-                        print(f"[+] Deobfuscated string by function {func:r}: {out}")
+                        print(f"[+] Deobfuscated string by function {repr(func)}: {out}")
                         is_candidate = True
                         break
 
