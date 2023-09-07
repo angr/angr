@@ -49,7 +49,7 @@ wcscmp = make_func("wcscmp")
 
 
 class TestStringSimProcedures(unittest.TestCase):
-    def test_inline_strlen(self):
+    def test_strlen(self):
         s = SimState(arch="AMD64", mode="symbolic")
 
         log.info("fully concrete string")
@@ -105,7 +105,7 @@ class TestStringSimProcedures(unittest.TestCase):
             for j in range(i):
                 assert not test_s.solver.unique(test_s.memory.load(c_addr + j, 1))
 
-    def test_inline_strcmp(self):
+    def test_strcmp(self):
         s = SimState(arch="AMD64", mode="symbolic")
         str_a = s.solver.BVV(0x41414100, 32)
         str_b = s.solver.BVS("mystring", 32)
@@ -182,7 +182,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s_match.satisfiable()
         assert not s_match.satisfiable()
 
-    def test_inline_strncmp(self):
+    def test_strncmp(self):
         log.info("symbolic left, symbolic right, symbolic len")
         s = SimState(arch="AMD64", mode="symbolic")
         left = s.solver.BVS("left", 32)
@@ -228,7 +228,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.satisfiable()
 
     @broken
-    def test_inline_strstr(self):
+    def test_strstr(self):
         log.info("concrete haystack and needle")
         s = SimState(arch="AMD64", mode="symbolic")
         str_haystack = s.solver.BVV(0x41424300, 32)
@@ -887,7 +887,7 @@ class TestStringSimProcedures(unittest.TestCase):
         scanf(s, [0x2000, 0x1000])
         assert s.solver.eval_upto(s.memory.load(0x1000, 2), 2, cast_to=bytes) == [b"H\x00"]
 
-    def test_strcmp(self):
+    def test_strcmp_concrete(self):
         log.info("concrete a, concrete b")
         s = SimState(arch="AMD64", mode="symbolic")
         a_addr = s.solver.BVV(0x10, 64)
