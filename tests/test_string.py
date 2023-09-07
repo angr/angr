@@ -9,7 +9,7 @@ from angr import SimState, SIM_LIBRARIES
 
 from common import broken
 
-l = logging.getLogger("angr.tests.string")
+log = logging.getLogger("angr.tests.string")
 
 
 def make_state_with_stdin(content):
@@ -52,7 +52,7 @@ class TestStringSimProcedures(unittest.TestCase):
     def test_inline_strlen(self):
         s = SimState(arch="AMD64", mode="symbolic")
 
-        l.info("fully concrete string")
+        log.info("fully concrete string")
         a_str = s.solver.BVV(0x41414100, 32)
         a_addr = s.solver.BVV(0x10, 64)
         s.memory.store(a_addr, a_str, endness="Iend_BE")
@@ -60,7 +60,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.unique(a_len)
         assert s.solver.eval(a_len) == 3
 
-        l.info("concrete-terminated string")
+        log.info("concrete-terminated string")
         b_str = s.solver.Concat(s.solver.BVS("mystring", 24), s.solver.BVV(0, 8))
         b_addr = s.solver.BVV(0x20, 64)
         s.memory.store(b_addr, b_str, endness="Iend_BE")
@@ -68,7 +68,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.max_int(b_len) == 3
         assert tuple(sorted(s.solver.eval_upto(b_len, 10))) == (0, 1, 2, 3)
 
-        l.info("fully unconstrained")
+        log.info("fully unconstrained")
         u_addr = s.solver.BVV(0x50, 64)
         u_len_sp = strlen(s, arguments=[u_addr])
         u_len = u_len_sp
@@ -82,7 +82,7 @@ class TestStringSimProcedures(unittest.TestCase):
         #
         # This tests if a strlen can influence a symbolic str.
         #
-        l.info("Trying to influence length.")
+        log.info("Trying to influence length.")
         s = SimState(arch="AMD64", mode="symbolic")
         str_c = s.solver.BVS("some_string", 8 * 16)
         c_addr = s.solver.BVV(0x10, 64)
@@ -139,7 +139,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert len(s_match.solver.eval_upto(s_match.memory.load(b_addr, 3), 300)) == 256
         assert not s_nomatch.solver.unique(str_b)
 
-        l.info("concrete a, symbolic b")
+        log.info("concrete a, symbolic b")
         s = SimState(arch="AMD64", mode="symbolic")
         str_a = s.solver.BVV(0x41424300, 32)
         str_b = s.solver.BVS("mystring", 32)
@@ -162,7 +162,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s_nomatch.solver.solution(str_b, 0x41421234)
         assert not s_nomatch.solver.solution(str_b, 0x41424300)
 
-        l.info("symbolic a, symbolic b")
+        log.info("symbolic a, symbolic b")
         s = SimState(arch="AMD64", mode="symbolic")
         a_addr = s.solver.BVV(0x10, 64)
         b_addr = s.solver.BVV(0xB0, 64)
@@ -183,7 +183,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s_match.satisfiable()
 
     def test_inline_strncmp(self):
-        l.info("symbolic left, symbolic right, symbolic len")
+        log.info("symbolic left, symbolic right, symbolic len")
         s = SimState(arch="AMD64", mode="symbolic")
         left = s.solver.BVS("left", 32)
         left_addr = s.solver.BVV(0x1000, 64)
@@ -210,7 +210,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s_nomatch.satisfiable()
         # assert s_nomatch.solver.max_int(maxlen) == 2
 
-        l.info("zero-length")
+        log.info("zero-length")
         s = SimState(arch="AMD64", mode="symbolic")
         left = s.solver.BVS("left", 32)
         left_addr = s.solver.BVV(0x1000, 64)
@@ -229,7 +229,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     @broken
     def test_inline_strstr(self):
-        l.info("concrete haystack and needle")
+        log.info("concrete haystack and needle")
         s = SimState(arch="AMD64", mode="symbolic")
         str_haystack = s.solver.BVV(0x41424300, 32)
         str_needle = s.solver.BVV(0x42430000, 32)
@@ -242,7 +242,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.unique(ss_res)
         assert s.solver.eval(ss_res) == 0x11
 
-        l.info("concrete haystack, symbolic needle")
+        log.info("concrete haystack, symbolic needle")
         s = SimState(arch="AMD64", mode="symbolic")
         str_haystack = s.solver.BVV(0x41424300, 32)
         str_needle = s.solver.BVS("wtf", 32)
@@ -264,7 +264,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert len(s_match.solver.eval_upto(match_needle, 300)) == 259
         assert len(s_match.solver.eval_upto(str_needle, 10)) == 10
 
-        l.info("symbolic haystack, symbolic needle")
+        log.info("symbolic haystack, symbolic needle")
         s = SimState(arch="AMD64", mode="symbolic")
         s.libc.buf_symbolic_bytes = 5
         addr_haystack = s.solver.BVV(0x10, 64)
@@ -294,7 +294,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s_nss.satisfiable()
 
     def test_strstr_inconsistency(self):
-        l.info("symbolic haystack, symbolic needle")
+        log.info("symbolic haystack, symbolic needle")
         s = SimState(arch="AMD64", mode="symbolic")
         s.libc.buf_symbolic_bytes = 2
         addr_haystack = s.solver.BVV(0x10, 64)
@@ -317,8 +317,8 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s.satisfiable()
 
     def test_memcpy(self):
-        l.info("concrete src, concrete dst, concrete len")
-        l.debug("... full copy")
+        log.info("concrete src, concrete dst, concrete len")
+        log.debug("... full copy")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414141, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -331,7 +331,7 @@ class TestStringSimProcedures(unittest.TestCase):
         new_dst = s.memory.load(dst_addr, 4, endness="Iend_BE")
         assert s.solver.eval_upto(new_dst, 2, cast_to=bytes) == [b"BBBB"]
 
-        l.info("giant copy")
+        log.info("giant copy")
         s = SimState(arch="AMD64", mode="symbolic", remove_options=angr.options.simplification)
         s.memory._maximum_symbolic_size = 0x2000000
         size = s.solver.BVV(0x1000000, 64)
@@ -343,7 +343,7 @@ class TestStringSimProcedures(unittest.TestCase):
         memcpy(s, arguments=[dst_addr, src_addr, size])
         assert s.memory.load(dst_addr, size) is s.memory.load(src_addr, size)
 
-        l.debug("... partial copy")
+        log.debug("... partial copy")
         s = SimState(arch="AMD64", mode="symbolic")
         s.memory.store(dst_addr, dst)
         s.memory.store(src_addr, src)
@@ -351,7 +351,7 @@ class TestStringSimProcedures(unittest.TestCase):
         new_dst = s.memory.load(dst_addr, 4, endness="Iend_BE")
         assert s.solver.eval_upto(new_dst, 2, cast_to=bytes) == [b"BBAA"]
 
-        l.info("symbolic src, concrete dst, concrete len")
+        log.info("symbolic src, concrete dst, concrete len")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414141, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -367,7 +367,7 @@ class TestStringSimProcedures(unittest.TestCase):
         s.add_constraints(src != s.memory.load(dst_addr, 4))
         assert not s.satisfiable()
 
-        l.info("symbolic src, concrete dst, symbolic len")
+        log.info("symbolic src, concrete dst, symbolic len")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414141, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -393,7 +393,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert len(s2.solver.eval_upto(result[23:16], 300)) == 256
         assert s2.solver.eval_upto(result[15:0], 300, cast_to=bytes) == [b"AA"]
 
-        l.info("concrete src, concrete dst, symbolic len")
+        log.info("concrete src, concrete dst, symbolic len")
         dst = s2.solver.BVV(0x41414141, 32)
         dst_addr = s2.solver.BVV(0x1000, 64)
         src = s2.solver.BVV(0x42424242, 32)
@@ -410,9 +410,9 @@ class TestStringSimProcedures(unittest.TestCase):
         assert sorted(s.solver.eval_upto(new_dst, 300, cast_to=bytes)) == [b"AAAA", b"BAAA", b"BBAA", b"BBBA", b"BBBB"]
 
     def test_memcmp(self):
-        l.info("concrete src, concrete dst, concrete len")
+        log.info("concrete src, concrete dst, concrete len")
 
-        l.debug("... full cmp")
+        log.debug("... full cmp")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414141, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -431,14 +431,14 @@ class TestStringSimProcedures(unittest.TestCase):
         s_neg.add_constraints(r.SLT(0))
         assert s_neg.satisfiable()
 
-        l.debug("... zero cmp")
+        log.debug("... zero cmp")
         s = SimState(arch="AMD64", mode="symbolic")
         s.memory.store(dst_addr, dst)
         s.memory.store(src_addr, src)
         r = memcmp(s, arguments=[dst_addr, src_addr, s.solver.BVV(0, 64)])
         assert s.solver.eval_upto(r, 2) == [0]
 
-        l.info("symbolic src, concrete dst, concrete len")
+        log.info("symbolic src, concrete dst, concrete len")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414141, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -462,7 +462,7 @@ class TestStringSimProcedures(unittest.TestCase):
         m = s_nomatch.memory.load(src_addr, 4)
         assert not s_nomatch.solver.solution(m, 0x41414141)
 
-        l.info("symbolic src, concrete dst, symbolic len")
+        log.info("symbolic src, concrete dst, symbolic len")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414141, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -478,12 +478,12 @@ class TestStringSimProcedures(unittest.TestCase):
         s1 = s.copy()
         s1.add_constraints(cmplen == 1)
         s1.add_constraints(r == 0)
-        l.debug("... simplifying")
+        log.debug("... simplifying")
         s1.solver._solver.simplify()
-        l.debug("... solving")
+        log.debug("... solving")
         assert s1.solver.eval_upto(src[31:24], 2) == [0x41]
         assert not s1.solver.unique(src[31:16])
-        l.debug("... solved")
+        log.debug("... solved")
 
         s2 = s.copy()
         s2.add_constraints(cmplen == 2)
@@ -497,8 +497,8 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s2u.solver.solution(s2u.memory.load(src_addr, 2), 0x4141)
 
     def test_strncpy(self):
-        l.info("concrete src, concrete dst, concrete len")
-        l.debug("... full copy")
+        log.info("concrete src, concrete dst, concrete len")
+        log.debug("... full copy")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414100, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -511,7 +511,7 @@ class TestStringSimProcedures(unittest.TestCase):
         new_dst = s.memory.load(dst_addr, 4, endness="Iend_BE")
         assert s.solver.eval(new_dst, cast_to=bytes) == b"BB\x00\x00"
 
-        l.debug("... partial copy")
+        log.debug("... partial copy")
         s = SimState(arch="AMD64", mode="symbolic")
         s.memory.store(dst_addr, dst)
         s.memory.store(src_addr, src)
@@ -519,7 +519,7 @@ class TestStringSimProcedures(unittest.TestCase):
         new_dst = s.memory.load(dst_addr, 4, endness="Iend_BE")
         assert s.solver.eval_upto(new_dst, 2, cast_to=bytes) == [b"BBA\x00"]
 
-        l.info("symbolic src, concrete dst, concrete len")
+        log.info("symbolic src, concrete dst, concrete len")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414100, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -543,7 +543,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
         assert s.solver.eval_upto(c, 10) == [0]
 
-        l.info("symbolic src, concrete dst, symbolic len")
+        log.info("symbolic src, concrete dst, symbolic len")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414100, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -567,8 +567,8 @@ class TestStringSimProcedures(unittest.TestCase):
         s_nomatch.add_constraints(c != 0)
         assert s_nomatch.solver.max_int(maxlen) == 2
 
-        l.info("concrete src, concrete dst, symbolic len")
-        l.debug("... full copy")
+        log.info("concrete src, concrete dst, symbolic len")
+        log.debug("... full copy")
         s = SimState(arch="AMD64", mode="symbolic")
 
         dst = s.solver.BVV(0x41414100, 32)
@@ -585,9 +585,9 @@ class TestStringSimProcedures(unittest.TestCase):
         assert sorted(s.solver.eval_upto(r, 10, cast_to=bytes)) == [b"AAA\x00", b"BAA\x00", b"BB\x00\x00", b"BBA\x00"]
 
     def test_strcpy(self):
-        l.info("concrete src, concrete dst")
+        log.info("concrete src, concrete dst")
 
-        l.debug("... full copy")
+        log.debug("... full copy")
         s = SimState(arch="AMD64", mode="symbolic")
         dst = s.solver.BVV(0x41414100, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
@@ -599,7 +599,7 @@ class TestStringSimProcedures(unittest.TestCase):
         new_dst = s.memory.load(dst_addr, 4, endness="Iend_BE")
         assert s.solver.eval(new_dst, cast_to=bytes) == b"BB\x00\x00"
 
-        l.info("symbolic src, concrete dst")
+        log.info("symbolic src, concrete dst")
         dst = s.solver.BVV(0x41414100, 32)
         dst_addr = s.solver.BVV(0x1000, 64)
         src = s.solver.BVS("src", 32)
@@ -634,7 +634,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     @broken
     def test_sprintf(self):
-        l.info("concrete src, concrete dst, concrete len")
+        log.info("concrete src, concrete dst, concrete len")
         s = SimState(mode="symbolic", arch="PPC32")
         format_str = s.solver.BVV(0x25640000, 32)
         format_addr = s.solver.BVV(0x2000, 32)
@@ -659,7 +659,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s2.solver.eval_upto(s2.memory.load(dst_addr, 2), 2, cast_to=bytes) == [b"%d\x00" % 0]
 
     def test_memset(self):
-        l.info("concrete src, concrete dst, concrete len")
+        log.info("concrete src, concrete dst, concrete len")
         s = SimState(arch="PPC32", mode="symbolic")
         dst = s.solver.BVV(0, 128)
         dst_addr = s.solver.BVV(0x1000, 32)
@@ -671,30 +671,30 @@ class TestStringSimProcedures(unittest.TestCase):
         memset(s, arguments=[dst_addr, char, s.solver.BVV(3, 32)])
         assert s.solver.eval(s.memory.load(dst_addr, 4)) == 0x41414100
 
-        l.debug("Symbolic length")
+        log.debug("Symbolic length")
         s = SimState(arch="PPC32", mode="symbolic")
         s.memory.store(dst_addr, dst)
         length = s.solver.BVS("some_length", 32)
         s.add_constraints(length < 10)
         memset(s, arguments=[dst_addr, char2, length])
 
-        l.debug("Trying 2")
+        log.debug("Trying 2")
         s_two = s.copy()
         s_two.add_constraints(length == 2)
         assert s_two.solver.eval(s_two.memory.load(dst_addr, 4)) == 0x50500000
 
-        l.debug("Trying 0")
+        log.debug("Trying 0")
         s_zero = s.copy()
         s_zero.add_constraints(length == 0)
         assert s_zero.solver.eval(s_zero.memory.load(dst_addr, 4)) == 0x00000000
 
-        l.debug("Trying 5")
+        log.debug("Trying 5")
         s_five = s.copy()
         s_five.add_constraints(length == 5)
         assert s_five.solver.eval(s_five.memory.load(dst_addr, 6)) == 0x505050505000
 
     def test_strchr(self):
-        l.info("concrete haystack and needle")
+        log.info("concrete haystack and needle")
         s = SimState(arch="AMD64", mode="symbolic")
         str_haystack = s.solver.BVV(0x41424300, 32)
         str_needle = s.solver.BVV(0x42, 64)
@@ -705,7 +705,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.unique(ss_res)
         assert s.solver.eval(ss_res) == 0x11
 
-        l.info("concrete haystack, symbolic needle")
+        log.info("concrete haystack, symbolic needle")
         s = SimState(arch="AMD64", mode="symbolic")
         str_haystack = s.solver.BVV(0x41424300, 32)
         str_needle = s.solver.BVS("wtf", 64)
@@ -769,7 +769,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     @broken
     def test_strtok_r(self):
-        l.debug("CONCRETE MODE")
+        log.debug("CONCRETE MODE")
         s = SimState(arch="AMD64", mode="symbolic")
         s.memory.store(100, s.solver.BVV(0x4141414241414241424300, 88), endness="Iend_BE")
         s.memory.store(200, s.solver.BVV(0x4200, 16), endness="Iend_BE")
@@ -888,7 +888,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(s.memory.load(0x1000, 2), 2, cast_to=bytes) == [b"H\x00"]
 
     def test_strcmp(self):
-        l.info("concrete a, concrete b")
+        log.info("concrete a, concrete b")
         s = SimState(arch="AMD64", mode="symbolic")
         a_addr = s.solver.BVV(0x10, 64)
         b_addr = s.solver.BVV(0xB0, 64)
@@ -899,7 +899,7 @@ class TestStringSimProcedures(unittest.TestCase):
         r = strcmp(s, arguments=[a_addr, b_addr])
         assert s.solver.eval_upto(r, 2) == [0]
 
-        l.info("concrete a, empty b")
+        log.info("concrete a, empty b")
         s = SimState(arch="AMD64", mode="symbolic")
         a_addr = s.solver.BVV(0x10, 64)
         b_addr = s.solver.BVV(0xB0, 64)
@@ -910,7 +910,7 @@ class TestStringSimProcedures(unittest.TestCase):
         r = strcmp(s, arguments=[a_addr, b_addr])
         assert s.solver.eval_upto(r, 2) == [1]
 
-        l.info("empty a, concrete b")
+        log.info("empty a, concrete b")
         s = SimState(arch="AMD64", mode="symbolic")
         a_addr = s.solver.BVV(0x10, 64)
         b_addr = s.solver.BVV(0xB0, 64)
@@ -921,7 +921,7 @@ class TestStringSimProcedures(unittest.TestCase):
         r = strcmp(s, arguments=[a_addr, b_addr])
         assert s.solver.eval_upto(r, 2) == [0xFFFFFFFF]
 
-        l.info("empty a, empty b")
+        log.info("empty a, empty b")
         s = SimState(arch="AMD64", mode="symbolic")
         a_addr = s.solver.BVV(0x10, 64)
         b_addr = s.solver.BVV(0xB0, 64)
@@ -934,7 +934,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_wcscmp(self):
         # concrete cases for the wide char version sufficiently overlap with strcmp and friends
-        l.info("concrete a, symbolic b")
+        log.info("concrete a, symbolic b")
         s = SimState(arch="AMD64", mode="symbolic")
         heck = "heck\x00".encode("utf-16")[2:]  # remove encoding prefix
         a_addr = s.solver.BVV(0x10, 64)
