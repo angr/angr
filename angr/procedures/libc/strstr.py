@@ -32,9 +32,12 @@ class strstr(angr.SimProcedure):
         if self.state.solver.symbolic(needle_strlen.ret_expr):
             cases = [[needle_strlen.ret_expr == 0, haystack_addr]]
             exclusions = [needle_strlen.ret_expr != 0]
+            not_terminated_yet_constraints = []
             remaining_symbolic = self.state.libc.max_symbolic_strstr
+
             for i in range(haystack_maxlen):
                 l.debug("... case %d (%d symbolic checks remaining)", i, remaining_symbolic)
+                not_terminated_yet_constraints.append(self.state.memory.load(haystack_addr + i, 1) != 0)
 
                 # big hack!
                 cmp_res = self.inline_call(
@@ -45,18 +48,20 @@ class strstr(angr.SimProcedure):
                     a_len=haystack_strlen,
                     b_len=needle_strlen,
                 )
+
                 c = self.state.solver.And(
                     *(
                         [self.state.solver.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0]
+                        + not_terminated_yet_constraints
                         + exclusions
                     )
                 )
+
                 exclusions.append(cmp_res.ret_expr != 0)
 
                 if self.state.solver.symbolic(c):
                     remaining_symbolic -= 1
 
-                # print "CASE:", c
                 cases.append([c, haystack_addr + i])
                 haystack_strlen.ret_expr = haystack_strlen.ret_expr - 1
 
