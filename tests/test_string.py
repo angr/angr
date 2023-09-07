@@ -228,6 +228,20 @@ class TestStringSimProcedures(unittest.TestCase):
         s.add_constraints(maxlen == 0)
         assert s.satisfiable()
 
+    def test_strncmp_longer_limit(self):
+        log.info("concrete a, concrete b, concrete n")
+        s = SimState(arch="AMD64", mode="symbolic")
+        str_a = s.solver.BVV(b"ABC\0")
+        str_b = s.solver.BVV(b"AB\0")
+        addr_a = s.solver.BVV(0x10, 64)
+        addr_b = s.solver.BVV(0xB0, 64)
+        s.memory.store(addr_a, str_a, endness="Iend_BE")
+        s.memory.store(addr_b, str_b, endness="Iend_BE")
+
+        ss_res = strncmp(s, arguments=[addr_a, addr_b, s.solver.BVV(3, 64)])
+        assert s.solver.unique(ss_res)
+        assert s.solver.eval(ss_res) != 0
+
     def test_strncmp_find_limits(self):
         log.info("concrete a, concrete b, symbolic n")
         s = SimState(arch="AMD64", mode="symbolic")
