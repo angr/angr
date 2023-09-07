@@ -3,6 +3,7 @@
 import logging
 import random
 import unittest
+from itertools import combinations
 
 import angr
 from angr import SimState, SIM_LIBRARIES
@@ -311,29 +312,38 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.unique(ss_res)
         assert s.solver.eval(ss_res) == 0x11
 
-    @broken
     def test_strstr_conc_haystack_sym_needle(self):
         log.info("concrete haystack, symbolic needle")
         s = SimState(arch="AMD64", mode="symbolic")
-        str_haystack = s.solver.BVV(0x41424300, 32)
-        str_needle = s.solver.BVS("wtf", 32)
+        s.libc.max_symbolic_strstr = 20
+        haystack = b"ABCD"
+        str_haystack = s.solver.BVV(haystack + b"\0")
+        str_needle = s.solver.BVS("needle", 32)
         addr_haystack = s.solver.BVV(0x10, 64)
         addr_needle = s.solver.BVV(0xB0, 64)
         s.memory.store(addr_haystack, str_haystack, endness="Iend_BE")
         s.memory.store(addr_needle, str_needle, endness="Iend_BE")
+        s.memory.store(addr_needle + 4, s.solver.BVV(0, 8))
 
         ss_res = strstr(s, arguments=[addr_haystack, addr_needle])
-        assert not s.solver.unique(ss_res)
-        assert len(s.solver.eval_upto(ss_res, 10)) == 4
+        results = set(s.solver.eval_upto(ss_res, len(haystack) * 2))
+        expected = {(addr_haystack.cv + i) for i in range(len(haystack))} | {0}
+        assert results == expected
 
         s_match = s.copy()
         s_nomatch = s.copy()
         s_match.add_constraints(ss_res != 0)
         s_nomatch.add_constraints(ss_res == 0)
 
-        match_needle = str_needle[31:16]
-        assert len(s_match.solver.eval_upto(match_needle, 300)) == 259
-        assert len(s_match.solver.eval_upto(str_needle, 10)) == 10
+        # Check all substrings
+        substrings = [haystack[l:h] for l, h in combinations(range(len(haystack) + 1), 2)]
+        needle_len = len(str_needle) // 8
+        for substring in substrings:
+            solution = s.solver.BVV(substring.ljust(needle_len, b"\0"))
+            assert s_match.solver.solution(str_needle, solution)
+        assert not s_match.solver.solution(str_needle, s.solver.BVV(b"AC\0\0"))
+        assert not s_match.solver.solution(str_needle, s.solver.BVV(b"AD\0\0"))
+        assert s_nomatch.solver.satisfiable()
 
     def test_strstr_sym_haystack_conc_needle(self):
         log.info("symbolic haystack, concrete needle")
@@ -359,24 +369,41 @@ class TestStringSimProcedures(unittest.TestCase):
         assert results == expected
         assert s_nomatch.solver.satisfiable()
 
-    @broken
     def test_strstr_sym_haystack_sym_needle(self):
         log.info("symbolic haystack, symbolic needle")
         s = SimState(arch="AMD64", mode="symbolic")
-        s.libc.buf_symbolic_bytes = 5
+        s.libc.max_symbolic_strstr = 20
+        s.libc.buf_symbolic_bytes = 10
+        str_haystack = s.solver.BVS("haystack", s.libc.buf_symbolic_bytes * 8)
+        str_needle = s.solver.BVS("needle", s.libc.buf_symbolic_bytes * 8)
         addr_haystack = s.solver.BVV(0x10, 64)
         addr_needle = s.solver.BVV(0xB0, 64)
-        len_needle = strlen(s, arguments=[addr_needle])
+        s.memory.store(addr_haystack, str_haystack, endness="Iend_BE")
+        s.memory.store(addr_needle, str_needle, endness="Iend_BE")
 
         ss_res = strstr(s, arguments=[addr_haystack, addr_needle])
-        assert not s.solver.unique(ss_res)
-        assert len(s.solver.eval_upto(ss_res, 100)) == s.libc.buf_symbolic_bytes
 
         s_match = s.copy()
         s_nomatch = s.copy()
         s_match.add_constraints(ss_res != 0)
         s_nomatch.add_constraints(ss_res == 0)
 
+        s_i = s_match.copy()
+        s_i.add_constraints(str_needle == s.solver.BVV(b"123".ljust(s.libc.buf_symbolic_bytes, b"\0")))
+
+        # Check needle is not found after end of haystack
+        s_ez = s_i.copy()
+        s_ez.add_constraints(str_haystack[len(str_haystack) - 1 : len(str_haystack) - 8] == 0)
+        assert not s_ez.satisfiable()
+
+        # Check target of specific offset
+        for i in range(5):
+            s_n = s_i.copy()
+            s_n.add_constraints(ss_res == addr_haystack + i)
+            h = s_n.solver.eval(str_haystack, cast_to=bytes)
+            assert h.find(b"123") == i
+
+        len_needle = strlen(s_match, arguments=[addr_needle])
         match_cmp = strncmp(s_match, arguments=[ss_res, addr_needle, len_needle])
         assert s_match.solver.eval_upto(match_cmp, 10) == [0]
 
