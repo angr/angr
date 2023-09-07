@@ -228,7 +228,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.satisfiable()
 
     @broken
-    def test_strstr(self):
+    def test_strstr_conc_haystack_conc_needle(self):
         log.info("concrete haystack and needle")
         s = SimState(arch="AMD64", mode="symbolic")
         str_haystack = s.solver.BVV(0x41424300, 32)
@@ -242,6 +242,8 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.unique(ss_res)
         assert s.solver.eval(ss_res) == 0x11
 
+    @broken
+    def test_strstr_conc_haystack_sym_needle(self):
         log.info("concrete haystack, symbolic needle")
         s = SimState(arch="AMD64", mode="symbolic")
         str_haystack = s.solver.BVV(0x41424300, 32)
@@ -264,6 +266,8 @@ class TestStringSimProcedures(unittest.TestCase):
         assert len(s_match.solver.eval_upto(match_needle, 300)) == 259
         assert len(s_match.solver.eval_upto(str_needle, 10)) == 10
 
+    @broken
+    def test_strstr_sym_haystack_sym_needle(self):
         log.info("symbolic haystack, symbolic needle")
         s = SimState(arch="AMD64", mode="symbolic")
         s.libc.buf_symbolic_bytes = 5
