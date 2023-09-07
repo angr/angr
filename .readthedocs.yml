@@ -2,7 +2,7 @@
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
 version: 2
-formats: all
+formats: [pdf]
 build:
   os: ubuntu-22.04
   tools:
