@@ -227,7 +227,6 @@ class TestStringSimProcedures(unittest.TestCase):
         s.add_constraints(maxlen == 0)
         assert s.satisfiable()
 
-    @broken
     def test_strstr_conc_haystack_conc_needle(self):
         log.info("concrete haystack and needle")
         s = SimState(arch="AMD64", mode="symbolic")
