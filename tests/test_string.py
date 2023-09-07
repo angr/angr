@@ -227,6 +227,76 @@ class TestStringSimProcedures(unittest.TestCase):
         s.add_constraints(maxlen == 0)
         assert s.satisfiable()
 
+    def test_strncmp_find_limits(self):
+        log.info("concrete a, concrete b, symbolic n")
+        s = SimState(arch="AMD64", mode="symbolic")
+        str_a = s.solver.BVV(b"ABCD\0")
+        str_b = s.solver.BVV(b"ABCE\0")
+        addr_a = s.solver.BVV(0x10, 64)
+        addr_b = s.solver.BVV(0xB0, 64)
+        s.memory.store(addr_a, str_a, endness="Iend_BE")
+        s.memory.store(addr_b, str_b, endness="Iend_BE")
+
+        n = s.solver.BVS("n", 64)
+        ss_res = strncmp(s, arguments=[addr_a, addr_b, n])
+        s.add_constraints(ss_res == 0)
+        assert set(s.solver.eval_upto(n, 10)) == {0, 1, 2, 3}
+
+    def test_strncmp_find_prefix(self):
+        log.info("concrete a, symbolic b, symbolic n")
+        s = SimState(arch="AMD64", mode="symbolic")
+        str_a = s.solver.BVV(b"ABCD\0")
+        str_b = s.solver.BVS("str_b", len(str_a))
+        addr_a = s.solver.BVV(0x10, 64)
+        addr_b = s.solver.BVV(0xB0, 64)
+        s.memory.store(addr_a, str_a, endness="Iend_BE")
+        s.memory.store(addr_b, str_b, endness="Iend_BE")
+
+        # All prefixes should be valid
+        n = strlen(s, arguments=[addr_b])
+        ss_res = strncmp(s, arguments=[addr_a, addr_b, n])
+        s.add_constraints(ss_res == 0)
+        assert set(s.solver.eval_upto(n, 10)) == {0, 1, 2, 3, 4}
+
+    def test_strncmp_find_prefix_unsat(self):
+        log.info("concrete a, concrete b, symbolic n")
+        s = SimState(arch="AMD64", mode="symbolic")
+        str_a = s.solver.BVV(b"\0\0\0\0\0")
+        str_b = s.solver.BVV(b"ABCE\0")
+        addr_a = s.solver.BVV(0x10, 64)
+        addr_b = s.solver.BVV(0xB0, 64)
+        s.memory.store(addr_a, str_a, endness="Iend_BE")
+        s.memory.store(addr_b, str_b, endness="Iend_BE")
+
+        # No prefix should be valid
+        n = strlen(s, arguments=[addr_b])
+        ss_res = strncmp(s, arguments=[addr_a, addr_b, n])
+        s.add_constraints(ss_res == 0)
+        assert not s.satisfiable()
+
+    def test_strncmp_find_input_for_limit(self):
+        log.info("concrete a, symbolic b, symbolic n")
+        s = SimState(arch="AMD64", mode="symbolic")
+        str_a = s.solver.BVV(b"ABCD\0")
+        str_b = s.solver.BVS("str_b", len(str_a))
+        addr_a = s.solver.BVV(0x10, 64)
+        addr_b = s.solver.BVV(0xB0, 64)
+        s.memory.store(addr_a, str_a, endness="Iend_BE")
+        s.memory.store(addr_b, str_b, endness="Iend_BE")
+
+        n = s.solver.BVS("n", 64)
+        ss_res = strncmp(s, arguments=[addr_a, addr_b, n])
+        s.add_constraints(ss_res == 0)
+
+        # Check constrained limit produces only expected input
+        for i in range(1, len(str_b) // 8):
+            s2 = s.copy()
+            s2.add_constraints(n == i)
+            hi, lo = 5 * 8 - 1, (5 - i) * 8
+            substr_a, substr_b = str_a[hi:lo], str_b[hi:lo]
+            assert s2.solver.unique(substr_b)
+            assert s2.solver.solution(substr_b, substr_a)
+
     def test_strstr_conc_haystack_conc_needle(self):
         log.info("concrete haystack and needle")
         s = SimState(arch="AMD64", mode="symbolic")
