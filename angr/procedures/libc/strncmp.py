@@ -41,7 +41,7 @@ class strncmp(angr.SimProcedure):
                 l.debug("lengths < limit and unmatched")
 
             concrete_run = True
-            maxlen = min(c_a_len, c_b_len, c_limit)
+            maxlen = min(c_a_len + 1, c_b_len + 1, c_limit)
         else:
             if self.state.solver.single_valued(limit):
                 c_limit = self.state.solver.eval(limit)
