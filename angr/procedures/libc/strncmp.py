@@ -141,11 +141,11 @@ class strncmp(angr.SimProcedure):
                             ),
                         ),
                         self.state.solver.ULT(a_len, i),
-                        self.state.solver.ULT(limit, i),
+                        self.state.solver.ULE(limit, i),
                     )
                 else:
                     byte_constraint = self.state.solver.Or(
-                        a_byte == b_byte, self.state.solver.ULT(a_len, i), self.state.solver.ULT(limit, i)
+                        a_byte == b_byte, self.state.solver.ULT(a_len, i), self.state.solver.ULE(limit, i)
                     )
                 match_constraints.append(byte_constraint)
 
