@@ -265,6 +265,30 @@ class TestStringSimProcedures(unittest.TestCase):
         assert len(s_match.solver.eval_upto(match_needle, 300)) == 259
         assert len(s_match.solver.eval_upto(str_needle, 10)) == 10
 
+    def test_strstr_sym_haystack_conc_needle(self):
+        log.info("symbolic haystack, concrete needle")
+        s = SimState(arch="AMD64", mode="symbolic")
+        s.libc.max_symbolic_strstr = 20
+        str_haystack = s.solver.BVS("haystack", 5 * 8).concat(s.solver.BVV(0, 8))
+        str_needle = s.solver.BVV(b"ABC\0")
+        addr_haystack = s.solver.BVV(0x10, 64)
+        addr_needle = s.solver.BVV(0xB0, 64)
+        s.memory.store(addr_haystack, str_haystack, endness="Iend_BE")
+        s.memory.store(addr_needle, str_needle, endness="Iend_BE")
+
+        ss_res = strstr(s, arguments=[addr_haystack, addr_needle])
+
+        s_match = s.copy()
+        s_match.add_constraints(ss_res != 0)
+        s_nomatch = s.copy()
+        s_nomatch.add_constraints(ss_res == 0)
+
+        num_possible = min(s.libc.max_symbolic_strstr, 1 + (len(str_haystack) - len(str_needle)) // 8)
+        expected = set(range(addr_haystack.cv, addr_haystack.cv + num_possible))
+        results = set(s_match.solver.eval_exact(ss_res, num_possible))
+        assert results == expected
+        assert s_nomatch.solver.satisfiable()
+
     @broken
     def test_strstr_sym_haystack_sym_needle(self):
         log.info("symbolic haystack, symbolic needle")
