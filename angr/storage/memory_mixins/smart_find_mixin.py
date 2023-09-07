@@ -71,9 +71,6 @@ class SmartFindMixin(MemoryMixin):
                 )
             raise
 
-        if len(cases) == 1:
-            return cases[0][1], constraints, match_indices
-
         return self._find_process_cases(cases, match_indices, constraints, default, **kwargs)
 
     def _calc_char_num(self, needle, char_size):
