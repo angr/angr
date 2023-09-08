@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use,arguments-differ,unused-argument
 
 import os

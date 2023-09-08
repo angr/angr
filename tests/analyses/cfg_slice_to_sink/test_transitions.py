@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import unittest
 
 from angr.analyses.cfg_slice_to_sink.transitions import merge_transitions
@@ -21,3 +22,7 @@ class TestTrasitions(unittest.TestCase):
         expected_result = {1: [2, 3, 4]}
 
         self.assertEqual(result, expected_result)
+
+
+if __name__ == "__main__":
+    unittest.main()

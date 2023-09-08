@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from typing import Set, Sequence, Optional, Mapping, Any, TYPE_CHECKING
 import logging
 import unittest

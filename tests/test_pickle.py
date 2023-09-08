@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from contextlib import suppress
 from claripy import BVS
 from angr.storage import SimFile

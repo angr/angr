@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # pylint:disable=isinstance-second-argument-not-valid-type,missing-class-docstring,no-self-use
 import unittest
 from unittest import TestCase

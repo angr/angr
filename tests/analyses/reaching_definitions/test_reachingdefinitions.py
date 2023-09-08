@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Disable some pylint warnings: no-self-use, missing-docstring
 # pylint: disable=R0201,C0111,bad-builtin
 

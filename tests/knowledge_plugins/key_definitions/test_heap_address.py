@@ -1,4 +1,5 @@
-from unittest import TestCase
+#!/usr/bin/env python3
+from unittest import main, TestCase
 
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
 
@@ -20,3 +21,7 @@ class TestHeapAddress(TestCase):
     def test_add_is_commutative(self):
         address = HeapAddress(0x0)
         self.assertEqual(address + 0x8, 0x8 + address)
+
+
+if __name__ == "__main__":
+    main()
