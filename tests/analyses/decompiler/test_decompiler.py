@@ -2722,5 +2722,6 @@ class TestDecompiler(unittest.TestCase):
         #     return;
         assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
 
+
 if __name__ == "__main__":
     unittest.main()
