@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
+__package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
+
 from unittest import TestCase, main
 import os.path
 
 import angr
 
+from ..common import bin_location
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "binaries", "tests")
+
+test_location = os.path.join(bin_location, "tests")
 
 
 # pylint: disable=no-self-use

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use
+__package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:disable=redefined-builtin
+
 from typing import TYPE_CHECKING
 import os
 from unittest import main, TestCase
@@ -15,7 +17,10 @@ if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
     from angr.analyses.reaching_definitions import FunctionCallData
 
-TESTS_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
+from ...common import bin_location
+
+
+TESTS_LOCATION = os.path.join(bin_location, "tests")
 
 
 def load_cstring_from_loader_memory(project, addr: int, as_str: bool = False):
