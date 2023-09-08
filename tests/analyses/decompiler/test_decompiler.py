@@ -2661,6 +2661,23 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
 
         text = text.replace(" ", "").replace("\n", "")
+        # Incorrect:
+        #     v1 = number_of_occurs;
+        #     if (!number_of_occurs)
+        #         return;
+        #     v2 = occurs_table;
+        #     v3 = &compare_occurs;
+        #     v4 = 48;
+        #     qsort();
+        # Expected:
+        #     v1 = number_of_occurs;
+        #     if (number_of_occurs) {
+        #         v2 = occurs_table;
+        #         v3 = &compare_occurs;
+        #         v4 = 48;
+        #         qsort();
+        #     }
+        #     return;
         assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
 
 
