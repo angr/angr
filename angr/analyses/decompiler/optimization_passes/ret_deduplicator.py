@@ -134,15 +134,18 @@ class ReturnDeduplicator(OptimizationPass):
                     true_child = child
                 elif child.addr == if_stmt.false_target.value:
                     false_child = child
+            # children must exist
             if (
                 true_child is None
                 or false_child is None
                 or true_child not in super_graph
                 or false_child not in super_graph
-                or not true_child.statements
-                or not false_child.statements
             ):
                 continue
+            # they must also have some statements to work with
+            if not true_child.statements or not false_child.statements:
+                continue
+
 
             # equivalent returns
             true_stmt = true_child.statements[-1]
