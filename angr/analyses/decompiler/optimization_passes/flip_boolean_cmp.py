@@ -15,9 +15,10 @@ class FlipBooleanWalker(SequenceWalker):
     Walks a SequenceNode and handles every sequence.
     """
 
-    def __init__(self, graph):
+    def __init__(self, graph, last_node=None):
         super().__init__()
         self._graph = graph
+        self._last_node = last_node
 
     def _handle_Sequence(self, seq_node, **kwargs):
         # Type 1:
@@ -47,9 +48,12 @@ class FlipBooleanWalker(SequenceWalker):
                 node.true_node, node.false_node = node.false_node, node.true_node
 
         for idx, cond_node, successor in type2_condition_nodes:
-            cond_node.condition = ailment.expression.negate(cond_node.condition)
-            seq_node.nodes[idx + 1] = cond_node.true_node
-            cond_node.true_node = successor
+            # flipping the condition on the last node of the program will cause
+            # the program to look strange, so avoid this case
+            if successor is not self._last_node:
+                cond_node.condition = ailment.expression.negate(cond_node.condition)
+                seq_node.nodes[idx + 1] = cond_node.true_node
+                cond_node.true_node = successor
 
         return super()._handle_Sequence(seq_node, **kwargs)
 
@@ -76,6 +80,6 @@ class FlipBooleanCmp(SequenceOptimizationPass):
         return bool(self.seq.nodes), None
 
     def _analyze(self, cache=None):
-        walker = FlipBooleanWalker(self._graph)
+        walker = FlipBooleanWalker(self._graph, last_node=self.seq.nodes[-1])
         walker.walk(self.seq)
         self.out_seq = self.seq
