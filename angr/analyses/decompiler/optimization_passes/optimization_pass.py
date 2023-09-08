@@ -114,6 +114,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
+        self._new_block_addrs = set()
 
         # output
         self.out_graph: Optional[networkx.DiGraph] = None
@@ -129,6 +130,19 @@ class OptimizationPass(BaseOptimizationPass):
     #
     # Util methods
     #
+
+    def new_block_addr(self) -> int:
+        """
+        Return a block address that does not conflict with any existing blocks.
+
+        :return:    The block address.
+        """
+        if self._new_block_addrs:
+            new_addr = max(self._new_block_addrs) + 1
+        else:
+            new_addr = max(self.blocks_by_addr) + 2048
+        self._new_block_addrs.add(new_addr)
+        return new_addr
 
     def _get_block(self, addr, idx=None) -> Optional[ailment.Block]:
         if not self._blocks_by_addr:

@@ -97,7 +97,7 @@ class ReturnDeduplicator(OptimizationPass):
         false_ret: Return = false_child.statements[-1]
         ret_stmt = true_ret if true_ret.ins_addr > false_ret.ins_addr else false_ret
         # XXX: this size is wrong, but unknown how to fix
-        ret_block = Block(ret_stmt.ins_addr, 0, [ret_stmt])
+        ret_block = Block(self.new_block_addr(), 1, [ret_stmt])
 
         # head -> [children]
         self._graph.add_edges_from([(new_head, new_children[0]), (new_head, new_children[1])])
