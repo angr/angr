@@ -21,6 +21,8 @@ class ReturnDeduplicator(OptimizationPass):
 
     into:
     - if (cond) { ... } return x;
+
+    TODO: its possible that this can be expanded to all rets that are equivalent. Testing needed.
     """
 
     ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM", "MIPS32", "MIPS64"]
@@ -156,7 +158,6 @@ class ReturnDeduplicator(OptimizationPass):
             ):
                 continue
 
-            # TODO: this may not be a needed check
             # both children must have only one predecessor
             if (
                 len(list(super_graph.predecessors(true_child))) != 1
