@@ -138,6 +138,8 @@ class ReturnDeduplicator(OptimizationPass):
                 or false_child is None
                 or true_child not in super_graph
                 or false_child not in super_graph
+                or not true_child.statements
+                or not false_child.statements
             ):
                 continue
 
