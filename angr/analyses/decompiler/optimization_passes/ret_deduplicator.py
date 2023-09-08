@@ -4,8 +4,7 @@ from typing import Tuple, List
 
 from ailment import Block
 from ailment.utils import is_none_or_likeable
-from ailment.statement import ConditionalJump, Assignment, Jump, Label, Return
-from ailment.expression import ITE
+from ailment.statement import ConditionalJump, Return
 
 from ....utils.graph import subgraph_between_nodes
 from ..utils import remove_labels, to_ail_supergraph
@@ -56,7 +55,7 @@ class ReturnDeduplicator(OptimizationPass):
               A
             /  \
            C    B
-           \   /
+           \\   /
              D
         """
 
@@ -146,20 +145,20 @@ class ReturnDeduplicator(OptimizationPass):
             true_stmt = true_child.statements[-1]
             false_stmt = false_child.statements[-1]
             if (
-                not isinstance(true_stmt, Return) or
-                not isinstance(false_stmt, Return) or
+                not isinstance(true_stmt, Return)
+                or not isinstance(false_stmt, Return)
+                or
                 # TODO: fix me, the .likes() should either work or we need to rethink this
                 # not true_stmt.likes(false_stmt)
                 not is_none_or_likeable(true_stmt.ret_exprs, false_stmt.ret_exprs, is_list=True)
             ):
                 continue
 
-
             # TODO: this may not be a needed check
             # both children must have only one predecessor
             if (
-                len(list(super_graph.predecessors(true_child))) != 1 or
-                len(list(super_graph.predecessors(false_child))) != 1
+                len(list(super_graph.predecessors(true_child))) != 1
+                or len(list(super_graph.predecessors(false_child))) != 1
             ):
                 continue
 
