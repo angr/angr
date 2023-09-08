@@ -718,7 +718,6 @@ class VEXIRSBConverter(Converter):
             statements.append(
                 Return(
                     manager.next_atom(),
-                    VEXExprConverter.convert(irsb.next, manager),
                     [],
                     ins_addr=manager.ins_addr,
                     vex_block_addr=manager.block_addr,

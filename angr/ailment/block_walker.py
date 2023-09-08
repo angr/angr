@@ -322,7 +322,7 @@ class AILBlockWalker(AILBlockWalkerBase):
                 i += 1
 
             if changed:
-                new_stmt = Return(stmt.idx, stmt.target, new_ret_exprs, **stmt.tags)
+                new_stmt = Return(stmt.idx, new_ret_exprs, **stmt.tags)
                 block.statements[stmt_idx] = new_stmt
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block]):

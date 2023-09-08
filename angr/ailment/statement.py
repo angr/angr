@@ -1,4 +1,4 @@
-# pylint:disable=isinstance-second-argument-not-valid-type
+# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed
 from typing import Optional, TYPE_CHECKING
 
 try:
@@ -92,6 +92,10 @@ class Assignment(Statement):
 
 
 class Store(Statement):
+    """
+    Store statement: *addr = data
+    """
+
     __slots__ = (
         "addr",
         "size",
@@ -211,6 +215,10 @@ class Store(Statement):
 
 
 class Jump(Statement):
+    """
+    Jump statement: goto target
+    """
+
     __slots__ = (
         "target",
         "target_idx",
@@ -260,6 +268,10 @@ class Jump(Statement):
 
 
 class ConditionalJump(Statement):
+    """
+    if (cond) {true_target} else {false_target}
+    """
+
     __slots__ = (
         "condition",
         "true_target",
@@ -443,7 +455,6 @@ class Call(Expression, Statement):
             r0, replaced_target = self.target.replace(old_expr, new_expr)
         else:
             r0 = False
-            replaced_target = self.target
 
         r = r0
 
@@ -507,39 +518,29 @@ class Call(Expression, Statement):
 
 
 class Return(Statement):
-    __slots__ = (
-        "target",
-        "ret_exprs",
-    )
+    """
+    Return statement: (return expr_a), (return)
+    """
 
-    def __init__(self, idx, target, ret_exprs, **kwargs):
+    __slots__ = ("ret_exprs",)
+
+    def __init__(self, idx, ret_exprs, **kwargs):
         super().__init__(idx, **kwargs)
-
-        self.target = target
         self.ret_exprs = ret_exprs if isinstance(ret_exprs, list) else list(ret_exprs)
 
     def __eq__(self, other):
-        return (
-            type(other) is Return
-            and self.idx == other.idx
-            and self.target == other.target
-            and self.ret_exprs == other.ret_exprs
-        )
+        return type(other) is Return and self.idx == other.idx and self.ret_exprs == other.ret_exprs
 
     def likes(self, other):
-        return (
-            type(other) is Return
-            and is_none_or_likeable(self.target, other.target)
-            and is_none_or_likeable(self.ret_exprs, other.ret_exprs, is_list=True)
-        )
+        return type(other) is Return and is_none_or_likeable(self.ret_exprs, other.ret_exprs, is_list=True)
 
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash((Return, self.idx, self.target, tuple(self.ret_exprs)))
+        return stable_hash((Return, self.idx, tuple(self.ret_exprs)))
 
     def __repr__(self):
-        return "Return to {!r} ({})".format(self.target, ",".join(repr(x) for x in self.ret_exprs))
+        return "Return to ({})".format(",".join(repr(x) for x in self.ret_exprs))
 
     def __str__(self):
         exprs = ",".join(str(ret_expr) for ret_expr in self.ret_exprs)
@@ -551,15 +552,6 @@ class Return(Statement):
     def replace(self, old_expr, new_expr):
         new_ret_exprs = []
         replaced = False
-
-        if self.target is not None:
-            r, new_target = self.target.replace(old_expr, new_expr)
-            if r:
-                replaced = True
-            else:
-                new_target = self.target
-        else:
-            new_target = None
 
         for expr in self.ret_exprs:
             if expr == old_expr:
@@ -576,7 +568,6 @@ class Return(Statement):
         if replaced:
             return True, Return(
                 self.idx,
-                new_target,
                 new_ret_exprs,
                 **self.tags,
             )
@@ -586,7 +577,6 @@ class Return(Statement):
     def copy(self):
         return Return(
             self.idx,
-            self.target,
             self.ret_exprs[::],
             **self.tags,
         )
