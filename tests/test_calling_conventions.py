@@ -1,4 +1,4 @@
-from unittest import TestCase
+from unittest import TestCase, main
 
 import archinfo
 from angr.calling_conventions import SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64, SimTypeFunction, SimRegArg
@@ -79,3 +79,7 @@ class TestCallingConvention(TestCase):
             [SimRegArg("rsi", 8)],
             [SimRegArg("rdx", 8)],
         ]
+
+
+if __name__ == "__main__":
+    main()

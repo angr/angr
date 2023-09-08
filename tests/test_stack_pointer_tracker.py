@@ -1,5 +1,8 @@
+# pylint: disable=missing-class-docstring,no-self-use,line-too-long
+
 import logging
 import os
+import unittest
 
 import angr
 
@@ -34,38 +37,33 @@ def init_tracker(track_mem):
     return sptracker, sp
 
 
-def test_stack_pointer_tracker():
-    sp_result, bp_result = run_tracker(track_mem=True, use_bp=True)
-    assert sp_result == 8
-    assert bp_result == 0
+class TestStackPointerTracker(unittest.TestCase):
+    def test_stack_pointer_tracker(self):
+        sp_result, bp_result = run_tracker(track_mem=True, use_bp=True)
+        assert sp_result == 8
+        assert bp_result == 0
 
+    def test_stack_pointer_tracker_no_mem(self):
+        sp_result, bp_result = run_tracker(track_mem=False, use_bp=True)
+        assert sp_result == 8
+        assert bp_result is None
 
-def test_stack_pointer_tracker_no_mem():
-    sp_result, bp_result = run_tracker(track_mem=False, use_bp=True)
-    assert sp_result == 8
-    assert bp_result is None
+    def test_stack_pointer_tracker_just_sp(self):
+        sp_result = run_tracker(track_mem=False, use_bp=False)
+        assert sp_result is None
 
-
-def test_stack_pointer_tracker_just_sp():
-    sp_result = run_tracker(track_mem=False, use_bp=False)
-    assert sp_result is None
-
-
-def test_stack_pointer_tracker_offset_block():
-    sptracker, sp = init_tracker(track_mem=False)
-    sp_result = sptracker.offset_after_block(0x40071D, sp)
-    assert sp_result is not None
-    sp_result = sptracker.offset_after_block(0x400700, sp)
-    assert sp_result is None
-    sp_result = sptracker.offset_before_block(0x40071D, sp)
-    assert sp_result is not None
-    sp_result = sptracker.offset_before_block(0x400700, sp)
-    assert sp_result is None
+    def test_stack_pointer_tracker_offset_block(self):
+        sptracker, sp = init_tracker(track_mem=False)
+        sp_result = sptracker.offset_after_block(0x40071D, sp)
+        assert sp_result is not None
+        sp_result = sptracker.offset_after_block(0x400700, sp)
+        assert sp_result is None
+        sp_result = sptracker.offset_before_block(0x40071D, sp)
+        assert sp_result is not None
+        sp_result = sptracker.offset_before_block(0x400700, sp)
+        assert sp_result is None
 
 
 if __name__ == "__main__":
     logging.getLogger("angr.analyses.stack_pointer_tracker").setLevel(logging.INFO)
-    test_stack_pointer_tracker()
-    test_stack_pointer_tracker_no_mem()
-    test_stack_pointer_tracker_just_sp()
-    test_stack_pointer_tracker_offset_block()
+    unittest.main()
