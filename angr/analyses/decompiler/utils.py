@@ -361,8 +361,8 @@ def remove_labels(graph: networkx.DiGraph):
         nodes_map[node] = node_copy
 
     new_graph.add_nodes_from(nodes_map.values())
-    for src, dst in graph.edges:
-        new_graph.add_edge(nodes_map[src], nodes_map[dst])
+    for src, dst, data in graph.edges(data=True):
+        new_graph.add_edge(nodes_map[src], nodes_map[dst], **data)
 
     return new_graph
 

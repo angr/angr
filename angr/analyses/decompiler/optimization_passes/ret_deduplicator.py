@@ -40,13 +40,13 @@ class ReturnDeduplicator(OptimizationPass):
     def _analyze(self, cache=None):
         graph_updated = False
         if_ret_regions = self._find_if_ret_regions()
-        for region_head, true_child, false_child in if_ret_regions:
-            graph_updated |= self._fix_if_ret_region(region_head, true_child, false_child)
+        for region_head, true_child, false_child, super_true, super_false in if_ret_regions:
+            graph_updated |= self._fix_if_ret_region(region_head, true_child, false_child, super_true, super_false)
 
         if graph_updated:
             self.out_graph = self._graph
 
-    def _fix_if_ret_region(self, region_head, true_child, false_child):
+    def _fix_if_ret_region(self, region_head, true_child, false_child, super_true, super_false):
         """
               A
             /  \
@@ -58,6 +58,10 @@ class ReturnDeduplicator(OptimizationPass):
            C    B
            \\   /
              D
+
+
+        The super blocks of the true and falst child will be used as the replacement for the true and false child
+        to assure correctness.
         """
 
         if any(node not in self._graph for node in (region_head, true_child, false_child)):
@@ -74,8 +78,8 @@ class ReturnDeduplicator(OptimizationPass):
 
         # replace the head with a new if-stmt corrected block
         if_stmt = region_head.statements[-1]
-        if_stmt.true_target.value = true_child.addr
-        if_stmt.false_target.value = false_child.addr
+        if_stmt.true_target.value = super_true.addr
+        if_stmt.false_target.value = super_false.addr
         new_head = region_head.copy()
         new_head.statements[-1] = if_stmt
         # assures that preds still point to this block
@@ -83,7 +87,7 @@ class ReturnDeduplicator(OptimizationPass):
 
         # create new children
         new_children = []
-        for child in (true_child, false_child):
+        for child in (super_true, super_false):
             new_child = child.copy()
             new_child.statements = new_child.statements[:-1]
             new_children.append(new_child)
@@ -168,6 +172,13 @@ class ReturnDeduplicator(OptimizationPass):
         return self._get_original_regions(if_ret_candidates)
 
     def _get_original_regions(self, if_ret_candidates: List[Tuple[Block, Block, Block]]):
+        """
+        Input: [(if_stmt_block, super_true_child, super_false_child), ...]
+        Output: [(if_stmt_block, true_child, false_child, super_true_child, super_false_child), ...]
+
+        super_* is the associated super block in the original graph
+        """
+
         # re-find all the blocks we intend to delete in the original graph
         ids = {}
         for blocks in if_ret_candidates:
@@ -176,7 +187,7 @@ class ReturnDeduplicator(OptimizationPass):
                     continue
 
                 last_stmt = block.statements[-1]
-                ids[(last_stmt.ins_addr, last_stmt.idx)] = block
+                ids[(last_stmt.ins_addr, hash(last_stmt))] = block
 
         super_block_map = {}
         for block in self._graph.nodes():
@@ -184,7 +195,7 @@ class ReturnDeduplicator(OptimizationPass):
                 continue
 
             last_stmt = block.statements[-1]
-            stmt_id = (last_stmt.ins_addr, last_stmt.idx)
+            stmt_id = (last_stmt.ins_addr, hash(last_stmt))
             if stmt_id in ids:
                 super_block = ids[stmt_id]
                 super_block_map[super_block] = block
@@ -199,6 +210,10 @@ class ReturnDeduplicator(OptimizationPass):
 
                 corrected_region.append(block)
             else:
+                # super_true
+                corrected_region.append(super_blocks[1])
+                # super_false
+                corrected_region.append(super_blocks[2])
                 # all blocks were found
                 if_ret_regions.append(corrected_region)
 
