@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+__package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:disable=redefined-builtin
+
 import os
 import random
 
@@ -12,8 +14,10 @@ from angr.analyses.reaching_definitions.subject import SubjectType
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.code_location import CodeLocation
 
+from ...common import bin_location
 
-TESTS_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
+
+TESTS_LOCATION = os.path.join(bin_location, "tests")
 
 
 class _MockFunctionSubject:  # pylint:disable=too-few-public-methods
