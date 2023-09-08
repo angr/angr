@@ -1,12 +1,11 @@
 # pylint: disable=missing-class-docstring,disable=no-self-use
+import logging
 import os
 import unittest
 
 import angr
 
 bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
-
-import logging
 
 
 class TestIdentifier(unittest.TestCase):
@@ -21,14 +20,7 @@ class TestIdentifier(unittest.TestCase):
             seen[addr] = symbol
 
         for addr, symbol in true_symbols.items():
-            assert true_symbols[addr] == seen[addr]
-
-    def run_all(self):
-        functions = globals()
-        all_functions = dict(filter((lambda kv: kv[0].startswith("test_")), functions.items()))
-        for f in sorted(all_functions.keys()):
-            if hasattr(all_functions[f], "__call__"):
-                all_functions[f]()
+            assert symbol == seen[addr]
 
 
 if __name__ == "__main__":
