@@ -146,7 +146,6 @@ class ReturnDeduplicator(OptimizationPass):
             if not true_child.statements or not false_child.statements:
                 continue
 
-
             # equivalent returns
             true_stmt = true_child.statements[-1]
             false_stmt = false_child.statements[-1]
