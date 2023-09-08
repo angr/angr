@@ -2596,7 +2596,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["record_relation"]
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         self._print_decompilation_result(d)
@@ -2615,7 +2615,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["record_relation"]
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         self._print_decompilation_result(d)
@@ -2654,7 +2654,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["sort_found_occurs"]
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         self._print_decompilation_result(d)
@@ -2691,7 +2691,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["announce_mkdir"]
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         self._print_decompilation_result(d)
