@@ -151,10 +151,7 @@ class ReturnDeduplicator(OptimizationPass):
             if (
                 not isinstance(true_stmt, Return)
                 or not isinstance(false_stmt, Return)
-                or
-                # TODO: fix me, the .likes() should either work or we need to rethink this
-                # not true_stmt.likes(false_stmt)
-                not is_none_or_likeable(true_stmt.ret_exprs, false_stmt.ret_exprs, is_list=True)
+                or not true_stmt.likes(false_stmt)
             ):
                 continue
 
