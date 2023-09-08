@@ -2584,6 +2584,21 @@ class TestDecompiler(unittest.TestCase):
         ternary_exprs = re.findall(r"\(.+\?.+:.+\);", text)
         assert len(ternary_exprs) == 2
 
+    @for_all_structuring_algos
+    def test_return_deduplication(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tsort.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["record_relation"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        assert text.count("return") == 1
+
 
 if __name__ == "__main__":
     unittest.main()

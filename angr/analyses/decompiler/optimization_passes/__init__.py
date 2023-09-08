@@ -19,6 +19,7 @@ from .register_save_area_simplifier import RegisterSaveAreaSimplifier
 from .ret_addr_save_simplifier import RetAddrSaveSimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp
+from .ret_deduplicator import ReturnDeduplicator
 
 
 _all_optimization_passes = [
@@ -32,6 +33,7 @@ _all_optimization_passes = [
     (RetAddrSaveSimplifier, True),
     (X86GccGetPcSimplifier, True),
     (ITERegionConverter, True),
+    (ReturnDeduplicator, True),
     (LoweredSwitchSimplifier, False),
     (EagerReturnsSimplifier, True),
     (ITEExprConverter, True),
