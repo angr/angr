@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
 import os
 import random
 
-from unittest import mock, TestCase
+from unittest import main, mock, TestCase
 
 import archinfo
 
@@ -67,3 +68,7 @@ class TestReachingDefinitionsState(TestCase):
             state.get_sp()
 
             live_definitions_get_sp_mock.assert_called_once()
+
+
+if __name__ == "__main__":
+    main()

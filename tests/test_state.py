@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import cle
 import pickle
 import gc

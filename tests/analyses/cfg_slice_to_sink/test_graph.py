@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import networkx
 import unittest
 
@@ -107,3 +108,7 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(len(my_function_graph.nodes), 2)
         self.assertEqual(len(my_function_graph.edges), 1)
         self.assertEqual(my_function_graph, sliced_function_graph)
+
+
+if __name__ == "__main__":
+    unittest.main()

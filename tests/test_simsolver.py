@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # pylint:disable=no-self-use
 
 import struct

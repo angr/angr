@@ -1,4 +1,5 @@
-from unittest import TestCase
+#!/usr/bin/env python3
+from unittest import main, TestCase
 
 from angr.knowledge_plugins.cfg import CFGManager
 
@@ -29,3 +30,7 @@ class TestCFGManager(TestCase):
     def test_when_no_cfg_is_present(self):
         result = self.cfg_manager.get_most_accurate()
         self.assertEqual(result, None)
+
+
+if __name__ == "__main__":
+    main()

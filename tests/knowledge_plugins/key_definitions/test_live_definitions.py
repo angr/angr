@@ -1,4 +1,5 @@
-from unittest import TestCase
+#!/usr/bin/env python3
+from unittest import main, TestCase
 
 import archinfo
 
@@ -65,3 +66,7 @@ class TestLiveDefinitions(TestCase):
         retrieved_sp_value = live_definitions_with_multiple_sps.get_sp()
 
         self.assertEqual(retrieved_sp_value, live_definitions.stack_offset_to_stack_addr(offset.offset))
+
+
+if __name__ == "__main__":
+    main()

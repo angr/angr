@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # pylint:disable=missing-class-docstring
 import re
 import unittest

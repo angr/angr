@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 # pylint: disable=no-self-use
 from random import randrange
-from unittest import mock, TestCase
+from unittest import main, mock, TestCase
 import networkx
 
 import claripy
@@ -425,3 +426,7 @@ class TestDepGraph(TestCase):
 
         predecessor = list(dependency_graph.graph.predecessors(register_definition))[0]
         self.assertEqual(predecessor.codeloc, origin_codelocation)
+
+
+if __name__ == "__main__":
+    main()

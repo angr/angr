@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use,wrong-import-order
 import os
 import logging

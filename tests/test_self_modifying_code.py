@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # pylint:disable=no-self-use,missing-class-docstring
 import os
 from unittest import TestCase, main

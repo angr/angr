@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import unittest
 
@@ -86,3 +87,7 @@ class TestCFGSliceToSink(unittest.TestCase):
         my_slice = CFGSliceToSink(None, {1: [2, 3], 2: [1]})
 
         self.assertFalse(my_slice.path_between(1, 4))
+
+
+if __name__ == "__main__":
+    unittest.main()

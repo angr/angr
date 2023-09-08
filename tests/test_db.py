@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
 import os
 import tempfile

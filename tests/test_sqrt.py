@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use
 import math
 from unittest import TestCase, main

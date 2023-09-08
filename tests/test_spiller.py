@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import angr
 from angr.exploration_techniques.spiller import Spiller
 import os
