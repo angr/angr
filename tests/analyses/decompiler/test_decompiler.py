@@ -2643,6 +2643,25 @@ class TestDecompiler(unittest.TestCase):
         #   return v5;
         assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
 
+    @for_all_structuring_algos
+    def test_ret_dedupe_fakeret(self, decompiler_options=None):
+        """
+        Tests that returns created during structuring (such as returns in Tail Call optimizations)
+        are deduplicated after they have been created.
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ptx.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["sort_found_occurs"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        text = text.replace(" ", "").replace("\n", "")
+        assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
 
 if __name__ == "__main__":
     unittest.main()
