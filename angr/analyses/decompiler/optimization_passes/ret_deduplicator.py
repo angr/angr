@@ -3,7 +3,6 @@ import logging
 from typing import Tuple, List
 
 from ailment import Block
-from ailment.utils import is_none_or_likeable
 from ailment.statement import ConditionalJump, Return
 
 from ....utils.graph import subgraph_between_nodes
