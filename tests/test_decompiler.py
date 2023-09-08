@@ -2599,6 +2599,45 @@ class TestDecompiler(unittest.TestCase):
 
         assert text.count("return") == 1
 
+    @for_all_structuring_algos
+    def test_bool_flipping_type2(self, decompiler_options=None):
+        """
+        Assures Type2 Boolean Flips near the last statement of a function are not triggerd.
+        This testcase can also fail if `test_return_deduplication` fails.
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tsort.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["record_relation"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        text = text.replace(" ", "").replace("\n", "")
+        # Incorrect:
+        #   (unsigned int)v5[0] = strcmp(a0[0], *(a1));
+        #   if (!(unsigned int)v5)
+        #       return v5;
+        #   v6 = v1[6];
+        #   v5[0] = a1;
+        #   v5[1] = v6;
+        #   v1[6] = v5;
+        #
+        # Expected:
+        #   (unsigned int)v5[0] = strcmp(a0[0], *(a1));
+        #   if ((unsigned int)v5)
+        #   {
+        #       v6 = v1[6];
+        #       v5[0] = a1;
+        #       v5[1] = v6;
+        #       v1[6] = v5;
+        #   }
+        #   return v5;
+        assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -406,7 +406,11 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     elif isinstance(node, ailment.Block):
         last_block = node
 
-    return last_block and last_block in graph and not list(graph.successors(last_block))
+    valid_last_stmt = last_block is not None
+    if valid_last_stmt and last_block.statements:
+        valid_last_stmt = not isinstance(last_block.statements[-1], (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump))
+
+    return valid_last_stmt and last_block in graph and not list(graph.successors(last_block))
 
 
 # delayed import
