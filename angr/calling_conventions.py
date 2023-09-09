@@ -703,7 +703,7 @@ class SimCC:
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
             raise TypeError(
-                f"{self} doesn't know how to store aggregate types. Consider overriding next_arg to "
+                f"{self} doesn't know how to store aggregate type {type(arg_type)}. Consider overriding next_arg to "
                 "implement its ABI logic"
             )
         if isinstance(arg_type, SimTypeBottom):
