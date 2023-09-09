@@ -616,7 +616,7 @@ class Clinic(Analysis):
 
                             ret_stmt = ailment.Stmt.Return(None, [], **last_stmt.tags)
                             ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
-                            ail_graph.add_edge(block, ret_block)
+                            ail_graph.add_edge(block, ret_block, type="fake_return")
                         else:
                             stmt = ailment.Stmt.Call(None, target, **last_stmt.tags)
                             block.statements[-1] = stmt

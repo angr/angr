@@ -2596,7 +2596,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["record_relation"]
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         self._print_decompilation_result(d)
@@ -2615,7 +2615,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["record_relation"]
-        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         self._print_decompilation_result(d)
@@ -2641,6 +2641,85 @@ class TestDecompiler(unittest.TestCase):
         #       v1[6] = v5;
         #   }
         #   return v5;
+        assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
+
+    @for_all_structuring_algos
+    def test_ret_dedupe_fakeret_1(self, decompiler_options=None):
+        """
+        Tests that returns created during structuring (such as returns in Tail Call optimizations)
+        are deduplicated after they have been created.
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ptx.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["sort_found_occurs"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        text = text.replace(" ", "").replace("\n", "")
+        # Incorrect:
+        #     v1 = number_of_occurs;
+        #     if (!number_of_occurs)
+        #         return;
+        #     v2 = occurs_table;
+        #     v3 = &compare_occurs;
+        #     v4 = 48;
+        #     qsort();
+        # Expected:
+        #     v1 = number_of_occurs;
+        #     if (number_of_occurs) {
+        #         v2 = occurs_table;
+        #         v3 = &compare_occurs;
+        #         v4 = 48;
+        #         qsort();
+        #     }
+        #     return;
+        assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
+
+    @for_all_structuring_algos
+    def test_ret_dedupe_fakeret_2(self, decompiler_options=None):
+        """
+        Tests that returns created during structuring (such as returns in Tail Call optimizations)
+        are deduplicated after they have been created.
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "mkdir.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["announce_mkdir"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        text = text.replace(" ", "").replace("\n", "")
+        # Incorrect:
+        #     if (a1->field_20) {
+        #         v0 = v2;
+        #         v4 = a1->field_20;
+        #         v5 = stdout;
+        #         v6 = quotearg_style(0x4, a0);
+        #         v7 = v0;
+        #         prog_fprintf();
+        #     }
+        #     while (true) {
+        #         return;
+        #     }
+        # Expected:
+        #     if (a1->field_20) {
+        #         v0 = v2;
+        #         v4 = a1->field_20;
+        #         v5 = stdout;
+        #         v6 = quotearg_style(0x4, a0);
+        #         v7 = v0;
+        #         prog_fprintf();
+        #     }
+        #     return;
         assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
 
 
