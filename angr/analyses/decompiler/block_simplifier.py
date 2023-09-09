@@ -332,14 +332,14 @@ class BlockSimplifier(Analysis):
 
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
-            # dead assignments involving ternary expressions are not removed since they execute code
-            if type(stmt) is Assignment and not isinstance(stmt.src, ITE):
+            if type(stmt) is Assignment:
+                # tmps can't execute new code
                 if type(stmt.dst) is Tmp:
                     if stmt.dst.tmp_idx not in used_tmps:
                         continue
 
-                # is it a dead virgin?
-                if idx in dead_defs_stmt_idx:
+                # dead assignments involving ternary expressions are not removed since they execute code
+                if idx in dead_defs_stmt_idx and not isinstance(stmt.src, ITE):
                     continue
 
                 if stmt.src == stmt.dst:
