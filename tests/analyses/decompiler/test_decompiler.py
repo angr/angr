@@ -2562,7 +2562,7 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None
 
     @for_all_structuring_algos
-    def test_ternary_propagation(self, decompiler_options=None):
+    def test_ternary_propagation_1(self, decompiler_options=None):
         """
         Tests that single-use ternary expression assignments are propagated:
         x = (c ? a : b);
@@ -2588,6 +2588,37 @@ class TestDecompiler(unittest.TestCase):
         # normal ternary expressions should exist in both calls
         ternary_exprs = re.findall(r"\(.+\?.+:.+\);", text)
         assert len(ternary_exprs) == 2
+
+    @for_all_structuring_algos
+    def test_ternary_propagation_2(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "du.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["print_only_size"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        # all ternary assignments should be destroyed
+        assert re.search(r".+ = \(.+\?.+:.+\);", text) is None
+
+        # normal ternary expressions should exist in both calls
+        ternary_exprs = re.findall(r"\(.+\?.+:.+\)", text)
+        assert len(ternary_exprs) == 1
 
     @for_all_structuring_algos
     def test_return_deduplication(self, decompiler_options=None):

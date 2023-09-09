@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
-from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
+from ailment.expression import Expression, Tmp, Load, Const, Register, Convert, ITE
 from ailment import AILBlockWalker
 
 from angr.code_location import ExternalCodeLocation
@@ -332,7 +332,8 @@ class BlockSimplifier(Analysis):
 
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
-            if type(stmt) is Assignment:
+            # dead assignments involving ternary expressions are not removed since they execute code
+            if type(stmt) is Assignment and not isinstance(stmt.src, ITE):
                 if type(stmt.dst) is Tmp:
                     if stmt.dst.tmp_idx not in used_tmps:
                         continue
