@@ -138,7 +138,7 @@ class Decompiler(Analysis):
         self._complete_successors = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
-            self._recursive_structurer_params["structurer_cls"] = DreamStructurer
+            self._recursive_structurer_params["structurer_cls"] = PhoenixStructurer
         if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
             self._force_loop_single_exit = False
             self._complete_successors = True
