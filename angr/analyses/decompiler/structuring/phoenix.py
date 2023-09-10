@@ -384,12 +384,13 @@ class PhoenixStructurer(StructurerBase):
                                 if self._is_sequential_statement_block(succ):
                                     stmts = self._build_multistatementexpr_statements(succ)
                                     assert stmts is not None
-                                    edge_cond_succhead = MultiStatementExpression(
-                                        None,
-                                        stmts,
-                                        self.cond_proc.convert_claripy_bool_ast(edge_cond_succhead),
-                                        ins_addr=succ.addr,
-                                    )
+                                    if stmts:
+                                        edge_cond_succhead = MultiStatementExpression(
+                                            None,
+                                            stmts,
+                                            self.cond_proc.convert_claripy_bool_ast(edge_cond_succhead),
+                                            ins_addr=succ.addr,
+                                        )
                                     drop_succ = True
 
                             new_node = SequenceNode(node.addr, nodes=[node] if drop_succ else [node, succ])
