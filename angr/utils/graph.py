@@ -236,6 +236,18 @@ def compute_dominance_frontier(graph, domtree):
     return df
 
 
+def dump_graph(graph: networkx.DiGraph, path: str) -> None:
+    graph_with_str = networkx.DiGraph()
+
+    for node in graph:
+        graph_with_str.add_node(f'"{repr(node)}"')
+
+    for src, dst in graph.edges:
+        graph_with_str.add_edge(f'"{repr(src)}"', f'"{repr(dst)}"')
+
+    networkx.drawing.nx_pydot.write_dot(graph_with_str, path)
+
+
 #
 # Dominators and post-dominators
 #

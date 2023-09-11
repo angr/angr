@@ -53,6 +53,7 @@ class StructurerBase(Analysis):
         func: Function | None = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
+        variable_creator=None,
         **kwargs,
     ):
         self._region: GraphRegion = region
@@ -60,6 +61,7 @@ class StructurerBase(Analysis):
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
         self._parent_region = parent_region
+        self._variable_creator = variable_creator
 
         self.cond_proc = (
             condition_processor if condition_processor is not None else ConditionProcessor(self.project.arch)
