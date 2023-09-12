@@ -494,10 +494,21 @@ class AILSimplifier(Analysis):
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
 
+        if self._stack_arg_offsets:
+            insn_addrs_using_stack_args = {ins_addr for ins_addr, _ in self._stack_arg_offsets}
+        else:
+            insn_addrs_using_stack_args = None
+
         replaced = False
         for (block_addr, block_idx), reps in replacements_by_block_addrs_and_idx.items():
             block = blocks_by_addr_and_idx[(block_addr, block_idx)]
-            r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp)
+
+            # only replace loads if there are stack arguments in this block
+            replace_loads = insn_addrs_using_stack_args is not None and {
+                stmt.ins_addr for stmt in block.statements
+            }.intersection(insn_addrs_using_stack_args)
+
+            r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp, replace_loads=replace_loads)
             replaced |= r
             self.blocks[block] = new_block
 
@@ -1048,9 +1059,12 @@ class AILSimplifier(Analysis):
         stmts_to_remove_per_block: Dict[Tuple[int, int], Set[int]] = defaultdict(set)
 
         # Find all statements that should be removed
+        mask = (1 << self.project.arch.bits) - 1
 
         rd = self._compute_reaching_definitions()
-        stackarg_offsets = {tpl[1] for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
+        stackarg_offsets = (
+            {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
+        )
         def_: Definition
         for def_ in rd.all_definitions:
             if def_.dummy:
@@ -1062,7 +1076,7 @@ class AILSimplifier(Analysis):
                 if not self._remove_dead_memdefs:
                     # we always remove definitions for stack arguments
                     if stackarg_offsets is not None and isinstance(def_.atom.addr, atoms.SpOffset):
-                        if def_.atom.addr.offset not in stackarg_offsets:
+                        if (def_.atom.addr.offset & mask) not in stackarg_offsets:
                             continue
                     else:
                         continue
