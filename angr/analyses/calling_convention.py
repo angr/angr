@@ -877,22 +877,22 @@ class CallingConventionAnalysis(Analysis):
                         return True
         return False
 
-    def is_va_start_amd64(self, func: Function) -> Tuple[bool, int]:
+    def is_va_start_amd64(self, func: Function) -> Tuple[bool, Optional[int]]:
         # TODO: Use a better pattern matching approach
         if len(func.block_addrs_set) < 3:
-            return False, 0
+            return False, None
 
         head = func.startpoint
         out_edges = list(func.transition_graph.out_edges(head, data=True))
         if len(out_edges) != 2:
-            return False, 0
+            return False, None
         succ0, succ1 = out_edges[0][1], out_edges[1][1]
         if func.transition_graph.has_edge(succ0, succ1):
             mid = succ0
         elif func.transition_graph.has_edge(succ1, succ0):
             mid = succ1
         else:
-            return False, 0
+            return False, None
 
         # compare instructions
         for insn in self.project.factory.block(mid.addr, size=mid.size).capstone.insns:
@@ -919,7 +919,7 @@ class CallingConventionAnalysis(Analysis):
                 break
 
         if not set(spilled_regs).issubset(set(allowed_spilled_regs)):
-            return False, 0
+            return False, None
 
         for i, reg in enumerate(allowed_spilled_regs):
             if reg in spilled_regs:
