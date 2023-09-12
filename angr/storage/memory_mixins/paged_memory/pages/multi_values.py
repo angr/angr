@@ -19,12 +19,12 @@ class MultiValues:
         "_single_value",
     )
 
-    _single_value: Optional[claripy.ast.BV]
-    _values: Optional[Dict[int, Set[claripy.ast.BV]]]
+    _single_value: Optional[claripy.ast.Bits]
+    _values: Optional[Dict[int, Set[claripy.ast.Bits]]]
 
     def __init__(
         self,
-        v: Union[claripy.ast.BV, "MultiValues", None, Dict[int, Set[claripy.ast.BV]]] = None,
+        v: Union[claripy.ast.Bits, "MultiValues", None, Dict[int, Set[claripy.ast.Bits]]] = None,
         offset_to_values=None,
     ):
         if v is not None and offset_to_values is not None:
@@ -34,7 +34,7 @@ class MultiValues:
             None
             if v is None
             else v
-            if isinstance(v, claripy.ast.BV)
+            if isinstance(v, claripy.ast.Bits)
             else v._single_value
             if isinstance(v, MultiValues)
             else None
@@ -61,7 +61,7 @@ class MultiValues:
                 if not isinstance(vs, set):
                     raise TypeError("Each value in offset_to_values must be a set!")
 
-    def add_value(self, offset: int, value: claripy.ast.BV) -> None:
+    def add_value(self, offset: int, value: claripy.ast.Bits) -> None:
         if len(value) == 0:
             return
         if self._single_value is not None:
@@ -131,7 +131,7 @@ class MultiValues:
                 for v in remaining_values:
                     self.add_value(offset, v)
 
-    def one_value(self) -> Optional[claripy.ast.bv.BV]:
+    def one_value(self) -> Optional[claripy.ast.Bits]:
         if self._single_value is not None:
             return self._single_value
 
@@ -188,7 +188,7 @@ class MultiValues:
             return offset == 0
         return False if not self._values else offset in self._values
 
-    def __getitem__(self, offset: int) -> Set[claripy.ast.BV]:
+    def __getitem__(self, offset: int) -> Set[claripy.ast.Bits]:
         if self._single_value is not None:
             if offset == 0:
                 return {self._single_value}
@@ -202,7 +202,7 @@ class MultiValues:
             return {0}
         return set() if not self._values else set(self._values.keys())
 
-    def values(self) -> Iterator[Set[claripy.ast.bv.BV]]:
+    def values(self) -> Iterator[Set[claripy.ast.Bits]]:
         if self._single_value is not None:
             yield {self._single_value}
         else:
@@ -210,7 +210,7 @@ class MultiValues:
                 return
             yield from self._values.values()
 
-    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.bv.BV]]]:
+    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.Bits]]]:
         if self._single_value is not None:
             yield 0, {self._single_value}
         else:
@@ -245,10 +245,10 @@ class MultiValues:
 
         return result
 
-    def concat(self, other: Union["MultiValues", claripy.ast.BV, bytes]) -> "MultiValues":
+    def concat(self, other: Union["MultiValues", claripy.ast.Bits, bytes]) -> "MultiValues":
         if isinstance(other, bytes):
             other = claripy.BVV(other)
-        if isinstance(other, claripy.ast.BV):
+        if isinstance(other, claripy.ast.Bits):
             other = MultiValues(other)
         offset = len(self) // 8
         result = MultiValues(self)

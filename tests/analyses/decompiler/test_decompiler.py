@@ -2722,6 +2722,38 @@ class TestDecompiler(unittest.TestCase):
         #     return;
         assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
 
+    @structuring_algo("phoenix")
+    def test_numfmt_process_field(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "numfmt.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        f = proj.kb.functions["process_field"]
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+
+        d = proj.analyses[Decompiler](
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        # the two function arguments that are passed through stack into prepare_padded_number must have been eliminated
+        # at this point, leaving block 401f40 empty.
+        the_block = [nn for nn in d.clinic.graph if nn.addr == 0x401F40][0]
+        assert len(the_block.statements) == 1  # it has an unused label
+        assert "|| !prepare_padded_number(" in text
+
 
 if __name__ == "__main__":
     unittest.main()

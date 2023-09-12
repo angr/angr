@@ -461,7 +461,7 @@ class SimEnginePropagatorAIL(
                             outdated, has_avoid = self.is_using_outdated_def(
                                 var.one_expr, var.one_defat, self._codeloc(), avoid=expr.addr
                             )
-                            if outdated or has_avoid:
+                            if not (outdated or has_avoid):
                                 l.debug("Add a replacement: %s with %s", expr, var.one_expr)
                                 self.state.add_replacement(self._codeloc(), expr, var.one_expr)
                         else:
