@@ -897,7 +897,7 @@ class CallingConventionAnalysis(Analysis):
         # compare instructions
         for insn in self.project.factory.block(mid.addr, size=mid.size).capstone.insns:
             if insn.mnemonic != "movaps":
-                return False, 0
+                return False, None
 
         spilled_regs = []
         allowed_spilled_regs = [
