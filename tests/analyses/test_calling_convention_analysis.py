@@ -320,6 +320,19 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(recover_variables=True)
         assert proj.kb.functions["main"].prototype == expected_prototype
 
+    def test_test_three_arguments(self):
+        binary_path = os.path.join(test_location, "x86_64", "test.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        # the node 0x401226 must be in its own function
+        assert cfg.model.get_any_node(0x401226).function_address == 0x401226
+
+        proj.analyses.CompleteCallingConventions(recover_variables=True)
+
+        assert proj.kb.functions["test_syntax_error"].prototype.variadic is True
+        assert len(proj.kb.functions["expr"].prototype.args) == 0
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)

@@ -4,6 +4,7 @@ from typing import Optional, Set, List, Tuple, Dict, Union, TYPE_CHECKING
 import logging
 
 import networkx
+import capstone
 
 from pyvex.stmt import Put
 from pyvex.expr import RdTmp
@@ -304,6 +305,13 @@ class CallingConventionAnalysis(Analysis):
             l.warning("Please run variable recovery on %r before analyzing its calling convention.", self._function)
             return None
 
+        # check if this function is a variadic function
+        if self.project.arch.name == "AMD64":
+            is_variadic, fixed_args = self.is_va_start_amd64(self._function)
+        else:
+            is_variadic = False
+            fixed_args = None
+
         vm = self._variable_manager[self._function.addr]
 
         input_variables = vm.input_variables()
@@ -324,12 +332,15 @@ class CallingConventionAnalysis(Analysis):
         else:
             # reorder args
             args = self._reorder_args(input_args, cc)
+            if fixed_args is not None:
+                args = args[:fixed_args]
+
             # guess the type of the return value -- it's going to be a wild guess...
             ret_type = self._guess_retval_type(cc, vm.ret_val_size)
             if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
                 # hack - main must return an int even in 64-bit binaries
                 ret_type = SimTypeInt()
-            prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type)
+            prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type, variadic=is_variadic)
 
         return cc, prototype
 
@@ -865,6 +876,56 @@ class CallingConventionAnalysis(Analysis):
                     if isinstance(src_reg_def.codeloc, ExternalCodeLocation):
                         return True
         return False
+
+    def is_va_start_amd64(self, func: Function) -> Tuple[bool, Optional[int]]:
+        # TODO: Use a better pattern matching approach
+        if len(func.block_addrs_set) < 3:
+            return False, None
+
+        head = func.startpoint
+        out_edges = list(func.transition_graph.out_edges(head, data=True))
+        if len(out_edges) != 2:
+            return False, None
+        succ0, succ1 = out_edges[0][1], out_edges[1][1]
+        if func.transition_graph.has_edge(succ0, succ1):
+            mid = succ0
+        elif func.transition_graph.has_edge(succ1, succ0):
+            mid = succ1
+        else:
+            return False, None
+
+        # compare instructions
+        for insn in self.project.factory.block(mid.addr, size=mid.size).capstone.insns:
+            if insn.mnemonic != "movaps":
+                return False, None
+
+        spilled_regs = []
+        allowed_spilled_regs = [
+            capstone.x86.X86_REG_RDI,
+            capstone.x86.X86_REG_RSI,
+            capstone.x86.X86_REG_RDX,
+            capstone.x86.X86_REG_RCX,
+            capstone.x86.X86_REG_R8,
+            capstone.x86.X86_REG_R9,
+        ]
+        for insn in reversed(self.project.factory.block(head.addr, size=head.size).capstone.insns[:-2]):
+            if (
+                insn.mnemonic == "mov"
+                and insn.operands[0].type == capstone.x86.X86_OP_MEM
+                and insn.operands[1].type == capstone.x86.X86_OP_REG
+            ):
+                spilled_regs.append(insn.operands[1].reg)
+            else:
+                break
+
+        if not set(spilled_regs).issubset(set(allowed_spilled_regs)):
+            return False, None
+
+        for i, reg in enumerate(allowed_spilled_regs):
+            if reg in spilled_regs:
+                break
+
+        return True, i
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
