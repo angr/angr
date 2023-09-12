@@ -4,7 +4,7 @@ from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
 from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
-from ailment import AILBlockWalker
+from ailment import AILBlockWalker, AILBlockWalkerBase
 
 from angr.code_location import ExternalCodeLocation
 
@@ -24,6 +24,24 @@ if TYPE_CHECKING:
 
 
 _l = logging.getLogger(name=__name__)
+
+
+class HasCallExprWalker(AILBlockWalkerBase):
+    """
+    Test if an expression contains a call expression inside.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.has_call_expr = False
+
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Optional["Block"]):  # pylint:disable=unused-argument
+        self.has_call_expr = True
+
+    def _handle_CallExpr(  # pylint:disable=unused-argument
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional["Block"]
+    ):
+        self.has_call_expr = True
 
 
 class BlockSimplifier(Analysis):
@@ -333,13 +351,18 @@ class BlockSimplifier(Analysis):
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
+                # tmps can't execute new code
                 if type(stmt.dst) is Tmp:
                     if stmt.dst.tmp_idx not in used_tmps:
                         continue
 
                 # is it a dead virgin?
                 if idx in dead_defs_stmt_idx:
-                    continue
+                    # does .src involve any Call expressions? if so, we cannot remove it
+                    walker = HasCallExprWalker()
+                    walker.walk_expression(stmt.src)
+                    if not walker.has_call_expr:
+                        continue
 
                 if stmt.src == stmt.dst:
                     continue
