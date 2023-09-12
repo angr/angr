@@ -9,7 +9,7 @@ from ailment.expression import Const
 from ailment.statement import Jump
 import claripy
 
-from angr.utils.graph import dfs_back_edges, dominates, GraphUtils, dump_graph
+from angr.utils.graph import dfs_back_edges, dominates, GraphUtils
 from .structurer_base import StructurerBase, EmptyBlockNotice
 from .structurer_nodes import BaseNode, MultiNode, SequenceNode, ConditionNode, LoopNode
 
@@ -21,6 +21,8 @@ _l = logging.getLogger(__name__)
 _DEBUG = False
 
 if _DEBUG:
+    from angr.utils.graph import dump_graph
+
     _l.setLevel(logging.DEBUG)
 
 
@@ -66,10 +68,6 @@ class CombingStructurer(StructurerBase):
 
         # after combing, we can finally match without generating any goto statements!
         self.result = self._match_constructs(has_cycle)
-
-        if self.result is None:
-            dump_graph(self._region.graph, "D:/aa.dot")
-            # breakpoint()
 
     def _preprocess(self) -> bool:
         """
@@ -145,6 +143,8 @@ class CombingStructurer(StructurerBase):
 
         for src, dst in normal_retreating_edges + abnormal_retreating_edges:
             self._region.graph.remove_edge(src, dst)
+            if self._region.graph_with_successors is not None:
+                self._region.graph_with_successors.remove_edge(src, dst)
 
     def _comb(self):
         """
@@ -171,7 +171,6 @@ class CombingStructurer(StructurerBase):
         _l.debug("Combing region %r", self._region)
 
         while True:
-
             # comb the entire graph
             while True:
                 any_node_combed = self._comb_core(g, full_g, exit_node, dummy_exit_node)
@@ -284,7 +283,6 @@ class CombingStructurer(StructurerBase):
         return bool(nodes_with_more_than_two_preds)
 
     def _match_constructs(self, has_cycles: bool) -> Optional[BaseNode]:
-
         while True:
             any_matched = self._match_acyclic_schemas(
                 self._region.graph,
