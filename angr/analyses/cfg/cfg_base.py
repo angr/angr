@@ -1547,6 +1547,17 @@ class CFGBase(Analysis):
 
         for function in tmp_functions.values():
             function.mark_nonreturning_calls_endpoints()
+            if function.returning is False:
+                # remove all FakeRet edges that are related to this function
+                callsite_nodes = [
+                    src
+                    for src, _, data in self.graph.in_edges(self.model.get_any_node(function.addr), data=True)
+                    if data.get("jumpkind", None) == "Ijk_Call"
+                ]
+                for callsite_node in callsite_nodes:
+                    for _, dst, data in list(self.graph.out_edges(callsite_node, data=True)):
+                        if data.get("jumpkind", None) == "Ijk_FakeRet":
+                            self.graph.remove_edge(callsite_node, dst)
 
         # Clear old functions dict
         self.kb.functions.clear()
