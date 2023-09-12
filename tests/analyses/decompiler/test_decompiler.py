@@ -2746,7 +2746,6 @@ class TestDecompiler(unittest.TestCase):
         )
 
         self._print_decompilation_result(d)
-        text = d.codegen.text
 
         # the two function arguments that are passed through stack into prepare_padded_number must have been eliminated
         # at this point, leaving block 401f40 empty.
