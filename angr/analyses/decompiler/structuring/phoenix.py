@@ -71,6 +71,7 @@ class PhoenixStructurer(StructurerBase):
         case_entry_to_switch_head: Optional[Dict[int, int]] = None,
         parent_region=None,
         improve_structurer=True,
+        use_multistmtexprs=True,
     ):
         super().__init__(
             region,
@@ -97,6 +98,8 @@ class PhoenixStructurer(StructurerBase):
 
         self._phoenix_improved = self._improve_structurer
         self._edge_virtualization_hints = []
+
+        self._use_multistmtexprs = use_multistmtexprs
 
         self._analyze()
 
@@ -381,7 +384,7 @@ class PhoenixStructurer(StructurerBase):
 
                             if self._phoenix_improved:
                                 # absorb the entire succ block if possible
-                                if self._is_sequential_statement_block(succ):
+                                if self._use_multistmtexprs and self._is_sequential_statement_block(succ):
                                     stmts = self._build_multistatementexpr_statements(succ)
                                     assert stmts is not None
                                     if stmts:
@@ -1613,7 +1616,7 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, right, left_right_cond, succ = r
             # create the condition node
             memo = {}
-            if not self._is_single_statement_block(left):
+            if self._use_multistmtexprs and not self._is_single_statement_block(left):
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
@@ -1647,7 +1650,7 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, right, right_left_cond, else_node = r
             # create the condition node
             memo = {}
-            if not self._is_single_statement_block(right):
+            if self._use_multistmtexprs and not self._is_single_statement_block(right):
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(right)
                 assert stmts is not None
@@ -1679,7 +1682,7 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, succ, left_succ_cond, right = r
             # create the condition node
             memo = {}
-            if not self._is_single_statement_block(left):
+            if self._use_multistmtexprs and not self._is_single_statement_block(left):
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
@@ -1712,7 +1715,7 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, right, right_left_cond, else_node = r
             # create the condition node
             memo = {}
-            if not self._is_single_statement_block(left):
+            if self._use_multistmtexprs and not self._is_single_statement_block(left):
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
