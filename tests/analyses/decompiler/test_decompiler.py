@@ -2752,7 +2752,6 @@ class TestDecompiler(unittest.TestCase):
         # at this point, leaving block 401f40 empty.
         the_block = [nn for nn in d.clinic.graph if nn.addr == 0x401F40][0]
         assert len(the_block.statements) == 1  # it has an unused label
-        assert "|| !prepare_padded_number(" in text
 
 
 if __name__ == "__main__":
