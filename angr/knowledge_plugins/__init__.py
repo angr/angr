@@ -16,3 +16,4 @@ from .structured_code import StructuredCodeManager
 from .types import TypesStore
 from .callsite_prototypes import CallsitePrototypes
 from .custom_strings import CustomStrings
+from .obfuscations import Obfuscations

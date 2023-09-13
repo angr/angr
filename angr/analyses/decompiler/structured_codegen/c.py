@@ -2164,6 +2164,12 @@ class CConstant(CExpression):
                 elif isinstance(v, Function):
                     yield get_cpp_function_name(v.demangled_name, specialized=False, qualified=True), self
                     return
+                elif isinstance(v, str):
+                    yield CConstant.str_to_c_str(v), self
+                    return
+                elif isinstance(v, bytes):
+                    yield CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8")), self
+                    return
 
         if self.reference_values is not None and self._type is not None and self._type in self.reference_values:
             if isinstance(self._type, SimTypeInt):
@@ -3410,6 +3416,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 ):
                     reference_values[type_] = self._cfg.memory_data[expr.value]
                     inline_string = True
+            elif expr.value in self.kb.obfuscations.type1_deobfuscated_strings:
+                reference_values[SimTypePointer(SimTypeChar())] = self.kb.obfuscations.type1_deobfuscated_strings[
+                    expr.value
+                ]
+                inline_string = True
+            elif expr.value in self.kb.obfuscations.type2_deobfuscated_strings:
+                reference_values[SimTypePointer(SimTypeChar())] = self.kb.obfuscations.type2_deobfuscated_strings[
+                    expr.value
+                ]
+                inline_string = True
             elif isinstance(type_, SimTypeInt):
                 # int
                 reference_values[type_] = expr.value
