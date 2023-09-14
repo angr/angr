@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# write
-######################################
-
 
 class write(angr.SimProcedure):
     # pylint:disable=arguments-differ

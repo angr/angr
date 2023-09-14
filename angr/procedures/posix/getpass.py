@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# getpass
-######################################
-
 
 class getpass(angr.SimProcedure):
     # pylint:disable=arguments-differ

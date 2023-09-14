@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# htons (yes, really)
-######################################
-
 
 class htons(angr.SimProcedure):
     # pylint:disable=arguments-differ

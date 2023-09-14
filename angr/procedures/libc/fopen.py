@@ -2,10 +2,6 @@ import angr
 
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
-######################################
-# fopen
-######################################
-
 
 def mode_to_flag(mode):
     # TODO improve this: handle mode = strings

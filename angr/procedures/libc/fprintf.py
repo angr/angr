@@ -6,10 +6,6 @@ from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 l = logging.getLogger(name=__name__)
 
-######################################
-# fprintf
-######################################
-
 
 class fprintf(FormatParser):
     def run(self, file_ptr, fmt):  # pylint:disable=unused-argument

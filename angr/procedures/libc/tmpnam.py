@@ -1,10 +1,6 @@
 import angr
 import tempfile
 
-######################################
-# tmpnam
-######################################
-
 
 class tmpnam(angr.SimProcedure):
     # pylint:disable=arguments-differ

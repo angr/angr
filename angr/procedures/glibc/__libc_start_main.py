@@ -7,9 +7,6 @@ import angr
 l = logging.getLogger(name=__name__)
 
 
-######################################
-# __libc_start_main
-######################################
 class __libc_start_main(angr.SimProcedure):
     # pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init,missing-class-docstring
 

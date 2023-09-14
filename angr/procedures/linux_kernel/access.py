@@ -1,10 +1,6 @@
 # pylint:disable=arguments-differ,unused-argument,missing-class-docstring
 import angr
 
-######################################
-# access
-######################################
-
 
 class access(angr.SimProcedure):
     def run(self, pathname, mode):

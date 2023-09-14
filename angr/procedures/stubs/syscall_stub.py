@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# stub, for unsupported syscalls
-######################################
-
 
 # pylint:disable=redefined-builtin,arguments-differ
 class syscall(angr.SimProcedure):

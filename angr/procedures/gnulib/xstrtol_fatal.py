@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# xstrtol_fatal
-######################################
-
 
 class xstrtol_fatal(angr.SimProcedure):
     """

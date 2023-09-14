@@ -4,10 +4,6 @@ import logging
 
 l = logging.getLogger(name=__name__)
 
-######################################
-# memset
-######################################
-
 
 class memset(angr.SimProcedure):
     # pylint:disable=arguments-differ

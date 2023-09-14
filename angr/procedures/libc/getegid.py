@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# getegid
-######################################
-
 
 class getegid(angr.SimProcedure):
     # pylint: disable=arguments-differ

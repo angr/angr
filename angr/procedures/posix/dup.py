@@ -1,9 +1,5 @@
 import angr
 
-##################################
-# dup
-##################################
-
 
 class dup(angr.SimProcedure):  # pylint:disable=W0622
     def run(self, oldfd):  # pylint:disable=arguments-differ

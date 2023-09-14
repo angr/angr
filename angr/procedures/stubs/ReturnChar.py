@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# Returns a valid char
-######################################
-
 
 class ReturnChar(angr.SimProcedure):
     def run(self):
