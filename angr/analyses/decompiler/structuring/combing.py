@@ -10,6 +10,7 @@ from ailment.statement import Jump
 import claripy
 
 from angr.utils.graph import dfs_back_edges, dominates, GraphUtils
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from .structurer_base import StructurerBase, EmptyBlockNotice
 from .structurer_nodes import BaseNode, MultiNode, SequenceNode, ConditionNode, LoopNode
 
@@ -24,6 +25,38 @@ if _DEBUG:
     from angr.utils.graph import dump_graph
 
     _l.setLevel(logging.DEBUG)
+
+
+class NodeDuplicator(SequenceWalker):
+    """
+    Duplicates an arbitrary structurer node.
+    """
+
+    def __init__(self, node_id_manager):
+        super().__init__(
+            handlers={
+                ailment.Block: self._handle_Block,
+            },
+            update_seqnode_in_place=False,
+        )
+        self._node_id_manager = node_id_manager
+
+    def _handle_Block(self, node: ailment.Block, **kwargs) -> ailment.Block:
+        new_node = node.copy()
+        new_node.idx = self._node_id_manager.next_node_id(new_node.addr)
+        return new_node
+
+    def _handle_Sequence(self, node: SequenceNode, **kwargs) -> SequenceNode:
+        seq = super()._handle_Sequence(node, **kwargs)
+        assert seq is not node
+        seq.idx = self._node_id_manager.next_node_id(seq.addr)
+        return seq
+
+    def _handle_MultiNode(self, node: MultiNode, **kwargs) -> MultiNode:
+        mn = super()._handle_MultiNode(node, **kwargs)
+        assert mn is not node
+        mn.idx = self._node_id_manager.next_node_id(mn.addr)
+        return mn
 
 
 class CombingStructurer(StructurerBase):
@@ -529,7 +562,8 @@ class CombingStructurer(StructurerBase):
     def _apply_node_duplication(
         self, g: networkx.DiGraph, full_g: Optional[networkx.DiGraph], idoms: Dict, head: Any, nn: Any
     ):
-        dup_node = self._duplicate_node(nn)
+        duplicator = NodeDuplicator(self._node_id_manager)
+        dup_node = duplicator.walk(nn)
 
         # split the edges into two sets
         preds = list(g.predecessors(nn))
@@ -579,21 +613,6 @@ class CombingStructurer(StructurerBase):
                     nodes_in_between.append(succ)
 
         return nodes_in_between
-
-    def _duplicate_node(self, node: Any) -> Any:
-        if isinstance(node, ailment.Block):
-            new_node = node.copy()
-            new_node.idx = self._node_id_manager.next_node_id(new_node.addr)
-        elif isinstance(node, SequenceNode):
-            new_node = node.copy()
-            new_node.idx = self._node_id_manager.next_node_id(new_node.addr)
-        elif isinstance(node, MultiNode):
-            new_node = node.copy()
-            new_node.idx = self._node_id_manager.next_node_id(new_node.addr)
-        else:
-            return SequenceNode(node.addr, nodes=[node], idx=self._node_id_manager.next_node_id(node.addr))
-
-        return new_node
 
     @staticmethod
     def idoms_and_ipostdoms(graph: networkx.DiGraph, head: Any, end: Any) -> Tuple[Dict, Dict]:

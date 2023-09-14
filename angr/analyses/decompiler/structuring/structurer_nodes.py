@@ -48,14 +48,24 @@ class MultiNode:
                 addrs.append(node.addr)
             s = f": {min(addrs):#x}-{max(addrs):#x}"
 
-        return "<MultiNode %#x of %d nodes%s>" % (self.addr, len(self.nodes), s)
+        return "<MultiNode %#x%s of %d nodes%s>" % (
+            self.addr,
+            "" if self.idx is None else f"-{self.idx}",
+            len(self.nodes),
+            s,
+        )
 
     def __hash__(self):
         # changing self.nodes does not change the hash, which enables in-place editing
         return hash((MultiNode, self.addr, self.idx))
 
     def __eq__(self, other):
-        return isinstance(other, MultiNode) and self.nodes == other.nodes
+        return (
+            isinstance(other, MultiNode)
+            and self.addr == other.addr
+            and self.idx == other.idx
+            and self.nodes == other.nodes
+        )
 
     def dbg_repr(self, indent=0):
         s = ""
