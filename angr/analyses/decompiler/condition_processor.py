@@ -203,9 +203,6 @@ class ConditionProcessor:
             """
             return dominates(inv_idoms, node_a, node_b)
 
-        self.recover_edge_conditions(region, graph=graph)
-        edge_conditions = self.edge_conditions
-
         if graph:
             _g = graph
             head = next(node for node in graph.nodes if graph.in_degree(node) == 0)
@@ -215,6 +212,9 @@ class ConditionProcessor:
             else:
                 _g = region.graph
             head = region.head
+
+        self.recover_edge_conditions(region, graph=_g)
+        edge_conditions = self.edge_conditions
 
         # special handling for jump table entries - do not allow crossing between cases
         if case_entry_to_switch_head:
