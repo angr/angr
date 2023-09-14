@@ -2,10 +2,6 @@ import angr
 
 from ...sim_options import ALLOW_SEND_FAILURES
 
-######################################
-# send
-######################################
-
 
 class send(angr.SimProcedure):
     # pylint:disable=arguments-differ

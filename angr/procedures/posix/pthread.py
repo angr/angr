@@ -3,11 +3,11 @@ import angr
 # pylint: disable=arguments-differ,unused-argument,no-self-use,inconsistent-return-statements
 
 
-######################################
-# pthread_create
-# simulates the new thread as an equally viable branch of symbolic execution
-######################################
 class pthread_create(angr.SimProcedure):
+    """
+    Simulates the new thread as an equally viable branch of symbolic execution.
+    """
+
     ADDS_EXITS = True
 
     # pylint: disable=unused-argument,arguments-differ
@@ -42,42 +42,31 @@ class pthread_create(angr.SimProcedure):
         return all_exits
 
 
-######################################
-# pthread_cond_signal
-# a no-op
-######################################
-
-
 class pthread_cond_signal(angr.SimProcedure):
+    """
+    A no-op.
+    """
+
     def run(self, arg):
         pass
-
-
-######################################
-# pthread_mutex_lock
-# also a no-op
-######################################
 
 
 class pthread_mutex_lock(angr.SimProcedure):
+    """
+    A no-op.
+    """
+
     def run(self, arg):
         pass
-
-
-######################################
-# pthread_mutex_unlock
-# also a no-op
-######################################
 
 
 class pthread_mutex_unlock(angr.SimProcedure):
+    """
+    A no-op.
+    """
+
     def run(self, arg):
         pass
-
-
-######################################
-# pthread_once
-######################################
 
 
 class pthread_once(angr.SimProcedure):

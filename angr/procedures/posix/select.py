@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# select
-######################################
-
 
 class select(angr.SimProcedure):
     # pylint:disable=arguments-differ

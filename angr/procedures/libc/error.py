@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# error
-######################################
-
 
 class error(angr.SimProcedure):
     # pylint:disable=arguments-differ,missing-class-docstring

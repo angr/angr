@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# getsockopt
-######################################
-
 
 class getsockopt(angr.SimProcedure):
     # pylint:disable=arguments-differ

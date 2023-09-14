@@ -4,10 +4,6 @@ from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAn
 
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
-######################################
-# fgets
-######################################
-
 
 class fgets(angr.SimProcedure):
     # pylint:disable=arguments-differ

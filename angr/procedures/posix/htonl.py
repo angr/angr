@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# htonl
-######################################
-
 
 class htonl(angr.SimProcedure):
     # pylint:disable=arguments-differ
