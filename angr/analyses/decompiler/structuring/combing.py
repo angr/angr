@@ -526,7 +526,9 @@ class CombingStructurer(StructurerBase):
 
         return False
 
-    def _apply_node_duplication(self, g: networkx.DiGraph, full_g: networkx.DiGraph, idoms: Dict, head: Any, nn: Any):
+    def _apply_node_duplication(
+        self, g: networkx.DiGraph, full_g: Optional[networkx.DiGraph], idoms: Dict, head: Any, nn: Any
+    ):
         dup_node = self._duplicate_node(nn)
 
         # split the edges into two sets
@@ -547,16 +549,18 @@ class CombingStructurer(StructurerBase):
         for pred in preds_not_dom_by_node:
             g.remove_edge(pred, nn)
             g.add_edge(pred, dup_node)
-            full_g.remove_edge(pred, nn)
-            full_g.add_edge(pred, dup_node)
+            if full_g is not None:
+                full_g.remove_edge(pred, nn)
+                full_g.add_edge(pred, dup_node)
 
         succs = list(g.successors(nn))
         for succ in succs:
             g.add_edge(dup_node, succ)
 
-        succs = list(full_g.successors(nn))
-        for succ in succs:
-            full_g.add_edge(dup_node, succ)
+        if full_g is not None:
+            succs = list(full_g.successors(nn))
+            for succ in succs:
+                full_g.add_edge(dup_node, succ)
 
     @staticmethod
     def _find_nodes_between(g: networkx.DiGraph, start_node: Any, end_node: Any) -> List[Any]:
