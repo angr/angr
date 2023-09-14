@@ -16,6 +16,7 @@ from .structurer_nodes import BaseNode
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
 from .variable_creator import VariableCreator
+from .node_id_manager import NodeIdManager
 
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ class RecursiveStructurer(Analysis):
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.structurer_options = kwargs
         self.variable_creator = VariableCreator()
+        self.node_id_manager = NodeIdManager()
 
         self.result = None
         self.result_incomplete: bool = False
@@ -93,6 +95,7 @@ class RecursiveStructurer(Analysis):
                     func=self.function,
                     parent_region=parent_region,
                     variable_creator=self.variable_creator,
+                    node_id_manager=self.node_id_manager,
                     **self.structurer_options,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan

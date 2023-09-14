@@ -262,9 +262,7 @@ class CombingStructurer(StructurerBase):
             full_graph.remove_edge(prev_pred, node)
             for i in range(1, len(preds) - 1):
                 a = preds[i]
-                import random
-
-                dummy = SequenceNode(node.addr, nodes=[], idx=random.randint(100, 10000))  # fixme: idx must be fresh
+                dummy = SequenceNode(node.addr, nodes=[], idx=self._node_id_manager.next_node_id(node.addr))
                 graph.remove_edge(a, node)
                 full_graph.remove_edge(a, node)
 
@@ -578,19 +576,18 @@ class CombingStructurer(StructurerBase):
 
         return nodes_in_between
 
-    @staticmethod
-    def _duplicate_node(node: Any) -> Any:
+    def _duplicate_node(self, node: Any) -> Any:
         if isinstance(node, ailment.Block):
             new_node = node.copy()
-            new_node.idx = 1 if new_node.idx is None else new_node.idx + 1
+            new_node.idx = self._node_id_manager.next_node_id(new_node.addr)
         elif isinstance(node, SequenceNode):
             new_node = node.copy()
-            new_node.idx = 1 if new_node.idx is None else new_node.idx + 1
+            new_node.idx = self._node_id_manager.next_node_id(new_node.addr)
         elif isinstance(node, MultiNode):
             new_node = node.copy()
-            new_node.idx = 1 if new_node.idx is None else new_node.idx + 1
+            new_node.idx = self._node_id_manager.next_node_id(new_node.addr)
         else:
-            raise TypeError("Unexpected node type")
+            return SequenceNode(node.addr, nodes=[node], idx=self._node_id_manager.next_node_id(node.addr))
 
         return new_node
 
