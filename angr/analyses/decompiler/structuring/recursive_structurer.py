@@ -15,7 +15,6 @@ from ..redundant_label_remover import RedundantLabelRemover
 from .structurer_nodes import BaseNode
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
-from .variable_creator import VariableCreator
 from .node_id_manager import NodeIdManager
 
 
@@ -37,6 +36,7 @@ class RecursiveStructurer(Analysis):
         cond_proc=None,
         func: Function | None = None,
         structurer_cls: type | None = None,
+        variable_creator=None,
         **kwargs,
     ):
         self._region = region
@@ -44,7 +44,7 @@ class RecursiveStructurer(Analysis):
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.structurer_options = kwargs
-        self.variable_creator = VariableCreator()
+        self.variable_creator = variable_creator
         self.node_id_manager = NodeIdManager()
 
         self.result = None

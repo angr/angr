@@ -15,7 +15,8 @@ from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from ...utils import timethis
 from .. import Analysis, AnalysesHub
-from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
+from .structuring import RecursiveStructurer, PhoenixStructurer, DreamStructurer, CombingStructurer, DEFAULT_STRUCTURER
+from .structuring.variable_creator import VariableCreator
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .optimization_passes import get_default_optimization_passes
@@ -145,6 +146,7 @@ class Decompiler(Analysis):
         self._force_loop_single_exit = True
         self._complete_successors = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
+        loop_successor_tree_type = None
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
         # is the algorithm based on Phoenix (a schema-based algorithm)?
@@ -152,6 +154,10 @@ class Decompiler(Analysis):
             self._force_loop_single_exit = False
             self._complete_successors = True
             fold_callexprs_into_conditions = True
+        elif self._recursive_structurer_params["structurer_cls"] == DreamStructurer:
+            loop_successor_tree_type = "conditions"
+        elif self._recursive_structurer_params["structurer_cls"] == CombingStructurer:
+            loop_successor_tree_type = "state_vars"
 
         cache = DecompilationCache(self.func.addr)
         cache.ite_exprs = ite_exprs
@@ -206,11 +212,13 @@ class Decompiler(Analysis):
             ite_exprs=ite_exprs,
         )
 
+        variable_creator = VariableCreator()
+
         # recover regions, delay updating when we have optimizations that may update regions themselves
         delay_graph_updates = any(
             pass_.STAGE == OptimizationPassStage.DURING_REGION_IDENTIFICATION for pass_ in self._optimization_passes
         )
-        ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
+        ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates, variable_creator=variable_creator)
 
         # run optimizations that may require re-RegionIdentification
         clinic.graph, ri = self._run_region_simplification_passes(
@@ -235,9 +243,10 @@ class Decompiler(Analysis):
                 ri.region,
                 cond_proc=cond_proc,
                 func=self.func,
-                **self._recursive_structurer_params,
-            )
-            self._update_progress(80.0, text="Simplifying regions")
+                variable_creator=variable_creator,
+            **self._recursive_structurer_params,
+        )
+        self._update_progress(80.0, text="Simplifying regions")
 
             # simplify it
             s = self.project.analyses.RegionSimplifier(
@@ -280,7 +289,7 @@ class Decompiler(Analysis):
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
-    def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
+    def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True, variable_creator=None):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self.func,
             graph=graph,
@@ -288,6 +297,7 @@ class Decompiler(Analysis):
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             complete_successors=self._complete_successors,
+            variable_creator=variable_creator,
             **self.options_to_params(self.options_by_class["region_identifier"]),
         )
 
