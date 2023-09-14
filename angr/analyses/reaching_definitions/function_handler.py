@@ -386,7 +386,7 @@ class FunctionHandler:
                 sp_atom = self.stack_pointer_as_atom(state)
                 if not data.has_clobbered(sp_atom):  # let the user override the stack pointer if they want
                     new_sp = None
-                    sp_val = state.live_definitions.get_value_from_atom(sp_atom)
+                    sp_val = state.live_definitions.get_values(sp_atom)
                     if sp_val is not None:
                         one_sp_val = sp_val.one_value()
                         if one_sp_val is not None:
