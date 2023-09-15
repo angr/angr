@@ -41,8 +41,6 @@ _l = logging.getLogger(__name__)
 _DEBUG = False
 
 if _DEBUG:
-    from angr.utils.graph import dump_graph
-
     _l.setLevel(logging.DEBUG)
 
 
@@ -207,9 +205,9 @@ class CombingStructurer(StructurerBase):
         retreating_edge_dsts = [region_head] + sorted(
             (dst for _, dst in abnormal_retreating_edges), key=lambda x: x.addr
         )
-        retreating_edge_srcs = dict(
-            (dst, sorted(self._region.graph.predecessors(dst), key=lambda x: x.addr)) for dst in retreating_edge_dsts
-        )
+        retreating_edge_srcs = {
+            dst: sorted(self._region.graph.predecessors(dst), key=lambda x: x.addr) for dst in retreating_edge_dsts
+        }
 
         for idx, dst in enumerate(retreating_edge_dsts):
             if idx == len(retreating_edge_dsts) - 1:
@@ -361,6 +359,30 @@ class CombingStructurer(StructurerBase):
 
         g = self._region.graph
         full_g = self._region.graph_with_successors
+        exit_node, dummy_exit_node = self._ensure_one_exit_node(g)
+
+        _l.debug("Combing region %r", self._region)
+
+        while True:
+            # comb the entire graph
+            while True:
+                any_node_combed, exit_node, dummy_exit_node = self._comb_core(g, full_g, exit_node, dummy_exit_node)
+                if not any_node_combed:
+                    break
+
+            dummy_node_inserted = self._ensure_two_predecessors(g, full_g, dummy_exit_node)
+            if not dummy_node_inserted:
+                break
+
+        if dummy_exit_node is not None:
+            g.remove_node(dummy_exit_node)
+
+    @staticmethod
+    def _ensure_one_exit_node(g: networkx.DiGraph) -> Tuple[Any, Any]:
+        if "Dummy" in g:
+            # we have already added a Dummy node
+            return "Dummy", "Dummy"
+
         # ensure the graph has only one exit node
         exit_nodes = [node for node in g if g.out_degree[node] == 0]
 
@@ -374,21 +396,7 @@ class CombingStructurer(StructurerBase):
             dummy_exit_node = None
             exit_node = exit_nodes[0]
 
-        _l.debug("Combing region %r", self._region)
-
-        while True:
-            # comb the entire graph
-            while True:
-                any_node_combed = self._comb_core(g, full_g, exit_node, dummy_exit_node)
-                if not any_node_combed:
-                    break
-
-            dummy_node_inserted = self._ensure_two_predecessors(g, full_g, dummy_exit_node)
-            if not dummy_node_inserted:
-                break
-
-        if dummy_exit_node is not None:
-            g.remove_node(dummy_exit_node)
+        return exit_node, dummy_exit_node
 
     def _comb_core(
         self, g: networkx.DiGraph, full_g: networkx.DiGraph, exit_node: Any, dummy_exit_node: Optional[str]
@@ -428,9 +436,15 @@ class CombingStructurer(StructurerBase):
                     if not dominates(idoms, node, nn):
                         _l.debug("Duplicate node %r.", nn)
                         # duplicate this node!
-                        self._apply_node_duplication(g, full_g, idoms, node, nn)
+                        duplicated = self._apply_node_duplication(g, full_g, idoms, node, nn)
+                        assert duplicated, (
+                            "Failed to duplicate the node due to missing dominating edges or "
+                            "non-dominating edges. This is usually caused by picking the incorrect region head or "
+                            "having more than one head in this region."
+                        )
 
                         # update idoms and ipostdoms
+                        exit_node, dummy_exit_node = self._ensure_one_exit_node(g)
                         idoms, ipostdoms = self.idoms_and_ipostdoms(g, self._region.head, exit_node)
                         combed = True
 
@@ -443,11 +457,14 @@ class CombingStructurer(StructurerBase):
                     # of the world? my best guess is that there are some missing details in the paper that we have no
                     # way to know besides reverse engineering rev.ng.
                     # for now, we resort to aggressively duplicating ipostdom if it has too many incoming edges.
-                    self._apply_node_duplication(g, full_g, idoms, node, ipostdom)
-                    idoms, ipostdoms = self.idoms_and_ipostdoms(g, self._region.head, exit_node)
-                    combed = True
+                    duplicated = self._apply_node_duplication(g, full_g, idoms, node, ipostdom)
+                    # there is a chance that we do not need to duplicate this ipostdom because node dominates it
+                    if duplicated:
+                        exit_node, dummy_exit_node = self._ensure_one_exit_node(g)
+                        idoms, ipostdoms = self.idoms_and_ipostdoms(g, self._region.head, exit_node)
+                        combed = True
 
-        return combed
+        return combed, exit_node, dummy_exit_node
 
     def _ensure_two_predecessors(
         self, graph: networkx.DiGraph, full_graph: networkx.DiGraph, dummy_node: Optional[str]
@@ -1196,17 +1213,17 @@ class CombingStructurer(StructurerBase):
 
     def _apply_node_duplication(
         self, g: networkx.DiGraph, full_g: Optional[networkx.DiGraph], idoms: Dict, head: Any, nn: Any
-    ):
-        duplicator = NodeDuplicator(self._node_id_manager)
-        dup_node = duplicator.walk(nn)
-
+    ) -> bool:
         # split the edges into two sets
         preds = list(g.predecessors(nn))
         preds_dom_by_node = [pred for pred in preds if dominates(idoms, head, pred)]
         preds_not_dom_by_node = [pred for pred in preds if pred not in preds_dom_by_node]
 
-        assert preds_dom_by_node
-        assert preds_not_dom_by_node
+        if not preds_dom_by_node or not preds_not_dom_by_node:
+            return False
+
+        duplicator = NodeDuplicator(self._node_id_manager)
+        dup_node = duplicator.walk(nn)
 
         _l.debug(
             "Dominating predecessors: %s, non-dominating predecessors: %s",
@@ -1230,6 +1247,8 @@ class CombingStructurer(StructurerBase):
             succs = list(full_g.successors(nn))
             for succ in succs:
                 full_g.add_edge(dup_node, succ)
+
+        return True
 
     @staticmethod
     def _find_nodes_between(g: networkx.DiGraph, start_node: Any, end_node: Any) -> List[Any]:

@@ -596,7 +596,7 @@ class RegionIdentifier(Analysis):
         graph.add_edge(region, new_successor)
 
         # add all pending edges into the full graph, keeping the edge data as well
-        succ_addr_to_succ = dict((succ.addr, succ) for succ in successors)
+        succ_addr_to_succ = {succ.addr: succ for succ in successors}
         for src, dst_addr in pending_edges:
             succ = succ_addr_to_succ[dst_addr]
             edge_data = graph.get_edge_data(region, succ)
@@ -606,7 +606,6 @@ class RegionIdentifier(Analysis):
     def _create_loop_successor_tree_conditioned(
         self, region
     ) -> Tuple[networkx.DiGraph, Block, List[Tuple[Block, int]]]:
-
         # recover reaching conditions
         self.cond_proc.recover_reaching_conditions(region, with_successors=True)
 
