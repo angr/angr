@@ -1289,7 +1289,7 @@ class Clinic(Analysis):
     def _rewrite_ite_expressions(self, ail_graph):
         cfg = self._cfg
         for block in list(ail_graph):
-            if block.addr in cfg.jump_tables:
+            if cfg is not None and block.addr in cfg.jump_tables:
                 continue
 
             ite_ins_addrs = []
