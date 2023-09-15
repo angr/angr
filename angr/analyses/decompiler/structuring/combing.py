@@ -584,12 +584,14 @@ class CombingStructurer(StructurerBase):
             ):
                 # potentially ITE
                 jump_tables = self.kb.cfgs["CFGFast"].jump_tables
+                # FIXME: Record which jump tables have been structured in recursive structurer, instead of testing if
+                # FIXME: left/right is a Block or a MultiNode
 
                 if (
                     full_graph.in_degree[left] == 1
                     and full_graph.in_degree[right] == 1
-                    and left.addr not in jump_tables
-                    and right.addr not in jump_tables
+                    and (left.addr not in jump_tables or not isinstance(left, (Block, MultiNode)))
+                    and (right.addr not in jump_tables or not isinstance(right, (Block, MultiNode)))
                 ):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
@@ -632,7 +634,9 @@ class CombingStructurer(StructurerBase):
                 # potentially If-Then
                 jump_tables = self.kb.cfgs["CFGFast"].jump_tables
 
-                if left.addr not in jump_tables and right.addr not in jump_tables:
+                if (left.addr not in jump_tables or not isinstance(left, (Block, MultiNode))) and (
+                    right.addr not in jump_tables or not isinstance(right, (Block, MultiNode))
+                ):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
