@@ -1287,7 +1287,11 @@ class Clinic(Analysis):
         return graph
 
     def _rewrite_ite_expressions(self, ail_graph):
+        cfg = self._cfg
         for block in list(ail_graph):
+            if cfg is not None and block.addr in cfg.jump_tables:
+                continue
+
             ite_ins_addrs = []
             for stmt in block.statements:
                 if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE):
