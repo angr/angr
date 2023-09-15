@@ -26,6 +26,7 @@ from .structurer_nodes import (
     BreakNode,
     LoopNode,
     EmptyBlockNotice,
+    IncompleteSwitchCaseNode,
 )
 
 if TYPE_CHECKING:
@@ -946,3 +947,42 @@ class StructurerBase(Analysis):
             if isinstance(stmt.target, ailment.Expr.Const) and stmt.target.value == addr:
                 return True
         return False
+
+    @staticmethod
+    def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode, new_seq=None):
+        if not seq.nodes:
+            return False, None
+        node = seq.nodes[0]
+        if new_seq is None:
+            # create the new sequence node if no prior-created sequence node is passed in
+            new_seq = seq.copy()
+            new_seq.nodes = new_seq.nodes[1:]
+            if new_seq.nodes:
+                new_seq.addr = new_seq.nodes[0].addr
+
+        preds = list(graph.predecessors(seq))
+        succs = list(graph.successors(seq))
+        graph.remove_node(seq)
+        for pred in preds:
+            graph.add_edge(pred, node)
+        if new_seq.nodes:
+            graph.add_edge(node, new_seq)
+        for succ in succs:
+            if succ is seq:
+                graph.add_edge(new_seq, new_seq)
+            else:
+                graph.add_edge(new_seq, succ)
+        return True, new_seq
+
+    @staticmethod
+    def _unpack_incompleteswitchcasenode(graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode):
+        preds = list(graph.predecessors(incscnode))
+        succs = list(graph.successors(incscnode))
+        if len(succs) <= 1:
+            graph.remove_node(incscnode)
+            for pred in preds:
+                graph.add_edge(pred, incscnode.head)
+            for case_node in incscnode.cases:
+                graph.add_edge(incscnode.head, case_node)
+                if succs:
+                    graph.add_edge(case_node, succs[0])
