@@ -883,7 +883,7 @@ class CombingStructurer(StructurerBase):
             if case_node.addr in jump_table.jumptable_entries:
                 succs = set(graph.successors(case_node))
                 case_node_successors |= {succ for succ in succs if succ.addr not in jump_table.jumptable_entries}
-        if len(case_node_successors) > 1:
+        if len({case_node_succ.addr for case_node_succ in case_node_successors}) > 1:
             return False
 
         # we will definitely be able to structure this into a full switch-case. remove node from switch_case_known_heads
@@ -1166,9 +1166,19 @@ class CombingStructurer(StructurerBase):
 
             out_edges = [edge for edge in out_edges if edge[1] is not head]
             if out_edges:
-                # leave only one out edge and virtualize all other out edges
-                out_edge = out_edges[0]
-                out_dst = out_edge[1]
+                # special case: combing may have already created a series of empty nodes! if there are any empty
+                # SequenceNode objects, we pick the one with the lowest ID as the target. The empty SequenceNode with
+                # the lowest idx is the node that dominates all other successors.
+                if any((isinstance(dst, SequenceNode) and not dst.nodes) for _, dst in out_edges):
+                    all_empty_sequence_nodes = [
+                        dst for _, dst in out_edges if isinstance(dst, SequenceNode) and not dst.nodes
+                    ]
+                    all_empty_sequence_nodes = sorted(all_empty_sequence_nodes, key=lambda x: x.idx)
+                    out_dst = all_empty_sequence_nodes[0]
+                else:
+                    # leave only one out edge and virtualize all other out edges
+                    out_edge = out_edges[0]
+                    out_dst = out_edge[1]
                 if out_dst in graph:
                     graph.add_edge(scnode, out_dst)
                 full_graph.add_edge(scnode, out_dst)
