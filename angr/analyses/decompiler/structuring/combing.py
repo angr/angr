@@ -72,12 +72,15 @@ class NodeDuplicator(SequenceWalker):
     def _handle_Sequence(self, node: SequenceNode, **kwargs) -> SequenceNode:
         seq = super()._handle_Sequence(node, **kwargs)
         assert seq is not node
+        if seq is None:
+            # make a copy anyway
+            seq = node.copy()
         seq.idx = self._node_id_manager.next_node_id(seq.addr)
         return seq
 
     def _handle_MultiNode(self, node: MultiNode, **kwargs) -> MultiNode:
         mn = super()._handle_MultiNode(node, **kwargs)
-        assert mn is not node
+        assert mn is not node and mn is not None
         mn.idx = self._node_id_manager.next_node_id(mn.addr)
         return mn
 
