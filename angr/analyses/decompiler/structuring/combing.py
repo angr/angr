@@ -129,6 +129,12 @@ class CombingStructurer(StructurerBase):
         # after combing, we can finally match without generating any goto statements!
         self.result = self._match_constructs(has_cycle)
 
+        if self.result is None and self._region.head not in self._region.graph:
+            # update the head
+            self._region.head = next(
+                iter(node for node in self._region.graph.nodes if node.addr == self._region.head.addr)
+            )
+
     def _preprocess(self) -> bool:
         """
         Make the graph a directed acyclic graph and get it ready for combing.
