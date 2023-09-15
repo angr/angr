@@ -915,18 +915,20 @@ class CIfElse(CStatement):
             yield "(", paren
             yield from condition.c_repr_chunks()
             yield ")", paren
-            if self.codegen.braces_on_own_lines or omit_braces:
+            if omit_braces:
                 yield "\n", None
-                yield indent_str, None
             else:
-                yield " ", None
+                if self.codegen.braces_on_own_lines:
+                    yield "\n", None
+                    yield indent_str, None
+                else:
+                    yield " ", None
 
-            if not omit_braces:
                 yield "{", brace
                 yield "\n", None
 
             if node is not None:
-                yield from node.c_repr_chunks(indent=INDENT_DELTA + indent if not omit_braces else INDENT_DELTA)
+                yield from node.c_repr_chunks(indent=INDENT_DELTA + indent)
 
             if not omit_braces:
                 yield indent_str, None
