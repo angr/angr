@@ -343,16 +343,20 @@ class GraphRegion:
             if isinstance(dst, GraphRegion) and dst not in sub_graph:
                 # GraphRegion.successors may not store GraphRegion objects. Instead, the heads of GraphRegion objects
                 # are stored.
-                for src in sub_graph.predecessors(dst.head):
+                dst_head = dst
+                while isinstance(dst_head, GraphRegion) and dst not in sub_graph:
+                    dst_head = dst_head.head
+
+                for src in sub_graph.predecessors(dst_head):
                     graph.add_edge(src, dst)
                 # replace the corresponding nodes in sub_graph_nodes and sub_graph_edges
                 for i in range(len(sub_graph_nodes)):  # pylint:disable=consider-using-enumerate
-                    if sub_graph_nodes[i] is dst.head:
+                    if sub_graph_nodes[i] is dst_head:
                         sub_graph_nodes[i] = dst
                 for i in range(len(sub_graph_edges)):  # pylint:disable=consider-using-enumerate
-                    if sub_graph_edges[i][0] is dst.head:
+                    if sub_graph_edges[i][0] is dst_head:
                         sub_graph_edges[i] = (dst, sub_graph_edges[i][1])
-                    if sub_graph_edges[i][1] is dst.head:
+                    if sub_graph_edges[i][1] is dst_head:
                         sub_graph_edges[i] = (sub_graph_edges[i][0], dst)
             else:
                 if dst in sub_graph:

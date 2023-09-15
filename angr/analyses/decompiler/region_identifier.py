@@ -374,6 +374,11 @@ class RegionIdentifier(Analysis):
 
                 self._start_node = self._get_start_node(graph)
 
+                # re-find loop headers
+                self._loop_headers = self._find_loop_headers(graph)
+                if not self._loop_headers:
+                    break
+
                 # Start from loops
                 for node in list(reversed(self._loop_headers)):
                     if node in structured_loop_headers:
