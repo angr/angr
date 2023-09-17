@@ -2809,6 +2809,20 @@ class TestDecompiler(unittest.TestCase):
         the_block = [nn for nn in d.clinic.graph if nn.addr == 0x401F40][0]
         assert len(the_block.statements) == 1  # it has an unused label
 
+    def test_argument_cvars_in_map_pos_to_node(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        f = cfg.functions["authenticate"]
+
+        codegen = p.analyses[Decompiler].prep()(f, cfg=cfg.model).codegen
+
+        assert len(codegen.cfunc.arg_list) == 2
+        elements = {n.obj for _, n in codegen.map_pos_to_node.items()}
+        for cvar in codegen.cfunc.arg_list:
+            assert cvar in elements
+
 
 if __name__ == "__main__":
     unittest.main()
