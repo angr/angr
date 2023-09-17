@@ -562,17 +562,12 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         paren = CClosingObject("(")
         brace = CClosingObject("{")
         yield "(", paren
-        for i, (arg_type, arg) in enumerate(zip(self.functy.args, self.arg_list)):
+        for i, (arg_type, cvariable) in enumerate(zip(self.functy.args, self.arg_list)):
             if i:
                 yield ", ", None
 
-            if isinstance(arg, CVariable):
-                variable = arg.unified_variable if arg.unified_variable is not None else arg.variable
-                variable_name = variable.name
-            else:
-                variable_name = arg.c_repr()
-
-            yield from type_to_c_repr_chunks(arg_type, name=variable_name, name_type=variable, full=False)
+            variable = cvariable.unified_variable or cvariable.variable
+            yield from type_to_c_repr_chunks(arg_type, name=variable.name, name_type=cvariable, full=False)
 
         yield ")", paren
         # function body
