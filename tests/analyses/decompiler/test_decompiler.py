@@ -24,6 +24,8 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
 from angr.misc.testing import is_testing
+from angr.utils.library import convert_cproto_to_py
+
 from ...common import bin_location
 
 
@@ -2822,6 +2824,21 @@ class TestDecompiler(unittest.TestCase):
         elements = {n.obj for _, n in codegen.map_pos_to_node.items()}
         for cvar in codegen.cfunc.arg_list:
             assert cvar in elements
+
+    def test_prototype_args_preserved(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        f = cfg.functions["authenticate"]
+
+        cproto = "int authenticate(char *username, char *password)"
+        _, proto, _ = convert_cproto_to_py(cproto + ";")
+        f.prototype = proto.with_arch(p.arch)
+        f.is_prototype_guessed = False
+
+        d = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        assert cproto in d.codegen.text
 
 
 if __name__ == "__main__":
