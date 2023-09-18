@@ -753,13 +753,15 @@ class VariableManagerInternal(Serializable):
                 else:
                     var.name = "g_%s" % var.addr
 
-    def assign_unified_variable_names(self, labels=None, reset: bool = False):
+    def assign_unified_variable_names(
+        self, labels=None, arg_names: Optional[List[str]] = None, reset: bool = False
+    ) -> None:
         """
         Assign default names to all unified variables.
 
-        :param labels:  Known labels in the binary.
-        :param reset:   Reset all variable names or not.
-        :return:        None
+        :param labels:    Known labels in the binary.
+        :param arg_names: Known argument names.
+        :param reset:     Reset all variable names or not.
         """
 
         def _id_from_varident(ident: str) -> int:
@@ -822,7 +824,7 @@ class VariableManagerInternal(Serializable):
             idx = next(arg_ctr)
             if var.name is not None and not reset:
                 continue
-            var.name = f"a{idx}"
+            var.name = arg_names[idx] if arg_names else f"a{idx}"
             var._hash = None
 
     def _register_struct_type(self, ty: SimStruct, name: Optional[str] = None) -> TypeRef:
