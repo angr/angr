@@ -817,13 +817,14 @@ class Clinic(Analysis):
             args: List[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
             arg_vars: List[SimVariable] = []
             if args:
+                arg_names = self.function.prototype.arg_names or [f"a{i}" for i in range(len(args))]
                 for idx, arg in enumerate(args):
                     if isinstance(arg, SimRegArg):
                         argvar = SimRegisterVariable(
                             self.project.arch.registers[arg.reg_name][0],
                             arg.size,
                             ident="arg_%d" % idx,
-                            name="a%d" % idx,
+                            name=arg_names[idx],
                             region=self.function.addr,
                         )
                     elif isinstance(arg, SimStackArg):
@@ -832,13 +833,13 @@ class Clinic(Analysis):
                             arg.size,
                             base="bp",
                             ident="arg_%d" % idx,
-                            name="a%d" % idx,
+                            name=arg_names[idx],
                             region=self.function.addr,
                         )
                     elif isinstance(arg, SimStructArg):
                         argvar = SimVariable(
                             ident="arg_%d" % idx,
-                            name="a%d" % idx,
+                            name=arg_names[idx],
                             region=self.function.addr,
                             size=arg.size,
                         )
@@ -1061,6 +1062,7 @@ class Clinic(Analysis):
         var_manager.unify_variables()
         var_manager.assign_unified_variable_names(
             labels=self.kb.labels,
+            arg_names=self.function.prototype.arg_names if self.function.prototype else None,
             reset=self._reset_variable_names,
         )
 
