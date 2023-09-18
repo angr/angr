@@ -165,7 +165,7 @@ class ReachingDefinitionsAnalysis(
 
         self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
             func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None,
-            track_liveness=track_liveness
+            track_liveness=track_liveness,
         )
 
         self._engine_vex = SimEngineRDVEX(
