@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# err
-######################################
-
 
 class err(angr.SimProcedure):  # pylint:disable=redefined-builtin
     # pylint:disable=arguments-differ,missing-class-docstring,redefined-builtin

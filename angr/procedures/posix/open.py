@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# open
-######################################
-
 
 class open(angr.SimProcedure):  # pylint:disable=W0622
     # pylint:disable=arguments-differ,unused-argument

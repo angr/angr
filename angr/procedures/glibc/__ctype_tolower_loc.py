@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# __ctype_tolower_loc
-######################################
-
 
 class __ctype_tolower_loc(angr.SimProcedure):
     """

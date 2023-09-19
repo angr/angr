@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# unlink
-######################################
-
 
 class unlink(angr.SimProcedure):
     # pylint:disable=arguments-differ

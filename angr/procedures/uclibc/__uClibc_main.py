@@ -1,9 +1,6 @@
 from ..glibc.__libc_start_main import __libc_start_main as fucker
 
 
-######################################
-# __uClibc_main
-######################################
 class __uClibc_main(fucker):
     # pylint: disable=missing-class-docstring
     NO_RET = True

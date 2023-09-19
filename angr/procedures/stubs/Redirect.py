@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# Redirect the control flow to some other places
-######################################
-
 
 class Redirect(angr.SimProcedure):
     # pylint:disable=arguments-differ

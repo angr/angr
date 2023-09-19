@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# read
-######################################
-
 
 class read(angr.SimProcedure):
     # pylint:disable=arguments-differ

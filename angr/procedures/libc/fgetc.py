@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# fgetc
-######################################
-
 
 class fgetc(angr.SimProcedure):
     # pylint:disable=arguments-differ

@@ -24,6 +24,8 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
 from angr.misc.testing import is_testing
+from angr.utils.library import convert_cproto_to_py
+
 from ...common import bin_location
 
 
@@ -2540,7 +2542,7 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r"while\(true\){if\(v\d+>=v\d+\)returnv\d+;v\d+=0;", text) is not None
 
     @for_all_structuring_algos
-    def test_automatic_ternary_creation(self, decompiler_options=None):
+    def test_automatic_ternary_creation_1(self, decompiler_options=None):
         """
         Tests that the decompiler can automatically create ternary expressions from regions that look like:
         if (c) {x = a} else {x = b}
@@ -2560,6 +2562,32 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
         # there should be a ternary assignment in the code: x = (c ? a : b);
         assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None
+
+    @for_all_structuring_algos
+    def test_automatic_ternary_creation_2(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "head.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["head"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        # there should be at least 1 ternary in the code: (c ? a : b);
+        assert re.search(r"\(.+\?.+:.+\);", text) is not None
 
     @for_all_structuring_algos
     def test_ternary_propagation_1(self, decompiler_options=None):
@@ -2782,6 +2810,35 @@ class TestDecompiler(unittest.TestCase):
         # at this point, leaving block 401f40 empty.
         the_block = [nn for nn in d.clinic.graph if nn.addr == 0x401F40][0]
         assert len(the_block.statements) == 1  # it has an unused label
+
+    def test_argument_cvars_in_map_pos_to_node(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        f = cfg.functions["authenticate"]
+
+        codegen = p.analyses[Decompiler].prep()(f, cfg=cfg.model).codegen
+
+        assert len(codegen.cfunc.arg_list) == 2
+        elements = {n.obj for _, n in codegen.map_pos_to_node.items()}
+        for cvar in codegen.cfunc.arg_list:
+            assert cvar in elements
+
+    def test_prototype_args_preserved(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        f = cfg.functions["authenticate"]
+
+        cproto = "int authenticate(char *username, char *password)"
+        _, proto, _ = convert_cproto_to_py(cproto + ";")
+        f.prototype = proto.with_arch(p.arch)
+        f.is_prototype_guessed = False
+
+        d = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        assert cproto in d.codegen.text
 
 
 if __name__ == "__main__":

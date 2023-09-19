@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# std::terminate
-######################################
-
 
 class std__terminate(angr.SimProcedure):  # pylint:disable=redefined-builtin
     # pylint:disable=arguments-differ

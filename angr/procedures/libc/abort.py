@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# abort
-######################################
-
 
 class abort(angr.SimProcedure):
     NO_RET = True

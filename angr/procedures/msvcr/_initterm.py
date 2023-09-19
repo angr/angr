@@ -3,10 +3,6 @@ import angr
 
 l = logging.getLogger(name=__name__)
 
-######################################
-# __initterm
-######################################
-
 
 class _initterm(angr.SimProcedure):
     local_vars = ("callbacks",)

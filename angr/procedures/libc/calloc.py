@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# calloc
-######################################
-
 
 class calloc(angr.SimProcedure):
     # pylint:disable=arguments-differ

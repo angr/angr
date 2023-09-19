@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# __vsnprintf
-######################################
-
 
 class vsnprintf(angr.SimProcedure):
     # pylint:disable=arguments-differ

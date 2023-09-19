@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# socket
-######################################
-
 
 class socket(angr.SimProcedure):
     # pylint:disable=arguments-differ

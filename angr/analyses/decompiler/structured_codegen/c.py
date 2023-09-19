@@ -562,17 +562,12 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         paren = CClosingObject("(")
         brace = CClosingObject("{")
         yield "(", paren
-        for i, (arg_type, arg) in enumerate(zip(self.functy.args, self.arg_list)):
+        for i, (arg_type, cvariable) in enumerate(zip(self.functy.args, self.arg_list)):
             if i:
                 yield ", ", None
 
-            if isinstance(arg, CVariable):
-                variable = arg.unified_variable if arg.unified_variable is not None else arg.variable
-                variable_name = variable.name
-            else:
-                variable_name = arg.c_repr()
-
-            yield from type_to_c_repr_chunks(arg_type, name=variable_name, name_type=variable, full=False)
+            variable = cvariable.unified_variable or cvariable.variable
+            yield from type_to_c_repr_chunks(arg_type, name=variable.name, name_type=cvariable, full=False)
 
         yield ")", paren
         # function body
@@ -915,18 +910,20 @@ class CIfElse(CStatement):
             yield "(", paren
             yield from condition.c_repr_chunks()
             yield ")", paren
-            if self.codegen.braces_on_own_lines or omit_braces:
+            if omit_braces:
                 yield "\n", None
-                yield indent_str, None
             else:
-                yield " ", None
+                if self.codegen.braces_on_own_lines:
+                    yield "\n", None
+                    yield indent_str, None
+                else:
+                    yield " ", None
 
-            if not omit_braces:
                 yield "{", brace
                 yield "\n", None
 
             if node is not None:
-                yield from node.c_repr_chunks(indent=INDENT_DELTA + indent if not omit_braces else INDENT_DELTA)
+                yield from node.c_repr_chunks(indent=INDENT_DELTA + indent)
 
             if not omit_braces:
                 yield indent_str, None

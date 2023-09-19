@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# rewind
-######################################
-
 
 class rewind(angr.SimProcedure):
     # pylint:disable=arguments-differ

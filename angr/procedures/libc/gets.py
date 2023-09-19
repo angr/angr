@@ -7,11 +7,6 @@ from angr.misc.ux import once
 _l = logging.getLogger(name=__name__)
 
 
-######################################
-# gets
-######################################
-
-
 class gets(angr.SimProcedure):
     # pylint:disable=arguments-differ
 

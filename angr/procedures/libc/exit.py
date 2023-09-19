@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# exit
-######################################
-
 
 class exit(angr.SimProcedure):  # pylint:disable=redefined-builtin
     # pylint:disable=arguments-differ
