@@ -2043,24 +2043,16 @@ class PhoenixStructurer(StructurerBase):
         if remove_src_last_stmt:
             remove_last_statement(src)
 
-    def _should_use_multistmtexprs(self, node: Union[Block, MultiNode]) -> bool:
+    def _should_use_multistmtexprs(self, node: Union[Block, BaseNode]) -> bool:
         if self._use_multistmtexprs == MultiStmtExprMode.NEVER:
             return False
         if self._use_multistmtexprs == MultiStmtExprMode.ALWAYS:
             return True
         if self._use_multistmtexprs == MultiStmtExprMode.MAX_ONE_CALL:
             # count the number of calls
-            calls = 0
-            if isinstance(node, MultiNode):
-                for b in node.nodes:
-                    ctr = AILCallCounter()
-                    ctr.walk(b)
-                    calls += ctr.calls
-            else:
-                ctr = AILCallCounter()
-                ctr.walk(node)
-                calls = ctr.calls
-            return calls <= 1
+            ctr = AILCallCounter()
+            ctr.walk(node)
+            return ctr.calls <= 1
         l.warning("Unsupported enum value for _use_multistmtexprs: %s", self._use_multistmtexprs)
         return False
 

@@ -1,13 +1,15 @@
 from typing import Optional, TYPE_CHECKING
 
+from ailment import Block
 from ailment.block_walker import AILBlockWalkerBase
 
+from .sequence_walker import SequenceWalker
+
 if TYPE_CHECKING:
-    from ailment import Block
     from ailment.statement import Call
 
 
-class AILCallCounter(AILBlockWalkerBase):
+class AILBlockCallCounter(AILBlockWalkerBase):
     """
     Helper class to count AIL Calls and call-expressions in a block
     """
@@ -21,3 +23,17 @@ class AILCallCounter(AILBlockWalkerBase):
     def _handle_Call(self, stmt_idx: int, stmt: "Call", block: Optional["Block"]):
         self.calls += 1
         super()._handle_Call(stmt_idx, stmt, block)
+
+
+class AILCallCounter(SequenceWalker):
+    def __init__(self):
+        handlers = {
+            Block: self._handle_Block,
+        }
+        super().__init__(handlers)
+        self.calls = 0
+
+    def _handle_Block(self, node: Block, **kwargs):
+        ctr = AILBlockCallCounter()
+        ctr.walk(node)
+        self.calls += ctr.calls
