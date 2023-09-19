@@ -219,7 +219,7 @@ options = [
         default_value=MultiStmtExprMode.MAX_ONE_CALL.value,
         candidate_values=[op.value for op in MultiStmtExprMode],
         clears_cache=True,
-        convert=lambda s: MultiStmtExprMode(s),
+        convert=MultiStmtExprMode,
     ),
 ]
 

@@ -475,7 +475,7 @@ class ExpressionFolder(SequenceWalker):
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
         replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
-        for idx in range(len(node.condition_and_nodes)):
+        for idx in range(len(node.condition_and_nodes)):  # pylint:disable=consider-using-enumerate
             cond, _ = node.condition_and_nodes[idx]
             r = replacer.walk_expression(cond)
             if r is not None and r is not cond:

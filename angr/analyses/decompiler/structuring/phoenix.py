@@ -56,6 +56,10 @@ class GraphChangedNotification(Exception):
 
 
 class MultiStmtExprMode(str, Enum):
+    """
+    Mode of multi-statement expression creation during structuring.
+    """
+
     NEVER = "Never"
     ALWAYS = "Always"
     MAX_ONE_CALL = "Only when less than one call"
