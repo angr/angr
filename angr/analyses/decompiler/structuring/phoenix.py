@@ -1,7 +1,7 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
 from typing import List, Dict, Tuple, Union, Set, Any, DefaultDict, Optional, OrderedDict as ODict, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
-from enum import StrEnum
+from enum import Enum
 import logging
 
 import networkx
@@ -55,7 +55,7 @@ class GraphChangedNotification(Exception):
     """
 
 
-class MultiStmtExprMode(StrEnum):
+class MultiStmtExprMode(str, Enum):
     NEVER = "Never"
     ALWAYS = "Always"
     MAX_ONE_CALL = "Only when less than one call"
