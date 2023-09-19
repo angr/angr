@@ -12,6 +12,8 @@ from ...common import bin_location
 test_location = os.path.join(bin_location, "tests")
 
 
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class TestCfgRustGotResolution(unittest.TestCase):
     def test_rust_got_resolution(self):
         # Test a simple Rust binary sample.
