@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 class AILBlockCallCounter(AILBlockWalkerBase):
     """
-    Helper class to count AIL Calls and call-expressions in a block
+    Helper class to count AIL calls and call-expressions in a block
     """
 
     calls = 0
@@ -26,6 +26,10 @@ class AILBlockCallCounter(AILBlockWalkerBase):
 
 
 class AILCallCounter(SequenceWalker):
+    """
+    Helper class to count AIL calls and call expressions in a structuring node.
+    """
+
     def __init__(self):
         handlers = {
             Block: self._handle_Block,
@@ -33,7 +37,7 @@ class AILCallCounter(SequenceWalker):
         super().__init__(handlers)
         self.calls = 0
 
-    def _handle_Block(self, node: Block, **kwargs):
+    def _handle_Block(self, node: Block, **kwargs):  # pylint:disable=unused-argument
         ctr = AILBlockCallCounter()
         ctr.walk(node)
         self.calls += ctr.calls
