@@ -72,6 +72,7 @@ class ReachingDefinitionsAnalysis(
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
         interfunction_level: int = 0,
+        track_liveness: bool = True,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -103,6 +104,10 @@ class ReachingDefinitionsAnalysis(
                                                 be available as `result.dep_graph`.
         :param interfunction_level:             The number of functions we should recurse into. This parameter is only
                                                 used if function_handler is not provided.
+        :param track_liveness:                  Whether to track liveness information. This can consume
+                                                sizeable amounts of RAM on large functions. (e.g. ~15GB for a function
+                                                with 4k nodes)
+
         """
 
         if isinstance(subject, str):
@@ -159,7 +164,8 @@ class ReachingDefinitionsAnalysis(
         self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
         self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
-            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None
+            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None,
+            track_liveness=track_liveness,
         )
 
         self._engine_vex = SimEngineRDVEX(

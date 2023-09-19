@@ -1,8 +1,5 @@
 import angr
 
-######################################
-# bind (but not really)
-######################################
 import logging
 
 l = logging.getLogger(name=__name__)

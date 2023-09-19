@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# fcntl
-######################################
-
 
 class fcntl(angr.SimProcedure):
     # pylint:disable=arguments-differ

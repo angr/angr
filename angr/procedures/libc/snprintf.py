@@ -4,10 +4,6 @@ from angr.procedures.stubs.format_parser import FormatParser
 
 l = logging.getLogger(name=__name__)
 
-######################################
-# snprintf
-######################################
-
 
 class snprintf(FormatParser):
     def run(self, dst_ptr, size, fmt):  # pylint:disable=arguments-differ,unused-argument
@@ -22,11 +18,6 @@ class snprintf(FormatParser):
         self.state.memory.store(dst_ptr + (out_str.size() // self.arch.byte_width), self.state.solver.BVV(0, 8))
 
         return out_str.size() // self.arch.byte_width
-
-
-######################################
-# __snprintf_chk
-######################################
 
 
 class __snprintf_chk(FormatParser):

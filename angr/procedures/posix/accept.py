@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# accept (but not really)
-######################################
-
 
 class accept(angr.SimProcedure):
     # pylint:disable=arguments-differ

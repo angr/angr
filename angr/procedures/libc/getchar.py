@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# getchar
-######################################
-
 
 class getchar(angr.SimProcedure):
     # pylint: disable=arguments-differ

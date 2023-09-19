@@ -5,10 +5,6 @@ import logging
 
 l = logging.getLogger(name=__name__)
 
-######################################
-# __getdelim
-######################################
-
 
 class __getdelim(angr.SimProcedure):
     # this code is modified from the 'fgets' implementation

@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# xalloc_die
-######################################
-
 
 class xalloc_die(angr.SimProcedure):
     """

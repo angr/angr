@@ -1,10 +1,6 @@
 import angr
 import select
 
-######################################
-# poll
-######################################
-
 
 class poll(angr.SimProcedure):
     # pylint:disable=arguments-differ

@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# openlog
-######################################
-
 
 class openlog(angr.SimProcedure):
     # pylint:disable=arguments-differ

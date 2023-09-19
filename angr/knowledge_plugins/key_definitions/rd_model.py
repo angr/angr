@@ -17,14 +17,14 @@ class ReachingDefinitionsModel:
     Models the definitions, uses, and memory of a ReachingDefinitionState object
     """
 
-    def __init__(self, func_addr: Optional[int] = None):
+    def __init__(self, func_addr: Optional[int] = None, track_liveness: bool = True):
         self.func_addr = func_addr  # do not use. only for pretty-printing
         self.observed_results: Dict[
             Tuple[str, Union[int, Tuple[int, int], Tuple[int, int, int]], ObservationPointType], LiveDefinitions
         ] = {}
         self.all_definitions: Set["Definition"] = set()
         self.all_uses = Uses()
-        self.liveness = Liveness()
+        self.liveness = Liveness() if track_liveness else None
 
     def __repr__(self):
         return "<RDModel{} with {} observations>".format(
@@ -33,19 +33,24 @@ class ReachingDefinitionsModel:
         )
 
     def add_def(self, d: "Definition", codeloc: "CodeLocation") -> None:
-        self.liveness.add_def(d, codeloc)
+        if self.liveness is not None:
+            self.liveness.add_def(d, codeloc)
 
     def kill_def(self, d: "Definition") -> None:
-        self.liveness.kill_def(d)
+        if self.liveness is not None:
+            self.liveness.kill_def(d)
 
     def at_new_stmt(self, codeloc: "CodeLocation") -> None:
-        self.liveness.at_new_stmt(codeloc)
+        if self.liveness is not None:
+            self.liveness.at_new_stmt(codeloc)
 
     def at_new_block(self, code_loc: "CodeLocation", pred_codelocs: List["CodeLocation"]) -> None:
-        self.liveness.at_new_block(code_loc, pred_codelocs)
+        if self.liveness is not None:
+            self.liveness.at_new_block(code_loc, pred_codelocs)
 
     def complete_loc(self) -> None:
-        self.liveness.complete_loc()
+        if self.liveness is not None:
+            self.liveness.complete_loc()
 
     def find_defs_at(self, code_loc: "CodeLocation", op: int = OP_BEFORE) -> Set["Definition"]:
         return self.liveness.find_defs_at(code_loc, op=op)
@@ -95,7 +100,7 @@ class ReachingDefinitionsModel:
         new.observed_results = self.observed_results.copy()
         new.all_definitions = self.all_definitions.copy()
         new.all_uses = self.all_uses.copy()
-        new.liveness = self.liveness.copy()
+        new.liveness = self.liveness.copy() if self.liveness is not None else None
         return new
 
     def merge(self, model: "ReachingDefinitionsModel"):

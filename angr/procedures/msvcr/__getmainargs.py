@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# __getmainargs
-######################################
-
 
 class __getmainargs(angr.SimProcedure):
     # pylint:disable=arguments-differ,unused-argument

@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# perror
-######################################
-
 
 class perror(angr.SimProcedure):
     # pylint:disable=arguments-differ

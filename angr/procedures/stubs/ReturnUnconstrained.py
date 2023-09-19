@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# Returns an unconstrained byte
-######################################
-
 
 class ReturnUnconstrained(angr.SimProcedure):
     ARGS_MISMATCH = True

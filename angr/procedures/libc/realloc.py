@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# realloc
-######################################
-
 
 class realloc(angr.SimProcedure):
     # pylint:disable=arguments-differ

@@ -2,12 +2,7 @@ import angr
 
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
-######################################
-# fdopen
-#
-# Reference for implementation:
-#   glibc-2.25/libio/iofdopen.c
-######################################
+# Reference for implementation: glibc-2.25/libio/iofdopen.c
 
 
 def mode_to_flag(mode):
