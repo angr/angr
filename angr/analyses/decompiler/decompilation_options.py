@@ -3,6 +3,7 @@ from typing import Optional, List, Callable
 from collections import defaultdict
 
 from .structuring import structurer_class_from_name
+from .structuring.phoenix import MultiStmtExprMode
 
 
 class DecompilationOption:
@@ -208,14 +209,28 @@ options = [
         default_value=True,
         clears_cache=True,
     ),
+    O(
+        "Multi-expression statements generation",
+        "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
+        type,
+        "recursive_structurer",
+        "use_multistmtexprs",
+        category="Structuring",
+        default_value=MultiStmtExprMode.MAX_ONE_CALL.value,
+        candidate_values=[op.value for op in MultiStmtExprMode],
+        clears_cache=True,
+        convert=lambda s: MultiStmtExprMode(s),
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options
 
 options_by_category = defaultdict(list)
+PARAM_TO_OPTION = {}
 
 for o in options:
     options_by_category[o.category].append(o)
+    PARAM_TO_OPTION[o.param] = o
 
 
 #

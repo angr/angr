@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Dict, List, TYPE_CHECKING, Optional
+from typing import Any, Tuple, Dict, List, TYPE_CHECKING
 from itertools import count
 import copy
 import logging
@@ -8,29 +8,16 @@ import networkx
 
 from ailment.statement import Jump
 from ailment.expression import Const
-from ailment.block_walker import AILBlockWalkerBase
 
 from ..condition_processor import ConditionProcessor, EmptyBlockNotice
+from ..call_counter import AILCallCounter
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
     from ailment import Block
-    from ailment.statement import Call
 
 
 _l = logging.getLogger(name=__name__)
-
-
-class AILCallCounter(AILBlockWalkerBase):
-    """
-    Helper class to count AIL Calls in a block
-    """
-
-    calls = 0
-
-    def _handle_Call(self, stmt_idx: int, stmt: "Call", block: Optional["Block"]):
-        self.calls += 1
-        super()._handle_Call(stmt_idx, stmt, block)
 
 
 class EagerReturnsSimplifier(OptimizationPass):

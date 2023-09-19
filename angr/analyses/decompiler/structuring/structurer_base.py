@@ -53,6 +53,7 @@ class StructurerBase(Analysis):
         case_entry_to_switch_head: Optional[Dict[int, int]] = None,
         parent_region=None,
         improve_structurer=True,
+        **kwargs,
     ):
         self._region: "GraphRegion" = region
         self._parent_map = parent_map

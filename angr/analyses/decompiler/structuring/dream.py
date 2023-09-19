@@ -70,7 +70,7 @@ class DreamStructurer(StructurerBase):
         func: Optional["Function"] = None,
         case_entry_to_switch_head: Optional[Dict[int, int]] = None,
         parent_region=None,
-        improve_structurer=True,
+        **kwargs,
     ):
         super().__init__(
             region,
@@ -79,6 +79,7 @@ class DreamStructurer(StructurerBase):
             func=func,
             case_entry_to_switch_head=case_entry_to_switch_head,
             parent_region=parent_region,
+            **kwargs,
         )
 
         self._analyze()

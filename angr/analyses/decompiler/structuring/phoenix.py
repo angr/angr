@@ -1,6 +1,7 @@
 # pylint:disable=line-too-long,import-outside-toplevel,import-error,multiple-statements,too-many-boolean-expressions
 from typing import List, Dict, Tuple, Union, Set, Any, DefaultDict, Optional, OrderedDict as ODict, TYPE_CHECKING
 from collections import defaultdict, OrderedDict
+from enum import StrEnum
 import logging
 
 import networkx
@@ -23,6 +24,7 @@ from ..utils import (
     has_nonlabel_statements,
     first_nonlabel_statement,
 )
+from ..call_counter import AILCallCounter
 from .structurer_nodes import (
     ConditionNode,
     SequenceNode,
@@ -53,6 +55,12 @@ class GraphChangedNotification(Exception):
     """
 
 
+class MultiStmtExprMode(StrEnum):
+    NEVER = "Never"
+    ALWAYS = "Always"
+    MAX_ONE_CALL = "Only when less than one call"
+
+
 class PhoenixStructurer(StructurerBase):
     """
     Structure a region using a structuring algorithm that is similar to the one in Phoenix decompiler (described in the
@@ -71,7 +79,8 @@ class PhoenixStructurer(StructurerBase):
         case_entry_to_switch_head: Optional[Dict[int, int]] = None,
         parent_region=None,
         improve_structurer=True,
-        use_multistmtexprs=True,
+        use_multistmtexprs: MultiStmtExprMode = MultiStmtExprMode.MAX_ONE_CALL,
+        **kwargs,
     ):
         super().__init__(
             region,
@@ -81,6 +90,7 @@ class PhoenixStructurer(StructurerBase):
             case_entry_to_switch_head=case_entry_to_switch_head,
             parent_region=parent_region,
             improve_structurer=improve_structurer,
+            **kwargs,
         )
 
         # whitelist certain edges. removing these edges will destroy critical schemas, which will impact future
@@ -265,9 +275,9 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
                         # c = !c
-                        self._remove_first_statement_if_jump(node)
+                        self._remove_first_statement_if_jump(head_block)
                         seq_node = SequenceNode(node.addr, nodes=[node]) if not isinstance(node, SequenceNode) else node
-                        loop_node = LoopNode("while", edge_cond_left, seq_node, addr=seq_node.addr)
+                        loop_node = LoopNode("do-while", edge_cond_left, seq_node, addr=seq_node.addr)
                         self.replace_nodes(graph, node, loop_node, self_loop=False)
                         self.replace_nodes(full_graph, node, loop_node, self_loop=False)
 
@@ -384,7 +394,7 @@ class PhoenixStructurer(StructurerBase):
 
                             if self._phoenix_improved:
                                 # absorb the entire succ block if possible
-                                if self._use_multistmtexprs and self._is_sequential_statement_block(succ):
+                                if self._is_sequential_statement_block(succ) and self._should_use_multistmtexprs(succ):
                                     stmts = self._build_multistatementexpr_statements(succ)
                                     assert stmts is not None
                                     if stmts:
@@ -1616,7 +1626,9 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, right, left_right_cond, succ = r
             # create the condition node
             memo = {}
-            if self._use_multistmtexprs and not self._is_single_statement_block(left):
+            if not self._is_single_statement_block(left):
+                if not self._should_use_multistmtexprs(left):
+                    return False
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
@@ -1650,7 +1662,9 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, right, right_left_cond, else_node = r
             # create the condition node
             memo = {}
-            if self._use_multistmtexprs and not self._is_single_statement_block(right):
+            if not self._is_single_statement_block(right):
+                if not self._should_use_multistmtexprs(right):
+                    return False
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(right)
                 assert stmts is not None
@@ -1682,7 +1696,9 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, succ, left_succ_cond, right = r
             # create the condition node
             memo = {}
-            if self._use_multistmtexprs and not self._is_single_statement_block(left):
+            if not self._is_single_statement_block(left):
+                if not self._should_use_multistmtexprs(left):
+                    return False
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
@@ -1715,7 +1731,9 @@ class PhoenixStructurer(StructurerBase):
             left, left_cond, right, right_left_cond, else_node = r
             # create the condition node
             memo = {}
-            if self._use_multistmtexprs and not self._is_single_statement_block(left):
+            if not self._is_single_statement_block(left):
+                if not self._should_use_multistmtexprs(left):
+                    return False
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
@@ -2020,6 +2038,27 @@ class PhoenixStructurer(StructurerBase):
                 self.replace_nodes(full_graph, src, new_src)
         if remove_src_last_stmt:
             remove_last_statement(src)
+
+    def _should_use_multistmtexprs(self, node: Union[Block, MultiNode]) -> bool:
+        if self._use_multistmtexprs == MultiStmtExprMode.NEVER:
+            return False
+        if self._use_multistmtexprs == MultiStmtExprMode.ALWAYS:
+            return True
+        if self._use_multistmtexprs == MultiStmtExprMode.MAX_ONE_CALL:
+            # count the number of calls
+            calls = 0
+            if isinstance(node, MultiNode):
+                for b in node.nodes:
+                    ctr = AILCallCounter()
+                    ctr.walk(b)
+                    calls += ctr.calls
+            else:
+                ctr = AILCallCounter()
+                ctr.walk(node)
+                calls = ctr.calls
+            return calls <= 1
+        l.warning("Unsupported enum value for _use_multistmtexprs: %s", self._use_multistmtexprs)
+        return False
 
     @staticmethod
     def _find_node_going_to_dst(

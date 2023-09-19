@@ -21,8 +21,9 @@ from angr.analyses import (
     Decompiler,
 )
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
-from angr.analyses.decompiler.decompilation_options import get_structurer_option
+from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
+from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.misc.testing import is_testing
 from angr.utils.library import convert_cproto_to_py
 
@@ -2811,21 +2812,23 @@ class TestDecompiler(unittest.TestCase):
         the_block = [nn for nn in d.clinic.graph if nn.addr == 0x401F40][0]
         assert len(the_block.statements) == 1  # it has an unused label
 
-    def test_argument_cvars_in_map_pos_to_node(self):
+    @for_all_structuring_algos
+    def test_argument_cvars_in_map_pos_to_node(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
         p = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         f = cfg.functions["authenticate"]
 
-        codegen = p.analyses[Decompiler].prep()(f, cfg=cfg.model).codegen
+        codegen = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options).codegen
 
         assert len(codegen.cfunc.arg_list) == 2
         elements = {n.obj for _, n in codegen.map_pos_to_node.items()}
         for cvar in codegen.cfunc.arg_list:
             assert cvar in elements
 
-    def test_prototype_args_preserved(self):
+    @for_all_structuring_algos
+    def test_prototype_args_preserved(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -2837,8 +2840,63 @@ class TestDecompiler(unittest.TestCase):
         f.prototype = proto.with_arch(p.arch)
         f.is_prototype_guessed = False
 
-        d = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        d = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         assert cproto in d.codegen.text
+
+    @structuring_algo("phoenix")
+    def test_multistatementexpression_od_read_char(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "od.o")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        p.analyses.CompleteCallingConventions(recover_variables=True)
+        f = cfg.functions["read_char"]
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+
+        # always use multi-statement expressions
+        decompiler_options.append((PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.ALWAYS))
+        dec = p.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        assert (
+            re.search(
+                r"v\d+ = in_stream, v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n]+, in_stream\)",
+                dec.codegen.text,
+            )
+            is not None
+        )
+        self._print_decompilation_result(dec)
+
+        # never use multi-statement expressions
+        decompiler_options.append((PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.NEVER))
+        dec = p.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(dec)
+        assert (
+            re.search(
+                r"v\d+ = in_stream;\n\s+v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n;]+;", dec.codegen.text
+            )
+            is not None
+        )
+        saved = dec.codegen.text
+
+        # less than one call statement/expression
+        decompiler_options.append((PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.MAX_ONE_CALL))
+        dec = p.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(dec)
+        assert dec.codegen.text == saved
 
 
 if __name__ == "__main__":
