@@ -23,10 +23,11 @@ class TestCfgRustGotResolution(unittest.TestCase):
         p = angr.Project(path, auto_load_libs=False)
 
         cfg = p.analyses.CFGFast(resolve_indirect_jumps=True)
-        
+
         # angr should be able to resolve the indirect call in main function
         main = cfg.kb.functions[p.loader.find_symbol("_ZN16rust_hello_world4main17h932c4676a11c63c3E").rebased_addr]
         assert not main.has_unresolved_calls
+
 
 if __name__ == "__main__":
     unittest.main()
