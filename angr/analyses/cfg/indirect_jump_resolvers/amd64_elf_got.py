@@ -54,7 +54,7 @@ class AMD64ElfGotResolver(IndirectJumpResolver):
 
         if self.project.loader.find_symbol(target):
             return True, [target]
-        
+
         if not self.project.is_hooked(target):
             return False, []
 
