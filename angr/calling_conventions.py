@@ -28,11 +28,10 @@ from .sim_type import (
     parse_signature,
     SimTypeReference,
 )
-
 from .state_plugins.sim_action_object import SimActionObject
+from .engines.soot.engine import SootMixin
 
 l = logging.getLogger(name=__name__)
-from .engines.soot.engine import SootMixin
 
 
 class PointerWrapper:
@@ -1073,7 +1072,9 @@ class SimCC:
 
     @classmethod
     def _match(cls, arch, args: List, sp_delta):
-        if cls.ARCH is not None and not isinstance(arch, cls.ARCH):
+        if cls.ARCH is not None and not isinstance(
+            arch, cls.ARCH
+        ):  # pylint:disable=isinstance-second-argument-not-valid-type
             return False
         if sp_delta != cls.STACKARG_SP_DIFF:
             return False
@@ -1153,12 +1154,12 @@ class SimLyingRegArg(SimRegArg):
             val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)
         return val
 
-    def set_value(self, state, val, **kwargs):  # pylint:disable=arguments-differ
-        val = self.check_value_set(val, state.arch)
+    def set_value(self, state, value, **kwargs):  # pylint:disable=arguments-differ,unused-argument
+        value = self.check_value_set(value, state.arch)
         if self._real_size == 4:
-            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_DOUBLE)
-        state.registers.store(self.reg_name, val)
-        # super(SimLyingRegArg, self).set_value(state, val, endness=endness, **kwargs)
+            value = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE)
+        state.registers.store(self.reg_name, value)
+        # super(SimLyingRegArg, self).set_value(state, value, endness=endness, **kwargs)
 
     def refine(self, size, arch=None, offset=None, is_fp=None):
         return SimLyingRegArg(self.reg_name, size)
@@ -1336,7 +1337,7 @@ class SimCCSyscall(SimCC):
         self.ERROR_REG.set_value(state, error_reg_val)
         return expr
 
-    def set_return_val(self, state, val, ty, **kwargs):
+    def set_return_val(self, state, val, ty, **kwargs):  # pylint:disable=arguments-differ
         if self.ERROR_REG is not None:
             val = self.linux_syscall_update_error_reg(state, val)
         super().set_return_val(state, val, ty, **kwargs)
@@ -1634,7 +1635,7 @@ class SimCCARM(SimCC):
         classification = self._classify(arg_type)
         try:
             mapped_classes = []
-            for idx, cls in enumerate(classification):
+            for cls in classification:
                 if cls == "DOUBLEP":
                     if session.getstate()[1] % 2 == 1:  # doubles must start on an even register
                         next(session.int_iter)
@@ -2267,10 +2268,7 @@ def default_cc(  # pylint:disable=unused-argument
     if platform is None:
         platform = "Linux"
 
-    if "default" in kwargs:
-        default = kwargs["default"]
-    else:
-        default = ...
+    default = kwargs.get("default", ...)
 
     if arch in DEFAULT_CC:
         if platform not in DEFAULT_CC[arch] and default is not ...:
@@ -2296,7 +2294,7 @@ def unify_arch_name(arch: str) -> str:
         # Sleigh architecture names
         chunks = arch.lower().split(":")
         if len(chunks) >= 3:
-            arch_base, endianness, bits = chunks[:3]
+            arch_base, endianness, bits = chunks[:3]  # pylint:disable=unused-variable
             arch = f"{arch_base}{bits}"
 
     return ALIAS_TO_ARCH_NAME.get(arch, arch)
