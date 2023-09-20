@@ -420,6 +420,20 @@ def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], g
     return valid_last_stmt and last_block in graph and not list(graph.successors(last_block))
 
 
+def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bool:
+    if isinstance(stmt, ailment.Stmt.Return):
+        return True
+    if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+        # is it calling a non-returning function?
+        target_func_addr = stmt.target.value
+        try:
+            func = functions.get_by_addr(target_func_addr)
+            return func.returning is False
+        except KeyError:
+            pass
+    return False
+
+
 # delayed import
 from .structuring.structurer_nodes import (
     MultiNode,

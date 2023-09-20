@@ -199,9 +199,8 @@ class RegionSimplifier(Analysis):
         CascadingIfsRemover(region)
         return region
 
-    @staticmethod
-    def _simplify_loops(region):
-        LoopSimplifier(region)
+    def _simplify_loops(self, region):
+        LoopSimplifier(region, self.kb.functions)
         return region
 
 

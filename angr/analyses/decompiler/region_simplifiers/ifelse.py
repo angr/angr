@@ -12,7 +12,7 @@ from ..structuring.structurer_nodes import (
     CascadingConditionNode,
 )
 from ..condition_processor import ConditionProcessor
-from ..utils import insert_node
+from ..utils import insert_node, is_statement_terminating
 
 
 class IfElseFlattener(SequenceWalker):
@@ -49,7 +49,7 @@ class IfElseFlattener(SequenceWalker):
             if (
                 last_stmts is not None
                 and None not in last_stmts
-                and all(self._is_statement_terminating(stmt) for stmt in last_stmts)
+                and all(is_statement_terminating(stmt, self.functions) for stmt in last_stmts)
             ):
                 # all end points in the true node are returning
 
@@ -72,7 +72,7 @@ class IfElseFlattener(SequenceWalker):
             if (
                 last_stmts
                 and None not in last_stmts
-                and all(self._is_statement_terminating(stmt) for stmt in last_stmts)
+                and all(is_statement_terminating(stmt, self.functions) for stmt in last_stmts)
             ):
                 # all end points in the true node are returning
 
@@ -80,16 +80,3 @@ class IfElseFlattener(SequenceWalker):
                 else_node = node.else_node
                 node.else_node = None
                 insert_node(parent, "after", else_node, index, **kwargs)
-
-    def _is_statement_terminating(self, stmt):
-        if isinstance(stmt, ailment.Stmt.Return):
-            return True
-        if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
-            # is it calling a non-returning function?
-            target_func_addr = stmt.target.value
-            try:
-                func = self.functions.get_by_addr(target_func_addr)
-                return func.returning is False
-            except KeyError:
-                pass
-        return False
