@@ -15,6 +15,7 @@ from .expression import (
     Tmp,
     Register,
     Const,
+    MultiStatementExpression,
 )
 
 
@@ -44,6 +45,7 @@ class AILBlockWalkerBase:
             Tmp: self._handle_Tmp,
             Register: self._handle_Register,
             Const: self._handle_Const,
+            MultiStatementExpression: self._handle_MultiStatementExpression,
         }
 
         self.stmt_handlers: Dict[Type, Callable] = stmt_handlers if stmt_handlers else _default_stmt_handlers
@@ -149,6 +151,13 @@ class AILBlockWalkerBase:
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Optional[Block]):
         pass
 
+    def _handle_MultiStatementExpression(
+        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
+        for idx, stmt_ in enumerate(expr.stmts):
+            self._handle_stmt(idx, stmt_, None)
+        self._handle_expr(0, expr.expr, stmt_idx, stmt, block)
+
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Optional[Block]
     ):
@@ -218,7 +227,10 @@ class AILBlockWalker(AILBlockWalkerBase):
         if changed:
             # update the statement directly in the block
             new_stmt = Assignment(stmt.idx, dst, src, **stmt.tags)
-            block.statements[stmt_idx] = new_stmt
+            if block is not None:
+                block.statements[stmt_idx] = new_stmt
+            return new_stmt
+        return None
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Optional[Block]):
         if stmt.args:
@@ -250,7 +262,10 @@ class AILBlockWalker(AILBlockWalkerBase):
                     ret_expr=stmt.ret_expr,
                     **stmt.tags,
                 )
-                block.statements[stmt_idx] = new_stmt
+                if block is not None:
+                    block.statements[stmt_idx] = new_stmt
+                return new_stmt
+        return None
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Optional[Block]):
         changed = False
@@ -280,7 +295,10 @@ class AILBlockWalker(AILBlockWalkerBase):
                 offset=stmt.offset,
                 **stmt.tags,
             )
-            block.statements[stmt_idx] = new_stmt
+            if block is not None:
+                block.statements[stmt_idx] = new_stmt
+            return new_stmt
+        return None
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Optional[Block]):
         changed = False
@@ -305,7 +323,10 @@ class AILBlockWalker(AILBlockWalkerBase):
 
         if changed:
             new_stmt = ConditionalJump(stmt.idx, condition, true_target, false_target, **stmt.tags)
-            block.statements[stmt_idx] = new_stmt
+            if block is not None:
+                block.statements[stmt_idx] = new_stmt
+            return new_stmt
+        return None
 
     def _handle_Return(self, stmt_idx: int, stmt: Return, block: Optional[Block]):
         if stmt.ret_exprs:
@@ -323,7 +344,14 @@ class AILBlockWalker(AILBlockWalkerBase):
 
             if changed:
                 new_stmt = Return(stmt.idx, new_ret_exprs, **stmt.tags)
-                block.statements[stmt_idx] = new_stmt
+                if block is not None:
+                    block.statements[stmt_idx] = new_stmt
+                return new_stmt
+        return None
+
+    #
+    # Expression handlers
+    #
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block]):
         addr = self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
@@ -453,4 +481,30 @@ class AILBlockWalker(AILBlockWalkerBase):
             new_expr = expr.copy()
             new_expr.operands = tuple(new_operands)
             return new_expr
+        return None
+
+    def _handle_MultiStatementExpression(
+        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
+        changed = False
+        new_statements = []
+        for idx, stmt_ in enumerate(expr.stmts):
+            new_stmt = self._handle_stmt(idx, stmt_, None)
+            if new_stmt is not None and new_stmt is not stmt_:
+                changed = True
+                new_statements.append(new_stmt)
+            else:
+                new_statements.append(stmt_)
+
+        new_expr = self._handle_expr(0, expr.expr, stmt_idx, stmt, block)
+        if new_expr is not None and new_expr is not expr.expr:
+            changed = True
+        else:
+            new_expr = expr.expr
+
+        if changed:
+            expr_ = expr.copy()
+            expr_.expr = new_expr
+            expr_.stmts = new_statements
+            return expr_
         return None

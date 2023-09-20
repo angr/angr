@@ -1127,6 +1127,9 @@ class MultiStatementExpression(Expression):
             )
         return False, self
 
+    def copy(self) -> "MultiStatementExpression":
+        return MultiStatementExpression(self.idx, self.stmts[::], self.expr, **self.tags)
+
 
 #
 # Special (Dummy) expressions
