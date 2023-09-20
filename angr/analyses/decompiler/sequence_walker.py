@@ -80,16 +80,15 @@ class SequenceWalker:
         changed = False
 
         if self._force_forward_scan:
-            for i in range(len(nodes_copy)):
-                node_ = nodes_copy[i]
+            for i, node_ in enumerate(nodes_copy):
                 new_node = self._handle(node_, parent=node, index=i)
                 if new_node is not None:
                     changed = True
                     nodes_copy[i] = new_node
         else:
-            # we iterate backwards because users of this function may invoke insert_node() directly to insert nodes to the
-            # parent node, either before the current node or after the current node. iterating backwards allows us to
-            # ensure `i` always points to the right index in node.nodes, even after custom insertions.
+            # we iterate backwards because users of this function may invoke insert_node() directly to insert nodes
+            # to the parent node, either before the current node or after the current node. iterating backwards allows
+            # us to ensure `i` always points to the right index in node.nodes, even after custom insertions.
             i = len(nodes_copy) - 1
             while i > -1:
                 node_ = nodes_copy[i]
@@ -113,8 +112,7 @@ class SequenceWalker:
         nodes_copy = list(node.nodes)
 
         if self._force_forward_scan:
-            for i in range(len(nodes_copy)):
-                node_ = nodes_copy[i]
+            for i, node_ in enumerate(nodes_copy):
                 new_node = self._handle(node_, parent=node, index=i)
                 if new_node is not None:
                     changed = True
