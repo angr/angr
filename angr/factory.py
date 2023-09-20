@@ -208,7 +208,16 @@ class AngrObjectFactory:
         return self.simulation_manager(*args, **kwargs)
 
     def callable(
-        self, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None
+        self,
+        addr,
+        prototype=None,
+        concrete_only=False,
+        perform_merge=True,
+        base_state=None,
+        toc=None,
+        cc=None,
+        add_options=None,
+        remove_options=None,
     ):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
@@ -234,6 +243,8 @@ class AngrObjectFactory:
             base_state=base_state,
             toc=toc,
             cc=cc,
+            add_options=add_options,
+            remove_options=remove_options,
         )
 
     def cc(self):

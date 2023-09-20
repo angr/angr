@@ -15,7 +15,17 @@ class Callable:
     """
 
     def __init__(
-        self, project, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None
+        self,
+        project,
+        addr,
+        prototype=None,
+        concrete_only=False,
+        perform_merge=True,
+        base_state=None,
+        toc=None,
+        cc=None,
+        add_options=None,
+        remove_options=None,
     ):
         """
         :param project:         The project to operate on
@@ -40,6 +50,8 @@ class Callable:
         self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
         self._deadend_addr = project.simos.return_deadend
         self._func_ty = prototype
+        self._add_options = add_options if add_options else set()
+        self._remove_options = remove_options if remove_options else set()
 
         self.result_path_group = None
         self.result_state = None
@@ -71,6 +83,8 @@ class Callable:
             base_state=self._base_state,
             ret_addr=self._deadend_addr,
             toc=self._toc,
+            add_options=self._add_options,
+            remove_options=self._remove_options,
         )
 
         def step_func(pg):
