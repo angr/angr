@@ -1099,7 +1099,9 @@ class SimCC:
         return True
 
     @staticmethod
-    def find_cc(arch: "archinfo.Arch", args: List[SimFunctionArgument], sp_delta: int) -> Optional["SimCC"]:
+    def find_cc(
+        arch: "archinfo.Arch", args: List[SimFunctionArgument], sp_delta: int, platform: str = "Linux"
+    ) -> Optional["SimCC"]:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
         found.
@@ -1113,7 +1115,7 @@ class SimCC:
         """
         if arch.name not in CC:
             return None
-        possible_cc_classes = CC[arch.name]
+        possible_cc_classes = CC[arch.name][platform]
         for cc_cls in possible_cc_classes:
             if cc_cls._match(arch, args, sp_delta):
                 return cc_cls(arch)
@@ -2142,70 +2144,85 @@ class SimCCS390XLinuxSyscall(SimCCSyscall):
         return state.regs.r1
 
 
-CC = {
-    "AMD64": [
-        SimCCSystemVAMD64,
-    ],
-    "X86": [
-        SimCCCdecl,
-    ],
-    "ARMEL": [
-        SimCCARM,
-    ],
-    "ARMHF": [
-        SimCCARMHF,
-        SimCCARM,
-    ],
-    "ARMCortexM": [
-        SimCCARMHF,
-        SimCCARM,
-    ],
-    "MIPS32": [
-        SimCCO32,
-    ],
-    "MIPS64": [
-        SimCCN64,
-    ],
-    "PPC32": [
-        SimCCPowerPC,
-    ],
-    "PPC64": [
-        SimCCPowerPC64,
-    ],
-    "AARCH64": [
-        SimCCAArch64,
-    ],
-    "S390X": [
-        SimCCS390X,
-    ],
+CC: Dict[str, Dict[str, List[Type[SimCC]]]] = {
+    "AMD64": {
+        "default": [SimCCSystemVAMD64],
+        "Linux": [SimCCSystemVAMD64],
+        "Win32": [SimCCMicrosoftAMD64],
+    },
+    "X86": {
+        "default": [SimCCCdecl],
+        "Linux": [SimCCCdecl],
+        "Win32": [SimCCMicrosoftCdecl, SimCCMicrosoftFastcall],
+    },
+    "ARMEL": {
+        "default": [SimCCARM],
+        "Linux": [SimCCARM],
+    },
+    "ARMHF": {
+        "default": [SimCCARMHF, SimCCARM],
+        "Linux": [SimCCARMHF, SimCCARM],
+    },
+    "ARMCortexM": {
+        "default": [SimCCARMHF, SimCCARM],
+        "Linux": [SimCCARMHF, SimCCARM],
+    },
+    "MIPS32": {
+        "default": [SimCCO32],
+        "Linux": [SimCCO32],
+    },
+    "MIPS64": {
+        "default": [SimCCN64],
+        "Linux": [SimCCN64],
+    },
+    "PPC32": {
+        "default": [SimCCPowerPC],
+        "Linux": [SimCCPowerPC],
+    },
+    "PPC64": {
+        "default": [SimCCPowerPC64],
+        "Linux": [SimCCPowerPC64],
+    },
+    "AARCH64": {
+        "default": [SimCCAArch64],
+        "Linux": [SimCCAArch64],
+    },
+    "S390X": {
+        "default": [SimCCS390X],
+        "Linux": [SimCCS390X],
+    },
 }
 
 
-DEFAULT_CC: Dict[str, Type[SimCC]] = {
-    "AMD64": SimCCSystemVAMD64,
-    "X86": SimCCCdecl,
-    "ARMEL": SimCCARM,
-    "ARMHF": SimCCARMHF,
-    "ARMCortexM": SimCCARM,
-    "MIPS32": SimCCO32,
-    "MIPS64": SimCCN64,
-    "PPC32": SimCCPowerPC,
-    "PPC64": SimCCPowerPC64,
-    "AARCH64": SimCCAArch64,
-    "Soot": SimCCSoot,
-    "AVR8": SimCCUnknown,
-    "MSP": SimCCUnknown,
-    "S390X": SimCCS390X,
+DEFAULT_CC: Dict[str, Dict[str, Type[SimCC]]] = {
+    "AMD64": {"Linux": SimCCSystemVAMD64, "Win32": SimCCMicrosoftAMD64},
+    "X86": {"Linux": SimCCCdecl, "Win32": SimCCMicrosoftCdecl},
+    "ARMEL": {"Linux": SimCCARM},
+    "ARMHF": {"Linux": SimCCARMHF},
+    "ARMCortexM": {"Linux": SimCCARM},
+    "MIPS32": {"Linux": SimCCO32},
+    "MIPS64": {"Linux": SimCCN64},
+    "PPC32": {"Linux": SimCCPowerPC},
+    "PPC64": {"Linux": SimCCPowerPC64},
+    "AARCH64": {"Linux": SimCCAArch64},
+    "Soot": {"Linux": SimCCSoot},
+    "AVR8": {"Linux": SimCCUnknown},
+    "MSP": {"Linux": SimCCUnknown},
+    "S390X": {"Linux": SimCCS390X},
 }
 
 
-def register_default_cc(arch: str, cc: Type[SimCC]):
-    DEFAULT_CC[arch] = cc
+def register_default_cc(arch: str, cc: Type[SimCC], platform: str = "Linux"):
+    DEFAULT_CC[arch] = {platform: cc}
     if arch not in CC:
-        CC[arch] = [cc]
+        CC[arch] = {}
+    if platform not in CC[arch]:
+        CC[arch][platform] = [cc]
+        if platform != "default":
+            CC[arch]["default"] = [cc]
     else:
-        if cc not in CC[arch]:
-            CC[arch].append(cc)
+        if cc not in CC[arch][platform]:
+            CC[arch][platform].append(cc)
 
 
 ARCH_NAME_ALIASES = {
@@ -2232,23 +2249,39 @@ for k, vs in ARCH_NAME_ALIASES.items():
 
 
 def default_cc(  # pylint:disable=unused-argument
-    arch: str, platform: Optional[str] = None, language: Optional[str] = None
+    arch: str,
+    platform: Optional[str] = "Linux",
+    language: Optional[str] = None,
+    **kwargs,
 ) -> Optional[Type[SimCC]]:
     """
     Return the default calling convention for a given architecture, platform, and language combination.
 
     :param arch:        The architecture name.
-    :param platform:    The platform name (e.g., "linux").
+    :param platform:    The platform name (e.g., "Linux" or "Win32").
     :param language:    The programming language name (e.g., "go").
     :return:            A default calling convention class if we can find one for the architecture, platform, and
                         language combination, or None if nothing fits.
     """
 
+    if platform is None:
+        platform = "Linux"
+
+    if "default" in kwargs:
+        default = kwargs["default"]
+    else:
+        default = ...
+
     if arch in DEFAULT_CC:
-        return DEFAULT_CC[arch]
+        if platform not in DEFAULT_CC[arch] and default is not ...:
+            return default
+        return DEFAULT_CC[arch][platform]
 
     alias = unify_arch_name(arch)
-    return DEFAULT_CC.get(alias)
+    if alias not in DEFAULT_CC or platform not in DEFAULT_CC:
+        if default is not ...:
+            return default
+    return DEFAULT_CC[alias][platform]
 
 
 def unify_arch_name(arch: str) -> str:
@@ -2273,13 +2306,13 @@ SYSCALL_CC: Dict[str, Dict[str, Type[SimCCSyscall]]] = {
     "X86": {
         "default": SimCCX86LinuxSyscall,
         "Linux": SimCCX86LinuxSyscall,
-        "Windows": SimCCX86WindowsSyscall,
+        "Win32": SimCCX86WindowsSyscall,
         "CGC": SimCCX86LinuxSyscall,
     },
     "AMD64": {
         "default": SimCCAMD64LinuxSyscall,
         "Linux": SimCCAMD64LinuxSyscall,
-        "Windows": SimCCAMD64WindowsSyscall,
+        "Win32": SimCCAMD64WindowsSyscall,
     },
     "ARMEL": {
         "default": SimCCARMLinuxSyscall,

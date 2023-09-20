@@ -6,7 +6,7 @@ from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, 
 from claripy.ast.fp import FP, fpToIEEEBV
 from claripy.ast.bv import BV
 
-from ..calling_conventions import DEFAULT_CC, SimCCSoot
+from ..calling_conventions import default_cc, SimCCSoot
 from ..engines.soot import SootMixin
 from ..engines.soot.expressions import SimSootExpr_NewArray  # , SimSootExpr_NewMultiArray
 from ..engines.soot.values import (
@@ -455,7 +455,7 @@ class SimJavaVM(SimOS):
         """
         :return: SimCC object for the native simos.
         """
-        native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
+        native_cc_cls = default_cc(self.native_simos.arch.name)
         return native_cc_cls(self.native_simos.arch)
 
 

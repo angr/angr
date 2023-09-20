@@ -14,7 +14,7 @@ from ..errors import (
 )
 from ..sim_state import SimState
 from ..state_plugins import SimSystemPosix
-from ..calling_conventions import DEFAULT_CC
+from ..calling_conventions import default_cc
 from ..procedures import SIM_PROCEDURES as P
 from .. import sim_options as o
 from ..storage.file import SimFileStream, SimFileBase
@@ -253,7 +253,7 @@ class SimOS:
         return self.state_entry(**kwargs)
 
     def state_call(self, addr, *args, **kwargs):
-        cc = kwargs.pop("cc", DEFAULT_CC[self.arch.name](self.project.arch))
+        cc = kwargs.pop("cc", default_cc(self.arch.name, platform=self.name)(self.project.arch))
         state = kwargs.pop("base_state", None)
         toc = kwargs.pop("toc", None)
 

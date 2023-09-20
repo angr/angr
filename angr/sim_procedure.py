@@ -198,7 +198,9 @@ class SimProcedure:
             self.project = state.project
         if self.cc is None:
             if self.arch.name in DEFAULT_CC:
-                self.cc = DEFAULT_CC[self.arch.name](self.arch)
+                self.cc = default_cc(
+                    self.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+                )(self.arch)
             else:
                 raise SimProcedureError(
                     "There is no default calling convention for architecture %s."
@@ -584,6 +586,14 @@ class SimProcedure:
 from . import sim_options as o
 from angr.errors import SimProcedureError, SimShadowStackError
 from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DEFAULT_CC, SimTypeFunction, SimTypePointer, SimTypeChar, ArgSession, SimTypeNum
+from angr.calling_conventions import (
+    DEFAULT_CC,
+    default_cc,
+    SimTypeFunction,
+    SimTypePointer,
+    SimTypeChar,
+    ArgSession,
+    SimTypeNum,
+)
 from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from .sim_type import parse_signature, parse_type

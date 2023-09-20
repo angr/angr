@@ -333,6 +333,18 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert proj.kb.functions["test_syntax_error"].prototype.variadic is True
         assert len(proj.kb.functions["expr"].prototype.args) == 0
 
+    def test_windows_partial_input_variable_overwrite(self):
+        binary_path = os.path.join(test_location, "x86_64", "netfilter_b64.sys")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.VariableRecoveryFast(proj.kb.functions[0x140001A90])
+        cc = proj.analyses.CallingConvention(cfg.kb.functions[0x140001A90])
+        assert cc.cc is not None
+        assert cc.prototype is not None
+        print(cc.prototype.args)
+        assert len(cc.prototype.args) == 3
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)

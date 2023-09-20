@@ -314,7 +314,7 @@ class SimEngineVRBase(SimEngineLight):
             self.block.addr, self.stmt_idx, dst
         )
         if not existing_vars:
-            # next check if we are overwriting *part* of an existing variable
+            # next check if we are overwriting *part* of an existing variable that is not an input variable
             addr_and_variables = set()
             try:
                 vs: MultiValues = self.state.register_region.load(offset, size=size, endness=self.arch.register_endness)
@@ -323,7 +323,10 @@ class SimEngineVRBase(SimEngineLight):
                         addr_and_variables.update(self.state.extract_variables(value))
             except SimMemoryMissingError:
                 pass
-            existing_vars = {(av[1], av[0]) for av in addr_and_variables if av[1].size > size}
+            input_vars = self.variable_manager[self.func_addr].input_variables()
+            existing_vars = {
+                (av[1], av[0]) for av in addr_and_variables if av[1] not in input_vars and av[1].size > size
+            }
 
         if not existing_vars:
             variable = SimRegisterVariable(

@@ -321,7 +321,7 @@ class CallingConventionAnalysis(Analysis):
         sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
 
         input_args = list(input_args)  # input_args might be modified by find_cc()
-        cc = SimCC.find_cc(self.project.arch, input_args, sp_delta)
+        cc = SimCC.find_cc(self.project.arch, input_args, sp_delta, platform=self.project.simos.name)
 
         if cc is None:
             l.warning(
@@ -662,7 +662,12 @@ class CallingConventionAnalysis(Analysis):
                 if not self._is_sane_register_variable(variable, def_cc=def_cc):
                     continue
                 reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
-                arg = SimRegArg(reg_name, variable.size)
+                if self.project.arch.name in {"AMD64", "X86"} and variable.size < self.project.arch.bytes:
+                    # use complete registers on AMD64 and X86
+                    reg_name = self.project.arch.translate_register_name(variable.reg, size=self.project.arch.bytes)
+                    arg = SimRegArg(reg_name, self.project.arch.bytes)
+                else:
+                    arg = SimRegArg(reg_name, variable.size)
                 args.add(arg)
 
                 accesses = var_manager.get_variable_accesses(variable)

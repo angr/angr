@@ -21,7 +21,7 @@ class TestPrototypes(unittest.TestCase):
 
         func = angr.knowledge_plugins.Function(proj.kb.functions, 0x100000, name="strcmp")
         func.prototype = angr.SIM_LIBRARIES["libc.so.6"].prototypes[func.name]
-        func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](proj.arch)
+        func.calling_convention = angr.calling_conventions.default_cc(proj.arch.name, platform="Linux")(proj.arch)
 
     def test_find_prototype(self):
         proj = angr.Project(os.path.join(test_location, "x86_64", "all"), auto_load_libs=False)
@@ -29,7 +29,7 @@ class TestPrototypes(unittest.TestCase):
         cfg = proj.analyses.CFG()
 
         func = cfg.kb.functions.function(name="strcmp", plt=False)
-        func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](proj.arch)
+        func.calling_convention = angr.calling_conventions.default_cc(proj.arch.name, platform="Linux")(proj.arch)
 
         func.find_declaration()
 

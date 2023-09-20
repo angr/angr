@@ -21,7 +21,7 @@ from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 from ...procedures.definitions import SimSyscallLibrary
 from ...protos import function_pb2
-from ...calling_conventions import DEFAULT_CC
+from ...calling_conventions import DEFAULT_CC, default_cc
 from ...misc.ux import deprecated
 from .function_parser import FunctionParser
 
@@ -244,7 +244,9 @@ class Function(Serializable):
             if cc is None:
                 arch = self.project.arch
                 if self.project.arch.name in DEFAULT_CC:
-                    cc = DEFAULT_CC[arch.name](arch)
+                    cc = default_cc(
+                        arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+                    )(arch)
 
             self.calling_convention: Optional[SimCC] = cc
         else:
@@ -1521,7 +1523,10 @@ class Function(Serializable):
                     if self.project.arch.name in library.default_ccs:
                         self.calling_convention = library.default_ccs[self.project.arch.name](self.project.arch)
                     elif self.project.arch.name in DEFAULT_CC:
-                        self.calling_convention = DEFAULT_CC[self.project.arch.name](self.project.arch)
+                        self.calling_convention = default_cc(
+                            self.project.arch.name,
+                            platform=self.project.simos.name if self.project.simos is not None else None,
+                        )(self.project.arch)
 
                 return True
 

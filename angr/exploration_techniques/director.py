@@ -6,7 +6,7 @@ import networkx
 import claripy
 
 from ..sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, SimTypeReg
-from ..calling_conventions import DEFAULT_CC
+from ..calling_conventions import default_cc
 from ..knowledge_base import KnowledgeBase
 from ..errors import AngrDirectorError
 from . import ExplorationTechnique
@@ -269,7 +269,7 @@ class CallFunctionGoal(BaseGoal):
         # TODO: add calling convention detection to individual functions, and use that instead of the
         # TODO: default calling convention of the platform
 
-        cc = DEFAULT_CC[arch.name](arch)
+        cc = default_cc(arch.name, platform=state.project.simos.name if state.project.simos is not None else None)(arch)
         real_args = cc.get_args(state, cc.guess_prototype([0] * len(self.arguments)))
 
         for i, (expected_arg, real_arg) in enumerate(zip(self.arguments, real_args)):

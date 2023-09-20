@@ -45,7 +45,9 @@ class error(angr.SimProcedure):
                 break
 
         # take a look at the first argument (status)
-        cc = angr.DEFAULT_CC[self.arch.name](self.arch)
+        cc = angr.default_cc(
+            self.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+        )(self.arch)
         ty = angr.sim_type.parse_signature("void x(int, int, char*)").with_arch(self.arch)
         args = cc.get_args(state, ty)
         if args[0].concrete and state.solver.eval(args[0]) == 0:

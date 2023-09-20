@@ -6,7 +6,7 @@ import pyvex
 from archinfo.arch_arm import is_arm_arch
 
 from ...errors import SimMemoryMissingError
-from ...calling_conventions import SimRegArg, SimStackArg, DefaultCC
+from ...calling_conventions import SimRegArg, SimStackArg, default_cc
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.light import SimEngineLightVEXMixin
 from ...knowledge_plugins import Function
@@ -206,7 +206,7 @@ class SimEngineVRVEX(
             # TODO: Handle multiple return registers
             cc = self.state.function.calling_convention
             if cc is None:
-                cc = DefaultCC[self.arch.name](self.arch)
+                cc = default_cc(self.arch.name, platform=self.project.simos.name)(self.arch)
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 ret_val_size = 0
                 reg_offset = cc.RETURN_VAL.check_offset(self.arch)
