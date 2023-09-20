@@ -1,5 +1,4 @@
 # pylint:disable=unused-argument,arguments-differ
-import ailment
 
 from ..sequence_walker import SequenceWalker
 from ..structuring.structurer_nodes import (
