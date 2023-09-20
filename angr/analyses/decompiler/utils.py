@@ -326,7 +326,14 @@ def has_nonlabel_statements(block: ailment.Block) -> bool:
     return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
 
 
-def first_nonlabel_statement(block: ailment.Block) -> Optional[ailment.Stmt.Statement]:
+def first_nonlabel_statement(block: Union[ailment.Block, "MultiNode"]) -> Optional[ailment.Stmt.Statement]:
+    if isinstance(block, MultiNode):
+        for n in block.nodes:
+            stmt = first_nonlabel_statement(n)
+            if stmt is not None:
+                return stmt
+        return None
+
     for stmt in block.statements:
         if not isinstance(stmt, ailment.Stmt.Label):
             return stmt
