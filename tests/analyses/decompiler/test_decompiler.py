@@ -2540,7 +2540,10 @@ class TestDecompiler(unittest.TestCase):
         #         }
         #
         # we should not see a right curly brace after return v9;
-        assert re.search(r"while\(true\){if\(v\d+>=v\d+\)returnv\d+;v\d+=0;", text) is not None
+        assert (
+            re.search(r"while\(true\){if\(v\d+>=v\d+\)returnv\d+;v\d+=0;", text) is not None
+            or re.search(r"for\(v\d+=0;v\d+<v\d+;v\d+\+=1\){v\d+=0", text) is not None
+        )
 
     @for_all_structuring_algos
     def test_automatic_ternary_creation_1(self, decompiler_options=None):
