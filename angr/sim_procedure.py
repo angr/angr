@@ -199,7 +199,10 @@ class SimProcedure:
         if self.cc is None:
             if self.arch.name in DEFAULT_CC:
                 self.cc = default_cc(
-                    self.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+                    self.arch.name,
+                    platform=self.project.simos.name
+                    if self.project is not None and self.project.simos is not None
+                    else None,
                 )(self.arch)
             else:
                 raise SimProcedureError(
