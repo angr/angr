@@ -8,7 +8,7 @@ import networkx
 
 import claripy
 from ailment.block import Block
-from ailment.statement import Statement, ConditionalJump, Jump, Label
+from ailment.statement import Statement, ConditionalJump, Jump, Label, Return
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from angr.utils.graph import GraphUtils
@@ -228,6 +228,17 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_jumps_to_continues(loop_node.sequence_node, loop_node=loop_node)
             return True
 
+        if self._phoenix_improved:
+            matched, loop_node, successor_node = self._match_cyclic_while_with_single_successor(
+                node, head, graph, full_graph
+            )
+            if matched:
+                # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
+                self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
+                # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
+                self._rewrite_jumps_to_continues(loop_node.sequence_node)
+                return True
+
         matched, loop_node = self._match_cyclic_natural_loop(node, head, graph, full_graph)
         if matched:
             if self._region.successors is not None and len(self._region.successors) == 1:
@@ -376,6 +387,76 @@ class PhoenixStructurer(StructurerBase):
                                 return True, loop_node, right
 
         return False, None, None
+
+    def _match_cyclic_while_with_single_successor(
+        self, node, head, graph, full_graph
+    ) -> Tuple[bool, Optional[LoopNode], Optional[BaseNode]]:
+        if self._region.successors:
+            return False, None, None
+        if node is not head:
+            return False, None, None
+
+        if not (node is head or graph.in_degree[node] == 2):
+            return False, None, None
+
+        loop_cond = None
+        if (
+            isinstance(node, SequenceNode)
+            and node.nodes
+            and isinstance(node.nodes[-1], ConditionNode)
+            and node.nodes[-1].true_node is not None
+            and node.nodes[-1].false_node is not None
+        ):
+            successor_node = node.nodes[-1].true_node
+            # test if the successor_node returns or not
+            # FIXME: It might be too strict
+            try:
+                last_stmt = self.cond_proc.get_last_statement(successor_node)
+            except EmptyBlockNotice:
+                last_stmt = None
+            if last_stmt is not None and isinstance(last_stmt, Return):
+                loop_cond = claripy.Not(node.nodes[-1].condition)
+
+        if loop_cond is None:
+            return False, None, None
+
+        node_copy = node.copy()
+        node_copy.nodes[-1] = node_copy.nodes[-1].false_node  # replace the last node with the false node
+        # check if there is a cycle that starts with node and ends with node
+        next_node = node
+        seq_node = SequenceNode(node.addr, nodes=[node_copy])
+        seen_nodes = set()
+        while True:
+            succs = list(full_graph.successors(next_node))
+            if len(succs) != 1:
+                return False, None, None
+            next_node = succs[0]
+
+            if next_node is node:
+                break
+            if next_node is not node and next_node in seen_nodes:
+                return False, None, None
+
+            seen_nodes.add(next_node)
+            seq_node.nodes.append(next_node)
+
+        loop_node = LoopNode("while", loop_cond, seq_node, addr=node.addr)
+
+        # on the original graph
+        for node_ in seq_node.nodes:
+            if node_ is not node_copy:
+                graph.remove_node(node_)
+        self.replace_nodes(graph, node, loop_node, self_loop=False)
+        graph.add_edge(loop_node, successor_node)
+
+        # on the graph with successors
+        for node_ in seq_node.nodes:
+            if node_ is not node_copy:
+                full_graph.remove_node(node_)
+        self.replace_nodes(full_graph, node, loop_node, self_loop=False)
+        full_graph.add_edge(loop_node, successor_node)
+
+        return True, loop_node, successor_node
 
     def _match_cyclic_dowhile(
         self, node, head, graph, full_graph
