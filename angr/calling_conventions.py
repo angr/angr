@@ -2157,6 +2157,7 @@ CC: Dict[str, Dict[str, List[Type[SimCC]]]] = {
     "X86": {
         "default": [SimCCCdecl],
         "Linux": [SimCCCdecl],
+        "CGC": [SimCCCdecl],
         "Win32": [SimCCMicrosoftCdecl, SimCCMicrosoftFastcall],
     },
     "ARMEL": {
@@ -2200,7 +2201,7 @@ CC: Dict[str, Dict[str, List[Type[SimCC]]]] = {
 
 DEFAULT_CC: Dict[str, Dict[str, Type[SimCC]]] = {
     "AMD64": {"Linux": SimCCSystemVAMD64, "Win32": SimCCMicrosoftAMD64},
-    "X86": {"Linux": SimCCCdecl, "Win32": SimCCMicrosoftCdecl},
+    "X86": {"Linux": SimCCCdecl, "CGC": SimCCCdecl, "Win32": SimCCMicrosoftCdecl},
     "ARMEL": {"Linux": SimCCARM},
     "ARMHF": {"Linux": SimCCARMHF},
     "ARMCortexM": {"Linux": SimCCARM},

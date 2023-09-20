@@ -44,7 +44,7 @@ class TestFunction(unittest.TestCase):
             ).with_arch(p.arch),
         ]
         # Check that the default calling convention of the architecture was applied
-        assert isinstance(func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name])
+        assert isinstance(func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name]["Linux"])
 
         func_main.apply_definition("int main(int argc, char** argv)")
 
