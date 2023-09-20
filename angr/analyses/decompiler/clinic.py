@@ -1234,7 +1234,7 @@ class Clinic(Analysis):
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.cond)
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.iftrue)
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.iftrue)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.iffalse)
 
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
