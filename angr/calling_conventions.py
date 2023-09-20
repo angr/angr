@@ -1116,6 +1116,9 @@ class SimCC:
         """
         if arch.name not in CC:
             return None
+        if platform not in CC[arch.name]:
+            # fallback to default
+            platform = "default"
         possible_cc_classes = CC[arch.name][platform]
         for cc_cls in possible_cc_classes:
             if cc_cls._match(arch, args, sp_delta):
@@ -2271,12 +2274,15 @@ def default_cc(  # pylint:disable=unused-argument
     default = kwargs.get("default", ...)
 
     if arch in DEFAULT_CC:
-        if platform not in DEFAULT_CC[arch] and default is not ...:
-            return default
+        if platform not in DEFAULT_CC[arch]:
+            if default is not ...:
+                return default
+            if "Linux" in DEFAULT_CC[arch]:
+                return DEFAULT_CC[arch]["Linux"]
         return DEFAULT_CC[arch][platform]
 
     alias = unify_arch_name(arch)
-    if alias not in DEFAULT_CC or platform not in DEFAULT_CC:
+    if alias not in DEFAULT_CC or platform not in DEFAULT_CC[alias]:
         if default is not ...:
             return default
     return DEFAULT_CC[alias][platform]
