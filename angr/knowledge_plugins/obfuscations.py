@@ -10,6 +10,7 @@ class Obfuscations(KnowledgeBasePlugin):
         super().__init__()
         self._kb = kb
 
+        self.analyzed: bool = False
         self.type1_deobfuscated_strings = {}
         self.type1_string_loader_candidates = set()
         self.type2_deobfuscated_strings = {}
