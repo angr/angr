@@ -250,7 +250,7 @@ class CallSiteMaker(Analysis):
             for values in vs.values():
                 for value in values:
                     if value.concrete:
-                        concrete_value = value._model_concrete.value
+                        concrete_value = value.concrete_value
                     else:
                         concrete_value = None
                     for def_ in rd.extract_defs(value):

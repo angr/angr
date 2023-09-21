@@ -52,7 +52,7 @@ class TestReachingDefinitionsState(TestCase):
         self.assertIsNotNone(rtoc_definition_value.one_value())
         v = rtoc_definition_value.one_value()
         self.assertFalse(v.symbolic)
-        self.assertEqual(v._model_concrete.value, rtoc_value)
+        self.assertEqual(v.concrete_value, rtoc_value)
 
     def test_rd_state_gets_a_default_heap_allocator(self):
         arch = archinfo.arch_arm.ArchARM()

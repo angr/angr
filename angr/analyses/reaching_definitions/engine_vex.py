@@ -75,7 +75,7 @@ class SimEngineRDVEX(
             addr = self._expr(self.block.vex.next)
             addr_v = addr.one_value()
             if addr_v is not None and addr_v.concrete:
-                addr_int = addr_v._model_concrete.value
+                addr_int = addr_v.concrete_value
                 if addr_int in self.functions:
                     # yes it's a jump to a function
                     self._handle_function(addr)
@@ -235,7 +235,7 @@ class SimEngineRDVEX(
                         continue
 
                 elif isinstance(a, claripy.ast.BV):
-                    addr_v = a._model_concrete.value
+                    addr_v = a.concrete_value
                     atom = MemoryLocation(addr_v, size)
                     tags = None
 
@@ -442,7 +442,7 @@ class SimEngineRDVEX(
                     result = result.merge(vs) if result is not None else vs
 
             else:
-                addr_v = addr._model_concrete.value
+                addr_v = addr.concrete_value
 
                 # Load data from a global region
                 try:
@@ -532,7 +532,7 @@ class SimEngineRDVEX(
         e0 = expr_0.one_value()
 
         if e0 is not None and not e0.symbolic:
-            return MultiValues(claripy.BVV(1, 1) if e0._model_concrete.value != 1 else claripy.BVV(0, 1))
+            return MultiValues(claripy.BVV(1, 1) if e0.concrete_value != 1 else claripy.BVV(0, 1))
 
         return MultiValues(self.state.top(1))
 
@@ -698,7 +698,7 @@ class SimEngineRDVEX(
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                if expr1_v._model_concrete.value == 0:
+                if expr1_v.concrete_value == 0:
                     r = MultiValues(self.state.top(bits))
                 else:
                     r = MultiValues(expr0_v / expr1_v)
@@ -820,7 +820,7 @@ class SimEngineRDVEX(
             # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
             if e1.symbolic:
                 return self.state.top(bits)
-            e1 = e1._model_concrete.value
+            e1 = e1.concrete_value
 
             if e1 > bits:
                 return claripy.BVV(0, bits)
@@ -905,7 +905,7 @@ class SimEngineRDVEX(
             # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
             if e1.symbolic:
                 return self.state.top(bits)
-            e1 = e1._model_concrete.value
+            e1 = e1.concrete_value
             return e0 << e1
 
         if expr0_v is None and expr1_v is None:
@@ -940,9 +940,7 @@ class SimEngineRDVEX(
 
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(
-                    claripy.BVV(1, 1) if e0._model_concrete.value == e1._model_concrete.value else claripy.BVV(0, 1)
-                )
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value == e1.concrete_value else claripy.BVV(0, 1))
             elif e0 is e1:
                 return MultiValues(claripy.BVV(1, 1))
             return MultiValues(self.state.top(1))
@@ -958,9 +956,7 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(
-                    claripy.BVV(1, 1) if e0._model_concrete.value != e1._model_concrete.value else claripy.BVV(0, 1)
-                )
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value != e1.concrete_value else claripy.BVV(0, 1))
             elif e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
@@ -974,9 +970,7 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(
-                    claripy.BVV(1, 1) if e0._model_concrete.value < e1._model_concrete.value else claripy.BVV(0, 1)
-                )
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value < e1.concrete_value else claripy.BVV(0, 1))
             elif e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
@@ -990,9 +984,7 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(
-                    claripy.BVV(1, 1) if e0._model_concrete.value <= e1._model_concrete.value else claripy.BVV(0, 1)
-                )
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value <= e1.concrete_value else claripy.BVV(0, 1))
             elif e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))

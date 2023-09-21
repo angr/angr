@@ -243,7 +243,7 @@ class VariableRecoveryStateBase:
 
     def is_global_variable_address(self, addr: claripy.ast.Base) -> bool:
         if addr.op == "BVV":
-            addr_v = addr._model_concrete.value
+            addr_v = addr.concrete_value
             # make sure it is within a mapped region
             obj = self.project.loader.find_object_containing(addr_v)
             if obj is not None:
@@ -284,7 +284,7 @@ class VariableRecoveryStateBase:
             # extract_stack_offset_from_addr should ensure that r is a BVV
             assert r.concrete
 
-            val = r._model_concrete.value
+            val = r.concrete_value
             # convert it to a signed integer
             if val >= 2 ** (self.arch.bits - 1):
                 return val - 2**self.arch.bits

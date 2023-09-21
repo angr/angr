@@ -1039,7 +1039,7 @@ class DDG(Analysis):
             # might be a constant assignment
             v = action.data.ast
             if not v.symbolic:
-                const_var = SimConstantVariable(v._model_concrete.value)
+                const_var = SimConstantVariable(v.concrete_value)
                 const_progvar = ProgramVariable(const_var, prog_var.location)
                 self._data_graph_add_edge(const_progvar, prog_var, type="mem_data")
 

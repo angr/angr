@@ -51,7 +51,7 @@ class TestCallable(unittest.TestCase):
         authenticate = p.factory.callable(
             addr, toc=0x10018E80 if arch == "ppc64" else None, concrete_only=True, prototype=prototype
         )
-        assert authenticate("asdf", "SOSNEAKY")._model_concrete.value == 1
+        assert authenticate("asdf", "SOSNEAKY").concrete_value == 1
         self.assertRaises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
     def run_callable_c_fauxware(self, arch):
@@ -61,7 +61,7 @@ class TestCallable(unittest.TestCase):
             addr, toc=0x10018E80 if arch == "ppc64" else None, concrete_only=True, prototype="int f(char*, char*)"
         )
         retval = authenticate.call_c('("asdf", "SOSNEAKY")')
-        assert retval._model_concrete.value == 1
+        assert retval.concrete_value == 1
 
     def run_manysum(self, arch):
         addr = addresses_manysum[arch]
@@ -71,7 +71,7 @@ class TestCallable(unittest.TestCase):
         sumlots = p.factory.callable(addr, prototype=prototype)
         result = sumlots(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
         assert not result.symbolic
-        assert result._model_concrete.value == sum(range(12))
+        assert result.concrete_value == sum(range(12))
 
     def run_callable_c_manysum(self, arch):
         addr = addresses_manysum[arch]
@@ -79,7 +79,7 @@ class TestCallable(unittest.TestCase):
         sumlots = p.factory.callable(addr, prototype="int f(int, int, int, int, int, int, int, int, int, int, int)")
         result = sumlots.call_c("(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)")
         assert not result.symbolic
-        assert result._model_concrete.value == sum(range(12))
+        assert result.concrete_value == sum(range(12))
 
     def run_manyfloatsum(self, arch):
         global type_cache

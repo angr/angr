@@ -13,7 +13,7 @@ fp_rm_map = {
 
 def translate_rm(rm_num):
     if not rm_num.symbolic:
-        return fp_rm_map[rm_num._model_concrete.value]
+        return fp_rm_map[rm_num.concrete_value]
 
     return claripy.fp.RM.default()
 

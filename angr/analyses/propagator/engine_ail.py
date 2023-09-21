@@ -455,7 +455,7 @@ class SimEnginePropagatorAIL(
                         self.state._gp is not None
                         and not self.state.is_top(var.value)
                         and var.value.concrete
-                        and var.value._model_concrete.value == self.state._gp
+                        and var.value.concrete_value == self.state._gp
                     ):
                         if var.one_expr is not None:
                             outdated, has_avoid = self.is_using_outdated_def(

@@ -246,7 +246,7 @@ class SimMemoryVariable(SimVariable):
 
         if isinstance(size, claripy.ast.BV) and not size.symbolic:
             # Convert it to a concrete number
-            size = size._model_concrete.value
+            size = size.concrete_value
 
         self.size = size
         self._hash = None

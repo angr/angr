@@ -57,10 +57,10 @@ class memset(angr.SimProcedure):
                     write_bytes = self.state.solver.Concat(*([char] * chunksize))
                 else:
                     # Concatenating many bytes is slow, so some sort of optimization is required
-                    if char._model_concrete.value == 0:
+                    if char.concrete_value == 0:
                         write_bytes = self.state.solver.BVV(0, chunksize * 8)
                     else:
-                        rb = memset._repeat_bytes(char._model_concrete.value, chunksize)
+                        rb = memset._repeat_bytes(char.concrete_value, chunksize)
                         write_bytes = self.state.solver.BVV(rb, chunksize * 8)
 
                 self.state.memory.store(dst_addr + offset, write_bytes)

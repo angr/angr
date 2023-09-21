@@ -237,7 +237,7 @@ class SimEngineVRVEX(
 
         typevar = None
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data._model_concrete.value))
+            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data.concrete_value))
 
         sum_ = r0.data + r1.data
         return RichR(
@@ -258,7 +258,7 @@ class SimEngineVRVEX(
 
         typevar = None
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data._model_concrete.value))
+            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data.concrete_value))
 
         diff = r0.data - r1.data
         return RichR(
@@ -418,7 +418,7 @@ class SimEngineVRVEX(
         if r0.data.concrete and r1.data.concrete:
             # constants
             return RichR(
-                claripy.LShR(r0.data, r1.data._model_concrete.value),
+                claripy.LShR(r0.data, r1.data.concrete_value),
                 typevar=typeconsts.int_type(result_size),
                 type_constraints=None,
             )
@@ -438,7 +438,7 @@ class SimEngineVRVEX(
         if r0.data.concrete and r1.data.concrete:
             # constants
             return RichR(
-                r0.data >> r1.data._model_concrete.value,
+                r0.data >> r1.data.concrete_value,
                 typevar=typeconsts.int_type(result_size),
                 type_constraints=None,
             )
@@ -458,7 +458,7 @@ class SimEngineVRVEX(
         if r0.data.concrete and r1.data.concrete:
             # constants
             return RichR(
-                r0.data << r1.data._model_concrete.value,
+                r0.data << r1.data.concrete_value,
                 typevar=typeconsts.int_type(result_size),
                 type_constraints=None,
             )

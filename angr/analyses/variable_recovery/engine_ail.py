@@ -318,7 +318,7 @@ class SimEngineVRAIL(
 
         if r1.data.concrete:
             # addition with constants. create a derived type variable
-            typevar = typevars.DerivedTypeVariable(r0_typevar, typevars.AddN(r1.data._model_concrete.value))
+            typevar = typevars.DerivedTypeVariable(r0_typevar, typevars.AddN(r1.data.concrete_value))
         elif r1.typevar is not None:
             typevar = typevars.TypeVariable()
             type_constraints.add(typevars.Add(r0_typevar, r1.typevar, typevar))
@@ -343,7 +343,7 @@ class SimEngineVRAIL(
 
         type_constraints = set()
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data._model_concrete.value))
+            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data.concrete_value))
         else:
             typevar = typevars.TypeVariable()
             if r0.typevar is not None and r1.typevar is not None:
@@ -507,7 +507,7 @@ class SimEngineVRAIL(
                 typevar=r0.typevar,
             )
 
-        shiftamount = r1.data._model_concrete.value
+        shiftamount = r1.data.concrete_value
 
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
@@ -526,7 +526,7 @@ class SimEngineVRAIL(
                 typevar=r0.typevar,
             )
 
-        shiftamount = r1.data._model_concrete.value
+        shiftamount = r1.data.concrete_value
 
         return RichR(
             claripy.LShR(r0.data, shiftamount), typevar=typeconsts.int_type(result_size), type_constraints=None
@@ -547,7 +547,7 @@ class SimEngineVRAIL(
                 typevar=r0.typevar,
             )
 
-        shiftamount = r1.data._model_concrete.value
+        shiftamount = r1.data.concrete_value
 
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
@@ -566,7 +566,7 @@ class SimEngineVRAIL(
                 typevar=r0.typevar,
             )
 
-        shiftamount = r1.data._model_concrete.value
+        shiftamount = r1.data.concrete_value
 
         return RichR(r0.data >> shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 

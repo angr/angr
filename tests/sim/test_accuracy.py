@@ -128,7 +128,7 @@ class TestAccuracy(unittest.TestCase):
         assert len(pg2.active) == 0
         assert len(pg2.deadended) == 1
         assert pg2.deadended[0].history.events[-1].type == "terminate"
-        assert pg2.deadended[0].history.events[-1].objects["exit_code"]._model_concrete.value == 0
+        assert pg2.deadended[0].history.events[-1].objects["exit_code"].concrete_value == 0
 
 
 if __name__ == "__main__":
