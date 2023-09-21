@@ -794,7 +794,7 @@ class PropagatorAILState(PropagatorState):
     @staticmethod
     def is_expression_too_deep(expr: ailment.Expr.Expression) -> bool:
         # determine if the expression is too deep to propagate
-        if expr.depth >= 6:
+        if expr.depth >= 14:
             return True
         if PropagatorAILState.has_ternary_expr(expr):
             return True
