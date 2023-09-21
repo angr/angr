@@ -1736,9 +1736,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         # addresses in function pointers should be correctly resolved into function pointers
-        assert "&di_ent_hash" in d.codegen.text
-        assert "&di_ent_compare" in d.codegen.text
-        assert "&di_ent_free" in d.codegen.text
+        assert "di_ent_hash, di_ent_compare, di_ent_free" in d.codegen.text
 
     @for_all_structuring_algos
     def test_decompiling_du_humblock_missing_conditions(self, decompiler_options=None):
@@ -2915,6 +2913,20 @@ class TestDecompiler(unittest.TestCase):
         )
         self._print_decompilation_result(dec)
         assert dec.codegen.text == saved
+
+    @for_all_structuring_algos
+    def test_function_pointer_identification(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "rust_hello_world")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True, normalize=True)
+
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        assert "extern" not in text
+        assert "std::rt::lang_start::h9b2e0b6aeda0bae0(rust_hello_world::main::h932c4676a11c63c3" in text
 
 
 if __name__ == "__main__":
