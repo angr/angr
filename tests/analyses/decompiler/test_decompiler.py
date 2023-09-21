@@ -1736,9 +1736,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         # addresses in function pointers should be correctly resolved into function pointers
-        assert "&di_ent_hash" in d.codegen.text
-        assert "&di_ent_compare" in d.codegen.text
-        assert "&di_ent_free" in d.codegen.text
+        assert "di_ent_hash, di_ent_compare, di_ent_free" in d.codegen.text
 
     @for_all_structuring_algos
     def test_decompiling_du_humblock_missing_conditions(self, decompiler_options=None):
