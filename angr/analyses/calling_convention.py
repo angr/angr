@@ -593,7 +593,7 @@ class CallingConventionAnalysis(Analysis):
         if None in temp_args:
             # we be very conservative here and ignore all arguments starting from the first missing one
             first_none_idx = temp_args.index(None)
-            fact.args = temp_args[: first_none_idx]
+            fact.args = temp_args[:first_none_idx]
         else:
             fact.args = temp_args
 
