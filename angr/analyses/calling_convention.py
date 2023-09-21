@@ -591,12 +591,9 @@ class CallingConventionAnalysis(Analysis):
                 break
 
         if None in temp_args:
-            last_consecutive_none_idx = len(temp_args)
-            for i in range(len(temp_args) - 1, -1, -1):
-                if temp_args[i] is not None:
-                    break
-                last_consecutive_none_idx = i
-            fact.args = temp_args[:last_consecutive_none_idx]
+            # we be very conservative here and ignore all arguments starting from the first missing one
+            first_none_idx = temp_args.index(None)
+            fact.args = temp_args[: first_none_idx]
         else:
             fact.args = temp_args
 
