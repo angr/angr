@@ -1959,6 +1959,21 @@ class TestDecompiler(unittest.TestCase):
         condensed = d.codegen.text.replace(" ", "").replace("\n", "")
         assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=input_seek_errno;", condensed)
 
+    @structuring_algo("phoenix")
+    def test_decompiling_dd_iwrite(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x401820]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "amd64g_calculate_condition" not in d.codegen.text  # we should rewrite the ccall to expr == 0
+        assert "a1 == a1" not in d.codegen.text
+
     @for_all_structuring_algos
     def test_decompiling_prototype_recovery_two_blocks(self, decompiler_options=None):
         # we must analyze both 0x40021d and 0x400225 to determine the prototype of xstrtol

@@ -92,6 +92,17 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         r = Expr.BinaryOp(ccall.idx, "CmpEQ", (dep_1, dep_2), False, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                     elif op_v in {
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                    }:
+                        # dep_1 == 0
+                        r = Expr.BinaryOp(
+                            ccall.idx, "CmpEQ", (dep_1, Expr.Const(None, None, 0, dep_1.bits)), False, **ccall.tags
+                        )
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                    elif op_v in {
                         AMD64_OpTypes["G_CC_OP_SHRB"],
                         AMD64_OpTypes["G_CC_OP_SHRW"],
                         AMD64_OpTypes["G_CC_OP_SHRL"],
