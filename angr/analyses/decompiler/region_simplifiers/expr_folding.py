@@ -361,6 +361,9 @@ class ExpressionReplacer(AILBlockWalker):
             new_stmt = self._handle_stmt(idx, stmt_, None)
             if new_stmt is not None and new_stmt is not stmt_:
                 changed = True
+                if isinstance(new_stmt, Assignment) and new_stmt.src.likes(new_stmt.dst):
+                    # this statement is simplified into reg = reg. ignore it
+                    continue
                 new_statements.append(new_stmt)
             else:
                 new_statements.append(stmt_)
@@ -372,6 +375,9 @@ class ExpressionReplacer(AILBlockWalker):
             new_expr = expr.expr
 
         if changed:
+            if not new_statements:
+                # it is no longer a multi-statement expression
+                return new_expr
             expr_ = expr.copy()
             expr_.expr = new_expr
             expr_.stmts = new_statements
