@@ -1974,6 +1974,22 @@ class TestDecompiler(unittest.TestCase):
         assert "amd64g_calculate_condition" not in d.codegen.text  # we should rewrite the ccall to expr == 0
         assert "a1 == a1" not in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_decompiling_uname_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "uname.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # the ternary expression should not be propagated. however, we fail to narrow the ebx expression at 0x400c4f,
+        # so we over-propagate the ternary expression once
+        assert d.codegen.text.count("?") in (1, 2)
+
     @for_all_structuring_algos
     def test_decompiling_prototype_recovery_two_blocks(self, decompiler_options=None):
         # we must analyze both 0x40021d and 0x400225 to determine the prototype of xstrtol
