@@ -50,7 +50,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         """
 
         for s in self.concrete_states:
-            if s.ip._model_concrete.value == addr:
+            if s.ip.concrete_value == addr:
                 return s
 
         return None
@@ -139,7 +139,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         merged = []
 
         for s in self.concrete_states:
-            other_state = other.get_concrete_state(s.ip._model_concrete.value)
+            other_state = other.get_concrete_state(s.ip.concrete_value)
             if other_state is not None:
                 s = s.merge(other_state)
             merged.append(s)
@@ -398,7 +398,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 anno = next(iter(anno for anno in addr.annotations if isinstance(anno, StackLocationAnnotation)), None)
                 if anno is None:
                     if addr.op == "BVV":
-                        return False, addr._model_concrete.value
+                        return False, addr.concrete_value
                     raise ValueError()
                 return True, anno.offset
 

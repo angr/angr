@@ -1786,7 +1786,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 if (
                     isinstance(addr_, claripy.ast.BV) and not addr_.symbolic
                 ):  # pylint:disable=isinstance-second-argument-not-valid-type
-                    addr_ = addr_._model_concrete.value
+                    addr_ = addr_.concrete_value
                 if not isinstance(addr_, int):
                     continue
                 entries += self._create_jobs(
@@ -2784,7 +2784,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if len(simsucc.successors) == 1:
             ip = simsucc.successors[0].ip
             if ip._model_concrete is not ip:
-                target_addr = ip._model_concrete.value
+                target_addr = ip.concrete_value
                 obj = self.project.loader.find_object_containing(target_addr, membership_check=False)
                 if (obj is not None and obj is not self.project.loader.main_object) or self.project.is_hooked(
                     target_addr
@@ -4594,7 +4594,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         state = succ.flat_successors[0]
         gp = state.regs._gp
         if not gp.symbolic and state.solver.is_false(gp == 0xFFFFFFFF):
-            return gp._model_concrete.value
+            return gp.concrete_value
         return None
 
     def _find_thunks(self):

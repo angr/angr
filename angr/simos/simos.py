@@ -75,7 +75,7 @@ class SimOS:
                 _l.error("Resolver at %#x failed to resolve!", resolver_addr)
                 return None
 
-            return val._model_concrete.value
+            return val.concrete_value
 
         self.project.loader.perform_irelative_relocs(irelative_resolver)
 

@@ -183,14 +183,14 @@ class DepGraph:
         for address in known_predecessor_addresses:
             if isinstance(address, claripy.ast.Base):
                 if address.concrete:
-                    concrete_known_pred_addresses.append(address._model_concrete.value)
+                    concrete_known_pred_addresses.append(address.concrete_value)
             else:
                 concrete_known_pred_addresses.append(address)
 
         unknown_concrete_addresses: Set[int] = set()
         for v in values:
             if isinstance(v, claripy.ast.Base) and v.concrete:
-                v = v._model_concrete.value
+                v = v.concrete_value
             if isinstance(v, int):
                 if v not in concrete_known_pred_addresses:
                     unknown_concrete_addresses.add(v)

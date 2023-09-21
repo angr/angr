@@ -129,7 +129,7 @@ class SimEngineVRBase(SimEngineLight):
                     abs_offset = byte_offset
                     if abs_offset.op == "__lshift__" and abs_offset.args[1].concrete:
                         offset = abs_offset.args[0]
-                        elem_size = 2 ** abs_offset.args[1]._model_concrete.value
+                        elem_size = 2 ** abs_offset.args[1].concrete_value
 
                 if base_addr is not None and offset is not None and elem_size is not None:
                     return base_addr, offset, elem_size
@@ -208,7 +208,7 @@ class SimEngineVRBase(SimEngineLight):
 
         elif self.state.is_global_variable_address(data):
             # this is probably an address for a global variable
-            global_var_addr = data._model_concrete.value
+            global_var_addr = data.concrete_value
 
             variable_manager = self.variable_manager["global"]
 
@@ -257,7 +257,7 @@ class SimEngineVRBase(SimEngineLight):
                     existing_vars.append((candidate, offset))
         elif self.state.is_global_variable_address(data):
             # this is probably an address for a global variable
-            global_var_addr = data._model_concrete.value
+            global_var_addr = data.concrete_value
             variable_manager = self.variable_manager["global"]
             # special case for global variables: find existing variable by base address
             existing_vars = list((var, 0) for var in variable_manager.get_global_variables(global_var_addr))
@@ -371,14 +371,12 @@ class SimEngineVRBase(SimEngineLight):
 
         if addr.concrete:
             # fully concrete. this is a global address
-            self._store_to_global(addr._model_concrete.value, data, size, stmt=stmt)
+            self._store_to_global(addr.concrete_value, data, size, stmt=stmt)
             stored = True
         elif self._addr_has_concrete_base(addr) and self._parse_offseted_addr(addr) is not None:
             # we are storing to a concrete global address with an offset
             base_addr, offset, elem_size = self._parse_offseted_addr(addr)
-            self._store_to_global(
-                base_addr._model_concrete.value, data, size, stmt=stmt, offset=offset, elem_size=elem_size
-            )
+            self._store_to_global(base_addr.concrete_value, data, size, stmt=stmt, offset=offset, elem_size=elem_size)
             stored = True
         else:
             if self.state.is_stack_address(addr):
@@ -476,7 +474,7 @@ class SimEngineVRBase(SimEngineLight):
             # trivial case
             abs_addr = addr
         elif offset.concrete and elem_size.concrete:
-            abs_addr = addr + offset._model_concrete.value * elem_size._model_concrete.value
+            abs_addr = addr + offset.concrete_value * elem_size.concrete_value
         else:
             abs_addr = None
 
@@ -535,7 +533,7 @@ class SimEngineVRBase(SimEngineLight):
         if offset is not None and elem_size is not None:
             # it's an array!
             if offset.concrete and elem_size.concrete:
-                concrete_offset = offset._model_concrete.value * elem_size._model_concrete.value
+                concrete_offset = offset.concrete_value * elem_size.concrete_value
                 store_typevar = typevars.DerivedTypeVariable(
                     typevars.DerivedTypeVariable(typevar, typevars.Store()),
                     typevars.HasField(size * self.state.arch.byte_width, concrete_offset),
@@ -743,15 +741,13 @@ class SimEngineVRBase(SimEngineLight):
 
         elif addr.concrete:
             # Loading data from memory
-            v = self._load_from_global(addr._model_concrete.value, size, expr=expr)
+            v = self._load_from_global(addr.concrete_value, size, expr=expr)
             typevar = v.typevar
 
         elif self._addr_has_concrete_base(addr) and self._parse_offseted_addr(addr) is not None:
             # Loading data from a memory address with an offset
             base_addr, offset, elem_size = self._parse_offseted_addr(addr)
-            v = self._load_from_global(
-                base_addr._model_concrete.value, size, expr=expr, offset=offset, elem_size=elem_size
-            )
+            v = self._load_from_global(base_addr.concrete_value, size, expr=expr, offset=offset, elem_size=elem_size)
             typevar = v.typevar
 
         # Loading data from a pointer
@@ -797,7 +793,7 @@ class SimEngineVRBase(SimEngineLight):
         #     # trivial case
         #     abs_addr = addr
         # elif offset.concrete and elem_size.concrete:
-        #     abs_addr = addr + offset._model_concrete.value * elem_size._model_concrete.value
+        #     abs_addr = addr + offset.concrete_value * elem_size.concrete_value
         # else:
         #     abs_addr = None
 
@@ -835,7 +831,7 @@ class SimEngineVRBase(SimEngineLight):
         if offset is not None and elem_size is not None:
             # it's an array!
             if offset.concrete and elem_size.concrete:
-                concrete_offset = offset._model_concrete.value * elem_size._model_concrete.value
+                concrete_offset = offset.concrete_value * elem_size.concrete_value
                 load_typevar = typevars.DerivedTypeVariable(
                     typevars.DerivedTypeVariable(typevar, typevars.Store()),
                     typevars.HasField(size * self.state.arch.byte_width, concrete_offset),

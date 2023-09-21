@@ -49,7 +49,7 @@ class TestSqrt(TestCase):
     def test_sqrt_concrete_eager_evaluation(self):
         a = claripy.FPV(2.0, claripy.FSORT_DOUBLE)
         b = claripy.fpSqrt(a)
-        assert abs(b._model_concrete.value - 1.414) < 0.001
+        assert abs(b.concrete_value - 1.414) < 0.001
 
 
 if __name__ == "__main__":

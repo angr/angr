@@ -348,9 +348,9 @@ def x86g_dirtyhelper_SxDT(state, addr, op):
     if not op.concrete:
         # resolved failed
         return None, []
-    elif op._model_concrete.value == 0:
+    elif op.concrete_value == 0:
         state.memory.store(addr, state.solver.Unconstrained("SIDT", 48))
-    elif op._model_concrete.value == 1:
+    elif op.concrete_value == 1:
         state.memory.store(addr, state.regs.gdt)
 
     return None, []
@@ -364,9 +364,9 @@ def x86g_dirtyhelper_LGDT_LIDT(state, addr, op):
     limit = state.memory.load(addr, 2, endness="Iend_LE")
     base = state.memory.load(addr + 2, 4, endness="Iend_LE")
 
-    if op._model_concrete.value == 2:
+    if op.concrete_value == 2:
         state.regs.gdt = state.solver.Concat(base, limit).zero_extend(16)
-    elif op._model_concrete.value == 3:
+    elif op.concrete_value == 3:
         # LIDT is a nop
         pass
 

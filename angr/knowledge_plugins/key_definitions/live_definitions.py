@@ -480,7 +480,7 @@ class LiveDefinitions:
                 self.memory.erase(atom.addr, size=atom.size)
             elif isinstance(atom.addr, claripy.ast.Base):
                 if atom.addr.concrete:
-                    self.memory.erase(atom.addr._model_concrete.value, size=atom.size)
+                    self.memory.erase(atom.addr.concrete_value, size=atom.size)
                 elif self.is_stack_address(atom.addr):
                     stack_addr = self.get_stack_address(atom.addr)
                     if stack_addr is None:
@@ -1019,7 +1019,7 @@ class LiveDefinitions:
             if addr.op == "BVS":
                 return 0
             elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                return addr.args[1]._model_concrete.value
+                return addr.args[1].concrete_value
         return None
 
     def heap_address(self, offset: Union[int, HeapAddress]) -> claripy.ast.BV:
