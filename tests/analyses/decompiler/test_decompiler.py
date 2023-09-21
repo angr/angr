@@ -2005,6 +2005,32 @@ class TestDecompiler(unittest.TestCase):
         assert len(proj.kb.functions["xstrtol"].prototype.args) == 5
         assert re.search(r"xstrtol\([^\n,]+, [^\n,]+, [^\n,]+, [^\n,]+, [^\n,]+\)", d.codegen.text) is not None
 
+    @structuring_algo("phoenix")
+    def test_decompiling_rewrite_negated_cascading_logical_conjunction_expressions(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stty.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x4013E0]
+
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        # expected: if (*(v4) || *((char *)*((long long *)a1)) != (char)a3 || a0 == *((long long *)a1) || (v5 & -0x100))
+        assert d.codegen.text.count("||") == 3
+        assert d.codegen.text.count("&&") == 0
+
     @for_all_structuring_algos
     def test_decompiling_base32_basenc_do_decode(self, decompiler_options=None):
         # if region identifier works correctly, there should be no gotos
