@@ -229,6 +229,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             func_addr=self._func_addr,
             max_prop_expr_occurrence=1 if self.flavor == "function" else 0,
             initial_codeloc=self._initial_codeloc,
+            model=self.model,
         )
         return self._initial_state
 

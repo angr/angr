@@ -67,6 +67,7 @@ class PropagatorState:
         "_store_tops",
         "_gp",
         "_max_prop_expr_occurrence",
+        "model",
         "__weakref__",
     )
 
@@ -83,6 +84,7 @@ class PropagatorState:
         store_tops: bool = True,
         gp: Optional[int] = None,
         max_prop_expr_occurrence: int = 1,
+        model=None,
     ):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
@@ -99,6 +101,7 @@ class PropagatorState:
         self._gp: Optional[int] = gp  # Value of gp for MIPS32 and 64 binaries
 
         self.project = project
+        self.model = model
 
     def __repr__(self):
         return "<PropagatorState>"
@@ -115,7 +118,7 @@ class PropagatorState:
         max_prop_expr_occurrence=None,
         initial_codeloc=None,
     ):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def _get_weakref(self):
         return weakref.proxy(self)
@@ -288,6 +291,7 @@ class PropagatorVEXState(PropagatorState):
         store_tops=True,
         gp=None,
         max_prop_expr_occurrence: int = 1,
+        model=None,
     ):
         super().__init__(
             arch,
@@ -298,6 +302,7 @@ class PropagatorVEXState(PropagatorState):
             store_tops=store_tops,
             gp=gp,
             max_prop_expr_occurrence=max_prop_expr_occurrence,
+            model=model,
         )
         self.do_binops = do_binops
         self._registers = (
@@ -328,6 +333,7 @@ class PropagatorVEXState(PropagatorState):
         func_addr=None,
         max_prop_expr_occurrence=None,
         initial_codeloc=None,
+        model=None,
     ):
         state = cls(
             project.arch,
@@ -337,6 +343,7 @@ class PropagatorVEXState(PropagatorState):
             store_tops=store_tops,
             gp=gp,
             max_prop_expr_occurrence=max_prop_expr_occurrence,
+            model=model,
         )
         spoffset_var = SimEngineLight.sp_offset(project.arch.bits, 0)
         state.store_register(
@@ -379,6 +386,7 @@ class PropagatorVEXState(PropagatorState):
             store_tops=self._store_tops,
             gp=self._gp,
             max_prop_expr_occurrence=self._max_prop_expr_occurrence,
+            model=self.model,
         )
 
         return cp
@@ -487,6 +495,7 @@ class PropagatorAILState(PropagatorState):
         block_initial_reg_values=None,
         max_prop_expr_occurrence: int = 1,
         sp_adjusted: bool = False,
+        model=None,
     ):
         super().__init__(
             arch,
@@ -497,6 +506,7 @@ class PropagatorAILState(PropagatorState):
             equivalence=equivalence,
             gp=gp,
             max_prop_expr_occurrence=max_prop_expr_occurrence,
+            model=model,
         )
 
         self._stack_variables = (
@@ -539,6 +549,7 @@ class PropagatorAILState(PropagatorState):
         func_addr=None,
         max_prop_expr_occurrence=None,
         initial_codeloc=None,
+        model=None,
     ):
         state = cls(
             project.arch,
@@ -546,6 +557,7 @@ class PropagatorAILState(PropagatorState):
             only_consts=only_consts,
             gp=gp,
             max_prop_expr_occurrence=max_prop_expr_occurrence,
+            model=model,
         )
         spoffset_var = ailment.Expr.StackBaseOffset(None, project.arch.bits, 0)
         sp_value = PropValue(
@@ -609,6 +621,7 @@ class PropagatorAILState(PropagatorState):
             gp=self._gp,
             max_prop_expr_occurrence=self._max_prop_expr_occurrence,
             sp_adjusted=self._sp_adjusted,
+            model=self.model,
         )
 
         return rd
@@ -731,6 +744,10 @@ class PropagatorAILState(PropagatorState):
         if self.is_top(new):
             # eliminate the past propagation of this expression
             self._replacements[codeloc][old] = self.top(1)  # placeholder
+            for codeloc_ in self._expr_used_locs[new]:
+                for key, replace_with in list(self.model.replacements[codeloc_].items()):
+                    if replace_with == new:
+                        self.model.replacements[codeloc_][key] = self.top(1)
             return
 
         # count-based propagation rule only matters when we are performing a full-function copy propagation
@@ -769,6 +786,10 @@ class PropagatorAILState(PropagatorState):
                 for codeloc_ in self._replacements:
                     if old in self._replacements[codeloc_]:
                         self._replacements[codeloc_][old] = self.top(1)
+                for codeloc_ in self._expr_used_locs[new]:
+                    for key, replace_with in list(self.model.replacements[codeloc_].items()):
+                        if replace_with == new:
+                            self.model.replacements[codeloc_][key] = self.top(1)
 
     def add_equivalence(self, codeloc, old, new):
         eq = Equivalence(codeloc, old, new)
