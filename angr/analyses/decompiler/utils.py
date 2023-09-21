@@ -436,6 +436,10 @@ def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bo
 
 def peephole_optimize_exprs(block, expr_opts):
     class _any_update:
+        """
+        Local temporary class used as a container for variable `v`.
+        """
+
         v = False
 
     def _handle_expr(
