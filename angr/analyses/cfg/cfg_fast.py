@@ -1755,6 +1755,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         entries: List[CFGJob] = []
 
+        if (
+            self.functions.contains_addr(cfg_job.src_node.addr)
+            and self.functions[cfg_job.src_node.addr].is_default_name
+            and cfg_job.src_node.addr not in self.kb.labels
+            and cfg_job.jumpkind == "Ijk_Boring"
+        ):
+            # assign a name to the caller function that jumps to this procedure
+            self.functions[cfg_job.src_node.addr].name = procedure.display_name
+
         if procedure.ADDS_EXITS:
             # Get two blocks ahead
             if cfg_job.src_node is None:

@@ -73,7 +73,7 @@ from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
 from . import engines
-from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
+from .calling_conventions import default_cc, DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
 from .storage.file import (
     SimFileBase,
     SimFile,
@@ -125,6 +125,7 @@ __all__ = (
     "SimState",
     "engines",
     "DEFAULT_CC",
+    "default_cc",
     "SYSCALL_CC",
     "PointerWrapper",
     "SimCC",

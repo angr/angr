@@ -11,7 +11,7 @@ from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
-from ...calling_conventions import DEFAULT_CC, SimRegArg
+from ...calling_conventions import default_cc, SimRegArg
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -302,7 +302,11 @@ class SimEngineRDAIL(
 
         if cc is None:
             # fall back to the default calling convention
-            cc_cls = DEFAULT_CC.get(self.project.arch.name, None)
+            cc_cls = default_cc(
+                self.project.arch.name,
+                platform=self.project.simos.name if self.project.simos is not None else None,
+                default=None,
+            )
             if cc_cls is None:
                 l.warning("Unknown default calling convention for architecture %s.", self.project.arch.name)
                 cc = None

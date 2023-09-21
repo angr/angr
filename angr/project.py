@@ -212,19 +212,7 @@ class Project:
         self.store_function = store_function or self._store
         self.load_function = load_function or self._load
 
-        # Step 4: Set up the project's hubs
-        # Step 4.1 Factory
-        self.factory = AngrObjectFactory(self, default_engine=engine)
-
-        # Step 4.2: Analyses
-        self._analyses_preset = analyses_preset
-        self._analyses = None
-        self._initialize_analyses_hub()
-
-        # Step 4.3: ...etc
-        self.kb = KnowledgeBase(self, name="global")
-
-        # Step 5: determine the guest OS
+        # Step 4: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self.simos = simos(self)  # pylint:disable=invalid-name
         elif isinstance(simos, str):
@@ -233,6 +221,18 @@ class Project:
             self.simos = os_mapping[self.loader.main_object.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
+
+        # Step 5: Set up the project's hubs
+        # Step 5.1 Factory
+        self.factory = AngrObjectFactory(self, default_engine=engine)
+
+        # Step 5.2: Analyses
+        self._analyses_preset = analyses_preset
+        self._analyses = None
+        self._initialize_analyses_hub()
+
+        # Step 5.3: ...etc
+        self.kb = KnowledgeBase(self, name="global")
 
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(

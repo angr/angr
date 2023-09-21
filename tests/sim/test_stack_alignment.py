@@ -8,7 +8,7 @@ import unittest
 
 from archinfo import all_arches, ArchAMD64, ArchSoot
 
-from angr.calling_conventions import DEFAULT_CC, SimCCUnknown
+from angr.calling_conventions import DEFAULT_CC, default_cc, SimCCUnknown
 from angr import SimState, sim_options as o, Project
 
 from ..common import bin_location
@@ -22,13 +22,13 @@ log = logging.getLogger(__name__)
 class TestStackAlignment(unittest.TestCase):
     def test_alignment(self):
         for arch in all_arches:
-            if arch.name in DEFAULT_CC and DEFAULT_CC[arch.name] is not SimCCUnknown:
+            if arch.name in DEFAULT_CC and default_cc(arch.name, platform="Linux") is not SimCCUnknown:
                 # There is nothing to test for soot about stack alignment
                 if isinstance(arch, ArchSoot):
                     continue
                 log.info("Testing stack alignment for %s", arch.name)
                 st = SimState(arch=arch)
-                cc = DEFAULT_CC[arch.name](arch=arch)
+                cc = default_cc(arch.name, platform="Linux")(arch=arch)
 
                 st.regs.sp = -1
 
@@ -43,7 +43,7 @@ class TestStackAlignment(unittest.TestCase):
     def test_sys_v_abi_compliance(self):
         arch = ArchAMD64()
         st = SimState(arch=arch)
-        cc = DEFAULT_CC[arch.name](arch=arch)
+        cc = default_cc(arch.name, platform="Linux")(arch=arch)
 
         st.regs.sp = -1
 

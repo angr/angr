@@ -1,6 +1,6 @@
 import pycparser
 
-from .calling_conventions import DEFAULT_CC, SimCC
+from .calling_conventions import default_cc, SimCC
 
 
 class Callable:
@@ -47,7 +47,13 @@ class Callable:
         self._perform_merge = perform_merge
         self._base_state = base_state
         self._toc = toc
-        self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
+        self._cc = (
+            cc
+            if cc is not None
+            else default_cc(project.arch.name, platform=project.simos.name if project.simos is not None else None)(
+                project.arch
+            )
+        )
         self._deadend_addr = project.simos.return_deadend
         self._func_ty = prototype
         self._add_options = add_options if add_options else set()
