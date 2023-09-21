@@ -26,6 +26,7 @@ from ....sim_type import (
     SimTypeLength,
     SimTypeReg,
 )
+from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
@@ -52,7 +53,6 @@ if TYPE_CHECKING:
     import archinfo
     import angr
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-    from angr.knowledge_plugins.functions import Function
 
 
 l = logging.getLogger(name=__name__)
@@ -2012,6 +2012,9 @@ class CConstant(CExpression):
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield CConstant.str_to_c_str(v.content.decode("utf-8")), self
                     return
+                elif isinstance(v, Function):
+                    yield get_cpp_function_name(v.demangled_name, specialized=False, qualified=True), self
+                    return
 
         if self.reference_values is not None and self._type is not None and self._type in self.reference_values:
             if isinstance(self._type, SimTypeInt):
@@ -2272,6 +2275,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self._variables_in_use: Optional[Dict] = None
         self._inlined_strings: Set[SimMemoryVariable] = set()
+        self._function_pointers: Set[SimMemoryVariable] = set()
         self.ailexpr2cnode: Optional[Dict[Tuple[Expr.Expression, bool], CExpression]] = None
         self.cnode2ailexpr: Optional[Dict[CExpression, Expr.Expression]] = None
         self._indent = indent
@@ -2359,7 +2363,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = MakeTypecastsImplicit.handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
-        self.cexterns = {self._variable(v, 1) for v in self.externs if v not in self._inlined_strings}
+        self.cexterns = {
+            self._variable(v, 1)
+            for v in self.externs
+            if v not in self._inlined_strings and v not in self._function_pointers
+        }
 
         self.regenerate_text()
 
@@ -3153,6 +3161,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Const(self, expr, type_=None, reference_values=None, variable=None, **kwargs):
         inline_string = False
+        function_pointer = False
 
         if reference_values is None:
             reference_values = {}
@@ -3175,8 +3184,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # edge cases: (void*)"this is a constant string pointer". in this case, the type_ will be a void*
             # (BOT*) instead of a char*.
 
+            if expr.value in self.project.kb.functions:
+                # It's a function pointer
+                # We don't care about the actual prototype here
+                type_ = SimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
+                reference_values[type_] = self.project.kb.functions[expr.value]
+                function_pointer = True
+
             # pure guessing: is it possible that it's a string?
-            if (
+            elif (
                 self._cfg is not None
                 and expr.bits == self.project.arch.bits
                 and expr.value > 0x10000
@@ -3197,6 +3213,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             variable = expr.reference_variable
             if inline_string:
                 self._inlined_strings.add(expr.reference_variable)
+            elif function_pointer:
+                self._function_pointers.add(expr.reference_variable)
 
         if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
