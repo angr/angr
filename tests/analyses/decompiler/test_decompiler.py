@@ -2900,7 +2900,7 @@ class TestDecompiler(unittest.TestCase):
         )
         self._print_decompilation_result(dec)
         assert dec.codegen.text == saved
-        
+
     @for_all_structuring_algos
     def test_function_pointer_identification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "rust_hello_world")
@@ -2914,6 +2914,7 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
         assert "extern" not in text
         assert "std::rt::lang_start::h9b2e0b6aeda0bae0(rust_hello_world::main::h932c4676a11c63c3" in text
+
 
 if __name__ == "__main__":
     unittest.main()
