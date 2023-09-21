@@ -13,6 +13,7 @@ from ...utils.lazy_import import lazy_import
 from ...utils import is_pyinstaller
 from ...utils.graph import dominates, inverted_idoms
 from ...block import Block, BlockNode
+from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .structuring.structurer_nodes import (
     MultiNode,
     EmptyBlockNotice,
@@ -28,7 +29,7 @@ from .structuring.structurer_nodes import (
     IncompleteSwitchCaseNode,
 )
 from .graph_region import GraphRegion
-from .utils import first_nonlabel_statement
+from .utils import first_nonlabel_statement, peephole_optimize_expr
 
 if is_pyinstaller():
     # PyInstaller is not happy with lazy import
@@ -127,6 +128,10 @@ class ConditionProcessor:
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
+
+        self._peephole_expr_optimizations = [
+            cls(None, None, None) for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions]
+        ]
 
     def clear(self):
         self._condition_mapping = {}
@@ -611,6 +616,8 @@ class ConditionProcessor:
         if cond._hash in memo:
             return memo[cond._hash]
         r = self.convert_claripy_bool_ast_core(cond, memo)
+        optimized_r = peephole_optimize_expr(r, self._peephole_expr_optimizations)
+        r = r if optimized_r is None else optimized_r
         memo[cond._hash] = r
         return r
 

@@ -434,6 +434,105 @@ def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bo
     return False
 
 
+def peephole_optimize_exprs(block, expr_opts):
+    class _any_update:
+        """
+        Local temporary class used as a container for variable `v`.
+        """
+
+        v = False
+
+    def _handle_expr(
+        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: Optional[ailment.Stmt.Statement], block
+    ) -> Optional[ailment.Expr.Expression]:
+        old_expr = expr
+
+        redo = True
+        while redo:
+            redo = False
+            for expr_opt in expr_opts:
+                if isinstance(expr, expr_opt.expr_classes):
+                    r = expr_opt.optimize(expr)
+                    if r is not None and r is not expr:
+                        expr = r
+                        redo = True
+                        break
+
+        if expr is not old_expr:
+            _any_update.v = True
+            # continue to process the expr
+            r = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+            return expr if r is None else r
+
+        return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+
+    # run expression optimizers
+    walker = ailment.AILBlockWalker()
+    walker._handle_expr = _handle_expr
+    walker.walk(block)
+
+    return _any_update.v
+
+
+def peephole_optimize_expr(expr, expr_opts):
+    def _handle_expr(
+        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: Optional[ailment.Stmt.Statement], block
+    ) -> Optional[ailment.Expr.Expression]:
+        old_expr = expr
+
+        redo = True
+        while redo:
+            redo = False
+            for expr_opt in expr_opts:
+                if isinstance(expr, expr_opt.expr_classes):
+                    r = expr_opt.optimize(expr)
+                    if r is not None and r is not expr:
+                        expr = r
+                        redo = True
+                        break
+
+        if expr is not old_expr:
+            # continue to process the expr
+            r = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+            return expr if r is None else r
+
+        return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+
+    # run expression optimizers
+    walker = ailment.AILBlockWalker()
+    walker._handle_expr = _handle_expr
+    new_expr = walker._handle_expr(0, expr, 0, None, None)
+
+    return new_expr
+
+
+def peephole_optimize_stmts(block, stmt_opts):
+    any_update = False
+    statements = []
+
+    # run statement optimizers
+    for stmt in block.statements:
+        old_stmt = stmt
+        redo = True
+        while redo:
+            redo = False
+            for opt in stmt_opts:
+                if isinstance(stmt, opt.stmt_classes):
+                    r = opt.optimize(stmt)
+                    if r is not None and r is not stmt:
+                        stmt = r
+                        redo = True
+                        break
+
+        if stmt is not None and stmt is not old_stmt:
+            statements.append(stmt)
+            any_update = True
+        else:
+            statements.append(old_stmt)
+
+    return statements, any_update
+
+
 # delayed import
 from .structuring.structurer_nodes import (
     MultiNode,

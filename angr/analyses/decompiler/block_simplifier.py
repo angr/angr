@@ -3,8 +3,8 @@ import logging
 from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
-from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
-from ailment import AILBlockWalker, AILBlockWalkerBase
+from ailment.expression import Tmp, Load, Const, Register, Convert
+from ailment import AILBlockWalkerBase
 
 from angr.code_location import ExternalCodeLocation
 
@@ -16,6 +16,7 @@ from ...analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from ...errors import SimMemoryMissingError
 from .. import Analysis, register_analysis
 from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
+from .utils import peephole_optimize_exprs, peephole_optimize_stmts
 
 if TYPE_CHECKING:
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -378,77 +379,14 @@ class BlockSimplifier(Analysis):
 
     def _peephole_optimize(self, block):
         # expressions are updated in place
-        self._peephole_optimize_exprs(block, self._expr_peephole_opts)
+        peephole_optimize_exprs(block, self._expr_peephole_opts)
 
-        statements, stmts_updated = self._peephole_optimize_stmts(block, self._stmt_peephole_opts)
+        statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)
 
         if not stmts_updated:
             return block
         new_block = block.copy(statements=statements)
         return new_block
-
-    @staticmethod
-    def _peephole_optimize_exprs(block, expr_opts):
-        class _any_update:
-            v = False
-
-        def _handle_expr(
-            expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block
-        ) -> Optional[Expression]:
-            old_expr = expr
-
-            redo = True
-            while redo:
-                redo = False
-                for expr_opt in expr_opts:
-                    if isinstance(expr, expr_opt.expr_classes):
-                        r = expr_opt.optimize(expr)
-                        if r is not None and r is not expr:
-                            expr = r
-                            redo = True
-                            break
-
-            if expr is not old_expr:
-                _any_update.v = True
-                # continue to process the expr
-                r = AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-                return expr if r is None else r
-
-            return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-
-        # run expression optimizers
-        walker = AILBlockWalker()
-        walker._handle_expr = _handle_expr
-        walker.walk(block)
-
-        return _any_update.v
-
-    @staticmethod
-    def _peephole_optimize_stmts(block, stmt_opts):
-        any_update = False
-        statements = []
-
-        # run statement optimizers
-        for stmt in block.statements:
-            old_stmt = stmt
-            redo = True
-            while redo:
-                redo = False
-                for opt in stmt_opts:
-                    if isinstance(stmt, opt.stmt_classes):
-                        r = opt.optimize(stmt)
-                        if r is not None and r is not stmt:
-                            stmt = r
-                            redo = True
-                            break
-
-            if stmt is not None and stmt is not old_stmt:
-                statements.append(stmt)
-                any_update = True
-            else:
-                statements.append(old_stmt)
-
-        return statements, any_update
 
 
 register_analysis(BlockSimplifier, "AILBlockSimplifier")
