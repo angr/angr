@@ -3203,7 +3203,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                     reference_values[type_] = self._cfg.memory_data[expr.value]
                     # is it a constant string?
-                    if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(self.project, expr.value):
+                    if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(
+                        self.project, expr.value
+                    ):
                         inline_string = True
 
         if type_ is None:
