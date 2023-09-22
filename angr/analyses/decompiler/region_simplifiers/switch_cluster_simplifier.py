@@ -497,7 +497,9 @@ def simplify_lowered_switches(region: SequenceNode, var2condnodes: Dict[Any, Lis
     """
 
     for var, condnodes in var2condnodes.items():
-        simplify_lowered_switches_core(region, var, condnodes, functions)
+        # an arbitrary threshold of 8, and must have at least one > or <
+        if len(condnodes) > 8 and any(condnode.op in {CmpOp.GT, CmpOp.LT} for condnode in condnodes):
+            simplify_lowered_switches_core(region, var, condnodes, functions)
 
 
 def simplify_lowered_switches_core(
