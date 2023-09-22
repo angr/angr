@@ -391,6 +391,11 @@ class SimEngineRDAIL(
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call) -> MultiValues:
         data = self._handle_Call_base(expr, is_expr=True)
         result = data.ret_values
+
+        # truncate result if needed
+        if len(result) > expr.bits:
+            result = result.extract((len(result) - expr.bits) // 8, expr.bits // 8, "Iend_BE")
+
         if result is not None and data.ret_values_deps is not None:
             for dep in data.ret_values_deps:
                 result = self.state.annotate_mv_with_def(result, dep)
