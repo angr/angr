@@ -368,8 +368,7 @@ class SimEngineRDAIL(
             if tmp in (-1, 0xFFFFFFFF):
                 return
             size = 32  # FIXME: We don't know the size.
-            self.state.kill_and_add_definition(Tmp(tmp, size), None)
-            self.tmps[tmp] = None
+            self.state.kill_and_add_definition(Tmp(tmp, size), MultiValues(self.state.top(size)))
         else:
             l.warning("Unexpected type of dirty statement %s.", type(stmt.dirty_stmt))
 

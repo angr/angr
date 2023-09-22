@@ -3184,26 +3184,27 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # edge cases: (void*)"this is a constant string pointer". in this case, the type_ will be a void*
             # (BOT*) instead of a char*.
 
-            if expr.value in self.project.kb.functions:
-                # It's a function pointer
-                # We don't care about the actual prototype here
-                type_ = SimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
-                reference_values[type_] = self.project.kb.functions[expr.value]
-                function_pointer = True
+            if isinstance(expr.value, int):
+                if expr.value in self.project.kb.functions:
+                    # It's a function pointer
+                    # We don't care about the actual prototype here
+                    type_ = SimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
+                    reference_values[type_] = self.project.kb.functions[expr.value]
+                    function_pointer = True
 
-            # pure guessing: is it possible that it's a string?
-            elif (
-                self._cfg is not None
-                and expr.bits == self.project.arch.bits
-                and expr.value > 0x10000
-                and expr.value in self._cfg.memory_data
-                and self._cfg.memory_data[expr.value].sort == MemoryDataSort.String
-            ):
-                type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
-                reference_values[type_] = self._cfg.memory_data[expr.value]
-                # is it a constant string?
-                if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(self.project, expr.value):
-                    inline_string = True
+                # pure guessing: is it possible that it's a string?
+                elif (
+                    self._cfg is not None
+                    and expr.bits == self.project.arch.bits
+                    and expr.value > 0x10000
+                    and expr.value in self._cfg.memory_data
+                    and self._cfg.memory_data[expr.value].sort == MemoryDataSort.String
+                ):
+                    type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                    reference_values[type_] = self._cfg.memory_data[expr.value]
+                    # is it a constant string?
+                    if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(self.project, expr.value):
+                        inline_string = True
 
         if type_ is None:
             # default to int
