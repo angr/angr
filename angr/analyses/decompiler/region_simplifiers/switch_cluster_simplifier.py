@@ -500,7 +500,9 @@ def simplify_lowered_switches(region: SequenceNode, var2condnodes: Dict[Any, Lis
         simplify_lowered_switches_core(region, var, condnodes, functions)
 
 
-def simplify_lowered_switches_core(region: SequenceNode, var, condnodes, functions) -> bool:
+def simplify_lowered_switches_core(
+    region: SequenceNode, var, condnodes, functions  # pylint:disable=unused-argument
+) -> bool:
     node_to_condnode = {}
     parent_node_to_condnodes = defaultdict(list)
 
@@ -634,4 +636,4 @@ class FindFirstNodeInSet(SequenceWalker):
         if node in self.node_set:
             self.first_node = node
         if self.first_node is None:
-            return super()._handle(node, **kwargs)
+            super()._handle(node, **kwargs)
