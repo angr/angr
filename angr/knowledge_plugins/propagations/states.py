@@ -741,7 +741,11 @@ class PropagatorAILState(PropagatorState):
             if callexpr_finder.has_call:
                 return
 
-        if self.is_top(new) or self.is_expression_too_deep(new):
+        if (
+            self.is_top(new)
+            or self.is_expression_too_deep(new)
+            or (self.has_ternary_expr(new) and not isinstance(old, ailment.Expr.Tmp))
+        ):
             # eliminate the past propagation of this expression
             self._replacements[codeloc][old] = self.top(1)  # placeholder
             for codeloc_ in self._expr_used_locs[new]:
@@ -794,11 +798,7 @@ class PropagatorAILState(PropagatorState):
     @staticmethod
     def is_expression_too_deep(expr: ailment.Expr.Expression) -> bool:
         # determine if the expression is too deep to propagate
-        if expr.depth >= 30:
-            return True
-        if PropagatorAILState.has_ternary_expr(expr):
-            return True
-        return False
+        return expr.depth >= 30
 
     @staticmethod
     def has_ternary_expr(expr: ailment.Expr.Expression) -> bool:
