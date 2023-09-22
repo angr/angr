@@ -794,7 +794,7 @@ class PropagatorAILState(PropagatorState):
     @staticmethod
     def is_expression_too_deep(expr: ailment.Expr.Expression) -> bool:
         # determine if the expression is too deep to propagate
-        if expr.depth >= 14:
+        if expr.depth >= 30:
             return True
         if PropagatorAILState.has_ternary_expr(expr):
             return True
@@ -803,9 +803,13 @@ class PropagatorAILState(PropagatorState):
     @staticmethod
     def has_ternary_expr(expr: ailment.Expr.Expression) -> bool:
         class _has_ternary_expr:
+            """
+            Temporary class holding values.
+            """
+
             v = False
 
-        def _handle_ITE(*args, **kwargs):
+        def _handle_ITE(*args, **kwargs):  # pylint:disable=unused-argument
             _has_ternary_expr.v = True
 
         walker = ailment.AILBlockWalkerBase()
