@@ -2970,6 +2970,40 @@ class TestDecompiler(unittest.TestCase):
         assert "extern" not in text
         assert "std::rt::lang_start::h9b2e0b6aeda0bae0(rust_hello_world::main::h932c4676a11c63c3" in text
 
+    @structuring_algo("phoenix")
+    def test_decompiling_remove_rm_fts(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "remove.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["rm_fts"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        lines = d.codegen.text.split("\n")
+        func_starting_line = [idx for idx, line in enumerate(lines) if "rm_fts" in line][0]
+        lines = lines[func_starting_line:]
+        end_of_variable_list_line = [idx for idx, line in enumerate(lines) if not line.strip(" ")][0]
+        lines = lines[end_of_variable_list_line + 1 :]
+        # the first line of the code should be an if statement. all other variables should have been eliminated by
+        # proper propagation
+        assert lines[0].strip(" ").startswith("if (")
+
 
 if __name__ == "__main__":
     unittest.main()

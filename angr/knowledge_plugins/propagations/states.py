@@ -741,7 +741,11 @@ class PropagatorAILState(PropagatorState):
             if callexpr_finder.has_call:
                 return
 
-        if self.is_top(new):
+        if (
+            self.is_top(new)
+            or self.is_expression_too_deep(new)
+            or (self.has_ternary_expr(new) and not isinstance(old, ailment.Expr.Tmp))
+        ):
             # eliminate the past propagation of this expression
             self._replacements[codeloc][old] = self.top(1)  # placeholder
             for codeloc_ in self._expr_used_locs[new]:
@@ -786,11 +790,29 @@ class PropagatorAILState(PropagatorState):
                 for codeloc_ in self._replacements:
                     if old in self._replacements[codeloc_]:
                         self._replacements[codeloc_][old] = self.top(1)
-                for codeloc_ in self._expr_used_locs[new]:
-                    for key, replace_with in list(self.model.replacements[codeloc_].items()):
-                        if replace_with == new:
-                            self.model.replacements[codeloc_][key] = self.top(1)
 
     def add_equivalence(self, codeloc, old, new):
         eq = Equivalence(codeloc, old, new)
         self._equivalence.add(eq)
+
+    @staticmethod
+    def is_expression_too_deep(expr: ailment.Expr.Expression) -> bool:
+        # determine if the expression is too deep to propagate
+        return expr.depth >= 30
+
+    @staticmethod
+    def has_ternary_expr(expr: ailment.Expr.Expression) -> bool:
+        class _has_ternary_expr:
+            """
+            Temporary class holding values.
+            """
+
+            v = False
+
+        def _handle_ITE(*args, **kwargs):  # pylint:disable=unused-argument
+            _has_ternary_expr.v = True
+
+        walker = ailment.AILBlockWalkerBase()
+        walker.expr_handlers[ailment.Expr.ITE] = _handle_ITE
+        walker.walk_expression(expr, 0, None, None)
+        return _has_ternary_expr.v
