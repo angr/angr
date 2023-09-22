@@ -99,11 +99,15 @@ class BlockWalker(AILBlockWalker):
             # *(const_addr)
             # does it belong to a read-only section/segment?
             if self._addr_belongs_to_got(expr.addr.value) or self._addr_belongs_to_ro_region(expr.addr.value):
-                w = self._project.loader.memory.unpack_word(
-                    expr.addr.value,
-                    expr.addr.bits // self._project.arch.byte_width,
-                    endness=self._project.arch.memory_endness,
-                )
+                try:
+                    w = self._project.loader.memory.unpack_word(
+                        expr.addr.value,
+                        expr.addr.bits // self._project.arch.byte_width,
+                        endness=self._project.arch.memory_endness,
+                    )
+                except KeyError:
+                    # we don't have enough bytes to read out
+                    w = None
                 if w is not None:
                     # nice! replace it with the actual value
                     return Const(None, None, w, expr.bits, **expr.tags)
