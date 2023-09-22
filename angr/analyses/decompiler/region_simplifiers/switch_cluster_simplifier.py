@@ -526,6 +526,9 @@ def simplify_lowered_switches_core(
         node, min_, max_ = stack.pop(0)
         if node not in node_to_condnode:
             return False
+        if not isinstance(node, ConditionNode):
+            # not fully structured
+            return False
         condnode = node_to_condnode[node]
         if condnode.op == CmpOp.EQ:
             if node.true_node is not None:
