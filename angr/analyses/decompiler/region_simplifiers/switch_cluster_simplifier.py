@@ -6,8 +6,10 @@ from collections import OrderedDict, defaultdict
 import ailment
 
 from ....utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
-from ..structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode
+from ..structuring.structurer_nodes import SwitchCaseNode, ConditionNode, SequenceNode, MultiNode, BaseNode, BreakNode
 from ..sequence_walker import SequenceWalker
+from ..condition_processor import ConditionProcessor, EmptyBlockNotice
+from ..utils import is_statement_terminating
 
 
 class CmpOp(enum.Enum):
@@ -483,3 +485,160 @@ def simplify_switch_clusters(
         else:
             # unsupported for now
             continue
+
+
+def simplify_lowered_switches(region: SequenceNode, var2condnodes: Dict[Any, List[ConditionalRegion]], functions):
+    """
+    Identify a lowered switch and simplify it into a switch-case if possible.
+
+    :param region:          The region to simplify.
+    :param var2condnodes:   A dict that stores the mapping from (potential) switch variables to conditional regions.
+    :return:                None
+    """
+
+    for var, condnodes in var2condnodes.items():
+        # an arbitrary threshold of 8, and must have at least one > or <
+        if len(condnodes) > 8 and any(condnode.op in {CmpOp.GT, CmpOp.LT} for condnode in condnodes):
+            simplify_lowered_switches_core(region, var, condnodes, functions)
+
+
+def simplify_lowered_switches_core(
+    region: SequenceNode, var, condnodes, functions  # pylint:disable=unused-argument
+) -> bool:
+    node_to_condnode = {}
+    parent_node_to_condnodes = defaultdict(list)
+
+    for condnode in condnodes:
+        if condnode.node in node_to_condnode:
+            return False
+        node_to_condnode[condnode.node] = condnode
+        parent_node_to_condnodes[condnode.parent].append(condnode)
+
+    first_node_finder = FindFirstNodeInSet(set(node_to_condnode))
+    first_node_finder.walk(region)
+    outermost_node = first_node_finder.first_node
+
+    if outermost_node is None:
+        return False
+
+    caseno_to_node = {}
+    default_node_candidates: List[Tuple[BaseNode, BaseNode]] = []  # parent to default node candidate
+    stack: List[(ConditionNode, int, int)] = [(outermost_node, 0, 0xFFFF_FFFF_FFFF_FFFF)]
+    while stack:
+        node, min_, max_ = stack.pop(0)
+        if node not in node_to_condnode:
+            return False
+        if not isinstance(node, ConditionNode):
+            # not fully structured
+            return False
+        condnode = node_to_condnode[node]
+        if condnode.op == CmpOp.EQ:
+            if node.true_node is not None:
+                # true node is the case
+                if condnode.value in caseno_to_node:
+                    # overlapping case
+                    return False
+                caseno_to_node[condnode.value] = node.true_node
+
+            if node.false_node is not None:
+                # is it the default node?
+                if node.false_node not in node_to_condnode:
+                    default_node_candidates.append((node, node.false_node))
+                else:
+                    stack.append((node.false_node, min_, max_))
+        elif condnode.op == CmpOp.GT:
+            # TODO: Handle cases with multiple case numbers
+            if node.true_node is not None:
+                stack.append((node.true_node, condnode.value + 1, max_))
+            if node.false_node is not None:
+                stack.append((node.false_node, min_, condnode.value))
+        elif condnode.op == CmpOp.LT:
+            # TODO: Handle cases with multiple case numbers
+            if node.true_node is not None:
+                stack.append((node.true_node, min_, condnode.value - 1))
+            if node.false_node is not None:
+                stack.append((node.false_node, condnode.value, max_))
+        elif condnode.op == CmpOp.NE:
+            if node.false_node is not None:
+                # false node is the case
+                if condnode.value in caseno_to_node:
+                    # overlapping case
+                    return False
+                caseno_to_node[condnode.value] = node.false_node
+
+            if node.true_node is not None:
+                # is it the default node?
+                if node.true_node not in node_to_condnode:
+                    default_node_candidates.append((node, node.true_node))
+                else:
+                    stack.append((node.true_node, min_, max_))
+
+    # sanity check: all default node candidates should have the same address
+    # note that this sanity check is not strict. we sincerely hope that prior optimizations haven't made these default
+    # node duplicates different from each other
+    # TODO: Implement a stricter check
+    if len({candidate.addr for _, candidate in default_node_candidates}) > 1:
+        return False
+    default_node = None
+    if default_node_candidates:
+        default_node = default_node_candidates[0][1]
+
+    # build the switch-case
+    cases = OrderedDict()
+    for k in sorted(caseno_to_node):
+        case_node = caseno_to_node[k]
+        try:
+            last_stmts = ConditionProcessor.get_last_statements(case_node)
+        except EmptyBlockNotice:
+            # unexpected
+            return False
+        if not all(is_statement_terminating(stmt, functions) for stmt in last_stmts):
+            # insert a break node at the end
+            case_node = SequenceNode(
+                case_node.addr,
+                nodes=[
+                    case_node,
+                    BreakNode(case_node.addr, None),
+                ],
+            )
+        cases[k] = case_node
+
+    if not isinstance(outermost_node.condition.operands[0], ailment.Expr.Const) and isinstance(
+        outermost_node.condition.operands[1], ailment.Expr.Const
+    ):
+        switch_expr = outermost_node.condition.operands[0]
+    elif not isinstance(outermost_node.condition.operands[1], ailment.Expr.Const) and isinstance(
+        outermost_node.condition.operands[0], ailment.Expr.Const
+    ):
+        switch_expr = outermost_node.condition.operands[1]
+    else:
+        return False
+
+    new_switchcase = SwitchCaseNode(
+        switch_expr,
+        cases,
+        default_node,
+        addr=outermost_node.addr,
+    )
+
+    # replace this condition node with the new SwitchCase node
+    SwitchClusterReplacer(region, outermost_node, new_switchcase)
+
+    return True
+
+
+class FindFirstNodeInSet(SequenceWalker):
+    """
+    Find the first node out of a set of node appearing in a SequenceNode (and its tree).
+    """
+
+    def __init__(self, node_set: Set[BaseNode]):
+        super().__init__(update_seqnode_in_place=False, force_forward_scan=True)
+        self.node_set = node_set
+        self.first_node = None
+
+    def _handle(self, node, **kwargs):
+        if node in self.node_set:
+            self.first_node = node
+        if self.first_node is None:
+            super()._handle(node, **kwargs)

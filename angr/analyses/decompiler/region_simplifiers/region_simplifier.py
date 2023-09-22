@@ -16,7 +16,7 @@ from .loop import LoopSimplifier
 from .expr_folding import ExpressionCounter, ExpressionFolder, StoreStatementFinder, ExpressionLocation
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .switch_expr_simplifier import SwitchExpressionSimplifier
-from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters
+from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters, simplify_lowered_switches
 
 
 class RegionSimplifier(Analysis):
@@ -159,10 +159,14 @@ class RegionSimplifier(Analysis):
         SwitchExpressionSimplifier(region)
         return region
 
-    @staticmethod
-    def _simplify_switch_clusters(region):
+    def _simplify_switch_clusters(self, region):
         finder = SwitchClusterFinder(region)
         simplify_switch_clusters(region, finder.var2condnodes, finder.var2switches)
+        simplify_lowered_switches(
+            region,
+            {var: v for var, v in finder.var2condnodes.items() if var not in finder.var2switches},
+            self.kb.functions,
+        )
         return region
 
     @staticmethod

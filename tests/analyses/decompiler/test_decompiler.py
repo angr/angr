@@ -822,6 +822,22 @@ class TestDecompiler(unittest.TestCase):
         )
         assert m is not None
 
+    @structuring_algo("phoenix")
+    def test_decompilation_stat_human_fstype(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x401A70]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # we structure the giant if-else tree into a switch-case
+        assert "switch (" in d.codegen.text
+        assert "if (" not in d.codegen.text
+
     @for_all_structuring_algos
     def test_decompilation_excessive_condition_removal(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
