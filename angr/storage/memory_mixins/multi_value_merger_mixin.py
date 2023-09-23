@@ -4,7 +4,7 @@ from . import MemoryMixin
 
 
 class MultiValueMergerMixin(MemoryMixin):
-    def __init__(self, *args, element_limit=5, annotation_limit=40, top_func=None, phi_maker=None, **kwargs):
+    def __init__(self, *args, element_limit=5, annotation_limit=256, top_func=None, phi_maker=None, **kwargs):
         self._element_limit = element_limit
         self._annotation_limit = annotation_limit
         self._top_func: Callable = top_func

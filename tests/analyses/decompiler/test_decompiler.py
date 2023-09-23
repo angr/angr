@@ -838,6 +838,35 @@ class TestDecompiler(unittest.TestCase):
         assert "switch (" in d.codegen.text
         assert "if (" not in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_decompilation_stat_human_fstype_no_eager_returns(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x401A70]
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier
+        ]
+        all_optimization_passes.append(angr.analyses.decompiler.optimization_passes.LoweredSwitchSimplifier)
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        # we structure the giant if-else tree into a switch-case
+        assert "switch (" in d.codegen.text
+        assert "break;" in d.codegen.text
+        assert "if (" not in d.codegen.text
+
     @for_all_structuring_algos
     def test_decompilation_excessive_condition_removal(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
