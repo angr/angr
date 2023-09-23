@@ -149,7 +149,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 original_nodes = [case.original_node for case in cases if case.value != "default"]
                 original_head: Block = original_nodes[0]
                 original_nodes = original_nodes[1:]
-                existing_nodes_by_addr = dict((nn.addr, nn) for nn in graph_copy)
+                existing_nodes_by_addr = {nn.addr: nn for nn in graph_copy}
 
                 case_addrs = []
                 delayed_edges = []
