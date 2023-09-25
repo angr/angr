@@ -6,7 +6,7 @@ import inspect
 
 import networkx
 
-from ailment.statement import Jump
+from ailment.statement import Jump, ConditionalJump
 from ailment.expression import Const
 
 from ..condition_processor import ConditionProcessor, EmptyBlockNotice
@@ -170,13 +170,24 @@ class EagerReturnsSimplifier(OptimizationPass):
                         node_copy.idx = next(self.node_idx)
                         copies[node] = node_copy
 
-                    # modify Jump.target_idx accordingly
+                    # modify Jump.target_idx and ConditionalJump.{true,false}_target_idx accordingly
                     graph.add_edge(pred, node_copy)
                     try:
                         last_stmt = ConditionProcessor.get_last_statement(pred)
-                        if isinstance(last_stmt, Jump) and isinstance(last_stmt.target, Const):
-                            if last_stmt.target.value == node_copy.addr:
+                        if isinstance(last_stmt, Jump):
+                            if isinstance(last_stmt.target, Const) and last_stmt.target.value == node_copy.addr:
                                 last_stmt.target_idx = node_copy.idx
+                        elif isinstance(last_stmt, ConditionalJump):
+                            if (
+                                isinstance(last_stmt.true_target, Const)
+                                and last_stmt.true_target.value == node_copy.addr
+                            ):
+                                last_stmt.true_target_idx = node_copy.idx
+                            elif (
+                                isinstance(last_stmt.false_target, Const)
+                                and last_stmt.false_target.value == node_copy.addr
+                            ):
+                                last_stmt.false_target_idx = node_copy.idx
                     except EmptyBlockNotice:
                         pass
 

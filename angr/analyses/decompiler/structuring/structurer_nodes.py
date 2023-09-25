@@ -396,8 +396,9 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
     def __init__(self, idx, switch_variable, case_addrs, **kwargs):
         super().__init__(idx, **kwargs)
         self.switch_variable = switch_variable
-        # original cmp node addr, case value | "default", address of the case node
-        self.case_addrs: List[Tuple[ailment.Block, Union[int, str], int, int]] = case_addrs
+        # original cmp node, case value | "default", address of the case node, idx of the case node,
+        # address of the next cmp node
+        self.case_addrs: List[Tuple[ailment.Block, Union[int, str], int, Optional[int], int]] = case_addrs
 
     def __repr__(self):
         return f"SwitchCaseHead: switch {self.switch_variable} with {len(self.case_addrs)} cases"

@@ -287,6 +287,7 @@ class StructurerBase(Analysis):
                                 ailment.Expr.UnaryOp(None, "Not", jump_stmt.condition),
                                 jump_stmt.false_target,
                                 None,
+                                true_target_idx=jump_stmt.false_target_idx,
                                 **jump_stmt.tags,
                             )
                         elif (
@@ -299,6 +300,7 @@ class StructurerBase(Analysis):
                                 jump_stmt.condition,
                                 jump_stmt.true_target,
                                 None,
+                                true_target_idx=jump_stmt.true_target_idx,
                                 **jump_stmt.tags,
                             )
 
@@ -347,6 +349,7 @@ class StructurerBase(Analysis):
                                 ailment.Expr.UnaryOp(None, "Not", jump_stmt.condition),
                                 jump_stmt.false_target,
                                 None,
+                                true_target_idx=jump_stmt.false_target_idx,
                                 **jump_stmt.tags,
                             )
                         elif (
@@ -359,6 +362,7 @@ class StructurerBase(Analysis):
                                 jump_stmt.condition,
                                 jump_stmt.true_target,
                                 None,
+                                true_target_idx=jump_stmt.false_target_idx,
                                 **jump_stmt.tags,
                             )
 
@@ -842,6 +846,7 @@ class StructurerBase(Analysis):
                         ailment.Expr.UnaryOp(None, "Not", last_stmt.condition),
                         last_stmt.false_target,
                         None,
+                        true_target_idx=last_stmt.false_target_idx,
                         **last_stmt.tags,
                     )
                     last_node.statements[-1] = new_stmt
@@ -854,6 +859,7 @@ class StructurerBase(Analysis):
                         last_stmt.condition,
                         last_stmt.true_target,
                         None,
+                        true_target_idx=last_stmt.true_target_idx,
                         **last_stmt.tags,
                     )
                     last_node.statements[-1] = new_stmt

@@ -186,6 +186,8 @@ class BlockWalker(AILBlockWalker):
                 new_cond if new_cond is not None else stmt.condition,
                 new_true_target if new_true_target is not None else stmt.true_target,
                 new_false_target if new_false_target is not None else stmt.false_target,
+                true_target_idx=stmt.true_target_idx,
+                false_target_idx=stmt.false_target_idx,
                 **stmt.tags,
             )
         return None
