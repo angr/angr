@@ -232,7 +232,14 @@ class LoweredSwitchSimplifier(OptimizationPass):
                             node_to_heads[succ].add(new_head)
                     graph_copy.remove_node(onode)
                 for onode in redundant_nodes:
+                    # ensure all nodes that are only reachable from onode are also removed
+                    # FIXME: Remove the entire path of ndoes instead of only the immediate successors
+                    successors = list(graph_copy.successors(onode))
                     graph_copy.remove_node(onode)
+                    for succ in successors:
+                        in_edges = [(src, dst) for src, dst in graph_copy.in_edges(succ) if src is not succ]
+                        if not in_edges:
+                            graph_copy.remove_node(succ)
                 # apply delayed edges
                 for src, dst in delayed_edges:
                     if src is None:
@@ -314,6 +321,11 @@ class LoweredSwitchSimplifier(OptimizationPass):
                         if target == comp.addr and target_idx == comp.idx:
                             # invalid
                             break
+                        # common case:
+                        #   if ((a = func(...)) == -1) break;
+                        #   switch (a)
+                        if value in {0xFFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF}:
+                            break
                         cases.append(Case(comp, comp_type, variable_hash, expr, value, target, target_idx, next_addr))
                         used_nodes.add(comp)
                     else:
@@ -357,7 +369,18 @@ class LoweredSwitchSimplifier(OptimizationPass):
                                     succ for succ in next_comp_many if succ not in variable_comparisons
                                 ]
                                 if len(default_node_candidates) == 1:
-                                    cases.append(Case(comp, None, variable_hash, expr, "default", next_comp_addr, None))
+                                    cases.append(
+                                        Case(
+                                            comp,
+                                            None,
+                                            variable_hash,
+                                            expr,
+                                            "default",
+                                            next_comp_addr,
+                                            next_comp_idx,
+                                            None,
+                                        )
+                                    )
                                     used_nodes.add(comp)
                                 # otherwise we don't support it
                                 break
@@ -376,16 +399,37 @@ class LoweredSwitchSimplifier(OptimizationPass):
                 elif op == "gt":
                     # gt always indicates new subtrees
                     gt_addr, gt_idx, le_addr, le_idx = target, target_idx, next_addr, next_addr_idx
-                    if last_varhash is None or last_varhash == variable_hash:
+                    # TODO: We don't yet support gt nodes acting as the head of a switch
+                    if last_varhash is not None and last_varhash == variable_hash:
                         successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
                         succ_addrs = {(succ.addr, succ.idx) for succ in successors}
                         if succ_addrs != {(gt_addr, gt_idx), (le_addr, le_idx)}:
                             break
                         gt_comp = next(iter(succ for succ in successors if succ.addr == gt_addr and succ.idx == gt_idx))
                         le_comp = next(iter(succ for succ in successors if succ.addr == le_addr and succ.idx == le_idx))
-                        if gt_comp in variable_comparisons and le_comp in variable_comparisons:
+
+                        # all successors of this node must satisfy the following criteria
+                        # - another comp node in the lowered switch-case tree
+                        # - the default case node of the switch-case
+
+                        gt_added, le_added = False, False
+                        if gt_comp in variable_comparisons:
                             stack.append((gt_comp, value, max_))
+                            gt_added = True
+                        if le_comp in variable_comparisons:
                             stack.append((le_comp, min_, value - 1))
+                            le_added = True
+                        if gt_added or le_added:
+                            if not le_added:
+                                if le_addr not in default_case_candidates:
+                                    default_case_candidates[le_addr] = Case(
+                                        comp, None, variable_hash, expr, "default", le_addr, le_idx, None
+                                    )
+                            elif not gt_added:
+                                if gt_addr not in default_case_candidates:
+                                    default_case_candidates[gt_addr] = Case(
+                                        comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
+                                    )
                             extra_cmp_nodes.append(comp)
                             used_nodes.add(comp)
                         else:
@@ -410,6 +454,11 @@ class LoweredSwitchSimplifier(OptimizationPass):
 
         for v, caselists in list(varhash_to_caselists.items()):
             for idx, (cases, redundant_nodes) in list(enumerate(caselists)):
+                # filter: each case value should only appear once
+                if len(set(case.value for case in cases)) != len(cases):
+                    caselists[idx] = None
+                    continue
+
                 # filter: there should be at least two non-default cases
                 if len([case for case in cases if case.value != "default"]) < 2:
                     caselists[idx] = None
@@ -608,10 +657,14 @@ class LoweredSwitchSimplifier(OptimizationPass):
     ):
         last_node = node
         ca_default = [
-            (onode, value, target, a) for onode, value, target, a in last_stmt.case_addrs if value == "default"
+            (onode, value, target, target_idx, a)
+            for onode, value, target, target_idx, a in last_stmt.case_addrs
+            if value == "default"
         ]
         ca_others = [
-            (onode, value, target, a) for onode, value, target, a in last_stmt.case_addrs if value != "default"
+            (onode, value, target, target_idx, a)
+            for onode, value, target, target_idx, a in last_stmt.case_addrs
+            if value != "default"
         ]
 
         # non-default nodes
@@ -626,7 +679,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         next_node_addr = last_block.addr
 
         while next_node_addr is not None and next_node_addr in ca_others:
-            onode, value, target, next_node_addr = ca_others[next_node_addr]
+            onode, value, target, target_idx, next_node_addr = ca_others[next_node_addr]
             onode: Block
 
             if first_nonlabel_statement(onode) is not onode.statements[-1]:
@@ -635,7 +688,13 @@ class LoweredSwitchSimplifier(OptimizationPass):
             graph.add_edge(last_node, onode)
             full_graph.add_edge(last_node, onode)
 
-            target_node = next(iter(nn for nn in full_graph if nn.addr == target))
+            target_node = next(
+                iter(
+                    nn
+                    for nn in full_graph
+                    if nn.addr == target and (not isinstance(nn, (Block, MultiNode)) or nn.idx == target_idx)
+                )
+            )
             graph.add_edge(onode, target_node)
             full_graph.add_edge(onode, target_node)
 
@@ -649,8 +708,14 @@ class LoweredSwitchSimplifier(OptimizationPass):
 
         # default nodes
         if ca_default:
-            onode, value, target, _ = ca_default[0]
-            default_target = next(iter(nn for nn in full_graph if nn.addr == target))
+            onode, value, target, target_idx, _ = ca_default[0]
+            default_target = next(
+                iter(
+                    nn
+                    for nn in full_graph
+                    if nn.addr == target and (not isinstance(nn, (Block, MultiNode)) or nn.idx == target_idx)
+                )
+            )
             graph.add_edge(last_node, default_target)
             full_graph.add_edge(last_node, default_target)
 
