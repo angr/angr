@@ -455,7 +455,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         for v, caselists in list(varhash_to_caselists.items()):
             for idx, (cases, redundant_nodes) in list(enumerate(caselists)):
                 # filter: each case value should only appear once
-                if len(set(case.value for case in cases)) != len(cases):
+                if len({case.value for case in cases}) != len(cases):
                     caselists[idx] = None
                     continue
 
