@@ -1370,11 +1370,6 @@ class PhoenixStructurer(StructurerBase):
         node_a=None,
         can_bail=False,
     ) -> bool:
-        if node_default is not None:
-            # the head no longer goes to the default case
-            graph.remove_edge(head, node_default)
-            full_graph.remove_edge(head, node_default)
-
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
 
         # insert the switch-case node to the graph
@@ -1400,6 +1395,11 @@ class PhoenixStructurer(StructurerBase):
             if len(nonhead_out_nodes) > 1:
                 # not ready to be structured yet - do it later
                 return False
+
+        if node_default is not None:
+            # the head no longer goes to the default case
+            graph.remove_edge(head, node_default)
+            full_graph.remove_edge(head, node_default)
 
         for nn in to_remove:
             graph.remove_node(nn)
