@@ -105,14 +105,14 @@ class StableVarExprHasher(AILBlockWalkerBase):
         self.hash = hash(tuple(self._hash_lst))
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Optional[Block]):
-        if hasattr(expr, "variable"):
+        if hasattr(expr, "variable") and expr.variable is not None:
             self._hash_lst.append(expr.variable)
         else:
             super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt, block: Optional[Block]):
         self._hash_lst.append("Load")
-        super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt, block: Optional[Block]):
         self._hash_lst.append(expr.op)
