@@ -3075,6 +3075,23 @@ class TestDecompiler(unittest.TestCase):
         # proper propagation
         assert lines[0].strip(" ").startswith("if (")
 
+    @structuring_algo("phoenix")
+    def test_decompiling_incorrect_duplication_chcon_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "chcon.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["main"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # incorrect region replacement was causing the while loop be duplicated, so we would end up with four while
+        # loops.
+        assert d.codegen.text.count("while (") == 2
+
 
 if __name__ == "__main__":
     unittest.main()
