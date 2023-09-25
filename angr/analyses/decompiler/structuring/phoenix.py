@@ -1316,7 +1316,12 @@ class PhoenixStructurer(StructurerBase):
                 entry_node = None
             else:
                 entry_node = next(
-                    iter(nn for nn in node_a_successors if nn.addr == entry_addr and nn.idx == entry_idx), None
+                    iter(
+                        nn
+                        for nn in node_a_successors
+                        if nn.addr == entry_addr and (not isinstance(nn, (Block, MultiNode)) or nn.idx == entry_idx)
+                    ),
+                    None,
                 )
             if entry_node is None:
                 # Missing entries. They are probably *after* the entire switch-case construct. Replace it with an empty
@@ -1762,8 +1767,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, succ.addr, self.project.arch.bits),
-                true_target_idx=right.idx if isinstance(right, (Block, MultiNode, SequenceNode)) else None,
-                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode, SequenceNode)) else None,
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
+                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -1798,8 +1803,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(None, None, left.addr, self.project.arch.bits),
                 Const(None, None, else_node.addr, self.project.arch.bits),
-                true_target_idx=left.idx if isinstance(left, (Block, MultiNode, SequenceNode)) else None,
-                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode, SequenceNode)) else None,
+                true_target_idx=left.idx if isinstance(left, (Block, MultiNode)) else None,
+                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -1836,8 +1841,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, succ.addr, self.project.arch.bits),
-                true_target_idx=right.idx if isinstance(right, (Block, MultiNode, SequenceNode)) else None,
-                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode, SequenceNode)) else None,
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
+                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -1874,8 +1879,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, else_node.addr, self.project.arch.bits),
-                true_target_idx=right.idx if isinstance(right, (Block, MultiNode, SequenceNode)) else None,
-                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode, SequenceNode)) else None,
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
+                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
