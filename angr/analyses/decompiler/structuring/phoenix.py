@@ -1054,14 +1054,7 @@ class PhoenixStructurer(StructurerBase):
             can_bail=True,
         )
         if not r:
-            # restore the graph to cascading if-then-elses
-            l.warning("Cannot structure as a switch-case. Restore the sub graph to if-elses.")
-
-            # delay this import, since it's cyclic for anyone who uses Structuring in their optimizations
-            from ..optimization_passes.lowered_switch_simplifier import LoweredSwitchSimplifier
-
-            LoweredSwitchSimplifier.restore_graph(node, last_stmt, graph, full_graph)
-            raise GraphChangedNotification()
+            return False
 
         # special handling of duplicated default nodes
         if node_default is not None and self._region.graph.out_degree[node] > 1:
