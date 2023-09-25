@@ -878,7 +878,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x401A70]
 
-        # disable eager returns simplifier
+        # enable Lowered Switch Simplifier
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
             "AMD64", "linux"
         )[::]
