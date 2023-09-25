@@ -233,7 +233,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     graph_copy.remove_node(onode)
                 for onode in redundant_nodes:
                     # ensure all nodes that are only reachable from onode are also removed
-                    # FIXME: Remove the entire path of ndoes instead of only the immediate successors
+                    # FIXME: Remove the entire path of nodes instead of only the immediate successors
                     successors = list(graph_copy.successors(onode))
                     graph_copy.remove_node(onode)
                     for succ in successors:
@@ -260,6 +260,16 @@ class LoweredSwitchSimplifier(OptimizationPass):
                     node_copy = succ_node.copy()
                     node_copy.idx = next_id
                     next_id += 1
+
+                    # update the block ID in case_addrs
+                    last_stmt: IncompleteSwitchCaseHeadStatement = head.statements[-1]
+                    for idx, items in list(enumerate(last_stmt.case_addrs)):
+                        cmp_node, case_value, target_addr, target_idx, next_addr = items
+                        if target_addr == succ_node.addr and target_idx == succ_node.idx:
+                            # update the block ID
+                            last_stmt.case_addrs[idx] = cmp_node, case_value, target_addr, node_copy.idx, next_addr
+
+                    # update the graph
                     graph_copy.add_edge(head, node_copy)
                     for succ in node_successors:
                         if succ is succ_node:
