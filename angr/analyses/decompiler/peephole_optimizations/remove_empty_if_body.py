@@ -16,11 +16,15 @@ class RemoveEmptyIfBody(PeepholeOptimizationStmtBase):
         # if (!cond) {} else { ITE(cond, true_branch, false_branch } ==> if (cond) { ITE(...) } else {}
         if isinstance(stmt.false_target, ITE) and isinstance(cond, UnaryOp) and cond.op == "Not":
             new_true_target = stmt.false_target
+            new_true_idx = stmt.false_target_idx
             new_false_target = stmt.true_target
+            new_false_idx = stmt.true_target_idx
             cond = cond.operand
         else:
             new_true_target = stmt.true_target
+            new_true_idx = stmt.true_target_idx
             new_false_target = stmt.false_target
+            new_false_idx = stmt.false_target_idx
 
         if (
             cond is not stmt.condition
@@ -28,6 +32,14 @@ class RemoveEmptyIfBody(PeepholeOptimizationStmtBase):
             or new_false_target is not stmt.false_target
         ):
             # it's updated
-            return ConditionalJump(stmt.idx, cond, new_true_target, new_false_target, **stmt.tags)
+            return ConditionalJump(
+                stmt.idx,
+                cond,
+                new_true_target,
+                new_false_target,
+                true_target_idx=new_true_idx,
+                false_target_idx=new_false_idx,
+                **stmt.tags,
+            )
 
         return None

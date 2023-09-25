@@ -1013,14 +1013,14 @@ class PhoenixStructurer(StructurerBase):
 
         # make a fake jumptable
         node_default_addr = None
-        case_entries: Dict[int, int] = {}
-        for _, case_value, case_target_addr, _ in last_stmt.case_addrs:
+        case_entries: Dict[int, Tuple[int, Optional[int]]] = {}
+        for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
                 if case_value == "default":
                     node_default_addr = case_target_addr
                     continue
                 raise ValueError(f"Unsupported 'case_value' {case_value}")
-            case_entries[case_value] = case_target_addr
+            case_entries[case_value] = (case_target_addr, case_target_idx)
 
         cases, node_default, to_remove = self._switch_build_cases(
             case_entries,
@@ -1054,14 +1054,16 @@ class PhoenixStructurer(StructurerBase):
             can_bail=True,
         )
         if not r:
-            # restore the graph to cascading if-then-elses
-            l.warning("Cannot structure as a switch-case. Restore the sub graph to if-elses.")
+            return False
 
-            # delay this import, since it's cyclic for anyone who uses Structuring in their optimizations
-            from ..optimization_passes.lowered_switch_simplifier import LoweredSwitchSimplifier
-
-            LoweredSwitchSimplifier.restore_graph(node, last_stmt, graph, full_graph)
-            raise GraphChangedNotification()
+        # special handling of duplicated default nodes
+        if node_default is not None and self._region.graph.out_degree[node] > 1:
+            other_out_nodes = list(self._region.graph.successors(node))
+            for o in other_out_nodes:
+                if o.addr == node_default.addr and o is not node_default:
+                    self._region.graph.remove_node(o)
+                    if self._region.graph_with_successors is not None:
+                        self._region.graph_with_successors.remove_node(o)
 
         self._switch_handle_gotos(cases, node_default, None)
         return True
@@ -1242,7 +1244,13 @@ class PhoenixStructurer(StructurerBase):
         return False
 
     def _switch_build_cases(
-        self, case_and_entryaddrs: Dict[int, int], head_node, node_a: BaseNode, node_b_addr, graph, full_graph
+        self,
+        case_and_entryaddrs: Dict[int, Union[int, Tuple[int, Optional[int]]]],
+        head_node,
+        node_a: BaseNode,
+        node_b_addr,
+        graph,
+        full_graph,
     ) -> Tuple[ODict, Any, Set[Any]]:
         cases: ODict[Union[int, Tuple[int]], SequenceNode] = OrderedDict()
         to_remove = set()
@@ -1268,8 +1276,8 @@ class PhoenixStructurer(StructurerBase):
             node_default = new_node
 
         # entry_addrs_set = set(jumptable_entries)
-        converted_nodes: Dict[int, Any] = {}
-        entry_addr_to_ids: DefaultDict[int, Set[int]] = defaultdict(set)
+        converted_nodes: Dict[Tuple[int, Optional[int]], Any] = {}
+        entry_addr_to_ids: DefaultDict[Tuple[int, Optional[int]], Set[int]] = defaultdict(set)
 
         # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default node
         # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
@@ -1282,12 +1290,17 @@ class PhoenixStructurer(StructurerBase):
             node_b_in_node_a_successors = False
 
         for case_idx, entry_addr in case_and_entryaddrs.items():
+            if isinstance(entry_addr, tuple):
+                entry_addr, entry_idx = entry_addr
+            else:
+                entry_idx = None
+
             if not node_b_in_node_a_successors and entry_addr == node_b_addr:
                 # jump to default or end of the switch-case structure - ignore this case
                 continue
 
-            entry_addr_to_ids[entry_addr].add(case_idx)
-            if entry_addr in converted_nodes:
+            entry_addr_to_ids[(entry_addr, entry_idx)].add(case_idx)
+            if (entry_addr, entry_idx) in converted_nodes:
                 continue
 
             if entry_addr == self._region.head.addr:
@@ -1295,7 +1308,14 @@ class PhoenixStructurer(StructurerBase):
                 # of the region head node). replace this entry with a goto statement later.
                 entry_node = None
             else:
-                entry_node = next(iter(nn for nn in node_a_successors if nn.addr == entry_addr), None)
+                entry_node = next(
+                    iter(
+                        nn
+                        for nn in node_a_successors
+                        if nn.addr == entry_addr and (not isinstance(nn, (Block, MultiNode)) or nn.idx == entry_idx)
+                    ),
+                    None,
+                )
             if entry_node is None:
                 # Missing entries. They are probably *after* the entire switch-case construct. Replace it with an empty
                 # Goto node.
@@ -1303,11 +1323,17 @@ class PhoenixStructurer(StructurerBase):
                     0,
                     0,
                     statements=[
-                        Jump(None, Const(None, None, entry_addr, self.project.arch.bits), ins_addr=0, stmt_idx=0)
+                        Jump(
+                            None,
+                            Const(None, None, entry_addr, self.project.arch.bits),
+                            target_idx=entry_idx,
+                            ins_addr=0,
+                            stmt_idx=0,
+                        )
                     ],
                 )
                 case_node = SequenceNode(0, nodes=[case_inner_node])
-                converted_nodes[entry_addr] = case_node
+                converted_nodes[(entry_addr, entry_idx)] = case_node
                 continue
 
             if isinstance(entry_node, SequenceNode):
@@ -1316,10 +1342,11 @@ class PhoenixStructurer(StructurerBase):
                 case_node = SequenceNode(entry_node.addr, nodes=[entry_node])
             to_remove.add(entry_node)
 
-            converted_nodes[entry_addr] = case_node
+            converted_nodes[(entry_addr, entry_idx)] = case_node
 
-        for entry_addr, converted_node in converted_nodes.items():
-            case_ids = entry_addr_to_ids[entry_addr]
+        for entry_addr_and_idx, converted_node in converted_nodes.items():
+            assert entry_addr_and_idx in entry_addr_to_ids
+            case_ids = entry_addr_to_ids[entry_addr_and_idx]
             if len(case_ids) == 1:
                 cases[next(iter(case_ids))] = converted_node
             else:
@@ -1734,6 +1761,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, succ.addr, self.project.arch.bits),
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
+                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -1768,6 +1797,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(None, None, left.addr, self.project.arch.bits),
                 Const(None, None, else_node.addr, self.project.arch.bits),
+                true_target_idx=left.idx if isinstance(left, (Block, MultiNode)) else None,
+                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -1804,6 +1835,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, succ.addr, self.project.arch.bits),
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
+                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -1840,6 +1873,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(None, None, right.addr, self.project.arch.bits),
                 Const(None, None, else_node.addr, self.project.arch.bits),
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
+                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -2170,9 +2205,17 @@ class PhoenixStructurer(StructurerBase):
             ):
                 return True
             elif isinstance(last_stmt, ConditionalJump):
-                if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == dst_addr:
+                if (
+                    isinstance(last_stmt.true_target, Const)
+                    and last_stmt.true_target.value == dst_addr
+                    and (dst_idx is ... or last_stmt.true_target_idx == dst_idx)
+                ):
                     return True
-                elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst_addr:
+                elif (
+                    isinstance(last_stmt.false_target, Const)
+                    and last_stmt.false_target.value == dst_addr
+                    and (dst_idx is ... or last_stmt.false_target_idx == dst_idx)
+                ):
                     return True
             elif isinstance(last_stmt, IncompleteSwitchCaseHeadStatement):
                 if any(case_addr == dst_addr for _, _, _, case_addr in last_stmt.case_addrs):
