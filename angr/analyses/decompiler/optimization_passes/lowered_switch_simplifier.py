@@ -336,6 +336,12 @@ class LoweredSwitchSimplifier(OptimizationPass):
                         #   switch (a)
                         if value in {0xFFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF}:
                             break
+
+                        if comp is not head:
+                            # non-head node has at most one predecessor
+                            if self._graph.in_degree[comp] > 1:
+                                break
+
                         cases.append(Case(comp, comp_type, variable_hash, expr, value, target, target_idx, next_addr))
                         used_nodes.add(comp)
                     else:
@@ -346,11 +352,6 @@ class LoweredSwitchSimplifier(OptimizationPass):
                                     last_comp, None, last_varhash, None, "default", comp.addr, comp.idx, None
                                 )
                         break
-
-                    if comp is not head:
-                        # non-head node has at most one predecessor
-                        if self._graph.in_degree[comp] > 1:
-                            break
 
                     successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
                     succ_addrs = {(succ.addr, succ.idx) for succ in successors}
@@ -471,6 +472,11 @@ class LoweredSwitchSimplifier(OptimizationPass):
 
                 # filter: there should be at least two non-default cases
                 if len([case for case in cases if case.value != "default"]) < 2:
+                    caselists[idx] = None
+                    continue
+
+                # filter: there should be at least three cases
+                if len(cases) < 3:
                     caselists[idx] = None
                     continue
 
