@@ -322,7 +322,15 @@ class AILBlockWalker(AILBlockWalkerBase):
             false_target = stmt.false_target
 
         if changed:
-            new_stmt = ConditionalJump(stmt.idx, condition, true_target, false_target, **stmt.tags)
+            new_stmt = ConditionalJump(
+                stmt.idx,
+                condition,
+                true_target,
+                false_target,
+                true_target_idx=stmt.true_target_idx,
+                false_target_idx=stmt.false_target_idx,
+                **stmt.tags,
+            )
             if block is not None:
                 block.statements[stmt_idx] = new_stmt
             return new_stmt

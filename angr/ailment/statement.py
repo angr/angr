@@ -276,14 +276,27 @@ class ConditionalJump(Statement):
         "condition",
         "true_target",
         "false_target",
+        "true_target_idx",
+        "false_target_idx",
     )
 
-    def __init__(self, idx, condition, true_target, false_target, **kwargs):
+    def __init__(
+        self,
+        idx,
+        condition,
+        true_target,
+        false_target,
+        true_target_idx: Optional[int] = None,
+        false_target_idx: Optional[int] = None,
+        **kwargs,
+    ):
         super().__init__(idx, **kwargs)
 
         self.condition = condition
         self.true_target = true_target
         self.false_target = false_target
+        self.true_target_idx = true_target_idx
+        self.false_target_idx = false_target_idx
 
     def __eq__(self, other):
         return (
@@ -292,6 +305,8 @@ class ConditionalJump(Statement):
             and self.condition == other.condition
             and self.true_target == other.true_target
             and self.false_target == other.false_target
+            and self.true_target_idx == other.true_target_idx
+            and self.false_target_idx == other.false_target_idx
         )
 
     def likes(self, other):
@@ -300,23 +315,41 @@ class ConditionalJump(Statement):
             and self.condition.likes(other.condition)
             and is_none_or_likeable(self.true_target, other.true_target)
             and is_none_or_likeable(self.false_target, other.false_target)
+            and self.true_target == other.true_target
+            and self.false_target == other.false_target
         )
 
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash((ConditionalJump, self.idx, self.condition, self.true_target, self.false_target))
+        return stable_hash(
+            (
+                ConditionalJump,
+                self.idx,
+                self.condition,
+                self.true_target,
+                self.false_target,
+                self.true_target_idx,
+                self.false_target_idx,
+            )
+        )
 
     def __repr__(self):
-        return "ConditionalJump (condition: {}, true: {}, false: {})".format(
-            self.condition, self.true_target, self.false_target
+        return "ConditionalJump (condition: {}, true: {}{}, false: {}{})".format(
+            self.condition,
+            self.true_target,
+            "" if self.true_target_idx is None else f".{self.true_target_idx}",
+            self.false_target,
+            "" if self.false_target_idx is None else f".{self.false_target_idx}",
         )
 
     def __str__(self):
-        return "if ({}) {{ Goto {} }} else {{ Goto {} }}".format(
+        return "if ({}) {{ Goto {}{} }} else {{ Goto {}{} }}".format(
             self.condition,
             self.true_target,
+            "" if self.true_target_idx is None else f".{self.true_target_idx}",
             self.false_target,
+            "" if self.false_target_idx is None else f".{self.false_target_idx}",
         )
 
     def replace(self, old_expr, new_expr):
@@ -347,12 +380,28 @@ class ConditionalJump(Statement):
         r = r_cond or r_true or r_false
 
         if r:
-            return True, ConditionalJump(self.idx, replaced_cond, replaced_true, replaced_false, **self.tags)
+            return True, ConditionalJump(
+                self.idx,
+                replaced_cond,
+                replaced_true,
+                replaced_false,
+                true_target_idx=self.true_target_idx,
+                false_target_idx=self.false_target_idx,
+                **self.tags,
+            )
         else:
             return False, self
 
     def copy(self) -> "ConditionalJump":
-        return ConditionalJump(self.idx, self.condition, self.true_target, self.false_target, **self.tags)
+        return ConditionalJump(
+            self.idx,
+            self.condition,
+            self.true_target,
+            self.false_target,
+            true_target_idx=self.true_target_idx,
+            false_target_idx=self.false_target_idx,
+            **self.tags,
+        )
 
 
 class Call(Expression, Statement):
