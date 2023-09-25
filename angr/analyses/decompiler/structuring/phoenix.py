@@ -1333,7 +1333,7 @@ class PhoenixStructurer(StructurerBase):
                     ],
                 )
                 case_node = SequenceNode(0, nodes=[case_inner_node])
-                converted_nodes[entry_addr] = case_node
+                converted_nodes[(entry_addr, entry_idx)] = case_node
                 continue
 
             if isinstance(entry_node, SequenceNode):
@@ -1345,6 +1345,7 @@ class PhoenixStructurer(StructurerBase):
             converted_nodes[(entry_addr, entry_idx)] = case_node
 
         for entry_addr_and_idx, converted_node in converted_nodes.items():
+            assert entry_addr_and_idx in entry_addr_to_ids
             case_ids = entry_addr_to_ids[entry_addr_and_idx]
             if len(case_ids) == 1:
                 cases[next(iter(case_ids))] = converted_node
