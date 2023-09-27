@@ -164,7 +164,12 @@ class CallingConventionAnalysis(Analysis):
                         max_analyzing_callsites=1,
                         include_callsite_preds=include_callsite_preds,
                     )
-                    cc_cls = default_cc(self.project.arch.name)
+                    cc_cls = default_cc(
+                        self.project.arch.name,
+                        platform=self.project.simos.name
+                        if self.project is not None and self.project.simos is not None
+                        else None,
+                    )
                     if cc_cls is not None:
                         cc = cc_cls(self.project.arch)
                     else:
@@ -217,7 +222,12 @@ class CallingConventionAnalysis(Analysis):
                     include_preds=include_callsite_preds,
                 )
             ]
-            cc_cls = default_cc(self.project.arch.name)
+            cc_cls = default_cc(
+                self.project.arch.name,
+                platform=self.project.simos.name
+                if self.project is not None and self.project.simos is not None
+                else None,
+            )
             if cc_cls is not None:
                 cc = cc_cls(self.project.arch)
             else:
@@ -484,7 +494,10 @@ class CallingConventionAnalysis(Analysis):
             True,  # by default we treat all return values as used
         )
 
-        default_cc_cls = default_cc(self.project.arch.name)
+        default_cc_cls = default_cc(
+            self.project.arch.name,
+            platform=self.project.simos.name if self.project is not None and self.project.simos is not None else None,
+        )
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
             self._analyze_callsite_return_value_uses(cc, caller_block.addr, rda, fact)
@@ -644,7 +657,10 @@ class CallingConventionAnalysis(Analysis):
 
         reg_vars_with_single_access: List[SimRegisterVariable] = []
 
-        def_cc = default_cc(self.project.arch.name)
+        def_cc = default_cc(
+            self.project.arch.name,
+            platform=self.project.simos.name if self.project is not None and self.project.simos is not None else None,
+        )
         for variable in variables:
             if isinstance(variable, SimStackVariable):
                 # a stack variable. convert it to a stack argument.
