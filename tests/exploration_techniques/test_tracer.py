@@ -494,7 +494,6 @@ class TestTracer(unittest.TestCase):
         assert not simgr.crashed
         assert "traced" in simgr.stashes
 
-    @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_allocation_base_continuity(self):
         correct_out = (
             b"prepare for a challenge\nb7fff000\nb7ffe000\nb7ffd000\nb7ffc000\nb7ffb000\nb7ffa000\nb7ff9000\nb7ff8000\n"
