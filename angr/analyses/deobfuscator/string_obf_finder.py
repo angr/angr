@@ -144,7 +144,7 @@ class StringObfuscationFinder(Analysis):
                             values.append((arg_idx, v, self.project.loader.memory.load(v, 100)))
 
                 try:
-                    callable(*args)
+                    callable(*[arg for _, arg in args])
                 except AngrCallableMultistateError:
                     continue
 
