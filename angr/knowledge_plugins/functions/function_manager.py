@@ -447,6 +447,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
     def rebuild_callgraph(self):
         self.callgraph = networkx.MultiDiGraph()
+        for func_addr in self._function_map.keys():
+            self.callgraph.add_node(func_addr)
         for func in self._function_map.values():
             if func.block_addrs_set:
                 for node in func.transition_graph.nodes():

@@ -48,6 +48,15 @@ class TestDb(unittest.TestCase):
             )
             assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
+        # compare call graph
+        callgraph_nodes_old = set(proj.kb.callgraph.nodes)
+        callgraph_nodes_new = set(new_proj.kb.callgraph.nodes)
+        callgraph_edges_old = set(proj.kb.callgraph.edges)
+        callgraph_edges_new = set(new_proj.kb.callgraph.edges)
+
+        assert callgraph_nodes_old == callgraph_nodes_new
+        assert callgraph_edges_old == callgraph_edges_new
+
         # compare CFG
         new_cfg = new_proj.kb.cfgs["CFGFast"]
         for node in cfg.model.nodes():
