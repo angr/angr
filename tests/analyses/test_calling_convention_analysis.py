@@ -14,7 +14,7 @@ from angr.calling_conventions import (
     SimCCCdecl,
     SimCCSystemVAMD64,
 )
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom
 
 from ..common import bin_location, requires_binaries_private
 
@@ -185,7 +185,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             if func.name in groundtruth:
                 r = groundtruth[func.name]
                 if r is None:
-                    assert func.prototype.returnty is None
+                    assert isinstance(func.prototype.returnty, SimTypeBottom)
                 else:
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
                     assert isinstance(ret_val, SimRegArg)
