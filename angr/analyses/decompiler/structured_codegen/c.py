@@ -3406,17 +3406,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if reference_values is None:
             reference_values = {}
             type_ = unpack_typeref(type_)
-            if isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
-                # char*
-                # Try to get a string
-                if (
-                    self._cfg is not None
-                    and expr.value in self._cfg.memory_data
-                    and self._cfg.memory_data[expr.value].sort == MemoryDataSort.String
-                ):
-                    reference_values[type_] = self._cfg.memory_data[expr.value]
-                    inline_string = True
-            elif expr.value in self.kb.obfuscations.type1_deobfuscated_strings:
+            if expr.value in self.kb.obfuscations.type1_deobfuscated_strings:
                 reference_values[SimTypePointer(SimTypeChar())] = self.kb.obfuscations.type1_deobfuscated_strings[
                     expr.value
                 ]
@@ -3426,6 +3416,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     expr.value
                 ]
                 inline_string = True
+            elif isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
+                # char*
+                # Try to get a string
+                if (
+                    self._cfg is not None
+                    and expr.value in self._cfg.memory_data
+                    and self._cfg.memory_data[expr.value].sort == MemoryDataSort.String
+                ):
+                    reference_values[type_] = self._cfg.memory_data[expr.value]
+                    inline_string = True
             elif isinstance(type_, SimTypeInt):
                 # int
                 reference_values[type_] = expr.value
@@ -3434,7 +3434,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # edge cases: (void*)"this is a constant string pointer". in this case, the type_ will be a void*
             # (BOT*) instead of a char*.
 
-            if isinstance(expr.value, int):
+            if not reference_values and isinstance(expr.value, int):
                 if expr.value in self.project.kb.functions:
                     # It's a function pointer
                     # We don't care about the actual prototype here
