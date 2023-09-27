@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from typing import Set, Dict
 from collections import defaultdict
 import logging
