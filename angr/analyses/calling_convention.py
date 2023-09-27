@@ -177,7 +177,7 @@ class CallingConventionAnalysis(Analysis):
                     prototype = None
                     if callsite_facts:
                         if self.prototype is None:
-                            proto = SimTypeFunction([], None)
+                            proto = SimTypeFunction([], SimTypeBottom(label="void"))
                         else:
                             proto = self.prototype
                         prototype = self._adjust_prototype(
@@ -624,7 +624,7 @@ class CallingConventionAnalysis(Analysis):
         # is the return value used anywhere?
         if facts:
             if all(fact.return_value_used is False for fact in facts):
-                proto.returnty = None
+                proto.returnty = SimTypeBottom(label="void")
             else:
                 proto.returnty = SimTypeInt().with_arch(self.project.arch)
 
