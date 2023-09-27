@@ -20,11 +20,13 @@ from .ret_addr_save_simplifier import RetAddrSaveSimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp
 from .ret_deduplicator import ReturnDeduplicator
+from .win_stack_canary_simplifier import WinStackCanarySimplifier
 
 
 _all_optimization_passes = [
     (RegisterSaveAreaSimplifier, True),
     (StackCanarySimplifier, True),
+    (WinStackCanarySimplifier, True),
     (BasePointerSaveSimplifier, True),
     (DivSimplifier, True),
     (MultiSimplifier, True),
@@ -65,6 +67,8 @@ def get_default_optimization_passes(arch: Union[Arch, str], platform: Optional[s
 
     if platform is not None:
         platform = platform.lower()
+    if platform == "win32":
+        platform = "windows"  # sigh
 
     passes = []
     for pass_, default in _all_optimization_passes:
