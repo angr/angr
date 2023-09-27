@@ -393,7 +393,7 @@ class CallingConventionAnalysis(Analysis):
         in_edges = self._cfg.graph.in_edges(node, data=True)
 
         call_sites_by_function: Dict["Function", List[Tuple[int, int]]] = defaultdict(list)
-        for src, _, data in in_edges:
+        for src, _, data in sorted(in_edges, key=lambda x: x[0].addr):
             edge_type = data.get("jumpkind", "Ijk_Call")
             if edge_type != "Ijk_Call":
                 continue
@@ -405,7 +405,9 @@ class CallingConventionAnalysis(Analysis):
                 continue
             call_sites_by_function[caller].append((src.addr, src.instruction_addrs[-1]))
 
-        call_sites_by_function_list = list(call_sites_by_function.items())[:max_analyzing_callsites]
+        call_sites_by_function_list = sorted(call_sites_by_function.items(), key=lambda x: x[0].addr)[
+            :max_analyzing_callsites
+        ]
         ctr = 0
 
         for caller, call_site_tuples in call_sites_by_function_list:
