@@ -37,15 +37,8 @@ class EagerReturnsSimplifier(OptimizationPass):
                             same hash.
     """
 
-    # TODO: This optimization pass may support more architectures and platforms
-    ARCHES = [
-        "X86",
-        "AMD64",
-        "ARMCortexM",
-        "ARMHF",
-        "ARMEL",
-    ]
-    PLATFORMS = ["cgc", "linux"]
+    ARCHES = None
+    PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_AIL_GRAPH_CREATION
     NAME = "Duplicate return blocks to reduce goto statements"
     DESCRIPTION = inspect.cleandoc(__doc__[: __doc__.index(":ivar")])  # pylint:disable=unsubscriptable-object
