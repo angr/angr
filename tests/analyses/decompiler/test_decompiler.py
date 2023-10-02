@@ -3142,6 +3142,31 @@ class TestDecompiler(unittest.TestCase):
         assert 'L"\\\\Registry\\\\Machine\\\\SYSTEM\\\\CurrentControlSet\\\\Control\\\\WinApi"' in d.codegen.text
         assert 'L"WinDeviceAddress"' in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_iplink_bridge(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "iplink_bridge.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["bridge_print_opt"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        good_if_return = "if (!a2)\n        return 0;\n"
+        first_if_location = text.find("if")
+
+        # TODO: this is broken right now on the 1 goto for a bad else. It may not be relevant for this testcase.
+        # there should be no else and no gotos!
+        # assert "goto" not in text
+        # assert "else" not in text
+
+        # the first if in the program should have no else, and that first else should be a simple return
+        assert first_if_location != -1
+        assert first_if_location == text.find(good_if_return)
+        assert not text[first_if_location + len(good_if_return) :].startswith("    else")
+
 
 if __name__ == "__main__":
     unittest.main()
