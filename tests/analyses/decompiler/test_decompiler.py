@@ -3188,6 +3188,28 @@ class TestDecompiler(unittest.TestCase):
         first_correct_if = correct_ifs[0]
         assert first_correct_if.start() == first_if_location
 
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_iprule(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "iprule.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["flush_rule"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        # XXX: this a hack that should be fixed in some other place
+        text = d.codegen.text.replace("4294967295", "-1")
+
+        # first if-stmt should be a single scope with a return.
+        good_if_return = re.search("if \\(.*?\\)\n {8}return -1;", text)
+        assert good_if_return is not None
+
+        first_if_location = text.find("if")
+        assert first_if_location != -1
+        assert first_if_location == good_if_return.start()
+
 
 if __name__ == "__main__":
     unittest.main()
