@@ -709,7 +709,7 @@ class SimFileDescriptorBase(SimStatePlugin):
         """
         Reads some data from the file, storing it into memory.
 
-        :param pos:     The address to write the read data into memory
+        :param pos:     The address to read data from file
         :param size:    The requested length of the read
         :return:        The real length of the read
         """
