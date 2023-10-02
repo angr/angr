@@ -3167,6 +3167,27 @@ class TestDecompiler(unittest.TestCase):
         assert first_if_location == text.find(good_if_return)
         assert not text[first_if_location + len(good_if_return) :].startswith("    else")
 
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_gzip(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "gzip.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["treat_file"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text.replace("\n", " ")
+        first_if_location = text.find("if (")
+        # the very first if-stmt in this function should be a single scope with a return.
+        # there should be no else scope as well.
+        correct_ifs = [m for m in re.finditer(r'if \(!strcmp\(a0, "-"\)\) {5}\{.*? return; {5}}', text)]
+        assert len(correct_ifs) >= 1
+
+        first_correct_if = correct_ifs[0]
+        assert first_correct_if.start() == first_if_location
+
 
 if __name__ == "__main__":
     unittest.main()
