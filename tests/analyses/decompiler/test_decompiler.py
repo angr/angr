@@ -3210,6 +3210,34 @@ class TestDecompiler(unittest.TestCase):
         assert first_if_location != -1
         assert first_if_location == good_if_return.start()
 
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_clientloop(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "clientloop.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["client_request_tun_fwd"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        # find all ifs
+        all_if_stmts = list(re.finditer("if \\(.*?\\)", text))
+        assert all_if_stmts is not None
+        assert len(all_if_stmts) >= 2
+
+        # first if-stmt should be a single scope with a return.
+        first_good_if = re.search("if \\(.*?\\)\n {8}return 0;", text)
+        assert first_good_if is not None
+        assert first_good_if.start() == all_if_stmts[0].start()
+
+        # the if-stmt immediately after the first one should be a true check on -1
+        second_good_if = re.search("if \\(.*? == -1\\)", text)
+        assert second_good_if is not None
+        assert second_good_if.start() == all_if_stmts[1].start()
+
 
 if __name__ == "__main__":
     unittest.main()
