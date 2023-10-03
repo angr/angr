@@ -3238,6 +3238,35 @@ class TestDecompiler(unittest.TestCase):
         assert second_good_if is not None
         assert second_good_if.start() == all_if_stmts[1].start()
 
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_certtool_common(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "certtool-common.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["cipher_to_flags"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        # If any incorrect if-else flipping occurs, then there will be an if-stmt inside an if-stmt.
+        # In the correct output, there should only ever be 2 scopes (the function, and a single if-scope) of
+        # deepness in the full function. To verify this, we check that no scope of 3 deepness exists.
+
+        scope_prefix = "    "
+        bad_scope_prefix = scope_prefix * 3
+
+        assert scope_prefix in text
+        assert bad_scope_prefix not in text
+
+        # TODO: fix me, this is a real bug
+        # To double-check the structure, we will also verify that all if-conditions are of form `if(!<condition>)`,
+        # since that is the correct form for this program.
+        # bad_matches = re.findall(r'\bif\s*\(\s*[^!].*\)', text)
+        # assert len(bad_matches) == 0
+
 
 if __name__ == "__main__":
     unittest.main()
