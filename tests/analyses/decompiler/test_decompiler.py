@@ -1234,9 +1234,9 @@ class TestDecompiler(unittest.TestCase):
         assert len(stmts) == 5
         assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
         assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-        assert stmts[4].lhs.operand.expr.variable == stmts[2].lhs.variable
-        assert stmts[4].rhs.operand.expr.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.operand.expr.variable == stmts[2].lhs.variable
+        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
+        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
+        assert dw.condition.lhs.operand.variable == stmts[2].lhs.variable
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
