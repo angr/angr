@@ -504,6 +504,7 @@ class Call(Expression, Statement):
             r0, replaced_target = self.target.replace(old_expr, new_expr)
         else:
             r0 = False
+            replaced_target = self.target
 
         r = r0
 
