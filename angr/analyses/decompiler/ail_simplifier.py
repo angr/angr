@@ -268,13 +268,13 @@ class AILSimplifier(Analysis):
                             tags["reg_name"] = self.project.arch.translate_register_name(
                                 def_.atom.reg_offset, size=to_size
                             )
+                            tags["write_size"] = stmt.dst.size
                             new_assignment_dst = Register(
                                 stmt.dst.idx,
                                 None,
                                 def_.atom.reg_offset,
                                 to_size * self.project.arch.byte_width,
                                 **tags,
-                                write_size=stmt.dst.size,
                             )
                             new_assignment_src = Convert(
                                 stmt.src.idx,  # FIXME: This is a hack
