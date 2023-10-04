@@ -415,17 +415,17 @@ class AILSimplifier(Analysis):
                                 new_other_operand = Convert(
                                     None, use_expr_2.from_bits, use_expr_2.to_bits, False, other_operand
                                 )
-                                # first remove the old conversion
-                                r, new_block = BlockSimplifier._replace_and_build(
-                                    the_block, {use_loc: {use_expr_2: use_expr_2.operand}}
-                                )
-                                if r:
-                                    r, new_block = BlockSimplifier._replace_and_build(
-                                        new_block, {use_loc: {other_operand: new_other_operand}}
-                                    )
                             else:
-                                r = True
-                                new_block = the_block
+                                # Some operations, like Sar and Shl, have operands with different sizes
+                                new_other_operand = other_operand
+                            # first remove the old conversion
+                            r, new_block = BlockSimplifier._replace_and_build(
+                                the_block, {use_loc: {use_expr_2: use_expr_2.operand}}
+                            )
+                            if r and other_operand is not new_other_operand:
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    new_block, {use_loc: {other_operand: new_other_operand}}
+                                )
                             if r:
                                 r, new_block = BlockSimplifier._replace_and_build(
                                     new_block, {use_loc: {use_expr_0: new_use_expr_0}}
