@@ -199,11 +199,12 @@ class AILSimplifier(Analysis):
             # init_context=(),    <-- in case of fire break glass
             observe_all=False,
             use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            track_tmps=True,
         ).model
         self._reaching_definitions = rd
         return rd
 
-    def _compute_propagation(self):
+    def _compute_propagation(self, immediate_stmt_removal: bool = False):
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
@@ -213,6 +214,7 @@ class AILSimplifier(Analysis):
             gp=self._gp,
             only_consts=self._only_consts,
             reaching_definitions=self._compute_reaching_definitions(),
+            immediate_stmt_removal=immediate_stmt_removal,
         )
         self._propagator = prop
         return prop
@@ -272,6 +274,7 @@ class AILSimplifier(Analysis):
                                 def_.atom.reg_offset,
                                 to_size * self.project.arch.byte_width,
                                 **tags,
+                                write_size=stmt.dst.size,
                             )
                             new_assignment_src = Convert(
                                 stmt.src.idx,  # FIXME: This is a hack
@@ -314,7 +317,7 @@ class AILSimplifier(Analysis):
                         self.blocks[old_block] = new_block
 
                     # replace all uses if necessary
-                    for use_loc, use_expr_tpl in use_exprs:
+                    for use_loc, (use_type, use_expr_tpl) in use_exprs:
                         if isinstance(use_expr_tpl[0], Register) and to_size == use_expr_tpl[0].size:
                             # don't replace registers to the same registers
                             continue
@@ -322,68 +325,113 @@ class AILSimplifier(Analysis):
                         old_block = addr_and_idx_to_block.get((use_loc.block_addr, use_loc.block_idx))
                         the_block = self.blocks.get(old_block, old_block)
 
-                        # the first used expr
-                        use_expr_0 = use_expr_tpl[0]
-                        tags = dict(use_expr_0.tags)
-                        tags["reg_name"] = self.project.arch.translate_register_name(def_.atom.reg_offset, size=to_size)
-                        new_use_expr_0 = Register(
-                            use_expr_0.idx,
-                            None,
-                            def_.atom.reg_offset,
-                            to_size * self.project.arch.byte_width,
-                            **tags,
-                        )
-
-                        # the second used expr (if it exists)
-                        if len(use_expr_tpl) == 2:
-                            use_expr_1 = use_expr_tpl[1]
-                            assert isinstance(use_expr_1, BinaryOp)
-                            con = use_expr_1.operands[1]
-                            assert isinstance(con, Const)
-                            new_use_expr_1 = BinaryOp(
-                                use_expr_1.idx,
-                                use_expr_1.op,
-                                [
-                                    new_use_expr_0,
-                                    Const(con.idx, con.variable, con.value, new_use_expr_0.bits, **con.tags),
-                                ],
-                                use_expr_1.signed,
-                                floating_point=use_expr_1.floating_point,
-                                rounding_mode=use_expr_1.rounding_mode,
-                                **use_expr_1.tags,
+                        if use_type in {"expr", "mask", "convert"}:
+                            # the first used expr
+                            use_expr_0 = use_expr_tpl[0]
+                            tags = dict(use_expr_0.tags)
+                            tags["reg_name"] = self.project.arch.translate_register_name(
+                                def_.atom.reg_offset, size=to_size
+                            )
+                            new_use_expr_0 = Register(
+                                use_expr_0.idx,
+                                None,
+                                def_.atom.reg_offset,
+                                to_size * self.project.arch.byte_width,
+                                **tags,
                             )
 
-                            if use_expr_1.size > new_use_expr_1.size:
-                                new_use_expr_1 = Convert(
-                                    None,
-                                    new_use_expr_1.bits,
-                                    use_expr_1.bits,
-                                    False,
-                                    new_use_expr_1,
-                                    **new_use_expr_1.tags,
+                            # the second used expr (if it exists)
+                            if len(use_expr_tpl) == 2:
+                                use_expr_1 = use_expr_tpl[1]
+                                assert isinstance(use_expr_1, BinaryOp)
+                                con = use_expr_1.operands[1]
+                                assert isinstance(con, Const)
+                                new_use_expr_1 = BinaryOp(
+                                    use_expr_1.idx,
+                                    use_expr_1.op,
+                                    [
+                                        new_use_expr_0,
+                                        Const(con.idx, con.variable, con.value, new_use_expr_0.bits, **con.tags),
+                                    ],
+                                    use_expr_1.signed,
+                                    floating_point=use_expr_1.floating_point,
+                                    rounding_mode=use_expr_1.rounding_mode,
+                                    **use_expr_1.tags,
                                 )
 
-                            r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {use_loc: {use_expr_1: new_use_expr_1}}
-                            )
-                        elif len(use_expr_tpl) == 1:
-                            if use_expr_0.size > new_use_expr_0.size:
-                                new_use_expr_0 = Convert(
-                                    None,
-                                    new_use_expr_0.bits,
-                                    use_expr_0.bits,
-                                    False,
-                                    new_use_expr_0,
-                                    **new_use_expr_0.tags,
-                                )
+                                if use_expr_1.size > new_use_expr_1.size:
+                                    new_use_expr_1 = Convert(
+                                        None,
+                                        new_use_expr_1.bits,
+                                        use_expr_1.bits,
+                                        False,
+                                        new_use_expr_1,
+                                        **new_use_expr_1.tags,
+                                    )
 
-                            r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {use_loc: {use_expr_0: new_use_expr_0}}
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    the_block, {use_loc: {use_expr_1: new_use_expr_1}}
+                                )
+                            elif len(use_expr_tpl) == 1:
+                                if use_expr_0.size > new_use_expr_0.size:
+                                    new_use_expr_0 = Convert(
+                                        None,
+                                        new_use_expr_0.bits,
+                                        use_expr_0.bits,
+                                        False,
+                                        new_use_expr_0,
+                                        **new_use_expr_0.tags,
+                                    )
+
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    the_block, {use_loc: {use_expr_0: new_use_expr_0}}
+                                )
+                            else:
+                                _l.warning("Nothing to replace at %s.", use_loc)
+                                r = False
+                                new_block = None
+                        elif use_type == "binop-convert":
+                            use_expr_0 = use_expr_tpl[0]
+                            tags = dict(use_expr_0.tags)
+                            tags["reg_name"] = self.project.arch.translate_register_name(
+                                def_.atom.reg_offset, size=to_size
                             )
+                            new_use_expr_0 = Register(
+                                use_expr_0.idx,
+                                None,
+                                def_.atom.reg_offset,
+                                to_size * self.project.arch.byte_width,
+                                **tags,
+                            )
+
+                            use_expr_1: BinaryOp = use_expr_tpl[1]
+                            other_operand = (
+                                use_expr_1.operands[0]
+                                if use_expr_1.operands[1] is use_expr_0
+                                else use_expr_1.operands[1]
+                            )
+                            use_expr_2: Convert = use_expr_tpl[2]
+                            if other_operand.bits == use_expr_2.from_bits:
+                                new_other_operand = Convert(
+                                    None, use_expr_2.from_bits, use_expr_2.to_bits, False, other_operand
+                                )
+                                # first remove the old conversion
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    the_block, {use_loc: {use_expr_2: use_expr_2.operand}}
+                                )
+                                if r:
+                                    r, new_block = BlockSimplifier._replace_and_build(
+                                        new_block, {use_loc: {other_operand: new_other_operand}}
+                                    )
+                            else:
+                                r = True
+                                new_block = the_block
+                            if r:
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    new_block, {use_loc: {use_expr_0: new_use_expr_0}}
+                                )
                         else:
-                            _l.warning("Nothing to replace at %s.", use_loc)
-                            r = False
-                            new_block = None
+                            raise TypeError(f'Unsupported use_type value "{use_type}"')
 
                         if not r:
                             _l.warning("Failed to replace use-expr at %s.", use_loc)
@@ -396,13 +444,13 @@ class AILSimplifier(Analysis):
 
     def _narrowing_needed(
         self, def_, rd, addr_and_idx_to_block
-    ) -> Tuple[bool, Optional[int], Optional[List[Tuple[CodeLocation, Tuple[Expression, ...]]]]]:
+    ) -> Tuple[bool, Optional[int], Optional[List[Tuple[CodeLocation, Tuple[str, Tuple[Expression, ...]]]]]]:
         def_size = def_.size
         # find its uses
         use_and_exprs = rd.all_uses.get_uses_with_expr(def_)
 
         all_used_sizes = set()
-        used_by: List[Tuple[CodeLocation, Tuple[Expression, ...]]] = []
+        used_by: List[Tuple[CodeLocation, Tuple[str, Tuple[Expression, ...]]]] = []
 
         for loc, expr in use_and_exprs:
             old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
@@ -431,7 +479,7 @@ class AILSimplifier(Analysis):
 
     def _extract_expression_effective_size(
         self, statement, expr
-    ) -> Tuple[Optional[int], Optional[Tuple[Expression, ...]]]:
+    ) -> Tuple[Optional[int], Optional[Tuple[str, Tuple[Expression, ...]]]]:
         """
         Determine the effective size of an expression when it's used.
         """
@@ -441,18 +489,15 @@ class AILSimplifier(Analysis):
         if not walker.operations:
             if expr is None:
                 return None, None
-            return expr.size, (expr,)
+            return expr.size, ("expr", (expr,))
 
         first_op = walker.operations[0]
         if isinstance(first_op, Convert):
-            return first_op.to_bits // self.project.arch.byte_width, (first_op,)
+            return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
-            if len(walker.operations) == 2:
+            if len(walker.operations) >= 2:
                 second_op = walker.operations[1]
-            elif len(walker.operations) > 2:
-                # unsupported
-                return None, None
             if (
                 first_op.op == "And"
                 and isinstance(first_op.operands[1], Const)
@@ -460,15 +505,20 @@ class AILSimplifier(Analysis):
             ):
                 mask = first_op.operands[1].value
                 if mask == 0xFF:
-                    return 1, (first_op, second_op) if second_op is not None else (first_op,)
+                    return 1, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
                 if mask == 0xFFFF:
-                    return 2, (first_op, second_op) if second_op is not None else (first_op,)
+                    return 2, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
                 if mask == 0xFFFF_FFFF:
-                    return 4, (first_op, second_op) if second_op is not None else (first_op,)
+                    return 4, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
+            if (first_op.operands[0] is expr or first_op.operands[1] is expr) and isinstance(second_op, Convert):
+                return min(expr.bits, second_op.to_bits) // self.project.arch.byte_width, (
+                    "binop-convert",
+                    (expr, first_op, second_op),
+                )
 
         if expr is None:
             return None, None
-        return expr.size, (expr,)
+        return expr.size, ("expr", (expr,))
 
     #
     # Expression folding
@@ -480,8 +530,9 @@ class AILSimplifier(Analysis):
         """
 
         # propagator
-        propagator = self._compute_propagation()
+        propagator = self._compute_propagation(immediate_stmt_removal=True)
         replacements = propagator.replacements
+        stmts_to_remove = propagator.stmts_to_remove
 
         # take replacements and rebuild the corresponding blocks
         replacements_by_block_addrs_and_idx = defaultdict(dict)
@@ -511,6 +562,24 @@ class AILSimplifier(Analysis):
             r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp, replace_loads=replace_loads)
             replaced |= r
             self.blocks[block] = new_block
+
+        if replaced:
+            # FIXME: We assume all replacements succeed, which may not be the case
+            stmts_to_remove_by_block_addrs_and_idx = defaultdict(list)
+            for codeloc in stmts_to_remove:
+                stmts_to_remove_by_block_addrs_and_idx[(codeloc.block_addr, codeloc.block_idx)].append(codeloc.stmt_idx)
+            for key, stmt_list in stmts_to_remove_by_block_addrs_and_idx.items():
+                original_block = blocks_by_addr_and_idx[key]
+                block = original_block
+                if block in self.blocks:
+                    # get the updated block if any
+                    block = self.blocks[block]
+
+                stmt_list = sorted(stmt_list, reverse=True)
+                new_block = block.copy()
+                for stmt_idx in stmt_list:
+                    new_block.statements.pop(stmt_idx)
+                self.blocks[original_block] = new_block
 
         if replaced:
             # blocks have been rebuilt - expression propagation results are no longer reliable

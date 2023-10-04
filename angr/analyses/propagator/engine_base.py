@@ -18,6 +18,7 @@ class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
         propagate_tmps=True,
         arch=None,
         reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
+        immediate_stmt_removal: bool = False,
     ):
         super().__init__()
 
@@ -28,6 +29,8 @@ class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
         self._load_callback = None
         self._propagate_tmps: bool = propagate_tmps
         self._reaching_definitions = reaching_definitions
+        self._immediate_stmt_removal = immediate_stmt_removal
+        self.stmts_to_remove = set()
 
         # Used in the AIL engine
         self._stack_pointer_tracker = stack_pointer_tracker

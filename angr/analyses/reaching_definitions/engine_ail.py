@@ -613,7 +613,7 @@ class SimEngineRDAIL(
 
         return r
 
-    def _ail_handle_Neg(self, expr: ailment.Expr.UnaryOp) -> MultiValues:
+    def _ail_handle_BitwiseNeg(self, expr: ailment.Expr.UnaryOp) -> MultiValues:
         operand: MultiValues = self._expr(expr.operand)
         bits = expr.bits
 
@@ -621,7 +621,7 @@ class SimEngineRDAIL(
         operand_v = operand.one_value()
 
         if operand_v is not None and operand_v.concrete:
-            r = MultiValues(offset_to_values={0: {-operand_v}})
+            r = MultiValues(offset_to_values={0: {~operand_v}})
         else:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
@@ -886,6 +886,20 @@ class SimEngineRDAIL(
             r = MultiValues(self.state.top(bits))
 
         return r
+
+    def _ail_handle_Rol(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        self._expr(expr.operands[0])
+        self._expr(expr.operands[1])
+        bits = expr.bits
+
+        return MultiValues(self.state.top(bits))
+
+    def _ail_handle_Ror(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        self._expr(expr.operands[0])
+        self._expr(expr.operands[1])
+        bits = expr.bits
+
+        return MultiValues(self.state.top(bits))
 
     def _ail_handle_And(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])

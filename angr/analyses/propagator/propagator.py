@@ -1,5 +1,5 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
-from typing import Optional, Any, Tuple, Union, TYPE_CHECKING
+from typing import Optional, Any, Tuple, Union, Set, TYPE_CHECKING
 import logging
 import time
 
@@ -66,6 +66,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         cache_results: bool = False,
         key_prefix: Optional[str] = None,
         reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
+        immediate_stmt_removal: bool = False,
         profiling: bool = False,
     ):
         if block is None and func is not None:
@@ -93,11 +94,13 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._do_binops = do_binops
         self._store_tops = store_tops
         self._vex_cross_insn_opt = vex_cross_insn_opt
+        self._immediate_stmt_removal = immediate_stmt_removal
         self._gp = gp
         self._prop_key_prefix = key_prefix
         self._cache_results = cache_results
         self._reaching_definitions = reaching_definitions
         self._initial_codeloc: CodeLocation
+        self.stmts_to_remove: Set[CodeLocation] = set()
         if self.flavor == "function":
             self._initial_codeloc = CodeLocation(self._func_addr, stmt_idx=0, ins_addr=self._func_addr)
         else:  # flavor == "block"
@@ -158,6 +161,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             # We only propagate tmps within the same block. This is because the lifetime of tmps is one block only.
             propagate_tmps=block is not None,
             reaching_definitions=self._reaching_definitions,
+            immediate_stmt_removal=self._immediate_stmt_removal,
         )
 
         # optimization: skip state copying for the initial state
@@ -276,6 +280,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             fail_fast=self._fail_fast,
         )
         state.filter_replacements()
+
+        if self._immediate_stmt_removal:
+            self.stmts_to_remove |= engine.stmts_to_remove
 
         self.model.node_iterations[block_key] += 1
         self.model.states[block_key] = state

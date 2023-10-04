@@ -451,6 +451,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         pass
 
     def _post_analysis(self):
+        VariableRecoveryBase._post_analysis(self)
+
         self.variable_manager["global"].assign_variable_names(labels=self.kb.labels)
         self.variable_manager[self.function.addr].assign_variable_names()
 

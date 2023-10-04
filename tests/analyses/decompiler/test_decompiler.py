@@ -3092,6 +3092,30 @@ class TestDecompiler(unittest.TestCase):
         # loops.
         assert d.codegen.text.count("while (") == 2
 
+    @structuring_algo("phoenix")
+    def test_decompiling_function_with_long_cascading_data_flows(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "netfilter_b64.sys")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x140002918]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # each line as at most one __ROL__ or __ROR__
+        lines = d.codegen.text.split("\n")
+        rol_count = 0
+        ror_count = 0
+        for line in lines:
+            rol_count += line.count("__ROL__")
+            ror_count += line.count("__ROR__")
+            count = line.count("__ROL__") + line.count("__ROR__")
+            assert count <= 1
+        assert rol_count == 44
+        assert ror_count == 20
+
 
 if __name__ == "__main__":
     unittest.main()

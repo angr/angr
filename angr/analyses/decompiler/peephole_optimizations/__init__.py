@@ -39,6 +39,7 @@ from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
 from .sar_to_signed_div import SarToSignedDiv
 from .tidy_stack_addr import TidyStackAddr
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
+from .rol_ror import RolRorRewriter
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 

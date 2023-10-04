@@ -90,7 +90,7 @@ class PropagatorState:
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
         # propagation count of each expression
-        self._expr_used_locs = defaultdict(set) if expr_used_locs is None else expr_used_locs
+        self._expr_used_locs = defaultdict(list) if expr_used_locs is None else expr_used_locs
         self._only_consts = only_consts
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
@@ -241,7 +241,7 @@ class PropagatorState:
     def init_replacements(self):
         self._replacements = defaultdict(dict)
 
-    def add_replacement(self, codeloc, old: CodeLocation, new):
+    def add_replacement(self, codeloc, old: CodeLocation, new) -> bool:
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.
         If the self._only_consts flag is set to true, only constant values will be set.
@@ -249,16 +249,21 @@ class PropagatorState:
         :param codeloc:                 The code location.
         :param old:                     The expression to be replaced.
         :param new:                     The expression to replace with.
-        :return:                        None
+        :return:                        True if the replacement will happen. False otherwise.
         """
         if self.is_top(new):
-            return
+            return False
 
+        replaced = False
         if self._only_consts:
             if self._is_const(new) or self.is_top(new):
                 self._replacements[codeloc][old] = new
+                replaced = True
         else:
             self._replacements[codeloc][old] = new
+            replaced = True
+
+        return replaced
 
     def filter_replacements(self):
         pass
@@ -725,7 +730,7 @@ class PropagatorAILState(PropagatorState):
         prop_value = PropValue.from_value_and_labels(value, labels)
         return prop_value
 
-    def add_replacement(self, codeloc: CodeLocation, old, new):
+    def add_replacement(self, codeloc: CodeLocation, old, new) -> bool:
         if self._only_consts:
             if self.is_const_or_register(new) or self.is_top(new):
                 pass
@@ -734,26 +739,26 @@ class PropagatorAILState(PropagatorState):
 
         # do not replace anything with a call expression
         if isinstance(new, ailment.statement.Call):
-            return
+            return False
         else:
             callexpr_finder = CallExprFinder()
             callexpr_finder.walk_expression(new)
             if callexpr_finder.has_call:
-                return
+                return False
 
-        if (
-            self.is_top(new)
-            or self.is_expression_too_deep(new)
-            or (self.has_ternary_expr(new) and not isinstance(old, ailment.Expr.Tmp))
+        if self.is_top(new):
+            self._replacements[codeloc][old] = self.top(1)  # placeholder
+            return False
+
+        if isinstance(new, ailment.Expr.Expression) and (
+            self.is_expression_too_deep(new) or (self.has_ternary_expr(new) and not isinstance(old, ailment.Expr.Tmp))
         ):
             # eliminate the past propagation of this expression
             self._replacements[codeloc][old] = self.top(1)  # placeholder
-            for codeloc_ in self._expr_used_locs[new]:
-                for key, replace_with in list(self.model.replacements[codeloc_].items()):
-                    if replace_with == new:
-                        self.model.replacements[codeloc_][key] = self.top(1)
-            return
+            self.revert_past_replacements(new)
+            return False
 
+        replaced = False
         # count-based propagation rule only matters when we are performing a full-function copy propagation
         if self._max_prop_expr_occurrence == 0:
             if (
@@ -762,6 +767,7 @@ class PropagatorAILState(PropagatorState):
                 and old.reg_offset in {self.arch.sp_offset, self.arch.bp_offset}
             ):
                 self._replacements[codeloc][old] = new
+                replaced = True
         else:
             prop_count = 0
             if (
@@ -770,7 +776,7 @@ class PropagatorAILState(PropagatorState):
                 and not isinstance(new, ailment.Expr.Const)
             ):
                 # FIXME: We should find the definition in the RDA result and use the definition as the key
-                self._expr_used_locs[new].add(codeloc)
+                self._expr_used_locs[new].append(codeloc)
                 prop_count = len(self._expr_used_locs[new])
 
             if (  # pylint:disable=too-many-boolean-expressions
@@ -785,11 +791,35 @@ class PropagatorAILState(PropagatorState):
             ):
                 # we can propagate this expression
                 self._replacements[codeloc][old] = new
+                replaced = True
             else:
+                self._replacements[codeloc][old] = self.top(1)  # placeholder
+
                 # eliminate the past propagation of this expression
                 for codeloc_ in self._replacements:
                     if old in self._replacements[codeloc_]:
                         self._replacements[codeloc_][old] = self.top(1)
+                self.revert_past_replacements(new)
+
+        return replaced
+
+    def revert_past_replacements(self, replaced_by, to_replace=None) -> Set[CodeLocation]:
+        updated_codelocs = set()
+        for codeloc_ in self._expr_used_locs[replaced_by]:
+            for key, replace_with in list(self.model.replacements[codeloc_].items()):
+                if not self.is_top(replace_with) and replace_with == replaced_by:
+                    if to_replace is None or to_replace.likes(key):
+                        self.model.replacements[codeloc_][key] = self.top(1)
+                        updated_codelocs.add(codeloc_)
+
+        for codeloc_ in self._replacements:
+            for key, replace_with in list(self._replacements[codeloc_].items()):
+                if not self.is_top(replace_with) and replace_with == replaced_by:
+                    if to_replace is None or to_replace.likes(key):
+                        self._replacements[codeloc_][key] = self.top(1)
+                        updated_codelocs.add(codeloc_)
+
+        return updated_codelocs
 
     def add_equivalence(self, codeloc, old, new):
         eq = Equivalence(codeloc, old, new)
