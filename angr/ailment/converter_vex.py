@@ -180,6 +180,9 @@ class VEXExprConverter(Converter):
                     vex_stmt_idx=manager.vex_stmt_idx,
                 )
             raise NotImplementedError("Unsupported operation")
+        elif op_name == "Not" and expr.op != "Iop_Not1":
+            # NotN (N != 1) is equivalent to bitwise negation
+            op_name = "BitwiseNeg"
 
         return UnaryOp(
             manager.next_atom(),
