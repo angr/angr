@@ -803,6 +803,16 @@ class AILSimplifier(Analysis):
                     # only when all uses are determined by the same definition will we continue with the simplification
                     continue
 
+                # one more check: there can be at most one assignment in all these use locations
+                assignment_ctr = 0
+                for use_loc, used_expr in all_uses:
+                    block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                    stmt = block.statements[use_loc.stmt_idx]
+                    if isinstance(stmt, Assignment):
+                        assignment_ctr += 1
+                if assignment_ctr > 1:
+                    continue
+
                 all_uses_with_def = {(to_replace_def, use_and_expr) for use_and_expr in all_uses}
 
                 remove_initial_assignment = False  # expression folding will take care of it
