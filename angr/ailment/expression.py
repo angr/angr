@@ -236,7 +236,11 @@ class UnaryOp(Op):
         return stable_hash((self.op, self.operand, self.bits))
 
     def replace(self, old_expr, new_expr):
-        r, replaced_operand = self.operand.replace(old_expr, new_expr)
+        if self.operand == old_expr:
+            r = True
+            replaced_operand = new_expr
+        else:
+            r, replaced_operand = self.operand.replace(old_expr, new_expr)
 
         if r:
             return True, UnaryOp(self.idx, self.op, replaced_operand, **self.tags)
