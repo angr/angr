@@ -494,6 +494,8 @@ class BinaryOp(Op):
         "CmpGTs": ">s",
         "CmpGEs": ">=s",
         "Concat": "CONCAT",
+        "Ror": "ROR",
+        "Rol": "ROL",
     }
 
     COMPARISON_NEGATION = {
