@@ -805,12 +805,13 @@ class PropagatorAILState(PropagatorState):
 
     def revert_past_replacements(self, replaced_by, to_replace=None) -> Set[CodeLocation]:
         updated_codelocs = set()
-        for codeloc_ in self._expr_used_locs[replaced_by]:
-            for key, replace_with in list(self.model.replacements[codeloc_].items()):
-                if not self.is_top(replace_with) and replace_with == replaced_by:
-                    if to_replace is None or to_replace.likes(key):
-                        self.model.replacements[codeloc_][key] = self.top(1)
-                        updated_codelocs.add(codeloc_)
+        if self.model.replacements is not None:
+            for codeloc_ in self._expr_used_locs[replaced_by]:
+                for key, replace_with in list(self.model.replacements[codeloc_].items()):
+                    if not self.is_top(replace_with) and replace_with == replaced_by:
+                        if to_replace is None or to_replace.likes(key):
+                            self.model.replacements[codeloc_][key] = self.top(1)
+                            updated_codelocs.add(codeloc_)
 
         for codeloc_ in self._replacements:
             for key, replace_with in list(self._replacements[codeloc_].items()):

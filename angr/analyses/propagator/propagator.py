@@ -283,6 +283,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         if self._immediate_stmt_removal:
             self.stmts_to_remove |= engine.stmts_to_remove
+            engine.stmts_to_remove = set()
 
         self.model.node_iterations[block_key] += 1
         self.model.states[block_key] = state
