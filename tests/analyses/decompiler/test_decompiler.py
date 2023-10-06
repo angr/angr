@@ -2052,9 +2052,6 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["main"]
 
-        # enable rewrite_ites_to_diamonds
-        set_decompiler_option(decompiler_options, [("rewrite_ites_to_diamonds", False)])
-
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 

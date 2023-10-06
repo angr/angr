@@ -787,7 +787,7 @@ class PropagatorAILState(PropagatorState):
         else:
             prop_count = 0
             def_ = None
-            if isinstance(old, ailment.Expr.Tmp) and isinstance(new, ailment.Expr.Const):
+            if isinstance(old, ailment.Expr.Tmp) or isinstance(new, ailment.Expr.Const):
                 # we always propagate tmp and constants
                 pass
             else:
