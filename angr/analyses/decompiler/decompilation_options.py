@@ -67,6 +67,16 @@ options = [
         default_value=False,
     ),
     O(
+        "Rewrite ITE expressions into diamond-shaped control-flow regions",
+        "Rewrite ITE expressions into diamond-shaped control-flow regions, which usually result in better decompilation"
+        " output.",
+        bool,
+        "clinic",
+        "rewrite_ites_to_diamonds",
+        category="Graph",
+        default_value=True,
+    ),
+    O(
         "Leave the largest loop successor tree outside the loop region",
         "During region identification, treating the largest successor tree of a loop as a member of the loop body "
         "sometimes leads to seemingly unnatural and gigantic loops. Enabling this option will treat such successor "

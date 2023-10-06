@@ -63,6 +63,7 @@ class Clinic(Analysis):
         must_struct: Optional[Set[str]] = None,
         variable_kb=None,
         reset_variable_names=False,
+        rewrite_ites_to_diamonds=True,
         cache: Optional["DecompilationCache"] = None,
     ):
         if not func.normalized:
@@ -89,6 +90,7 @@ class Clinic(Analysis):
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
+        self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
         self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
 
@@ -176,7 +178,8 @@ class Clinic(Analysis):
         self._convert_all()
 
         ail_graph = self._make_ailgraph()
-        self._rewrite_ite_expressions(ail_graph)
+        if self._rewrite_ites_to_diamonds:
+            self._rewrite_ite_expressions(ail_graph)
         self._remove_redundant_jump_blocks(ail_graph)
         if self._insert_labels:
             self._insert_block_labels(ail_graph)
