@@ -405,11 +405,14 @@ class AILSimplifier(Analysis):
                             )
 
                             use_expr_1: BinaryOp = use_expr_tpl[1]
-                            other_operand = (
-                                use_expr_1.operands[0]
-                                if use_expr_1.operands[1] is use_expr_0
-                                else use_expr_1.operands[1]
-                            )
+                            # build the new use_expr_1
+                            new_use_expr_1_operands = {}
+                            if use_expr_1.operands[0] is use_expr_0:
+                                new_use_expr_1_operands[0] = new_use_expr_0
+                                other_operand = use_expr_1.operands[1]
+                            else:
+                                new_use_expr_1_operands[1] = new_use_expr_0
+                                other_operand = use_expr_1.operands[0]
                             use_expr_2: Convert = use_expr_tpl[2]
                             if other_operand.bits == use_expr_2.from_bits:
                                 new_other_operand = Convert(
@@ -418,17 +421,32 @@ class AILSimplifier(Analysis):
                             else:
                                 # Some operations, like Sar and Shl, have operands with different sizes
                                 new_other_operand = other_operand
+
+                            if 0 in new_use_expr_1_operands:
+                                new_use_expr_1_operands[1] = new_other_operand
+                            else:
+                                new_use_expr_1_operands[0] = new_other_operand
+
+                            # build new use_expr_1
+                            new_use_expr_1 = BinaryOp(
+                                use_expr_1.idx,
+                                use_expr_1.op,
+                                [new_use_expr_1_operands[0], new_use_expr_1_operands[1]],
+                                use_expr_1.signed,
+                                bits=use_expr_1.bits,
+                                floating_point=use_expr_1.floating_point,
+                                rounding_mode=use_expr_1.rounding_mode,
+                                **use_expr_1.tags,
+                            )
+
                             # first remove the old conversion
                             r, new_block = BlockSimplifier._replace_and_build(
                                 the_block, {use_loc: {use_expr_2: use_expr_2.operand}}
                             )
+                            # then replace use_expr_1
                             if r and other_operand is not new_other_operand:
                                 r, new_block = BlockSimplifier._replace_and_build(
-                                    new_block, {use_loc: {other_operand: new_other_operand}}
-                                )
-                            if r:
-                                r, new_block = BlockSimplifier._replace_and_build(
-                                    new_block, {use_loc: {use_expr_0: new_use_expr_0}}
+                                    new_block, {use_loc: {use_expr_1: new_use_expr_1}}
                                 )
                         else:
                             raise TypeError(f'Unsupported use_type value "{use_type}"')
