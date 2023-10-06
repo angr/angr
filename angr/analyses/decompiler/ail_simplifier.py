@@ -510,7 +510,11 @@ class AILSimplifier(Analysis):
                     return 2, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
                 if mask == 0xFFFF_FFFF:
                     return 4, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
-            if (first_op.operands[0] is expr or first_op.operands[1] is expr) and isinstance(second_op, Convert):
+            if (
+                (first_op.operands[0] is expr or first_op.operands[1] is expr)
+                and isinstance(second_op, Convert)
+                and second_op.from_bits == expr.bits
+            ):
                 return min(expr.bits, second_op.to_bits) // self.project.arch.byte_width, (
                     "binop-convert",
                     (expr, first_op, second_op),
