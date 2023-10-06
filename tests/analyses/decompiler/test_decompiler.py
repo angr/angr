@@ -3071,9 +3071,9 @@ class TestDecompiler(unittest.TestCase):
         lines = lines[func_starting_line:]
         end_of_variable_list_line = [idx for idx, line in enumerate(lines) if not line.strip(" ")][0]
         lines = lines[end_of_variable_list_line + 1 :]
-        # the first line of the code should be an if statement. all other variables should have been eliminated by
+        # the second line of the code should be an if statement. all other variables should have been eliminated by
         # proper propagation
-        assert lines[0].strip(" ").startswith("if (")
+        assert lines[1].strip(" ").startswith("if (")
 
     @structuring_algo("phoenix")
     def test_decompiling_incorrect_duplication_chcon_main(self, decompiler_options=None):

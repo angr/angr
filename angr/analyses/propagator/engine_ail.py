@@ -56,7 +56,14 @@ class SimEnginePropagatorAIL(
         :return:
         """
 
-        self._assignment_has_unreplaceable_subexprs = False
+        # walk stmt.src to find all cases where a register appears above a threshold (so we don't incorrectly
+        # replace the first one)
+        from angr.analyses.decompiler.expression_counters import (
+            RegisterExpressionCounter,
+        )  # pylint:disable=wrong-import-position
+
+        ctr = RegisterExpressionCounter(stmt.src)
+        self._skip_replacement_registers = {key for key, count in ctr.counts.items() if count > 1}
 
         src = self._expr(stmt.src)
         dst = stmt.dst
@@ -75,10 +82,6 @@ class SimEnginePropagatorAIL(
             # do not store tmps into register
             if any(self.has_tmpexpr(expr) for expr in src.all_exprs()):
                 src = PropValue(src.value, offset_and_details={0: Detail(src.value.size() // 8, dst, None)})
-            # if any sub-expressions of stmt.src are deemed not replaceable, some subexpressions of src might have been
-            # replaced. so we get src again
-            elif self._assignment_has_unreplaceable_subexprs:
-                src = self._expr(stmt.src)
             self.state.store_register(dst, src)
 
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
@@ -97,6 +100,8 @@ class SimEnginePropagatorAIL(
                 self.state._sp_adjusted = True
         else:
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
+
+        self._skip_replacement_registers = None
 
     def _ail_handle_Store(self, stmt: Stmt.Store):
         self.state: "PropagatorAILState"
@@ -354,6 +359,11 @@ class SimEnginePropagatorAIL(
                         self.sp_offset(expr.bits, sb_offset), expr.size, new_expr, self._codeloc()
                     )
 
+        if self._skip_replacement_registers:
+            if (expr.reg_offset, expr.size) in self._skip_replacement_registers:
+                # don't replace
+                return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
+
         def _test_concatenation(pv: PropValue):
             if pv.offset_and_details is not None and len(pv.offset_and_details) == 2 and 0 in pv.offset_and_details:
                 lo_value = pv.offset_and_details[0]
@@ -470,15 +480,11 @@ class SimEnginePropagatorAIL(
                             subexpr,
                             force_replace=isinstance(self.block.statements[self.stmt_idx], Stmt.Jump),
                         )
-                        if not replaced:
-                            self._assignment_has_unreplaceable_subexprs = True
                 else:
                     is_concatenation, result_expr = _test_concatenation(new_expr)
                     if is_concatenation:
                         l.debug("Try to add a replacement: %s with %s", expr, result_expr)
                         replaced = self.state.add_replacement(self._codeloc(), expr, result_expr)
-                        if not replaced:
-                            self._assignment_has_unreplaceable_subexprs = True
             elif all_subexprs and None not in all_subexprs and len(all_subexprs) == 1:
                 # if the expression has been replaced before, we should remove previous replacements
                 reg_defs = self._reaching_definitions.get_defs(

@@ -2,7 +2,7 @@ from typing import Set, Dict, List, Tuple, Any, Optional, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
-from ailment import AILBlockWalkerBase, AILBlockWalker
+from ailment import AILBlockWalker
 from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump
 from ailment.expression import (
@@ -30,6 +30,7 @@ from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
 from .block_simplifier import BlockSimplifier
 from .ccall_rewriters import CCALL_REWRITERS
+from .expression_counters import SingleExpressionCounter
 
 if TYPE_CHECKING:
     from ailment.manager import Manager
@@ -59,25 +60,6 @@ class AILBlockTempCollector(AILBlockWalker):
     def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> None:
         if isinstance(expr, Tmp):
             self.temps.add(expr)
-
-
-class ExpressionCounter(AILBlockWalkerBase):
-    """
-    Count the occurrence of subexpr in expr.
-    """
-
-    def __init__(self, stmt, subexpr):
-        super().__init__()
-        self.subexpr = subexpr
-        self.count = 0
-        self.walk_statement(stmt)
-
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
-    ) -> Any:
-        if expr == self.subexpr:
-            self.count += 1
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class AILSimplifier(Analysis):
@@ -720,7 +702,7 @@ class AILSimplifier(Analysis):
             if isinstance(the_def.codeloc, ExternalCodeLocation):
                 # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
                 # argument if
-                # (a) the on-stack copy of it has never been modified in this function
+                # (a) the on-stack or in-register copy of it has never been modified in this function
                 # (b) the function argument register has never been updated.
                 #     TODO: we may loosen requirement (b) once we have real register versioning in AIL.
                 defs = [def_ for def_ in rd.all_definitions if def_.codeloc == eq.codeloc]
@@ -729,40 +711,44 @@ class AILSimplifier(Analysis):
                 remove_initial_assignment = None
 
                 if defs and len(defs) == 1:
-                    stackvar_def = defs[0]
-                    if isinstance(stackvar_def.atom, atoms.MemoryLocation) and isinstance(
-                        stackvar_def.atom.addr, SpOffset
+                    arg_copy_def = defs[0]
+                    if (
+                        isinstance(arg_copy_def.atom, atoms.MemoryLocation)
+                        and isinstance(arg_copy_def.atom.addr, SpOffset)
+                        or isinstance(arg_copy_def.atom, atoms.Register)
                     ):
-                        # found the stack variable
-                        # Make sure there is no other write to this location
-                        if any(
-                            (def_ != stackvar_def and def_.atom == stackvar_def.atom)
-                            for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.MemoryLocation)
-                        ):
-                            continue
+                        # found the copied definition (either a stack variable or a register variable)
 
-                        # Make sure the register is never updated across this function
-                        if any(
-                            (def_ != the_def and def_.atom == the_def.atom)
-                            for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
-                        ):
-                            continue
+                        # Make sure there is no other write to this stack location if the copy is a stack variable
+                        if isinstance(arg_copy_def.atom, atoms.MemoryLocation):
+                            if any(
+                                (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
+                                for def_ in rd.all_definitions
+                                if isinstance(def_.atom, atoms.MemoryLocation)
+                            ):
+                                continue
+
+                            # Make sure the register is never updated across this function
+                            if any(
+                                (def_ != the_def and def_.atom == the_def.atom)
+                                for def_ in rd.all_definitions
+                                if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
+                            ):
+                                continue
 
                         # find all its uses
-                        all_stackvar_uses: Set[Tuple[CodeLocation, Any]] = set(
-                            rd.all_uses.get_uses_with_expr(stackvar_def)
+                        all_arg_copy_var_uses: Set[Tuple[CodeLocation, Any]] = set(
+                            rd.all_uses.get_uses_with_expr(arg_copy_def)
                         )
                         all_uses_with_def = set()
 
                         should_abort = False
-                        for use in all_stackvar_uses:
+                        for use in all_arg_copy_var_uses:
                             used_expr = use[1]
-                            if used_expr is not None and used_expr.size != stackvar_def.size:
+                            if used_expr is not None and used_expr.size != arg_copy_def.size:
                                 should_abort = True
                                 break
-                            all_uses_with_def.add((stackvar_def, use))
+                            all_uses_with_def.add((arg_copy_def, use))
                         if should_abort:
                             continue
 
@@ -1101,7 +1087,7 @@ class AILSimplifier(Analysis):
                     continue
 
                 # ensure what we are going to replace only appears once
-                expr_ctr = ExpressionCounter(stmt, src)
+                expr_ctr = SingleExpressionCounter(stmt, src)
                 if expr_ctr.count > 1:
                     continue
 
