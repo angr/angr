@@ -473,7 +473,16 @@ class SimEnginePropagatorAIL(
                             self._assignment_has_unreplaceable_subexprs = True
             elif all_subexprs and None not in all_subexprs and len(all_subexprs) == 1:
                 # if the expression has been replaced before, we should remove previous replacements
-                updated_codelocs = self.state.revert_past_replacements(all_subexprs[0], to_replace=expr)
+                reg_defs = self._reaching_definitions.get_defs(
+                    Register(expr.reg_offset, expr.size), self._codeloc(), OP_BEFORE
+                )
+                if len(reg_defs) == 1:
+                    reg_def = next(iter(reg_defs))
+                else:
+                    reg_def = None
+                updated_codelocs = self.state.revert_past_replacements(
+                    all_subexprs[0], to_replace=expr, to_replace_def=reg_def
+                )
                 # scan through the code locations and recursively remove assignment replacements
                 if self._reaching_definitions is not None:
                     while updated_codelocs:

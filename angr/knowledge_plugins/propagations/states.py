@@ -12,6 +12,8 @@ from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from angr.storage.memory_mixins import LabeledMemory
 from angr.engines.light.engine import SimEngineLight
 from angr.code_location import CodeLocation
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
 from .prop_value import PropValue, Detail
 
@@ -64,6 +66,7 @@ class PropagatorState:
         "_replacements",
         "_equivalence",
         "project",
+        "rda",
         "_store_tops",
         "_gp",
         "_max_prop_expr_occurrence",
@@ -77,6 +80,7 @@ class PropagatorState:
         self,
         arch: "Arch",
         project: Optional["Project"] = None,
+        rda=None,
         replacements: Optional[DefaultDict[CodeLocation, Dict]] = None,
         only_consts: bool = False,
         expr_used_locs: Optional[DefaultDict[Any, Set[CodeLocation]]] = None,
@@ -102,6 +106,7 @@ class PropagatorState:
 
         self.project = project
         self.model = model
+        self.rda = rda
 
     def __repr__(self):
         return "<PropagatorState>"
@@ -110,6 +115,7 @@ class PropagatorState:
     def initial_state(
         cls,
         project: Project,
+        rda=None,
         only_consts=False,
         gp=None,
         do_binops=True,
@@ -287,6 +293,7 @@ class PropagatorVEXState(PropagatorState):
         self,
         arch,
         project=None,
+        rda=None,
         registers=None,
         local_variables=None,
         replacements=None,
@@ -301,6 +308,7 @@ class PropagatorVEXState(PropagatorState):
         super().__init__(
             arch,
             project=project,
+            rda=rda,
             replacements=replacements,
             only_consts=only_consts,
             expr_used_locs=expr_used_locs,
@@ -331,6 +339,7 @@ class PropagatorVEXState(PropagatorState):
     def initial_state(
         cls,
         project,
+        rda=None,
         only_consts=False,
         gp=None,
         do_binops=True,
@@ -343,6 +352,7 @@ class PropagatorVEXState(PropagatorState):
         state = cls(
             project.arch,
             project=project,
+            rda=rda,
             only_consts=only_consts,
             do_binops=do_binops,
             store_tops=store_tops,
@@ -382,6 +392,7 @@ class PropagatorVEXState(PropagatorState):
         cp = PropagatorVEXState(
             self.arch,
             project=self.project,
+            rda=self.rda,
             registers=self._registers.copy(),
             local_variables=self._stack_variables.copy(),
             replacements=self._replacements.copy(),
@@ -490,6 +501,7 @@ class PropagatorAILState(PropagatorState):
         self,
         arch,
         project=None,
+        rda=None,
         replacements=None,
         only_consts=False,
         expr_used_locs=None,
@@ -505,6 +517,7 @@ class PropagatorAILState(PropagatorState):
         super().__init__(
             arch,
             project=project,
+            rda=rda,
             replacements=replacements,
             only_consts=only_consts,
             expr_used_locs=expr_used_locs,
@@ -547,6 +560,7 @@ class PropagatorAILState(PropagatorState):
     def initial_state(
         cls,
         project: Project,
+        rda=None,
         only_consts=False,
         gp=None,
         do_binops=True,
@@ -559,6 +573,7 @@ class PropagatorAILState(PropagatorState):
         state = cls(
             project.arch,
             project=project,
+            rda=rda,
             only_consts=only_consts,
             gp=gp,
             max_prop_expr_occurrence=max_prop_expr_occurrence,
@@ -615,6 +630,7 @@ class PropagatorAILState(PropagatorState):
         rd = PropagatorAILState(
             self.arch,
             project=self.project,
+            rda=self.rda,
             replacements=self._replacements.copy(),
             expr_used_locs=self._expr_used_locs.copy(),
             only_consts=self._only_consts,
@@ -755,7 +771,7 @@ class PropagatorAILState(PropagatorState):
         ):
             # eliminate the past propagation of this expression
             self._replacements[codeloc][old] = self.top(1)  # placeholder
-            self.revert_past_replacements(new)
+            self.revert_past_replacements(new, to_replace=old)
             return False
 
         replaced = False
@@ -770,14 +786,26 @@ class PropagatorAILState(PropagatorState):
                 replaced = True
         else:
             prop_count = 0
-            if (
-                not isinstance(old, ailment.Expr.Tmp)
-                and isinstance(new, ailment.Expr.Expression)
-                and not isinstance(new, ailment.Expr.Const)
-            ):
-                # FIXME: We should find the definition in the RDA result and use the definition as the key
-                self._expr_used_locs[new].append(codeloc)
-                prop_count = len(self._expr_used_locs[new])
+            def_ = None
+            if isinstance(old, ailment.Expr.Tmp) and isinstance(new, ailment.Expr.Const):
+                # we always propagate tmp and constants
+                pass
+            else:
+                if self.rda is not None:
+                    if isinstance(old, ailment.Expr.Register):
+                        defs = self.rda.get_defs(atoms.Register(old.reg_offset, old.size), codeloc, OP_BEFORE)
+                        if len(defs) == 1:
+                            def_ = next(iter(defs))
+                    if def_ is not None:
+                        self._expr_used_locs[def_].append(codeloc)
+                        prop_count = len(self._expr_used_locs[def_])
+                    else:
+                        # multiple definitions or no definitions - do not propagate
+                        return False
+                else:
+                    # when RDA result is not available, we use the expression directly for worse results
+                    self._expr_used_locs[new].append(codeloc)
+                    prop_count = len(self._expr_used_locs[new])
 
             if (  # pylint:disable=too-many-boolean-expressions
                 prop_count <= self._max_prop_expr_occurrence
@@ -799,26 +827,26 @@ class PropagatorAILState(PropagatorState):
                 for codeloc_ in self._replacements:
                     if old in self._replacements[codeloc_]:
                         self._replacements[codeloc_][old] = self.top(1)
-                self.revert_past_replacements(new)
+                self.revert_past_replacements(new, to_replace=old, to_replace_def=def_)
 
         return replaced
 
-    def revert_past_replacements(self, replaced_by, to_replace=None) -> Set[CodeLocation]:
+    def revert_past_replacements(self, replaced_by, to_replace=None, to_replace_def=None) -> Set[CodeLocation]:
         updated_codelocs = set()
         if self.model.replacements is not None:
-            for codeloc_ in self._expr_used_locs[replaced_by]:
+            for codeloc_ in self._expr_used_locs[to_replace_def if to_replace_def is not None else to_replace]:
                 for key, replace_with in list(self.model.replacements[codeloc_].items()):
                     if not self.is_top(replace_with) and replace_with == replaced_by:
-                        if to_replace is None or to_replace.likes(key):
-                            self.model.replacements[codeloc_][key] = self.top(1)
-                            updated_codelocs.add(codeloc_)
-
-        for codeloc_ in self._replacements:
-            for key, replace_with in list(self._replacements[codeloc_].items()):
-                if not self.is_top(replace_with) and replace_with == replaced_by:
-                    if to_replace is None or to_replace.likes(key):
-                        self._replacements[codeloc_][key] = self.top(1)
+                        self.model.replacements[codeloc_][key] = self.top(1)
                         updated_codelocs.add(codeloc_)
+
+        for codeloc_ in self._expr_used_locs[to_replace_def if to_replace_def is not None else to_replace]:
+            if codeloc_ in self._replacements:
+                for key, replace_with in list(self._replacements[codeloc_].items()):
+                    if not self.is_top(replace_with) and replace_with == replaced_by:
+                        if to_replace.likes(key):
+                            self._replacements[codeloc_][key] = self.top(1)
+                            updated_codelocs.add(codeloc_)
 
         return updated_codelocs
 

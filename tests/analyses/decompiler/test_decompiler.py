@@ -3113,6 +3113,9 @@ class TestDecompiler(unittest.TestCase):
             ror_count += line.count("__ROR__")
             count = line.count("__ROL__") + line.count("__ROR__")
             assert count <= 1
+
+            assert "tmp" not in line
+            assert "..." not in line
         assert rol_count == 44
         assert ror_count == 20
 

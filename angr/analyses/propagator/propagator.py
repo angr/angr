@@ -226,6 +226,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         cls = PropagatorAILState if isinstance(node, ailment.Block) else PropagatorVEXState
         self._initial_state = cls.initial_state(
             self.project,
+            rda=self._reaching_definitions,
             only_consts=self._only_consts,
             gp=self._gp,
             do_binops=self._do_binops,
