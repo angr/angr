@@ -461,7 +461,15 @@ class SimEnginePropagatorAIL(
                     subexpr = all_subexprs[0]
                     if subexpr.size == expr.size:
                         l.debug("Try to add a replacement: %s with %s", expr, subexpr)
-                        replaced = self.state.add_replacement(self._codeloc(), expr, subexpr)
+                        # we always replace the expression if the current statement is an indirect jump. this is to
+                        # ensure the dynamically calculated jump targets are always using the originally defined
+                        # expressions, which usually leads to better decompilation output.
+                        replaced = self.state.add_replacement(
+                            self._codeloc(),
+                            expr,
+                            subexpr,
+                            force_replace=isinstance(self.block.statements[self.stmt_idx], Stmt.Jump),
+                        )
                         if not replaced:
                             self._assignment_has_unreplaceable_subexprs = True
                 else:

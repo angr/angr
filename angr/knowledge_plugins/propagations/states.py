@@ -247,7 +247,7 @@ class PropagatorState:
     def init_replacements(self):
         self._replacements = defaultdict(dict)
 
-    def add_replacement(self, codeloc, old: CodeLocation, new) -> bool:
+    def add_replacement(self, codeloc: CodeLocation, old, new, force_replace: bool = False) -> bool:
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.
         If the self._only_consts flag is set to true, only constant values will be set.
@@ -746,7 +746,7 @@ class PropagatorAILState(PropagatorState):
         prop_value = PropValue.from_value_and_labels(value, labels)
         return prop_value
 
-    def add_replacement(self, codeloc: CodeLocation, old, new) -> bool:
+    def add_replacement(self, codeloc: CodeLocation, old, new, force_replace: bool = False) -> bool:
         if self._only_consts:
             if self.is_const_or_register(new) or self.is_top(new):
                 pass
@@ -808,7 +808,8 @@ class PropagatorAILState(PropagatorState):
                     prop_count = len(self._expr_used_locs[new])
 
             if (  # pylint:disable=too-many-boolean-expressions
-                prop_count <= self._max_prop_expr_occurrence
+                force_replace
+                or prop_count <= self._max_prop_expr_occurrence
                 or isinstance(new, ailment.Expr.StackBaseOffset)
                 or isinstance(new, ailment.Expr.Convert)
                 and isinstance(new.operand, ailment.Expr.StackBaseOffset)
