@@ -14,6 +14,7 @@ from angr.engines.light.engine import SimEngineLight
 from angr.code_location import CodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.engines.light.data import SpOffset
 
 from .prop_value import PropValue, Detail
 
@@ -794,6 +795,12 @@ class PropagatorAILState(PropagatorState):
                 if self.rda is not None:
                     if isinstance(old, ailment.Expr.Register):
                         defs = self.rda.get_defs(atoms.Register(old.reg_offset, old.size), codeloc, OP_BEFORE)
+                        if len(defs) == 1:
+                            def_ = next(iter(defs))
+                    elif isinstance(old, ailment.Expr.Load) and isinstance(old.addr, ailment.Expr.StackBaseOffset):
+                        defs = self.rda.get_defs(
+                            atoms.MemoryLocation(SpOffset(old.addr.bits, old.addr.offset), old.size), codeloc, OP_BEFORE
+                        )
                         if len(defs) == 1:
                             def_ = next(iter(defs))
                     if def_ is not None:

@@ -296,7 +296,10 @@ class BlockSimplifier(Analysis):
         # Find dead assignments
         dead_defs_stmt_idx = set()
         all_defs: Iterable["Definition"] = rd.all_definitions
-        stackarg_offsets = {tpl[1] for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
+        mask = (1 << self.project.arch.bits) - 1
+        stackarg_offsets = (
+            {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
+        )
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
@@ -304,7 +307,7 @@ class BlockSimplifier(Analysis):
                 if not self._remove_dead_memdefs:
                     # we always remove definitions for stack arguments
                     if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
-                        if d.atom.addr.offset not in stackarg_offsets:
+                        if (d.atom.addr.offset & mask) not in stackarg_offsets:
                             continue
                     else:
                         continue
