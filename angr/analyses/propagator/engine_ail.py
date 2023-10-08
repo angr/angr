@@ -466,25 +466,34 @@ class SimEnginePropagatorAIL(
                                     self.stmts_to_remove.add(reg_def.codeloc)
 
             if all_subexprs and None not in all_subexprs and not outdated:
+                # we always replace the expression if the current statement is an indirect jump. this is to
+                # ensure the dynamically calculated jump targets are always using the originally defined
+                # expressions, which usually leads to better decompilation output.
+                # we also always replace the expression if the current statement is a return to make void
+                # functions (even when we incorrectly determine that they return something) look better in
+                # general.
+                force_replace = False
+                if isinstance(self.block.statements[self.stmt_idx], (Stmt.Jump, Stmt.Return)):
+                    force_replace = True
+
                 if len(all_subexprs) == 1:
                     # trivial case
                     subexpr = all_subexprs[0]
                     if subexpr.size == expr.size:
                         l.debug("Try to add a replacement: %s with %s", expr, subexpr)
-                        # we always replace the expression if the current statement is an indirect jump. this is to
-                        # ensure the dynamically calculated jump targets are always using the originally defined
-                        # expressions, which usually leads to better decompilation output.
                         replaced = self.state.add_replacement(
                             self._codeloc(),
                             expr,
                             subexpr,
-                            force_replace=isinstance(self.block.statements[self.stmt_idx], Stmt.Jump),
+                            force_replace=force_replace,
                         )
                 else:
                     is_concatenation, result_expr = _test_concatenation(new_expr)
                     if is_concatenation:
                         l.debug("Try to add a replacement: %s with %s", expr, result_expr)
-                        replaced = self.state.add_replacement(self._codeloc(), expr, result_expr)
+                        replaced = self.state.add_replacement(
+                            self._codeloc(), expr, result_expr, force_replace=force_replace
+                        )
             elif all_subexprs and None not in all_subexprs and len(all_subexprs) == 1:
                 # if the expression has been replaced before, we should remove previous replacements
                 reg_defs = self._reaching_definitions.get_defs(
