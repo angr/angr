@@ -172,6 +172,8 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return new_expr
 
         elif expr.op == "Or":
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                return Const(expr.idx, None, expr.operands[0].value | expr.operands[1].value, expr.bits, **expr.tags)
             if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
                 return expr.operands[1]
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
