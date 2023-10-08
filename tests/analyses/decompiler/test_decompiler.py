@@ -2523,7 +2523,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert "default:" in d.codegen.text
-        assert "case 1:" in d.codegen.text
+        assert "case 49:" in d.codegen.text
         assert "case 50:" not in d.codegen.text
         assert "case 51:" not in d.codegen.text
         assert "case 52:" not in d.codegen.text
