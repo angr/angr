@@ -1,4 +1,4 @@
-from typing import Optional, Any, DefaultDict, Tuple
+from typing import Optional, Any, DefaultDict, Tuple, Union
 from collections import defaultdict
 
 from ailment.expression import Expression, Register
@@ -38,3 +38,30 @@ class RegisterExpressionCounter(AILBlockWalkerBase):
 
     def _handle_Register(self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement, block: Optional[Block]):
         self.counts[expr.reg_offset, expr.size] += 1
+
+
+class OperatorCounter(AILBlockWalkerBase):
+    """
+    Count the occurrence of a given expression operator.
+    """
+
+    def __init__(self, operator: str, expr_or_stmt: Union[Expression, Statement]):
+        super().__init__()
+        self.count = 0
+        self.operator = operator
+        if isinstance(expr_or_stmt, Expression):
+            self.walk_expression(expr_or_stmt)
+        elif isinstance(expr_or_stmt, Statement):
+            self.walk_statement(expr_or_stmt)
+        else:
+            raise TypeError(f"Unsupported argument type {type(expr_or_stmt)}")
+
+    def _handle_BinaryOp(self, expr_idx: int, expr: "BinaryOp", stmt_idx: int, stmt: Statement, block: Optional[Block]):
+        if expr.op == self.operator:
+            self.count += 1
+        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_UnaryOp(self, expr_idx: int, expr: "UnaryOp", stmt_idx: int, stmt: Statement, block: Optional[Block]):
+        if expr.op == self.operator:
+            self.count += 1
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)

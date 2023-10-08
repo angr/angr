@@ -35,7 +35,7 @@ class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
         # Used in the AIL engine
         self._stack_pointer_tracker = stack_pointer_tracker
 
-        self._skip_replacement_registers = None
+        self._multi_occurrence_registers = None
 
     def process(self, state, *args, **kwargs):
         self.project = kwargs.pop("project", None)

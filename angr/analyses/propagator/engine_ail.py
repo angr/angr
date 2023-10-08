@@ -60,10 +60,17 @@ class SimEnginePropagatorAIL(
         # replace the first one)
         from angr.analyses.decompiler.expression_counters import (
             RegisterExpressionCounter,
+            OperatorCounter,
         )  # pylint:disable=wrong-import-position
 
-        ctr = RegisterExpressionCounter(stmt.src)
-        self._skip_replacement_registers = {key for key, count in ctr.counts.items() if count > 1}
+        # special case: if shift-right appears in stmt.src, we allow replacement of all registers even if they appear
+        # multiple times in this statement. this is to allow the optimization of modulos and divisions later.
+        octr = OperatorCounter("Shr", stmt.src)
+        if octr.count >= 1:
+            pass
+        else:
+            ctr = RegisterExpressionCounter(stmt.src)
+            self._multi_occurrence_registers = {key for key, count in ctr.counts.items() if count > 1}
 
         src = self._expr(stmt.src)
         dst = stmt.dst
@@ -101,7 +108,7 @@ class SimEnginePropagatorAIL(
         else:
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
-        self._skip_replacement_registers = None
+        self._multi_occurrence_registers = None
 
     def _ail_handle_Store(self, stmt: Stmt.Store):
         self.state: "PropagatorAILState"
@@ -359,9 +366,10 @@ class SimEnginePropagatorAIL(
                         self.sp_offset(expr.bits, sb_offset), expr.size, new_expr, self._codeloc()
                     )
 
-        if self._skip_replacement_registers:
-            if (expr.reg_offset, expr.size) in self._skip_replacement_registers:
-                # don't replace
+        # determine if we should skip replacing the current register
+        if self._multi_occurrence_registers:
+            if (expr.reg_offset, expr.size) in self._multi_occurrence_registers:
+                # don't replace this register
                 return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
         def _test_concatenation(pv: PropValue):
@@ -466,20 +474,11 @@ class SimEnginePropagatorAIL(
                                     self.stmts_to_remove.add(reg_def.codeloc)
 
             if all_subexprs and None not in all_subexprs and not outdated:
-                # we always replace the expression if the current statement is an indirect jump. this is to
-                # ensure the dynamically calculated jump targets are always using the originally defined
-                # expressions, which usually leads to better decompilation output.
-                # we also always replace the expression if the current statement is a return to make void
-                # functions (even when we incorrectly determine that they return something) look better in
-                # general.
-                force_replace = False
-                if isinstance(self.block.statements[self.stmt_idx], (Stmt.Jump, Stmt.Return)):
-                    force_replace = True
-
                 if len(all_subexprs) == 1:
                     # trivial case
                     subexpr = all_subexprs[0]
                     if subexpr.size == expr.size:
+                        force_replace = self.should_force_replace(self.block.statements[self.stmt_idx], subexpr)
                         l.debug("Try to add a replacement: %s with %s", expr, subexpr)
                         replaced = self.state.add_replacement(
                             self._codeloc(),
@@ -491,6 +490,7 @@ class SimEnginePropagatorAIL(
                     is_concatenation, result_expr = _test_concatenation(new_expr)
                     if is_concatenation:
                         l.debug("Try to add a replacement: %s with %s", expr, result_expr)
+                        force_replace = self.should_force_replace(self.block.statements[self.stmt_idx], result_expr)
                         replaced = self.state.add_replacement(
                             self._codeloc(), expr, result_expr, force_replace=force_replace
                         )
@@ -1319,6 +1319,35 @@ class SimEnginePropagatorAIL(
         )
         walker.walk_expression(expr)
         return walker.out_dated, walker.has_avoid
+
+    def should_force_replace(self, stmt: Stmt.Statement, new_expr: Expr.Expression) -> bool:
+        """
+        Determine if the expression should be replaced.
+
+        We always replace the expression if:
+
+        - the current statement is an indirect jump. this is to ensure the dynamically calculated jump targets are
+          always using the originally defined expressions, which usually leads to better decompilation output.
+        - the current statement is a return to make void functions (even when we incorrectly determine that they return
+          something) look better in general.
+        - the current statement has a shift-right operation and the source expression has a shift-right operation. this
+          is to support the peephole optimizations for division and modulo.
+
+        :param stmt:
+        :param new_expr:
+        :return:
+        """
+        if isinstance(stmt, (Stmt.Jump, Stmt.Return)):
+            return True
+
+        from angr.analyses.decompiler.expression_counters import OperatorCounter  # pylint:disable=wrong-import-position
+
+        octr0 = OperatorCounter("Shr", stmt)
+        octr1 = OperatorCounter("Shr", new_expr)
+        if octr0.count >= 1 and octr1.count >= 1:
+            return True
+
+        return False
 
     @staticmethod
     def has_tmpexpr(expr: Expr.Expression) -> bool:
