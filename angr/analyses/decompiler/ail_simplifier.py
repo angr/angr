@@ -415,7 +415,7 @@ class AILSimplifier(Analysis):
                                 use_expr_1.op,
                                 [new_use_expr_1_operands[0], new_use_expr_1_operands[1]],
                                 use_expr_1.signed,
-                                bits=use_expr_1.bits,
+                                bits=to_size * 8,
                                 floating_point=use_expr_1.floating_point,
                                 rounding_mode=use_expr_1.rounding_mode,
                                 **use_expr_1.tags,
@@ -426,7 +426,7 @@ class AILSimplifier(Analysis):
                                 the_block, {use_loc: {use_expr_2: use_expr_2.operand}}
                             )
                             # then replace use_expr_1
-                            if r and other_operand is not new_other_operand:
+                            if r:
                                 r, new_block = BlockSimplifier._replace_and_build(
                                     new_block, {use_loc: {use_expr_1: new_use_expr_1}}
                                 )
