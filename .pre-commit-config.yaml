@@ -11,7 +11,7 @@ repos:
       fail_fast: true
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
     # General
     -   id: check-merge-conflict
@@ -33,7 +33,7 @@ repos:
         fail_fast: true
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
     -   id: check-ast
         fail_fast: true
@@ -43,13 +43,13 @@ repos:
 #
 
 -   repo: https://github.com/asottile/setup-cfg-fmt
-    rev: v2.4.0
+    rev: v2.5.0
     hooks:
     -   id: setup-cfg-fmt
         args: ["--include-version-classifiers"]
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
     -   id: mixed-line-ending
     -   id: trailing-whitespace
@@ -60,7 +60,7 @@ repos:
     -   id: rm-unneeded-f-str
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.13.0
+    rev: v3.15.0
     hooks:
     -   id: pyupgrade
         args: [--py38-plus]
@@ -93,7 +93,7 @@ repos:
     -   id: rst-inline-touching-normal
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
     -   id: debug-statements
     -   id: check-builtin-literals
