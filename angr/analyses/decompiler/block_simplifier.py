@@ -210,8 +210,14 @@ class BlockSimplifier(Analysis):
         new_statements = block.statements[::]
         replaced = False
 
+        stmts_to_remove = set()
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
+                stmt_to_remove = None
+                if isinstance(new, dict):
+                    stmt_to_remove = new["stmt_to_remove"]
+                    new = new["expr"]
+
                 stmt = new_statements[codeloc.stmt_idx]
                 if (
                     not replace_loads
@@ -252,9 +258,17 @@ class BlockSimplifier(Analysis):
                 if r:
                     replaced = True
                     new_statements[codeloc.stmt_idx] = new_stmt
+                    if stmt_to_remove is not None:
+                        stmts_to_remove.add(stmt_to_remove)
 
         if not replaced:
             return False, block
+
+        if stmts_to_remove:
+            stmt_ids_to_remove = {a.stmt_idx for a in stmts_to_remove}
+            all_stmts = dict((idx, stmt) for idx, stmt in enumerate(new_statements) if idx not in stmt_ids_to_remove)
+            filtered_stmts = sorted(all_stmts.items(), key=lambda x: x[0])
+            new_statements = [stmt for _, stmt in filtered_stmts]
 
         new_block = block.copy()
         new_block.statements = new_statements

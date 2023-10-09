@@ -49,13 +49,7 @@ class SimEnginePropagatorAIL(
     # AIL statement handlers
     #
 
-    def _ail_handle_Assignment(self, stmt):
-        """
-
-        :param Stmt.Assignment stmt:
-        :return:
-        """
-
+    def _handle_Stmt(self, stmt):
         # walk stmt.src to find all cases where a register appears above a threshold (so we don't incorrectly
         # replace the first one)
         from angr.analyses.decompiler.expression_counters import (
@@ -65,12 +59,26 @@ class SimEnginePropagatorAIL(
 
         # special case: if shift-right appears in stmt.src, we allow replacement of all registers even if they appear
         # multiple times in this statement. this is to allow the optimization of modulos and divisions later.
-        octr = OperatorCounter("Shr", stmt.src)
+        octr = OperatorCounter(["Shr", "Sar"], stmt)
         if octr.count >= 1:
             pass
         else:
-            ctr = RegisterExpressionCounter(stmt.src)
+            if isinstance(stmt, Stmt.Assignment):
+                ctr = RegisterExpressionCounter(stmt.src)
+            else:
+                ctr = RegisterExpressionCounter(stmt)
             self._multi_occurrence_registers = {key for key, count in ctr.counts.items() if count > 1}
+
+        super()._handle_Stmt(stmt)
+
+        self._multi_occurrence_registers = None
+
+    def _ail_handle_Assignment(self, stmt):
+        """
+
+        :param Stmt.Assignment stmt:
+        :return:
+        """
 
         src = self._expr(stmt.src)
         dst = stmt.dst
@@ -107,8 +115,6 @@ class SimEnginePropagatorAIL(
                 self.state._sp_adjusted = True
         else:
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
-
-        self._multi_occurrence_registers = None
 
     def _ail_handle_Store(self, stmt: Stmt.Store):
         self.state: "PropagatorAILState"
@@ -417,6 +423,7 @@ class SimEnginePropagatorAIL(
                 if isinstance(reg_defat, ExternalCodeLocation):
                     reg_defat = None
 
+        stmt_to_remove = None
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
             replaced = False
@@ -449,7 +456,10 @@ class SimEnginePropagatorAIL(
                 #
                 # since ecx_0 is dead after statement 1, we can always propagate ecx_1 as long as we guarantee the
                 # removal of statement 1 in a later pass, immediately after we perform replacements.
-                if isinstance(expr, Expr.Register):
+                if (
+                    self._multi_occurrence_registers is None
+                    or (expr.reg_offset, expr.size) not in self._multi_occurrence_registers
+                ):
                     reg_defs = self._reaching_definitions.get_defs(
                         Register(expr.reg_offset, expr.size), self._codeloc(), OP_BEFORE
                     )
@@ -471,7 +481,7 @@ class SimEnginePropagatorAIL(
                                 ):
                                     # ok we are getting rid of the original statement
                                     outdated = False
-                                    self.stmts_to_remove.add(reg_def.codeloc)
+                                    stmt_to_remove = reg_def.codeloc
 
             if all_subexprs and None not in all_subexprs and not outdated:
                 if len(all_subexprs) == 1:
@@ -485,6 +495,7 @@ class SimEnginePropagatorAIL(
                             expr,
                             subexpr,
                             force_replace=force_replace,
+                            stmt_to_remove=stmt_to_remove,
                         )
                 else:
                     is_concatenation, result_expr = _test_concatenation(new_expr)
@@ -492,7 +503,11 @@ class SimEnginePropagatorAIL(
                         l.debug("Try to add a replacement: %s with %s", expr, result_expr)
                         force_replace = self.should_force_replace(self.block.statements[self.stmt_idx], result_expr)
                         replaced = self.state.add_replacement(
-                            self._codeloc(), expr, result_expr, force_replace=force_replace
+                            self._codeloc(),
+                            expr,
+                            result_expr,
+                            force_replace=force_replace,
+                            stmt_to_remove=stmt_to_remove,
                         )
             elif all_subexprs and None not in all_subexprs and len(all_subexprs) == 1:
                 # if the expression has been replaced before, we should remove previous replacements
@@ -529,6 +544,8 @@ class SimEnginePropagatorAIL(
                                             for to_replace, replace_by in list(
                                                 self.state._replacements[used_codeloc].items()
                                             ):
+                                                if isinstance(replace_by, dict):
+                                                    replace_by = replace_by["expr"]
                                                 if not self.state.is_top(replace_by) and to_replace.likes(dst_reg):
                                                     del self.state._replacements[used_codeloc][to_replace]
                                                     new_updated_codelocs.add(used_codeloc)
@@ -1342,9 +1359,9 @@ class SimEnginePropagatorAIL(
 
         from angr.analyses.decompiler.expression_counters import OperatorCounter  # pylint:disable=wrong-import-position
 
-        octr0 = OperatorCounter("Shr", stmt)
-        octr1 = OperatorCounter("Shr", new_expr)
-        if octr0.count >= 1 and octr1.count >= 1:
+        octr0 = OperatorCounter(["Shr", "Sar"], stmt)
+        octr1 = OperatorCounter(["Shr", "Sar"], new_expr)
+        if octr0.count >= 1 and octr1.count >= 1 or octr0.count >= 2:
             return True
 
         return False

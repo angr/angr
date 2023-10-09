@@ -747,7 +747,14 @@ class PropagatorAILState(PropagatorState):
         prop_value = PropValue.from_value_and_labels(value, labels)
         return prop_value
 
-    def add_replacement(self, codeloc: CodeLocation, old, new, force_replace: bool = False) -> bool:
+    def add_replacement(
+        self,
+        codeloc: CodeLocation,
+        old,
+        new,
+        force_replace: bool = False,
+        stmt_to_remove: Optional[CodeLocation] = None,
+    ) -> bool:
         if self._only_consts:
             if self.is_const_or_register(new) or self.is_top(new):
                 pass
@@ -826,7 +833,9 @@ class PropagatorAILState(PropagatorState):
                 )
             ):
                 # we can propagate this expression
-                self._replacements[codeloc][old] = new
+                self._replacements[codeloc][old] = (
+                    new if stmt_to_remove is None else {"expr": new, "stmt_to_remove": stmt_to_remove}
+                )
                 replaced = True
             else:
                 self._replacements[codeloc][old] = self.top(1)  # placeholder
@@ -844,6 +853,8 @@ class PropagatorAILState(PropagatorState):
         if self.model.replacements is not None:
             for codeloc_ in self._expr_used_locs[to_replace_def if to_replace_def is not None else to_replace]:
                 for key, replace_with in list(self.model.replacements[codeloc_].items()):
+                    if isinstance(replace_with, dict):
+                        replace_with = replace_with["expr"]
                     if not self.is_top(replace_with) and replace_with == replaced_by:
                         self.model.replacements[codeloc_][key] = self.top(1)
                         updated_codelocs.add(codeloc_)
@@ -851,6 +862,8 @@ class PropagatorAILState(PropagatorState):
         for codeloc_ in self._expr_used_locs[to_replace_def if to_replace_def is not None else to_replace]:
             if codeloc_ in self._replacements:
                 for key, replace_with in list(self._replacements[codeloc_].items()):
+                    if isinstance(replace_with, dict):
+                        replace_with = replace_with["expr"]
                     if not self.is_top(replace_with) and replace_with == replaced_by:
                         if to_replace.likes(key):
                             self._replacements[codeloc_][key] = self.top(1)

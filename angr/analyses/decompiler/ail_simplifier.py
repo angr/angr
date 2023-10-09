@@ -512,6 +512,7 @@ class AILSimplifier(Analysis):
                     return 4, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
             if (
                 (first_op.operands[0] is expr or first_op.operands[1] is expr)
+                and first_op.op not in {"Shr", "Sar"}
                 and isinstance(second_op, Convert)
                 and second_op.from_bits == expr.bits
             ):
@@ -536,7 +537,6 @@ class AILSimplifier(Analysis):
         # propagator
         propagator = self._compute_propagation(immediate_stmt_removal=True)
         replacements = propagator.replacements
-        stmts_to_remove = propagator.stmts_to_remove
 
         # take replacements and rebuild the corresponding blocks
         replacements_by_block_addrs_and_idx = defaultdict(dict)
@@ -566,24 +566,6 @@ class AILSimplifier(Analysis):
             r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp, replace_loads=replace_loads)
             replaced |= r
             self.blocks[block] = new_block
-
-        if replaced:
-            # FIXME: We assume all replacements succeed, which may not be the case
-            stmts_to_remove_by_block_addrs_and_idx = defaultdict(list)
-            for codeloc in stmts_to_remove:
-                stmts_to_remove_by_block_addrs_and_idx[(codeloc.block_addr, codeloc.block_idx)].append(codeloc.stmt_idx)
-            for key, stmt_list in stmts_to_remove_by_block_addrs_and_idx.items():
-                original_block = blocks_by_addr_and_idx[key]
-                block = original_block
-                if block in self.blocks:
-                    # get the updated block if any
-                    block = self.blocks[block]
-
-                stmt_list = sorted(stmt_list, reverse=True)
-                new_block = block.copy()
-                for stmt_idx in stmt_list:
-                    new_block.statements.pop(stmt_idx)
-                self.blocks[original_block] = new_block
 
         if replaced:
             # blocks have been rebuilt - expression propagation results are no longer reliable
