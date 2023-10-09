@@ -1,10 +1,13 @@
-from typing import Optional, Any, DefaultDict, Tuple, Union, Iterable, Set
+from typing import Optional, Any, DefaultDict, Tuple, Union, Iterable, Set, TYPE_CHECKING
 from collections import defaultdict
 
 from ailment.expression import Expression, Register
 from ailment.statement import Statement
 from ailment.block_walker import AILBlockWalkerBase
 from ailment import Block
+
+if TYPE_CHECKING:
+    from ailment.expression import BinaryOp, UnaryOp
 
 
 class SingleExpressionCounter(AILBlockWalkerBase):
