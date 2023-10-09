@@ -266,7 +266,7 @@ class BlockSimplifier(Analysis):
 
         if stmts_to_remove:
             stmt_ids_to_remove = {a.stmt_idx for a in stmts_to_remove}
-            all_stmts = dict((idx, stmt) for idx, stmt in enumerate(new_statements) if idx not in stmt_ids_to_remove)
+            all_stmts = {idx: stmt for idx, stmt in enumerate(new_statements) if idx not in stmt_ids_to_remove}
             filtered_stmts = sorted(all_stmts.items(), key=lambda x: x[0])
             new_statements = [stmt for _, stmt in filtered_stmts]
 

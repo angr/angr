@@ -425,6 +425,8 @@ class SimEnginePropagatorAIL(
 
         stmt_to_remove = None
         if new_expr is not None:
+            has_avoid_ = False
+
             # check if this new_expr uses any expression that has been overwritten
             replaced = False
             outdated = False
@@ -446,7 +448,7 @@ class SimEnginePropagatorAIL(
                 all_subexprs
                 and None not in all_subexprs
                 and len(all_subexprs) == 1
-                and outdated
+                and has_avoid_
                 and self._reaching_definitions is not None
             ):
                 # special case:
