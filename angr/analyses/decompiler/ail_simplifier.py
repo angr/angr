@@ -743,6 +743,30 @@ class AILSimplifier(Analysis):
                     continue
 
             else:
+                if (
+                    eq.codeloc.block_addr == the_def.codeloc.block_addr
+                    and eq.codeloc.block_idx == the_def.codeloc.block_idx
+                ):
+                    # the definition and the eq location are within the same block, and the definition is before
+                    # the eq location.
+                    if eq.codeloc.stmt_idx < the_def.codeloc.stmt_idx:
+                        continue
+                else:
+                    # the definition is in the predecessor block of the eq
+                    eq_block = next(
+                        iter(
+                            bb
+                            for bb in self.func_graph
+                            if bb.addr == eq.codeloc.block_addr and bb.idx == eq.codeloc.block_idx
+                        )
+                    )
+                    eq_block_preds = set(self.func_graph.predecessors(eq_block))
+                    if not any(
+                        pred.addr == the_def.codeloc.block_addr and pred.idx == the_def.codeloc.block_idx
+                        for pred in eq_block_preds
+                    ):
+                        continue
+
                 if isinstance(eq.atom0, SimStackVariable):
                     # create the memory loading expression
                     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
