@@ -1,4 +1,4 @@
-# pylint:disable=superfluous-parens,too-many-boolean-expressions
+# pylint:disable=superfluous-parens,too-many-boolean-expressions,line-too-long
 import itertools
 import logging
 import math
@@ -1634,8 +1634,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         for i, (addr, md) in enumerate(all_memory_data):
             if not md.sort == MemoryDataSort.String:
                 continue
-            else:
-                total_string_refs += 1
+            total_string_refs += 1
+            if md.content is None:
+                continue
             if md.size != len(md.content):
                 # ending with a null byte
                 continue
@@ -1644,9 +1645,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             last_end_addr = addr + md.size
             for j in range(i + 1, len(all_memory_data)):
                 _, next_md = all_memory_data[j]
-                if next_md.addr == last_end_addr and next_md.sort == MemoryDataSort.String:
+                if (
+                    next_md.addr == last_end_addr
+                    and next_md.sort == MemoryDataSort.String
+                    and next_md.content is not None
+                ):
                     new_content += next_md.content
-                    if next_md.size != next_md.content:
+                    if next_md.size != len(next_md.content):
                         # ending with a null byte
                         break
                     # otherwise, continue
