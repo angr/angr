@@ -71,6 +71,7 @@ class TestDb(unittest.TestCase):
 
             assert memory_data.addr == new_memory_data.addr
             assert memory_data.size == new_memory_data.size
+            assert memory_data.reference_size == new_memory_data.reference_size
             assert memory_data.sort == new_memory_data.sort
             assert memory_data.content == new_memory_data.content
 
