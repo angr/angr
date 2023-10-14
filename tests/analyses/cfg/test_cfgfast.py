@@ -111,6 +111,19 @@ class TestCfgfast(unittest.TestCase):
 
         self.cfg_fast_functions_check("x86_64", "cfg_0_pe", functions, function_features)
 
+    def test_arm_function_merge(self):
+        # function 0x7bb88 is created due to a data hint in another block. this function should be merged with the
+        # previous function 0x7ba84
+
+        path = os.path.join(test_location, "armel", "tenda-httpd")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast()
+
+        node_7bb88 = cfg.model.get_any_node(0x7BB88)
+        assert node_7bb88 is not None
+        assert node_7bb88.function_address == 0x7BA84
+
     @slow_test
     def test_busybox(self):
         edges = {

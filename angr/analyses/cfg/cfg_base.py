@@ -1932,7 +1932,7 @@ class CFGBase(Analysis):
 
             func_0 = functions[addr_0]
 
-            if 1 <= len(func_0.block_addrs_set) <= 4:
+            if len(func_0.block_addrs_set) >= 1:
                 if len(func_0.jumpout_sites) != 1:
                     continue
                 block_node = func_0.jumpout_sites[0]
