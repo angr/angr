@@ -2580,15 +2580,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 )
 
                 if sec_2nd.is_executable and not self._seg_list.is_occupied(v):
-                    # create a new CFG job
-                    ce = CFGJob(
-                        v,
-                        v,
-                        "Ijk_Boring",
-                        job_type=CFGJobType.DATAREF_HINTS,
-                    )
-                    self._pending_jobs.add_job(ce)
-                    self._register_analysis_job(v, ce)
+                    if v % self.project.arch.instruction_alignment == 0:
+                        # create a new CFG job
+                        ce = CFGJob(
+                            v,
+                            v,
+                            "Ijk_Boring",
+                            job_type=CFGJobType.DATAREF_HINTS,
+                        )
+                        self._pending_jobs.add_job(ce)
+                        self._register_analysis_job(v, ce)
 
                 return
 
