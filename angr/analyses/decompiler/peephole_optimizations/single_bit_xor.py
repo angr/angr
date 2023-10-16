@@ -9,7 +9,7 @@ class SingleBitXor(PeepholeOptimizationExprBase):
     NAME = "bool_expr ^ 1 => !bool_expr (b)"
     expr_classes = (Convert,)
 
-    def optimize(self, expr: Convert):
+    def optimize(self, expr: Convert, **kwargs):
         # Convert(N->1, (Convert(1->N, t_x) ^ 0x1<N>) ==> Not(t_x)
         if expr.to_bits == 1:
             xor_expr = expr.operand

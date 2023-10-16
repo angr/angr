@@ -452,7 +452,7 @@ def peephole_optimize_exprs(block, expr_opts):
             redo = False
             for expr_opt in expr_opts:
                 if isinstance(expr, expr_opt.expr_classes):
-                    r = expr_opt.optimize(expr)
+                    r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                     if r is not None and r is not expr:
                         expr = r
                         redo = True

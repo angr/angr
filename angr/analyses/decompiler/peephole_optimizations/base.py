@@ -1,6 +1,8 @@
 from typing import Optional
 
-from ailment.expression import BinaryOp, UnaryOp
+from ailment.expression import BinaryOp, UnaryOp, Expression
+from ailment.statement import Assignment
+from ailment import Block
 from angr.project import Project
 from angr.knowledge_base import KnowledgeBase
 
@@ -61,6 +63,16 @@ class PeepholeOptimizationExprBase:
     #
     # Util methods
     #
+
+    @staticmethod
+    def find_definition(ail_expr: Expression, stmt_idx: int, block: Block) -> None:
+        idx = stmt_idx - 1
+        if idx >= 0:
+            stmt = block.statements[idx]
+            if isinstance(stmt, Assignment):
+                if stmt.dst.likes(ail_expr):
+                    return stmt.src
+        return None
 
     @staticmethod
     def is_bool_expr(ail_expr):

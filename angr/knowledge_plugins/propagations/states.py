@@ -798,6 +798,9 @@ class PropagatorAILState(PropagatorState):
             if isinstance(old, ailment.Expr.Tmp) or isinstance(new, ailment.Expr.Const):
                 # we always propagate tmp and constants
                 pass
+            elif self.is_simple_expression(new):
+                # always propagate variables without other operations
+                pass
             else:
                 if self.rda is not None:
                     if isinstance(old, ailment.Expr.Register):
@@ -874,6 +877,23 @@ class PropagatorAILState(PropagatorState):
     def add_equivalence(self, codeloc, old, new):
         eq = Equivalence(codeloc, old, new)
         self._equivalence.add(eq)
+
+    @staticmethod
+    def is_simple_expression(expr: ailment.Expr.Expression) -> bool:
+        if expr.depth <= 0:
+            return True
+        if isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.Const):
+            return True
+        if (
+            isinstance(expr, ailment.Expr.BinaryOp)
+            and expr.op in {"Add", "Sub"}
+            and PropagatorAILState.is_simple_expression(expr.operands[0])
+            and PropagatorAILState.is_simple_expression(expr.operands[1])
+        ):
+            return True
+        if isinstance(expr, ailment.Expr.Convert) and PropagatorAILState.is_simple_expression(expr.operand):
+            return True
+        return False
 
     @staticmethod
     def is_expression_too_deep(expr: ailment.Expr.Expression) -> bool:

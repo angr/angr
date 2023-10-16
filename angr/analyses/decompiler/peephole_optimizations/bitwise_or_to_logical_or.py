@@ -16,7 +16,7 @@ class BitwiseOrToLogicalOr(PeepholeOptimizationExprBase):
     NAME = "(a | b) == 0 => (a == 0) && (b == 0) ; (a | b) != 0 => (a != 0) || (b != 0)"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         if (
             expr.op in {"CmpEQ", "CmpNE"}
             and isinstance(expr.operands[0], BinaryOp)

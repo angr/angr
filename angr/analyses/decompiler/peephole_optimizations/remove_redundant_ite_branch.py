@@ -9,7 +9,7 @@ class RemoveRedundantITEBranches(PeepholeOptimizationExprBase):
     NAME = "Remove redundant ITE branches"
     expr_classes = (ITE,)
 
-    def optimize(self, expr: ITE):
+    def optimize(self, expr: ITE, **kwargs):
         # ITE(cond, a, ITE(!cond, b, c)) ==> ITE(cond, a, b)
         if isinstance(expr.iffalse, ITE):
             # cascading ITEs

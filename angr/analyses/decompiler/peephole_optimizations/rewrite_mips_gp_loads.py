@@ -14,7 +14,7 @@ class RewriteMipsGpLoads(PeepholeOptimizationExprBase):
     NAME = "MIPS GP-based Loads Rewriter"
     expr_classes = (Load,)
 
-    def optimize(self, expr: Load):
+    def optimize(self, expr: Load, **kwargs):
         # Load(addr=(gp<8> - 0x7fc0<64>), size=8, endness=Iend_LE) - replace it with gp for this function
         if self.project.arch.name not in {"MIPS32", "MIPS64"}:
             return None
