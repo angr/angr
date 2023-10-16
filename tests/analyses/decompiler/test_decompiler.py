@@ -1406,6 +1406,8 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["put_space"]
+        assert f.info.get("bp_as_gpr", False) is True
+
         proj.analyses.VariableRecoveryFast(f)
         cca = proj.analyses.CallingConvention(f)
         f.prototype = cca.prototype

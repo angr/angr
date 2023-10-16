@@ -152,8 +152,21 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=graph_visitor
         )
 
+        bp_as_gpr = False
+        the_func = None
+        if self._function is not None:
+            the_func = self._function
+        else:
+            if self._func_addr is not None:
+                the_func = self.kb.functions.get_by_addr(self._func_addr)
+        if the_func is not None:
+            bp_as_gpr = the_func.info.get("bp_as_gpr", False)
+
         self._engine_vex = SimEnginePropagatorVEX(
-            project=self.project, arch=self.project.arch, reaching_definitions=self._reaching_definitions
+            project=self.project,
+            arch=self.project.arch,
+            reaching_definitions=self._reaching_definitions,
+            bp_as_gpr=bp_as_gpr,
         )
         self._engine_ail = SimEnginePropagatorAIL(
             arch=self.project.arch,
@@ -162,6 +175,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             propagate_tmps=block is not None,
             reaching_definitions=self._reaching_definitions,
             immediate_stmt_removal=self._immediate_stmt_removal,
+            bp_as_gpr=bp_as_gpr,
         )
 
         # optimization: skip state copying for the initial state

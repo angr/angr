@@ -154,6 +154,7 @@ class BlockSimplifier(Analysis):
                     stack_pointer_tracker=self._stack_pointer_tracker,
                     observe_all=False,
                     observe_callback=observe_callback,
+                    func_addr=self.func_addr,
                 )
                 .model
             )

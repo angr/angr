@@ -359,15 +359,15 @@ class SimEnginePropagatorAIL(
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
                 if sb_offset is not None:
                     new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
-                    self.state.add_replacement(self._codeloc(), expr, new_expr)
+                    self.state.add_replacement(self._codeloc(), expr, new_expr, bp_as_gpr=self.bp_as_gpr)
                     return PropValue.from_value_and_details(
                         self.sp_offset(expr.bits, sb_offset), expr.size, new_expr, self._codeloc()
                     )
-            elif expr.reg_offset == self.arch.bp_offset:
+            elif expr.reg_offset == self.arch.bp_offset and not self.bp_as_gpr:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
                 if sb_offset is not None:
                     new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
-                    self.state.add_replacement(self._codeloc(), expr, new_expr)
+                    self.state.add_replacement(self._codeloc(), expr, new_expr, bp_as_gpr=self.bp_as_gpr)
                     return PropValue.from_value_and_details(
                         self.sp_offset(expr.bits, sb_offset), expr.size, new_expr, self._codeloc()
                     )
@@ -498,6 +498,7 @@ class SimEnginePropagatorAIL(
                             subexpr,
                             force_replace=force_replace,
                             stmt_to_remove=stmt_to_remove,
+                            bp_as_gpr=self.bp_as_gpr,
                         )
                 else:
                     is_concatenation, result_expr = _test_concatenation(new_expr)
@@ -510,6 +511,7 @@ class SimEnginePropagatorAIL(
                             result_expr,
                             force_replace=force_replace,
                             stmt_to_remove=stmt_to_remove,
+                            bp_as_gpr=self.bp_as_gpr,
                         )
             elif all_subexprs and None not in all_subexprs and len(all_subexprs) == 1:
                 # if the expression has been replaced before, we should remove previous replacements
@@ -555,7 +557,7 @@ class SimEnginePropagatorAIL(
 
             if not replaced:
                 l.debug("Add a replacement: %s with TOP", expr)
-                self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits))
+                self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits), bp_as_gpr=self.bp_as_gpr)
             else:
                 return new_expr
 

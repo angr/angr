@@ -19,6 +19,7 @@ class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
         arch=None,
         reaching_definitions: Optional["ReachingDefinitionsModel"] = None,
         immediate_stmt_removal: bool = False,
+        bp_as_gpr: bool = False,
     ):
         super().__init__()
 
@@ -30,6 +31,7 @@ class SimEnginePropagatorBase(SimEngineLight):  # pylint:disable=abstract-method
         self._propagate_tmps: bool = propagate_tmps
         self._reaching_definitions = reaching_definitions
         self._immediate_stmt_removal = immediate_stmt_removal
+        self.bp_as_gpr = bp_as_gpr
         self.stmts_to_remove = set()
 
         # Used in the AIL engine

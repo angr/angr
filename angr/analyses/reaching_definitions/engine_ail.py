@@ -37,6 +37,7 @@ class SimEngineRDAIL(
         function_handler: Optional[FunctionHandler] = None,
         stack_pointer_tracker=None,
         use_callee_saved_regs_at_return=True,
+        bp_as_gpr: bool = False,
     ):
         super().__init__()
         self.project = project
@@ -45,6 +46,7 @@ class SimEngineRDAIL(
         self._dep_graph = None
         self._stack_pointer_tracker = stack_pointer_tracker
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        self.bp_as_gpr = bp_as_gpr
 
         self._stmt_handlers = {
             ailment.Stmt.Assignment: self._ail_handle_Assignment,
@@ -413,7 +415,7 @@ class SimEngineRDAIL(
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
                 if sb_offset is not None:
                     return MultiValues(v=self.state._initial_stack_pointer() + sb_offset)
-            elif reg_offset == self.arch.bp_offset:
+            elif reg_offset == self.arch.bp_offset and not self.bp_as_gpr:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
                 if sb_offset is not None:
                     return MultiValues(v=self.state._initial_stack_pointer() + sb_offset)

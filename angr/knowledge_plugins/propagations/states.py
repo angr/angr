@@ -754,6 +754,7 @@ class PropagatorAILState(PropagatorState):
         new,
         force_replace: bool = False,
         stmt_to_remove: Optional[CodeLocation] = None,
+        bp_as_gpr: bool = False,
     ) -> bool:
         if self._only_consts:
             if self.is_const_or_register(new) or self.is_top(new):
@@ -788,7 +789,7 @@ class PropagatorAILState(PropagatorState):
             if (
                 isinstance(old, ailment.Expr.Tmp)
                 or isinstance(old, ailment.Expr.Register)
-                and old.reg_offset in {self.arch.sp_offset, self.arch.bp_offset}
+                and (old.reg_offset == self.arch.sp_offset or (not bp_as_gpr and old.reg_offset == self.arch.bp_offset))
             ):
                 self._replacements[codeloc][old] = new
                 replaced = True
