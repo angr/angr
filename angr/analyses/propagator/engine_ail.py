@@ -480,6 +480,10 @@ class SimEnginePropagatorAIL(
                                     isinstance(stmt, Stmt.Assignment)
                                     and isinstance(stmt.dst, Expr.Register)
                                     and stmt.dst.size == expr.size
+                                    and all_subexprs[0].likes(stmt.src)
+                                    and (
+                                        not self.state._replacements or reg_def.codeloc not in self.state._replacements
+                                    )
                                 ):
                                     # ok we are getting rid of the original statement
                                     outdated = False
