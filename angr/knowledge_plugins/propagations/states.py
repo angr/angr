@@ -881,18 +881,30 @@ class PropagatorAILState(PropagatorState):
 
     @staticmethod
     def is_simple_expression(expr: ailment.Expr.Expression) -> bool:
-        if expr.depth <= 0:
-            return True
-        if isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.Const):
+        if PropagatorAILState.is_shallow_expression(expr):
             return True
         if (
             isinstance(expr, ailment.Expr.BinaryOp)
             and expr.op in {"Add", "Sub"}
-            and PropagatorAILState.is_simple_expression(expr.operands[0])
-            and PropagatorAILState.is_simple_expression(expr.operands[1])
+            and (
+                isinstance(expr.operands[0], ailment.Expr.Register)
+                and PropagatorAILState.is_global_variable_load(expr.operands[1])
+                or isinstance(expr.operands[1], ailment.Expr.Register)
+                and PropagatorAILState.is_global_variable_load(expr.operands[0])
+            )
         ):
             return True
-        if isinstance(expr, ailment.Expr.Convert) and PropagatorAILState.is_simple_expression(expr.operand):
+        return False
+
+    @staticmethod
+    def is_shallow_expression(expr: ailment.Expr.Expression) -> bool:
+        return expr.depth <= 0 or PropagatorAILState.is_global_variable_load(expr)
+
+    @staticmethod
+    def is_global_variable_load(expr: ailment.Expr.Expression) -> bool:
+        if isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.Const):
+            return True
+        if isinstance(expr, ailment.Expr.Convert) and PropagatorAILState.is_global_variable_load(expr.operand):
             return True
         return False
 
