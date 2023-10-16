@@ -1047,15 +1047,16 @@ class AILSimplifier(Analysis):
                 # check if any atoms that the call relies on has been overwritten by statements in between the def site
                 # and the use site.
                 defsite_all_expr_uses = set(rd.all_uses.get_uses_by_location(the_def.codeloc))
-                defsite_defs_per_atom = defaultdict(set)
+                defsite_used_atoms = set()
                 for dd in defsite_all_expr_uses:
-                    defsite_defs_per_atom[dd.atom].add(dd)
+                    defsite_used_atoms.add(dd.atom)
                 usesite_expr_def_outdated = False
-                for defsite_expr_atom, defsite_expr_uses in defsite_defs_per_atom.items():
+                for defsite_expr_atom in defsite_used_atoms:
                     usesite_expr_uses = set(rd.get_defs(defsite_expr_atom, u, OP_BEFORE))
                     if not usesite_expr_uses:
                         # the atom is not defined at the use site - it's fine
                         continue
+                    defsite_expr_uses = set(rd.get_defs(defsite_expr_atom, the_def.codeloc, OP_BEFORE))
                     if usesite_expr_uses != defsite_expr_uses:
                         # special case: ok if this atom is assigned to at the def site and has not been overwritten
                         if len(usesite_expr_uses) == 1:
