@@ -200,6 +200,14 @@ class PropagatorState:
 
         :return:            Whether merging has happened or not.
         """
+
+        def _get_repl_size(repl_value: Union[Dict, ailment.Expression, claripy.ast.Bits]) -> int:
+            if isinstance(repl_value, dict):
+                return _get_repl_size(repl_value["expr"])
+            if isinstance(repl_value, ailment.Expression):
+                return repl_value.bits
+            return repl_value.size()
+
         merge_occurred = False
         for loc, vars_ in replacements_1.items():
             if loc not in replacements_0:
@@ -212,7 +220,7 @@ class PropagatorState:
                         merge_occurred = True
                     else:
                         if PropagatorState.is_top(repl) or PropagatorState.is_top(replacements_0[loc][var]):
-                            t = PropagatorState.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                            t = PropagatorState.top(_get_repl_size(repl))
                             replacements_0[loc][var] = t
                             merge_occurred = True
                         elif (
