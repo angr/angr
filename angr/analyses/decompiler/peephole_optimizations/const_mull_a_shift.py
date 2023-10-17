@@ -16,7 +16,7 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
     NAME = "Conv(64->32, (N * a) >> M) => a / N1"
     expr_classes = (Convert, BinaryOp)
 
-    def optimize(self, expr: Union[Convert, BinaryOp]):
+    def optimize(self, expr: Union[Convert, BinaryOp], **kwargs):
         r = None
 
         if isinstance(expr, Convert):

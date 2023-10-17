@@ -13,7 +13,7 @@ class InvertNegatedLogicalConjunctionsAndDisjunctions(PeepholeOptimizationExprBa
     NAME = "!(A && B) => A || B; !(A || B) => A && B"
     expr_classes = (UnaryOp,)  # all expressions are allowed
 
-    def optimize(self, expr: UnaryOp):
+    def optimize(self, expr: UnaryOp, **kwargs):
         if expr.op == "Not":
             if isinstance(expr.operand, BinaryOp):
                 if expr.operand.op == "LogicalAnd":

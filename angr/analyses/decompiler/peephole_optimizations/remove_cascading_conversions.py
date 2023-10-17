@@ -9,7 +9,7 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
     NAME = "Remove adjacent conversions"
     expr_classes = (Convert,)
 
-    def optimize(self, expr: Convert):
+    def optimize(self, expr: Convert, **kwargs):
         if isinstance(expr.operand, Convert):
             inner = expr.operand
             if inner.from_bits == expr.to_bits:

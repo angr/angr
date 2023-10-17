@@ -9,7 +9,7 @@ class AMulConstDivShrConst(PeepholeOptimizationExprBase):
     NAME = "(A * N0 / N1) >> N2 => (A * (N0 / 2 ** N2) / N1)"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         if (
             expr.op == "Shr"
             and len(expr.operands) == 2

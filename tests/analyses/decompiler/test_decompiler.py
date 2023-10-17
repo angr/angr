@@ -1234,9 +1234,9 @@ class TestDecompiler(unittest.TestCase):
         assert len(stmts) == 5
         assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
         assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-        assert stmts[4].lhs.operand.expr.variable == stmts[2].lhs.variable
-        assert stmts[4].rhs.operand.expr.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.operand.expr.variable == stmts[2].lhs.variable
+        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
+        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
+        assert dw.condition.lhs.operand.variable == stmts[2].lhs.variable
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
@@ -1388,8 +1388,8 @@ class TestDecompiler(unittest.TestCase):
         assert "+1" not in line_0
 
         # make sure v % 7 is present
-        line_mod_7 = [line for line in lines if re.search(r"v\d+ % 7", line)]
-        assert len(line_mod_7) == 2
+        line_mod_7 = [line for line in lines if re.search(r"[^v]*v\d+[)]* % 7", line)]
+        assert len(line_mod_7) == 1
 
         # make sure all "connection_infos" are followed by a square bracket
         # we don't allow bizarre expressions like (&connection_infos)[1234]...
@@ -1406,6 +1406,8 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
 
         f = proj.kb.functions["put_space"]
+        assert f.info.get("bp_as_gpr", False) is True
+
         proj.analyses.VariableRecoveryFast(f)
         cca = proj.analyses.CallingConvention(f)
         f.prototype = cca.prototype
@@ -2523,7 +2525,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert "default:" in d.codegen.text
-        assert "case 1:" in d.codegen.text
+        assert "case 49:" in d.codegen.text
         assert "case 50:" not in d.codegen.text
         assert "case 51:" not in d.codegen.text
         assert "case 52:" not in d.codegen.text
@@ -3071,9 +3073,9 @@ class TestDecompiler(unittest.TestCase):
         lines = lines[func_starting_line:]
         end_of_variable_list_line = [idx for idx, line in enumerate(lines) if not line.strip(" ")][0]
         lines = lines[end_of_variable_list_line + 1 :]
-        # the first line of the code should be an if statement. all other variables should have been eliminated by
+        # the second line of the code should be an if statement. all other variables should have been eliminated by
         # proper propagation
-        assert lines[0].strip(" ").startswith("if (")
+        assert lines[1].strip(" ").startswith("if (")
 
     @structuring_algo("phoenix")
     def test_decompiling_incorrect_duplication_chcon_main(self, decompiler_options=None):
@@ -3091,6 +3093,33 @@ class TestDecompiler(unittest.TestCase):
         # incorrect region replacement was causing the while loop be duplicated, so we would end up with four while
         # loops.
         assert d.codegen.text.count("while (") == 2
+
+    @structuring_algo("phoenix")
+    def test_decompiling_function_with_long_cascading_data_flows(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "netfilter_b64.sys")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x140002918]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # each line as at most one __ROL__ or __ROR__
+        lines = d.codegen.text.split("\n")
+        rol_count = 0
+        ror_count = 0
+        for line in lines:
+            rol_count += line.count("__ROL__")
+            ror_count += line.count("__ROR__")
+            count = line.count("__ROL__") + line.count("__ROR__")
+            assert count <= 1
+
+            assert "tmp" not in line
+            assert "..." not in line
+        assert rol_count == 44
+        assert ror_count == 20
 
 
 if __name__ == "__main__":

@@ -73,6 +73,7 @@ class ReachingDefinitionsAnalysis(
         use_callee_saved_regs_at_return=True,
         interfunction_level: int = 0,
         track_liveness: bool = True,
+        func_addr: Optional[int] = None,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -129,6 +130,7 @@ class ReachingDefinitionsAnalysis(
         self._init_state = init_state
         self._canonical_size = canonical_size
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        self._func_addr = func_addr
 
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
@@ -168,6 +170,19 @@ class ReachingDefinitionsAnalysis(
             track_liveness=track_liveness,
         )
 
+        bp_as_gpr = False
+        the_func = None
+        if isinstance(self.subject.content, Function):
+            the_func = self.subject.content
+        else:
+            if self._func_addr is not None:
+                try:
+                    the_func = self.kb.functions.get_by_addr(self._func_addr)
+                except KeyError:
+                    pass
+        if the_func is not None:
+            bp_as_gpr = the_func.info.get("bp_as_gpr", False)
+
         self._engine_vex = SimEngineRDVEX(
             self.project,
             functions=self.kb.functions,
@@ -178,6 +193,7 @@ class ReachingDefinitionsAnalysis(
             function_handler=self._function_handler,
             stack_pointer_tracker=stack_pointer_tracker,
             use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            bp_as_gpr=bp_as_gpr,
         )
 
         self._visited_blocks: Set[Any] = visited_blocks or set()

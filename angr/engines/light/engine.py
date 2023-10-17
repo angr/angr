@@ -1216,6 +1216,30 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _ail_handle_Sal(self, expr):
         return self._ail_handle_Shl(expr)
 
+    def _ail_handle_Rol(self, expr):
+        arg0, arg1 = expr.operands
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        return ailment.Expr.BinaryOp(expr.idx, "Rol", [expr_0, expr_1], expr.signed, **expr.tags)
+
+    def _ail_handle_Ror(self, expr):
+        arg0, arg1 = expr.operands
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        return ailment.Expr.BinaryOp(expr.idx, "Ror", [expr_0, expr_1], expr.signed, **expr.tags)
+
     def _ail_handle_Sar(self, expr):
         arg0, arg1 = expr.operands
         expr_0 = self._expr(arg0)
@@ -1259,10 +1283,21 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         if data is None:
             return None
 
-        try:
-            return ~data  # pylint:disable=invalid-unary-operand-type
-        except TypeError:
-            return ailment.Expr.UnaryOp(expr.idx, "Not", data, **expr.tags)
+        return ailment.Expr.UnaryOp(expr.idx, "Not", data, **expr.tags)
+
+    def _ail_handle_Neg(self, expr):
+        data = self._expr(expr.operand)
+        if data is None:
+            return None
+
+        return ailment.Expr.UnaryOp(expr.idx, "Neg", data, **expr.tags)
+
+    def _ail_handle_BitwiseNeg(self, expr):
+        data = self._expr(expr.operand)
+        if data is None:
+            return None
+
+        return ailment.Expr.UnaryOp(expr.idx, "BitwiseNeg", data, **expr.tags)
 
 
 # Compatibility

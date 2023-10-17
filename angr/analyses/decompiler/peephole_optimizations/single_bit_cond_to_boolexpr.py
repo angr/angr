@@ -13,7 +13,7 @@ class SingleBitCondToBoolExpr(PeepholeOptimizationExprBase):
     NAME = "Convert single-bit conditions to bool expressions (== 0 or == 1)"
     expr_classes = (ITE,)
 
-    def optimize(self, expr: ITE):
+    def optimize(self, expr: ITE, **kwargs):
         if isinstance(expr.cond, Convert) and expr.cond.to_bits == 1 and expr.cond.from_bits > 1:
             cond_inner = expr.cond.operand
             if isinstance(cond_inner, BinaryOp):

@@ -13,7 +13,7 @@ class ARMCmpF(PeepholeOptimizationExprBase):
     NAME = "Simplifying CmpF on ARM"
     expr_classes = (Convert,)  # all expressions are allowed
 
-    def optimize(self, expr: Convert):
+    def optimize(self, expr: Convert, **kwargs):
         # CmpF values
         # - 0x45 Unordered
         # - 0x01 LT

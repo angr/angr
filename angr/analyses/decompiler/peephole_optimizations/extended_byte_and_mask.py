@@ -15,7 +15,7 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
     NAME = "extended byte & 0xff..ff => extended byte"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         #
         if expr.op == "And" and isinstance(expr.operands[1], Const):
             mask = expr.operands[1].value

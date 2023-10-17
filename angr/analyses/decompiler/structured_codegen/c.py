@@ -1753,6 +1753,8 @@ class CBinaryOp(CExpression):
             "CmpEQ": self._c_repr_chunks_cmpeq,
             "CmpNE": self._c_repr_chunks_cmpne,
             "Concat": self._c_repr_chunks_concat,
+            "Rol": self._c_repr_chunks_rol,
+            "Ror": self._c_repr_chunks_ror,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -1865,6 +1867,24 @@ class CBinaryOp(CExpression):
 
     def _c_repr_chunks_concat(self):
         yield from self._c_repr_chunks(" CONCAT ")
+
+    def _c_repr_chunks_rol(self):
+        yield "__ROL__", self
+        paren = CClosingObject("(")
+        yield "(", paren
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield ", ", None
+        yield from self._try_c_repr_chunks(self.rhs)
+        yield ")", paren
+
+    def _c_repr_chunks_ror(self):
+        yield "__ROR__", self
+        paren = CClosingObject("(")
+        yield "(", paren
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield ", ", None
+        yield from self._try_c_repr_chunks(self.rhs)
+        yield ")", paren
 
 
 class CTypeCast(CExpression):

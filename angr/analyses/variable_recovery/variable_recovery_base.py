@@ -118,6 +118,26 @@ class VariableRecoveryBase(Analysis):
             for d in domfront:
                 self._dominance_frontiers[d.addr].add(b0.addr)
 
+    def _post_analysis(self):
+        # remove temporary variables (stack variables created by _ensure_variable_existence() that are 1-byte long,
+        # never accessed, and overlap with other stack variables at the same offset)
+        varman = self.variable_manager[self.function.addr]
+        stack_vars = varman.get_variables("stack")
+        stack_vars_by_offset = defaultdict(list)
+        for sv in stack_vars:
+            stack_vars_by_offset[sv.offset].append(sv)
+        for offset, var_list in stack_vars_by_offset.items():
+            if len(var_list) < 2:
+                continue
+            single_byte_vars = [v for v in var_list if v.size == 1]
+            if len(single_byte_vars) != 1:
+                continue
+            single_byte_var = single_byte_vars[0]
+
+            if not varman.get_variable_accesses(single_byte_var):
+                # remove this variable
+                varman._variables.discard(single_byte_var)
+
 
 class VariableRecoveryStateBase:
     """

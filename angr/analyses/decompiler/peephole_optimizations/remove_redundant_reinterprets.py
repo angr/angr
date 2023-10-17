@@ -15,7 +15,7 @@ class RemoveRedundantReinterprets(PeepholeOptimizationExprBase):
     NAME = "Simplifying nested and constant Reinterprets"
     expr_classes = (Reinterpret,)  # all expressions are allowed
 
-    def optimize(self, expr: Reinterpret):
+    def optimize(self, expr: Reinterpret, **kwargs):
         if isinstance(expr.operand, Reinterpret):
             inner = expr.operand
             if expr.from_type == inner.to_type and expr.to_type == inner.from_type:

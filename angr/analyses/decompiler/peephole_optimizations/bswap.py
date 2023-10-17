@@ -12,7 +12,7 @@ class Bswap(PeepholeOptimizationExprBase):
     NAME = "Simplifying bswap_16()"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         # bswap_16
         #   And(
         #     (

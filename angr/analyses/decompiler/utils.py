@@ -452,7 +452,7 @@ def peephole_optimize_exprs(block, expr_opts):
             redo = False
             for expr_opt in expr_opts:
                 if isinstance(expr, expr_opt.expr_classes):
-                    r = expr_opt.optimize(expr)
+                    r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                     if r is not None and r is not expr:
                         expr = r
                         redo = True
@@ -511,14 +511,14 @@ def peephole_optimize_stmts(block, stmt_opts):
     statements = []
 
     # run statement optimizers
-    for stmt in block.statements:
+    for stmt_idx, stmt in enumerate(block.statements):
         old_stmt = stmt
         redo = True
         while redo:
             redo = False
             for opt in stmt_opts:
                 if isinstance(stmt, opt.stmt_classes):
-                    r = opt.optimize(stmt)
+                    r = opt.optimize(stmt, stmt_idx=stmt_idx, block=block)
                     if r is not None and r is not stmt:
                         stmt = r
                         redo = True

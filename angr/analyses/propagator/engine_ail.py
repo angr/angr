@@ -12,7 +12,7 @@ from angr.code_location import ExternalCodeLocation
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable, SimMemoryVariable
-from ..reaching_definitions.reaching_definitions import OP_BEFORE
+from ..reaching_definitions.reaching_definitions import OP_BEFORE, OP_AFTER
 from .engine_base import SimEnginePropagatorBase
 
 if TYPE_CHECKING:
@@ -49,6 +49,30 @@ class SimEnginePropagatorAIL(
     # AIL statement handlers
     #
 
+    def _handle_Stmt(self, stmt):
+        # walk stmt.src to find all cases where a register appears above a threshold (so we don't incorrectly
+        # replace the first one)
+        from angr.analyses.decompiler.expression_counters import (
+            RegisterExpressionCounter,
+            OperatorCounter,
+        )  # pylint:disable=wrong-import-position
+
+        # special case: if shift-right appears in stmt.src, we allow replacement of all registers even if they appear
+        # multiple times in this statement. this is to allow the optimization of modulos and divisions later.
+        octr = OperatorCounter(["Shr", "Sar"], stmt)
+        if octr.count >= 1:
+            pass
+        else:
+            if isinstance(stmt, Stmt.Assignment):
+                ctr = RegisterExpressionCounter(stmt.src)
+            else:
+                ctr = RegisterExpressionCounter(stmt)
+            self._multi_occurrence_registers = {key for key, count in ctr.counts.items() if count > 1}
+
+        super()._handle_Stmt(stmt)
+
+        self._multi_occurrence_registers = None
+
     def _ail_handle_Assignment(self, stmt):
         """
 
@@ -64,6 +88,8 @@ class SimEnginePropagatorAIL(
             self.state.temp_expressions[dst.tmp_idx] = stmt.src
 
         elif type(dst) is Expr.Register:
+            codeloc = self._codeloc()
+
             if src.needs_details:
                 # provide details
                 src = src.with_details(dst.size, dst, self._codeloc())
@@ -75,15 +101,15 @@ class SimEnginePropagatorAIL(
 
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
-                self.state.add_equivalence(self._codeloc(), dst, stmt.src)
+                self.state.add_equivalence(codeloc, dst, stmt.src)
             elif isinstance(stmt.src, (Expr.Convert)) and isinstance(stmt.src.operand, Stmt.Call):
                 # set equivalence
-                self.state.add_equivalence(self._codeloc(), dst, stmt.src)
+                self.state.add_equivalence(codeloc, dst, stmt.src)
 
             if src.one_expr is not None:
-                self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, src.one_expr, self._codeloc()
+                self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, src.one_expr, codeloc
             else:
-                self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
+                self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, codeloc
 
             if dst.reg_offset == self.arch.sp_offset:
                 self.state._sp_adjusted = True
@@ -333,18 +359,24 @@ class SimEnginePropagatorAIL(
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
                 if sb_offset is not None:
                     new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
-                    self.state.add_replacement(self._codeloc(), expr, new_expr)
+                    self.state.add_replacement(self._codeloc(), expr, new_expr, bp_as_gpr=self.bp_as_gpr)
                     return PropValue.from_value_and_details(
                         self.sp_offset(expr.bits, sb_offset), expr.size, new_expr, self._codeloc()
                     )
-            elif expr.reg_offset == self.arch.bp_offset:
+            elif expr.reg_offset == self.arch.bp_offset and not self.bp_as_gpr:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
                 if sb_offset is not None:
                     new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
-                    self.state.add_replacement(self._codeloc(), expr, new_expr)
+                    self.state.add_replacement(self._codeloc(), expr, new_expr, bp_as_gpr=self.bp_as_gpr)
                     return PropValue.from_value_and_details(
                         self.sp_offset(expr.bits, sb_offset), expr.size, new_expr, self._codeloc()
                     )
+
+        # determine if we should skip replacing the current register
+        if self._multi_occurrence_registers:
+            if (expr.reg_offset, expr.size) in self._multi_occurrence_registers:
+                # don't replace this register
+                return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
 
         def _test_concatenation(pv: PropValue):
             if pv.offset_and_details is not None and len(pv.offset_and_details) == 2 and 0 in pv.offset_and_details:
@@ -391,7 +423,10 @@ class SimEnginePropagatorAIL(
                 if isinstance(reg_defat, ExternalCodeLocation):
                     reg_defat = None
 
+        stmt_to_remove = None
         if new_expr is not None:
+            has_avoid_ = False
+
             # check if this new_expr uses any expression that has been overwritten
             replaced = False
             outdated = False
@@ -400,30 +435,131 @@ class SimEnginePropagatorAIL(
                 if detail.expr is None:
                     break
                 outdated_, has_avoid_ = self.is_using_outdated_def(
-                    detail.expr, reg_defat if reg_defat is not None else detail.def_at, self._codeloc(), avoid=expr
+                    detail.expr,
+                    reg_defat if reg_defat is not None else detail.def_at,
+                    self._codeloc(),
+                    avoid=expr,
                 )
                 if outdated_ or has_avoid_:
                     outdated = True
                     break
+
+            if (
+                all_subexprs
+                and None not in all_subexprs
+                and len(all_subexprs) == 1
+                and has_avoid_
+                and self._reaching_definitions is not None
+            ):
+                # special case:
+                #
+                #   1 |  ecx_1 = ecx_0 + ebx
+                #   2 |  eax = ecx_1 + 2
+                #
+                # since ecx_0 is dead after statement 1, we can always propagate ecx_1 as long as we guarantee the
+                # removal of statement 1 in a later pass, immediately after we perform replacements.
+                if (
+                    self._multi_occurrence_registers is None
+                    or (expr.reg_offset, expr.size) not in self._multi_occurrence_registers
+                ):
+                    reg_defs = self._reaching_definitions.get_defs(
+                        Register(expr.reg_offset, expr.size), self._codeloc(), OP_BEFORE
+                    )
+                    if len(reg_defs) == 1:
+                        reg_def = next(iter(reg_defs))
+                        # is it only used once?
+                        reg_uses = self._reaching_definitions.all_uses.get_uses(reg_def)
+                        if len(reg_uses) == 1:
+                            # is the definition location an assignment statement?
+                            if (
+                                reg_def.codeloc.block_addr == self.block.addr
+                                and reg_def.codeloc.stmt_idx == self.stmt_idx - 1
+                            ):
+                                stmt = self.block.statements[reg_def.codeloc.stmt_idx]
+                                if (
+                                    isinstance(stmt, Stmt.Assignment)
+                                    and isinstance(stmt.dst, Expr.Register)
+                                    and stmt.dst.size == expr.size
+                                    and all_subexprs[0].likes(stmt.src)
+                                    and not self.state.has_replacements_at(reg_def.codeloc)
+                                ):
+                                    # ok we are getting rid of the original statement
+                                    outdated = False
+                                    stmt_to_remove = reg_def.codeloc
 
             if all_subexprs and None not in all_subexprs and not outdated:
                 if len(all_subexprs) == 1:
                     # trivial case
                     subexpr = all_subexprs[0]
                     if subexpr.size == expr.size:
-                        replaced = True
-                        l.debug("Add a replacement: %s with %s", expr, subexpr)
-                        self.state.add_replacement(self._codeloc(), expr, subexpr)
+                        force_replace = self.should_force_replace(self.block.statements[self.stmt_idx], subexpr)
+                        l.debug("Try to add a replacement: %s with %s", expr, subexpr)
+                        replaced = self.state.add_replacement(
+                            self._codeloc(),
+                            expr,
+                            subexpr,
+                            force_replace=force_replace,
+                            stmt_to_remove=stmt_to_remove,
+                            bp_as_gpr=self.bp_as_gpr,
+                        )
                 else:
                     is_concatenation, result_expr = _test_concatenation(new_expr)
                     if is_concatenation:
-                        replaced = True
-                        l.debug("Add a replacement: %s with %s", expr, result_expr)
-                        self.state.add_replacement(self._codeloc(), expr, result_expr)
+                        l.debug("Try to add a replacement: %s with %s", expr, result_expr)
+                        force_replace = self.should_force_replace(self.block.statements[self.stmt_idx], result_expr)
+                        replaced = self.state.add_replacement(
+                            self._codeloc(),
+                            expr,
+                            result_expr,
+                            force_replace=force_replace,
+                            stmt_to_remove=stmt_to_remove,
+                            bp_as_gpr=self.bp_as_gpr,
+                        )
+            elif all_subexprs and None not in all_subexprs and len(all_subexprs) == 1:
+                # if the expression has been replaced before, we should remove previous replacements
+                reg_defs = self._reaching_definitions.get_defs(
+                    Register(expr.reg_offset, expr.size), self._codeloc(), OP_BEFORE
+                )
+                if len(reg_defs) == 1:
+                    reg_def = next(iter(reg_defs))
+                else:
+                    reg_def = None
+                updated_codelocs = self.state.revert_past_replacements(
+                    all_subexprs[0], to_replace=expr, to_replace_def=reg_def
+                )
+                # scan through the code locations and recursively remove assignment replacements
+                if self._reaching_definitions is not None:
+                    while updated_codelocs:
+                        new_updated_codelocs = set()
+                        for u_codeloc in updated_codelocs:
+                            if (
+                                u_codeloc.block_addr == self.block.addr
+                                and isinstance(self.block.statements[u_codeloc.stmt_idx], Stmt.Assignment)
+                                and isinstance(self.block.statements[u_codeloc.stmt_idx].dst, Expr.Register)
+                            ):
+                                dst_reg = self.block.statements[u_codeloc.stmt_idx].dst
+                                # where is this assignment used?
+                                reg_defs = self._reaching_definitions.get_defs(
+                                    Register(dst_reg.reg_offset, dst_reg.size), u_codeloc, OP_AFTER
+                                )
+                                if len(reg_defs) == 1:
+                                    reg_def = next(iter(reg_defs))
+                                    uses = self._reaching_definitions.all_uses.get_uses(reg_def)
+                                    for used_codeloc in uses:
+                                        if used_codeloc in self.state._replacements:
+                                            for to_replace, replace_by in list(
+                                                self.state._replacements[used_codeloc].items()
+                                            ):
+                                                if isinstance(replace_by, dict):
+                                                    replace_by = replace_by["expr"]
+                                                if not self.state.is_top(replace_by) and to_replace.likes(dst_reg):
+                                                    del self.state._replacements[used_codeloc][to_replace]
+                                                    new_updated_codelocs.add(used_codeloc)
+                        updated_codelocs = new_updated_codelocs
 
             if not replaced:
                 l.debug("Add a replacement: %s with TOP", expr)
-                self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits))
+                self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits), bp_as_gpr=self.bp_as_gpr)
             else:
                 return new_expr
 
@@ -654,6 +790,19 @@ class SimEnginePropagatorAIL(
         else:
             o_expr = o_value.one_expr
             new_expr = Expr.UnaryOp(expr.idx, "Neg", o_expr if o_expr is not None else expr.operands[0], **expr.tags)
+        return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
+
+    def _ail_handle_BitwiseNeg(self, expr):
+        o_value = self._expr(expr.operand)
+
+        value = self.state.top(expr.bits)
+        if o_value is None:
+            new_expr = expr
+        else:
+            o_expr = o_value.one_expr
+            new_expr = Expr.UnaryOp(
+                expr.idx, "BitwiseNeg", o_expr if o_expr is not None else expr.operands[0], **expr.tags
+            )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Cmp(self, expr: Expr.BinaryOp) -> PropValue:
@@ -916,6 +1065,54 @@ class SimEnginePropagatorAIL(
             )
         return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
+    def _ail_handle_Rol(self, expr: Expr.BinaryOp):
+        o0_value = self._expr(expr.operands[0])
+        o1_value = self._expr(expr.operands[1])
+
+        value = self.state.top(expr.bits)
+        if o0_value is None or o1_value is None:
+            new_expr = expr
+        else:
+            o0_expr = o0_value.one_expr
+            o1_expr = o1_value.one_expr
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Rol",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
+        return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
+
+    def _ail_handle_Ror(self, expr: Expr.BinaryOp):
+        o0_value = self._expr(expr.operands[0])
+        o1_value = self._expr(expr.operands[1])
+
+        value = self.state.top(expr.bits)
+        if o0_value is None or o1_value is None:
+            new_expr = expr
+        else:
+            o0_expr = o0_value.one_expr
+            o1_expr = o1_value.one_expr
+            new_expr = Expr.BinaryOp(
+                expr.idx,
+                "Ror",
+                [
+                    o0_expr if o0_expr is not None else expr.operands[0],
+                    o1_expr if o1_expr is not None else expr.operands[1],
+                ],
+                expr.signed,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
+        return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
+
     def _ail_handle_Mul(self, expr):
         o0_value = self._expr(expr.operands[0])
         o1_value = self._expr(expr.operands[1])
@@ -1145,6 +1342,35 @@ class SimEnginePropagatorAIL(
         )
         walker.walk_expression(expr)
         return walker.out_dated, walker.has_avoid
+
+    def should_force_replace(self, stmt: Stmt.Statement, new_expr: Expr.Expression) -> bool:
+        """
+        Determine if the expression should be replaced.
+
+        We always replace the expression if:
+
+        - the current statement is an indirect jump. this is to ensure the dynamically calculated jump targets are
+          always using the originally defined expressions, which usually leads to better decompilation output.
+        - the current statement is a return to make void functions (even when we incorrectly determine that they return
+          something) look better in general.
+        - the current statement has a shift-right operation and the source expression has a shift-right operation. this
+          is to support the peephole optimizations for division and modulo.
+
+        :param stmt:
+        :param new_expr:
+        :return:
+        """
+        if isinstance(stmt, (Stmt.Jump, Stmt.Return)):
+            return True
+
+        from angr.analyses.decompiler.expression_counters import OperatorCounter  # pylint:disable=wrong-import-position
+
+        octr0 = OperatorCounter(["Shr", "Sar"], stmt)
+        octr1 = OperatorCounter(["Shr", "Sar"], new_expr)
+        if octr0.count >= 1 and octr1.count >= 1 or octr0.count >= 2:
+            return True
+
+        return False
 
     @staticmethod
     def has_tmpexpr(expr: Expr.Expression) -> bool:
