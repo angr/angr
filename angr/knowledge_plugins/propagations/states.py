@@ -275,6 +275,15 @@ class PropagatorState:
     def filter_replacements(self):
         pass
 
+    def has_replacements_at(self, codeloc: CodeLocation) -> bool:
+        if not self._replacements:
+            return False
+        if codeloc not in self._replacements:
+            return False
+        if all(self.is_top(replaced_by) for replaced_by in self._replacements[codeloc].values()):
+            return False
+        return True
+
 
 # VEX state
 
