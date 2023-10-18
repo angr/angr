@@ -153,7 +153,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         :param varnode: Varnode to store into.
         :param value:   Value to store.
         """
-        space_name = varnode.space.name
+        space_name = varnode.space.name.lower()
 
         # FIXME: Consider moving into behavior.py
         value = self._adjust_value_size(varnode.size * 8, value)
@@ -185,7 +185,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         :param varnode: Varnode to load from.
         :return:        Value loaded.
         """
-        space_name = varnode.space.name
+        space_name = varnode.space.name.lower()
         size = varnode.size
         l.debug("Loading %s - %x x %d", space_name, varnode.offset, size)
         if space_name == "const":
@@ -245,9 +245,10 @@ class PcodeEmulatorMixin(SimEngineBase):
         spc = self._current_op.inputs[0].get_space_from_const()
         off = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
-        if spc.name in ("ram", "mem"):
+        spc_name = spc.name.lower()
+        if spc_name in ("ram", "mem"):
             res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
-        elif spc.name in "register":
+        elif spc_name in "register":
             res = self.state.registers.load(off, size=out.size, endness=self.project.arch.register_endness)
         else:
             raise AngrError("Load from unhandled address space")
@@ -262,9 +263,10 @@ class PcodeEmulatorMixin(SimEngineBase):
         off = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
         l.debug("Storing %s at offset %s", data, off)
-        if spc.name in ("ram", "mem"):
+        spc_name = spc.name.lower()
+        if spc_name in ("ram", "mem"):
             self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
-        elif spc.name == "register":
+        elif spc_name == "register":
             self.state.registers.store(off, data, endness=self.project.arch.register_endness)
         else:
             raise AngrError("Store to unhandled address space")
