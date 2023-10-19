@@ -1340,8 +1340,8 @@ class Clinic(Analysis):
         cond_jump_stmt = ailment.Stmt.ConditionalJump(
             ite_expr_stmt.idx,
             ite_expr.cond,
-            ailment.Expr.Const(None, None, true_block_addr, self.project.arch.bits),
-            ailment.Expr.Const(None, None, false_block_addr, self.project.arch.bits),
+            ailment.Expr.Const(None, None, true_block_addr, self.project.arch.bits, **ite_expr_stmt.tags),
+            ailment.Expr.Const(None, None, false_block_addr, self.project.arch.bits, **ite_expr_stmt.tags),
             **ite_expr_stmt.tags,
         )
         new_head_ail.statements.append(cond_jump_stmt)

@@ -399,7 +399,7 @@ class SimEnginePropagatorAIL(
                         key = (lo_value.size, hi_value.size)
                         if key in mappings:
                             from_bits, to_bits = mappings[key]
-                            result_expr = Expr.Convert(None, from_bits, to_bits, False, lo_value.expr)
+                            result_expr = Expr.Convert(None, from_bits, to_bits, False, lo_value.expr, **expr.tags)
                             return True, result_expr
                     result_expr = Expr.BinaryOp(None, "Concat", [hi_value.expr, lo_value.expr], False)
                     return True, result_expr
@@ -652,7 +652,7 @@ class SimEnginePropagatorAIL(
                 value = o_expr.value
                 mask = (2**expr.to_bits) - 1
                 value &= mask
-                new_expr = Expr.Const(expr.idx, o_expr.variable, value, expr.to_bits)
+                new_expr = Expr.Const(expr.idx, o_expr.variable, value, expr.to_bits, **expr.tags)
             else:
                 new_expr = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, o_expr, **expr.tags)
 
@@ -668,7 +668,7 @@ class SimEnginePropagatorAIL(
                     0: Detail(new_size, new_expr.operand, o_defat),
                     new_size: Detail(
                         new_expr.size - new_size,
-                        Expr.Const(expr.idx, None, 0, new_expr.to_bits - new_expr.from_bits),
+                        Expr.Const(expr.idx, None, 0, new_expr.to_bits - new_expr.from_bits, **new_expr.tags),
                         self._codeloc(),
                     ),
                 }

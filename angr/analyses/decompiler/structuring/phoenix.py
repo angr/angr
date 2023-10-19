@@ -1795,8 +1795,8 @@ class PhoenixStructurer(StructurerBase):
             cond_jump = ConditionalJump(
                 None,
                 cond,
-                Const(None, None, left.addr, self.project.arch.bits),
-                Const(None, None, else_node.addr, self.project.arch.bits),
+                Const(None, None, left.addr, self.project.arch.bits, ins_addr=start_node.addr),
+                Const(None, None, else_node.addr, self.project.arch.bits, ins_addr=start_node.addr),
                 true_target_idx=left.idx if isinstance(left, (Block, MultiNode)) else None,
                 false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
                 ins_addr=start_node.addr,
