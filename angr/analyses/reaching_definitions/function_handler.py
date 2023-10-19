@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Iterable, List, Set, Optional, Union, Callable
+from typing import TYPE_CHECKING, Iterable, List, Set, Optional, Union, Callable, cast, Literal
 from dataclasses import dataclass, field
 import logging
 from functools import wraps
@@ -22,7 +22,7 @@ from angr.knowledge_plugins.key_definitions.constants import ObservationPointTyp
 if TYPE_CHECKING:
     from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
-    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis
+    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis, ObservationPoint
 
 l = logging.getLogger(__name__)
 
@@ -503,10 +503,25 @@ class FunctionHandler:
         """
         assert state.analysis is not None
         assert data.function is not None
+
+        # Set up the additional observation points of the return sites
+        # They will be gathered and merged in get_exit_livedefinitions
+        # get_exit_livedefinitions is currently only using ret_sites, but an argument could be made that it should
+        # include jumpout sites as well. In the CFG generation tail call sites seem to be treated as return sites
+        # and not as jumpout sites, so we are following that convention here.
+        return_observation_points: List[ObservationPoint] = [
+            (
+                cast(Literal["node"], "node"),  # pycharm doesn't treat a literal string, as Literal[] by default...
+                block.addr,
+                ObservationPointType.OP_AFTER,
+            )
+            for block in data.function.ret_sites
+        ]
+
         sub_rda = state.analysis.project.analyses.ReachingDefinitions(
             data.function,
             observe_all=state.analysis._observe_all,
-            observation_points=state.analysis._observation_points,
+            observation_points=(state.analysis._observation_points or []) + return_observation_points,
             observe_callback=state.analysis._observe_callback,
             dep_graph=state.dep_graph,
             function_handler=self,
