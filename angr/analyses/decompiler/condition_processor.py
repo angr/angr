@@ -108,6 +108,8 @@ _ail2claripy_op_mapping = {
     "Mull": lambda expr, _, m: _dummy_bvs(expr, m),
     "Mulls": lambda expr, _, m: _dummy_bvs(expr, m),
     "Reinterpret": lambda expr, _, m: _dummy_bvs(expr, m),
+    "Rol": lambda expr, _, m: _dummy_bvs(expr, m),
+    "Ror": lambda expr, _, m: _dummy_bvs(expr, m),
 }
 
 #
