@@ -462,7 +462,10 @@ class FunctionHandler:
         assert data.cc is not None
         assert data.prototype is not None
         if data.prototype.returnty is not None:
-            data.ret_values = MultiValues(state.top(data.prototype.returnty.with_arch(state.arch).size))
+            if not isinstance(data.prototype.returnty, SimTypeBottom):
+                data.ret_values = MultiValues(state.top(data.prototype.returnty.with_arch(state.arch).size))
+            else:
+                data.ret_values = MultiValues(state.top(state.arch.bits))
         if data.guessed_prototype:
             # use all!
             # TODO should we use some number of stack variables as well?
