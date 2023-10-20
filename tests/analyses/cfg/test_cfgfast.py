@@ -1054,6 +1054,14 @@ class TestCfgfastDataReferences(unittest.TestCase):
         for testme in ("SOSNEAKY", "Welcome to the admin console, trusted user!\n", "Go away!\n", "Username: \n"):
             assert testme.encode("utf-16-le") in recovered_strings
 
+    def test_data_references_lea_string_addr(self):
+        path = os.path.join(test_location, "x86_64", "windows", "3ware.sys")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True)
+        assert cfg.memory_data[0x1C0010A20].sort == MemoryDataSort.String
+        assert cfg.memory_data[0x1C0010A20].content == b"Initialize> %s"
+
     def test_arm_function_hints_from_data_references(self):
         path = os.path.join(test_location, "armel", "sha224sum")
         proj = angr.Project(path, auto_load_libs=False)
