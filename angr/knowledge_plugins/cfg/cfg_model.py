@@ -808,8 +808,9 @@ class CFGModel(Serializable):
         if r is not None:
             return r
 
+        non_zero_max_size = 1024 if max_size == 0 else max_size
         try:
-            data = self.project.loader.memory.load(data_addr, min(1024, max_size))
+            data = self.project.loader.memory.load(data_addr, min(1024, non_zero_max_size))
         except KeyError:
             data = b""
 
