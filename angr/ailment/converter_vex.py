@@ -152,7 +152,18 @@ class VEXExprConverter(Converter):
                     shifted = BinaryOp(
                         manager.next_atom(),
                         "Shr",
-                        [inner, Const(manager.next_atom(), None, simop._to_size, 8)],
+                        [
+                            inner,
+                            Const(
+                                manager.next_atom(),
+                                None,
+                                simop._to_size,
+                                8,
+                                ins_addr=manager.ins_addr,
+                                vex_block_addr=manager.block_addr,
+                                vex_stmt_idx=manager.vex_stmt_idx,
+                            ),
+                        ],
                         False,
                         ins_addr=manager.ins_addr,
                         vex_block_addr=manager.block_addr,
