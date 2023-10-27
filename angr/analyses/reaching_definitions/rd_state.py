@@ -485,7 +485,9 @@ class ReachingDefinitionsState:
     def get_values(self, spec: Union[Atom, Definition, Iterable[Atom]]) -> Optional[MultiValues]:
         return self.live_definitions.get_values(spec)
 
-    def get_one_value(self, spec: Union[Atom, Definition], strip_annotations: bool=False) -> Optional[claripy.ast.bv.BV]:
+    def get_one_value(
+        self, spec: Union[Atom, Definition], strip_annotations: bool = False
+    ) -> Optional[claripy.ast.bv.BV]:
         return self.live_definitions.get_one_value(spec, strip_annotations=strip_annotations)
 
     @overload
