@@ -131,7 +131,7 @@ class MultiValues:
                 for v in remaining_values:
                     self.add_value(offset, v)
 
-    def one_value(self) -> Optional[claripy.ast.Bits]:
+    def one_value(self, strip_annotations: bool = False) -> Optional[claripy.ast.Bits]:
         if self._single_value is not None:
             return self._single_value
 
@@ -139,6 +139,12 @@ class MultiValues:
 
         if len(self._values) == 1 and len(self._values[0]) == 1:
             return next(iter(self._values[0]))
+        if strip_annotations:
+            all_values_wo_annotations = {
+                bv.remove_annotations(bv.annotations) if bv.annotations else bv for bv in self._values[0]
+            }
+            if len(all_values_wo_annotations) == 1:
+                return next(iter(all_values_wo_annotations))
         return None
 
     def __len__(self) -> int:
