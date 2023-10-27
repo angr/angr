@@ -11,7 +11,7 @@ from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
-from ...calling_conventions import default_cc, SimRegArg
+from ...calling_conventions import default_cc, SimRegArg, SimTypeBottom
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -343,7 +343,12 @@ class SimEngineRDAIL(
         # consume registers that are potentially useful
 
         # return value
-        if cc is not None and prototype is not None and prototype.returnty is not None:
+        if (
+            cc is not None
+            and prototype is not None
+            and prototype.returnty is not None
+            and not isinstance(prototype.returnty, SimTypeBottom)
+        ):
             ret_val = cc.return_val(prototype.returnty)
             if isinstance(ret_val, SimRegArg):
                 if ret_val.clear_entire_reg:
