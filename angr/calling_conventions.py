@@ -684,7 +684,7 @@ class SimCC:
         if isinstance(ty, SimTypeFloat) and self.FP_RETURN_VAL is not None:
             return self.FP_RETURN_VAL.refine(size=ty.size // self.arch.byte_width, arch=self.arch, is_fp=True)
 
-        if self.RETURN_VAL is None:
+        if self.RETURN_VAL is None or isinstance(ty, SimTypeBottom):
             return None
         if ty.size > self.RETURN_VAL.size * self.arch.byte_width:
             return SimComboArg([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
