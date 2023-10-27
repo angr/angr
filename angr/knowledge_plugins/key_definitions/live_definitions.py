@@ -825,12 +825,14 @@ class LiveDefinitions:
             return self.others.get(atom, None)
 
     def get_one_value(
-        self, spec: Union[Atom, Definition, Iterable[Atom], Iterable[Definition[Atom]]]
+        self,
+        spec: Union[Atom, Definition, Iterable[Atom], Iterable[Definition[Atom]]],
+        strip_annotations: bool = False,
     ) -> Optional[claripy.ast.bv.BV]:
         r = self.get_values(spec)
         if r is None:
             return None
-        return r.one_value()
+        return r.one_value(strip_annotations=strip_annotations)
 
     @overload
     def get_concrete_value(
@@ -851,7 +853,7 @@ class LiveDefinitions:
         spec: Union[Atom, Definition[Atom], Iterable[Atom], Iterable[Definition[Atom]]],
         cast_to: Union[Type[int], Type[bytes]] = int,
     ) -> Union[int, bytes, None]:
-        r = self.get_one_value(spec)
+        r = self.get_one_value(spec, strip_annotations=True)
         if r is None:
             return None
         if r.symbolic:
