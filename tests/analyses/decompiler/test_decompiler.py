@@ -3182,7 +3182,7 @@ class TestDecompiler(unittest.TestCase):
         first_if_location = text.find("if (")
         # the very first if-stmt in this function should be a single scope with a return.
         # there should be no else scope as well.
-        correct_ifs = [m for m in re.finditer(r'if \(!strcmp\(a0, "-"\)\) {5}\{.*? return; {5}}', text)]
+        correct_ifs = list(re.finditer(r'if \(!strcmp\(a0, "-"\)\) {5}\{.*? return; {5}}', text))
         assert len(correct_ifs) >= 1
 
         first_correct_if = correct_ifs[0]
