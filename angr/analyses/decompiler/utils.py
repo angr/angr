@@ -378,6 +378,22 @@ def remove_labels(graph: networkx.DiGraph):
     return new_graph
 
 
+def add_labels(graph: networkx.DiGraph):
+    new_graph = networkx.DiGraph()
+    nodes_map = {}
+    for node in graph:
+        lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
+        node_copy = node.copy()
+        node_copy.statements = [lbl] + node_copy.statements
+        nodes_map[node] = node_copy
+
+    new_graph.add_nodes_from(nodes_map.values())
+    for src, dst in graph.edges:
+        new_graph.add_edge(nodes_map[src], nodes_map[dst])
+
+    return new_graph
+
+
 def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
