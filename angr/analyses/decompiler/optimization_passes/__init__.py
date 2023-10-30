@@ -22,7 +22,7 @@ from .flip_boolean_cmp import FlipBooleanCmp
 from .ret_deduplicator import ReturnDeduplicator
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
 
-
+# order matters!
 _all_optimization_passes = [
     (RegisterSaveAreaSimplifier, True),
     (StackCanarySimplifier, True),
@@ -35,11 +35,11 @@ _all_optimization_passes = [
     (RetAddrSaveSimplifier, True),
     (X86GccGetPcSimplifier, True),
     (ITERegionConverter, True),
+    (ITEExprConverter, True),
     (ReturnDeduplicator, True),
+    (ExprOpSwapper, True),
     (LoweredSwitchSimplifier, False),
     (EagerReturnsSimplifier, True),
-    (ITEExprConverter, True),
-    (ExprOpSwapper, True),
     (FlipBooleanCmp, True),
 ]
 
