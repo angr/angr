@@ -139,7 +139,7 @@ class EagerReturnsSimplifier(StructuringOptimizationPass):
                 blocks += new_level_blocks
                 level_blocks = new_level_blocks
 
-            src_direct_parents = [p for p in graph.predecessors(src)]
+            src_direct_parents = list(graph.predecessors(src))
             for block in blocks:
                 if not block or not block.statements:
                     continue
@@ -292,7 +292,7 @@ class EagerReturnsSimplifier(StructuringOptimizationPass):
                     graph.remove_nodes_from(region)
 
                 # update the in_edges to remove any nodes that have been copied
-                new_in_edges = list(filter(lambda e: e[0] not in nodes, new_in_edges))
+                new_in_edges = [edge for edge in new_in_edges if edge[0] not in nodes]
 
             if not new_in_edges:
                 del updated_regions[region_head]

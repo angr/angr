@@ -4,9 +4,7 @@ from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING
 from enum import Enum
 
 import networkx  # pylint:disable=unused-import
-
 import ailment
-import networkx as nx
 
 from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.goto_manager import GotoManager
@@ -22,8 +20,6 @@ class MultipleBlocksException(Exception):
     An exception that is raised in _get_block() where multiple blocks satisfy the criteria but only one block was
     requested.
     """
-
-    pass
 
 
 class OptimizationPassStage(Enum):
@@ -243,6 +239,12 @@ class SequenceOptimizationPass(BaseOptimizationPass):
 
 
 class StructuringOptimizationPass(OptimizationPass):
+    """
+    The base class for any optimization pass that requires structuring. Optimization passes that inherit from this class
+    should directly depend on structuring artifacts, such as regions and gotos. Otherwise, they should use
+    OptimizationPass. This is the heaviest (computation time) optimization pass class.
+    """
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
@@ -270,7 +272,7 @@ class StructuringOptimizationPass(OptimizationPass):
             return
 
         # setup for the very first analysis
-        self.out_graph = nx.DiGraph(self._graph)
+        self.out_graph = networkx.DiGraph(self._graph)
         if self._max_opt_iters > 1:
             self._fixed_point_analyze(cache=cache)
         else:
@@ -293,7 +295,7 @@ class StructuringOptimizationPass(OptimizationPass):
         for _ in range(self._max_opt_iters):
             # backup the graph before the optimization
             if self._recover_structure_fails and self.out_graph is not None:
-                self._prev_graph = nx.DiGraph(self.out_graph)
+                self._prev_graph = networkx.DiGraph(self.out_graph)
 
             # run the optimization, output applied to self.out_graph
             changes = self._analyze(cache=cache)
