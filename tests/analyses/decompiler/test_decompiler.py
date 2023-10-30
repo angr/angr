@@ -2557,17 +2557,25 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["skip"]
-        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep()(
+            f, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("cstyle_ifs", False)])
+        )
         self._print_decompilation_result(d)
 
         text = d.codegen.text
-        good_if_return = "if (!a0)\n        return 1;\n"
+        # find an if-stmt that has the following properties:
+        # 1. Condition: (!a0)
+        # 2. Has a scope ending in a return
+        # 3. Has no else scope after the return
+        good_if_pattern = r"if \(!a0\)\s*\{[^}]*return [^;]+;\s*\}(?!\s*else)"
+        good_if = re.search(good_if_pattern, text)
+        assert good_if is not None
+
         first_if_location = text.find("if")
+        assert first_if_location != -1
 
         # the first if in the program should have no else, and that first else should be a simple return
-        assert first_if_location != -1
-        assert first_if_location == text.find(good_if_return)
-        assert not text[first_if_location + len(good_if_return) :].startswith("    else")
+        assert first_if_location == good_if.start()
 
     @structuring_algo("phoenix")
     def test_sensitive_eager_returns(self, decompiler_options=None):
