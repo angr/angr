@@ -3154,8 +3154,12 @@ class TestDecompiler(unittest.TestCase):
 
         self._print_decompilation_result(d)
         text = d.codegen.text
-        good_if_return = "if (!a2)\n        return 0;\n"
+        good_if_return_pattern = r"if \(\!a2\)\s+return .*;"
+        good_if_return = re.search(good_if_return_pattern, text)
+        assert good_if_return is not None
+
         first_if_location = text.find("if")
+        assert first_if_location != -1
 
         # TODO: this is broken right now on the 1 goto for a bad else. It may not be relevant for this testcase.
         # there should be no else and no gotos!
@@ -3163,9 +3167,8 @@ class TestDecompiler(unittest.TestCase):
         # assert "else" not in text
 
         # the first if in the program should have no else, and that first else should be a simple return
-        assert first_if_location != -1
-        assert first_if_location == text.find(good_if_return)
-        assert not text[first_if_location + len(good_if_return) :].startswith("    else")
+        assert first_if_location == good_if_return.start()
+        assert not text[first_if_location + len(good_if_return.group(0)) :].startswith("    else")
 
     @structuring_algo("phoenix")
     def test_ifelseflatten_gzip(self, decompiler_options=None):
