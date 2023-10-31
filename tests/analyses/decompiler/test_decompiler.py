@@ -129,6 +129,19 @@ class TestDecompiler(unittest.TestCase):
             assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
             self._print_decompilation_result(dec)
 
+    @structuring_algo("dream")
+    def test_decompiling_loop_x86_64(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "loop")
+        p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+        cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        f = cfg.functions["loop"]
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+        self._print_decompilation_result(dec)
+        # it should be properly structured to a while loop with conditional breaks.
+        assert "break" in dec.codegen.text
+
     @for_all_structuring_algos
     def test_decompiling_all_i386(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "i386", "all")
