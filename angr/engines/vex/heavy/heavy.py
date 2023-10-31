@@ -214,6 +214,11 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                     target_func_name = "Func_indirect_call" + str(exit_state.ip)
                     call_insn_addr = list(exit_state.history.bbl_addrs)[-1]
 
+                    # Fixing an issue that the next instruction after indirect call is not executed
+                    # update successors (move unconstrained successors to flat successors)
+                    successors.unconstrained_successors.remove(exit_state)
+                    successors.flat_successors.append(exit_state)
+
                 # function_calls: {func_name: {call_insn_addr: [[arg1, arg2, ...], [arg1, arg2, ...], ...]}
                 # Same function call at the same address could have different list of arguments in mutiple paths,
                 # We take the last one
