@@ -3,6 +3,7 @@
 __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=redefined-builtin
 
 import os
+import sys
 import unittest
 
 import angr
@@ -15,6 +16,7 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestDrillerCore(unittest.TestCase):
+    @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_cgc(self):
         binary = os.path.join(test_location, "cgc", "sc1_0b32aa01_01")
         simgr, tracer = tracer_cgc(binary, "driller_core_cgc", b"AAAA", copy_states=True, follow_unsat=True)

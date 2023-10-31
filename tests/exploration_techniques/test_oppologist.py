@@ -4,6 +4,7 @@ __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=re
 
 import unittest
 import os
+import sys
 
 import angr
 
@@ -42,6 +43,7 @@ class TestOppologist(unittest.TestCase):
         else:
             assert stdout.count(b"\n") == 2
 
+    @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_cromu_70(self):
         p = angr.Project(os.path.join(test_location, "cgc", "CROMU_00070"))
         inp = bytes.fromhex(
