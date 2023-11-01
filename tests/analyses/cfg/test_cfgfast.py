@@ -19,6 +19,10 @@ l = logging.getLogger("angr.tests.test_cfgfast")
 test_location = os.path.join(bin_location, "tests")
 
 
+def cstring_to_unicode_string(cstr: bytes) -> bytes:
+    return b"".join((bytes([ch]) + b"\x00") for ch in cstr)
+
+
 class TestCfgfast(unittest.TestCase):
     def cfg_fast_functions_check(self, arch, binary_path, func_addrs, func_features):
         """
@@ -1072,6 +1076,23 @@ class TestCfgfastDataReferences(unittest.TestCase):
         func = funcs[0x129C4]
         assert len(list(func.blocks)) == 1
         assert list(func.blocks)[0].size == 16
+
+    def test_data_references_windows_driver_utf16_strings(self):
+        path = os.path.join(
+            test_location, "x86_64", "windows", "aaba7db353eb9400e3471eaaa1cf0105f6d1fab0ce63f1a2665c8ba0e8963a05.bin"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast()
+
+        assert cfg.model.memory_data[0x1DCE0].sort == MemoryDataSort.UnicodeString
+        assert cfg.model.memory_data[0x1DCE0].content == cstring_to_unicode_string(
+            b"\\Registry\\Machine\\SYSTEM\\CurrentControlSet\\Control\\WinApi"
+        )
+        assert cfg.model.memory_data[0x1DCE0].size == 116
+        assert cfg.model.memory_data[0x1DD90].sort == MemoryDataSort.UnicodeString
+        assert cfg.model.memory_data[0x1DD90].content == cstring_to_unicode_string(b"ntdll.dll")
+        assert cfg.model.memory_data[0x1DD90].size == 20
 
 
 if __name__ == "__main__":
