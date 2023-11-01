@@ -1032,7 +1032,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             if val1 is None:
                 break
             if val0 == 0 and val1 == 0:
-                if len(sz) < 8:
+                if len(sz) <= 10:
                     is_sz = False
                 break
             if val0 != 0 and val1 == 0 and val0 in self.PRINTABLES:

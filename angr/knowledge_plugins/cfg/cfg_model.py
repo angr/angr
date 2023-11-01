@@ -772,6 +772,20 @@ class CFGModel(Serializable):
 
         pointer_size = self.project.arch.bytes
 
+        # who's using it?
+        irsb_addr, stmt_idx = None, None
+        if xrefs is not None and seg_list is not None:
+            try:
+                ref: "XRef" = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
+                irsb_addr = ref.block_addr
+            except StopIteration:
+                pass
+        if irsb_addr is not None and isinstance(self.project.loader.main_object, cle.MetaELF):
+            plt_entry = self.project.loader.main_object.reverse_plt.get(irsb_addr, None)
+            if plt_entry is not None:
+                # IRSB is owned by plt!
+                return MemoryDataSort.GOTPLTEntry, pointer_size
+
         # is it in a section with zero bytes, like .bss?
         obj = self.project.loader.find_object_containing(data_addr)
         if obj is None:
@@ -818,12 +832,13 @@ class CFGModel(Serializable):
                         if running_failures > 3:
                             break
 
-                if content_holder is not None:
-                    string_data = data[: last_success * 2]
-                    if string_data.endswith(b"\x00\x00"):
-                        string_data = string_data[:-2]
-                    content_holder.append(string_data)
-                return MemoryDataSort.UnicodeString, last_success * 2
+                if last_success > 5:
+                    if content_holder is not None:
+                        string_data = data[: last_success * 2]
+                        if string_data.endswith(b"\x00\x00"):
+                            string_data = string_data[:-2]
+                        content_holder.append(string_data)
+                    return MemoryDataSort.UnicodeString, last_success * 2
 
         if data:
             try:
@@ -857,13 +872,6 @@ class CFGModel(Serializable):
                 # it's a code reference
                 # TODO: Further check if it's the beginning of an instruction
                 return MemoryDataSort.CodeReference, 0
-
-        # who's using it?
-        if irsb_addr is not None and isinstance(self.project.loader.main_object, cle.MetaELF):
-            plt_entry = self.project.loader.main_object.reverse_plt.get(irsb_addr, None)
-            if plt_entry is not None:
-                # IRSB is owned by plt!
-                return MemoryDataSort.GOTPLTEntry, pointer_size
 
         if data_type_guessing_handlers:
             for handler in data_type_guessing_handlers:
