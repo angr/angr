@@ -175,6 +175,9 @@ class Decompiler(Analysis):
             clinic.cc_graph = clinic.copy_graph()
 
         self.clinic = clinic
+        # expose a copy of the graph before structuring optimizations happen
+        # use this graph if you need a reference of exact mapping of instructions to AIL statements
+        self.unmodified_clinic_graph = clinic.copy_graph()
         self.cache = cache
         self._variable_kb = clinic.variable_kb
         self._update_progress(70.0, text="Identifying regions")
