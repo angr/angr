@@ -90,6 +90,7 @@ class Decompiler(Analysis):
         self.cache: Optional[DecompilationCache] = None
         self.options_by_class = None
         self.seq_node = None
+        self.unmodified_clinic_graph = None
 
         if decompile:
             self._decompile()
