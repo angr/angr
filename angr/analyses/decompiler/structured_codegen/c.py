@@ -12,6 +12,7 @@ from ....sim_type import (
     SimTypeInt,
     SimTypeShort,
     SimTypeChar,
+    SimTypeWideChar,
     SimTypePointer,
     SimStruct,
     SimType,
@@ -2012,14 +2013,14 @@ class CConstant(CExpression):
         return self._type
 
     @staticmethod
-    def str_to_c_str(_str):
+    def str_to_c_str(_str, prefix: str = ""):
         repr_str = repr(_str)
         base_str = repr_str[1:-1]
         if repr_str[0] == "'":
             # check if there's double quotes in the body
             if '"' in base_str:
                 base_str = base_str.replace('"', '\\"')
-        return f'"{base_str}"'
+        return f'{prefix}"{base_str}"'
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
@@ -2045,6 +2046,9 @@ class CConstant(CExpression):
             elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                 refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
                 yield CConstant.str_to_c_str(refval.content.decode("utf-8")), self
+            elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
+                refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
+                yield CConstant.str_to_c_str(refval.content.decode("utf_16_le"), prefix="L"), self
             else:
                 if isinstance(self.reference_values[self._type], int):
                     yield self.fmt_int(self.reference_values[self._type]), self
@@ -3234,15 +3238,26 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     and expr.bits == self.project.arch.bits
                     and expr.value > 0x10000
                     and expr.value in self._cfg.memory_data
-                    and self._cfg.memory_data[expr.value].sort == MemoryDataSort.String
                 ):
-                    type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
-                    reference_values[type_] = self._cfg.memory_data[expr.value]
-                    # is it a constant string?
-                    if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(
-                        self.project, expr.value
-                    ):
-                        inline_string = True
+                    md = self._cfg.memory_data[expr.value]
+                    if md.sort == MemoryDataSort.String:
+                        type_ = SimTypePointer(SimTypeChar().with_arch(self.project.arch)).with_arch(self.project.arch)
+                        reference_values[type_] = self._cfg.memory_data[expr.value]
+                        # is it a constant string?
+                        if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(
+                            self.project, expr.value
+                        ):
+                            inline_string = True
+                    elif md.sort == MemoryDataSort.UnicodeString:
+                        type_ = SimTypePointer(SimTypeWideChar().with_arch(self.project.arch)).with_arch(
+                            self.project.arch
+                        )
+                        reference_values[type_] = self._cfg.memory_data[expr.value]
+                        # is it a constant string?
+                        if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(
+                            self.project, expr.value
+                        ):
+                            inline_string = True
 
         if type_ is None:
             # default to int

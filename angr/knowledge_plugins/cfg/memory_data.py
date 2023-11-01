@@ -122,7 +122,7 @@ class MemoryData(Serializable):
             self.content = loader.memory.load(
                 self.addr, self.reference_size if self.reference_size is not None else self.size
             )
-            while self.content.endswith(b"\x00\x00"):
+            if self.content.endswith(b"\x00\x00"):
                 self.content = self.content[:-2]
         else:
             # FIXME: Other types are not supported yet

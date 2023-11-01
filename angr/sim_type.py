@@ -498,6 +498,52 @@ class SimTypeChar(SimTypeReg):
         return self.__class__(signed=self.signed, label=self.label)
 
 
+class SimTypeWideChar(SimTypeReg):
+    """
+    SimTypeWideChar is a type that specifies a wide character (a UTF-16 character).
+    """
+
+    _base_name = "char"
+
+    def __init__(self, signed=True, label=None):
+        """
+        :param label: the type label.
+        """
+        SimTypeReg.__init__(self, 16, label=label)
+        self.signed = signed
+
+    def __repr__(self):
+        return "wchar"
+
+    def store(self, state, addr, value):
+        self._size = state.arch.byte_width
+        try:
+            super().store(state, addr, value)
+        except TypeError:
+            if isinstance(value, bytes) and len(value) == 2:
+                value = state.solver.BVV(value[0], state.arch.byte_width)
+                super().store(state, addr, value)
+            else:
+                raise
+
+    def extract(self, state, addr, concrete=False):
+        self._size = state.arch.byte_width
+
+        out = super().extract(state, addr, concrete)
+        if concrete:
+            return bytes([out])
+        return out
+
+    def _init_str(self):
+        return "{}({})".format(
+            self.__class__.__name__,
+            ('label="%s"' % self.label) if self.label is not None else "",
+        )
+
+    def copy(self):
+        return self.__class__(signed=self.signed, label=self.label)
+
+
 class SimTypeBool(SimTypeChar):
     _base_name = "bool"
 

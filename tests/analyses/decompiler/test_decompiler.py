@@ -3121,6 +3121,23 @@ class TestDecompiler(unittest.TestCase):
         assert rol_count == 44
         assert ror_count == 20
 
+    @structuring_algo("phoenix")
+    def test_decompiling_function_with_inline_unicode_strings(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "aaba7db353eb9400e3471eaaa1cf0105f6d1fab0ce63f1a2665c8ba0e8963a05.bin"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x1A590]
+
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert 'L"\\\\Registry\\\\Machine\\\\SYSTEM\\\\CurrentControlSet\\\\Control\\\\WinApi"' in d.codegen.text
+        assert 'L"WinDeviceAddress"' in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

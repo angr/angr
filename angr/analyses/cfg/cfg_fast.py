@@ -1017,6 +1017,40 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # no string is found
         return 0
 
+    def _scan_for_printable_widestrings(self, start_addr: int):
+        addr = start_addr
+        sz = []
+        is_sz = True
+
+        # Get data until we meet two null bytes
+        while self._inside_regions(addr):
+            l.debug("Searching address %x", addr)
+            val0 = self._load_a_byte_as_int(addr)
+            if val0 is None:
+                break
+            val1 = self._load_a_byte_as_int(addr + 1)
+            if val1 is None:
+                break
+            if val0 == 0 and val1 == 0:
+                if len(sz) <= 10:
+                    is_sz = False
+                break
+            if val0 != 0 and val1 == 0 and val0 in self.PRINTABLES:
+                sz += [val0, val1]
+                addr += 2
+                continue
+
+            is_sz = False
+            break
+
+        if sz and is_sz:
+            l.debug("Got a wide-string of %d wide chars", len(sz))
+            string_length = len(sz) + 2
+            return string_length
+
+        # no wide string is found
+        return 0
+
     def _scan_for_repeating_bytes(self, start_addr, repeating_byte, threshold=2):
         """
         Scan from a given address and determine the occurrences of a given byte.
@@ -1061,6 +1095,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         while True:
             string_length = self._scan_for_printable_strings(start_addr)
+            if string_length == 0:
+                string_length = self._scan_for_printable_widestrings(start_addr)
+
             if string_length:
                 self._seg_list.occupy(start_addr, string_length, "string")
                 start_addr += string_length
