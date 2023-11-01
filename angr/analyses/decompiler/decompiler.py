@@ -90,6 +90,7 @@ class Decompiler(Analysis):
         self.cache: Optional[DecompilationCache] = None
         self.options_by_class = None
         self.seq_node = None
+        self.unmodified_clinic_graph = None
 
         if decompile:
             self._decompile()
@@ -183,6 +184,9 @@ class Decompiler(Analysis):
             # the function is empty
             return
 
+        # expose a copy of the graph before structuring optimizations happen
+        # use this graph if you need a reference of exact mapping of instructions to AIL statements
+        self.unmodified_clinic_graph = clinic.copy_graph()
         cond_proc = ConditionProcessor(self.project.arch)
 
         clinic.graph = self._run_graph_simplification_passes(
