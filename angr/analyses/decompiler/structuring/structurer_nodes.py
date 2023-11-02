@@ -3,6 +3,7 @@ from typing import List, Tuple, Any, Optional, Union, OrderedDict as ODict
 
 import claripy
 import ailment
+import ailment.utils
 
 
 INDENT_DELTA = 2
@@ -387,11 +388,7 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
     Describes a switch-case head. This is only created by LoweredSwitchSimplifier.
     """
 
-    __slots__ = (
-        "addr",
-        "switch_variable",
-        "case_addrs",
-    )
+    __slots__ = ("addr", "switch_variable", "case_addrs", "_case_addrs_str")
 
     def __init__(self, idx, switch_variable, case_addrs, **kwargs):
         super().__init__(idx, **kwargs)
@@ -399,9 +396,18 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
         # original cmp node, case value | "default", address of the case node, idx of the case node,
         # address of the next cmp node
         self.case_addrs: List[Tuple[ailment.Block, Union[int, str], int, Optional[int], int]] = case_addrs
+        # a string representation of the addresses of all cases, used for hashing
+        self._case_addrs_str = str(sorted([c[0].addr for c in self.case_addrs if c[0] is not None]))
 
     def __repr__(self):
         return f"SwitchCaseHead: switch {self.switch_variable} with {len(self.case_addrs)} cases"
 
     def __str__(self):
         return f"switch ({str(self.switch_variable)}): {len(self.case_addrs)} cases"
+
+    __hash__ = ailment.statement.TaggedObject.__hash__
+
+    def _hash_core(self):
+        return ailment.utils.stable_hash(
+            (IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str)
+        )
