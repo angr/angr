@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Optional
 
 import networkx
 from cle import SymbolType
@@ -36,6 +36,8 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from angr.analyses.typehoon.typevars import TypeVariable, TypeConstraint
+    from .structured_codegen.c import CStructuredCodeGenerator
+    from .structured_codegen.base import BaseStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)
 
@@ -85,6 +87,7 @@ class Decompiler(Analysis):
         clinic_skip_stages=(),
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        codegen_cls=CStructuredCodeGenerator,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -162,7 +165,8 @@ class Decompiler(Analysis):
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
         self._clinic_skip_stages = clinic_skip_stages
-        self.codegen: CStructuredCodeGenerator | None = None
+        self.codegen: Optional["BaseStructuredCodeGenerator"] = None
+        self.codegen_cls = codegen_cls
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
         self.seq_node: SequenceNode | None = None
@@ -425,15 +429,13 @@ class Decompiler(Analysis):
 
             if self._clinic_end_stage is None or self._clinic_end_stage >= ClinicStage.RECOVER_VARIABLES:
                 self._update_progress(85.0, text="Generating code")
-                codegen = self.project.analyses.StructuredCodeGenerator(
+                codegen = self.project.analyses[self.codegen_cls].prep(kb=self.kb, fail_fast=self._fail_fast)(
                     self.func,
                     seq_node,
                     cfg=self._cfg,
                     ail_graph=clinic.graph,
                     flavor=self._flavor,
                     func_args=clinic.arg_list,
-                    kb=self.kb,
-                    fail_fast=self._fail_fast,
                     variable_kb=clinic.variable_kb,
                     expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                     stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
