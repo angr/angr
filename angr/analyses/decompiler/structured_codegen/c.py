@@ -274,9 +274,6 @@ class CConstruct:
 
             last_insn_addr = None
 
-            # track all Function Calls for highlighting
-            used_func_calls = set()
-
             # track all variables so we can tell if this is a declaration or not
             used_vars = set()
 
@@ -311,15 +308,11 @@ class CConstruct:
                             CBinaryOp,
                             CUnaryOp,
                             CAssignment,
+                            CFunctionCall,
                         ),
                     ):
                         if pos_to_node is not None:
                             pos_to_node.add_mapping(pos, len(s), obj)
-                    elif isinstance(obj, CFunctionCall):
-                        if obj not in used_func_calls:
-                            used_func_calls.add(obj)
-                            if pos_to_node is not None:
-                                pos_to_node.add_mapping(pos, len(s), obj)
 
                 # add (), {}, [], and [20] to mapping for highlighting as well as the full functions name
                 elif isinstance(obj, (CClosingObject, CFunction, CArrayTypeLength, CStructFieldNameDef)):
@@ -1248,15 +1241,15 @@ class CFunctionCall(CStatement, CExpression):
 
         for i, arg in enumerate(self.args):
             if i:
-                yield ", ", self
+                yield ", ", None
             yield from CExpression._try_c_repr_chunks(arg)
 
         yield ")", paren
 
         if not self.is_expr and not asexpr:
-            yield ";", self
+            yield ";", None
             if not self.returning:
-                yield " /* do not return */", self
+                yield " /* do not return */", None
             yield "\n", None
 
 
