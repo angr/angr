@@ -394,6 +394,14 @@ def add_labels(graph: networkx.DiGraph):
     return new_graph
 
 
+def update_labels(graph: networkx.DiGraph):
+    """
+    A utility function to recreate the labels for every node in an AIL graph. This useful when you are working with
+    a graph where only _some_ of the nodes have labels.
+    """
+    return add_labels(remove_labels(graph))
+
+
 def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
