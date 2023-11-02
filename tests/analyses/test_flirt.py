@@ -7,10 +7,11 @@ import unittest
 
 import angr
 
-from ..common import bin_location
+from ..common import bin_location, slow_test
 
 
 class TestFlirt(unittest.TestCase):
+    @slow_test
     def test_amd64_elf_static_libc_ubuntu_2004(self):
         binary_path = os.path.join(bin_location, "tests", "x86_64", "elf_with_static_libc_ubuntu_2004_stripped")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
@@ -25,6 +26,7 @@ class TestFlirt(unittest.TestCase):
         assert cfg.functions[0x436980].is_default_name is False
         assert cfg.functions[0x436980].from_signature == "flirt"
 
+    @slow_test
     def test_armhf_elf_static_using_armel_libc(self):
         binary_path = os.path.join(bin_location, "tests", "armhf", "amp_challenge_07.gcc")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
