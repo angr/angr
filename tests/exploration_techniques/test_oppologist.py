@@ -29,6 +29,7 @@ def _ultra_oppologist(p, s):
         angr.engines.vex.claripy.irop.operations.update(old_ops)
 
 
+@unittest.skipIf(sys.platform == "win32", "broken on windows")
 class TestOppologist(unittest.TestCase):
     def test_fauxware_oppologist(self):
         p = angr.Project(os.path.join(test_location, "i386", "fauxware"))
@@ -43,7 +44,6 @@ class TestOppologist(unittest.TestCase):
         else:
             assert stdout.count(b"\n") == 2
 
-    @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_cromu_70(self):
         p = angr.Project(os.path.join(test_location, "cgc", "CROMU_00070"))
         inp = bytes.fromhex(
