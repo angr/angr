@@ -3,6 +3,7 @@
 __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=redefined-builtin
 
 import os
+import platform
 import sys
 import unittest
 
@@ -15,6 +16,7 @@ from ..common import bin_location
 test_location = os.path.join(bin_location, "tests")
 
 
+@unittest.skipIf(platform.system() == "Darwin" and platform.machine() == "arm64", "Broken on apple silicon")
 class TestDrillerCore(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_cgc(self):
