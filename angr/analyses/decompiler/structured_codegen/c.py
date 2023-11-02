@@ -4371,5 +4371,5 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
         return obj
 
 
-StructuredCodeGenerator = CStructuredCodeGenerator
-register_analysis(StructuredCodeGenerator, "StructuredCodeGenerator")
+# StructuredCodeGenerator = CStructuredCodeGenerator
+register_analysis(CStructuredCodeGenerator, "CStructuredCodeGenerator")
