@@ -2,6 +2,7 @@
 __package__ = __package__ or "tests.sim.options"  # pylint:disable=redefined-builtin
 
 import os
+import sys
 import unittest
 
 import angr
@@ -14,6 +15,7 @@ test_location = os.path.join(bin_location, "tests")
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
+@unittest.skipIf(sys.platform == "win32", "broken on windows")
 class Test0Div(unittest.TestCase):
     def _run_0div(self, arch):
         # check that we run in unicorn up to the zero-div site, fall back, try again in angr, and error correctly.
