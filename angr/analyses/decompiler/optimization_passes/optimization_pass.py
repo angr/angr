@@ -249,11 +249,14 @@ class StructuringOptimizationPass(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
 
-    def __init__(self, func, prevent_new_gotos=True, recover_structure_fails=True, max_opt_iters=1, **kwargs):
+    def __init__(
+        self, func, prevent_new_gotos=True, recover_structure_fails=True, max_opt_iters=1, simplify_ail=True, **kwargs
+    ):
         super().__init__(func, **kwargs)
         self._prevent_new_gotos = prevent_new_gotos
         self._recover_structure_fails = recover_structure_fails
         self._max_opt_iters = max_opt_iters
+        self._simplify_ail = simplify_ail
 
         self._goto_manager: Optional[GotoManager] = None
         self._prev_graph: Optional[networkx.DiGraph] = None
@@ -280,12 +283,18 @@ class StructuringOptimizationPass(OptimizationPass):
             if not updates:
                 self.out_graph = None
 
+        # analysis is complete, no out_graph means it failed somewhere along the way
         if self.out_graph is None:
             return
 
         if not self._graph_is_structurable(self.out_graph):
             self.out_graph = None
             return
+
+        # simplify the AIL graph
+        if self._simplify_ail:
+            # this should not (TM) change the structure of the graph but is needed for later optimizations
+            self.out_graph = self._simplify_ail_graph(self.out_graph)
 
         if self._prevent_new_gotos and (len(self._goto_manager.gotos) > len(initial_gotos)):
             self.out_graph = None
@@ -307,6 +316,14 @@ class StructuringOptimizationPass(OptimizationPass):
                 if self._recover_structure_fails:
                     self.out_graph = self._prev_graph
                 break
+
+    def _simplify_ail_graph(self, graph):
+        simp = self.project.analyses.AILSimplifier(
+            self._func,
+            func_graph=graph,
+            gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
+        )
+        return simp.func_graph if simp.simplified else graph
 
     def _graph_is_structurable(self, graph, readd_labels=False) -> bool:
         """
