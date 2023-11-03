@@ -97,6 +97,22 @@ class VEXIRSBScanner(SimEngineLightVEXMixin):
             if tmp_src in self.tmps_with_64bit_regs:
                 self.tmps_converted_to_32bit.add(tmp_src)
 
+    def _handle_16HLto32(self, expr):
+        pass
+
+    def _handle_Cmp_v(self, expr, _vector_size, _vector_count):
+        pass
+
+    _handle_CmpEQ_v = _handle_Cmp_v
+    _handle_CmpNE_v = _handle_Cmp_v
+    _handle_CmpLE_v = _handle_Cmp_v
+    _handle_CmpLT_v = _handle_Cmp_v
+    _handle_CmpGE_v = _handle_Cmp_v
+    _handle_CmpGT_v = _handle_Cmp_v
+
+    def _handle_ExpCmpNE64(self, expr):
+        pass
+
     def _handle_CCall(self, expr):
         pass
 
