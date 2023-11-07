@@ -547,7 +547,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         to_size = expr_1.size()
         if signed:
             quotient = expr_0.SDiv(claripy.SignExt(from_size - to_size, expr_1))
-            remainder = expr_1.SMod(claripy.SignExt(from_size - to_size, expr_1))
+            remainder = expr_0.SMod(claripy.SignExt(from_size - to_size, expr_1))
             quotient_size = to_size
             remainder_size = to_size
             return claripy.Concat(
