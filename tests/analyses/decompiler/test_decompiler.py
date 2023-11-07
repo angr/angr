@@ -27,7 +27,7 @@ from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.misc.testing import is_testing
 from angr.utils.library import convert_cproto_to_py
 
-from ...common import bin_location
+from ...common import bin_location, slow_test
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -393,6 +393,7 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
+    @slow_test
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_0(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
@@ -602,6 +603,7 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert False, "Did not find statement 'puts(\"Empty title\");'"
 
+    @slow_test
     @for_all_structuring_algos
     def test_decompiling_libsoap(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armel", "libsoap.so")
@@ -1257,6 +1259,7 @@ class TestDecompiler(unittest.TestCase):
         )
         assert "\"For complete documentation, run: info coreutils '%s invocation'\\n\"" in d.codegen.text
 
+    @slow_test
     @for_all_structuring_algos
     def test_decompiling_x8664_cvs(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "cvs")
@@ -1662,6 +1665,7 @@ class TestDecompiler(unittest.TestCase):
         assert "b_ptr += 1;" in d.codegen.text
         assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
 
+    @slow_test
     @for_all_structuring_algos
     def test_call_return_variable_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_gcc_O0")
