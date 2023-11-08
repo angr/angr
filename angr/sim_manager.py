@@ -516,7 +516,7 @@ class SimulationManager:
 
             try:
                 # 1. Check if current state ip is a 'breaking address'
-                if state.addr in state.sypy_path.breaking_addr_to_loop_addr.keys():
+                if hasattr(state, 'sypy_path') and state.addr in state.sypy_path.breaking_addr_to_loop_addr.keys():
                     loop_addr = state.sypy_path.breaking_addr_to_loop_addr[state.addr]
 
                     # 2. Check if the loop is already executed
@@ -536,8 +536,9 @@ class SimulationManager:
                             successors.unsat_successors.remove(successor_to_move)
                             successors.flat_successors.append(successor_to_move)
             except Exception as e:
-                print(e)
-                pass
+                import traceback
+                traceback.print_exc()
+                raise e
             # End of Hongwei's code
 
             stashes = {
