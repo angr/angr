@@ -251,6 +251,10 @@ class Jump(Statement):
             return f"Goto({self.target}.{self.target_idx})"
         return "Goto(%s)" % self.target
 
+    @property
+    def depth(self):
+        return self.target.depth
+
     def replace(self, old_expr, new_expr):
         r, replaced_target = self.target.replace(old_expr, new_expr)
 
