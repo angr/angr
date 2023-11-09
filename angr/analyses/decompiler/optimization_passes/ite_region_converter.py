@@ -146,14 +146,15 @@ class ITERegionConverter(OptimizationPass):
         #
 
         new_region_head = region_head.copy()
+        addr_obj = true_stmt.src if "ins_addr" in true_stmt.src.tags else true_stmt
         ternary_expr = ITE(
             None,
             region_head.statements[-1].condition,
             true_stmt.src,
             false_stmt.src,
-            ins_addr=true_stmt.src.ins_addr,
-            vex_block_addr=true_stmt.src.vex_block_addr,
-            vex_stmt_idx=true_stmt.src.vex_stmt_idx,
+            ins_addr=addr_obj.ins_addr,
+            vex_block_addr=addr_obj.vex_block_addr,
+            vex_stmt_idx=addr_obj.vex_stmt_idx,
         )
         new_assignment = true_stmt.copy()
         new_assignment.src = ternary_expr
