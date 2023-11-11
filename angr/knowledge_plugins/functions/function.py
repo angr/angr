@@ -648,6 +648,14 @@ class Function(Serializable):
         """
         return self.binary.loader.find_symbol(self.addr)
 
+    @property
+    def pseudocode(self) -> str:
+        """
+        :return: the function's pseudocode
+        """
+        dec = self.project.analyses.Decompiler(self, cfg=self._function_manager._kb.cfgs.get_most_accurate())
+        return dec.codegen.text
+
     def add_jumpout_site(self, node):
         """
         Add a custom jumpout site.
