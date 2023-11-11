@@ -989,6 +989,34 @@ class SimEngineRDVEX(
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
 
+    def _handle_CmpGT(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        e0 = expr_0.one_value()
+        e1 = expr_1.one_value()
+        if e0 is not None and e1 is not None:
+            if not e0.symbolic and not e1.symbolic:
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value > e1.concrete_value else claripy.BVV(0, 1))
+            elif e0 is e1:
+                return MultiValues(claripy.BVV(0, 1))
+        return MultiValues(self.state.top(1))
+
+    def _handle_CmpGE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        e0 = expr_0.one_value()
+        e1 = expr_1.one_value()
+        if e0 is not None and e1 is not None:
+            if not e0.symbolic and not e1.symbolic:
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value >= e1.concrete_value else claripy.BVV(0, 1))
+            elif e0 is e1:
+                return MultiValues(claripy.BVV(0, 1))
+        return MultiValues(self.state.top(1))
+
     # ppc only
     def _handle_CmpORD(self, expr):
         arg0, arg1 = expr.args
