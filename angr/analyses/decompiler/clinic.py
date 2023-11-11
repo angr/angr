@@ -1399,7 +1399,10 @@ class Clinic(Analysis):
             )
             end_block_ail = ailment.IRSBConverter.convert(end_block.vex, self._ail_manager)
         else:
-            end_block_ail = next(iter(b for b in ail_graph if b.addr == end_block_addr))
+            try:
+                end_block_ail = next(iter(b for b in ail_graph if b.addr == end_block_addr))
+            except StopIteration:
+                return None
 
         # last check: if the first instruction of the end block has Sar, then we bail (due to the peephole optimization
         # SarToSignedDiv)
