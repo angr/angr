@@ -22,7 +22,13 @@ class AMD64PeIatResolver(IndirectJumpResolver):
         if jumpkind not in {"Ijk_Call", "Ijk_Boring"}:
             return False
 
-        opnd = self.project.factory.block(addr).capstone.insns[-1].insn.operands[0]
+        insns = self.project.factory.block(addr).capstone.insns
+        if not insns:
+            return False
+        if not insns[-1].insn.operands:
+            return False
+
+        opnd = insns[-1].insn.operands[0]
         # Must be of the form: call qword ptr [0xABCD]
         if opnd.type == X86_OP_MEM and opnd.mem.disp and opnd.mem.base == X86_REG_RIP and opnd.mem.index == 0:
             return True
