@@ -88,7 +88,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             global_region=self.global_region.copy(),
             typevars=self.typevars,
             type_constraints=self.type_constraints,
-            delayed_type_constraints=self.delayed_type_constraints.copy(),
+            delayed_type_constraints=self.delayed_type_constraints,
             stack_offset_typevars=dict(self.stack_offset_typevars),
             project=self.project,
             ret_val_size=self.ret_val_size,
@@ -127,12 +127,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         typevars = self.typevars
         type_constraints = self.type_constraints
-        delayed_typeconstraints = self.delayed_type_constraints.copy().clean()
-        for other in others:
-            for v, cons in other.delayed_type_constraints.items():
-                delayed_typeconstraints[v] |= cons
-
-        merge_occurred |= self.delayed_type_constraints != delayed_typeconstraints
+        delayed_typeconstraints = self.delayed_type_constraints
 
         # add subtype constraints for all replacements
         for v0, v1 in self.phi_variables.items():
@@ -277,6 +272,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.var_to_typevars: DefaultDict[SimVariable, Set[TypeVariable]] = defaultdict(set)
         self.typevars = None
         self.type_constraints = None
+        self.delayed_type_constraints = None
         self.ret_val_size = None
 
         self._analyze()
@@ -293,6 +289,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     def _pre_analysis(self):
         self.typevars = TypeVariables()
         self.type_constraints = set()
+        self.delayed_type_constraints = defaultdict(set)
 
         self.initialize_dominance_frontiers()
 
@@ -322,6 +319,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             project=self.project,
             typevars=self.typevars,
             type_constraints=self.type_constraints,
+            delayed_type_constraints=self.delayed_type_constraints,
         )
         initial_sp = state.stack_address(self.project.arch.bytes if self.project.arch.call_pushes_ret else 0)
         if self.project.arch.sp_offset is not None:
@@ -477,6 +475,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                     self.type_constraints.add(Equivalence(sorted_typevars[0], tv))
 
         self.variable_manager[self.function.addr].ret_val_size = self.ret_val_size
+
+        self.delayed_type_constraints = None
 
     #
     # Private methods

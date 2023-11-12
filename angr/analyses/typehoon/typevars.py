@@ -2,8 +2,6 @@
 from typing import Dict, Any, Optional, Set, TYPE_CHECKING
 from itertools import count
 
-from ...utils.cowdict import ChainMapCOW
-
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
 
@@ -346,8 +344,8 @@ class TypeVariables:
     )
 
     def __init__(self):
-        self._typevars: Dict["SimVariable", Set[TypeVariable]] = ChainMapCOW(collapse_threshold=25)
-        self._last_typevars: Dict[SimVariable, TypeVariable] = ChainMapCOW(collapse_threshold=25)
+        self._typevars: Dict["SimVariable", Set[TypeVariable]] = {}
+        self._last_typevars: Dict[SimVariable, TypeVariable] = {}
 
     def copy(self):
         copied = TypeVariables()
@@ -364,7 +362,6 @@ class TypeVariables:
         return "{TypeVars: %d items}" % len(self._typevars)
 
     def add_type_variable(self, var: "SimVariable", codeloc, typevar: TypeVariable):  # pylint:disable=unused-argument
-        self._typevars = self._typevars.clean()
         if var not in self._typevars:
             self._typevars[var] = set()
         elif typevar in self._typevars[var]:
