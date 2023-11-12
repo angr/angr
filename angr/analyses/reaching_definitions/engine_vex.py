@@ -1029,6 +1029,8 @@ class SimEngineRDVEX(
 
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
+                e0 = e0.concrete_value
+                e1 = e1.concrete_value
                 if e0 < e1:
                     return MultiValues(claripy.BVV(0x8, bits))
                 elif e0 > e1:
