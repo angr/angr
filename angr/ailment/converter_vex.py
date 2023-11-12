@@ -3,6 +3,7 @@ import logging
 import pyvex
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.vex.claripy.irop import vexop_to_simop
+from angr.errors import UnsupportedIROpError
 
 from .block import Block
 from .statement import Assignment, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
@@ -44,7 +45,12 @@ class VEXExprConverter(Converter):
         """
         func = EXPRESSION_MAPPINGS.get(type(expr))
         if func is not None:
-            return func(expr, manager)
+            # When something goes wrong, return a DirtyExpression instead of crashing the program
+            try:
+                return func(expr, manager)
+            except UnsupportedIROpError:
+                log.warning("VEXExprConverter: Unsupported IROp %s.", expr.op)
+                return DirtyExpression(manager.next_atom(), expr, bits=expr.result_size(manager.tyenv))
 
         if isinstance(expr, pyvex.const.IRConst):
             return VEXExprConverter.const_n(expr, manager)
