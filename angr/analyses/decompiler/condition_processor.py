@@ -102,6 +102,7 @@ _ail2claripy_op_mapping = {
     "Shr": lambda expr, conv, _: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
     "Shl": lambda expr, conv, _: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
     "Sar": lambda expr, conv, _: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
+    "Concat": lambda expr, conv, _: claripy.Concat(*[conv(operand) for operand in expr.operands]),
     # There are no corresponding claripy operations for the following operations
     "DivMod": lambda expr, _, m: _dummy_bvs(expr, m),
     "CmpF": lambda expr, _, m: _dummy_bvs(expr, m),
@@ -686,6 +687,8 @@ class ConditionProcessor:
             if cond_.args[0] is True
             else ailment.Expr.Const(None, None, False, 1, **tags),
             "Extract": lambda cond_, tags: self._convert_extract(*cond_.args, tags, memo=memo),
+            "ZeroExt": lambda cond_, tags: _binary_op_reduce("Concat", [claripy.BVV(0, cond_.args[0]),
+                                                                        cond_.args[1]], tags)
         }
 
         if cond.op in _mapping:
