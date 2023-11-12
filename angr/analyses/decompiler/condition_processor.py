@@ -687,8 +687,9 @@ class ConditionProcessor:
             if cond_.args[0] is True
             else ailment.Expr.Const(None, None, False, 1, **tags),
             "Extract": lambda cond_, tags: self._convert_extract(*cond_.args, tags, memo=memo),
-            "ZeroExt": lambda cond_, tags: _binary_op_reduce("Concat", [claripy.BVV(0, cond_.args[0]),
-                                                                        cond_.args[1]], tags)
+            "ZeroExt": lambda cond_, tags: _binary_op_reduce(
+                "Concat", [claripy.BVV(0, cond_.args[0]), cond_.args[1]], tags
+            ),
         }
 
         if cond.op in _mapping:
