@@ -1204,13 +1204,12 @@ class SimIROp:
         for i in range(0, len(vec), 2):
             if i == 0:
                 result_vector.append(claripy.BVV(0, self._vector_size))
-            if self._vector_signed == 'S':
+            if self._vector_signed == "S":
                 multiplied_value = vec[i].sign_extend(self._vector_size) * vec[i + 1].sign_extend(self._vector_size)
             else:
                 multiplied_value = vec[i].zero_extend(self._vector_size) * vec[i + 1].zero_extend(self._vector_size)
             result_vector.append(multiplied_value)
         return claripy.Concat(*reversed(result_vector))
-
 
     # def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
