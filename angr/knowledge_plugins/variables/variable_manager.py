@@ -109,6 +109,9 @@ class VariableManagerInternal(Serializable):
         self.variable_to_types: Dict[SimVariable, SimType] = {}
         self.variables_with_manual_types = set()
 
+        # optimization
+        self._variables_without_writes = set()
+
         self.ret_val_size = None
 
     #
@@ -314,6 +317,8 @@ class VariableManagerInternal(Serializable):
 
             region.add_variable(offset, var)
 
+        model._variables_without_writes = model.get_variables_without_writes()
+
         return model
 
     #
@@ -358,6 +363,7 @@ class VariableManagerInternal(Serializable):
             pass
         region.add_variable(start, variable)
         self._variables.add(variable)
+        self._variables_without_writes.add(variable)
 
     def set_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":
@@ -379,6 +385,7 @@ class VariableManagerInternal(Serializable):
             pass
         region.set_variable(start, variable)
         self._variables.add(variable)
+        self._variables_without_writes.add(variable)
 
     def write_to(self, variable, offset, location, overwrite=False, atom=None):
         self._record_variable_access(
@@ -412,6 +419,8 @@ class VariableManagerInternal(Serializable):
         else:
             self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
         self.record_variable(location, variable, offset, overwrite=overwrite, atom=atom)
+        if sort == VariableAccessSort.WRITE and variable in self._variables_without_writes:
+            self._variables_without_writes.discard(variable)
 
     def record_variable(self, location: "CodeLocation", variable, offset, overwrite=False, atom=None):
         self._variables.add(variable)
@@ -693,7 +702,7 @@ class VariableManagerInternal(Serializable):
             variables[phi] = self._phi_variables[phi]
         return variables
 
-    def input_variables(self, exclude_specials=True):
+    def get_variables_without_writes(self) -> List[SimVariable]:
         """
         Get all variables that have never been written to.
 
@@ -703,16 +712,35 @@ class VariableManagerInternal(Serializable):
         def has_write_access(accesses):
             return any(acc for acc in accesses if acc.access_type == VariableAccessSort.WRITE)
 
-        def has_read_access(accesses):
-            return any(acc for acc in accesses if acc.access_type == VariableAccessSort.READ)
-
         input_variables = []
 
         for variable, accesses in self._variable_accesses.items():
             if variable in self._phi_variables:
                 # a phi variable is definitely not an input variable
                 continue
-            if not has_write_access(accesses) and has_read_access(accesses):
+            if not has_write_access(accesses):
+                input_variables.append(variable)
+
+        return input_variables
+
+    def input_variables(self, exclude_specials: bool = True):
+        """
+        Get all variables that have never been written to.
+
+        :return: A list of variables that are never written to.
+        """
+
+        def has_read_access(accesses):
+            return any(acc for acc in accesses if acc.access_type == VariableAccessSort.READ)
+
+        input_variables = []
+
+        for variable in self._variables_without_writes:
+            if variable in self._phi_variables:
+                # a phi variable is definitely not an input variable
+                continue
+            accesses = self._variable_accesses[variable]
+            if has_read_access(accesses):
                 if not exclude_specials or not variable.category:
                     input_variables.append(variable)
 
