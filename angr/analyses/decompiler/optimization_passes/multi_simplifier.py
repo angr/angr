@@ -21,7 +21,7 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         if type(operand_0) in [Expr.Convert, Expr.Register]:
             if isinstance(operand_1, (Expr.Convert, Expr.Register)):
                 if operand_0 == operand_1:
-                    count = Expr.Const(expr.idx, None, 2, 8)
+                    count = Expr.Const(expr.idx, None, 2, operand_1.bits)
                     return Expr.BinaryOp(expr.idx, "Mul", [operand_1, count], expr.signed, **expr.tags)
         # 2*x + x = 3*x
         if Expr.BinaryOp in [type(operand_0), type(operand_1)]:
