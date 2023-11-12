@@ -199,6 +199,9 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         return state, merge_occurred
 
+    def downsize(self) -> None:
+        pass
+
     #
     # Util methods
     #
