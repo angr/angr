@@ -808,7 +808,9 @@ class PropagatorAILState(PropagatorState):
                 or isinstance(old, ailment.Expr.Register)
                 and (old.reg_offset == self.arch.sp_offset or (not bp_as_gpr and old.reg_offset == self.arch.bp_offset))
             ):
-                self._replacements[codeloc][old] = new
+                self._replacements[codeloc][old] = (
+                    new if stmt_to_remove is None else {"expr": new, "stmt_to_remove": stmt_to_remove}
+                )
                 replaced = True
         else:
             prop_count = 0
