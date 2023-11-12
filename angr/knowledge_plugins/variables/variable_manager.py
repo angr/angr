@@ -90,6 +90,7 @@ class VariableManagerInternal(Serializable):
         self._atom_to_variable: Dict[
             Union[Tuple[int, int], Tuple[int, int, int]], Dict[int, Set[Tuple[SimVariable, int]]]
         ] = defaultdict(_defaultdict_set)
+        self._ident_to_variable: Dict[str, SimVariable] = {}
         self._variable_counters = {
             "register": count(),
             "stack": count(),
@@ -108,6 +109,9 @@ class VariableManagerInternal(Serializable):
         self.types = TypesStore(self.manager._kb)
         self.variable_to_types: Dict[SimVariable, SimType] = {}
         self.variables_with_manual_types = set()
+
+        # optimization
+        self._variables_without_writes = set()
 
         self.ret_val_size = None
 
@@ -241,6 +245,7 @@ class VariableManagerInternal(Serializable):
                 model._phi_variables[var] = set()
             else:
                 model._variables.add(var)
+                model._ident_to_variable[var.ident] = var
 
         # variable accesses
         for varaccess_pb2 in cmsg.accesses:
@@ -314,6 +319,8 @@ class VariableManagerInternal(Serializable):
 
             region.add_variable(offset, var)
 
+        model._variables_without_writes = model.get_variables_without_writes()
+
         return model
 
     #
@@ -338,7 +345,7 @@ class VariableManagerInternal(Serializable):
         ident = "i%s_%d" % (prefix, next(self._variable_counters[sort]))
         return ident
 
-    def add_variable(self, sort, start, variable):
+    def add_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":
             region = self._stack_region
         elif sort == "register":
@@ -347,17 +354,17 @@ class VariableManagerInternal(Serializable):
             region = self._global_region
         else:
             raise ValueError("Unsupported sort %s in add_variable()." % sort)
-        existing = [x for x in region.get_variables_by_offset(start) if x.ident == variable.ident]
-        if len(existing) == 1:
-            var = existing[0]
-            if var.name is not None and not variable.renamed:
-                variable.name = var.name
-                variable.renamed = var.renamed
-        else:
-            # implicitly overwrite or add I guess
-            pass
+
+        # find if there is already an existing variable with the same identifier
+        if variable.ident in self._ident_to_variable:
+            existing_var = self._ident_to_variable[variable.ident]
+            if existing_var.name is not None and not variable.renamed:
+                variable.name = existing_var.name
+                variable.renamed = existing_var.renamed
+        self._ident_to_variable[variable.ident] = variable
         region.add_variable(start, variable)
         self._variables.add(variable)
+        self._variables_without_writes.add(variable)
 
     def set_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":
@@ -368,17 +375,15 @@ class VariableManagerInternal(Serializable):
             region = self._global_region
         else:
             raise ValueError("Unsupported sort %s in set_variable()." % sort)
-        existing = [x for x in region.get_variables_by_offset(start) if x.ident == variable.ident]
-        if len(existing) == 1:
-            var = existing[0]
-            if var.name is not None and not variable.renamed:
-                variable.name = var.name
-                variable.renamed = var.renamed
-        else:
-            # implicitly overwrite or add I guess
-            pass
+        # find if there is already an existing variable with the same identifier
+        if variable.ident in self._ident_to_variable:
+            existing_var = self._ident_to_variable[variable.ident]
+            if existing_var.name is not None and not variable.renamed:
+                variable.name = existing_var.name
+                variable.renamed = existing_var.renamed
         region.set_variable(start, variable)
         self._variables.add(variable)
+        self._variables_without_writes.add(variable)
 
     def write_to(self, variable, offset, location, overwrite=False, atom=None):
         self._record_variable_access(
@@ -404,17 +409,19 @@ class VariableManagerInternal(Serializable):
         overwrite=False,
         atom=None,
     ):
-        # TODO can this line be removed, should we be only adding to _variables in add_variable?
-        self._variables.add(variable)
         atom_hash = (hash(atom) & 0xFFFF_FFFF) if atom is not None else None
         if overwrite:
             self._variable_accesses[variable] = {VariableAccess(variable, sort, location, offset, atom_hash=atom_hash)}
         else:
             self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
         self.record_variable(location, variable, offset, overwrite=overwrite, atom=atom)
+        if sort == VariableAccessSort.WRITE and variable in self._variables_without_writes:
+            self._variables_without_writes.discard(variable)
 
     def record_variable(self, location: "CodeLocation", variable, offset, overwrite=False, atom=None):
-        self._variables.add(variable)
+        if variable.ident not in self._ident_to_variable:
+            self._ident_to_variable[variable.ident] = variable
+            self._variables.add(variable)
         var_and_offset = variable, offset
         atom_hash = (hash(atom) & 0xFFFF_FFFF) if atom is not None else None
         key = (
@@ -693,7 +700,7 @@ class VariableManagerInternal(Serializable):
             variables[phi] = self._phi_variables[phi]
         return variables
 
-    def input_variables(self, exclude_specials=True):
+    def get_variables_without_writes(self) -> List[SimVariable]:
         """
         Get all variables that have never been written to.
 
@@ -703,16 +710,35 @@ class VariableManagerInternal(Serializable):
         def has_write_access(accesses):
             return any(acc for acc in accesses if acc.access_type == VariableAccessSort.WRITE)
 
-        def has_read_access(accesses):
-            return any(acc for acc in accesses if acc.access_type == VariableAccessSort.READ)
-
         input_variables = []
 
         for variable, accesses in self._variable_accesses.items():
             if variable in self._phi_variables:
                 # a phi variable is definitely not an input variable
                 continue
-            if not has_write_access(accesses) and has_read_access(accesses):
+            if not has_write_access(accesses):
+                input_variables.append(variable)
+
+        return input_variables
+
+    def input_variables(self, exclude_specials: bool = True):
+        """
+        Get all variables that have never been written to.
+
+        :return: A list of variables that are never written to.
+        """
+
+        def has_read_access(accesses):
+            return any(acc for acc in accesses if acc.access_type == VariableAccessSort.READ)
+
+        input_variables = []
+
+        for variable in self._variables_without_writes:
+            if variable in self._phi_variables:
+                # a phi variable is definitely not an input variable
+                continue
+            accesses = self._variable_accesses[variable]
+            if has_read_access(accesses):
                 if not exclude_specials or not variable.category:
                     input_variables.append(variable)
 

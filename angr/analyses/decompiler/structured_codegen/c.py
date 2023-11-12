@@ -2721,6 +2721,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         o_constant, o_terms = extract_terms(expr)
 
         def bail_out():
+            if len(o_terms) == 0:
+                # probably a plain integer, return as is
+                return expr
             result = reduce(
                 lambda a1, a2: CBinaryOp("Add", a1, a2, codegen=self),
                 (
