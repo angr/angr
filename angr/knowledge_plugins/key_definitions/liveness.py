@@ -120,7 +120,7 @@ class Liveness:
         elif added_defs is not None and killed_defs is None:
             indices = added_defs
         else:
-            indices = [ ]
+            indices = []
 
         for idx in sorted(indices):
             if idx >= end_stmt_idx:
