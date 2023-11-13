@@ -113,7 +113,16 @@ class Liveness:
             else:
                 end_stmt_idx = stmt_idx + 1
 
-        for idx in sorted(chain(added_defs, killed_defs)):
+        if added_defs is not None and killed_defs is not None:
+            indices = chain(added_defs, killed_defs)
+        elif added_defs is None and killed_defs is not None:
+            indices = killed_defs
+        elif added_defs is not None and killed_defs is None:
+            indices = added_defs
+        else:
+            indices = [ ]
+
+        for idx in sorted(indices):
             if idx >= end_stmt_idx:
                 break
             if killed_defs is not None and idx in killed_defs:
