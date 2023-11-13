@@ -417,7 +417,7 @@ class ReachingDefinitionsState:
         for def_ in existing_defs:
             self.analysis.model.kill_def(def_)
         for def_ in defs:
-            self.analysis.model.add_def(def_, codeloc)
+            self.analysis.model.add_def(def_)
 
         return mv, defs
 
