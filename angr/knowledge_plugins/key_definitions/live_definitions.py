@@ -371,6 +371,11 @@ class LiveDefinitions:
                 yield anno.definition
 
     @staticmethod
+    def extract_defs_from_annotation(anno) -> Generator[Definition, None, None]:
+        if isinstance(anno, DefinitionAnnotation):
+            yield anno.definition
+
+    @staticmethod
     def extract_defs_from_mv(mv: MultiValues) -> Generator[Definition, None, None]:
         for vs in mv.values():
             for v in vs:
@@ -656,22 +661,18 @@ class LiveDefinitions:
             return
 
     def get_register_definitions(self, reg_offset: int, size: int, endness=None) -> Iterable[Definition]:
+        annotations = set()
         try:
-            values: MultiValues = self.registers.load(
-                reg_offset,
-                size=size,
-                endness=endness,
-            )
+            annotations |= set(self.registers.load_annotations(reg_offset, size))
         except SimMemoryMissingError as ex:
-            # load values and stop at the missing location
             if ex.missing_addr > reg_offset:
-                values: MultiValues = self.registers.load(
-                    reg_offset, size=ex.missing_addr - reg_offset, endness=endness
-                )
+                annotations |= set(self.registers.load_annotations(reg_offset, ex.missing_addr - reg_offset))
             else:
                 # nothing we can do
                 return
-        yield from LiveDefinitions.extract_defs_from_mv(values)
+
+        for anno in annotations:
+            yield from LiveDefinitions.extract_defs_from_annotation(anno)
 
     def get_stack_values(self, stack_offset: int, size: int, endness: str) -> Optional[MultiValues]:
         stack_addr = self.stack_offset_to_stack_addr(stack_offset)
@@ -681,10 +682,15 @@ class LiveDefinitions:
             return None
 
     def get_stack_definitions(self, stack_offset: int, size: int, endness) -> Iterable[Definition]:
-        mv = self.get_stack_values(stack_offset, size, endness)
-        if not mv:
+        annotations = set()
+        try:
+            stack_addr = self.stack_offset_to_stack_addr(stack_offset)
+            annotations |= set(self.stack.load_annotations(stack_addr, size))
+        except SimMemoryMissingError:
             return
-        yield from LiveDefinitions.extract_defs_from_mv(mv)
+
+        for anno in annotations:
+            yield from LiveDefinitions.extract_defs_from_annotation(anno)
 
     def get_heap_definitions(self, heap_addr: int, size: int, endness) -> Iterable[Definition]:
         try:
@@ -694,11 +700,14 @@ class LiveDefinitions:
         yield from LiveDefinitions.extract_defs_from_mv(mv)
 
     def get_memory_definitions(self, addr: int, size: int, endness) -> Iterable[Definition]:
+        annotations = set()
         try:
-            values = self.memory.load(addr, size=size, endness=endness)
+            annotations |= set(self.memory.load_annotations(addr, size))
         except SimMemoryMissingError:
             return
-        yield from LiveDefinitions.extract_defs_from_mv(values)
+
+        for anno in annotations:
+            yield from LiveDefinitions.extract_defs_from_annotation(anno)
 
     @deprecated("get_definitions")
     def get_definitions_from_atoms(self, atoms: Iterable[Atom]) -> Iterable[Definition]:

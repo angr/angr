@@ -187,6 +187,7 @@ from .paged_memory.paged_memory_mixin import (
 )
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
 from .paged_memory.stack_allocation_mixin import StackAllocationMixin
+from .paged_memory.paged_memory_multivalue_mixin import PagedMemoryMultiValueMixin
 from .paged_memory.pages import *
 
 from .slotted_memory import SlottedMemoryMixin
@@ -353,6 +354,7 @@ class MultiValuedMemory(
     DefaultFillerMixin,
     MultiValueMergerMixin,
     PagedMemoryMixin,
+    PagedMemoryMultiValueMixin,
 ):
     def _default_value(self, addr, size, **kwargs):
         # TODO: Make _default_value() a separate Mixin
