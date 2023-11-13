@@ -1,6 +1,7 @@
 from typing import DefaultDict, Optional, List, Set, Tuple, Dict, TYPE_CHECKING
 
 from collections import defaultdict
+from itertools import chain
 
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.knowledge_plugins.key_definitions.atoms import Tmp
@@ -94,8 +95,9 @@ class Liveness:
     ) -> Set["Definition"]:
         block: BlockAddrType = block_addr, block_idx
         if block not in self.blockstart_to_defs:
-            return set()
-        defs = self.blockstart_to_defs[block].copy()
+            defs = set()
+        else:
+            defs = self.blockstart_to_defs[block].copy()
 
         if stmt_idx is None:
             return defs
@@ -111,7 +113,9 @@ class Liveness:
             else:
                 end_stmt_idx = stmt_idx + 1
 
-        for idx in range(0, end_stmt_idx):
+        for idx in sorted(chain(added_defs, killed_defs)):
+            if idx >= end_stmt_idx:
+                break
             if killed_defs is not None and idx in killed_defs:
                 defs.difference_update(killed_defs[idx])
             if added_defs is not None and idx in added_defs:

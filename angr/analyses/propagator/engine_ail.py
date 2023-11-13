@@ -1204,7 +1204,7 @@ class SimEnginePropagatorAIL(
                     o1_expr if o1_expr is not None else expr.operands[1],
                 ],
                 expr.signed,
-                bits=o0_expr.bits * 2,
+                bits=expr.bits,
                 floating_point=expr.floating_point,
                 rounding_mode=expr.rounding_mode,
                 **expr.tags,
