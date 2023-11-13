@@ -63,7 +63,7 @@ class RDAStateInitializer:
         self.initialize_architectural_state(state, func_addr, ex_loc, rtoc_value)
 
         if state.analysis is not None:
-            state.analysis.model.complete_loc()
+            state.analysis.model.make_liveness_snapshot()
 
     def initialize_all_function_arguments(
         self,
@@ -147,7 +147,7 @@ class RDAStateInitializer:
             rtoc_def = Definition(rtoc_atom, ex_loc, tags={InitialValueTag()})
             state.all_definitions.add(rtoc_def)
             if state.analysis is not None:
-                state.analysis.model.add_def(rtoc_def, ex_loc)
+                state.analysis.model.add_def(rtoc_def)
             rtoc = state.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
             state.registers.store(offset, rtoc)
         elif self.arch.name.startswith("MIPS64"):
@@ -156,7 +156,7 @@ class RDAStateInitializer:
             t9_def = Definition(t9_atom, ex_loc, tags={InitialValueTag()})
             state.all_definitions.add(t9_def)
             if state.analysis is not None:
-                state.analysis.model.add_def(t9_def, ex_loc)
+                state.analysis.model.add_def(t9_def)
             t9 = state.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             state.registers.store(offset, t9)
         elif self.arch.name.startswith("MIPS"):
@@ -167,7 +167,7 @@ class RDAStateInitializer:
             t9_def = Definition(t9_atom, ex_loc, tags={InitialValueTag()})
             state.all_definitions.add(t9_def)
             if state.analysis is not None:
-                state.analysis.model.add_def(t9_def, ex_loc)
+                state.analysis.model.add_def(t9_def)
             t9 = state.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             state.registers.store(t9_offset, t9)
 
@@ -185,7 +185,7 @@ class RDAStateInitializer:
         reg_def = Definition(reg_atom, ex_loc, tags={ParameterTag(function=func_addr)})
         state.all_definitions.add(reg_def)
         if state.analysis is not None:
-            state.analysis.model.add_def(reg_def, ex_loc)
+            state.analysis.model.add_def(reg_def)
         if value is None:
             value = state.top(self.arch.bits)
         reg = state.annotate_with_def(value, reg_def)
@@ -198,7 +198,7 @@ class RDAStateInitializer:
         ml_def = Definition(ml_atom, ex_loc, tags={ParameterTag(function=func_addr)})
         state.all_definitions.add(ml_def)
         if state.analysis is not None:
-            state.analysis.model.add_def(ml_def, ex_loc)
+            state.analysis.model.add_def(ml_def)
         ml = state.annotate_with_def(state.top(self.arch.bits), ml_def)
         stack_address = state.get_stack_address(state.stack_address(arg.stack_offset))
         state.stack.store(stack_address, ml, endness=self.arch.memory_endness)

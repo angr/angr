@@ -32,9 +32,9 @@ class ReachingDefinitionsModel:
             len(self.observed_results),
         )
 
-    def add_def(self, d: "Definition", codeloc: "CodeLocation") -> None:
+    def add_def(self, d: "Definition") -> None:
         if self.liveness is not None:
-            self.liveness.add_def(d, codeloc)
+            self.liveness.add_def(d)
 
     def kill_def(self, d: "Definition") -> None:
         if self.liveness is not None:
@@ -48,9 +48,9 @@ class ReachingDefinitionsModel:
         if self.liveness is not None:
             self.liveness.at_new_block(code_loc, pred_codelocs)
 
-    def complete_loc(self) -> None:
+    def make_liveness_snapshot(self) -> None:
         if self.liveness is not None:
-            self.liveness.complete_loc()
+            self.liveness.make_liveness_snapshot()
 
     def find_defs_at(self, code_loc: "CodeLocation", op: int = OP_BEFORE) -> Set["Definition"]:
         return self.liveness.find_defs_at(code_loc, op=op)

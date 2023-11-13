@@ -118,9 +118,6 @@ class SimEngineRDAIL(
     def _process_Stmt(self, whitelist=None):
         super()._process_Stmt(whitelist=whitelist)
 
-        if self.state.analysis:
-            self.state.analysis.model.complete_loc()
-
     def _handle_Stmt(self, stmt):
         if self.state.analysis:
             self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_BEFORE)
