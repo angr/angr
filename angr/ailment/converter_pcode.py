@@ -151,6 +151,10 @@ class PCodeIRSBConverter(Converter):
                 self._convert_current_op()
                 self._statement_idx += 1
 
+                if "sparc:" in self._irsb.arch.name and self._irsb.arch.bits == 32:
+                    if self._current_op.opcode == OpCode.CALL:
+                        break
+
         return Block(self._irsb.addr, self._irsb.size, statements=self._statements)
 
     def _convert_current_op(self) -> None:
