@@ -179,7 +179,16 @@ class SimEngineVRVEX(
         if func.prototype is None or func.calling_convention is None:
             return
 
-        for arg_loc in func.calling_convention.arg_locs(func.prototype):
+        try:
+            arg_locs = func.calling_convention.arg_locs(func.prototype)
+        except (TypeError, ValueError):
+            func.prototype = None
+            return
+
+        if None in arg_locs:
+            return
+
+        for arg_loc in arg_locs:
             for loc in arg_loc.get_footprint():
                 if isinstance(loc, SimRegArg):
                     self._read_from_register(self.arch.registers[loc.reg_name][0] + loc.reg_offset, loc.size)
