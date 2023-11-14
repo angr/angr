@@ -15,6 +15,8 @@ class PagedMemoryMultiValueMixin(MemoryMixin):
 
         pageno, pageoff = self._divide_addr(addr)
 
+        annotations = set()
+
         # fasttrack basic case
         if pageoff + size <= self.page_size:
             page = self._get_page(pageno, False, **kwargs)
@@ -29,9 +31,9 @@ class PagedMemoryMultiValueMixin(MemoryMixin):
             for _, mos in loaded:
                 if isinstance(mos, set):
                     for mo in mos:
-                        yield from mo.object.annotations
+                        annotations.update(mo.object.annotations)
                 else:
-                    yield from mos.object.annotations
+                    annotations.update(mos.object.annotations)
 
         else:
             max_pageno = (1 << self.state.arch.bits) // self.page_size
@@ -50,10 +52,12 @@ class PagedMemoryMultiValueMixin(MemoryMixin):
                 for _, mos in loaded:
                     if isinstance(mos, set):
                         for mo in mos:
-                            yield from mo.object.annotations
+                            annotations.update(mo.object.annotations)
                     else:
-                        yield from mos.object.annotations
+                        annotations.update(mos.object.annotations)
 
                 bytes_done += sub_size
                 pageno = (pageno + 1) % max_pageno
                 pageoff = 0
+
+        return annotations
