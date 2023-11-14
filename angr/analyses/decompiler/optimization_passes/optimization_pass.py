@@ -344,8 +344,9 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._ri is None:
             return False
 
+        region_copy = copy.deepcopy(self._ri.region)
         rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            copy.deepcopy(self._ri.region),
+            region_copy,
             cond_proc=self._ri.cond_proc,
             func=self._func,
             structurer_cls=PhoenixStructurer,
