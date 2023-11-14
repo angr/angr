@@ -133,7 +133,9 @@ class IROp(DisassemblyPiece):
         self.irsb = irsb
 
     def __str__(self):
-        return str(self.obj)
+        if pcode and isinstance(self.obj, pypcode.PcodeOp):
+            return pypcode.PcodePrettyPrinter.fmt_op(self.obj)
+        return str(self.obj) + '_fuck'
 
     def _render(self, formatting):  # pylint:disable=unused-argument
         return [str(self)]
@@ -1071,9 +1073,18 @@ class Disassembly(Analysis):
 
         if irsb.statements is not None:
             if pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
-                for ins in irsb._instructions:
-                    addr = ins.address.offset
-                    addr_to_ops_map[addr].extend([IROp(addr, op.seq.uniq, op, irsb) for op in ins.ops])
+                # for ins in irsb._instructions:
+                #     addr = ins.address.offset
+                #     addr_to_ops_map[addr].extend([IROp(addr, op.seq.uniq, op, irsb) for op in ins.ops])
+
+                addr = None
+                stmt_idx = 0
+                for op in irsb._ops:
+                    if op.opcode == pypcode.OpCode.IMARK:
+                        addr = op.inputs[0].offset
+                    else:
+                        addr_to_ops_map[addr].append(IROp(addr, stmt_idx, op, irsb))
+                    stmt_idx += 1
             else:
                 for seq, stmt in enumerate(irsb.statements):
                     if isinstance(stmt, pyvex.stmt.IMark):
