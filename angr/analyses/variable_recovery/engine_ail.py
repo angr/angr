@@ -124,7 +124,7 @@ class SimEngineVRAIL(
             prototype = stmt.prototype
         elif isinstance(stmt.target, ailment.Expr.Const):
             func_addr = stmt.target.value
-            if func_addr in self.kb.functions:
+            if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
                 func = self.kb.functions[func_addr]
                 prototype = func.prototype
 
