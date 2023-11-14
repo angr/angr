@@ -409,7 +409,7 @@ class FunctionHandler:
         # translate all the dep atoms into dep defns
         for effect in data.effects:
             if effect.sources_defns is None and effect.sources:
-                effect.sources_defns = set().union(*(set(state.get_definitions(atom)) for atom in effect.sources))
+                effect.sources_defns = set().union(*(state.get_definitions(atom) for atom in effect.sources))
                 if not effect.sources_defns:
                     effect.sources_defns = {Definition(atom, ExternalCodeLocation()) for atom in effect.sources}
                 other_input_defns |= effect.sources_defns - all_args_defns

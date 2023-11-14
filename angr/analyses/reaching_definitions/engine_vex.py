@@ -147,11 +147,11 @@ class SimEngineRDVEX(
                 if self.state.is_heap_address(d):
                     heap_offset = self.state.get_heap_offset(d)
                     if heap_offset is not None:
-                        self.state.add_heap_use(heap_offset, 1, "Iend_BE")
+                        self.state.add_heap_use(heap_offset, 1)
                 elif self.state.is_stack_address(d):
                     stack_offset = self.state.get_stack_offset(d)
                     if stack_offset is not None:
-                        self.state.add_stack_use(stack_offset, 1, "Iend_BE")
+                        self.state.add_stack_use(stack_offset, 1)
 
         if self.state.exit_observed and reg_offset == self.arch.sp_offset:
             return

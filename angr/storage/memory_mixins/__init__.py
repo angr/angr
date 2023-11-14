@@ -1,4 +1,4 @@
-# pylint:disable=abstract-method
+# pylint:disable=abstract-method,wrong-import-position,unused-argument,missing-class-docstring,arguments-differ
 from typing import Iterable, Tuple, Dict, Any, Optional
 
 import claripy
@@ -114,7 +114,6 @@ class MemoryMixin(SimStatePlugin):
 
         The ``inspect``, ``events``, and ``key`` parameters are for ``state.solver.Unconstrained``, if it is used.
         """
-        pass
 
     def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, **kwargs) -> Optional[Any]:
         """
@@ -187,6 +186,7 @@ from .paged_memory.paged_memory_mixin import (
 )
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
 from .paged_memory.stack_allocation_mixin import StackAllocationMixin
+from .paged_memory.paged_memory_multivalue_mixin import PagedMemoryMultiValueMixin
 from .paged_memory.pages import *
 
 from .slotted_memory import SlottedMemoryMixin
@@ -353,6 +353,7 @@ class MultiValuedMemory(
     DefaultFillerMixin,
     MultiValueMergerMixin,
     PagedMemoryMixin,
+    PagedMemoryMultiValueMixin,
 ):
     def _default_value(self, addr, size, **kwargs):
         # TODO: Make _default_value() a separate Mixin
