@@ -496,6 +496,9 @@ class BinaryOp(Op):
         "Concat": "CONCAT",
         "Ror": "ROR",
         "Rol": "ROL",
+        "Carry": "CARRY",
+        "SCarry": "SCARRY",
+        "SBorrow": "SBORROW",
     }
 
     COMPARISON_NEGATION = {
@@ -548,6 +551,8 @@ class BinaryOp(Op):
             self.bits = 32  # floating point comparison
         elif self.op.startswith("Cmp"):
             self.bits = 1
+        elif self.op in {"Carry", "SCarry", "SBorrow"}:
+            self.bits = 8
         elif self.op == "Concat":
             self.bits = get_bits(operands[0]) + get_bits(operands[1])
         elif self.op == "Mull":
