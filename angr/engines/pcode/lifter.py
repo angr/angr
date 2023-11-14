@@ -367,7 +367,9 @@ class IRSB:
         """
         The size of this block, in bytes
         """
-        return sum(ins.length for ins in self._instructions)
+        if self._size is None:
+            self._size = sum(ins.length for ins in self._instructions)
+        return self._size
 
     @property
     def operations(self):
@@ -851,6 +853,8 @@ class PcodeBasicBlockLifter:
         bytes_offset: int = 0,
         max_bytes: Optional[int] = None,
         max_inst: Optional[int] = None,
+        branch_delay_slot: bool = False,
+        is_sparc32: bool = False,
     ) -> None:
         if max_bytes is None or max_bytes > MAX_BYTES:
             max_bytes = min(len(data), MAX_BYTES)
@@ -861,11 +865,30 @@ class PcodeBasicBlockLifter:
 
         # Translate
         addr = baseaddr + bytes_offset
-        result = self.context.translate(data[bytes_offset : bytes_offset + max_bytes], addr, max_inst, max_bytes, True)
-        irsb._instructions = result.instructions
+        sliced_data = data[bytes_offset : bytes_offset + max_bytes]
 
+        if is_sparc32:
+            # workaround to handle SPARC V8 decoding before having a SPARC V8 Sleigh file
+            # replace all  jmpl xxx; rett xxx sequences with rett xxx; nop;
+            nop_seq = b"\x01\x00\x00\x00"
+            jmpl_seqs = [
+                b"\x81\xc4\x40\x00",
+                b"\x81\xc4\x80\x00",
+            ]
+            rett_seqs = [b"\x81\xcc\x80\x00", b"\x81\xcc\xa0\x04"]
+            for jmpl_seq in jmpl_seqs:
+                for rett_seq in rett_seqs:
+                    seq = jmpl_seq + rett_seq
+                    index = sliced_data.find(seq)
+                    while index >= 0:
+                        sliced_data = sliced_data[:index] + rett_seq + nop_seq + sliced_data[index + 8 :]
+                        index = sliced_data.find(seq)
+
+        result = self.context.translate(sliced_data, addr, max_inst, max_bytes, True)
+        irsb._instructions = result.instructions
         # Post-process block to mark exits and next block
         next_block = None
+        is_branch = False
         for insn in irsb._instructions:
             for op in insn.ops:
                 if op.opcode in [pypcode.OpCode.BRANCH, pypcode.OpCode.CBRANCH] and op.inputs[0].get_addr().is_constant:
@@ -875,20 +898,34 @@ class PcodeBasicBlockLifter:
                     irsb._exit_statements.append(
                         (op.seq.pc.offset, op.seq.uniq, ExitStatement(op.inputs[0].offset, "Ijk_Boring"))
                     )
+                    is_branch = True
                 elif op.opcode == pypcode.OpCode.BRANCH:
-                    next_block = (op.inputs[0].offset, "Ijk_Boring")
+                    if next_block is None:
+                        next_block = (op.inputs[0].offset, "Ijk_Boring")
+                    is_branch = True
                 elif op.opcode == pypcode.OpCode.BRANCHIND:
-                    next_block = (None, "Ijk_Boring")
+                    if next_block is None:
+                        next_block = (None, "Ijk_Boring")
+                    is_branch = True
                 elif op.opcode == pypcode.OpCode.CALL:
-                    next_block = (op.inputs[0].offset, "Ijk_Call")
+                    if next_block is None:
+                        next_block = (op.inputs[0].offset, "Ijk_Call")
+                    is_branch = True
                 elif op.opcode == pypcode.OpCode.CALLIND:
-                    next_block = (None, "Ijk_Call")
+                    if next_block is None:
+                        next_block = (None, "Ijk_Call")
+                    is_branch = True
                 elif op.opcode == pypcode.OpCode.RETURN:
-                    next_block = (None, "Ijk_Ret")
+                    if next_block is None:
+                        next_block = (None, "Ijk_Ret")
+                    is_branch = True
+
+        if is_branch and branch_delay_slot:
+            # adjust the block size accordingly if branch delay slot exists for this architecture
+            irsb._size = irsb.size + irsb._instructions[-1].length
 
         if len(irsb._instructions) > 0:
-            last_insn = irsb._instructions[-1]
-            fallthru_addr = last_insn.address.offset + last_insn.length
+            fallthru_addr = irsb.addr + irsb.size
         else:
             fallthru_addr = addr
 
@@ -918,6 +955,8 @@ class PcodeLifter(Lifter):
             bytes_offset=self.bytes_offset,
             max_inst=self.max_inst,
             max_bytes=self.max_bytes,
+            branch_delay_slot=self.arch.branch_delay_slot,
+            is_sparc32="sparc:" in self.arch.name and self.arch.bits == 32,
         )
 
         if self.irsb.size == 0:
