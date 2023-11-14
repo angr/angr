@@ -836,7 +836,7 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 >> expr1_v
             if expr0.count() == 1 and 0 in expr0:
-                if all(v.concrete for v in expr0[0]):
+                if all(v.concrete for v in expr0[0]) and expr1_v.concrete:
                     vs = {
                         (claripy.LShR(v, expr1_v.concrete_value) if v.concrete else self.state.top(bits))
                         for v in expr0[0]
