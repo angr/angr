@@ -49,7 +49,7 @@ opcode_to_generic_name = {
     # OpCode.INT_REM           : '',
     # OpCode.INT_SREM          : '',
     OpCode.BOOL_NEGATE: "Not",
-    # OpCode.BOOL_XOR          : '',
+    OpCode.BOOL_XOR: "LogicalXor",
     OpCode.BOOL_AND: "LogicalAnd",
     OpCode.BOOL_OR: "LogicalOr",
     # OpCode.CAST              : '',
