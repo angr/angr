@@ -95,8 +95,12 @@ class PropValue:
 
     @staticmethod
     def chop_value(value: claripy.ast.Bits, begin_offset, end_offset) -> claripy.ast.Bits:
-        chop_start = value.size() - begin_offset * 8 - 1
-        chop_end = value.size() - end_offset * 8
+        if begin_offset == end_offset:
+            chop_start = value.size() - begin_offset * 8 - 1
+            chop_end = value.size() - end_offset * 8 - 1
+        else:
+            chop_start = value.size() - begin_offset * 8 - 1
+            chop_end = value.size() - end_offset * 8
         if chop_end - chop_start + 1 == value.size():
             # fast path: no chopping
             return value
