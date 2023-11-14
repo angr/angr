@@ -121,7 +121,7 @@ class Liveness:
             indices = added_defs
         else:
             indices = []
-        
+
         tmp_indices = []
         if killed_defs is not None and None in killed_defs:
             # External codeloc
