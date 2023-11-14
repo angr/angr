@@ -97,10 +97,12 @@ class Const(Atom):
         return str(self)
 
     def __str__(self):
-        try:
+        if isinstance(self.value, int):
             return "%#x<%d>" % (self.value, self.bits)
-        except TypeError:
+        elif isinstance(self.value, float):
             return "%f<%d>" % (self.value, self.bits)
+        else:
+            return f"{self.value}<{self.bits}>"
 
     def likes(self, other):
         return type(self) is type(other) and self.value == other.value and self.bits == other.bits
