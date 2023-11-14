@@ -1699,6 +1699,7 @@ class CBinaryOp(CExpression):
             # lowest precedence
             ["Concat"],
             ["LogicalOr"],
+            ["LogicalXor"],
             ["LogicalAnd"],
             ["Or"],
             ["Xor"],
@@ -1708,6 +1709,7 @@ class CBinaryOp(CExpression):
             ["Shl", "Shr", "Sar"],
             ["Add", "Sub"],
             ["Mul", "Div"],
+            ["SBorrow", "SCarry", "Carry"],
             # highest precedence
         ]
         for i, sublist in enumerate(precedence_list):
@@ -1736,6 +1738,7 @@ class CBinaryOp(CExpression):
             "Sar": self._c_repr_chunks_sar,
             "LogicalAnd": self._c_repr_chunks_logicaland,
             "LogicalOr": self._c_repr_chunks_logicalor,
+            "LogicalXor": self._c_repr_chunks_logicalxor,
             "CmpLE": self._c_repr_chunks_cmple,
             "CmpLEs": self._c_repr_chunks_cmple,
             "CmpLT": self._c_repr_chunks_cmplt,
@@ -1755,7 +1758,7 @@ class CBinaryOp(CExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield "BinaryOp %s" % (self.op), self
+            yield from self._c_repr_chunks_opfirst(self.op)
 
     def _has_const_null_rhs(self) -> bool:
         return isinstance(self.rhs, CConstant) and self.rhs.value == 0
@@ -1795,6 +1798,15 @@ class CBinaryOp(CExpression):
                 yield ")", paren
             else:
                 yield from self._try_c_repr_chunks(self.rhs)
+
+    def _c_repr_chunks_opfirst(self, op):
+        yield op, self
+        paren = CClosingObject("(")
+        yield "(", paren
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield ", ", None
+        yield from self._try_c_repr_chunks(self.rhs)
+        yield ")", paren
 
     def _c_repr_chunks_add(self):
         yield from self._c_repr_chunks(" + ")
@@ -1840,6 +1852,9 @@ class CBinaryOp(CExpression):
 
     def _c_repr_chunks_logicalor(self):
         yield from self._c_repr_chunks(" || ")
+
+    def _c_repr_chunks_logicalxor(self):
+        yield from self._c_repr_chunks(" ^ ")
 
     def _c_repr_chunks_cmple(self):
         yield from self._c_repr_chunks(" <= ")
