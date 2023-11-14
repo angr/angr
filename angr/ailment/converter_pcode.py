@@ -436,19 +436,26 @@ class PCodeIRSBConverter(Converter):
         Convert a p-code store operation
         """
         spc = self._current_op.inputs[0].get_space_from_const()
-        assert spc.name in ["ram", "mem"]
-        off = self._get_value(self._current_op.inputs[1])
-        data = self._get_value(self._current_op.inputs[2])
-        log.debug("Storing %s at offset %s", data, off)
-        # self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
-        stmt = Store(
-            self._statement_idx,
-            off,
-            data,
-            self._current_op.inputs[2].size,
-            self._manager.arch.memory_endness,
-            ins_addr=self._manager.ins_addr,
-        )
+        assert spc.name in {"ram", "mem", "register"}
+        if spc.name == "register":
+            # store to register
+            out = self._current_op.inputs[2]
+            res = self._get_value(self._current_op.inputs[1])
+            stmt = self._set_value(out, res)
+        else:
+            # store to memory
+            off = self._get_value(self._current_op.inputs[1])
+            data = self._get_value(self._current_op.inputs[2])
+            log.debug("Storing %s at offset %s", data, off)
+            # self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
+            stmt = Store(
+                self._statement_idx,
+                off,
+                data,
+                self._current_op.inputs[2].size,
+                self._manager.arch.memory_endness,
+                ins_addr=self._manager.ins_addr,
+            )
         self._statements.append(stmt)
 
     def _convert_branch(self) -> None:
