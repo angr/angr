@@ -1,3 +1,4 @@
+from typing import Dict, Tuple, Optional
 import logging
 
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -107,7 +108,7 @@ class PCodeIRSBConverter(Converter):
         self._statement_idx = 0
 
         # Remap all uniques s.t. they are write-once with values starting from 0
-        self._unique_tracker = {}
+        self._unique_tracker: Dict[int, Tuple[int, int]] = {}
         self._unique_counter = 0
 
         self._special_op_handlers = {
@@ -237,7 +238,7 @@ class PCodeIRSBConverter(Converter):
             log.warning("Could not map register '%s' from archinfo. Mapping to %x", reg_name, reg_offset)
         return reg_offset
 
-    def _remap_temp(self, offset: int, is_write: bool) -> int:
+    def _remap_temp(self, offset: int, size: int, is_write: bool) -> Optional[int]:
         """
         Remap any unique space addresses such that they are written only once
 
@@ -246,11 +247,14 @@ class PCodeIRSBConverter(Converter):
         :return:         The remapped temporary register index
         """
         if is_write:
-            self._unique_tracker[offset] = self._unique_counter
+            self._unique_tracker[offset] = self._unique_counter, size
             self._unique_counter += 1
+            return self._unique_tracker[offset][0]
         else:
-            assert offset in self._unique_tracker
-        return self._unique_tracker[offset]
+            if offset in self._unique_tracker:
+                return self._unique_tracker[offset][0]
+            # this might be a partial access of an existing temporary variable. return None for now
+            return None
 
     def _convert_varnode(self, varnode: Varnode, is_write: bool) -> Expression:
         """
@@ -269,7 +273,30 @@ class PCodeIRSBConverter(Converter):
             offset = self._map_register_name(varnode)
             return Register(self._manager.next_atom(), None, offset, size, reg_name=varnode.get_register_name())
         elif space_name == "unique":
-            offset = self._remap_temp(varnode.offset, is_write)
+            offset = self._remap_temp(varnode.offset, varnode.size, is_write)
+            if offset is None:
+                # this might be a partial access of an existing temporary variable
+                unique_offset = None
+                for delta in range(-1, -8, -1):
+                    if varnode.offset + delta in self._unique_tracker:
+                        unique_offset = varnode.offset + delta
+                        break
+                assert unique_offset is not None, "Cannot find the source unique variable"
+                # TODO: Check size
+                ori_tmp_idx, ori_tmp_size = self._unique_tracker[unique_offset]
+                t = Tmp(self._manager.next_atom(), None, unique_offset, ori_tmp_size * 8)
+                # FIXME: Asserting BE
+                right_shift_amount = varnode.offset + varnode.size - (unique_offset + ori_tmp_size)
+                if right_shift_amount != 0:
+                    t = BinaryOp(
+                        self._manager.next_atom(),
+                        "Shr",
+                        [t, Const(self._manager.next_atom(), None, right_shift_amount * 8, 8)],
+                        False,
+                        ins_addr=self._manager.ins_addr,
+                    )
+                return Convert(self._manager.next_atom(), t.bits, size, False, t, ins_addr=self._manager.ins_addr)
+
             return Tmp(self._manager.next_atom(), None, offset, size)
         elif space_name in ["ram", "mem"]:
             assert not is_write
