@@ -1,4 +1,4 @@
-# pylint:disable=abstract-method
+# pylint:disable=abstract-method,wrong-import-position,unused-argument,missing-class-docstring,arguments-differ
 from typing import Iterable, Tuple, Dict, Any, Optional
 
 import claripy
@@ -114,7 +114,6 @@ class MemoryMixin(SimStatePlugin):
 
         The ``inspect``, ``events``, and ``key`` parameters are for ``state.solver.Unconstrained``, if it is used.
         """
-        pass
 
     def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, **kwargs) -> Optional[Any]:
         """

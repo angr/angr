@@ -450,8 +450,8 @@ class ReachingDefinitionsState:
             self.codeloc_uses.add(definition)
             self.live_definitions.add_register_use_by_def(definition, self.codeloc, expr=expr)
 
-    def add_stack_use(self, stack_offset: int, size: int, endness, expr: Optional[Any] = None) -> None:
-        defs = self.live_definitions.get_stack_definitions(stack_offset, size, endness)
+    def add_stack_use(self, stack_offset: int, size: int, expr: Optional[Any] = None) -> None:
+        defs = self.live_definitions.get_stack_definitions(stack_offset, size)
         self.add_stack_use_by_defs(defs, expr=expr)
 
     def add_stack_use_by_defs(self, defs: Iterable[Definition], expr: Optional[Any] = None):
@@ -459,8 +459,8 @@ class ReachingDefinitionsState:
             self.codeloc_uses.add(definition)
             self.live_definitions.add_stack_use_by_def(definition, self.codeloc, expr=expr)
 
-    def add_heap_use(self, heap_offset: int, size: int, endness, expr: Optional[Any] = None) -> None:
-        defs = self.live_definitions.get_heap_definitions(heap_offset, size, endness)
+    def add_heap_use(self, heap_offset: int, size: int, expr: Optional[Any] = None) -> None:
+        defs = self.live_definitions.get_heap_definitions(heap_offset, size)
         self.add_heap_use_by_defs(defs, expr=expr)
 
     def add_heap_use_by_defs(self, defs: Iterable[Definition], expr: Optional[Any] = None):

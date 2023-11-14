@@ -643,11 +643,11 @@ class LiveDefinitions:
             return self.get_register_definitions(thing.reg_offset, thing.size)
         elif isinstance(thing, MemoryLocation):
             if isinstance(thing.addr, SpOffset):
-                return self.get_stack_definitions(thing.addr.offset, thing.size, thing.endness)
+                return self.get_stack_definitions(thing.addr.offset, thing.size)
             elif isinstance(thing.addr, HeapAddress):
-                return self.get_heap_definitions(thing.addr.value, size=thing.size, endness=thing.endness)
+                return self.get_heap_definitions(thing.addr.value, size=thing.size)
             elif isinstance(thing.addr, int):
-                return self.get_memory_definitions(thing.addr, thing.size, thing.endness)
+                return self.get_memory_definitions(thing.addr, thing.size)
             else:
                 return set()
         elif isinstance(thing, Tmp):
@@ -665,7 +665,7 @@ class LiveDefinitions:
         else:
             return set()
 
-    def get_register_definitions(self, reg_offset: int, size: int, endness=None) -> Set[Definition]:
+    def get_register_definitions(self, reg_offset: int, size: int) -> Set[Definition]:
         try:
             annotations = self.registers.load_annotations(reg_offset, size)
         except SimMemoryMissingError as ex:
@@ -684,7 +684,7 @@ class LiveDefinitions:
         except SimMemoryMissingError:
             return None
 
-    def get_stack_definitions(self, stack_offset: int, size: int, endness) -> Set[Definition]:
+    def get_stack_definitions(self, stack_offset: int, size: int) -> Set[Definition]:
         try:
             stack_addr = self.stack_offset_to_stack_addr(stack_offset)
             annotations = self.stack.load_annotations(stack_addr, size)
@@ -693,7 +693,7 @@ class LiveDefinitions:
 
         return LiveDefinitions.extract_defs_from_annotations(annotations)
 
-    def get_heap_definitions(self, heap_addr: int, size: int, endness) -> Set[Definition]:
+    def get_heap_definitions(self, heap_addr: int, size: int) -> Set[Definition]:
         try:
             annotations = self.heap.load_annotations(heap_addr, size)
         except SimMemoryMissingError:
@@ -701,7 +701,7 @@ class LiveDefinitions:
 
         return LiveDefinitions.extract_defs_from_annotations(annotations)
 
-    def get_memory_definitions(self, addr: int, size: int, endness) -> Set[Definition]:
+    def get_memory_definitions(self, addr: int, size: int) -> Set[Definition]:
         try:
             annotations = self.memory.load_annotations(addr, size)
         except SimMemoryMissingError:
