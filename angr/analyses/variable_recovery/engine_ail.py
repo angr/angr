@@ -610,6 +610,30 @@ class SimEngineVRAIL(
         r = self.state.top(expr.bits)
         return RichR(r, typevar=r0.typevar)
 
+    def _ail_handle_LogicalAnd(self, expr):
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        _ = self._expr(arg1)
+        r = self.state.top(expr.bits)
+        return RichR(r, typevar=r0.typevar)
+
+    def _ail_handle_LogicalOr(self, expr):
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        _ = self._expr(arg1)
+        r = self.state.top(expr.bits)
+        return RichR(r, typevar=r0.typevar)
+
+    def _ail_handle_LogicalXor(self, expr):
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        _ = self._expr(arg1)
+        r = self.state.top(expr.bits)
+        return RichR(r, typevar=r0.typevar)
+
     def _ail_handle_Rol(self, expr):
         arg0, arg1 = expr.operands
 
