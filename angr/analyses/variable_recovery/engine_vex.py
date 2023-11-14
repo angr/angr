@@ -181,7 +181,8 @@ class SimEngineVRVEX(
 
         try:
             arg_locs = func.calling_convention.arg_locs(func.prototype)
-        except (TypeError, ValueError):
+        except Exception:  # pylint:disable=broad-except
+            # FIXME: Do not catch broad exceptions once struct passing-by-value is implemented in simcc
             func.prototype = None
             return
 

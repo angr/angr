@@ -8,7 +8,6 @@ import archinfo
 from archinfo import RegisterName
 from unique_log_filter import UniqueLogFilter
 
-from .errors import AngrTypeError
 from .sim_type import (
     SimType,
     SimTypeChar,
@@ -670,10 +669,11 @@ class SimCC:
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
         if isinstance(ty, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
-            raise AngrTypeError(
-                f"{self} doesn't know how to return aggregate types. Consider overriding return_val to "
-                "implement its ABI logic"
-            )
+            # raise AngrTypeError(
+            #    f"{self} doesn't know how to return aggregate types. Consider overriding return_val to "
+            #    "implement its ABI logic"
+            # )
+            return None
         if self.return_in_implicit_outparam(ty):
             if perspective_returned:
                 ptr_loc = self.RETURN_VAL
@@ -703,10 +703,11 @@ class SimCC:
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
-            raise TypeError(
-                f"{self} doesn't know how to store aggregate type {type(arg_type)}. Consider overriding next_arg to "
-                "implement its ABI logic"
-            )
+            # raise TypeError(
+            #    f"{self} doesn't know how to store aggregate type {type(arg_type)}. Consider overriding next_arg to "
+            #    "implement its ABI logic"
+            # )
+            return None
         if isinstance(arg_type, SimTypeBottom):
             # This is usually caused by failures or mistakes during type inference
             l.warning("Function argument type cannot be BOT. Treating it as a 32-bit int.")
@@ -1767,7 +1768,11 @@ class SimCCARMHF(SimCCARM):
     ARCH = archinfo.ArchARMHF
 
     def next_arg(self, session, arg_type):
-        return SimCC.next_arg(self, session, arg_type)
+        try:
+            arg = SimCC.next_arg(self, session, arg_type)
+        except ValueError:
+            arg = SimCC.next_arg(self, session, SimTypePointer(SimTypeBottom()).with_arch(self.arch))
+        return arg
 
 
 class SimCCARMLinuxSyscall(SimCCSyscall):
