@@ -640,28 +640,21 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             else:
                 raise CouldNotResolveException()
 
-        for instr in pcode_irsb._instructions:
-            if curr_stmt_start_addr is not None:
-                # we've reached a new instruction. Time to store the post state
-                self._set_post_state(curr_stmt_start_addr, state.freeze())
-            curr_stmt_start_addr = instr.address.offset
-            self._set_pre_state(curr_stmt_start_addr, state.freeze())
-
-            for op in instr.ops:
-                op: "pypcode.PcodeOp"
+        is_call = False
+        for op in pcode_irsb._ops:
+            if op.opcode == pypcode.OpCode.IMARK:
+                if curr_stmt_start_addr is not None:
+                    # we've reached a new instruction. Time to store the post state
+                    self._set_post_state(curr_stmt_start_addr, state.freeze())
+                curr_stmt_start_addr = op.inputs[0].offset
+                self._set_pre_state(curr_stmt_start_addr, state.freeze())
+            else:
                 try:
                     resolve_op(op)
                 except CouldNotResolveException:
                     pass
 
-        # examine the last instruction and determine if this is a call instruction
-        is_call = False
-        if pcode_irsb._instructions:
-            last_instr = pcode_irsb._instructions[-1]
-            if last_instr.ops:
-                last_op = last_instr.ops[-1]
-                if last_op.opcode == pypcode.OpCode.CALL:
-                    is_call = True
+                is_call |= op.opcode == pypcode.OpCode.CALL
 
         # stack pointer adjustment
         if self.project.arch.sp_offset in self.reg_offsets and is_call:
