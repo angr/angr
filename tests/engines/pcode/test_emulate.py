@@ -22,6 +22,7 @@ class MockAddrSpace:
     """
     Mock AddrSpace
     """
+
     name: str
 
 
@@ -36,6 +37,7 @@ class MockVarnode:
     """
     Mock Varnode
     """
+
     space: MockAddrSpace
     offset: int
     size: int
