@@ -218,66 +218,6 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
     def test_cbranch_symbolic(self):
         self._test_cbranch_common(claripy.BVS("condition", 8))
 
-    def _test_rel_cbranch_common(self, cond: claripy.BVV):
-        condition_addr = 0x100000
-        target_addr = 0x12345678
-        target_stmt = 
-        fallthru_addr = 1
-
-
-        # FIXME: Test forward and backward
-
-        state = SimState(arch="AMD64")
-        state.memory.store(condition_addr, cond)
-
-        successors = self._step_irsb(
-            MockIRSB(
-                [
-                    OP(
-                        OpCode.IMARK,
-                        None,
-                        [VN(RAM_SPACE, 0, fallthru_addr)],
-                    ),
-                    OP(
-                        OpCode.CBRANCH,
-                        None,
-                        [VN(CONST_SPACE, target_stmt, 8), VN(RAM_SPACE, condition_addr, 1)],
-                    ),
-                ]
-            ),
-            state,
-        )
-
-        if cond.concrete:
-            if state.solver.eval(cond):
-                sat_pc, unsat_pc = target_addr, fallthru_addr
-            else:
-                sat_pc, unsat_pc = fallthru_addr, target_addr
-
-            assert len(successors.successors) == 1
-            state = successors.successors[0]
-            assert state.solver.eval(state.regs.pc == sat_pc)
-
-            assert len(successors.unsat_successors) == 1
-            state = successors.unsat_successors[0]
-            assert state.solver.eval(state.regs.pc == unsat_pc)
-        else:
-            assert len(successors.successors) == 2
-            pcs = {state.solver.eval(state.regs.pc) for state in successors.successors}
-            assert pcs == {target_addr, fallthru_addr}
-
-        # FIXME: Check     self.state.scratch.statement_offset
-
-    def test_rel_cbranch_taken(self):
-        self._test_rel_cbranch_common(claripy.BVV(1, 8))
-        self._test_rel_cbranch_common(claripy.BVV(2, 8))
-
-    def test_rel_cbranch_not_taken(self):
-        self._test_rel_cbranch_common(claripy.BVV(0, 8))
-
-    def test_rel_cbranch_symbolic(self):
-        self._test_cbranch_common(claripy.BVS("condition", 8))
-
     def test_load_store(self):
         addr = 0x133700000
         addr2 = 0x999900000
