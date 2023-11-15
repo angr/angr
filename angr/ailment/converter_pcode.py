@@ -4,6 +4,7 @@ import logging
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.pcode.lifter import IRSB
 from pypcode import OpCode, Varnode
+import pypcode
 
 from .block import Block
 from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, Call
@@ -102,8 +103,8 @@ class PCodeIRSBConverter(Converter):
         self._irsb = irsb
         self._manager = manager
         self._statements = []
-        self._current_ins = None
         self._current_op = None
+        self._next_ins_addr = None
         self._current_behavior = None
         self._statement_idx = 0
 
@@ -142,18 +143,20 @@ class PCodeIRSBConverter(Converter):
         Convert the given IRSB to an AIL Block
         """
         self._statement_idx = 0
-        for ins in self._irsb._instructions:
-            self._current_ins = ins
-            self._manager.ins_addr = ins.address.offset
-            for op in self._current_ins.ops:
-                self._current_op = op
+
+        for op in self._irsb._ops:
+            self._current_op = op
+            if op.opcode == pypcode.OpCode.IMARK:
+                self._manager.ins_addr = op.inputs[0].offset
+                self._next_ins_addr = op.inputs[-1].offset + op.inputs[-1].size
+            else:
                 self._current_behavior = self._irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
                 self._convert_current_op()
-                self._statement_idx += 1
+            self._statement_idx += 1
 
-                if "sparc:" in self._irsb.arch.name and self._irsb.arch.bits == 32:
-                    if self._current_op.opcode == OpCode.CALL:
-                        break
+            if "sparc:" in self._irsb.arch.name and self._irsb.arch.bits == 32:
+                if self._current_op.opcode == OpCode.CALL:
+                    break
 
         return Block(self._irsb.addr, self._irsb.size, statements=self._statements)
 
@@ -184,8 +187,8 @@ class PCodeIRSBConverter(Converter):
         op = opcode_to_generic_name.get(opcode, None)
         in1 = self._get_value(self._current_op.inputs[0])
         if op is None:
-            log.warning("p-code: Unsupported opcode of type %s", opcode.name)
-            out = DirtyExpression(self._manager.next_atom(), opcode.name, bits=self._current_op.output.size * 8)
+            log.warning("p-code: Unsupported opcode of type %s", opcode.__name__)
+            out = DirtyExpression(self._manager.next_atom(), opcode.__name__, bits=self._current_op.output.size * 8)
         else:
             out = UnaryOp(self._manager.next_atom(), op, in1, ins_addr=self._manager.ins_addr)
 
@@ -203,8 +206,8 @@ class PCodeIRSBConverter(Converter):
         signed = op in {"CmpLEs", "CmpGTs"}
 
         if op is None:
-            log.warning("p-code: Unsupported opcode of type %s.", opcode.name)
-            out = DirtyExpression(self._manager.next_atom(), opcode.name, bits=self._current_op.output.size * 8)
+            log.warning("p-code: Unsupported opcode of type %s.", opcode.__name__)
+            out = DirtyExpression(self._manager.next_atom(), opcode.__name__, bits=self._current_op.output.size * 8)
         else:
             out = BinaryOp(self._manager.next_atom(), op, [in1, in2], signed, ins_addr=self._manager.ins_addr)
 
@@ -233,7 +236,7 @@ class PCodeIRSBConverter(Converter):
         # FIXME: Will need performance optimization
         # FIXME: Should not get trans object this way. Moreover, should have a
         #        faster mapping method than going through trans
-        reg_name = varnode.get_register_name()
+        reg_name = varnode.getRegisterName()
         try:
             reg_offset = self._manager.arch.get_register_offset(reg_name.lower())
             log.debug("Mapped register '%s' to offset %x", reg_name, reg_offset)
@@ -275,7 +278,7 @@ class PCodeIRSBConverter(Converter):
             return Const(self._manager.next_atom(), None, varnode.offset, size)
         elif space_name == "register":
             offset = self._map_register_name(varnode)
-            return Register(self._manager.next_atom(), None, offset, size, reg_name=varnode.get_register_name())
+            return Register(self._manager.next_atom(), None, offset, size, reg_name=varnode.getRegisterName())
         elif space_name == "unique":
             offset = self._remap_temp(varnode.offset, varnode.size, is_write)
             if offset is None:
@@ -415,7 +418,7 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code load operation
         """
-        spc = self._current_op.inputs[0].get_space_from_const()
+        spc = self._current_op.inputs[0].getSpaceFromConst()
         out = self._current_op.output
         assert spc.name in {"ram", "mem", "register"}
         if spc.name == "register":
@@ -439,7 +442,7 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code store operation
         """
-        spc = self._current_op.inputs[0].get_space_from_const()
+        spc = self._current_op.inputs[0].getSpaceFromConst()
         assert spc.name in {"ram", "mem", "register"}
         if spc.name == "register":
             # store to register
@@ -466,13 +469,13 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code branch operation
         """
-        dest_addr = self._current_op.inputs[0].get_addr()
-        if dest_addr.is_constant:
+        if self._current_op.inputs[0].space == "const":
             raise NotImplementedError("p-code relative branch not supported yet")
+        dest_addr = self._current_op.inputs[0].offset
 
         # special handling: if the previous statement is a ConditionalJump with a None destination address, then we
         # back-patch the previous statement
-        dest = Const(self._manager.next_atom(), None, dest_addr.offset, self._manager.arch.bits)
+        dest = Const(self._manager.next_atom(), None, dest_addr, self._manager.arch.bits)
         if self._statements:
             last_stmt = self._statements[-1]
             if isinstance(last_stmt, ConditionalJump) and last_stmt.false_target is None:
@@ -486,20 +489,19 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code conditional branch operation
         """
-        cond = self._get_value(self._current_op.inputs[1])
-        dest_addr = self._current_op.inputs[0].get_addr()
-        if dest_addr.is_constant:
+        if self._current_op.inputs[0].space == "const":
             raise NotImplementedError("p-code relative branch not supported yet")
-        dest_addr = dest_addr.offset
+        dest_addr = self._current_op.inputs[0].offset
+        cond = self._get_value(self._current_op.inputs[1])
         cval = Const(self._manager.next_atom(), None, 0, cond.bits)
         condition = BinaryOp(self._manager.next_atom(), "CmpNE", [cond, cval], signed=False)
         dest = Const(self._manager.next_atom(), None, dest_addr, self._manager.arch.bits)
-        if self._current_ins.ops[-1] is self._current_op:
+        if self._irsb._ops[-1] is self._current_op:
             # if the cbranch op is the last op, then we need to generate a fallthru target
             fallthru = Const(
                 self._manager.next_atom(),
                 None,
-                self._manager.ins_addr + self._current_ins.length,
+                self._next_ins_addr,
                 self._manager.arch.bits,
             )
         else:
