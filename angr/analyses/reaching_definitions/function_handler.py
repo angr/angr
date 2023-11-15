@@ -542,9 +542,6 @@ class FunctionHandler:
     @staticmethod
     def c_args_as_atoms(state: "ReachingDefinitionsState", cc: SimCC, prototype: SimTypeFunction) -> List[Set[Atom]]:
         if not prototype.variadic:
-            if None in cc.arg_locs(prototype):
-                return []
-
             sp_value = state.get_one_value(Register(state.arch.sp_offset, state.arch.bytes), strip_annotations=True)
             sp = state.get_stack_offset(sp_value) if sp_value is not None else None
             atoms = []

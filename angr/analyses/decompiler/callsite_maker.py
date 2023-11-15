@@ -104,7 +104,7 @@ class CallSiteMaker(Analysis):
                             callsite_ty.args.append(SimTypeInt().with_arch(self.project.arch))
                         arg_locs = cc.arg_locs(callsite_ty)
 
-        if arg_locs is not None and None not in arg_locs:
+        if arg_locs is not None:
             for arg_loc in arg_locs:
                 if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size

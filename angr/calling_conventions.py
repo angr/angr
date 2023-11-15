@@ -788,7 +788,14 @@ class SimCC:
         if prototype._arch is None:
             prototype = prototype.with_arch(self.arch)
         session = self.arg_session(prototype.returnty)
-        return [self.next_arg(session, arg_ty) for arg_ty in prototype.args]
+        # Make sure there is no None in arg_locs by dropping args after (and including) the first None
+        arg_locs = []
+        for arg_ty in prototype.args:
+            arg = self.next_arg(session, arg_ty)
+            if arg is None:
+                break
+            arg_locs.append(arg)
+        return arg_locs
 
     def get_args(self, state, prototype, stack_base=None):
         arg_locs = self.arg_locs(prototype)
