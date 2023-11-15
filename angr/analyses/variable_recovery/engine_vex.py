@@ -186,9 +186,6 @@ class SimEngineVRVEX(
             func.prototype = None
             return
 
-        if None in arg_locs:
-            return
-
         for arg_loc in arg_locs:
             for loc in arg_loc.get_footprint():
                 if isinstance(loc, SimRegArg):
