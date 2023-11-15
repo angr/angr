@@ -1,7 +1,7 @@
 import logging
-from typing import Union
+from typing import Optional
 
-from pypcode import OpCode, Varnode, PcodeOp, Translation
+from pypcode import OpCode, Varnode, PcodeOp
 import claripy
 from claripy.ast.bv import BV
 
@@ -21,70 +21,68 @@ class PcodeEmulatorMixin(SimEngineBase):
     Mixin for p-code execution.
     """
 
-    _current_ins: Union[Translation, None]
-    _current_op: Union[PcodeOp, None]
-    _current_behavior: Union[OpBehavior, None]
+    _current_op: Optional[PcodeOp]
+    _current_op_idx: int
+    _current_behavior: Optional[OpBehavior]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._current_ins = None
         self._current_op = None
         self._current_behavior = None
-        self._special_op_handlers = {
-            OpCode.LOAD: self._execute_load,
-            OpCode.STORE: self._execute_store,
-            OpCode.BRANCH: self._execute_branch,
-            OpCode.CBRANCH: self._execute_cbranch,
-            OpCode.BRANCHIND: self._execute_branchind,
-            OpCode.CALL: self._execute_call,
-            OpCode.CALLIND: self._execute_callind,
-            OpCode.CALLOTHER: self._execute_callother,
-            OpCode.RETURN: self._execute_ret,
-            OpCode.MULTIEQUAL: self._execute_multiequal,
-            OpCode.INDIRECT: self._execute_indirect,
-            OpCode.SEGMENTOP: self._execute_segment_op,
-            OpCode.CPOOLREF: self._execute_cpool_ref,
-            OpCode.NEW: self._execute_new,
-        }
 
     def handle_pcode_block(self, irsb: IRSB) -> None:
         """
-        Execute a single IRSB.
+        Execute a single P-Code IRSB.
 
         :param irsb: Block to be executed.
         """
         self.irsb = irsb
+
         # Hack on a handler here to track whether exit has been handled or not
         # FIXME: Vex models this as a known exit statement, which we should also
         # do here. For now, handle it this way.
         self.state.scratch.exit_handled = False
+        self._pcode_tmps = {}
 
-        fallthru_addr = None
-        for i, ins in enumerate(irsb._instructions):
-            l.debug(
-                "Executing machine instruction @ %#x (%d of %d)", ins.address.offset, i + 1, len(irsb._instructions)
-            )
+        fallthru_addr = self.irsb.addr
+        self.state.scratch.ins_addr = self.irsb.addr
+        last_imark_op_idx = 0
 
-            # Execute a single instruction of the emulated machine
-            self._current_ins = ins
-            self.state.scratch.ins_addr = self._current_ins.address.offset
+        # Note: start_op_idx is instruction relative
+        start_op_idx = self.state.scratch.statement_offset
+        self.state.scratch.statement_offset = 0
+        assert start_op_idx == 0, "FIXME: Test statement_offset behavior"
 
-            # FIXME: Hacking this on here but ideally should use "scratch".
-            self._pcode_tmps = {}  # FIXME: Consider alignment requirements
+        for op_idx, op in enumerate(irsb._ops[start_op_idx:]):  # FIXME: Shouldn't use protected members of IRSB
+            op_idx += start_op_idx
 
-            self.state._inspect("instruction", BP_BEFORE, instruction=self._current_ins.address.offset)
-            offset = self.state.scratch.statement_offset
-            self.state.scratch.statement_offset = 0
-            for op in self._current_ins.ops[offset:]:
-                self._current_op = op
-                self._current_behavior = irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
-                l.debug("Executing p-code op: %s", self._current_op)
-                self._execute_current_op()
-            self.state._inspect("instruction", BP_AFTER)
+            if op.opcode == OpCode.IMARK:
+                if op_idx > 0:
+                    # Trigger BP for previous instruction once we reach next IMARK
+                    self.state._inspect("instruction", BP_AFTER)
 
+                decode_addr = op.inputs[0].offset
+                last_imark_op_idx = op_idx
+
+                # Note: instruction BP will not be triggered on p-code-relative jumps
+                l.debug("Executing machine instruction @ %#x", decode_addr)
+                for vn in op.inputs:
+                    self.state._inspect("instruction", BP_BEFORE, instruction=vn.offset)
+
+                # FIXME: Hacking this on here but ideally should use "scratch".
+                self._pcode_tmps = {}  # FIXME: Consider alignment requirements
+                self.state.scratch.ins_addr = decode_addr
+                fallthru_addr = op.inputs[-1].offset + op.inputs[-1].size
+                continue
+
+            self._current_op = op
+            self._current_op_idx = op_idx - last_imark_op_idx
+            l.debug("Executing P-Code op: %s", self._current_op)
+            self._execute_current_op()
             self._current_op = None
-            self._current_behavior = None
-            fallthru_addr = ins.address.offset + ins.length
+
+        if self.state.scratch.statement_offset == 0:
+            self.state._inspect("instruction", BP_AFTER)
 
         if not self.state.scratch.exit_handled:
             self.successors.add_successor(
@@ -100,14 +98,32 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute the current p-code operation.
         """
-        assert self._current_behavior is not None
+        self._current_behavior = self.irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
 
         if self._current_behavior.is_special:
-            self._special_op_handlers[self._current_behavior.opcode]()
+            handlers = {
+                OpCode.LOAD: self._execute_load,
+                OpCode.STORE: self._execute_store,
+                OpCode.BRANCH: self._execute_branch,
+                OpCode.CBRANCH: self._execute_cbranch,
+                OpCode.BRANCHIND: self._execute_branchind,
+                OpCode.CALL: self._execute_call,
+                OpCode.CALLIND: self._execute_callind,
+                OpCode.CALLOTHER: self._execute_callother,
+                OpCode.RETURN: self._execute_ret,
+                OpCode.MULTIEQUAL: self._execute_multiequal,
+                OpCode.INDIRECT: self._execute_indirect,
+                OpCode.SEGMENTOP: self._execute_segment_op,
+                OpCode.CPOOLREF: self._execute_cpool_ref,
+                OpCode.NEW: self._execute_new,
+            }
+            handlers[self._current_behavior.opcode]()
         elif self._current_behavior.is_unary:
             self._execute_unary()
         else:
             self._execute_binary()
+
+        self._current_behavior = None
 
     def _map_register_name(self, varnode: Varnode) -> int:
         """
@@ -118,7 +134,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         # FIXME: Will need performance optimization
         # FIXME: Should not get trans object this way. There should be a faster mapping method than going through trans
-        reg_name = varnode.get_register_name()
+        reg_name = varnode.getRegisterName()
         try:
             reg_offset = self.state.project.arch.get_register_offset(reg_name.lower())
             l.debug("Mapped register '%s' to offset %x", reg_name, reg_offset)
@@ -153,27 +169,26 @@ class PcodeEmulatorMixin(SimEngineBase):
         :param varnode: Varnode to store into.
         :param value:   Value to store.
         """
-        space_name = varnode.space.name
-
         # FIXME: Consider moving into behavior.py
         value = self._adjust_value_size(varnode.size * 8, value)
         assert varnode.size * 8 == value.size()
 
-        l.debug("Storing %s %x %s %d", space_name, varnode.offset, value, varnode.size)
-        if space_name == "register":
+        space = varnode.space
+        l.debug("Storing %s %x %s %d", space.name, varnode.offset, value, varnode.size)
+        if space.name == "register":
             self.state.registers.store(
                 self._map_register_name(varnode), value, size=varnode.size, endness=self.project.arch.register_endness
             )
 
-        elif space_name == "unique":
+        elif space.name == "unique":
             self._pcode_tmps[varnode.offset] = value
 
-        elif space_name in ("ram", "mem"):
+        elif space.name in ("ram", "mem"):
             l.debug("Storing %s to offset %s", value, varnode.offset)
             self.state.memory.store(varnode.offset, value, endness=self.project.arch.memory_endness)
 
         else:
-            raise AngrError(f"Attempted write to unhandled address space '{space_name}'")
+            raise AngrError(f"Attempted write to unhandled address space '{space.name}'")
 
     def _get_value(self, varnode: Varnode) -> BV:
         """
@@ -218,54 +233,77 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute the unary behavior of the current op.
         """
-        in1 = self._get_value(self._current_op.inputs[0])
-        l.debug("in1 = %s", in1)
-        out = self._current_behavior.evaluate_unary(self._current_op.output.size, self._current_op.inputs[0].size, in1)
-        l.debug("out unary = %s", out)
+        in0 = self._get_value(self._current_op.inputs[0])
+        out = self._current_behavior.evaluate_unary(self._current_op.output.size, self._current_op.inputs[0].size, in0)
         self._set_value(self._current_op.output, out)
 
     def _execute_binary(self) -> None:
         """
         Execute the binary behavior of the current op.
         """
-        in1 = self._get_value(self._current_op.inputs[0])
-        in2 = self._get_value(self._current_op.inputs[1])
-        l.debug("in1 = %s", in1)
-        l.debug("in2 = %s", in2)
+
+        # Validate output
+        assert self._current_op.output is not None
+        if (
+            self._current_op.opcode
+            in [
+                OpCode.INT_LESS,
+                OpCode.INT_SLESS,
+                OpCode.INT_LESSEQUAL,
+                OpCode.INT_SLESSEQUAL,
+                OpCode.INT_EQUAL,
+                OpCode.INT_NOTEQUAL,
+            ]
+            and self._current_op.output.size != 1
+        ):
+            l.warning(
+                "SLEIGH spec states output size for op %s must be 1, but op has %d",
+                self._current_op.opcode.__name__,
+                self._current_op.output.size,
+            )
+
+        # Validate ops that mandate inputs of equal sizes
+        # Validate ops that mandate output of greater size
+
+        # Validate inputs
+
+        in0 = self._get_value(self._current_op.inputs[0])
+        in1 = self._get_value(self._current_op.inputs[1])
         out = self._current_behavior.evaluate_binary(
-            self._current_op.output.size, self._current_op.inputs[0].size, in1, in2
+            self._current_op.output.size, self._current_op.inputs[0].size, in0, in1
         )
-        l.debug("out binary = %s", out)
         self._set_value(self._current_op.output, out)
 
     def _execute_load(self) -> None:
         """
         Execute a p-code load operation.
         """
-        spc = self._current_op.inputs[0].get_space_from_const()
-        off = self._get_value(self._current_op.inputs[1])
+        space = self._current_op.inputs[0].getSpaceFromConst()
+        offset = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
-        if spc.name in ("ram", "mem"):
-            res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
-        elif spc.name in "register":
-            res = self.state.registers.load(off, size=out.size, endness=self.project.arch.register_endness)
+        if space.name in ("ram", "mem"):
+            res = self.state.memory.load(offset, out.size, endness=self.project.arch.memory_endness)
+        elif space.name in "register":
+            res = self.state.registers.load(offset, size=out.size, endness=self.project.arch.register_endness)
         else:
             raise AngrError("Load from unhandled address space")
-        l.debug("Loaded %s from offset %s", res, off)
+        l.debug("Loaded %s from offset %s", res, offset)
         self._set_value(out, res)
+
+        # CHECKME: wordsize condition in cpuid load
 
     def _execute_store(self) -> None:
         """
         Execute a p-code store operation.
         """
-        spc = self._current_op.inputs[0].get_space_from_const()
-        off = self._get_value(self._current_op.inputs[1])
+        space = self._current_op.inputs[0].getSpaceFromConst()
+        offset = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
-        l.debug("Storing %s at offset %s", data, off)
-        if spc.name in ("ram", "mem"):
-            self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
-        elif spc.name == "register":
-            self.state.registers.store(off, data, endness=self.project.arch.register_endness)
+        l.debug("Storing %s at offset %s", data, offset)
+        if space.name in ("ram", "mem"):
+            self.state.memory.store(offset, data, endness=self.project.arch.memory_endness)
+        elif space.name == "register":
+            self.state.registers.store(offset, data, endness=self.project.arch.register_endness)
         else:
             raise AngrError("Store to unhandled address space")
 
@@ -273,12 +311,13 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code branch operation.
         """
-        dest_addr = self._current_op.inputs[0].get_addr()
-        if dest_addr.is_constant:
+        dest = self._current_op.inputs[0]
+        if dest.space.name == "const":
+            # P-Code-relative branch
             expr = self.state.scratch.ins_addr
-            self.state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
+            self.state.scratch.statement_offset = self._current_op_idx + dest.offset
         else:
-            expr = dest_addr.offset
+            expr = dest.offset
 
         self.successors.add_successor(
             self.state,
@@ -297,13 +336,14 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         exit_state = self.state.copy()
         cond = self._get_value(self._current_op.inputs[1])
-        dest_addr = self._current_op.inputs[0].get_addr()
+        dest = self._current_op.inputs[0]
 
-        if dest_addr.is_constant:
+        if dest.space.name == "const":
+            # P-Code-relative branch
             expr = exit_state.scratch.ins_addr
-            exit_state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
+            exit_state.scratch.statement_offset = self._current_op_idx + dest.offset
         else:
-            expr = dest_addr.offset
+            expr = dest.offset
 
         self.successors.add_successor(
             exit_state,
@@ -323,11 +363,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code return operation.
         """
-        ret_addr = self._get_value(self._current_op.inputs[0])
-
         self.successors.add_successor(
             self.state,
-            ret_addr,
+            self._get_value(self._current_op.inputs[0]),
             self.state.scratch.guard,
             "Ijk_Ret",
             exit_stmt_idx=DEFAULT_STATEMENT,
@@ -340,11 +378,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code indirect branch operation.
         """
-        expr = self._get_value(self._current_op.inputs[0])
-
         self.successors.add_successor(
             self.state,
-            expr,
+            self._get_value(self._current_op.inputs[0]),
             self.state.scratch.guard,
             "Ijk_Boring",
             exit_stmt_idx=DEFAULT_STATEMENT,
@@ -357,11 +393,13 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code call operation.
         """
-        expr = self._current_op.inputs[0].get_addr().offset
+
+        # FIXME: Spec claims CALL is semantically equivalent to BRANCH. But are p-code relative calls allowed? We assume
+        #        not.
 
         self.successors.add_successor(
             self.state.copy(),  # FIXME: Check extra processing after call
-            expr,
+            self._current_op.inputs[0].offset,
             self.state.scratch.guard,
             "Ijk_Call",
             exit_stmt_idx=DEFAULT_STATEMENT,
@@ -374,11 +412,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code indirect call operation.
         """
-        expr = self._get_value(self._current_op.inputs[0])
-
         self.successors.add_successor(
             self.state,
-            expr,
+            self._get_value(self._current_op.inputs[0]),
             self.state.scratch.guard,
             "Ijk_Call",
             exit_stmt_idx=DEFAULT_STATEMENT,
