@@ -112,6 +112,7 @@ _ail2claripy_op_mapping = {
     "Rol": lambda expr, _, m: _dummy_bvs(expr, m),
     "Ror": lambda expr, _, m: _dummy_bvs(expr, m),
     "LogicalXor": lambda expr, _, m: _dummy_bvs(expr, m),
+    "Carry": lambda expr, _, m: _dummy_bvs(expr, m),
 }
 
 #
