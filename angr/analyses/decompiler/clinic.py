@@ -397,6 +397,10 @@ class Clinic(Analysis):
         ail_graph = self._make_ailgraph()
         self._remove_redundant_jump_blocks(ail_graph)
 
+        # Run simplification passes
+        self._update_progress(22.0, text="Optimizing fresh ailment graph")
+        ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
+
         # full-function constant-only propagation
         self._update_progress(33.0, text="Constant propagation")
         self._simplify_function(
