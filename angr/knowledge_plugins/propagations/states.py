@@ -642,6 +642,20 @@ class PropagatorAILState(PropagatorState):
                 PropValue(claripy.BVV(0, 32), offset_and_details={0: Detail(4, reg_value, initial_codeloc)}),
             )
 
+        if project is not None and project.simos is not None and project.simos.function_initial_registers:
+            if func_addr is not None:
+                for reg_name, reg_value in project.simos.function_initial_registers.items():
+                    reg_size = project.arch.registers[reg_name][1]
+                    reg_expr = ailment.Expr.Register(None, None, project.arch.registers[reg_name][0], reg_size)
+                    reg_value_expr = ailment.Expr.Const(None, None, reg_value, reg_size * 8)
+                    state.store_register(
+                        reg_expr,
+                        PropValue(
+                            claripy.BVV(reg_value, project.arch.bits),
+                            offset_and_details={0: Detail(reg_size, reg_value_expr, initial_codeloc)},
+                        ),
+                    )
+
         return state
 
     def copy(self) -> "PropagatorAILState":

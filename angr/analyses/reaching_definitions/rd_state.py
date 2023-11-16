@@ -124,10 +124,11 @@ class ReachingDefinitionsState:
             self.live_definitions = LiveDefinitions(
                 self.arch, track_tmps=self._track_tmps, canonical_size=canonical_size
             )
-            self._set_initialization_values(subject, rtoc_value, initializer=initializer)
-
             if self.analysis is not None:
                 self.live_definitions.project = self.analysis.project
+            self._set_initialization_values(
+                subject, rtoc_value, initializer=initializer, project=self.live_definitions.project
+            )
         else:
             # this state is a copy from a previous state. skip the initialization
             self.live_definitions = live_definitions
@@ -269,10 +270,14 @@ class ReachingDefinitionsState:
         return "{%s}" % ctnt
 
     def _set_initialization_values(
-        self, subject: Subject, rtoc_value: Optional[int] = None, initializer: Optional[RDAStateInitializer] = None
+        self,
+        subject: Subject,
+        rtoc_value: Optional[int] = None,
+        initializer: Optional[RDAStateInitializer] = None,
+        project=None,
     ):
         if initializer is None:
-            initializer = RDAStateInitializer(self.arch)
+            initializer = RDAStateInitializer(self.arch, project=project)
 
         if subject.type == SubjectType.Function:
             if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:

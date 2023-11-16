@@ -33,8 +33,9 @@ class RDAStateInitializer:
 
     """
 
-    def __init__(self, arch: Arch):
+    def __init__(self, arch: Arch, project=None):
         self.arch: Arch = arch
+        self.project = project
 
     def initialize_function_state(
         self, state: "ReachingDefinitionsState", cc: Optional[SimCC], func_addr: int, rtoc_value: Optional[int] = None
@@ -170,6 +171,19 @@ class RDAStateInitializer:
                 state.analysis.model.add_def(t9_def)
             t9 = state.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             state.registers.store(t9_offset, t9)
+
+        # project-specific initialization
+        if self.project is not None:
+            if self.project.simos is not None and self.project.simos.function_initial_registers:
+                for reg_name, reg_value in self.project.simos.function_initial_registers.items():
+                    reg_offset = self.arch.registers[reg_name][0]
+                    reg_atom = Register(reg_offset, self.arch.registers[reg_name][1])
+                    reg_def = Definition(reg_atom, ex_loc, tags={InitialValueTag()})
+                    state.all_definitions.add(reg_def)
+                    if state.analysis is not None:
+                        state.analysis.model.add_def(reg_def)
+                    reg = state.annotate_with_def(claripy.BVV(reg_value, self.arch.registers[reg_name][1]), reg_def)
+                    state.registers.store(reg_offset, reg)
 
     def _initialize_function_argument_register(
         self,
