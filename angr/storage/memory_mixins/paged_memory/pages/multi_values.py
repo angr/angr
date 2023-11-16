@@ -49,9 +49,12 @@ class MultiValues:
             else None
         )
 
+        if self._single_value is None and self._values is None:
+            self._values = {}
+
         # if only one value is passed in, assign it to self._single_value
         if self._values:
-            if len(self._values) == 0 and 0 in self._values and len(self._values[0]) == 0:
+            if len(self._values) == 1 and 0 in self._values and len(self._values[0]) == 1:
                 self._single_value = next(iter(self._values[0]))
                 self._values = None
 
@@ -152,6 +155,9 @@ class MultiValues:
             return self._single_value.length
 
         assert self._values is not None
+
+        if len(self._values) == 0:
+            return 0
 
         max_offset = max(self._values.keys())
         max_len = max(x.size() for x in self._values[max_offset])
