@@ -849,7 +849,7 @@ class PcodeBasicBlockLifter:
         irsb.behaviors = self.behaviors  # FIXME
 
         # Translate
-        sliced_data = data[bytes_offset : bytes_offset + max_bytes]
+        sliced_data = bytes(data[bytes_offset : bytes_offset + max_bytes])
 
         if is_sparc32:
             # workaround to handle SPARC V8 decoding before having a SPARC V8 Sleigh file
