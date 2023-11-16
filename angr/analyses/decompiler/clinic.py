@@ -1,6 +1,8 @@
 import copy
 from collections import defaultdict, namedtuple
 import logging
+import enum
+from dataclasses import dataclass
 from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any, NamedTuple, TYPE_CHECKING
 
 import networkx
@@ -9,6 +11,7 @@ import ailment
 
 from ...knowledge_base import KnowledgeBase
 from ...knowledge_plugins.functions import Function
+from ...knowledge_plugins.cfg.memory_data import MemoryDataSort
 from ...codenode import BlockNode
 from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimStructArg, SimFunctionArgument
@@ -43,6 +46,29 @@ l = logging.getLogger(name=__name__)
 BlockCache = namedtuple("BlockCache", ("rd", "prop"))
 
 
+class ClinicMode(enum.Enum):
+    """
+    Analysis mode for Clinic.
+    """
+
+    DECOMPILE = 1
+    COLLECT_DATA_REFS = 2
+
+
+@dataclass
+class DataRefDesc:
+    """
+    The fields of this class is compatible with items inside IRSB.data_refs.
+    """
+
+    data_addr: int
+    data_size: int
+    block_addr: int
+    stmt_idx: int
+    ins_addr: int
+    data_type_str: str
+
+
 class Clinic(Analysis):
     """
     A Clinic deals with AILments.
@@ -66,8 +92,9 @@ class Clinic(Analysis):
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,
         cache: Optional["DecompilationCache"] = None,
+        mode: ClinicMode = ClinicMode.DECOMPILE,
     ):
-        if not func.normalized:
+        if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
 
         self.function = func
@@ -77,6 +104,7 @@ class Clinic(Analysis):
         self.arg_list = None
         self.variable_kb = variable_kb
         self.externs: Set[SimMemoryVariable] = set()
+        self.data_refs: Dict[int, int] = {}  # data address to instruction address
 
         self._func_graph: Optional[networkx.DiGraph] = None
         self._ail_manager = None
@@ -94,6 +122,7 @@ class Clinic(Analysis):
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
         self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
+        self._mode = mode
 
         self._register_save_areas_removed: bool = False
 
@@ -109,7 +138,12 @@ class Clinic(Analysis):
             self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
             l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
 
-        self._analyze()
+        if self._mode == ClinicMode.DECOMPILE:
+            self._analyze_for_decompiling()
+        elif self._mode == ClinicMode.COLLECT_DATA_REFS:
+            self._analyze_for_data_refs()
+        else:
+            raise TypeError(f"Unsupported analysis mode {self._mode}")
 
     #
     # Public methods
@@ -146,7 +180,7 @@ class Clinic(Analysis):
     # Private methods
     #
 
-    def _analyze(self):
+    def _analyze_for_decompiling(self):
         is_pcode_arch = ":" in self.project.arch.name
 
         # Set up the function graph according to configurations
@@ -334,6 +368,82 @@ class Clinic(Analysis):
         self.variable_kb = variable_kb
         self.cc_graph = self.copy_graph()
         self.externs = self._collect_externs(ail_graph, variable_kb)
+
+    def _analyze_for_data_refs(self):
+        # Set up the function graph according to configurations
+        self._update_progress(0.0, text="Setting up function graph")
+        self._set_function_graph()
+
+        # Remove alignment blocks
+        self._update_progress(5.0, text="Removing alignment blocks")
+        self._remove_alignment_blocks()
+
+        # if the graph is empty, don't continue
+        if not self._func_graph:
+            return
+
+        # initialize the AIL conversion manager
+        self._ail_manager = ailment.Manager(arch=self.project.arch)
+
+        # Track stack pointers
+        self._update_progress(15.0, text="Tracking stack pointers")
+        spt = self._track_stack_pointers()
+
+        # Convert VEX blocks to AIL blocks and then simplify them
+
+        self._update_progress(20.0, text="Converting VEX to AIL")
+        self._convert_all()
+
+        ail_graph = self._make_ailgraph()
+        self._remove_redundant_jump_blocks(ail_graph)
+
+        # Run simplification passes
+        self._update_progress(22.0, text="Optimizing fresh ailment graph")
+        ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
+
+        # full-function constant-only propagation
+        self._update_progress(33.0, text="Constant propagation")
+        self._simplify_function(
+            ail_graph,
+            remove_dead_memdefs=False,
+            unify_variables=False,
+            narrow_expressions=False,
+            only_consts=True,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            max_iterations=1,
+        )
+
+        # cached block-level reaching definition analysis results and propagator results
+        block_simplification_cache: Optional[Dict[ailment.Block, NamedTuple]] = {}
+
+        # Simplify blocks
+        # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
+        # before they are recognized as stack arguments.
+        self._update_progress(35.0, text="Simplifying blocks 1")
+        ail_graph = self._simplify_blocks(
+            ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
+        )
+
+        # Simplify the entire function for the first time
+        self._update_progress(45.0, text="Simplifying function 1")
+        self._simplify_function(
+            ail_graph,
+            remove_dead_memdefs=False,
+            unify_variables=False,
+            narrow_expressions=False,
+            fold_callexprs_into_conditions=False,
+        )
+
+        # clear _blocks_by_addr_and_size so no one can use it again
+        # TODO: Totally remove this dict
+        self._blocks_by_addr_and_size = None
+
+        self.graph = ail_graph
+        self.arg_list = None
+        self.variable_kb = None
+        self.cc_graph = None
+        self.externs = None
+        self.data_refs: Dict[int, List[DataRefDesc]] = self._collect_data_refs(ail_graph)
 
     def copy_graph(self) -> networkx.DiGraph:
         """
@@ -1521,7 +1631,7 @@ class Clinic(Analysis):
 
         def handle_expr(
             expr_idx: int,
-            expr: ailment.expression.Load,
+            expr: ailment.expression.Expression,
             stmt_idx: int,
             stmt: ailment.statement.Statement,
             block: Optional[ailment.Block],
@@ -1545,6 +1655,99 @@ class Clinic(Analysis):
         walker._handle_expr = handle_expr
         AILGraphWalker(ail_graph, walker.walk).walk()
         return variables
+
+    @staticmethod
+    def _collect_data_refs(ail_graph) -> Dict[int, List[DataRefDesc]]:
+        walker = ailment.AILBlockWalker()
+        data_refs: Dict[int, List[DataRefDesc]] = defaultdict(list)
+
+        def handle_Const(
+            expr_idx: int,
+            expr: ailment.expression.Const,
+            stmt_idx: int,
+            stmt: ailment.statement.Statement,
+            block: Optional[ailment.Block],
+        ):
+            if isinstance(expr.value, int) and hasattr(expr, "ins_addr"):
+                data_refs[block.addr].append(
+                    DataRefDesc(expr.value, 1, block.addr, stmt_idx, expr.ins_addr, MemoryDataSort.Unknown)
+                )
+            if hasattr(expr, "deref_src_addr"):
+                data_refs[block.addr].append(
+                    DataRefDesc(
+                        expr.deref_src_addr, expr.size, block.addr, stmt_idx, expr.ins_addr, MemoryDataSort.Unknown
+                    )
+                )
+
+        def handle_Load(
+            expr_idx: int,
+            expr: ailment.expression.Load,
+            stmt_idx: int,
+            stmt: ailment.statement.Statement,
+            block: Optional[ailment.Block],
+        ):
+            if isinstance(expr.addr, ailment.expression.Const):
+                addr = expr.addr
+                if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
+                    data_refs[block.addr].append(
+                        DataRefDesc(
+                            addr.value,
+                            expr.size,
+                            block.addr,
+                            stmt_idx,
+                            addr.ins_addr,
+                            MemoryDataSort.Integer if expr.size == 4 else MemoryDataSort.Unknown,
+                        )
+                    )
+                if hasattr(addr, "deref_src_addr"):
+                    data_refs[block.addr].append(
+                        DataRefDesc(
+                            addr.deref_src_addr,
+                            expr.size,
+                            block.addr,
+                            stmt_idx,
+                            addr.ins_addr,
+                            MemoryDataSort.Integer if expr.size == 4 else MemoryDataSort.Unknown,
+                        )
+                    )
+                return
+
+            return ailment.AILBlockWalker._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
+
+        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: Optional[ailment.Block]):
+            if isinstance(stmt.addr, ailment.expression.Const):
+                addr = stmt.addr
+                if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
+                    data_refs[block.addr].append(
+                        DataRefDesc(
+                            addr.value,
+                            stmt.size,
+                            block.addr,
+                            stmt_idx,
+                            addr.ins_addr,
+                            MemoryDataSort.Integer if stmt.size == 4 else MemoryDataSort.Unknown,
+                        )
+                    )
+                if hasattr(addr, "deref_src_addr"):
+                    data_refs[block.addr].append(
+                        DataRefDesc(
+                            addr.deref_src_addr,
+                            stmt.size,
+                            block.addr,
+                            stmt_idx,
+                            addr.ins_addr,
+                            MemoryDataSort.Integer if stmt.size == 4 else MemoryDataSort.Unknown,
+                        )
+                    )
+                return
+
+            return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
+
+        walker.stmt_handlers[ailment.statement.Store] = handle_Store
+        walker.expr_handlers[ailment.expression.Load] = handle_Load
+        walker.expr_handlers[ailment.expression.Const] = handle_Const
+        AILGraphWalker(ail_graph, walker.walk).walk()
+        return data_refs
 
     def _next_atom(self) -> int:
         return self._ail_manager.next_atom()
