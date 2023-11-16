@@ -4,7 +4,7 @@ import logging
 
 from ailment import AILBlockWalker
 from ailment.block import Block
-from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump
+from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement
 from ailment.expression import (
     Register,
     Convert,
@@ -1207,7 +1207,7 @@ class AILSimplifier(Analysis):
                 continue
 
             for idx, stmt in enumerate(block.statements):
-                if idx in stmts_to_remove:
+                if idx in stmts_to_remove and not isinstance(stmt, DirtyStatement):
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
