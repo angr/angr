@@ -212,6 +212,10 @@ class Project:
         self.store_function = store_function or self._store
         self.load_function = load_function or self._load
 
+        # FIXME: BIG HACK
+        if isinstance(self.filename, str) and self.filename.endswith(".xcal") and not simos:
+            simos = "snimmuc_nxp"
+
         # Step 4: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self.simos = simos(self)  # pylint:disable=invalid-name
