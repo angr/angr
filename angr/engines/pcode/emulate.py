@@ -29,22 +29,6 @@ class PcodeEmulatorMixin(SimEngineBase):
         super().__init__(*args, **kwargs)
         self._current_op = None
         self._current_behavior = None
-        self._special_op_handlers = {
-            OpCode.LOAD: self._execute_load,
-            OpCode.STORE: self._execute_store,
-            OpCode.BRANCH: self._execute_branch,
-            OpCode.CBRANCH: self._execute_cbranch,
-            OpCode.BRANCHIND: self._execute_branchind,
-            OpCode.CALL: self._execute_call,
-            OpCode.CALLIND: self._execute_callind,
-            OpCode.CALLOTHER: self._execute_callother,
-            OpCode.RETURN: self._execute_ret,
-            OpCode.MULTIEQUAL: self._execute_multiequal,
-            OpCode.INDIRECT: self._execute_indirect,
-            OpCode.SEGMENTOP: self._execute_segment_op,
-            OpCode.CPOOLREF: self._execute_cpool_ref,
-            OpCode.NEW: self._execute_new,
-        }
 
     def handle_pcode_block(self, irsb: IRSB) -> None:
         """
@@ -117,7 +101,23 @@ class PcodeEmulatorMixin(SimEngineBase):
         self._current_behavior = self.irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
 
         if self._current_behavior.is_special:
-            self._special_op_handlers[self._current_behavior.opcode]()
+            handlers = {
+                OpCode.LOAD: self._execute_load,
+                OpCode.STORE: self._execute_store,
+                OpCode.BRANCH: self._execute_branch,
+                OpCode.CBRANCH: self._execute_cbranch,
+                OpCode.BRANCHIND: self._execute_branchind,
+                OpCode.CALL: self._execute_call,
+                OpCode.CALLIND: self._execute_callind,
+                OpCode.CALLOTHER: self._execute_callother,
+                OpCode.RETURN: self._execute_ret,
+                OpCode.MULTIEQUAL: self._execute_multiequal,
+                OpCode.INDIRECT: self._execute_indirect,
+                OpCode.SEGMENTOP: self._execute_segment_op,
+                OpCode.CPOOLREF: self._execute_cpool_ref,
+                OpCode.NEW: self._execute_new,
+            }
+            handlers[self._current_behavior.opcode]()
         elif self._current_behavior.is_unary:
             self._execute_unary()
         else:
