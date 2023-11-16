@@ -1,4 +1,5 @@
 from ailment.expression import Load, Const
+from cle.backends import Blob
 
 from .base import PeepholeOptimizationExprBase
 
@@ -22,8 +23,19 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                 try:
                     val = self.project.loader.memory.unpack_word(expr.addr.value, size=self.project.arch.bytes)
                 except KeyError:
-                    return expr
+                    return None
 
-                return Const(None, None, val, expr.bits, **expr.tags)
+                return Const(None, None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
+
+            # is it loading from a blob?
+            obj = self.project.loader.find_object_containing(expr.addr.value)
+            if obj is not None and isinstance(obj, Blob):
+                # do we know the value that it's reading?
+                try:
+                    val = self.project.loader.memory.unpack_word(expr.addr.value, size=self.project.arch.bytes)
+                except KeyError:
+                    return None
+
+                return Const(None, None, val, expr.bits, **expr.tags, deref_src_addr=expr.addr.value)
 
         return None
