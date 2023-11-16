@@ -2,6 +2,7 @@
 from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
 from collections import defaultdict
 import logging
+import struct
 from functools import reduce
 
 from ailment import Block, Expr, Stmt, Tmp
@@ -2046,6 +2047,14 @@ class CConstant(CExpression):
         self._fmt_setter["char"] = v
 
     @property
+    def fmt_float(self):
+        return self.fmt.get("float", False)
+
+    @fmt_float.setter
+    def fmt_float(self, v: bool):
+        self._fmt_setter["float"] = v
+
+    @property
     def type(self):
         return self._type
 
@@ -2128,6 +2137,11 @@ class CConstant(CExpression):
         :param value:   The integer value to format.
         :return:        The formatted string.
         """
+
+        if self.fmt_float:
+            if 0 < value <= 0xFFFF_FFFF:
+                str_value = str(struct.unpack("f", struct.pack("I", value))[0])
+                return str_value
 
         if self.fmt_neg:
             if value > 0:
