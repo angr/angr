@@ -35,6 +35,7 @@ class SimOS:
         self.return_deadend = None
         self.unresolvable_jump_target = None
         self.unresolvable_call_target = None
+        self.function_initial_registers = None
 
     def configure_project(self):
         """

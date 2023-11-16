@@ -11,6 +11,7 @@ from .linux import SimLinux
 from .cgc import SimCGC
 from .windows import SimWindows
 from .javavm import SimJavaVM
+from .snimmuc_nxp import SimSnimmucNxp
 
 os_mapping = defaultdict(lambda: SimOS)
 
@@ -27,3 +28,4 @@ register_simos("linux", SimLinux)
 register_simos("windows", SimWindows)
 register_simos("cgc", SimCGC)
 register_simos("javavm", SimJavaVM)
+register_simos("snimmuc_nxp", SimSnimmucNxp)
