@@ -427,6 +427,10 @@ class Block(Serializable):
 
     @property
     def instruction_addrs(self):
+        if self.size == 0:
+            # hooks and other pseudo-functions
+            return []
+
         if not self._instruction_addrs and self._vex is None:
             # initialize instruction addrs
             _ = self.vex
