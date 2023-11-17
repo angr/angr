@@ -1,3 +1,4 @@
+# pylint:disable=unnecessary-dunder-call
 import itertools
 
 import networkx
@@ -14,8 +15,6 @@ class BadJumpkindNotification(Exception):
     """
     Notifies the caller that the jumpkind is bad (e.g., Ijk_NoDecode)
     """
-
-    pass
 
 
 class Blade:
