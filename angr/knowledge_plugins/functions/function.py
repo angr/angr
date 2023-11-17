@@ -310,7 +310,9 @@ class Function(Serializable):
         :return: angr.knowledge_plugins.xrefs.xref.XRef instances.
         """
         for block in self.blocks:
-            yield from self._function_manager._kb.xrefs.get_xrefs_by_ins_addr_region(block.addr, block.addr+block.size)
+            yield from self._function_manager._kb.xrefs.get_xrefs_by_ins_addr_region(
+                block.addr, block.addr + block.size
+            )
 
     @property
     def block_addrs(self):
