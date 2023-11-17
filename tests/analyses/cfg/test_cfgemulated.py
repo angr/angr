@@ -380,7 +380,7 @@ class TestCfgemulate(unittest.TestCase):
 
         string_references = []
         for f in cfg.functions.values():
-            string_references.append(f.string_references())
+            string_references.append(list(f.string_references()))
 
         # test passes if hasn't thrown an exception
 
