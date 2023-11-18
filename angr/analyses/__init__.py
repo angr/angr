@@ -44,3 +44,4 @@ from .vtable import VtableFinder
 from .find_objects_static import StaticObjectFinder
 from .class_identifier import ClassIdentifier
 from .flirt import FlirtAnalysis
+from .unpacker import PackingDetector
