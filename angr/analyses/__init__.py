@@ -53,6 +53,7 @@ from .codecave import CodeCaveAnalysis
 from .patchfinder import PatchFinderAnalysis
 from .pathfinder import Pathfinder
 from .smc import SelfModifyingCodeAnalysis
+from .unpacker import PackingDetector
 
 
 __all__ = (
@@ -109,4 +110,5 @@ __all__ = (
     "PatchFinderAnalysis",
     "Pathfinder",
     "SelfModifyingCodeAnalysis",
+    "PackingDetector",
 )
