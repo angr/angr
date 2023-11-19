@@ -319,7 +319,7 @@ class VariableManagerInternal(Serializable):
 
             region.add_variable(offset, var)
 
-        model._variables_without_writes = model.get_variables_without_writes()
+        model._variables_without_writes = set(model.get_variables_without_writes())
 
         return model
 
