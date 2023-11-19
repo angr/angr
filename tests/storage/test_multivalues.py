@@ -39,5 +39,6 @@ class TestMultiValues(TestCase):
         assert v.concrete_value == mv2._single_value.concrete_value
         assert len(mv2) == 64
 
+
 if __name__ == "__main__":
     main()
