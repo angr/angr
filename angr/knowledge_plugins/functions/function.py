@@ -13,6 +13,7 @@ from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
 from angr.block import Block
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 
 from ...codenode import CodeNode, BlockNode, HookNode, SyscallNode
 from ...serializable import Serializable
@@ -440,7 +441,7 @@ class Function(Serializable):
                 md = cfg.memory_data[x.dst]
             except KeyError:
                 continue
-            if md.sort != "string":
+            if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
                 continue
             if len(md.content) < minimum_length:
                 continue
