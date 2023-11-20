@@ -10,7 +10,6 @@ import ailment
 import angr
 
 _l = logging.getLogger(__name__)
-import networkx as nx
 
 
 def remove_last_statement(node):
@@ -537,7 +536,7 @@ def peephole_optimize_expr(expr, expr_opts):
     return new_expr
 
 
-def copy_graph(graph: nx.DiGraph):
+def copy_graph(graph: networkx.DiGraph):
     """
     Copy AIL Graph.
 
