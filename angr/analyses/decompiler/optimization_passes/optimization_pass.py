@@ -1,5 +1,4 @@
 # pylint:disable=unused-argument
-import copy
 from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING
 from enum import Enum
 
@@ -9,7 +8,7 @@ import ailment
 from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, PhoenixStructurer
-from angr.analyses.decompiler.utils import add_labels
+from angr.analyses.decompiler.utils import add_labels, copy_graph
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -336,7 +335,8 @@ class StructuringOptimizationPass(OptimizationPass):
 
         self._ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self._func,
-            graph=graph,
+            # the graph must be copied for every block since RecursiveStructurer modifies the graph in-place
+            graph=copy_graph(graph),
             cond_proc=self._ri.cond_proc,
             force_loop_single_exit=False,
             complete_successors=True,
@@ -344,9 +344,8 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._ri is None:
             return False
 
-        region_copy = copy.deepcopy(self._ri.region)
         rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb)(
-            region_copy,
+            self._ri.region,
             cond_proc=self._ri.cond_proc,
             func=self._func,
             structurer_cls=PhoenixStructurer,

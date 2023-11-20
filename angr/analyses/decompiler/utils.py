@@ -1,4 +1,6 @@
+# pylint:disable=wrong-import-position
 import pathlib
+import copy
 from typing import Optional, Tuple, Any, Union, List, Iterable
 import logging
 
@@ -8,6 +10,7 @@ import ailment
 import angr
 
 _l = logging.getLogger(__name__)
+import networkx as nx
 
 
 def remove_last_statement(node):
@@ -532,6 +535,30 @@ def peephole_optimize_expr(expr, expr_opts):
     new_expr = walker._handle_expr(0, expr, 0, None, None)
 
     return new_expr
+
+
+def copy_graph(graph: nx.DiGraph):
+    """
+    Copy AIL Graph.
+
+    :return: A copy of the AIl graph.
+    """
+    graph_copy = networkx.DiGraph()
+    block_mapping = {}
+    # copy all blocks
+    for block in graph.nodes():
+        new_block = copy.copy(block)
+        new_stmts = copy.copy(block.statements)
+        new_block.statements = new_stmts
+        block_mapping[block] = new_block
+        graph_copy.add_node(new_block)
+
+    # copy all edges
+    for src, dst, data in graph.edges(data=True):
+        new_src = block_mapping[src]
+        new_dst = block_mapping[dst]
+        graph_copy.add_edge(new_src, new_dst, **data)
+    return graph_copy
 
 
 def peephole_optimize_stmts(block, stmt_opts):
