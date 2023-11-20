@@ -302,8 +302,15 @@ class SimEnginePropagatorAIL(
                             if 0 in current_reg_value.offset_and_details:
                                 detail = current_reg_value.offset_and_details[0]
                                 if detail.def_at == def_at:
-                                    l.debug("Add a replacement: %s with %s", expr, reg_atom)
-                                    self.state.add_replacement(self._codeloc(), expr, reg_atom)
+                                    outdated = False
+                                    outdated_, has_avoid_ = self.is_using_outdated_def(
+                                        detail.expr, detail.def_at, self._codeloc(), avoid=expr
+                                    )
+                                    if outdated_ or has_avoid_:
+                                        outdated = True
+                                    if not outdated:
+                                        l.debug("Add a replacement: %s with %s", expr, reg_atom)
+                                        self.state.add_replacement(self._codeloc(), expr, reg_atom)
                                     top = self.state.top(expr.size * self.arch.byte_width)
                                     return PropValue.from_value_and_details(top, expr.size, expr, self._codeloc())
 
