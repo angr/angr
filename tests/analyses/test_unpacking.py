@@ -83,6 +83,20 @@ class TestUnpacking(TestCase):
         pd = proj.analyses.PackingDetector(cfg=cfg.model)
         assert pd.packed is False
 
+    def test_packing_detection_rain_upx(self):
+        binary_path = os.path.join(
+            bin_location,
+            "tests",
+            "i386",
+            "windows",
+            "rain32.upx",
+        )
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(force_smart_scan=False, force_complete_scan=False)
+
+        pd = proj.analyses.PackingDetector(cfg=cfg.model)
+        assert pd.packed is True
+
 
 if __name__ == "__main__":
     main()
