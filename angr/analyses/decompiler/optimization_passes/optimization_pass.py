@@ -312,8 +312,7 @@ class StructuringOptimizationPass(OptimizationPass):
 
             # check if the graph is structurable
             if not self._graph_is_structurable(self.out_graph):
-                if self._recover_structure_fails:
-                    self.out_graph = self._prev_graph
+                self.out_graph = self._prev_graph if self._recover_structure_fails else None
                 break
 
     def _simplify_ail_graph(self, graph):

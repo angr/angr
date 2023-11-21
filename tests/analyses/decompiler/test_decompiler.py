@@ -2574,7 +2574,7 @@ class TestDecompiler(unittest.TestCase):
         # 1. Condition: (!a0)
         # 2. Has a scope ending in a return
         # 3. Has no else scope after the return
-        good_if_pattern = r"if \(!a0\)\s*\{[^}]*return [^;]+;\s*\}(?!\s*else)"
+        good_if_pattern = r"if \(!a0\)\s*\{[^}]*return 1;\s*\}(?!\s*else)"
         good_if = re.search(good_if_pattern, text)
         assert good_if is not None
 
@@ -3113,8 +3113,8 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         # incorrect region replacement was causing the while loop be duplicated, so we would end up with four while
-        # loops.
-        assert d.codegen.text.count("while (") == 2
+        # loops. In the original source, there is only a single while loop.
+        assert d.codegen.text.count("while (") == 1
 
     @structuring_algo("phoenix")
     def test_decompiling_function_with_long_cascading_data_flows(self, decompiler_options=None):
