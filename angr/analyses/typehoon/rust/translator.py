@@ -43,6 +43,10 @@ class RustTypeTranslator(TypeTranslator):
         translated = handler(self, tc)
         return translated
 
+    def ctype2rust(self, simtype: sim_type.SimType):
+        tc = self.simtype2tc(simtype)
+        return self.tc2simtype(tc)[0]
+
 
 TypeConstHandlers = {
     typeconsts.Pointer64: RustTypeTranslator._translate_Pointer64,
