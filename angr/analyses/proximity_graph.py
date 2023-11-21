@@ -180,9 +180,9 @@ class ProximityGraphAnalysis(Analysis):
 
         self._work()
 
-    def _condense_blank_nodes(self, graph):
+    def _condense_blank_nodes(self, graph: networkx.DiGraph) -> None:
         nodes = list(graph.nodes)
-        blank_nodes = []
+        blank_nodes: List[BaseProxiNode] = []
 
         for node in nodes:
             if isinstance(node, BaseProxiNode) and node.type_ == ProxiNodeTypes.Empty:
@@ -195,7 +195,7 @@ class ProximityGraphAnalysis(Analysis):
         if blank_nodes:
             self._merge_nodes(graph, blank_nodes)
 
-    def _merge_nodes(self, graph, nodes):
+    def _merge_nodes(self, graph: networkx.DiGraph, nodes: List[BaseProxiNode]) -> None:
         for node in nodes:
             predecessors = set(graph.predecessors(node))
             successors = set(graph.successors(node))
