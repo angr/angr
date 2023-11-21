@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Any, TYPE_CHECKING, Optional
+from enum import Enum
+from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
@@ -31,6 +32,10 @@ from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .notes import DecompilationNote
+from .structured_codegen.c import CStructuredCodeGenerator
+from .structured_codegen.rust import RustStructuredCodeGenerator
+from ..typehoon.typehoon import Typehoon
+from ..typehoon.rust.typehoon import RustTypehoon
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
@@ -44,6 +49,15 @@ l = logging.getLogger(name=__name__)
 _PEEPHOLE_OPTIMIZATIONS_TYPE = (
     Iterable[type["PeepholeOptimizationStmtBase"] | type["PeepholeOptimizationExprBase"]] | None
 )
+
+
+class TargetLanguage(Enum):
+    C = "C"
+    RUST = "Rust"
+
+
+CodeGenCls = {TargetLanguage.C: CStructuredCodeGenerator, TargetLanguage.RUST: RustStructuredCodeGenerator}
+TypehoonCls = {TargetLanguage.C: Typehoon, TargetLanguage.RUST: RustTypehoon}
 
 
 class Decompiler(Analysis):
@@ -88,7 +102,9 @@ class Decompiler(Analysis):
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
         codegen_cls=CStructuredCodeGenerator,
+        target_lang=TargetLanguage.RUST,
     ):
+        assert target_lang in TargetLanguage
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
@@ -158,6 +174,7 @@ class Decompiler(Analysis):
             if use_cache
             else None
         )
+        self._target_lang = target_lang
 
         self.clinic = None  # mostly for debugging purposes
         self._clinic_graph = clinic_graph
@@ -168,6 +185,7 @@ class Decompiler(Analysis):
         self.codegen: Optional["BaseStructuredCodeGenerator"] = None
         self.codegen_cls = codegen_cls
         self.cache: DecompilationCache | None = None
+        self.cache: Optional[DecompilationCache] = None
         self.options_by_class = None
         self.seq_node: SequenceNode | None = None
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
@@ -316,6 +334,7 @@ class Decompiler(Analysis):
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
+                typehoon_cls=TypehoonCls[self._target_lang],
                 ail_graph=self._clinic_graph,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
