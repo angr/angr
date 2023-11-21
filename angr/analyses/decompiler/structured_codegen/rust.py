@@ -27,7 +27,7 @@ from ....sim_type import (
     SimTypeLength,
     SimTypeReg,
 )
-from ...typehoon.rust.sim_type import RustSimTypeInt
+from ...typehoon.rust.sim_type import RustSimTypeInt, RustSimTypeFunction
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
@@ -50,6 +50,7 @@ from ..structuring.structurer_nodes import (
     CascadingConditionNode,
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
+from ...typehoon.rust.translator import RustTypeTranslator
 
 if TYPE_CHECKING:
     import archinfo
@@ -541,7 +542,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         yield indent_str, None
 
         # header comments (if they exist)
-        header_comments = self.codegen.kb.comments.get(self.codegen.cfunc.addr, [])
+        header_comments = self.codegen.kb.comments.get(self.codegen.rust_func.addr, [])
         if header_comments:
             header_cmt = self._line_wrap_comment("".join(header_comments))
             yield header_cmt, None
@@ -2310,7 +2311,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_pos = None
         self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
         self.map_addr_to_label: Dict[Tuple[int, Optional[int]], RustLabel] = {}
-        self.cfunc: Optional[RustFunction] = None
+        self.rust_func: Optional[RustFunction] = None
         self.cexterns: Optional[Set[RustVariable]] = None
 
         self._analyze()
@@ -2341,6 +2342,12 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             elif option.param == "cstyle_ifs":
                 self.cstyle_ifs = value
 
+    def _translate_prototype_to_rust(self, prototype: SimTypeFunction):
+        translator = RustTypeTranslator(arch=self.project.arch)
+        args = [translator.ctype2rust(arg) for arg in prototype.args]
+        returnty = translator.ctype2rust(prototype.returnty)
+        return RustSimTypeFunction(args, returnty, prototype.label, prototype.arg_names, prototype.variadic)
+
     def _analyze(self):
         self._variables_in_use = {}
 
@@ -2356,10 +2363,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
 
-        self.cfunc = RustFunction(
+        self.rust_func = RustFunction(
             self._func.addr,
             self._func.name,
-            self._func.prototype,
+            self._translate_prototype_to_rust(self._func.prototype),
             arg_list,
             obj,
             self._variables_in_use,
@@ -2368,9 +2375,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             show_demangled_name=self.show_demangled_name,
             codegen=self,
         )
-        self.cfunc = FieldReferenceCleanup.handle(self.cfunc)
-        self.cfunc = PointerArithmeticFixer.handle(self.cfunc)
-        self.cfunc = MakeTypecastsImplicit.handle(self.cfunc)
+        self.rust_func = FieldReferenceCleanup.handle(self.rust_func)
+        self.rust_func = PointerArithmeticFixer.handle(self.rust_func)
+        self.rust_func = MakeTypecastsImplicit.handle(self.rust_func)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -2402,7 +2409,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self.map_pos_to_addr,
             self.map_addr_to_pos,
             self.map_ast_to_pos,
-        ) = self.render_text(self.cfunc)
+        ) = self.render_text(self.rust_func)
 
     RENDER_TYPE = Tuple[str, PositionMapping, PositionMapping, InstructionMapping, Dict[Any, Set[Any]]]
 
