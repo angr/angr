@@ -16,7 +16,7 @@ from .. import Analysis, register_analysis
 from .structuring.structurer_nodes import MultiNode, ConditionNode, IncompleteSwitchCaseHeadStatement
 from .graph_region import GraphRegion
 from .condition_processor import ConditionProcessor
-from .utils import replace_last_statement, first_nonlabel_statement
+from .utils import replace_last_statement, first_nonlabel_statement, copy_graph
 
 l = logging.getLogger(name=__name__)
 
@@ -27,7 +27,9 @@ CONDITIONNODE_ADDR = count(0xFF000000)
 
 class RegionIdentifier(Analysis):
     """
-    Identifies regions within a function.
+    Identifies regions within a function graph and creates a recursive GraphRegion object.
+    Note, that the analysis may modify the graph in-place. If you want to keep the original graph,
+    set the `update_graph` parameter to False.
     """
 
     def __init__(
@@ -35,6 +37,7 @@ class RegionIdentifier(Analysis):
         func,
         cond_proc=None,
         graph=None,
+        update_graph=True,
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
         complete_successors=False,
@@ -50,6 +53,9 @@ class RegionIdentifier(Analysis):
             )
         )
         self._graph = graph if graph is not None else self.function.graph
+        if not update_graph:
+            # copy the graph so updates don't affect the original graph
+            self._graph = copy_graph(self._graph)
 
         self.region = None
         self._start_node = None

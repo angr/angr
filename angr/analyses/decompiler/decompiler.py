@@ -21,7 +21,7 @@ from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
-from .utils import remove_labels, copy_graph
+from .utils import remove_labels
 from .sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:
@@ -266,8 +266,9 @@ class Decompiler(Analysis):
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self.func,
-            graph=graph if update_graph else copy_graph(graph),
+            graph=graph,
             cond_proc=condition_processor,
+            update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             complete_successors=self._complete_successors,
             **self.options_to_params(self.options_by_class["region_identifier"]),

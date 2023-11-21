@@ -8,7 +8,7 @@ import ailment
 from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, PhoenixStructurer
-from angr.analyses.decompiler.utils import add_labels, copy_graph
+from angr.analyses.decompiler.utils import add_labels
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -334,8 +334,9 @@ class StructuringOptimizationPass(OptimizationPass):
 
         self._ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self._func,
-            # the graph must be copied for every block since RecursiveStructurer modifies the graph in-place
-            graph=copy_graph(graph),
+            graph=graph,
+            # never update the graph in-place, we need to keep the original graph for later use
+            update_graph=False,
             cond_proc=self._ri.cond_proc,
             force_loop_single_exit=False,
             complete_successors=True,
