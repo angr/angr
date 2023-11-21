@@ -103,14 +103,16 @@ class StringObfuscationFinder(Analysis):
                         # load values for each function argument
                         args: List[Tuple[int, Any]] = []
                         for arg_idx, func_arg in enumerate(func.arguments):
-                            assert isinstance(func_arg, SimRegArg)
-                            reg_offset, reg_size = arch.registers[func_arg.reg_name]
-                            try:
-                                mv = observ.registers.load(reg_offset, size=reg_size)
-                            except SimMemoryMissingError:
-                                args.append((arg_idx, None))
-                                continue
-                            args.append((arg_idx, mv.one_value()))
+                            # FIXME: We are ignoring all non-register function arguments until we see a test case where
+                            # FIXME: stack-passing arguments are used
+                            if isinstance(func_arg, SimRegArg):
+                                reg_offset, reg_size = arch.registers[func_arg.reg_name]
+                                try:
+                                    mv = observ.registers.load(reg_offset, size=reg_size)
+                                except SimMemoryMissingError:
+                                    args.append((arg_idx, None))
+                                    continue
+                                args.append((arg_idx, mv.one_value()))
 
                         # the args must have at least one concrete address that points to an initialized memory location
                         acceptable_args = False
@@ -208,18 +210,20 @@ class StringObfuscationFinder(Analysis):
             )
             args = []
             for func_arg in func.arguments:
-                assert isinstance(func_arg, SimRegArg)
-                reg_offset, reg_size = arch.registers[func_arg.reg_name]
-                try:
-                    mv = observ.registers.load(reg_offset, size=reg_size)
-                except SimMemoryMissingError:
-                    args.append(None)
-                    continue
-                v = mv.one_value()
-                if v is not None and v.concrete:
-                    args.append(v)
-                else:
-                    args.append(None)
+                # FIXME: We are ignoring all non-register function arguments until we see a test case where
+                # FIXME: stack-passing arguments are used
+                if isinstance(func_arg, SimRegArg):
+                    reg_offset, reg_size = arch.registers[func_arg.reg_name]
+                    try:
+                        mv = observ.registers.load(reg_offset, size=reg_size)
+                    except SimMemoryMissingError:
+                        args.append(None)
+                        continue
+                    v = mv.one_value()
+                    if v is not None and v.concrete:
+                        args.append(v)
+                    else:
+                        args.append(None)
 
             if None in args:
                 _l.debug(
