@@ -80,7 +80,7 @@ class Function(Serializable):
         "is_alignment",
         "is_prototype_guessed",
         "ran_cca",
-        "_cyclomatic_complexity"
+        "_cyclomatic_complexity",
     )
 
     def __init__(
@@ -325,7 +325,9 @@ class Function(Serializable):
         :rtype: int
         """
         if self._cyclomatic_complexity is None:
-            self._cyclomatic_complexity = self.transition_graph.number_of_edges() - self.transition_graph.number_of_nodes() + 2
+            self._cyclomatic_complexity = (
+                self.transition_graph.number_of_edges() - self.transition_graph.number_of_nodes() + 2
+            )
         return self._cyclomatic_complexity
 
     @property
