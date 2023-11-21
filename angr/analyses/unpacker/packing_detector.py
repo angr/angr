@@ -81,8 +81,6 @@ class PackingDetector(Analysis):
         # compute entropy
         total_bytes, entropy = self._compute_entropy(uncovered_regions)
 
-        breakpoint()
-
         self.packed = total_bytes >= self.PACKED_MIN_BYTES and entropy >= self.PACKED_ENTROPY_MIN_THRESHOLD
 
     def _get_uncovered_regions(self, covered_regions: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
