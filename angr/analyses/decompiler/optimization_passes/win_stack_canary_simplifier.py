@@ -3,9 +3,11 @@ from typing import Set, Dict
 from collections import defaultdict
 import logging
 
+import capstone
 import ailment
 import cle
 
+from angr.knowledge_plugins.functions import Function
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -48,24 +50,24 @@ class WinStackCanarySimplifier(OptimizationPass):
             return False, None
 
         # Check the first block and see if there is any statement reading data from _security_cookie
-        init_stmt = self._find_canary_init_stmt()
+        init_stmts = self._find_canary_init_stmt()
 
-        return init_stmt is not None, {"init_stmt": init_stmt}
+        return init_stmts is not None, {"init_stmts": init_stmts}
 
     def _analyze(self, cache=None):
-        init_stmt = None
+        init_stmts = None
         if cache is not None:
-            init_stmt = cache.get("init_stmt", None)
+            init_stmts = cache.get("init_stmt", None)
 
-        if init_stmt is None:
-            init_stmt = self._find_canary_init_stmt()
+        if init_stmts is None:
+            init_stmts = self._find_canary_init_stmt()
 
-        if init_stmt is None:
+        if init_stmts is None:
             return
 
         # Look for the statement that loads back canary value from the stack
-        first_block, canary_init_stmt_idx = init_stmt
-        canary_init_stmt = first_block.statements[canary_init_stmt_idx]
+        first_block, canary_init_stmt_ids = init_stmts
+        canary_init_stmt = first_block.statements[canary_init_stmt_ids[-1]]
         # where is the stack canary stored?
         if not isinstance(canary_init_stmt.addr, ailment.Expr.StackBaseOffset):
             _l.debug(
@@ -142,7 +144,8 @@ class WinStackCanarySimplifier(OptimizationPass):
         if found_endpoints:
             # Remove the statement that loads the stack canary from fs
             first_block_copy = first_block.copy()
-            first_block_copy.statements.pop(canary_init_stmt_idx)
+            for stmt_idx in sorted(canary_init_stmt_ids, reverse=True):
+                first_block_copy.statements.pop(stmt_idx)
             self._update_block(first_block, first_block_copy)
 
     def _find_canary_init_stmt(self):
@@ -150,7 +153,13 @@ class WinStackCanarySimplifier(OptimizationPass):
         if first_block is None:
             return None
 
+        load_stmt_idx = None
+        load_reg = None
+        xor_stmt_idx = None
+        xored_reg = None
+
         for idx, stmt in enumerate(first_block.statements):
+            # if we are lucky and things get folded into one statement:
             if (
                 isinstance(stmt, ailment.Stmt.Store)
                 and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
@@ -163,13 +172,51 @@ class WinStackCanarySimplifier(OptimizationPass):
                 # Check addr: must be __security_cookie
                 load_addr = stmt.data.operands[0].addr.value
                 if load_addr == self._security_cookie_addr:
-                    return first_block, idx
+                    return first_block, [idx]
+            # or if we are unlucky and the load and the xor are two different statements
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.Register)
+                and isinstance(stmt.src, ailment.Expr.Load)
+                and isinstance(stmt.src.addr, ailment.Expr.Const)
+            ):
+                load_addr = stmt.src.addr.value
+                if load_addr == self._security_cookie_addr:
+                    load_stmt_idx = idx
+                    load_reg = stmt.dst.reg_offset
+            if load_stmt_idx is not None and idx == load_stmt_idx + 1:
+                if (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.Register)
+                    and isinstance(stmt.src, ailment.Expr.BinaryOp)
+                    and stmt.src.op == "Xor"
+                    and isinstance(stmt.src.operands[0], ailment.Expr.Register)
+                    and stmt.src.operands[0].reg_offset == load_reg
+                    and isinstance(stmt.src.operands[1], ailment.Expr.StackBaseOffset)
+                ):
+                    xor_stmt_idx = idx
+                    xored_reg = stmt.dst.reg_offset
+                else:
+                    break
+            if xor_stmt_idx is not None and idx == xor_stmt_idx + 1:
+                if (
+                    isinstance(stmt, ailment.Stmt.Store)
+                    and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                    and isinstance(stmt.data, ailment.Expr.Register)
+                    and stmt.data.reg_offset == xored_reg
+                ):
+                    return first_block, [load_stmt_idx, xor_stmt_idx, idx]
+                else:
+                    break
 
         return None
 
     @staticmethod
     def _find_amd64_canary_storing_stmt(block, canary_value_stack_offset):
+        load_stmt_idx = None
+
         for idx, stmt in enumerate(block.statements):
+            # when we are lucky, we have one instruction
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.dst, ailment.Expr.Register)
@@ -185,7 +232,29 @@ class WinStackCanarySimplifier(OptimizationPass):
                         if isinstance(op1, ailment.Expr.StackBaseOffset):
                             # found it
                             return idx
-
+            # or when we are unlucky, we have two instructions...
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.Register)
+                and stmt.dst.reg_name == "rcx"
+                and isinstance(stmt.src, ailment.Expr.Load)
+                and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
+                and stmt.src.addr.offset == canary_value_stack_offset
+            ):
+                load_stmt_idx = idx
+            if load_stmt_idx is not None and idx == load_stmt_idx + 1:
+                if (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.Register)
+                    and isinstance(stmt.src, ailment.Expr.BinaryOp)
+                    and stmt.src.op == "Xor"
+                ):
+                    if (
+                        isinstance(stmt.src.operands[0], ailment.Expr.Register)
+                        and stmt.src.operands[0].reg_name == "rcx"
+                        and isinstance(stmt.src.operands[1], ailment.Expr.StackBaseOffset)
+                    ):
+                        return idx
         return None
 
     @staticmethod
@@ -200,6 +269,33 @@ class WinStackCanarySimplifier(OptimizationPass):
                 return idx
         return None
 
+    def _is_function_likely_security_check_cookie(self, func) -> bool:
+        # disassemble the first instruction
+        if func.is_plt or func.is_syscall or func.is_simprocedure:
+            return False
+        block = self.project.factory.block(func.addr)
+        if block.instructions != 2:
+            return False
+        ins0 = block.capstone.insns[0]
+        if (
+            ins0.mnemonic == "cmp"
+            and len(ins0.operands) == 2
+            and ins0.operands[0].type == capstone.x86.X86_OP_REG
+            and ins0.operands[0].reg == capstone.x86.X86_REG_RCX
+            and ins0.operands[1].type == capstone.x86.X86_OP_MEM
+            and ins0.operands[1].mem.base == capstone.x86.X86_REG_RIP
+            and ins0.operands[1].mem.index == 0
+            and ins0.operands[1].mem.disp + ins0.address + ins0.size == self._security_cookie_addr
+        ):
+            ins1 = block.capstone.insns[1]
+            if ins1.mnemonic == "jne":
+                # this function should call exactly one other function (e.g., KeBugCheckEx for kernel drivers)
+                # TODO: Verify if this is true for user-space applications
+                func_calls = [node for node in func.transition_graph if isinstance(node, Function)]
+                if len(func_calls) == 1:
+                    return True
+        return False
+
     def _find_stmt_calling_security_check_cookie(self, node):
         for idx, stmt in enumerate(node.statements):
             if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
@@ -207,6 +303,8 @@ class WinStackCanarySimplifier(OptimizationPass):
                 if const_target in self.kb.functions:
                     func = self.kb.functions.function(addr=const_target)
                     if func.name == "_security_check_cookie":
+                        return idx
+                    elif func.is_default_name and self._is_function_likely_security_check_cookie(func):
                         return idx
 
         return None
