@@ -4,7 +4,7 @@ from itertools import count
 from ..translator import TypeTranslator
 from .... import sim_type
 from ....sim_type import SimType
-from .sim_type import RustSimTypeInt
+from .sim_type import RustSimTypeInt, RustSimTypePointer
 from .. import typeconsts
 from ..typeconsts import TypeConstant
 
@@ -24,6 +24,17 @@ class RustTypeTranslator(TypeTranslator):
 
         # will be updated every time .translate() is called
         self._has_nonexistent_ref = False
+
+    def _translate_Pointer64(self, tc):
+        if isinstance(tc.basetype, typeconsts.BottomType):
+            # void *
+            internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
+        else:
+            internal = self._tc2simtype(tc.basetype)
+        return RustSimTypePointer(internal).with_arch(self.arch)
+
+    def _translate_Pointer32(self, tc):
+        return self._translate_Pointer64(tc)
 
     def _translate_Int32(self, tc):  # pylint:disable=unused-argument
         return RustSimTypeInt(size=32, signed=False).with_arch(self.arch)
