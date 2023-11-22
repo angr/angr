@@ -128,7 +128,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
         dst: Block,
         graph: networkx.DiGraph = None,
         check_for_ifstmts=True,
-        max_level_check=3,
+        max_level_check=1,
     ):
         """
         TODO: correct how goto edge addressing works
