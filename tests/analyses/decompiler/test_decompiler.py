@@ -3238,6 +3238,59 @@ class TestDecompiler(unittest.TestCase):
         # bad_matches = re.findall(r'\bif\s*\(\s*[^!].*\)', text)
         # assert len(bad_matches) == 0
 
+    def test_test_binop_ret_dup(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["binop"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        text = d.codegen.text
+
+        assert "{\n}" not in text
+        assert "goto" not in text
+
+    def test_tail_tail_bytes_ret_dup(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tail.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["tail_bytes"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        text = d.codegen.text
+
+        assert "{\n}" not in text
+        # TODO: should be 0, but we virtualized an edge incorrectly
+        assert text.count("goto") <= 1
+
+    def test_dd_iread_ret_dup_region(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["iread"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        text = d.codegen.text
+
+        assert "{\n}" not in text
+        assert "goto" not in text
+        # there are 4 or less in the source
+        assert text.count("return") <= 4
+
+    def test_stty_recover_mode_ret_dup_region(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stty.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        f = proj.kb.functions["recover_mode"]
+        d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
+        text = d.codegen.text
+
+        assert "{\n}" not in text
+        assert "goto" not in text
+        # there are 4 or less in the source
+        assert text.count("return") <= 4
+
     def test_plt_stub_annotation(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
         proj = angr.Project(bin_path, auto_load_libs=False)

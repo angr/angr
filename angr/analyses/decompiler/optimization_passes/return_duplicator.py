@@ -128,9 +128,10 @@ class ReturnDuplicator(StructuringOptimizationPass):
         dst: Block,
         graph: networkx.DiGraph = None,
         check_for_ifstmts=True,
-        max_level_check=1,
+        max_level_check=3,
     ):
         """
+        TODO: correct how goto edge addressing works
         This function only exists because a long-standing bug that sometimes reports the if-stmt addr
         above a goto edge as the goto src. Because of this, we need to check for predecessors above the goto and
         see if they are a goto. This needs to include Jump to deal with loops.
@@ -314,7 +315,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
     @staticmethod
     def _is_simple_return_graph(graph: networkx.DiGraph):
         """
-        Checks if the graph is a single blocks, or a series of simple assignments, that ends
+        Checks if the graph is a single block, or a series of simple assignments, that ends
         in a return statement. This is used to know when we MUST duplicate the return block.
         """
         labeless_graph = to_ail_supergraph(remove_labels(graph))
