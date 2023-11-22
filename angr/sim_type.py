@@ -908,6 +908,9 @@ class SimTypeFunction(SimType):
         self.arg_names = arg_names if arg_names else ()
         self.variadic = variadic
 
+    def __hash__(self):
+        return hash(type(self)) ^ hash(tuple(self.args)) ^ hash(self.returnty)
+
     def __repr__(self):
         argstrs = [str(a) for a in self.args]
         if self.variadic:
