@@ -91,7 +91,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
 
     def _check(self):
         # does this function have end points?
-        return True if self._func.endpoints else False, None
+        return bool(self._func.endpoints), None
 
     def _analyze(self, cache=None):
         """
