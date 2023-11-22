@@ -1,6 +1,7 @@
 name: Test on macOS
 
 on:
+  push:
   workflow_dispatch:
   workflow_call:
 
