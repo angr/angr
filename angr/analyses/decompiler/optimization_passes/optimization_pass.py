@@ -264,6 +264,9 @@ class StructuringOptimizationPass(OptimizationPass):
         raise NotImplementedError()
 
     def analyze(self):
+        """
+        Wrapper for _analyze() that verifies the graph is structurable before and after the optimization.
+        """
         if not self._graph_is_structurable(self._graph):
             return
 

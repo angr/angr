@@ -26,7 +26,7 @@ _l = logging.getLogger(name=__name__)
 
 class AILCallCounter(AILBlockWalkerBase):
     """
-    Helper class to count AIL Calls in a block
+    Helper class to count AIL Calls in a block.
     """
 
     calls = 0
@@ -40,38 +40,46 @@ class AILCallCounter(AILBlockWalkerBase):
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class EagerReturnsSimplifier(StructuringOptimizationPass):
+class ReturnDuplicator(StructuringOptimizationPass):
     """
-    Some compilers (if not all) generate only one returning block for a function regardless of how many returns there
-    are in the source code. This oftentimes result in irreducible graphs and reduce the readability of the decompiled
-    code. This optimization pass will make the function return eagerly by duplicating the return site of a function
-    multiple times and assigning one copy of the return site to each of its sources when certain thresholds are met.
+    An optimization pass that reverts a subset of Irreducible Statement Condensing (ISC) optimizations, as described
+    in the USENIX 2024 paper SAILR.
 
-    Note that this simplifier may reduce the readability of the generated code in certain cases, especially if the graph
-    is already reducible without applying this simplifier.
+    Some compilers, including GCC, Clang, and MSVC, apply various optimizations to reduce the number of statements in
+    code. These optimizations will take equivalent statements, or a subset of them, and replace them with a single
+    copy that is jumped to by gotos -- optimizing for space and sometimes speed.
 
-    :ivar int max_level:    Number of times that we repeat the process of making returns eager.
-    :ivar int min_indegree: The minimum in-degree of the return site to be duplicated.
-    :ivar node_idx:         The next node index. Each duplicated return site gets assigned a unique index, otherwise
-                            those duplicates will be considered as the same block in the graph because they have the
-                            same hash.
+    This optimization pass will revert those gotos by re-duplicating the condensed blocks. Since Return statements
+    are the most common, we use this optimization pass to revert only gotos to return statements. Additionally, we
+    perform some additional readability fixups, like not re-duplicating returns to shared components.
+
+    Args:
+        func: The function to optimize.
+        node_idx_start: The index to start at when creating new nodes. This is used by Clinic to ensure that
+            node indices are unique across multiple passes.
+        max_opt_iters: The maximum number of optimization iterations to perform.
+        max_calls_in_regions: The maximum number of calls that can be in a region. This is used to prevent
+            duplicating too much code.
+        prevent_new_gotos: If True, this optimization pass will prevent new gotos from being created.
+        minimize_copies_for_regions: If True, this optimization pass will minimize the number of copies by doing only
+            a single copy for connected in_edges that form a region.
     """
 
     ARCHES = None
     PLATFORMS = None
     NAME = "Duplicate return blocks to reduce goto statements"
-    DESCRIPTION = inspect.cleandoc(__doc__[: __doc__.index(":ivar")])  # pylint:disable=unsubscriptable-object
+    DESCRIPTION = inspect.cleandoc(__doc__[: __doc__.index("Args:")])  # pylint:disable=unsubscriptable-object
 
     def __init__(
         self,
         func,
         # internal parameters that should be used by Clinic
-        node_idx_start=0,
+        node_idx_start: int = 0,
         # settings
-        max_opt_iters=10,
-        max_calls_in_regions=2,
-        prevent_new_gotos=True,
-        minimize_copies_for_regions=True,
+        max_opt_iters: int = 10,
+        max_calls_in_regions: int = 2,
+        prevent_new_gotos: bool = True,
+        minimize_copies_for_regions: bool = True,
         **kwargs,
     ):
         super().__init__(func, max_opt_iters=max_opt_iters, prevent_new_gotos=prevent_new_gotos, **kwargs)
@@ -83,13 +91,12 @@ class EagerReturnsSimplifier(StructuringOptimizationPass):
 
     def _check(self):
         # does this function have end points?
-        if not self._func.endpoints:
-            return False, None
-
-        # TODO: More filtering
-        return True, None
+        return True if self._func.endpoints else False, None
 
     def _analyze(self, cache=None):
+        """
+        This analysis is run in a loop in analyze() for a maximum of max_opt_iters times.
+        """
         graph_changed = False
         endnode_regions = self._find_endnode_regions(self.out_graph)
 
@@ -99,7 +106,7 @@ class EagerReturnsSimplifier(StructuringOptimizationPass):
             endnode_regions = self._copy_connected_edge_components(endnode_regions, self.out_graph)
 
         for region_head, (in_edges, region) in endnode_regions.items():
-            is_single_const_ret_region = self._is_single_constant_return_graph(region)
+            is_single_const_ret_region = self._is_simple_return_graph(region)
             for in_edge in in_edges:
                 pred_node = in_edge[0]
                 if self._should_duplicate_dst(
@@ -155,7 +162,10 @@ class EagerReturnsSimplifier(StructuringOptimizationPass):
 
         return False
 
-    def _find_endnode_regions(self, graph):
+    def _find_endnode_regions(self, graph) -> Dict[Any, Tuple[List[Tuple[Any, Any]], networkx.DiGraph]]:
+        """
+        Find all the regions that contain a node with no successors. These are the "end nodes" of the graph.
+        """
         endnodes = [node for node in graph.nodes() if graph.out_degree[node] == 0]
 
         # to_update is keyed by the region head.
@@ -252,7 +262,7 @@ class EagerReturnsSimplifier(StructuringOptimizationPass):
         updated_regions = endnode_regions.copy()
         all_region_block_addrs = list(self._find_block_sets_in_all_regions(self._ri.region).values())
         for region_head, (in_edges, region) in endnode_regions.items():
-            is_single_const_ret_region = self._is_single_constant_return_graph(region)
+            is_single_const_ret_region = self._is_simple_return_graph(region)
             pred_nodes = [src for src, _ in in_edges]
             pred_subgraph = networkx.subgraph(graph, pred_nodes)
             components = list(networkx.weakly_connected_components(pred_subgraph))
@@ -302,11 +312,10 @@ class EagerReturnsSimplifier(StructuringOptimizationPass):
         return updated_regions
 
     @staticmethod
-    def _is_single_constant_return_graph(graph: networkx.DiGraph):
+    def _is_simple_return_graph(graph: networkx.DiGraph):
         """
-        Check if the graph is a single block that returns a constant.
-        TODO: update the naming of this function, as now it returns true if the return target
-        is NOT a constant, but instead a graph with only returns and jumps.
+        Checks if the graph is a single blocks, or a series of simple assignments, that ends
+        in a return statement. This is used to know when we MUST duplicate the return block.
         """
         labeless_graph = to_ail_supergraph(remove_labels(graph))
         nodes = list(labeless_graph.nodes())
