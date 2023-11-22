@@ -1,4 +1,4 @@
-# pylint:disable=wrong-import-position
+# pylint:disable=wrong-import-position,import-outside-toplevel,broad-exception-caught
 import pathlib
 from typing import Optional, Tuple, Any, Union, List
 import logging
@@ -595,7 +595,6 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=True
                 # TODO: add a timeout
                 dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options)
             except Exception as e:
-                _l.critical(f"Failed to decompile {func} because {e}")
                 exception_string = str(e).replace("\n", " ")
                 dec = None
 
