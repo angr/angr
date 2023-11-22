@@ -27,7 +27,7 @@ from ....sim_type import (
     SimTypeLength,
     SimTypeReg,
 )
-from ...typehoon.rust.sim_type import RustSimTypeInt, RustSimTypeFunction
+from ...typehoon.rust.sim_type import RustSimType, RustSimTypeInt, RustSimTypeFunction
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
@@ -396,7 +396,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         self,
         addr,
         name,
-        functy: SimTypeFunction,
+        functy: RustSimTypeFunction,
         arg_list: List["RustVariable"],
         statements,
         variables_in_use,
@@ -1867,9 +1867,9 @@ class RustTypeCast(RustExpression):
         "tags",
     )
 
-    def __init__(self, src_type: Optional[SimType], dst_type: SimType, expr: RustExpression, tags=None, **kwargs):
+    def __init__(self, src_type: Optional[SimType], dst_type: RustSimType, expr: RustExpression, tags=None, **kwargs):
         super().__init__(**kwargs)
-
+        assert isinstance(dst_type, RustSimType)
         self.src_type = (src_type or expr.type).with_arch(self.codegen.project.arch)
         self.dst_type = dst_type.with_arch(self.codegen.project.arch)
         self.expr = expr
@@ -1887,6 +1887,7 @@ class RustTypeCast(RustExpression):
             return
         paren = RustClosingObject("(")
         if self.codegen.show_casts:
+            print(f"{self.dst_type=}, {self.dst_type.c_repr()=}")
             yield "(", paren
             yield f"{self.dst_type.c_repr(name=None)}", self.dst_type
             yield ")", paren
