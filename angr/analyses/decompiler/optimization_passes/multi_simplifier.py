@@ -184,18 +184,6 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
                     new_const = Expr.Const(const_.idx, None, const_.value * const_x0.value, const_.bits)
                     new_expr = Expr.BinaryOp(expr.idx, "Mul", [x, new_const], expr.signed, **expr.tags)
                     return new_expr
-            elif (
-                isinstance(operand_0, Expr.Convert)
-                and isinstance(operand_0.operand, Expr.BinaryOp)
-                and operand_0.operand.op == "Mul"
-                and isinstance(operand_0.operand.operands[1], Expr.Const)
-            ):
-                x = operand_0.operand.operands[0]
-                new_const = Expr.Const(
-                    operand_1.idx, None, operand_1.value * operand_0.operand.operands[1].value, operand_1.bits
-                )
-                new_expr = Expr.BinaryOp(expr.idx, "Mul", [x, new_const], expr.signed, **expr.tags)
-                return new_expr
 
         if (operand_0, operand_1) != (expr.operands[0], expr.operands[1]):
             return Expr.BinaryOp(expr.idx, "Mul", [operand_0, operand_1], expr.signed, **expr.tags)
