@@ -8,7 +8,7 @@ on:
 jobs:
   macos:
     name: Test macOS
-    runs-on: ARM64
+    runs-on: [macOS, ARM64]
     steps:
       - uses: actions/checkout@v3
         with:
