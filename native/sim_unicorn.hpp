@@ -14,7 +14,7 @@ static const uint8_t MAX_MEM_ACCESS_SIZE = 8;
 // The size of the longest register in archinfo's uc_regs for all architectures
 static const uint8_t MAX_REGISTER_BYTE_SIZE = 32;
 
-static const uint16_t PAGE_SIZE = 0x1000;
+static const uint16_t ANGR_PAGE_SIZE = 0x1000;
 static const uint8_t PAGE_SHIFT = 12;
 
 typedef uint64_t address_t;
@@ -479,7 +479,7 @@ struct caches_t {
 	PageCache *page_cache;
 };
 
-typedef taint_t PageBitmap[PAGE_SIZE];
+typedef taint_t PageBitmap[ANGR_PAGE_SIZE];
 typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
 std::map<uint64_t, caches_t> global_cache;
 
