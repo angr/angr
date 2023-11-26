@@ -289,7 +289,7 @@ class AddressConcretizationMixin(MemoryMixin):
                     return self._default_value(None, size, name="symbolic_read_unconstrained", **kwargs)
                 else:
                     raise
-        except SimValueError:
+        except SimValueError or SimUnsatError as e:
             args = [addr]
             MemoryLoad_decl = claripy.ast.func.MemoryLoad(op='MemoryLoad', args=args, _ret_size=size*8)
             new_value = MemoryLoad_decl.op(*args)
