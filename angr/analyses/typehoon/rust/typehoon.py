@@ -41,7 +41,7 @@ class RustTypehoon(Typehoon):
                         name = type_.name
 
                     if isinstance(type_, SimTypeBottom) and var.size is not None:
-                        type_ = RustSimTypeInt(signed=False, size=var.size)
+                        type_ = RustSimTypeInt(signed=False, size=var.size * self.project.arch.byte_width)
 
                     self.kb.variables[func_addr].set_variable_type(var, type_, name=name)
 
