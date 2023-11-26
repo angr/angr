@@ -9,11 +9,9 @@ from ailment.expression import StackBaseOffset, BinaryOp
 
 from ....sim_type import (
     SimTypeLongLong,
-    SimTypeInt,
     SimTypeShort,
     SimTypeChar,
     SimTypeWideChar,
-    SimTypePointer,
     SimStruct,
     SimType,
     SimTypeBottom,
@@ -27,7 +25,7 @@ from ....sim_type import (
     SimTypeLength,
     SimTypeReg,
 )
-from ...typehoon.rust.sim_type import RustSimType, RustSimTypeInt, RustSimTypeFunction
+from ...typehoon.rust.sim_type import RustSimType, RustSimTypeInt, RustSimTypeFunction, RustSimTypePointer
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
@@ -70,7 +68,7 @@ def unpack_typeref(ty):
 
 
 def unpack_pointer(ty) -> Optional[SimType]:
-    if isinstance(ty, SimTypePointer):
+    if isinstance(ty, RustSimTypePointer):
         return ty.pts_to
     return None
 
@@ -88,7 +86,7 @@ def squash_array_reference(ty):
     if pointed_to:
         array_of = unpack_array(pointed_to)
         if array_of:
-            return SimTypePointer(array_of)
+            return RustSimTypePointer(array_of)
     return ty
 
 
@@ -97,8 +95,8 @@ def qualifies_for_simple_cast(ty1, ty2):
     # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
     return (
         ty1.size == ty2.size
-        and isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
-        and isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
+        and isinstance(ty1, (RustSimTypeInt, RustSimTypePointer))
+        and isinstance(ty2, (RustSimTypeInt, RustSimTypePointer))
     )
 
 
@@ -108,8 +106,8 @@ def qualifies_for_implicit_cast(ty1, ty2):
     # this function need to answer the question:
     # when does having a cast vs having an implicit promotion affect the result?
     # the answer: I DON'T KNOW
-    if not isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum)) or not isinstance(
-        ty2, (SimTypeInt, SimTypeChar, SimTypeNum)
+    if not isinstance(ty1, (RustSimTypeInt, SimTypeChar, SimTypeNum)) or not isinstance(
+        ty2, (RustSimTypeInt, SimTypeChar, SimTypeNum)
     ):
         return False
 
@@ -122,8 +120,8 @@ def extract_terms(expr: "RustExpression") -> Tuple[int, List[Tuple[int, "RustExp
         expr = MakeTypecastsImplicit.collapse(expr.dst_type, expr.expr)
     if (
         isinstance(expr, RustTypeCast)
-        and isinstance(expr.dst_type, SimTypeInt)
-        and isinstance(expr.src_type, SimTypeInt)
+        and isinstance(expr.dst_type, RustSimTypeInt)
+        and isinstance(expr.src_type, RustSimTypeInt)
         and expr.dst_type.size == expr.src_type.size
         and expr.dst_type.signed != expr.src_type.signed
     ):
@@ -166,14 +164,14 @@ def is_machine_word_size_type(type_: SimType, arch: "archinfo.Arch") -> bool:
 def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
     if project.kb.functions.contains_addr(value):
         # might be a function pointer
-        return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+        return RustSimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
     if value > 4096:
         sec = project.loader.find_section_containing(value)
         if sec is not None and sec.is_readable:
-            return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+            return RustSimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
         seg = project.loader.find_segment_containing(value)
         if seg is not None and seg.is_readable:
-            return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
+            return RustSimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
     return None
 
 
@@ -518,7 +516,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     for field in ty.fields.values():
-                        if isinstance(field, SimTypePointer):
+                        if isinstance(field, RustSimTypePointer):
                             if isinstance(field.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
                                 field = field.pts_to.elem_type
                             else:
@@ -1181,13 +1179,13 @@ class RustFunctionCall(RustStatement, RustExpression):
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
         if self.callee_func is not None and self.callee_func.prototype is not None:
             return self.callee_func.prototype
-        returnty = SimTypeInt(signed=False)
+        returnty = RustSimTypeInt(signed=False)
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
 
     @property
     def type(self):
         if self.is_expr:
-            return self.prototype.returnty or SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
+            return self.prototype.returnty or RustSimTypeInt(signed=False).with_arch(self.codegen.project.arch)
         else:
             raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
@@ -1443,7 +1441,7 @@ class RustIndexedVariable(RustExpression):
 
         if self._type is None and self.variable.type is not None:
             u = unpack_typeref(self.variable.type)
-            if isinstance(u, SimTypePointer):
+            if isinstance(u, RustSimTypePointer):
                 if isinstance(u.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
                     # special case: (&array)[x]
                     u = u.pts_to.elem_type
@@ -1526,9 +1524,9 @@ class RustUnaryOp(RustExpression):
         if operand.type is not None:
             var_type = unpack_typeref(operand.type)
             if op == "Reference":
-                self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
+                self._type = RustSimTypePointer(var_type).with_arch(self.codegen.project.arch)
             elif op == "Dereference":
-                if isinstance(var_type, SimTypePointer):
+                if isinstance(var_type, RustSimTypePointer):
                     self._type = unpack_typeref(var_type.pts_to)
                 elif isinstance(var_type, (SimTypeArray, SimTypeFixedSizeArray)):
                     self._type = unpack_typeref(var_type.elem_type)
@@ -1621,8 +1619,8 @@ class RustBinaryOp(RustExpression):
     @staticmethod
     def compute_common_type(op: str, lhs_ty: SimType, rhs_ty: SimType) -> SimType:
         # C spec https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2596.pdf 6.3.1.8 Usual arithmetic conversions
-        rhs_ptr = isinstance(rhs_ty, SimTypePointer)
-        lhs_ptr = isinstance(lhs_ty, SimTypePointer)
+        rhs_ptr = isinstance(rhs_ty, RustSimTypePointer)
+        lhs_ptr = isinstance(lhs_ty, RustSimTypePointer)
 
         if op in ("Add", "Sub"):
             if lhs_ptr and rhs_ptr:
@@ -1886,11 +1884,6 @@ class RustTypeCast(RustExpression):
             yield "...", self
             return
         paren = RustClosingObject("(")
-        if self.codegen.show_casts:
-            print(f"{self.dst_type=}, {self.dst_type.c_repr()=}")
-            yield "(", paren
-            yield f"{self.dst_type.c_repr(name=None)}", self.dst_type
-            yield ")", paren
 
         if isinstance(self.expr, RustBinaryOp):
             wrapping_paren = True
@@ -1900,6 +1893,10 @@ class RustTypeCast(RustExpression):
         yield from RustExpression._try_c_repr_chunks(self.expr)
         if wrapping_paren:
             yield ")", paren
+
+        if self.codegen.show_casts:
+            yield " as ", None
+            yield f"{self.dst_type.c_repr(name=None)}", self.dst_type
 
 
 class RustConstant(RustExpression):
@@ -2010,15 +2007,15 @@ class RustConstant(RustExpression):
                     return
 
         if self.reference_values is not None and self._type is not None and self._type in self.reference_values:
-            if isinstance(self._type, SimTypeInt):
+            if isinstance(self._type, RustSimTypeInt):
                 if isinstance(self.reference_values[self._type], int):
                     yield self.fmt_int(self.reference_values[self._type]), self
                     return
                 yield hex(self.reference_values[self._type]), self
-            elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
+            elif isinstance(self._type, RustSimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                 refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
                 yield RustConstant.str_to_c_str(refval.content.decode("utf-8")), self
-            elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
+            elif isinstance(self._type, RustSimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                 refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
                 yield RustConstant.str_to_c_str(refval.content.decode("utf_16_le"), prefix="L"), self
             else:
@@ -2027,11 +2024,11 @@ class RustConstant(RustExpression):
                     return
                 yield self.reference_values[self.type], self
 
-        elif isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
+        elif isinstance(self.value, int) and self.value == 0 and isinstance(self.type, RustSimTypePointer):
             # print NULL instead
             yield "NULL", self
 
-        elif isinstance(self._type, SimTypePointer) and isinstance(self.value, int):
+        elif isinstance(self._type, RustSimTypePointer) and isinstance(self.value, int):
             # Print pointers in hex
             yield hex(self.value), self
 
@@ -2090,7 +2087,7 @@ class RustRegister(RustExpression):
     @property
     def type(self):
         # FIXME
-        return SimTypeInt().with_arch(self.codegen.project.arch)
+        return RustSimTypeInt().with_arch(self.codegen.project.arch)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield str(self.reg), None
@@ -2113,7 +2110,7 @@ class RustITE(RustExpression):
 
     @property
     def type(self):
-        return SimTypeInt().with_arch(self.codegen.project.arch)
+        return RustSimTypeInt().with_arch(self.codegen.project.arch)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
@@ -2168,7 +2165,7 @@ class RustDirtyExpression(RustExpression):
 
     @property
     def type(self):
-        return SimTypeInt().with_arch(self.codegen.project.arch)
+        return RustSimTypeInt().with_arch(self.codegen.project.arch)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
@@ -2457,7 +2454,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if ty is None:
             return None
         ty = unpack_typeref(ty)
-        if isinstance(ty, SimTypePointer):
+        if isinstance(ty, RustSimTypePointer):
             return unpack_typeref(ty.pts_to).with_arch(self.project.arch)
         if isinstance(ty, SimTypeArray):
             return unpack_typeref(ty.elem_type).with_arch(self.project.arch)
@@ -2481,7 +2478,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     #
 
     def default_simtype_from_size(self, n: int, signed: bool = True) -> SimType:
-        return RustSimTypeInt(size=n, signed=signed).with_arch(self.project.arch)
+        return RustSimTypeInt(size=n * self.project.arch.byte_width, signed=signed).with_arch(self.project.arch)
 
     def _variable(self, variable: SimVariable, fallback_type_size: Optional[int]) -> RustVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
@@ -2506,7 +2503,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if isinstance(cvar.type, (SimTypeArray, SimTypeFixedSizeArray)):
             return cvar
-        if isinstance(cvar.type, SimTypePointer) and isinstance(
+        if isinstance(cvar.type, RustSimTypePointer) and isinstance(
             cvar.type.pts_to, (SimTypeArray, SimTypeFixedSizeArray)
         ):
             return cvar
@@ -2543,8 +2540,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         renegotiate_type: Callable[[SimType, SimType], SimType] = lambda old, proposed: old,
     ) -> RustExpression:
         def _force_type_cast(src_type_: SimType, dst_type_: SimType, expr_: RustExpression) -> RustUnaryOp:
-            src_type_ptr = SimTypePointer(src_type_).with_arch(self.project.arch)
-            dst_type_ptr = SimTypePointer(dst_type_).with_arch(self.project.arch)
+            src_type_ptr = RustSimTypePointer(src_type_).with_arch(self.project.arch)
+            dst_type_ptr = RustSimTypePointer(dst_type_).with_arch(self.project.arch)
             return RustUnaryOp(
                 "Dereference",
                 RustTypeCast(
@@ -2565,10 +2562,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if data_type is None:
                 raise TypeError("RustStructuredCodeGenerator programming error: no type whatsoever for dereference")
             if offset:
-                expr = RustBinaryOp("Add", expr, RustConstant(offset, SimTypeInt(), codegen=self), codegen=self)
+                expr = RustBinaryOp("Add", expr, RustConstant(offset, RustSimTypeInt(), codegen=self), codegen=self)
             return RustUnaryOp(
                 "Dereference",
-                RustTypeCast(expr.type, SimTypePointer(data_type).with_arch(self.project.arch), expr, codegen=self),
+                RustTypeCast(expr.type, RustSimTypePointer(data_type).with_arch(self.project.arch), expr, codegen=self),
                 codegen=self,
             )
 
@@ -2601,7 +2598,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             stride = base_type.size // self.project.arch.byte_width or 1
         index, remainder = divmod(offset, stride)
         if index != 0:
-            index = RustConstant(index, SimTypeInt(), codegen=self)
+            index = RustConstant(index, RustSimTypeInt(), codegen=self)
             kernel = expr
             # create a CIndexedVariable indicating the index access
             if base_expr and isinstance(base_expr, RustIndexedVariable):
@@ -2643,7 +2640,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     "Reference",
                     RustIndexedVariable(
                         result,
-                        RustConstant(0, SimTypeInt(), codegen=self),
+                        RustConstant(0, RustSimTypeInt(), codegen=self),
                         variable_type=base_type.elem_type,
                         codegen=self,
                     ),
@@ -2659,16 +2656,16 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # TODO: BYTE2() and other ida-isms if we're okay with an rvalue
             if stride != 1:
                 expr = RustTypeCast(
-                    expr.type, SimTypePointer(SimTypeChar()).with_arch(self.project.arch), expr, codegen=self
+                    expr.type, RustSimTypePointer(SimTypeChar()).with_arch(self.project.arch), expr, codegen=self
                 )
             expr_with_offset = RustBinaryOp(
-                "Add", expr, RustConstant(remainder, SimTypeInt(), codegen=self), codegen=self
+                "Add", expr, RustConstant(remainder, RustSimTypeInt(), codegen=self), codegen=self
             )
             return RustUnaryOp(
                 "Dereference",
                 RustTypeCast(
                     expr_with_offset.type,
-                    SimTypePointer(data_type).with_arch(self.project.arch),
+                    RustSimTypePointer(data_type).with_arch(self.project.arch),
                     expr_with_offset,
                     codegen=self,
                 ),
@@ -2680,7 +2677,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # if the value is not a trivial reference we have to do a pointer cast (?)
         if lvalue or not base_expr:
             return RustUnaryOp(
-                "Dereference", RustTypeCast(expr.type, SimTypePointer(data_type), expr, codegen=self), codegen=self
+                "Dereference", RustTypeCast(expr.type, RustSimTypePointer(data_type), expr, codegen=self), codegen=self
             )
         # otherwise, normal cast
         return RustTypeCast(base_type, data_type, base_expr, codegen=self)
@@ -2709,22 +2706,26 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         "Mul",
                         RustConstant(c, t.type, codegen=self),
                         t
-                        if not isinstance(t.type, SimTypePointer)
-                        else RustTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self),
+                        if not isinstance(t.type, RustSimTypePointer)
+                        else RustTypeCast(t.type, RustSimTypePointer(SimTypeChar()), t, codegen=self),
                         codegen=self,
                     )
                     if c != 1
                     else t
-                    if not isinstance(t.type, SimTypePointer)
-                    else RustTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
+                    if not isinstance(t.type, RustSimTypePointer)
+                    else RustTypeCast(t.type, RustSimTypePointer(SimTypeChar()), t, codegen=self)
                     for c, t in o_terms
                 ),
             )
             if o_constant != 0:
-                result = RustBinaryOp("Add", RustConstant(o_constant, SimTypeInt(), codegen=self), result, codegen=self)
+                result = RustBinaryOp(
+                    "Add", RustConstant(o_constant, RustSimTypeInt(), codegen=self), result, codegen=self
+                )
 
             return RustUnaryOp(
-                "Dereference", RustTypeCast(result.type, SimTypePointer(data_type), result, codegen=self), codegen=self
+                "Dereference",
+                RustTypeCast(result.type, RustSimTypePointer(data_type), result, codegen=self),
+                codegen=self,
             )
 
         # pain.
@@ -2738,7 +2739,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         kernel = None
         while i < len(terms):
             c, t = terms[i]
-            if isinstance(unpack_typeref(t.type), SimTypePointer):
+            if isinstance(unpack_typeref(t.type), RustSimTypePointer):
                 if kernel is not None:
                     l.warning("Summing two different pointers together. Uh oh!")
                     return bail_out()
@@ -2782,7 +2783,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 index_multiplier = next_stride // kernel_stride
                 if index_multiplier != 1:
                     index = RustBinaryOp(
-                        "Mul", RustConstant(index_multiplier, SimTypeInt(), codegen=self), next_term, codegen=self
+                        "Mul", RustConstant(index_multiplier, RustSimTypeInt(), codegen=self), next_term, codegen=self
                     )
                 else:
                     index = next_term
@@ -3020,7 +3021,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             cvar = self._variable(stmt.variable, stmt.size)
             offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
-
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
         else:
             addr_expr = self._handle(stmt.addr)
@@ -3187,7 +3187,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if reference_values is None:
             reference_values = {}
             type_ = unpack_typeref(type_)
-            if isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
+            if isinstance(type_, RustSimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
                 # char*
                 # Try to get a string
                 if (
@@ -3197,7 +3197,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 ):
                     reference_values[type_] = self._cfg.memory_data[expr.value]
                     inline_string = True
-            elif isinstance(type_, SimTypeInt):
+            elif isinstance(type_, RustSimTypeInt):
                 # int
                 reference_values[type_] = expr.value
 
@@ -3209,7 +3209,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 if expr.value in self.project.kb.functions:
                     # It's a function pointer
                     # We don't care about the actual prototype here
-                    type_ = SimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
+                    type_ = RustSimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
                     reference_values[type_] = self.project.kb.functions[expr.value]
                     function_pointer = True
 
@@ -3222,7 +3222,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 ):
                     md = self._cfg.memory_data[expr.value]
                     if md.sort == MemoryDataSort.String:
-                        type_ = SimTypePointer(SimTypeChar().with_arch(self.project.arch)).with_arch(self.project.arch)
+                        type_ = RustSimTypePointer(SimTypeChar().with_arch(self.project.arch)).with_arch(
+                            self.project.arch
+                        )
                         reference_values[type_] = self._cfg.memory_data[expr.value]
                         # is it a constant string?
                         if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(
@@ -3230,7 +3232,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         ):
                             inline_string = True
                     elif md.sort == MemoryDataSort.UnicodeString:
-                        type_ = SimTypePointer(SimTypeWideChar().with_arch(self.project.arch)).with_arch(
+                        type_ = RustSimTypePointer(SimTypeWideChar().with_arch(self.project.arch)).with_arch(
                             self.project.arch
                         )
                         reference_values[type_] = self._cfg.memory_data[expr.value]
@@ -3288,9 +3290,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
         if 64 >= expr.to_bits > 32:
-            dst_type: Union[SimTypeInt, SimTypeChar] = SimTypeLongLong()
+            dst_type: Union[RustSimTypeInt, SimTypeChar] = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
-            dst_type = SimTypeInt()
+            dst_type = RustSimTypeInt()
         elif 16 >= expr.to_bits > 8:
             dst_type = SimTypeShort()
         elif 8 >= expr.to_bits > 1:
@@ -3332,7 +3334,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         def _to_type(bits, typestr):
             if typestr == "I":
                 if bits == 32:
-                    r = SimTypeInt()
+                    r = RustSimTypeInt()
                 elif bits == 64:
                     r = SimTypeLongLong()
                 else:
@@ -3366,8 +3368,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return self._get_variable_reference(var_thing)
 
         # FIXME
-        stack_base = RustFakeVariable("stack_base", SimTypePointer(SimTypeBottom()), codegen=self)
-        ptr = RustBinaryOp("Add", stack_base, RustConstant(expr.offset, SimTypeInt(), codegen=self), codegen=self)
+        stack_base = RustFakeVariable("stack_base", RustSimTypePointer(SimTypeBottom()), codegen=self)
+        ptr = RustBinaryOp("Add", stack_base, RustConstant(expr.offset, RustSimTypeInt(), codegen=self), codegen=self)
         return ptr
 
 
@@ -3382,29 +3384,29 @@ class RustStructuredCodeWalker:
         return obj
 
     @classmethod
-    def handle_CFunction(cls, obj):
+    def handle_RustFunction(cls, obj):
         obj.statements = cls.handle(obj.statements)
         return obj
 
     @classmethod
-    def handle_CStatements(cls, obj):
+    def handle_RustStatements(cls, obj):
         obj.statements = [cls.handle(stmt) for stmt in obj.statements]
         return obj
 
     @classmethod
-    def handle_CWhileLoop(cls, obj):
+    def handle_RustWhileLoop(cls, obj):
         obj.condition = cls.handle(obj.condition)
         obj.body = cls.handle(obj.body)
         return obj
 
     @classmethod
-    def handle_CDoWhileLoop(cls, obj):
+    def handle_RustDoWhileLoop(cls, obj):
         obj.condition = cls.handle(obj.condition)
         obj.body = cls.handle(obj.body)
         return obj
 
     @classmethod
-    def handle_CForLoop(cls, obj):
+    def handle_RustForLoop(cls, obj):
         obj.initializer = cls.handle(obj.initializer)
         obj.condition = cls.handle(obj.condition)
         obj.iterator = cls.handle(obj.iterator)
@@ -3412,7 +3414,7 @@ class RustStructuredCodeWalker:
         return obj
 
     @classmethod
-    def handle_CIfElse(cls, obj):
+    def handle_RustIfElse(cls, obj):
         obj.condition_and_nodes = [
             (cls.handle(condition), cls.handle(node)) for condition, node in obj.condition_and_nodes
         ]
@@ -3420,69 +3422,69 @@ class RustStructuredCodeWalker:
         return obj
 
     @classmethod
-    def handle_CIfBreak(cls, obj):
+    def handle_RustIfBreak(cls, obj):
         obj.condition = cls.handle(obj.condition)
         return obj
 
     @classmethod
-    def handle_CSwitchCase(cls, obj):
+    def handle_RustSwitchCase(cls, obj):
         obj.switch = cls.handle(obj.switch)
         obj.cases = [(case, cls.handle(body)) for case, body in obj.cases]
         obj.default = cls.handle(obj.default)
         return obj
 
     @classmethod
-    def handle_CAssignment(cls, obj):
+    def handle_RustAssignment(cls, obj):
         obj.lhs = cls.handle(obj.lhs)
         obj.rhs = cls.handle(obj.rhs)
         return obj
 
     @classmethod
-    def handle_CFunctionCall(cls, obj):
+    def handle_RustFunctionCall(cls, obj):
         obj.callee_target = cls.handle(obj.callee_target)
         obj.args = [cls.handle(arg) for arg in obj.args]
         obj.ret_expr = cls.handle(obj.ret_expr)
         return obj
 
     @classmethod
-    def handle_CReturn(cls, obj):
+    def handle_RustReturn(cls, obj):
         obj.retval = cls.handle(obj.retval)
         return obj
 
     @classmethod
-    def handle_CGoto(cls, obj):
+    def handle_RustGoto(cls, obj):
         obj.target = cls.handle(obj.target)
         return obj
 
     @classmethod
-    def handle_CIndexedVariable(cls, obj):
+    def handle_RustIndexedVariable(cls, obj):
         obj.variable = cls.handle(obj.variable)
         obj.index = cls.handle(obj.index)
         return obj
 
     @classmethod
-    def handle_CVariableField(cls, obj):
+    def handle_RustVariableField(cls, obj):
         obj.variable = cls.handle(obj.variable)
         return obj
 
     @classmethod
-    def handle_CUnaryOp(cls, obj):
+    def handle_RustUnaryOp(cls, obj):
         obj.operand = cls.handle(obj.operand)
         return obj
 
     @classmethod
-    def handle_CBinaryOp(cls, obj):
+    def handle_RustBinaryOp(cls, obj):
         obj.lhs = cls.handle(obj.lhs)
         obj.rhs = cls.handle(obj.rhs)
         return obj
 
     @classmethod
-    def handle_CTypeCast(cls, obj):
+    def handle_RustTypeCast(cls, obj):
         obj.expr = cls.handle(obj.expr)
         return obj
 
     @classmethod
-    def handle_CITE(cls, obj):
+    def handle_RustITE(cls, obj):
         obj.cond = cls.handle(obj.cond)
         obj.iftrue = cls.handle(obj.iftrue)
         obj.iffalse = cls.handle(obj.iffalse)
@@ -3502,9 +3504,9 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
                 result = child.expr
             # step 2: collapse integer conversions which are redundant
             if (
-                isinstance(dst_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
-                and isinstance(intermediate_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
-                and isinstance(start_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
+                isinstance(dst_ty, (SimTypeChar, RustSimTypeInt, SimTypeNum))
+                and isinstance(intermediate_ty, (SimTypeChar, RustSimTypeInt, SimTypeNum))
+                and isinstance(start_ty, (SimTypeChar, RustSimTypeInt, SimTypeNum))
             ):
                 if dst_ty.size <= start_ty.size and dst_ty.size <= intermediate_ty.size:
                     # this is a down- or neutral-cast with an intermediate step that doesn't matter
@@ -3521,24 +3523,24 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
         return result
 
     @classmethod
-    def handle_CAssignment(cls, obj):
+    def handle_RustAssignment(cls, obj):
         obj.rhs = cls.collapse(obj.lhs.type, obj.rhs)
-        return super().handle_CAssignment(obj)
+        return super().handle_RustAssignment(obj)
 
     @classmethod
-    def handle_CFunctionCall(cls, obj: RustFunctionCall):
+    def handle_RustFunctionCall(cls, obj: RustFunctionCall):
         for i, (c_arg, arg_ty) in enumerate(zip(obj.args, obj.prototype.args)):
             obj.args[i] = cls.collapse(arg_ty, c_arg)
-        return super().handle_CFunctionCall(obj)
+        return super().handle_RustFunctionCall(obj)
 
     @classmethod
-    def handle_CReturn(cls, obj: RustReturn):
+    def handle_RustReturn(cls, obj: RustReturn):
         obj.retval = cls.collapse(obj.codegen._func.prototype.returnty, obj.retval)
-        return super().handle_CReturn(obj)
+        return super().handle_RustReturn(obj)
 
     @classmethod
-    def handle_CBinaryOp(cls, obj: RustBinaryOp):
-        obj = super().handle_CBinaryOp(obj)
+    def handle_RustBinaryOp(cls, obj: RustBinaryOp):
+        obj = super().handle_RustBinaryOp(obj)
         while True:
             new_lhs = cls.collapse(obj.common_type, obj.lhs)
             if (
@@ -3558,9 +3560,9 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
         return obj
 
     @classmethod
-    def handle_CTypeCast(cls, obj: RustTypeCast):
+    def handle_RustTypeCast(cls, obj: RustTypeCast):
         # note that the expression that this method returns may no longer be a CTypeCast
-        obj = super().handle_CTypeCast(obj)
+        obj = super().handle_RustTypeCast(obj)
         inner = cls.collapse(obj.dst_type, obj.expr)
         if inner is not obj.expr:
             obj.src_type = inner.type
@@ -3572,12 +3574,12 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
 
 class FieldReferenceCleanup(RustStructuredCodeWalker):
     @classmethod
-    def handle_CTypeCast(cls, obj):
-        if isinstance(obj.dst_type, SimTypePointer) and not isinstance(obj.dst_type.pts_to, SimTypeBottom):
+    def handle_RustTypeCast(cls, obj):
+        if isinstance(obj.dst_type, RustSimTypePointer) and not isinstance(obj.dst_type.pts_to, SimTypeBottom):
             obj = obj.codegen._access_reference(obj.expr, obj.dst_type.pts_to)
             if not isinstance(obj, RustTypeCast):
                 return cls.handle(obj)
-        return super().handle_CTypeCast(obj)
+        return super().handle_RustTypeCast(obj)
 
 
 class PointerArithmeticFixer(RustStructuredCodeWalker):
@@ -3595,11 +3597,11 @@ class PointerArithmeticFixer(RustStructuredCodeWalker):
     """
 
     @classmethod
-    def handle_CBinaryOp(cls, obj):
-        obj: RustBinaryOp = super().handle_CBinaryOp(obj)
+    def handle_RustBinaryOp(cls, obj):
+        obj: RustBinaryOp = super().handle_RustBinaryOp(obj)
         if (
             obj.op in ("Add", "Sub")
-            and isinstance(obj.type, SimTypePointer)
+            and isinstance(obj.type, RustSimTypePointer)
             and not isinstance(obj.type.pts_to, SimTypeBottom)
         ):
             out = obj.codegen._access_reference(obj, obj.type.pts_to)

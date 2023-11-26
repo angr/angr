@@ -67,12 +67,11 @@ class RustSimTypeReg(RustSimType):
 
 
 class RustSimTypeInt(RustSimTypeReg):
-    def __init__(self, size, signed, label=None):
+    def __init__(self, size=32, signed=True, label=None):
         super().__init__(size, label)
         self.signed = signed
 
     def repr(self, name=None, full=0, memo=None, indent=0):
-        print(f"{name=}")
         if name is None or len(name) == 0:
             return self.__repr__()
         return f"let {name}: {self.__repr__()}"
@@ -188,11 +187,10 @@ class RustSimTypePointer(RustSimTypeReg):
                 return out
             return f"{out} {name}"
         # if it points to an array, we do not need to add a *
-        deref_chr = "*" if not isinstance(self.pts_to, SimTypeArray) else ""
-        name_with_deref = deref_chr if name is None else f"{deref_chr}{name}"
-        name_with_deref = None
-        print(f"{name_with_deref=}")
-        return self.pts_to.c_repr(name_with_deref, full, memo, indent)
+        out = "&" + self.pts_to.c_repr(None, full, memo, indent)
+        if name is None:
+            return out
+        return f"{name}: {out}"
 
     def make(self, pts_to):
         new = type(self)(pts_to)
@@ -206,7 +204,7 @@ class RustSimTypePointer(RustSimTypeReg):
         return self._arch.bits
 
     def _with_arch(self, arch):
-        out = SimTypePointer(self.pts_to.with_arch(arch), self.label)
+        out = RustSimTypePointer(self.pts_to.with_arch(arch), self.label)
         out._arch = arch
         return out
 
@@ -219,4 +217,4 @@ class RustSimTypePointer(RustSimTypeReg):
         )
 
     def copy(self):
-        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset)
+        return RustSimTypePointer(self.pts_to, label=self.label, offset=self.offset)
