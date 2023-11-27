@@ -290,10 +290,17 @@ class AddressConcretizationMixin(MemoryMixin):
                 else:
                     raise
         except SimValueError or SimUnsatError as e:
-            args = [addr]
-            MemoryLoad_decl = claripy.ast.func.MemoryLoad(op='MemoryLoad', args=args, _ret_size=size*8)
-            new_value = MemoryLoad_decl.op(*args)
-            return new_value
+            # Try to get it from state.sypy_path.memory_writes
+            if hasattr(self.state, 'sypy_path'):
+                key= (addr.cache_key, size)
+                if key in self.state.sypy_path.memory_writes:
+                    return self.state.sypy_path.memory_writes[key]
+                else:
+                    # Create a new MemoryLoad value
+                    args = [addr]
+                    MemoryLoad_decl = claripy.ast.func.MemoryLoad(op='MemoryLoad', args=args, _ret_size=size*8)
+                    new_value = MemoryLoad_decl.op(*args)
+                    return new_value
 
         try:
             concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))
