@@ -313,7 +313,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         if isinstance(k, self.function_address_types):
             f = self.function(addr=k)
         elif type(k) is str:
-            f = self.function(name=k)
+            f = self.function(name=k) or self.function(name=k, check_previous_names=True)
         else:
             raise ValueError("FunctionManager.__getitem__ does not support keys of type %s" % type(k))
 
@@ -350,9 +350,9 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     def get_by_addr(self, addr) -> Function:
         return self._function_map.get(addr)
 
-    def get_by_name(self, name: str) -> Generator[Function, None, None]:
+    def get_by_name(self, name: str, check_previous_names: bool=False) -> Generator[Function, None, None]:
         for f in self._function_map.values():
-            if f.name == name:
+            if f.name == name or (check_previous_names and name in func.previous_names):
                 yield f
 
     def _function_added(self, func: Function):
@@ -411,7 +411,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         except KeyError:
             return None
 
-    def query(self, query: str) -> Function | None:
+    def query(self, query: str, check_previous_names: bool=False) -> Function | None:
         """
         Query for a function using selectors to disambiguate. Supported variations:
 
@@ -430,19 +430,19 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                 addr = int(matches.group(2), 0)
                 try:
                     func = self._function_map.get(addr)
-                    if func.name == name:
+                    if func.name == name or (check_previous_names and name in func.previous_names):
                         return func
                 except KeyError:
                     pass
 
             obj_name = selector or self._kb._project.loader.main_object.binary_basename
-            for func in self.get_by_name(name):
+            for func in self.get_by_name(name, check_previous_names=check_previous_names):
                 if func.binary_name == obj_name:
                     return func
 
         return None
 
-    def function(self, addr=None, name=None, create=False, syscall=False, plt=None) -> Function | None:
+    def function(self, addr=None, name=None, check_previous_names=False, create=False, syscall=False, plt=None) -> Function | None:
         """
         Get a function object from the function manager.
 
@@ -472,11 +472,11 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                         f.is_syscall = True
                     return f
         elif name is not None:
-            func = self.query(name)
+            func = self.query(name, check_previous_names=check_previous_names)
             if func is not None:
                 return func
 
-            for func in self.get_by_name(name):
+            for func in self.get_by_name(name, check_previous_names=check_previous_names):
                 if plt is None or func.is_plt == plt:
                     return func
 
