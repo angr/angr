@@ -6,7 +6,7 @@ import claripy
 
 from angr import sim_options
 from angr.analyses import Analysis, AnalysesHub
-from angr.errors import SimMemoryMissingError, AngrCallableMultistateError
+from angr.errors import SimMemoryMissingError, AngrCallableMultistateError, AngrCallableError
 from angr.calling_conventions import SimRegArg
 from angr.analyses.reaching_definitions import ObservationPointType
 
@@ -147,7 +147,7 @@ class StringObfuscationFinder(Analysis):
 
                 try:
                     callable(*[arg for _, arg in args])
-                except AngrCallableMultistateError:
+                except (AngrCallableMultistateError, AngrCallableError):
                     continue
 
                 # let's see what this amazing function has done
@@ -241,6 +241,12 @@ class StringObfuscationFinder(Analysis):
             except AngrCallableMultistateError:
                 _l.debug(
                     "State branching encountered during string deobfuscation. Skip the call at %#x.",
+                    callsite_node.instruction_addrs[-1],
+                )
+                continue
+            except AngrCallableError:
+                _l.debug(
+                    "No path returned. Skip the call at %#x.",
                     callsite_node.instruction_addrs[-1],
                 )
                 continue
