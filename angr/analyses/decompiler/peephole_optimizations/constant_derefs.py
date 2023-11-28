@@ -20,7 +20,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
             if sec is not None and sec.is_readable and (not sec.is_writable or "got" in sec.name):
                 # do we know the value that it's reading?
                 try:
-                    val = self.project.loader.memory.unpack_word(expr.addr.value, size=self.project.arch.bytes)
+                    val = self.project.loader.memory.unpack_word(expr.addr.value, size=expr.size)
                 except KeyError:
                     return expr
 

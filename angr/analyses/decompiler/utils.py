@@ -1,5 +1,5 @@
 # pylint:disable=wrong-import-position
-from typing import Optional, Tuple, Any, Union, List
+from typing import Optional, Tuple, Any, Union, List, Iterable
 
 import networkx
 
@@ -529,6 +529,50 @@ def peephole_optimize_stmts(block, stmt_opts):
             any_update = True
         else:
             statements.append(old_stmt)
+
+    return statements, any_update
+
+
+def match_stmt_classes(all_stmts: List, idx: int, stmt_class_seq: Iterable[type]) -> bool:
+    for i, cls in enumerate(stmt_class_seq):
+        if idx + i >= len(all_stmts):
+            return False
+        if not isinstance(all_stmts[idx + i], cls):
+            return False
+    return True
+
+
+def peephole_optimize_multistmts(block, stmt_opts):
+    any_update = False
+    statements = block.statements[::]
+
+    # run multi-statement optimizers
+    stmt_idx = 0
+    while stmt_idx < len(statements):
+        redo = True
+        while redo and stmt_idx < len(statements):
+            redo = False
+            for opt in stmt_opts:
+                matched = False
+                stmt_seq_len = None
+                for stmt_class_seq in opt.stmt_classes:
+                    if match_stmt_classes(statements, stmt_idx, stmt_class_seq):
+                        stmt_seq_len = len(stmt_class_seq)
+                        matched = True
+                        break
+
+                if matched:
+                    matched_stmts = statements[stmt_idx : stmt_idx + stmt_seq_len]
+                    r = opt.optimize(matched_stmts, stmt_idx=stmt_idx, block=block)
+                    if r is not None:
+                        # update statements
+                        statements = statements[:stmt_idx] + r + statements[stmt_idx + stmt_seq_len :]
+                        any_update = True
+                        redo = True
+                        break
+
+        # move on to the next statement
+        stmt_idx += 1
 
     return statements, any_update
 

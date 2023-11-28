@@ -20,6 +20,7 @@ from ...sim_type import (
     SimTypeFunction,
     SimTypeBottom,
     SimTypeFloat,
+    SimTypePointer,
 )
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
@@ -1247,23 +1248,32 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
         elif isinstance(expr, ailment.Expr.Const):
-            # global variable?
-            global_vars = global_variables.get_global_variables(expr.value)
-            if not global_vars:
-                # detect if there is a related symbol
-                if self.project.loader.find_object_containing(expr.value):
-                    symbol = self.project.loader.find_symbol(expr.value)
-                    if symbol is not None:
-                        # Create a new global variable if there isn't one already
-                        global_vars = global_variables.get_global_variables(symbol.rebased_addr)
-                        if not global_vars:
-                            global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
-                            global_variables.add_variable("global", global_var.addr, global_var)
-                            global_vars = {global_var}
-            if global_vars:
-                global_var = next(iter(global_vars))
-                expr.tags["reference_variable"] = global_var
-                expr.tags["reference_variable_offset"] = 0
+            # custom string?
+            if hasattr(expr, "custom_string") and expr.custom_string is True:
+                s = self.kb.custom_strings[expr.value]
+                expr.tags["reference_values"] = {
+                    SimTypePointer(SimTypeChar().with_arch(self.project.arch)).with_arch(self.project.arch): s.decode(
+                        "ascii"
+                    ),
+                }
+            else:
+                # global variable?
+                global_vars = global_variables.get_global_variables(expr.value)
+                if not global_vars:
+                    # detect if there is a related symbol
+                    if self.project.loader.find_object_containing(expr.value):
+                        symbol = self.project.loader.find_symbol(expr.value)
+                        if symbol is not None:
+                            # Create a new global variable if there isn't one already
+                            global_vars = global_variables.get_global_variables(symbol.rebased_addr)
+                            if not global_vars:
+                                global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
+                                global_variables.add_variable("global", global_var.addr, global_var)
+                                global_vars = {global_var}
+                if global_vars:
+                    global_var = next(iter(global_vars))
+                    expr.tags["reference_variable"] = global_var
+                    expr.tags["reference_variable_offset"] = 0
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
