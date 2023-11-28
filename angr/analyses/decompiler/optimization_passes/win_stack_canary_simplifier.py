@@ -57,7 +57,7 @@ class WinStackCanarySimplifier(OptimizationPass):
     def _analyze(self, cache=None):
         init_stmts = None
         if cache is not None:
-            init_stmts = cache.get("init_stmt", None)
+            init_stmts = cache.get("init_stmts", None)
 
         if init_stmts is None:
             init_stmts = self._find_canary_init_stmt()
@@ -289,11 +289,7 @@ class WinStackCanarySimplifier(OptimizationPass):
         ):
             ins1 = block.capstone.insns[1]
             if ins1.mnemonic == "jne":
-                # this function should call exactly one other function (e.g., KeBugCheckEx for kernel drivers)
-                # TODO: Verify if this is true for user-space applications
-                func_calls = [node for node in func.transition_graph if isinstance(node, Function)]
-                if len(func_calls) == 1:
-                    return True
+                return True
         return False
 
     def _find_stmt_calling_security_check_cookie(self, node):
