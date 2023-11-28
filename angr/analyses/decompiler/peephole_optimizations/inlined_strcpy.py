@@ -11,6 +11,7 @@ from .base import PeepholeOptimizationStmtBase
 
 
 ASCII_PRINTABLES = set(string.printable)
+ASCII_DIGITS = set(string.digits)
 
 
 class InlinedStrcpy(PeepholeOptimizationStmtBase):
@@ -44,9 +45,9 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
     @staticmethod
     def is_integer_likely_a_string(
-        v: int, size: int, endness: Endness, min_length: int = 5
+        v: int, size: int, endness: Endness, min_length: int = 4
     ) -> Tuple[bool, Optional[str]]:
-        # we need at least three bytes of printable characters
+        # we need at least four bytes of printable characters
 
         chars = []
         if endness == Endness.LE:
@@ -75,6 +76,8 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
             # unsupported endness
             return False, None
 
-        if len(chars) > min_length:
+        if len(chars) >= min_length:
+            if len(chars) <= 4 and all(ch in ASCII_DIGITS for ch in chars):
+                return False, None
             return True, "".join(chars)
         return False, None
