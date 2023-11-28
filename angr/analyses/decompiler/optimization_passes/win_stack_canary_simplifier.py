@@ -7,7 +7,6 @@ import capstone
 import ailment
 import cle
 
-from angr.knowledge_plugins.functions import Function
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
