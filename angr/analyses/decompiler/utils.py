@@ -1,9 +1,14 @@
-# pylint:disable=wrong-import-position
+import pathlib
 from typing import Optional, Tuple, Any, Union, List, Iterable
+import logging
 
 import networkx
+from rich.progress import track
 
 import ailment
+import angr
+
+_l = logging.getLogger(__name__)
 
 
 def remove_last_statement(node):
@@ -575,6 +580,83 @@ def peephole_optimize_multistmts(block, stmt_opts):
         stmt_idx += 1
 
     return statements, any_update
+
+
+def decompile_functions(path, functions=None, structurer=None, catch_errors=True) -> Optional[str]:
+    """
+    Decompile a binary into a set of functions.
+
+    :param path:            The path to the binary to decompile.
+    :param functions:       The functions to decompile. If None, all functions will be decompiled.
+    :param structurer:      The structuring algorithms to use.
+    :param catch_errors:    The structuring algorithms to use.
+    :return:                The decompilation of all functions appended in order.
+    """
+    # delayed imports to avoid circular imports
+    from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
+
+    structurer = structurer or "phoenix"
+    path = pathlib.Path(path).resolve().absolute()
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses.CFG(normalize=True, data_references=True)
+    proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
+
+    # collect all functions when None are provided
+    if functions is None:
+        functions = cfg.functions.values()
+
+    # normalize the functions that could be ints as names
+    normalized_functions = []
+    for func in functions:
+        try:
+            normalized_name = int(func, 0)
+        except ValueError:
+            normalized_name = func
+        normalized_functions.append(normalized_name)
+    functions = normalized_functions
+
+    # verify that all functions exist
+    for func in functions:
+        if func not in cfg.functions:
+            raise ValueError(f"Function {func} does not exist in the CFG.")
+
+    # decompile all functions
+    decompilation = ""
+    dec_options = [
+        (PARAM_TO_OPTION["structurer_cls"], structurer),
+    ]
+    for func in track(functions, description="Decompiling functions", transient=True):
+        f = cfg.functions[func]
+        if f is None or f.is_plt:
+            continue
+
+        exception_string = ""
+        if not catch_errors:
+            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options)
+        else:
+            try:
+                # TODO: add a timeout
+                dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options)
+            except Exception as e:
+                exception_string = str(e).replace("\n", " ")
+                dec = None
+
+        # do sanity checks on decompilation, skip checks if we already errored
+        if not exception_string:
+            if dec is None or not dec.codegen or not dec.codegen.text:
+                exception_string = "Decompilation had no code output (failed in Dec)"
+            elif "{\n}" in dec.codegen.text:
+                exception_string = "Decompilation outputted an empty function (failed in structuring)"
+            elif structurer in ["dream", "combing"] and "goto" in dec.codegen.text:
+                exception_string = "Decompilation outputted a goto for a Gotoless algorithm (failed in structuring)"
+
+        if exception_string:
+            _l.critical("Failed to decompile %s because %s", str(func), exception_string)
+            decompilation += f"// [error: {func} | {exception_string}]\n"
+        else:
+            decompilation += dec.codegen.text + "\n"
+
+    return decompilation
 
 
 # delayed import
