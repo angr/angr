@@ -50,6 +50,8 @@ def get_optimization_passes(arch, platform):
 
     if platform is not None:
         platform = platform.lower()
+    if platform == "win32":
+        platform = "windows"  # sigh
 
     passes = []
     for pass_, _ in _all_optimization_passes:
