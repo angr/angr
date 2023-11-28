@@ -39,7 +39,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
     @staticmethod
     def is_integer_likely_a_string(
-        v: int, size: int, endness: Endness, min_length: int = 3
+        v: int, size: int, endness: Endness, min_length: int = 5
     ) -> Tuple[bool, Optional[str]]:
         # we need at least three bytes of printable characters
 
