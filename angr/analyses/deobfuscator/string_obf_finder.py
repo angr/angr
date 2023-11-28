@@ -329,7 +329,7 @@ class StringObfuscationFinder(Analysis):
 
             try:
                 callable()
-            except AngrCallableMultistateError:
+            except (AngrCallableMultistateError, AngrCallableError):
                 continue
 
             # where are the reads and writes?
