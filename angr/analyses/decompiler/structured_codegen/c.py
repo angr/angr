@@ -2037,11 +2037,22 @@ class CConstant(CExpression):
                     return
                 yield hex(self.reference_values[self._type]), self
             elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
-                refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
-                yield CConstant.str_to_c_str(refval.content.decode("utf-8")), self
+                refval = self.reference_values[self._type]
+                if isinstance(refval, MemoryData):
+                    v = refval.content.decode("utf-8")
+                else:
+                    # it's a string
+                    assert isinstance(v, str)
+                    v = refval
+                yield CConstant.str_to_c_str(v), self
             elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
-                refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
-                yield CConstant.str_to_c_str(refval.content.decode("utf_16_le"), prefix="L"), self
+                refval = self.reference_values[self._type]
+                if isinstance(refval, MemoryData):
+                    v = refval.content.decode("utf_16_le")
+                else:
+                    # it's a string
+                    v = refval
+                yield CConstant.str_to_c_str(v, prefix="L"), self
             else:
                 if isinstance(self.reference_values[self._type], int):
                     yield self.fmt_int(self.reference_values[self._type]), self
@@ -3198,6 +3209,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Const(self, expr, type_=None, reference_values=None, variable=None, **kwargs):
         inline_string = False
         function_pointer = False
+
+        if reference_values is None and hasattr(expr, "reference_values"):
+            reference_values = expr.reference_values.copy()
+            if reference_values:
+                type_ = next(iter(reference_values))
 
         if reference_values is None:
             reference_values = {}

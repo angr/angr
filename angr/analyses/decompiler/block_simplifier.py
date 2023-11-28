@@ -15,8 +15,15 @@ from ...analyses.propagator import PropagatorAnalysis
 from ...analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from ...errors import SimMemoryMissingError
 from .. import Analysis, register_analysis
-from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
-from .utils import peephole_optimize_exprs, peephole_optimize_stmts
+from .peephole_optimizations import (
+    MULTI_STMT_OPTS,
+    STMT_OPTS,
+    EXPR_OPTS,
+    PeepholeOptimizationStmtBase,
+    PeepholeOptimizationExprBase,
+    PeepholeOptimizationMultiStmtBase,
+)
+from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_optimize_multistmts
 
 if TYPE_CHECKING:
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -78,6 +85,7 @@ class BlockSimplifier(Analysis):
         if peephole_optimizations is None:
             self._expr_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in EXPR_OPTS]
             self._stmt_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in STMT_OPTS]
+            self._multistmt_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in MULTI_STMT_OPTS]
         else:
             self._expr_peephole_opts = [
                 cls(self.project, self.kb, self.func_addr)
@@ -88,6 +96,11 @@ class BlockSimplifier(Analysis):
                 cls(self.project, self.kb, self.func_addr)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationStmtBase)
+            ]
+            self._multistmt_peephole_opts = [
+                cls(self.project, self.kb, self.func_addr)
+                for cls in peephole_optimizations
+                if issubclass(cls, PeepholeOptimizationMultiStmtBase)
             ]
 
         self.result_block = None
@@ -404,9 +417,16 @@ class BlockSimplifier(Analysis):
         # run statement-level optimizations
         statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)
 
-        if not stmts_updated:
-            return block
-        new_block = block.copy(statements=statements)
+        if stmts_updated:
+            new_block = block.copy(statements=statements)
+        else:
+            new_block = block
+
+        statements, multi_stmts_updated = peephole_optimize_multistmts(new_block, self._multistmt_peephole_opts)
+
+        if not multi_stmts_updated:
+            return new_block
+        new_block = new_block.copy(statements=statements)
         return new_block
 
 
