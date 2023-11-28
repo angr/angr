@@ -80,6 +80,7 @@ class Function(Serializable):
         "is_alignment",
         "is_prototype_guessed",
         "ran_cca",
+        "_cyclomatic_complexity",
     )
 
     def __init__(
@@ -160,6 +161,9 @@ class Function(Serializable):
 
         self.info = {}  # storing special information, like $gp values for MIPS32
         self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
+
+        # Initialize _cyclomatic_complexity to None
+        self._cyclomatic_complexity = None
 
         # TODO: Can we remove the following two members?
         # Register offsets of those arguments passed in registers
@@ -301,6 +305,30 @@ class Function(Serializable):
                 )
             except (SimEngineError, SimMemoryError):
                 pass
+
+    @property
+    def cyclomatic_complexity(self):
+        """
+        The cyclomatic complexity of the function.
+
+        Cyclomatic complexity is a software metric used to indicate the complexity of a program.
+        It is a quantitative measure of the number of linearly independent paths through a program's source code.
+        It is computed using the formula: M = E - N + 2P, where
+        E = the number of edges in the graph,
+        N = the number of nodes in the graph,
+        P = the number of connected components.
+
+        The cyclomatic complexity value is lazily computed and cached for future use.
+        Initially this value is None until it is computed for the first time
+
+        :return: The cyclomatic complexity of the function.
+        :rtype: int
+        """
+        if self._cyclomatic_complexity is None:
+            self._cyclomatic_complexity = (
+                self.transition_graph.number_of_edges() - self.transition_graph.number_of_nodes() + 2
+            )
+        return self._cyclomatic_complexity
 
     @property
     def xrefs(self):
@@ -565,6 +593,7 @@ class Function(Serializable):
         s += "  Alignment: %s\n" % (self.alignment)
         s += f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
         s += "  Blocks: [%s]\n" % ", ".join(["%#x" % i for i in self.block_addrs])
+        s += "  Cyclomatic Complexity: %s\n" % self.cyclomatic_complexity
         s += "  Calling convention: %s" % self.calling_convention
         return s
 

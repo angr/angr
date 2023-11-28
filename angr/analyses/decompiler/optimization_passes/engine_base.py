@@ -89,7 +89,7 @@ class SimplifierAILEngine(
         if hasattr(self, handler):
             return getattr(self, handler)(stmt)
         else:
-            _l.warning("Unsupported statement type %s.", type(stmt).__name__)
+            _l.debug("Unsupported statement type %s.", type(stmt).__name__)
             return stmt
 
     def _ail_handle_Assignment(self, stmt):
@@ -176,7 +176,7 @@ class SimplifierAILEngine(
             if v is None:
                 return expr
             return v
-        _l.warning("Unsupported expression type %s.", type(expr).__name__)
+        _l.debug("Unsupported expression type %s.", type(expr).__name__)
         return expr
 
     def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use

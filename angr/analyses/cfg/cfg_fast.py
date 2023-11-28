@@ -4586,6 +4586,18 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         ):
                             rbp_as_gpr = False
                             break
+                    elif (
+                        insn.mnemonic == "lea"
+                        and len(insn.operands) == 2
+                        and insn.operands[0].type == capstone.x86.X86_OP_REG
+                        and insn.operands[1].type == capstone.x86.X86_OP_MEM
+                    ):
+                        if (
+                            insn.operands[0].reg == capstone.x86.X86_REG_RBP
+                            and insn.operands[1].mem.base == capstone.x86.X86_REG_RSP
+                        ):
+                            rbp_as_gpr = False
+                            break
                 func = self.kb.functions.get_by_addr(func_addr)
                 func.info["bp_as_gpr"] = rbp_as_gpr
 
