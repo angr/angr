@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional
+from typing import List, Optional
 
 from ailment.expression import BinaryOp, UnaryOp, Expression
 from ailment.statement import Statement, Assignment

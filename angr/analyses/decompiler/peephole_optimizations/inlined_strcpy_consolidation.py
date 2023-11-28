@@ -1,3 +1,4 @@
+# pylint:disable=arguments-differ
 from typing import List, Tuple, Optional
 
 from ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset
@@ -47,31 +48,33 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                             stmt.data.value, stmt.size, stmt.endness, min_length=1
                         )
                     if r:
-                        if s != "\x00":
-                            new_str = s_last + s.encode("ascii")
-                        else:
-                            new_str = s_last
+                        new_str = s_last + s.encode("ascii")
 
             if new_str is not None:
-                new_str_idx = self.kb.custom_strings.allocate(new_str)
-                return [
-                    Call(
-                        stmt.idx,
-                        "strcpy",
-                        args=[
-                            last_stmt.args[0],
-                            Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True),
-                        ],
-                        **stmt.tags,
-                    )
-                ]
+                if new_str.endswith(b"\x00"):
+                    call_name = "strcpy"
+                    new_str_idx = self.kb.custom_strings.allocate(new_str[:-1])
+                    args = [
+                        last_stmt.args[0],
+                        Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True),
+                    ]
+                else:
+                    call_name = "strncpy"
+                    new_str_idx = self.kb.custom_strings.allocate(new_str)
+                    args = [
+                        last_stmt.args[0],
+                        Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True),
+                        Const(None, None, len(new_str), self.project.arch.bits),
+                    ]
+
+                return [Call(stmt.idx, call_name, args=args, **stmt.tags)]
 
         return None
 
     @staticmethod
     def _is_inlined_strcpy(stmt: Call):
-        if isinstance(stmt.target, str) and stmt.target == "strcpy":
-            if len(stmt.args) == 2 and isinstance(stmt.args[1], Const) and hasattr(stmt.args[1], "custom_string"):
+        if isinstance(stmt.target, str) and stmt.target == "strncpy":
+            if len(stmt.args) == 3 and isinstance(stmt.args[1], Const) and hasattr(stmt.args[1], "custom_string"):
                 return True
         return False
 

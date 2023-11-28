@@ -1,3 +1,4 @@
+# pylint:disable=arguments-differ
 from typing import Tuple, Optional
 import string
 
@@ -26,12 +27,16 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         if isinstance(stmt.data, Const):
             r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.data.size, stmt.endness)
             if r:
-                # replace it with a call to strcpy
+                # replace it with a call to strncpy
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                 return Call(
                     stmt.idx,
-                    "strcpy",
-                    args=[stmt.addr, Const(None, None, str_id, stmt.addr.bits, custom_string=True)],
+                    "strncpy",
+                    args=[
+                        stmt.addr,
+                        Const(None, None, str_id, stmt.addr.bits, custom_string=True),
+                        Const(None, None, len(s), self.project.arch.bits),
+                    ],
                     **stmt.tags,
                 )
 
@@ -54,7 +59,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
         elif endness == Endness.BE:
             first_non_zero = False
-            for i in range(size):
+            for _ in range(size):
                 byt = v & 0xFF
                 v >>= 8
                 if byt == 0:
