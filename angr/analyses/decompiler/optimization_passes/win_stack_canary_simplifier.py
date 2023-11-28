@@ -299,7 +299,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     func = self.kb.functions.function(addr=const_target)
                     if func.name == "_security_check_cookie":
                         return idx
-                    elif func.is_default_name and self._is_function_likely_security_check_cookie(func):
+                    elif self._is_function_likely_security_check_cookie(func):
                         return idx
 
         return None
