@@ -608,7 +608,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=True
                 exception_string = "Decompilation outputted a goto for a Gotoless algorithm (failed in structuring)"
 
         if exception_string:
-            _l.critical(f"Failed to decompile {func} because {exception_string}")
+            _l.critical("Failed to decompile %s because %s", str(func), exception_string)
             decompilation += f"// [error: {func} | {exception_string}]\n"
         else:
             decompilation += dec.codegen.text + "\n"

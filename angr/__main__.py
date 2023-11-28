@@ -5,6 +5,10 @@ from angr.analyses.decompiler.utils import decompile_functions
 
 
 class COMMANDS:
+    """
+    The commands that the angr CLI supports.
+    """
+
     DECOMPILE = "decompile"
     ALL_COMMANDS = [DECOMPILE]
 
