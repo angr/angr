@@ -98,6 +98,15 @@ options = [
         default_value=True,
     ),
     O(
+        "Simplify if-else to remove terminating else scopes",
+        "Removes terminating else scopes to make the code appear more flat.",
+        bool,
+        "region_simplifier",
+        "simplify_ifelse",
+        category="Graph",
+        default_value=True,
+    ),
+    O(
         "Show casts",
         "Disabling this option will blindly remove all C typecast constructs from pseudocode output.",
         bool,

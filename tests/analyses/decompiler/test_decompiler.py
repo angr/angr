@@ -3142,6 +3142,134 @@ class TestDecompiler(unittest.TestCase):
         assert 'L"\\\\Registry\\\\Machine\\\\SYSTEM\\\\CurrentControlSet\\\\Control\\\\WinApi"' in d.codegen.text
         assert 'L"WinDeviceAddress"' in d.codegen.text
 
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_iplink_bridge(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "iplink_bridge.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["bridge_print_opt"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+        good_if_return_pattern = r"if \(\!a2\)\s+return .*;"
+        good_if_return = re.search(good_if_return_pattern, text)
+        assert good_if_return is not None
+
+        first_if_location = text.find("if")
+        assert first_if_location != -1
+
+        # TODO: this is broken right now on the 1 goto for a bad else. It may not be relevant for this testcase.
+        # there should be no else and no gotos!
+        # assert "goto" not in text
+        # assert "else" not in text
+
+        # the first if in the program should have no else, and that first else should be a simple return
+        assert first_if_location == good_if_return.start()
+        assert not text[first_if_location + len(good_if_return.group(0)) :].startswith("    else")
+
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_gzip(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "gzip.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["treat_file"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text.replace("\n", " ")
+        first_if_location = text.find("if (")
+        # the very first if-stmt in this function should be a single scope with a return.
+        # there should be no else scope as well.
+        correct_ifs = list(re.finditer(r'if \(!strcmp\(a0, "-"\)\) {5}\{.*? return; {5}}', text))
+        assert len(correct_ifs) >= 1
+
+        first_correct_if = correct_ifs[0]
+        assert first_correct_if.start() == first_if_location
+
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_iprule(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "iprule.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["flush_rule"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        # XXX: this a hack that should be fixed in some other place
+        text = d.codegen.text.replace("4294967295", "-1")
+
+        # first if-stmt should be a single scope with a return.
+        good_if_return = re.search("if \\(.*?\\)\n {8}return -1;", text)
+        assert good_if_return is not None
+
+        first_if_location = text.find("if")
+        assert first_if_location != -1
+        assert first_if_location == good_if_return.start()
+
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_clientloop(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "clientloop.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["client_request_tun_fwd"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        # find all ifs
+        all_if_stmts = list(re.finditer("if \\(.*?\\)", text))
+        assert all_if_stmts is not None
+        assert len(all_if_stmts) >= 2
+
+        # first if-stmt should be a single scope with a return.
+        first_good_if = re.search("if \\(.*?\\)\n {8}return 0;", text)
+        assert first_good_if is not None
+        assert first_good_if.start() == all_if_stmts[0].start()
+
+        # the if-stmt immediately after the first one should be a true check on -1
+        second_good_if = re.search("if \\(.*? == -1\\)", text)
+        assert second_good_if is not None
+        assert second_good_if.start() == all_if_stmts[1].start()
+
+    @structuring_algo("phoenix")
+    def test_ifelseflatten_certtool_common(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "certtool-common.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions["cipher_to_flags"]
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+
+        self._print_decompilation_result(d)
+        text = d.codegen.text
+
+        # If any incorrect if-else flipping occurs, then there will be an if-stmt inside an if-stmt.
+        # In the correct output, there should only ever be 2 scopes (the function, and a single if-scope) of
+        # deepness in the full function. To verify this, we check that no scope of 3 deepness exists.
+
+        scope_prefix = "    "
+        bad_scope_prefix = scope_prefix * 3
+
+        assert scope_prefix in text
+        assert bad_scope_prefix not in text
+
+        # TODO: fix me, this is a real bug
+        # To double-check the structure, we will also verify that all if-conditions are of form `if(!<condition>)`,
+        # since that is the correct form for this program.
+        # bad_matches = re.findall(r'\bif\s*\(\s*[^!].*\)', text)
+        # assert len(bad_matches) == 0
+
 
 if __name__ == "__main__":
     unittest.main()

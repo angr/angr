@@ -42,20 +42,29 @@ class IfElseFlattener(SequenceWalker):
 
         if node.true_node is not None and node.false_node is not None:
             try:
-                last_stmts = ConditionProcessor.get_last_statements(node.true_node)
+                true_last_stmts = ConditionProcessor.get_last_statements(node.true_node)
             except EmptyBlockNotice:
-                last_stmts = None
+                true_last_stmts = None
             if (
-                last_stmts is not None
-                and None not in last_stmts
-                and all(is_statement_terminating(stmt, self.functions) for stmt in last_stmts)
+                true_last_stmts is not None
+                and None not in true_last_stmts
+                and all(is_statement_terminating(stmt, self.functions) for stmt in true_last_stmts)
             ):
                 # all end points in the true node are returning
-
-                # remove the else node and make it a new node following node
-                else_node = node.false_node
-                node.false_node = None
-                insert_node(parent, "after", else_node, index, **kwargs)
+                try:
+                    false_last_stmts = ConditionProcessor.get_last_statements(node.false_node)
+                except EmptyBlockNotice:
+                    false_last_stmts = None
+                if (
+                    false_last_stmts is not None
+                    and None not in false_last_stmts
+                    and not all(is_statement_terminating(stmt, self.functions) for stmt in false_last_stmts)
+                ):
+                    # not all end points in the false node are returning. in this case, we remove the else node and
+                    # make it a new node following node
+                    else_node = node.false_node
+                    node.false_node = None
+                    insert_node(parent, "after", else_node, index, **kwargs)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, parent=None, index=None, **kwargs):
         super()._handle_CascadingCondition(node, parent=parent, index=index, **kwargs)
