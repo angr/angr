@@ -21,7 +21,7 @@ def main():
         The analysis type to run on the binary. All analysis is output to stdout.""",
         choices=COMMANDS.ALL_COMMANDS,
     )
-    parser.add_argument("binary", help="The path to the binary to analyze.", nargs="*")
+    parser.add_argument("binary", help="The path to the binary to analyze.")
     parser.add_argument(
         "--functions",
         help="""

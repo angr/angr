@@ -3,7 +3,6 @@ from typing import Optional, Tuple, Any, Union, List, Iterable
 import logging
 
 import networkx
-import tqdm
 
 import ailment
 import angr
@@ -629,7 +628,7 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     dec_options = [
         (PARAM_TO_OPTION["structurer_cls"], structurer),
     ]
-    for func in tqdm.tqdm(functions, desc="Decompiling functions"):
+    for func in functions:
         f = cfg.functions[func]
         if f is None or f.is_plt:
             continue
