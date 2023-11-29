@@ -3,7 +3,6 @@ from typing import Optional, Tuple, Any, Union, List, Iterable
 import logging
 
 import networkx
-from rich.progress import track
 
 import ailment
 import angr
@@ -582,7 +581,7 @@ def peephole_optimize_multistmts(block, stmt_opts):
     return statements, any_update
 
 
-def decompile_functions(path, functions=None, structurer=None, catch_errors=True) -> Optional[str]:
+def decompile_functions(path, functions=None, structurer=None, catch_errors=False) -> Optional[str]:
     """
     Decompile a binary into a set of functions.
 
@@ -616,16 +615,20 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=True
     functions = normalized_functions
 
     # verify that all functions exist
-    for func in functions:
+    for func in list(functions):
         if func not in cfg.functions:
-            raise ValueError(f"Function {func} does not exist in the CFG.")
+            if catch_errors:
+                _l.warning("Function %s does not exist in the CFG.", str(func))
+                functions.remove(func)
+            else:
+                raise ValueError(f"Function {func} does not exist in the CFG.")
 
     # decompile all functions
     decompilation = ""
     dec_options = [
         (PARAM_TO_OPTION["structurer_cls"], structurer),
     ]
-    for func in track(functions, description="Decompiling functions", transient=True):
+    for func in functions:
         f = cfg.functions[func]
         if f is None or f.is_plt:
             continue
