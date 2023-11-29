@@ -2008,9 +2008,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             ins_addr = addr
             for i, stmt in enumerate(irsb.statements):
                 if isinstance(stmt, pyvex.IRStmt.Exit):
-                    successors.append(
-                        (i, last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, stmt.dst, stmt.jumpkind)
-                    )
+                    branch_ins_addr = last_ins_addr if self.project.arch.branch_delay_slot else ins_addr
+                    if self._is_branch_vex_artifact_only(irsb, branch_ins_addr, stmt):
+                        continue
+                    successors.append((i, branch_ins_addr, stmt.dst, stmt.jumpkind))
                 elif isinstance(stmt, pyvex.IRStmt.IMark):
                     last_ins_addr = ins_addr
                     ins_addr = stmt.addr + stmt.delta
@@ -2025,6 +2026,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     idx_ = irsb.instruction_addresses.index(ins_addr)
                     if idx_ > 0:
                         branch_ins_addr = irsb.instruction_addresses[idx_ - 1]
+                elif self._is_branch_vex_artifact_only(irsb, branch_ins_addr, exit_stmt):
+                    continue
                 successors.append((stmt_idx, branch_ins_addr, exit_stmt.dst, exit_stmt.jumpkind))
 
         # default statement
@@ -4619,6 +4622,57 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                             to_remove.add(succ_addr)
                             queue.append(succ_addr)
         return to_remove
+
+    def _is_branch_vex_artifact_only(self, irsb, branch_ins_addr: int, exit_stmt) -> bool:
+        """
+        Check if an exit is merely the result of VEX lifting. We should drop these exits.
+        These exits point to the same instruction and do not terminate the block.
+
+        Example block:
+
+        1400061c2  lock or byte ptr [rsp], 0x0
+        1400061c7  mov     r9, r8
+        1400061ca  shr     r9, 0x5
+        1400061ce  jne     0x1400060dc
+
+        VEX block:
+
+        00 | ------ IMark(0x1400061c2, 5, 0) ------
+        01 | t3 = GET:I64(rsp)
+        02 | t2 = LDle:I8(t3)
+        03 | t(4,4294967295) = CASle(t3 :: (t2,None)->(t2,None))
+        04 | t13 = CasCmpNE8(t4,t2)
+        05 | if (t13) { PUT(rip) = 0x1400061c2; Ijk_Boring }
+        06 | ------ IMark(0x1400061c7, 3, 0) ------
+        07 | t15 = GET:I64(r8)
+        08 | ------ IMark(0x1400061ca, 4, 0) ------
+        09 | t9 = Shr64(t15,0x05)
+        10 | t16 = Shr64(t15,0x04)
+        11 | PUT(cc_op) = 0x0000000000000024
+        12 | PUT(cc_dep1) = t9
+        13 | PUT(cc_dep2) = t16
+        14 | PUT(r9) = t9
+        15 | PUT(rip) = 0x00000001400061ce
+        16 | ------ IMark(0x1400061ce, 6, 0) ------
+        17 | t29 = GET:I64(cc_ndep)
+        18 | t30 = amd64g_calculate_condition(0x0000000000000004,0x0000000000000024,t9,t16,t29):Ity_I64
+        19 | t25 = 64to1(t30)
+        20 | if (t25) { PUT(rip) = 0x1400061d4; Ijk_Boring }
+        NEXT: PUT(rip) = 0x00000001400060dc; Ijk_Boring
+
+        Statement 5 should not introduce a new exit in the CFG.
+        """
+
+        if (
+            not self.project.arch.branch_delay_slot
+            and irsb.instruction_addresses
+            and branch_ins_addr != irsb.instruction_addresses[-1]
+            and isinstance(exit_stmt.dst, pyvex.const.IRConst)
+            and exit_stmt.dst.value == branch_ins_addr
+            and exit_stmt.jumpkind == "Ijk_Boring"
+        ):
+            return True
+        return False
 
     def _remove_jobs_by_source_node_addr(self, addr: int):
         self._remove_job(lambda j: j.src_node is not None and j.src_node.addr == addr)
