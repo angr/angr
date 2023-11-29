@@ -954,6 +954,15 @@ class TestCfgfast(unittest.TestCase):
         assert node is not None
         assert node.function_address == 0x40F770
 
+    def test_removing_lock_edges(self):
+        path = os.path.join(
+            test_location, "x86_64", "windows", "6f289eb8c8cd826525d79b195b1cf187df509d56120427b10ea3fb1b4db1b7b5.sys"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        node = cfg.model.get_any_node(0x1400061C2)
+        assert {n.addr for n in cfg.model.graph.successors(node)} == {0x1400060DC, 0x1400061D4}
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
