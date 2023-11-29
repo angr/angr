@@ -961,7 +961,7 @@ class TestCfgfast(unittest.TestCase):
         proj = angr.Project(path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
         node = cfg.model.get_any_node(0x1400061C2)
-        assert set(n.addr for n in cfg.model.graph.successors(node)) == {0x1400060DC, 0x1400061D4}
+        assert {n.addr for n in cfg.model.graph.successors(node)} == {0x1400060DC, 0x1400061D4}
 
 
 class TestCfgfastDataReferences(unittest.TestCase):
