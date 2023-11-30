@@ -1044,6 +1044,14 @@ class AILSimplifier(Analysis):
                 if u.block_addr not in {b.addr for b in super_node_blocks}:
                     continue
 
+                # check if the register has been overwritten by statements in between the def site and the use site
+                usesite_atom_defs = set(rd.get_defs(the_def.atom, u, OP_BEFORE))
+                if len(usesite_atom_defs) != 1:
+                    continue
+                usesite_atom_def = next(iter(usesite_atom_defs))
+                if usesite_atom_def != the_def:
+                    continue
+
                 # check if any atoms that the call relies on has been overwritten by statements in between the def site
                 # and the use site.
                 defsite_all_expr_uses = set(rd.all_uses.get_uses_by_location(the_def.codeloc))
