@@ -40,7 +40,11 @@ from angr.errors import (
     SimIRSBNoDecodeError,
 )
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.utils.funcid import is_function_security_check_cookie, is_function_security_init_cookie
+from angr.utils.funcid import (
+    is_function_security_check_cookie,
+    is_function_security_init_cookie,
+    is_function_security_init_cookie_win8,
+)
 from angr.analyses import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
@@ -1679,6 +1683,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 security_init_cookie_found = False
                 for xref in xrefs:
                     cfg_node = self.model.get_any_node(xref.block_addr)
+                    if cfg_node is None:
+                        continue
                     func_addr = cfg_node.function_address
                     if func_addr not in tested_func_addrs:
                         func = self.kb.functions.get_by_addr(func_addr)
@@ -1689,6 +1695,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                             func.is_default_name = False
                             func.name = "_security_check_cookie"
                         elif not security_init_cookie_found and is_function_security_init_cookie(
+                            func, self.project, security_cookie_addr
+                        ):
+                            security_init_cookie_found = True
+                            func.is_default_name = False
+                            func.name = "_security_init_cookie"
+                        elif not security_init_cookie_found and is_function_security_init_cookie_win8(
                             func, self.project, security_cookie_addr
                         ):
                             security_init_cookie_found = True

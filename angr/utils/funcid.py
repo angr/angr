@@ -32,6 +32,8 @@ def is_function_security_check_cookie(func, project, security_cookie_addr: int) 
 
 
 def is_function_security_init_cookie(func: "Function", project, security_cookie_addr: int) -> bool:
+    if func.is_plt or func.is_syscall or func.is_simprocedure:
+        return False
     # the function should have only one return point
     if len(func.endpoints) == 1 and len(func.ret_sites) == 1:
         # the function is normalized
@@ -67,4 +69,41 @@ def is_function_security_init_cookie(func: "Function", project, security_cookie_
             and last_insn.operands[1].type == capstone.x86.X86_OP_REG
         ):
             return True
+    return False
+
+
+def is_function_security_init_cookie_win8(func: "Function", project, security_cookie_addr: int) -> bool:
+    # disassemble the first instruction
+    if func.is_plt or func.is_syscall or func.is_simprocedure:
+        return False
+    block = project.factory.block(func.addr)
+    if block.instructions != 3:
+        return False
+    ins0 = block.capstone.insns[0]
+    if (
+        ins0.mnemonic == "mov"
+        and len(ins0.operands) == 2
+        and ins0.operands[0].type == capstone.x86.X86_OP_REG
+        and ins0.operands[0].reg == capstone.x86.X86_REG_RAX
+        and ins0.operands[1].type == capstone.x86.X86_OP_MEM
+        and ins0.operands[1].mem.base == capstone.x86.X86_REG_RIP
+        and ins0.operands[1].mem.index == 0
+        and ins0.operands[1].mem.disp + ins0.address + ins0.size == security_cookie_addr
+    ):
+        ins1 = block.capstone.insns[-1]
+        if ins1.mnemonic == "je":
+            succs = list(func.graph.successors(func.get_node(block.addr)))
+            if len(succs) > 2:
+                return False
+            for succ in succs:
+                succ_block = project.factory.block(succ.addr)
+                if succ_block.instructions:
+                    first_insn = succ_block.capstone.insns[0]
+                    if (
+                        first_insn.mnemonic == "movabs"
+                        and len(first_insn.operands) == 2
+                        and first_insn.operands[1].type == capstone.x86.X86_OP_IMM
+                        and first_insn.operands[1].imm == 0x2B992DDFA232
+                    ):
+                        return True
     return False
