@@ -963,6 +963,13 @@ class TestCfgfast(unittest.TestCase):
         node = cfg.model.get_any_node(0x1400061C2)
         assert {n.addr for n in cfg.model.graph.successors(node)} == {0x1400060DC, 0x1400061D4}
 
+    def test_security_init_cookie_identification(self):
+        path = os.path.join(test_location, "x86_64", "windows", "3ware.sys")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        assert cfg.kb.functions[0x1C001A018].name == "_security_init_cookie"
+        assert cfg.kb.functions[0x1C0010100].name == "_security_check_cookie"
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):

@@ -40,6 +40,11 @@ from angr.errors import (
     SimIRSBNoDecodeError,
 )
 from angr.utils.constants import DEFAULT_STATEMENT
+from angr.utils.funcid import (
+    is_function_security_check_cookie,
+    is_function_security_init_cookie,
+    is_function_security_init_cookie_win8,
+)
 from angr.analyses import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
@@ -1617,6 +1622,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if self._collect_data_ref:
             self._post_process_string_references()
 
+        self._rename_common_functions_and_symbols()
+
         CFGBase._post_analysis(self)
 
         # Clean up
@@ -1652,6 +1659,57 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     l.exception("Error collecting XRefs for function %s.", f.name, exc_info=True)
                 else:
                     l.exception("Error collecting XRefs for function %#x.", f_addr, exc_info=True)
+
+    def _rename_common_functions_and_symbols(self):
+        """
+        This function implements logic for renaming some commonly seen functions in an architecture- and OS-specific
+        way.
+        """
+
+        if (
+            self.project.simos is not None
+            and self.project.arch.name == "AMD64"
+            and self.project.simos.name == "Win32"
+            and isinstance(self.project.loader.main_object, cle.PE)
+        ):
+            security_cookie_addr = self.project.loader.main_object.load_config.get("SecurityCookie", None)
+            if security_cookie_addr is not None:
+                if security_cookie_addr not in self.kb.labels:
+                    self.kb.labels[security_cookie_addr] = "_security_cookie"
+                # identify _security_init_cookie and _security_check_cookie
+                xrefs = self.kb.xrefs.get_xrefs_by_dst(security_cookie_addr)
+                tested_func_addrs = set()
+                security_check_cookie_found = False
+                security_init_cookie_found = False
+                for xref in xrefs:
+                    cfg_node = self.model.get_any_node(xref.block_addr)
+                    if cfg_node is None:
+                        continue
+                    func_addr = cfg_node.function_address
+                    if func_addr not in tested_func_addrs:
+                        func = self.kb.functions.get_by_addr(func_addr)
+                        if not security_check_cookie_found and is_function_security_check_cookie(
+                            func, self.project, security_cookie_addr
+                        ):
+                            security_check_cookie_found = True
+                            func.is_default_name = False
+                            func.name = "_security_check_cookie"
+                        elif not security_init_cookie_found and is_function_security_init_cookie(
+                            func, self.project, security_cookie_addr
+                        ):
+                            security_init_cookie_found = True
+                            func.is_default_name = False
+                            func.name = "_security_init_cookie"
+                        elif not security_init_cookie_found and is_function_security_init_cookie_win8(
+                            func, self.project, security_cookie_addr
+                        ):
+                            security_init_cookie_found = True
+                            func.is_default_name = False
+                            func.name = "_security_init_cookie"
+                        tested_func_addrs.add(func_addr)
+                    if security_init_cookie_found and security_check_cookie_found:
+                        # both are found. exit from the loop
+                        break
 
     def _post_process_string_references(self) -> None:
         """

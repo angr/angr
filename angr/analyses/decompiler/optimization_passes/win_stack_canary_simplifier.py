@@ -3,10 +3,10 @@ from typing import Set, Dict
 from collections import defaultdict
 import logging
 
-import capstone
 import ailment
 import cle
 
+from angr.utils.funcid import is_function_security_check_cookie
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -268,29 +268,6 @@ class WinStackCanarySimplifier(OptimizationPass):
                 return idx
         return None
 
-    def _is_function_likely_security_check_cookie(self, func) -> bool:
-        # disassemble the first instruction
-        if func.is_plt or func.is_syscall or func.is_simprocedure:
-            return False
-        block = self.project.factory.block(func.addr)
-        if block.instructions != 2:
-            return False
-        ins0 = block.capstone.insns[0]
-        if (
-            ins0.mnemonic == "cmp"
-            and len(ins0.operands) == 2
-            and ins0.operands[0].type == capstone.x86.X86_OP_REG
-            and ins0.operands[0].reg == capstone.x86.X86_REG_RCX
-            and ins0.operands[1].type == capstone.x86.X86_OP_MEM
-            and ins0.operands[1].mem.base == capstone.x86.X86_REG_RIP
-            and ins0.operands[1].mem.index == 0
-            and ins0.operands[1].mem.disp + ins0.address + ins0.size == self._security_cookie_addr
-        ):
-            ins1 = block.capstone.insns[1]
-            if ins1.mnemonic == "jne":
-                return True
-        return False
-
     def _find_stmt_calling_security_check_cookie(self, node):
         for idx, stmt in enumerate(node.statements):
             if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
@@ -299,7 +276,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     func = self.kb.functions.function(addr=const_target)
                     if func.name == "_security_check_cookie":
                         return idx
-                    elif self._is_function_likely_security_check_cookie(func):
+                    elif is_function_security_check_cookie(func, self.project, self._security_cookie_addr):
                         return idx
 
         return None
