@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from typing import TYPE_CHECKING
 
 import capstone
