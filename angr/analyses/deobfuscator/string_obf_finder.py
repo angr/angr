@@ -110,9 +110,12 @@ class StringObfuscationFinder(Analysis):
                                 try:
                                     mv = observ.registers.load(reg_offset, size=reg_size)
                                 except SimMemoryMissingError:
-                                    args.append((arg_idx, None))
+                                    args.append((arg_idx, claripy.BVV(0xDEADBEEF, self.project.arch.bits)))
                                     continue
-                                args.append((arg_idx, mv.one_value()))
+                                arg_value = mv.one_value()
+                                if arg_value is None:
+                                    arg_value = claripy.BVV(0xDEADBEEF, self.project.arch.bits)
+                                args.append((arg_idx, arg_value))
 
                         # the args must have at least one concrete address that points to an initialized memory location
                         acceptable_args = False
@@ -122,6 +125,7 @@ class StringObfuscationFinder(Analysis):
                                 section = self.project.loader.find_section_containing(v)
                                 if section is not None:
                                     acceptable_args = True
+                                    break
                         if acceptable_args:
                             args_list.append(args)
 
@@ -217,13 +221,13 @@ class StringObfuscationFinder(Analysis):
                     try:
                         mv = observ.registers.load(reg_offset, size=reg_size)
                     except SimMemoryMissingError:
-                        args.append(None)
+                        args.append(claripy.BVV(0xDEADBEEF, self.project.arch.bits))
                         continue
                     v = mv.one_value()
                     if v is not None and v.concrete:
                         args.append(v)
                     else:
-                        args.append(None)
+                        args.append(claripy.BVV(0xDEADBEEF, self.project.arch.bits))
 
             if None in args:
                 _l.debug(
