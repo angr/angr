@@ -90,6 +90,18 @@ class TestPickle(unittest.TestCase):
         p1 = pickle.loads(s)
         assert len(p1.analyses._active_preset._default_plugins) > 0
 
+    def test_multi_kb_serialization(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = p.analyses.CFG()
+
+        func_main = cfg.kb.functions["main"]
+        other_kb = p.get_kb("other")
+        p.analyses.CFG(kb=other_kb)
+        other_kb.functions["main"].name = "asdf"
+        assert other_kb.functions["asdf"].addr == func_main.addr
+
+        p1 = pickle.loads(pickle.dumps(p, -1))
+        assert p1.get_kb("other").functions["asdf"].addr == func_main.addr
 
 if __name__ == "__main__":
     unittest.main()
