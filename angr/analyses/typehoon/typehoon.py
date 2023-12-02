@@ -2,6 +2,7 @@
 from typing import TYPE_CHECKING
 
 from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
+from ...errors import AngrRuntimeError
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
@@ -112,7 +113,7 @@ class Typehoon(Analysis):
         if self._var_mapping is None:
             raise ValueError("Variable mapping does not exist.")
         if self.solution is None:
-            raise RuntimeError("Please run type solver before calling pp_solution().")
+            raise AngrRuntimeError("Please run type solver before calling pp_solution().")
 
         typevar_to_var = {}
         for k, typevars in self._var_mapping.items():

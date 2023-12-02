@@ -15,6 +15,7 @@ from ...utils.lazy_import import lazy_import
 from ...utils import is_pyinstaller
 from ...utils.graph import dominates, inverted_idoms
 from ...block import Block, BlockNode
+from ...errors import AngrRuntimeError
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .structuring.structurer_nodes import (
     MultiNode,
@@ -857,7 +858,7 @@ class ConditionProcessor:
             return claripy.true
         if isinstance(expr, sympy.logic.boolalg.BooleanFalse):
             return claripy.false
-        raise RuntimeError("Unreachable reached")
+        raise AngrRuntimeError("Unreachable reached")
 
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
@@ -1024,7 +1025,7 @@ class ConditionProcessor:
                 elif arg in common_exprs:
                     continue
                 else:
-                    raise RuntimeError("Unexpected behavior - you should never reach here")
+                    raise AngrRuntimeError("Unexpected behavior - you should never reach here")
 
             return claripy.And(*common_exprs, claripy.Or(*new_args))
 

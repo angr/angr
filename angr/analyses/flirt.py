@@ -7,6 +7,7 @@ import nampa
 from archinfo.arch_arm import is_arm_arch
 
 from ..analyses import AnalysesHub
+from ..errors import AngrRuntimeError
 from ..flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
 from .analysis import Analysis
 
@@ -49,7 +50,7 @@ class FlirtAnalysis(Analysis):
 
         else:
             if not FLIRT_SIGNATURES_BY_ARCH:
-                raise RuntimeError(
+                raise AngrRuntimeError(
                     "No FLIRT signatures exist. Please load FLIRT signatures by calling "
                     "load_signatures() before running FlirtAnalysis."
                 )

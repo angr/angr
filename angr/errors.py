@@ -5,6 +5,10 @@ class AngrError(Exception):
     pass
 
 
+class AngrRuntimeError(RuntimeError):
+    pass
+
+
 class AngrValueError(AngrError, ValueError):
     pass
 
