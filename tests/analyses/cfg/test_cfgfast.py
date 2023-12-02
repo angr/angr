@@ -970,6 +970,14 @@ class TestCfgfast(unittest.TestCase):
         assert cfg.kb.functions[0x1C001A018].name == "_security_init_cookie"
         assert cfg.kb.functions[0x1C0010100].name == "_security_check_cookie"
 
+    def test_security_init_cookie_identification_a(self):
+        path = os.path.join(
+            test_location, "x86_64", "windows", "1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        assert cfg.kb.functions[0x21514B5600].name == "_security_init_cookie"
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
