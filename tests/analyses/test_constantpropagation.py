@@ -6,6 +6,7 @@ import os
 import unittest
 
 import angr
+from angr.analyses.propagator.vex_vars import VEXReg
 
 from ..common import bin_location
 
@@ -47,6 +48,39 @@ class TestConstantpropagation(unittest.TestCase):
         prop = p.analyses.Propagator(func=func, base_state=state)
 
         assert len(prop.replacements) > 0
+
+    def test_register_propagation_across_calls(self):
+        call_targets = [
+            "_0",  # Resolved
+            "rdi",  # TOP
+            "qword ptr [0xBAD]",  # Unresolved
+        ]
+
+        for target in call_targets:
+            p = angr.load_shellcode(
+                f"""
+            _0:
+                mov rcx, 0x12345678
+                mov rbp, 0xFEDCBA90
+            _11:
+                call {target}
+                mov rax, rcx
+                mov rdi, rbp
+                ret
+            """,
+                "AMD64",
+            )
+            cfg = p.analyses.CFG()
+            prop = p.analyses.Propagator(func=cfg.functions[0], only_consts=True)
+            regs_replaced = {
+                p.arch.register_names[var.offset]: val
+                for codeloc, replacements in prop.replacements.items()
+                if codeloc.block_addr >= 0x11
+                for var, val in replacements.items()
+                if isinstance(var, VEXReg)
+            }
+            assert "rax" not in regs_replaced  # caller saved
+            assert regs_replaced["rdi"].concrete_value == 0xFEDCBA90  # callee saved
 
 
 if __name__ == "__main__":
