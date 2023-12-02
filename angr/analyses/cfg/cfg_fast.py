@@ -1718,9 +1718,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 if start_func is not None:
                     for callee in start_func.transition_graph:
                         if isinstance(callee, Function):
-                            if not security_init_cookie_found and is_function_likely_security_init_cookie(
-                                callee, self.project
-                            ):
+                            if not security_init_cookie_found and is_function_likely_security_init_cookie(callee):
                                 security_init_cookie_found = True
                                 callee.is_default_name = False
                                 callee.name = "_security_init_cookie"

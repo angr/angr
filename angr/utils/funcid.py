@@ -108,7 +108,7 @@ def is_function_security_init_cookie_win8(func: "Function", project, security_co
     return False
 
 
-def is_function_likely_security_init_cookie(func: "Function", project) -> bool:
+def is_function_likely_security_init_cookie(func: "Function") -> bool:
     """
     Conducts a fuzzy match for security_init_cookie function.
     """
