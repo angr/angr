@@ -1,10 +1,9 @@
 # pylint:disable=too-many-boolean-expressions
-from typing import TYPE_CHECKING
+from typing import Optional
 
 import capstone
 
-if TYPE_CHECKING:
-    from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.functions import Function
 
 
 def is_function_security_check_cookie(func, project, security_cookie_addr: int) -> bool:
@@ -31,7 +30,7 @@ def is_function_security_check_cookie(func, project, security_cookie_addr: int) 
     return False
 
 
-def is_function_security_init_cookie(func: "Function", project, security_cookie_addr: int) -> bool:
+def is_function_security_init_cookie(func: "Function", project, security_cookie_addr: Optional[int]) -> bool:
     if func.is_plt or func.is_syscall or func.is_simprocedure:
         return False
     # the function should have only one return point
@@ -106,4 +105,24 @@ def is_function_security_init_cookie_win8(func: "Function", project, security_co
                         and first_insn.operands[1].imm == 0x2B992DDFA232
                     ):
                         return True
+    return False
+
+
+def is_function_likely_security_init_cookie(func: "Function") -> bool:
+    """
+    Conducts a fuzzy match for security_init_cookie function.
+    """
+
+    callees = [node for node in func.transition_graph if isinstance(node, Function)]
+    callee_names = {callee.name for callee in callees}
+    if callee_names.issuperset(
+        {
+            "GetSystemTimeAsFileTime",
+            "GetCurrentProcessId",
+            "GetCurrentThreadId",
+            "GetTickCount",
+            "QueryPerformanceCounter",
+        }
+    ):
+        return True
     return False

@@ -44,6 +44,7 @@ from angr.utils.funcid import (
     is_function_security_check_cookie,
     is_function_security_init_cookie,
     is_function_security_init_cookie_win8,
+    is_function_likely_security_init_cookie,
 )
 from angr.analyses import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
@@ -1673,14 +1674,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             and isinstance(self.project.loader.main_object, cle.PE)
         ):
             security_cookie_addr = self.project.loader.main_object.load_config.get("SecurityCookie", None)
+            security_check_cookie_found = False
+            security_init_cookie_found = False
             if security_cookie_addr is not None:
                 if security_cookie_addr not in self.kb.labels:
                     self.kb.labels[security_cookie_addr] = "_security_cookie"
                 # identify _security_init_cookie and _security_check_cookie
                 xrefs = self.kb.xrefs.get_xrefs_by_dst(security_cookie_addr)
                 tested_func_addrs = set()
-                security_check_cookie_found = False
-                security_init_cookie_found = False
                 for xref in xrefs:
                     cfg_node = self.model.get_any_node(xref.block_addr)
                     if cfg_node is None:
@@ -1710,6 +1711,18 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     if security_init_cookie_found and security_check_cookie_found:
                         # both are found. exit from the loop
                         break
+
+            # special handling: some binaries do not have SecurityCookie set, but still contain _security_init_cookie
+            if security_init_cookie_found is False:
+                start_func = self.functions.get_by_addr(self.project.entry)
+                if start_func is not None:
+                    for callee in start_func.transition_graph:
+                        if isinstance(callee, Function):
+                            if not security_init_cookie_found and is_function_likely_security_init_cookie(callee):
+                                security_init_cookie_found = True
+                                callee.is_default_name = False
+                                callee.name = "_security_init_cookie"
+                                break
 
     def _post_process_string_references(self) -> None:
         """
