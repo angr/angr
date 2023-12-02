@@ -37,7 +37,7 @@ from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
 from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
 from ..utils import structured_node_is_simple_return
-from ....errors import UnsupportedNodeTypeError
+from ....errors import UnsupportedNodeTypeError, AngrRuntimeError
 from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
 from ..region_identifier import MultiNode
@@ -1262,7 +1262,7 @@ class CFunctionCall(CStatement, CExpression):
         if self.is_expr:
             return self.prototype.returnty or SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
         else:
-            raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
+            raise AngrRuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
     def _is_target_ambiguous(self, func_name: str) -> bool:
         """

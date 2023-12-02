@@ -12,6 +12,7 @@ from ailment.expression import BinaryOp, StackBaseOffset
 from ...utils.cowdict import DefaultChainMapCOW
 from ...engines.light import SpOffset
 from ...sim_variable import SimVariable
+from ...errors import AngrRuntimeError
 from ...storage.memory_mixins import MultiValuedMemory
 from ..analysis import Analysis
 from ..typehoon.typevars import TypeVariables, TypeVariable
@@ -328,7 +329,7 @@ class VariableRecoveryStateBase:
             base = 0x7F_FFFF_FFFE_0000
             mask = 0xFFFF_FFFF_FFFF_FFFF
         else:
-            raise RuntimeError("Unsupported bits %d" % self.arch.bits)
+            raise AngrRuntimeError("Unsupported bits %d" % self.arch.bits)
         return (offset + base) & mask
 
     @property

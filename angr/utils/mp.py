@@ -2,6 +2,7 @@ from typing import NamedTuple, Optional, Any
 from collections.abc import Callable
 import multiprocessing
 import platform
+from ..errors import AngrRuntimeError
 
 
 class Closure(NamedTuple):
@@ -32,7 +33,7 @@ class Initializer:
 
     def __init__(self, *, _manual: bool = True):
         if _manual:
-            raise RuntimeError("This is a singleton; call .get() instead")
+            raise AngrRuntimeError("This is a singleton; call .get() instead")
         self.initializers: list[Closure] = []
 
     def register(self, f: Callable[..., None], *args: Any, **kwargs: Any) -> None:
