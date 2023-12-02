@@ -177,10 +177,9 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
                 func_addr = (
                     self.block.vex.next if isinstance(self.block.vex.next, int) else self._expr(self.block.vex.next)
                 )
-                if func_addr is not None:
-                    getattr(self, handler)(func_addr)
-                else:
+                if func_addr is None:
                     self.l.debug("Cannot determine the callee address at %#x.", self.block.addr)
+                getattr(self, handler)(func_addr)
             else:
                 self.l.warning("Function handler not implemented.")
 
