@@ -216,8 +216,12 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
                     # Fixing an issue that the next instruction after indirect call is not executed
                     # update successors (move unconstrained successors to flat successors)
-                    successors.unconstrained_successors.remove(exit_state)
-                    successors.flat_successors.append(exit_state)
+                    # Check existence:
+                    if exit_state in successors.unconstrained_successors:
+                        print("HEAVY, move from unconstrained_successors to flat_successors: ", exit_state)
+                        successors.unconstrained_successors.remove(exit_state)
+                        successors.flat_successors.append(exit_state)
+
 
                 # function_calls: {func_name: {call_insn_addr: [[arg1, arg2, ...], [arg1, arg2, ...], ...]}
                 # Same function call at the same address could have different list of arguments in mutiple paths,
