@@ -90,16 +90,17 @@ class StringObfType3Rewriter(OptimizationPass):
                 ):
                     stack_offset_to_stmtid[stmt.addr.offset] = idx
             sorted_offsets = sorted(stack_offset_to_stmtid)
-            spacing = 8  # FIXME: Make it adjustable
-            distance = min(len(deobf_content) - 2, len(sorted_offsets) - 1)
-            for start_idx in range(len(sorted_offsets) - distance):
-                if sorted_offsets[start_idx] + spacing * distance == sorted_offsets[start_idx + distance]:
-                    # found them
-                    # remove these statements
-                    for i in range(start_idx, start_idx + distance + 1):
-                        statements[stack_offset_to_stmtid[sorted_offsets[i]]] = None
-                    break
-            statements = [stmt for stmt in statements if stmt is not None]
+            if sorted_offsets:
+                spacing = 8  # FIXME: Make it adjustable
+                distance = min(len(deobf_content) - 2, len(sorted_offsets) - 1)
+                for start_idx in range(len(sorted_offsets) - distance):
+                    if sorted_offsets[start_idx] + spacing * distance == sorted_offsets[start_idx + distance]:
+                        # found them
+                        # remove these statements
+                        for i in range(start_idx, start_idx + distance + 1):
+                            statements[stack_offset_to_stmtid[sorted_offsets[i]]] = None
+                        break
+                statements = [stmt for stmt in statements if stmt is not None]
 
         # remove writes to rdx, rcx, r8, and r9
         if self.project.arch.name == "AMD64":
