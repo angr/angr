@@ -1,6 +1,7 @@
 # pylint:disable=abstract-method,ungrouped-imports
 
 from typing import Set, List, Optional, TYPE_CHECKING
+import re
 import logging
 
 import pyvex
@@ -286,6 +287,9 @@ class CouldNotResolveException(Exception):
     """
 
 
+IROP_CONVERT_REGEX = re.compile(r"^Iop_(\d+)(U{0,1})to(\d+)(U{0,1})$")
+
+
 class StackPointerTracker(Analysis, ForwardAnalysis):
     """
     Track the offset of stack pointer at the end of each basic block of a function.
@@ -365,6 +369,42 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             return TOP
         else:
             return self.offset_before(instr_addrs[0], reg)
+
+    def _constant_for(self, addr, pre_or_post, reg):
+        try:
+            s = self._state_for(addr, pre_or_post)
+            if s is None:
+                return TOP
+            regval = dict(s.regs)[reg]
+        except KeyError:
+            return TOP
+        if type(regval) is Constant:
+            return regval.val
+        return TOP
+
+    def constant_after(self, addr, reg):
+        return self._constant_for(addr, "post", reg)
+
+    def constant_before(self, addr, reg):
+        return self._constant_for(addr, "pre", reg)
+
+    def constant_after_block(self, block_addr, reg):
+        if block_addr not in self._blocks:
+            return TOP
+        instr_addrs = self._blocks[block_addr].instruction_addrs
+        if len(instr_addrs) == 0:
+            return TOP
+        else:
+            return self.constant_after(instr_addrs[-1], reg)
+
+    def constant_before_block(self, block_addr, reg):
+        if block_addr not in self._blocks:
+            return TOP
+        instr_addrs = self._blocks[block_addr].instruction_addrs
+        if len(instr_addrs) == 0:
+            return TOP
+        else:
+            return self.constant_before(instr_addrs[0], reg)
 
     @property
     def inconsistent(self):
@@ -515,6 +555,21 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 return Constant(expr.con.value)
             elif type(expr) is pyvex.IRExpr.Get:
                 return state.get(expr.offset)
+            elif type(expr) is pyvex.IRExpr.Unop:
+                m = IROP_CONVERT_REGEX.match(expr.op)
+                if m is not None:
+                    from_bits = int(m.group(1))
+                    # from_unsigned = m.group(2) == "U"
+                    to_bits = int(m.group(3))
+                    # to_unsigned = m.group(4) == "U"
+                    v = resolve_expr(expr.args[0])
+                    if not isinstance(v, Constant):
+                        return TOP
+                    if from_bits > to_bits:
+                        # truncation
+                        mask = (1 << to_bits) - 1
+                        return Constant(v.val & mask)
+                    return v
             elif self.track_mem and type(expr) is pyvex.IRExpr.Load:
                 return state.load(_resolve_expr(expr.addr))
             raise CouldNotResolveException()
