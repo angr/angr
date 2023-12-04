@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from typing import Set, Optional, Union, Tuple, DefaultDict, List, Any, Dict, TYPE_CHECKING
 from collections import defaultdict
 import weakref
@@ -256,7 +257,9 @@ class PropagatorState:
     def init_replacements(self):
         self._replacements = defaultdict(dict)
 
-    def add_replacement(self, codeloc: CodeLocation, old, new, force_replace: bool = False) -> bool:
+    def add_replacement(
+        self, codeloc: CodeLocation, old, new, force_replace: bool = False
+    ) -> bool:  # pylint:disable=unused-argument
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.
         If the self._only_consts flag is set to true, only constant values will be set.
@@ -305,9 +308,11 @@ class RegisterAnnotation(claripy.Annotation):
         self.offset = offset
         self.size = size
 
+    @property
     def eliminatable(self) -> bool:
         return True
 
+    @property
     def relocatable(self) -> bool:
         return True
 
@@ -323,9 +328,11 @@ class RegisterComparisonAnnotation(claripy.Annotation):
         self.cmp_op = cmp_op
         self.value = value
 
+    @property
     def eliminatable(self) -> bool:
         return True
 
+    @property
     def relocatable(self) -> bool:
         return True
 
