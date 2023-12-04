@@ -177,11 +177,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
                 func_addr = (
                     self.block.vex.next if isinstance(self.block.vex.next, int) else self._expr(self.block.vex.next)
                 )
-                if func_addr is None:
+                if func_addr is None and self.l is not None:
                     self.l.debug("Cannot determine the callee address at %#x.", self.block.addr)
                 getattr(self, handler)(func_addr)
             else:
-                self.l.warning("Function handler not implemented.")
+                if self.l is not None:
+                    self.l.warning("Function handler not implemented.")
 
     #
     # Statement handlers
@@ -192,7 +193,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
         elif type(stmt).__name__ not in ("IMark", "AbiHint"):
-            self.l.error("Unsupported statement type %s.", type(stmt).__name__)
+            if self.l is not None:
+                self.l.error("Unsupported statement type %s.", type(stmt).__name__)
 
     # synchronize with function _handle_WrTmpData()
     def _handle_WrTmp(self, stmt):
@@ -209,7 +211,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         self.tmps[tmp] = data
 
     def _handle_Dirty(self, stmt):
-        self.l.error("Unimplemented Dirty node for current architecture.")
+        if self.l is not None:
+            self.l.error("Unimplemented Dirty node for current architecture.")
 
     def _handle_Put(self, stmt):
         raise NotImplementedError("Please implement the Put handler with your own logic.")
@@ -231,12 +234,13 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         handler = "_handle_%s" % type(expr).__name__
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
-        else:
+        elif self.l is not None:
             self.l.error("Unsupported expression type %s.", type(expr).__name__)
         return None
 
     def _handle_Triop(self, expr: pyvex.IRExpr.Triop):  # pylint: disable=useless-return
-        self.l.error("Unsupported Triop %s.", expr.op)
+        if self.l is not None:
+            self.l.error("Unsupported Triop %s.", expr.op)
         return None
 
     def _handle_RdTmp(self, expr):
@@ -294,7 +298,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if handler is not None and hasattr(self, handler):
             return getattr(self, handler)(expr)
         else:
-            self.l.error("Unsupported Unop %s.", expr.op)
+            if self.l is not None:
+                self.l.error("Unsupported Unop %s.", expr.op)
             return None
 
     def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
@@ -371,13 +376,14 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
                 return getattr(self, handler)(expr, vector_size, vector_count)
             return getattr(self, handler)(expr)
         else:
-            if once(expr.op):
+            if once(expr.op) and self.l is not None:
                 self.l.warning("Unsupported Binop %s.", expr.op)
 
         return None
 
     def _handle_CCall(self, expr):  # pylint:disable=useless-return
-        self.l.warning("Unsupported expression type CCall with callee %s.", str(expr.cee))
+        if self.l is not None:
+            self.l.warning("Unsupported expression type CCall with callee %s.", str(expr.cee))
         return None
 
     #
@@ -478,7 +484,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         try:
             return ~expr_0  # pylint:disable=invalid-unary-operand-type
         except TypeError as e:
-            self.l.exception(e)
+            if self.l is not None:
+                self.l.exception(e)
             return None
 
     def _handle_Clz(self, expr):
@@ -601,7 +608,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         try:
             return expr_0 ^ expr_1
         except TypeError as e:
-            self.l.warning(e)
+            if self.l is not None:
+                self.l.warning(e)
             return None
 
     def _handle_Shl(self, expr):
@@ -833,7 +841,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
         if h is not None:
             return h(expr)
-        self.l.warning("Unsupported expression type %s.", type(expr).__name__)
+        if self.l is not None:
+            self.l.warning("Unsupported expression type %s.", type(expr).__name__)
         return None
 
     #
@@ -865,7 +874,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
             getattr(self, old_handler)(stmt)
             return
 
-        self.l.warning("Unsupported statement type %s.", type(stmt).__name__)
+        if self.l is not None:
+            self.l.warning("Unsupported statement type %s.", type(stmt).__name__)
 
     def _ail_handle_Label(self, stmt):
         pass
@@ -932,7 +942,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            self.l.warning("Unsupported UnaryOp %s.", expr.op)
+            if self.l is not None:
+                self.l.warning("Unsupported UnaryOp %s.", expr.op)
             return None
 
         return handler(expr)
@@ -942,7 +953,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            self.l.warning("Unsupported BinaryOp %s.", expr.op)
+            if self.l is not None:
+                self.l.warning("Unsupported BinaryOp %s.", expr.op)
             return None
 
         return handler(expr)
@@ -952,7 +964,8 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            self.l.warning("Unsupported Ternary %s.", expr.op)
+            if self.l is not None:
+                self.l.warning("Unsupported Ternary %s.", expr.op)
             return None
 
         return handler(expr)
