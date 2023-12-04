@@ -1,3 +1,4 @@
+# pylint: disable=missing-class-docstring
 import claripy
 
 import angr

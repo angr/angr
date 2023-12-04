@@ -1,3 +1,4 @@
+# pylint: disable=missing-class-docstring
 from angr import SimProcedure
 
 
