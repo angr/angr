@@ -74,10 +74,10 @@ class Callable:
         self.perform_call(*args, prototype=prototype)
         if self.result_state is not None and prototype.returnty is not None:
             loc = self._cc.return_val(prototype.returnty)
-            val = loc.get_value(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF)
-            return self.result_state.solver.simplify(val)
-        else:
-            return None
+            if loc is not None:
+                val = loc.get_value(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF)
+                return self.result_state.solver.simplify(val)
+        return None
 
     def perform_call(self, *args, prototype=None):
         prototype = SimCC.guess_prototype(args, prototype or self._func_ty).with_arch(self._project.arch)
