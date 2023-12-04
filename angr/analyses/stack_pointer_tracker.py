@@ -558,8 +558,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             elif type(expr) is pyvex.IRExpr.Unop:
                 m = IROP_CONVERT_REGEX.match(expr.op)
                 if m is not None:
-                    from_bits, from_unsigned = int(m.group(1)), m.group(2) == "U"
-                    to_bits, to_unsigned = int(m.group(3)), m.group(4) == "U"
+                    from_bits = int(m.group(1))
+                    # from_unsigned = m.group(2) == "U"
+                    to_bits = int(m.group(3))
+                    # to_unsigned = m.group(4) == "U"
                     v = resolve_expr(expr.args[0])
                     if not isinstance(v, Constant):
                         return TOP
