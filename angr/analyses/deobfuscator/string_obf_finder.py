@@ -11,6 +11,7 @@ from angr import sim_options
 from angr.analyses import Analysis, AnalysesHub
 from angr.errors import SimMemoryMissingError, AngrCallableMultistateError, AngrCallableError
 from angr.calling_conventions import SimRegArg, default_cc
+from angr.state_plugins.sim_action import SimActionData
 from angr.sim_type import SimTypeFunction, SimTypeBottom, SimTypePointer
 from angr.analyses.reaching_definitions import ObservationPointType
 from angr.utils.graph import GraphUtils
@@ -354,6 +355,8 @@ class StringObfuscationFinder(Analysis):
             all_global_reads = []
             all_global_writes = []
             for action in callable.result_state.history.actions:
+                if not isinstance(action, SimActionData):
+                    continue
                 if not action.actual_addrs:
                     if not action.addr.ast.concrete:
                         continue
