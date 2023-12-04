@@ -54,6 +54,8 @@ class BaseOptimizationPass:
     STRUCTURING: Optional[
         str
     ] = None  # specifies if this optimization pass is specific to a certain structuring algorithm
+    NAME = "N/A"
+    DESCRIPTION = "N/A"
 
     def __init__(self, func):
         self._func: "Function" = func
