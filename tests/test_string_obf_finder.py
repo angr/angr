@@ -60,6 +60,19 @@ class TestStringObfFinder(TestCase):
         proj.analyses.CompleteCallingConventions(recover_variables=True, workers=4)
         finder = proj.analyses.StringObfuscationFinder()
 
+    def test_find_obfuscated_strings_28ce9d(self):
+        bin_path = os.path.join(
+            binaries_base, "x86_64", "windows", "28ce9dfc983d8489242743635c792d3fc53a45c96316b5854301f6fa514df55e.sys"
+        )
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True, workers=4)
+        finder = proj.analyses.StringObfuscationFinder()
+
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x140004790])
+        print(dec.codegen.text)
+
 
 if __name__ == "__main__":
     main()

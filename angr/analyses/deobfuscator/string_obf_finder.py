@@ -2,13 +2,20 @@ from typing import List, Optional, Tuple, Any, Dict, Set
 import string
 import logging
 
+import capstone
+import networkx
+
 import claripy
 
 from angr import sim_options
 from angr.analyses import Analysis, AnalysesHub
 from angr.errors import SimMemoryMissingError, AngrCallableMultistateError, AngrCallableError
-from angr.calling_conventions import SimRegArg
+from angr.calling_conventions import SimRegArg, default_cc
+from angr.sim_type import SimTypeFunction, SimTypeBottom, SimTypePointer
 from angr.analyses.reaching_definitions import ObservationPointType
+from angr.utils.graph import GraphUtils
+
+from .irsb_reg_collector import IRSBRegisterCollector
 
 _l = logging.getLogger(__name__)
 
@@ -29,12 +36,14 @@ class StringObfuscationFinder(Analysis):
     def __init__(self):
         self.type1_candidates = []
         self.type2_candidates = []
+        self.type3_candidates = []
 
         self.analyze()
 
     def analyze(self):
         self.type1_candidates = self._find_type1()
         self.type2_candidates = self._find_type2()
+        self.type3_candidates = self._find_type3()
 
         if self.type1_candidates:
             for type1_func_addr, desc in self.type1_candidates:
@@ -50,6 +59,11 @@ class StringObfuscationFinder(Analysis):
                 type2_deobfuscated_strings = dict((addr, s) for addr, _, s in string_candidates)
                 self.kb.obfuscations.type2_deobfuscated_strings.update(type2_deobfuscated_strings)
                 self.kb.obfuscations.type2_string_loader_candidates |= type2_string_loader_candidates
+
+        if self.type3_candidates:
+            for type3_func_addr, desc in self.type3_candidates:
+                type3_strings = self._analyze_type3(type3_func_addr, desc)
+                self.kb.obfuscations.type3_deobfuscated_strings.update(type3_strings)
 
     def _find_type1(self) -> List[Tuple[int, StringDeobFuncDescriptor]]:
         # Type 1 string deobfuscation functions
@@ -428,17 +442,219 @@ class StringObfuscationFinder(Analysis):
 
         return string_loader_candidates
 
+    def _find_type3(self) -> List[Tuple[int, StringDeobFuncDescriptor]]:
+        # Type 3 string deobfuscation functions
+        # - Uses a buffer in the stack frame of its parent function
+        # - Before the call, the values in the buffer or the struct are initialized during runtime
+        # - The entire call can be simulated (it does not involve any other functions that angr does not support or do
+        #   not have a SimProcedure for)
+
+        cfg = self.kb.cfgs.get_most_accurate()
+        functions = self.kb.functions
+        callgraph_digraph = networkx.DiGraph(functions.callgraph)
+
+        sorted_funcs = GraphUtils.quasi_topological_sort_nodes(callgraph_digraph)
+        tree_has_unsupported_funcs = {}
+        function_candidates = []
+        for func_addr in sorted_funcs:
+            if functions.get_by_addr(func_addr).is_simprocedure:
+                # is this a stub SimProcedure?
+                hooker = self.project.hooked_by(func_addr)
+                if hooker is not None and hooker.is_stub:
+                    tree_has_unsupported_funcs[func_addr] = True
+            else:
+                # which functions does it call?
+                callees = list(callgraph_digraph.successors(func_addr))
+                if any(tree_has_unsupported_funcs.get(callee, False) is True for callee in callees):
+                    tree_has_unsupported_funcs[func_addr] = True
+                else:
+                    function_candidates.append(functions.get_by_addr(func_addr))
+
+        type3_functions = []
+
+        for func in function_candidates:
+            # take a look at its call sites
+            func_node = cfg.get_any_node(func.addr)
+            if func_node is None:
+                continue
+            call_sites = cfg.get_predecessors(func_node, jumpkind="Ijk_Call")
+            if not call_sites:
+                continue
+            call_site_block = self.project.factory.block(call_sites[0].addr)
+            if not self._is_block_setting_constants_to_stack(call_site_block):
+                continue
+
+            # take a look at the content
+            dec = self.project.analyses.Decompiler(func, cfg=cfg)
+            if dec.codegen is None:
+                continue
+            if not self._like_type3_deobfuscation_function(dec.codegen.text):
+                continue
+
+            # simulate an execution to see if it really works
+            data = self._type3_prepare_and_execute(func.addr, call_sites[0].addr, call_sites[0].function_address)
+            if data is None:
+                continue
+            if len(data) > 3 and all(chr(x) in string.printable for x in data):
+                desc = StringDeobFuncDescriptor()
+                desc.string_output_arg_idx = 0
+                desc.string_length_arg_idx = 1
+                desc.string_null_terminating = False
+                type3_functions.append((func.addr, desc))
+
+        return type3_functions
+
+    def _analyze_type3(self, func_addr: int, desc: StringDeobFuncDescriptor) -> Dict[int, bytes]:
+        """
+        Analyze Type 3 string deobfuscation functions, determine the following information:
+
+        - The call sites
+        - For each call site, the actual de-obfuscated content (in bytes)
+
+        Decompiler will output the following code:
+
+        *ptr = strdup("The deobfuscated string");
+        *(ptr+8) = the string length;
+
+        :param func_addr:
+        :param desc:
+        :return:
+        """
+
+        cfg = self.kb.cfgs.get_most_accurate()
+
+        call_sites = cfg.get_predecessors(cfg.get_any_node(func_addr))
+        callinsn2content = {}
+        for call_site in call_sites:
+            data = self._type3_prepare_and_execute(func_addr, call_site.addr, call_site.function_address)
+            if data:
+                callinsn2content[call_site.instruction_addrs[-1]] = data
+            # print(hex(call_site.addr), data)
+
+        return callinsn2content
+
+    #
+    # Type 1 helpers
+    #
+
     @staticmethod
     def _like_type1_deobfuscation_function(code: str) -> bool:
         if "^" in code or ">>" in code or "<<" in code:
             return True
         return False
 
+    #
+    # Type 2 helpers
+    #
+
     @staticmethod
     def _like_type2_deobfuscation_function(code: str) -> bool:
         if ("^" in code or ">>" in code or "<<" in code) and ("do" in code or "while" in code or "for" in code):
             return True
         return False
+
+    #
+    # Type 3 helpers
+    #
+
+    @staticmethod
+    def _like_type3_deobfuscation_function(code: str) -> bool:
+        if ("^" in code or ">>" in code or "<<" in code or "~" in code) and (
+            "do" in code or "while" in code or "for" in code
+        ):
+            return True
+        return False
+
+    def _type3_prepare_and_execute(self, func_addr: int, call_site_addr: int, call_site_func_addr: int):
+        # take a look at the call-site block to see what registers are used
+        reg_collector = IRSBRegisterCollector(self.project.factory.block(call_site_addr))
+        reg_collector.process()
+
+        # run constant propagation to track constant registers
+        prop = self.project.analyses.Propagator(
+            func=self.kb.functions.get_by_addr(call_site_func_addr),
+            only_consts=True,
+            do_binops=True,
+            vex_cross_insn_opt=True,
+            load_callback=None,
+            cache_results=True,
+            key_prefix="cfg_intermediate",
+        )
+
+        # execute the block at the call site
+        state = self.project.factory.blank_state(
+            addr=call_site_addr,
+            add_options={sim_options.ZERO_FILL_UNCONSTRAINED_REGISTERS, sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY},
+        )
+        # setup sp and bp, just in case
+        state.regs._sp = 0x7FFF0000
+        bp_set = False
+        prop_state = prop.model.input_states[call_site_addr] if call_site_addr in prop.model.input_states else None
+        if prop_state is not None:
+            for reg_offset, reg_width in reg_collector.reg_reads:
+                if reg_offset == state.arch.sp_offset:
+                    continue
+                if reg_width < 8:
+                    # at least a byte
+                    continue
+                con = prop_state.load_register(reg_offset, reg_width // 8)
+                if isinstance(con, claripy.ast.Base) and con.op == "BVV":
+                    state.registers.store(reg_offset, claripy.BVV(con.concrete_value, reg_width))
+                    if reg_offset == state.arch.bp_offset:
+                        bp_set = True
+        if not bp_set:
+            state.regs._bp = 0x7FFF3000
+        simgr = self.project.factory.simgr(state)
+
+        # step all but the call instruction
+        inst = self.project.factory.block(call_site_addr).instructions
+        simgr.step(num_inst=inst - 1)
+        if not simgr.active:
+            return None
+
+        in_state = simgr.active[0]
+
+        cc = default_cc(self.project.arch.name, self.project.simos.name)(self.project.arch)
+        cc.STACKARG_SP_BUFF = 0  # disable shadow stack space because the binary code already sets it if needed
+        cc.STACK_ALIGNMENT = 1  # disable stack address aligning because the binary code already sets it if needed
+        prototype_0 = SimTypeFunction([], SimTypePointer(pts_to=SimTypeBottom(label="void"))).with_arch(
+            self.project.arch
+        )
+        callable_0 = self.project.factory.callable(
+            func_addr, concrete_only=True, base_state=in_state, cc=cc, prototype=prototype_0
+        )
+
+        try:
+            ret_value = callable_0()
+        except (AngrCallableMultistateError, AngrCallableError):
+            # return None
+            raise
+
+        out_state = callable_0.result_state
+
+        # figure out what was written
+        ptr = out_state.memory.load(ret_value, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+        size = out_state.memory.load(ret_value + 8, size=4, endness=self.project.arch.memory_endness)
+        # TODO: Support lists with varied-length elements
+        data = out_state.memory.load(ptr, size=size, endness="Iend_BE")
+        if data.symbolic:
+            return None
+
+        return out_state.solver.eval(data, cast_to=bytes)
+
+    @staticmethod
+    def _is_block_setting_constants_to_stack(block, threshold: int = 5) -> bool:
+        insn_setting_consts = 0
+        for insn in block.capstone.insns:
+            if (
+                insn.mnemonic.startswith("mov")
+                and len(insn.operands) == 2
+                and insn.operands[0].type == capstone.x86.X86_OP_MEM
+                and insn.operands[0].mem.base in {capstone.x86.X86_REG_RSP, capstone.x86.X86_REG_RBP}
+                and insn.operands[1].type == capstone.x86.X86_OP_IMM
+            ):
+                insn_setting_consts += 1
+        return insn_setting_consts >= threshold
 
     @staticmethod
     def _is_string_reasonable(s: bytes) -> bool:

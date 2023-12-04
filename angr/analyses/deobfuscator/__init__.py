@@ -3,3 +3,4 @@
 
 from .string_obf_finder import StringObfuscationFinder
 from .string_obf_peephole_optimizer import StringObfType1PeepholeOptimizer
+from .string_obf_opt_passes import StringObfType3Rewriter
