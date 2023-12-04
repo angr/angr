@@ -9,7 +9,7 @@ from angr.errors import AngrCallableMultistateError
 
 class StringObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
     """
-    Integrate deobfuscated strings into decompilation output.
+    Integrate type-1 deobfuscated strings into decompilation output.
     """
 
     __slots__ = ()
