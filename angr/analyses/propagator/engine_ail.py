@@ -233,7 +233,9 @@ class SimEnginePropagatorAIL(
                             sp_expr_new = sp_expr.copy()
                             sp_expr_new.offset += self.arch.bytes
                         else:
-                            sp_expr_new = sp_expr + self.arch.bytes
+                            sp_expr_new = Expr.BinaryOp(
+                                None, "Add", [sp_expr, Expr.Const(None, None, self.arch.bytes, sp_expr.bits)], False
+                            )
                         sp_value_new = PropValue(
                             sp_value.value + self.arch.bytes,
                             offset_and_details={

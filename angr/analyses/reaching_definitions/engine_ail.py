@@ -141,7 +141,7 @@ class SimEngineRDAIL(
             return handler(expr)
         else:
             self.l.warning("Unsupported expression type %s.", type(expr).__name__)
-            return None
+            return MultiValues(self.state.top(self.arch.bits))
 
     def _ail_handle_Assignment(self, stmt):
         """
