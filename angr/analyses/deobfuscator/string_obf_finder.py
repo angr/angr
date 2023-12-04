@@ -656,8 +656,7 @@ class StringObfuscationFinder(Analysis):
         try:
             ret_value = callable_0()
         except (AngrCallableMultistateError, AngrCallableError):
-            # return None
-            raise
+            return None
 
         out_state = callable_0.result_state
 
