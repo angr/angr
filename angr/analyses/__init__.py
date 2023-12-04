@@ -54,6 +54,7 @@ from .patchfinder import PatchFinderAnalysis
 from .pathfinder import Pathfinder
 from .smc import SelfModifyingCodeAnalysis
 from .unpacker import PackingDetector
+from . import deobfuscator
 
 
 __all__ = (
