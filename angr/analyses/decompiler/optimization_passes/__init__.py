@@ -82,3 +82,7 @@ def get_default_optimization_passes(arch: Union[Arch, str], platform: Optional[s
             passes.append(pass_)
 
     return passes
+
+
+def register_optimization_pass(opt_pass, enable_by_default: bool):
+    _all_optimization_passes.append((opt_pass, enable_by_default))
