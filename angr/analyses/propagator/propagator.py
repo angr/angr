@@ -289,6 +289,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if self._base_state is not None:
             self._base_state.options.add(sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
             self._base_state.options.add(sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
+
+        self.model.input_states[block_key] = state.copy()
+
         state = engine.process(
             state,
             block=block,
@@ -305,8 +308,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         self.model.node_iterations[block_key] += 1
         self.model.states[block_key] = state
-        if isinstance(state, PropagatorAILState):
-            self.model.block_initial_reg_values.update(state.block_initial_reg_values)
+        self.model.block_initial_reg_values.update(state.block_initial_reg_values)
 
         if self.model.replacements is None:
             self.model.replacements = state._replacements
@@ -325,19 +327,26 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _process_input_state_for_successor(
         self, node, successor, input_state: Union[PropagatorAILState, PropagatorVEXState]
     ):
-        if self._only_consts and isinstance(input_state, PropagatorAILState):
-            key = node.addr, successor.addr
-            if key in self.model.block_initial_reg_values:
-                input_state: PropagatorAILState = input_state.copy()
-                for reg_atom, reg_value in self.model.block_initial_reg_values[key]:
-                    input_state.store_register(
-                        reg_atom,
-                        PropValue(
-                            claripy.BVV(reg_value.value, reg_value.bits),
-                            offset_and_details={0: Detail(reg_atom.size, reg_value, self._initial_codeloc)},
-                        ),
-                    )
-                return input_state
+        if self._only_consts:
+            if isinstance(input_state, PropagatorAILState):
+                key = node.addr, successor.addr
+                if key in self.model.block_initial_reg_values:
+                    input_state: PropagatorAILState = input_state.copy()
+                    for reg_atom, reg_value in self.model.block_initial_reg_values[key]:
+                        input_state.store_register(
+                            reg_atom,
+                            PropValue(
+                                claripy.BVV(reg_value.value, reg_value.bits),
+                                offset_and_details={0: Detail(reg_atom.size, reg_value, self._initial_codeloc)},
+                            ),
+                        )
+                    return input_state
+            elif isinstance(input_state, PropagatorVEXState):
+                key = node.addr, successor.addr
+                if key in self.model.block_initial_reg_values:
+                    input_state: PropagatorVEXState = input_state.copy()
+                    for reg_offset, reg_size, value in self.model.block_initial_reg_values[key]:
+                        input_state.store_register(reg_offset, reg_size, claripy.BVV(value, reg_size * 8))
         return input_state
 
     def _intra_analysis(self):

@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from typing import Set, Optional, Union, Tuple, DefaultDict, List, Any, Dict, TYPE_CHECKING
 from collections import defaultdict
 import weakref
@@ -256,7 +257,9 @@ class PropagatorState:
     def init_replacements(self):
         self._replacements = defaultdict(dict)
 
-    def add_replacement(self, codeloc: CodeLocation, old, new, force_replace: bool = False) -> bool:
+    def add_replacement(
+        self, codeloc: CodeLocation, old, new, force_replace: bool = False
+    ) -> bool:  # pylint:disable=unused-argument
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.
         If the self._only_consts flag is set to true, only constant values will be set.
@@ -296,6 +299,44 @@ class PropagatorState:
 # VEX state
 
 
+class RegisterAnnotation(claripy.Annotation):
+    """
+    Annotates TOP values that are coming from registers.
+    """
+
+    def __init__(self, offset, size):
+        self.offset = offset
+        self.size = size
+
+    @property
+    def eliminatable(self) -> bool:
+        return True
+
+    @property
+    def relocatable(self) -> bool:
+        return True
+
+
+class RegisterComparisonAnnotation(claripy.Annotation):
+    """
+    Annotate TOP values that are the result of register values comparing against constant values.
+    """
+
+    def __init__(self, offset, size, cmp_op, value):
+        self.offset = offset
+        self.size = size
+        self.cmp_op = cmp_op
+        self.value = value
+
+    @property
+    def eliminatable(self) -> bool:
+        return True
+
+    @property
+    def relocatable(self) -> bool:
+        return True
+
+
 class PropagatorVEXState(PropagatorState):
     """
     Describes the state used in the VEX engine of Propagator.
@@ -305,6 +346,7 @@ class PropagatorVEXState(PropagatorState):
         "_registers",
         "_stack_variables",
         "do_binops",
+        "block_initial_reg_values",
     )
 
     def __init__(
@@ -319,6 +361,7 @@ class PropagatorVEXState(PropagatorState):
         expr_used_locs=None,
         do_binops=True,
         store_tops=True,
+        block_initial_reg_values=None,
         gp=None,
         max_prop_expr_occurrence: int = 1,
         model=None,
@@ -349,6 +392,9 @@ class PropagatorVEXState(PropagatorState):
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
+        self.block_initial_reg_values = (
+            defaultdict(list) if block_initial_reg_values is None else block_initial_reg_values
+        )
 
     def __repr__(self):
         return "<PropagatorVEXState>"
@@ -418,6 +464,7 @@ class PropagatorVEXState(PropagatorState):
             only_consts=self._only_consts,
             do_binops=self.do_binops,
             store_tops=self._store_tops,
+            block_initial_reg_values=self.block_initial_reg_values.copy(),
             gp=self._gp,
             max_prop_expr_occurrence=self._max_prop_expr_occurrence,
             model=self.model,
@@ -448,12 +495,15 @@ class PropagatorVEXState(PropagatorState):
     def load_register(self, offset, size):
         # TODO: Fix me
         if size != self.gpr_size:
-            return self.top(size * self.arch.byte_width)
+            return self.top(size * self.arch.byte_width).annotate(RegisterAnnotation(offset, size))
 
         try:
-            return self._registers.load(offset, size=size)
+            v = self._registers.load(offset, size=size)
+            if self.is_top(v):
+                v = v.annotate(RegisterAnnotation(offset, size))
+            return v
         except SimMemoryMissingError:
-            return self.top(size * self.arch.byte_width)
+            return self.top(size * self.arch.byte_width).annotate(RegisterAnnotation(offset, size))
 
     def register_results(self) -> Dict[str, claripy.ast.BV]:
         result = {}
