@@ -492,7 +492,7 @@ class StringObfuscationFinder(Analysis):
                 continue
 
             # simulate an execution to see if it really works
-            data = self._type3_prepare_and_execute(func.addr, call_sites[0].addr, call_sites[0].function_address)
+            data = self._type3_prepare_and_execute(func.addr, call_sites[0].addr, call_sites[0].function_address, cfg)
             if data is None:
                 continue
             if len(data) > 3 and all(chr(x) in string.printable for x in data):
@@ -526,7 +526,7 @@ class StringObfuscationFinder(Analysis):
         call_sites = cfg.get_predecessors(cfg.get_any_node(func_addr))
         callinsn2content = {}
         for call_site in call_sites:
-            data = self._type3_prepare_and_execute(func_addr, call_site.addr, call_site.function_address)
+            data = self._type3_prepare_and_execute(func_addr, call_site.addr, call_site.function_address, cfg)
             if data:
                 callinsn2content[call_site.instruction_addrs[-1]] = data
             # print(hex(call_site.addr), data)
@@ -565,10 +565,32 @@ class StringObfuscationFinder(Analysis):
             return True
         return False
 
-    def _type3_prepare_and_execute(self, func_addr: int, call_site_addr: int, call_site_func_addr: int):
+    def _type3_prepare_and_execute(self, func_addr: int, call_site_addr: int, call_site_func_addr: int, cfg):
+        blocks_at_callsite = [call_site_addr]
+
+        # backtrack from call site to include all previous consecutive blocks
+        while True:
+            pred_and_jumpkinds = cfg.get_predecessors_and_jumpkinds(
+                cfg.get_any_node(call_site_addr), excluding_fakeret=False
+            )
+            if len(pred_and_jumpkinds) == 1:
+                pred, jumpkind = pred_and_jumpkinds[0]
+                if (
+                    cfg.graph.out_degree[pred] == 1
+                    and pred.addr + pred.size == call_site_addr
+                    and jumpkind == "Ijk_Boring"
+                ):
+                    blocks_at_callsite.insert(0, pred.addr)
+                    call_site_addr = pred.addr
+                    continue
+            break
+
         # take a look at the call-site block to see what registers are used
-        reg_collector = IRSBRegisterCollector(self.project.factory.block(call_site_addr))
-        reg_collector.process()
+        reg_reads = set()
+        for block_addr in blocks_at_callsite:
+            reg_collector = IRSBRegisterCollector(self.project.factory.block(block_addr))
+            reg_collector.process()
+            reg_reads |= set(reg_collector.reg_reads)
 
         # run constant propagation to track constant registers
         prop = self.project.analyses.Propagator(
@@ -591,7 +613,7 @@ class StringObfuscationFinder(Analysis):
         bp_set = False
         prop_state = prop.model.input_states[call_site_addr] if call_site_addr in prop.model.input_states else None
         if prop_state is not None:
-            for reg_offset, reg_width in reg_collector.reg_reads:
+            for reg_offset, reg_width in reg_reads:
                 if reg_offset == state.arch.sp_offset:
                     continue
                 if reg_width < 8:
@@ -606,11 +628,15 @@ class StringObfuscationFinder(Analysis):
             state.regs._bp = 0x7FFF3000
         simgr = self.project.factory.simgr(state)
 
-        # step all but the call instruction
-        inst = self.project.factory.block(call_site_addr).instructions
-        simgr.step(num_inst=inst - 1)
-        if not simgr.active:
-            return None
+        # step until the call instruction
+        for idx, block_addr in enumerate(blocks_at_callsite):
+            if idx == len(blocks_at_callsite) - 1:
+                inst = self.project.factory.block(block_addr).instructions
+                simgr.step(num_inst=inst - 1)
+            else:
+                simgr.step()
+            if not simgr.active:
+                return None
 
         in_state = simgr.active[0]
 
