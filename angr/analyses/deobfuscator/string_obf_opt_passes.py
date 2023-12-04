@@ -1,11 +1,20 @@
 from typing import Dict
 
+import archinfo
+
 from ailment import Block
-from ailment.statement import Call, Store
-from ailment.expression import Const, StackBaseOffset
+from ailment.statement import Call, Store, Assignment
+from ailment.expression import Const, StackBaseOffset, Register
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes import register_optimization_pass
+
+WIN64_REG_ARGS = {
+    archinfo.ArchAMD64().registers["rcx"][0],
+    archinfo.ArchAMD64().registers["rdx"][0],
+    archinfo.ArchAMD64().registers["r8"][0],
+    archinfo.ArchAMD64().registers["r9"][0],
+}
 
 
 class StringObfType3Rewriter(OptimizationPass):
@@ -16,7 +25,7 @@ class StringObfType3Rewriter(OptimizationPass):
 
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["windows"]
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.AFTER_MAKING_CALLSITES
 
     NAME = "Simplify Type 3 string deobfuscation calls"
     stmt_classes = ()
@@ -48,6 +57,8 @@ class StringObfType3Rewriter(OptimizationPass):
     def _process_block(self, block: Block, deobf_content: bytes):
         # FIXME: This rewriter is very specific to the implementation of the deobfuscation scheme. we can make it more
         # generic when there are more cases available in the wild.
+
+        # TODO: Support multiple blocks
 
         # replace the call
         old_call: Call = block.statements[-1]
@@ -84,14 +95,24 @@ class StringObfType3Rewriter(OptimizationPass):
                 if sorted_offsets[start_idx] + spacing * distance == sorted_offsets[start_idx + distance]:
                     # found them
                     # remove these statements
-                    for i in range(start_idx, start_idx + distance):
+                    for i in range(start_idx, start_idx + distance + 1):
                         statements[stack_offset_to_stmtid[sorted_offsets[i]]] = None
                     break
             statements = [stmt for stmt in statements if stmt is not None]
 
+        # remove writes to rdx, rcx, r8, and r9
+        if self.project.arch.name == "AMD64":
+            statements = [stmt for stmt in statements if not self._stmt_sets_win64_reg_arg(stmt)]
+
         # return the new block
         new_block = block.copy(statements=statements)
         return new_block
+
+    @staticmethod
+    def _stmt_sets_win64_reg_arg(stmt) -> bool:
+        if isinstance(stmt, Assignment) and isinstance(stmt.dst, Register) and stmt.dst.reg_offset in WIN64_REG_ARGS:
+            return True
+        return False
 
 
 register_optimization_pass(StringObfType3Rewriter, True)
