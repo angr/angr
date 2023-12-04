@@ -1,6 +1,6 @@
 from math import gcd
 
-from ailment.expression import BinaryOp, UnaryOp, Const
+from ailment.expression import BinaryOp, UnaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -13,11 +13,13 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Eager expression evaluation"
-    expr_classes = (BinaryOp, UnaryOp)
+    expr_classes = (BinaryOp, UnaryOp, Convert)
 
     def optimize(self, expr, **kwargs):
         if isinstance(expr, BinaryOp):
             return self._optimize_binaryop(expr)
+        elif isinstance(expr, Convert):
+            return self._optimize_convert(expr)
         elif isinstance(expr, UnaryOp):
             return self._optimize_unaryop(expr)
         return None
@@ -191,4 +193,14 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             new_expr = Const(expr.idx, None, (~const_a) & mask, expr.bits, **expr.tags)
             return new_expr
 
+        return None
+
+    @staticmethod
+    def _optimize_convert(expr: Convert):
+        if isinstance(expr.operand, Const):
+            if expr.from_bits > expr.to_bits:
+                # truncation
+                mask = (1 << expr.to_bits) - 1
+                v = expr.operand.value & mask
+                return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
         return None
