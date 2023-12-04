@@ -28,6 +28,7 @@ class StringObfType3Rewriter(OptimizationPass):
     STAGE = OptimizationPassStage.AFTER_MAKING_CALLSITES
 
     NAME = "Simplify Type 3 string deobfuscation calls"
+    DESCRIPTION = "Simplify Type 3 string deobfuscation calls"
     stmt_classes = ()
 
     def __init__(self, func, **kwargs):
