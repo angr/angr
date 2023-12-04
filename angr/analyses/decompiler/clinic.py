@@ -260,6 +260,10 @@ class Clinic(Analysis):
         self._update_progress(50.0, text="Making callsites")
         _, stackarg_offsets = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
+        # Run simplification passes
+        self._update_progress(65.0, text="Running simplifications 2")
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES)
+
         # Simplify the entire function for the second time
         self._update_progress(55.0, text="Simplifying function 2")
         self._simplify_function(
@@ -282,7 +286,7 @@ class Clinic(Analysis):
         )
 
         # Run simplification passes
-        self._update_progress(65.0, text="Running simplifications 2")
+        self._update_progress(65.0, text="Running simplifications 3 ")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
 
         # Simplify the entire function for the third time
@@ -317,7 +321,7 @@ class Clinic(Analysis):
         self._make_function_prototype(arg_list, variable_kb)
 
         # Run simplification passes
-        self._update_progress(95.0, text="Running simplifications 3")
+        self._update_progress(95.0, text="Running simplifications 4")
         ail_graph = self._run_simplification_passes(
             ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY, variable_kb=variable_kb
         )
