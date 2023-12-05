@@ -51,9 +51,10 @@ class TestConstantpropagation(unittest.TestCase):
 
     def test_register_propagation_across_calls(self):
         call_targets = [
-            "_0",  # Resolved
-            "rdi",  # TOP
-            "qword ptr [0xBAD]",  # Unresolved
+            "syscall",
+            "call _0",  # Resolved
+            "call rdi",  # TOP
+            "call qword ptr [0xBAD]",  # Unresolved
         ]
 
         for target in call_targets:
@@ -63,7 +64,7 @@ class TestConstantpropagation(unittest.TestCase):
                 mov rcx, 0x12345678
                 mov rbp, 0xFEDCBA90
             _11:
-                call {target}
+                {target}
                 mov rax, rcx
                 mov rdi, rbp
                 ret
