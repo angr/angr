@@ -97,52 +97,72 @@ class StringObfuscationFinder(Analysis):
             if not callers:
                 continue
 
+            if len(func.block_addrs_set) <= 2:
+                # function is too small...
+                continue
+            if len(func.block_addrs_set) >= 50:
+                # function is too big...
+                continue
+
             # decompile this function and see if it "looks like" a deobfuscation function
-            dec = self.project.analyses.Decompiler(func, cfg=cfg)
+            try:
+                dec = self.project.analyses.Decompiler(func, cfg=cfg)
+            except Exception:
+                continue
             if dec.codegen is not None:
                 if not self._like_type1_deobfuscation_function(dec.codegen.text):
                     continue
 
             args_list = []
             for caller in callers:
+                callsite_nodes = [
+                    pred
+                    for pred in cfg.get_predecessors(cfg.get_any_node(func.addr))
+                    if pred.function_address == caller and pred.instruction_addrs
+                ]
+                observation_points = []
+                for callsite_node in callsite_nodes:
+                    observation_points.append(
+                        ("insn", callsite_node.instruction_addrs[-1], ObservationPointType.OP_BEFORE)
+                    )
                 rda = self.project.analyses.ReachingDefinitions(
                     self.project.kb.functions[caller],
-                    observe_all=True,
+                    observe_all=False,
+                    observation_points=observation_points,
                 )
-                for callsite_node in cfg.get_predecessors(cfg.get_any_node(func.addr)):
-                    if callsite_node.function_address == caller:
-                        observ = rda.model.get_observation_by_insn(
-                            callsite_node.instruction_addrs[-1],
-                            ObservationPointType.OP_BEFORE,
-                        )
-                        # load values for each function argument
-                        args: List[Tuple[int, Any]] = []
-                        for arg_idx, func_arg in enumerate(func.arguments):
-                            # FIXME: We are ignoring all non-register function arguments until we see a test case where
-                            # FIXME: stack-passing arguments are used
-                            if isinstance(func_arg, SimRegArg):
-                                reg_offset, reg_size = arch.registers[func_arg.reg_name]
-                                try:
-                                    mv = observ.registers.load(reg_offset, size=reg_size)
-                                except SimMemoryMissingError:
-                                    args.append((arg_idx, claripy.BVV(0xDEADBEEF, self.project.arch.bits)))
-                                    continue
-                                arg_value = mv.one_value()
-                                if arg_value is None:
-                                    arg_value = claripy.BVV(0xDEADBEEF, self.project.arch.bits)
-                                args.append((arg_idx, arg_value))
+                for callsite_node in callsite_nodes:
+                    observ = rda.model.get_observation_by_insn(
+                        callsite_node.instruction_addrs[-1],
+                        ObservationPointType.OP_BEFORE,
+                    )
+                    # load values for each function argument
+                    args: List[Tuple[int, Any]] = []
+                    for arg_idx, func_arg in enumerate(func.arguments):
+                        # FIXME: We are ignoring all non-register function arguments until we see a test case where
+                        # FIXME: stack-passing arguments are used
+                        if isinstance(func_arg, SimRegArg):
+                            reg_offset, reg_size = arch.registers[func_arg.reg_name]
+                            try:
+                                mv = observ.registers.load(reg_offset, size=reg_size)
+                            except SimMemoryMissingError:
+                                args.append((arg_idx, claripy.BVV(0xDEADBEEF, self.project.arch.bits)))
+                                continue
+                            arg_value = mv.one_value()
+                            if arg_value is None:
+                                arg_value = claripy.BVV(0xDEADBEEF, self.project.arch.bits)
+                            args.append((arg_idx, arg_value))
 
-                        # the args must have at least one concrete address that points to an initialized memory location
-                        acceptable_args = False
-                        for _, arg in args:
-                            if arg is not None and arg.concrete:
-                                v = arg.concrete_value
-                                section = self.project.loader.find_section_containing(v)
-                                if section is not None:
-                                    acceptable_args = True
-                                    break
-                        if acceptable_args:
-                            args_list.append(args)
+                    # the args must have at least one concrete address that points to an initialized memory location
+                    acceptable_args = False
+                    for _, arg in args:
+                        if arg is not None and arg.concrete:
+                            v = arg.concrete_value
+                            section = self.project.loader.find_section_containing(v)
+                            if section is not None:
+                                acceptable_args = True
+                                break
+                    if acceptable_args:
+                        args_list.append(args)
 
             if not args_list:
                 continue
@@ -330,8 +350,18 @@ class StringObfuscationFinder(Analysis):
             if not callers:
                 continue
 
+            if len(func.block_addrs_set) <= 2:
+                # function is too small...
+                continue
+            if len(func.block_addrs_set) >= 50:
+                # function is too big...
+                continue
+
             # decompile this function and see if it "looks like" a deobfuscation function
-            dec = self.project.analyses.Decompiler(func, cfg=cfg)
+            try:
+                dec = self.project.analyses.Decompiler(func, cfg=cfg)
+            except Exception:
+                continue
             if dec.codegen is not None:
                 if not self._like_type2_deobfuscation_function(dec.codegen.text):
                     continue
@@ -476,6 +506,17 @@ class StringObfuscationFinder(Analysis):
         type3_functions = []
 
         for func in function_candidates:
+            if not (8 <= len(func.block_addrs_set) < 14):
+                continue
+
+            # if it has a prototype recovered, it must have four arguments
+            if func.prototype is not None and len(func.prototype.args) != 4:
+                continue
+
+            # the function must call some other functions
+            if callgraph_digraph.out_degree[func.addr] == 0:
+                continue
+
             # take a look at its call sites
             func_node = cfg.get_any_node(func.addr)
             if func_node is None:
@@ -483,22 +524,45 @@ class StringObfuscationFinder(Analysis):
             call_sites = cfg.get_predecessors(func_node, jumpkind="Ijk_Call")
             if not call_sites:
                 continue
-            call_site_block = self.project.factory.block(call_sites[0].addr)
-            if not self._is_block_setting_constants_to_stack(call_site_block):
+
+            # examine the first 100 call sites and see if any of them sets up enough constants
+            valid = False
+            for i in range(min(100, len(call_sites))):
+                call_site_block = self.project.factory.block(call_sites[i].addr)
+                if self._is_block_setting_constants_to_stack(call_site_block):
+                    valid = True
+                    break
+            if not valid:
                 continue
 
             # take a look at the content
-            dec = self.project.analyses.Decompiler(func, cfg=cfg)
+            try:
+                dec = self.project.analyses.Decompiler(func, cfg=cfg)
+            except Exception:  # catch all exceptions
+                continue
             if dec.codegen is None:
                 continue
             if not self._like_type3_deobfuscation_function(dec.codegen.text):
                 continue
 
-            # simulate an execution to see if it really works
-            data = self._type3_prepare_and_execute(func.addr, call_sites[0].addr, call_sites[0].function_address, cfg)
-            if data is None:
-                continue
-            if len(data) > 3 and all(chr(x) in string.printable for x in data):
+            # examine the first 100 call sites and see if any of them returns a valid string
+            valid = False
+            for i in range(min(100, len(call_sites))):
+                call_site_block = self.project.factory.block(call_sites[i].addr)
+                if not self._is_block_setting_constants_to_stack(call_site_block):
+                    continue
+
+                # simulate an execution to see if it really works
+                data = self._type3_prepare_and_execute(
+                    func.addr, call_sites[i].addr, call_sites[i].function_address, cfg
+                )
+                if data is None:
+                    continue
+                if len(data) > 3 and all(chr(x) in string.printable for x in data):
+                    valid = True
+                    break
+
+            if valid:
                 desc = StringDeobFuncDescriptor()
                 desc.string_output_arg_idx = 0
                 desc.string_length_arg_idx = 1
