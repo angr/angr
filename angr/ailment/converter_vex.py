@@ -680,9 +680,7 @@ class VEXIRSBConverter(Converter):
                 pass
 
         manager.vex_stmt_idx = DEFAULT_STATEMENT
-        if irsb.jumpkind == "Ijk_Call":
-            # call
-
+        if irsb.jumpkind == "Ijk_Call" or irsb.jumpkind.startswith("Ijk_Sys"):
             # FIXME: Move ret_expr and fp_ret_expr creation into angr because we cannot reliably determine which
             #  expressions can be returned from the call without performing further analysis
             ret_reg_offset = manager.arch.ret_offset
@@ -705,10 +703,17 @@ class VEXIRSBConverter(Converter):
             else:
                 fp_ret_expr = None
 
+            if irsb.jumpkind == "Ijk_Call":
+                target = VEXExprConverter.convert(irsb.next, manager)
+            elif irsb.jumpkind.startswith("Ijk_Sys"):
+                target = DirtyExpression(manager.next_atom(), "syscall", manager.arch.bits)
+            else:
+                raise NotImplementedError("Unsupported jumpkind")
+
             statements.append(
                 Call(
                     manager.next_atom(),
-                    VEXExprConverter.convert(irsb.next, manager),
+                    target,
                     ret_expr=ret_expr,
                     fp_ret_expr=fp_ret_expr,
                     ins_addr=manager.ins_addr,
@@ -744,5 +749,7 @@ class VEXIRSBConverter(Converter):
                     vex_stmt_idx=DEFAULT_STATEMENT,
                 )
             )
+        else:
+            raise NotImplementedError("Unsupported jumpkind")
 
         return Block(addr, irsb.size, statements=statements)
