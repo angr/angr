@@ -1592,6 +1592,7 @@ class SimCCAMD64LinuxSyscall(SimCCSyscall):
     RETURN_VAL = SimRegArg("rax", 8)
     RETURN_ADDR = SimRegArg("ip_at_syscall", 8)
     ARCH = archinfo.ArchAMD64
+    CALLER_SAVED_REGS = ["rax", "rcx", "r11"]
 
     @staticmethod
     def _match(arch, args, sp_delta):  # pylint: disable=unused-argument
