@@ -2258,6 +2258,7 @@ def default_cc(  # pylint:disable=unused-argument
     arch: str,
     platform: Optional[str] = "Linux",
     language: Optional[str] = None,
+    syscall: bool = False,
     **kwargs,
 ) -> Optional[Type[SimCC]]:
     """
@@ -2266,6 +2267,7 @@ def default_cc(  # pylint:disable=unused-argument
     :param arch:        The architecture name.
     :param platform:    The platform name (e.g., "Linux" or "Win32").
     :param language:    The programming language name (e.g., "go").
+    :param syscall:     Return syscall convention (True), or normal calling convention (False, default).
     :return:            A default calling convention class if we can find one for the architecture, platform, and
                         language combination, or None if nothing fits.
     """
@@ -2274,20 +2276,21 @@ def default_cc(  # pylint:disable=unused-argument
         platform = "Linux"
 
     default = kwargs.get("default", ...)
+    cc_map = SYSCALL_CC if syscall else DEFAULT_CC
 
-    if arch in DEFAULT_CC:
-        if platform not in DEFAULT_CC[arch]:
+    if arch in cc_map:
+        if platform not in cc_map[arch]:
             if default is not ...:
                 return default
-            if "Linux" in DEFAULT_CC[arch]:
-                return DEFAULT_CC[arch]["Linux"]
-        return DEFAULT_CC[arch][platform]
+            if "Linux" in cc_map[arch]:
+                return cc_map[arch]["Linux"]
+        return cc_map[arch][platform]
 
     alias = unify_arch_name(arch)
-    if alias not in DEFAULT_CC or platform not in DEFAULT_CC[alias]:
+    if alias not in cc_map or platform not in cc_map[alias]:
         if default is not ...:
             return default
-    return DEFAULT_CC[alias][platform]
+    return cc_map[alias][platform]
 
 
 def unify_arch_name(arch: str) -> str:
