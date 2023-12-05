@@ -49,6 +49,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ...typehoon.rust.translator import RustTypeTranslator
+from ..optimization_passes.rust.alloc_simplifier import VecInitialization
 
 if TYPE_CHECKING:
     import archinfo
@@ -1133,6 +1134,31 @@ class RustAssignment(RustStatement):
             yield ";\n", self
 
 
+class RustVecInitialization(RustStatement):
+    def __init__(self, dst, init_values, tags=None, **kwargs):
+        super().__init__(**kwargs)
+        self.dst = dst
+        self.init_values = init_values
+        self.tags = tags
+
+    def c_repr_chunks(self, indent=0, asexpr: bool = False):
+        """
+
+        :param indent:  Number of whitespace indentation characters.
+        :param asexpr:  True if this call is used as an expression (which means we will skip the generation of
+                        semicolons and newlines at the end of the call).
+        """
+        indent_str = self.indent_str(indent=indent)
+        yield indent_str, None
+
+        yield from RustExpression._try_c_repr_chunks(self.dst)
+        yield " = ", None
+        yield "vec!", None
+        yield str(self.init_values), None
+        yield ";", None
+        yield "\n", None
+
+
 class RustFunctionCall(RustStatement, RustExpression):
     """
     func(arg0, arg1)
@@ -1165,7 +1191,6 @@ class RustFunctionCall(RustStatement, RustExpression):
         **kwargs,
     ):
         super().__init__(**kwargs)
-
         self.callee_target = callee_target
         self.callee_func: Optional["Function"] = callee_func
         self.args = args if args is not None else []
@@ -1200,6 +1225,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         yield indent_str, None
 
         if not self.is_expr and self.ret_expr is not None:
+            print(f"{list(RustExpression._try_c_repr_chunks(self.ret_expr))=}")
             yield from RustExpression._try_c_repr_chunks(self.ret_expr)
             yield " = ", None
 
@@ -2260,6 +2286,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
             Stmt.Label: self._handle_Stmt_Label,
+            VecInitialization: self._handle_Stmt_VecInitialization,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -3131,6 +3158,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         clabel = RustLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
         self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
         return clabel
+
+    def _handle_Stmt_VecInitialization(self, stmt: VecInitialization, **kwargs):
+        return RustVecInitialization(self._handle(stmt.dst), stmt.init_values, tags=stmt.tags, codegen=self)
 
     #
     # AIL expression handlers
