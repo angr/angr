@@ -278,6 +278,10 @@ class AddressConcretizationMixin(MemoryMixin):
         # Do not even try to concretize the address, therefore we can avoid the BackendError
         # if self.state.solver.symbolic(addr):
         try:
+            # If 'MemoryLoad' or 'Func_' in AST, it's a customized AST, don't try to concretize it
+            if 'MemoryLoad' in str(addr) or 'Func_' in str(addr):
+                print('MemoryLoad or Func_ in AST, return a customized MemoryLoad value, addr: ', addr)
+                raise SimUnsatError
             # Add atleast to handle the case when ast is in solver.constraints
             self.state.solver.eval_atleast(addr, 2)
             # Add atmost to support the cases of indirect jumps/calls with symbolic target
