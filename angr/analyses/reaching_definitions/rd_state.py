@@ -566,19 +566,19 @@ class ReachingDefinitionsState:
     @overload
     def deref(
         self,
-        pointer: Union[MultiValues, Atom, Definition, Iterable[Atom], Iterable[Definition]],
+        pointer: Union[int, claripy.ast.bv.BV, HeapAddress, SpOffset],
         size: Union[int, DerefSize],
         endness: str = ...,
-    ) -> Set[MemoryLocation]:
+    ) -> Optional[MemoryLocation]:
         ...
 
     @overload
     def deref(
         self,
-        pointer: Union[int, claripy.ast.BV, HeapAddress, SpOffset],
+        pointer: Union[MultiValues, Atom, Definition, Iterable[Atom], Iterable[Definition]],
         size: Union[int, DerefSize],
         endness: str = ...,
-    ) -> Optional[MemoryLocation]:
+    ) -> Set[MemoryLocation]:
         ...
 
     def deref(
