@@ -529,6 +529,17 @@ class ReachingDefinitionsAnalysis(
                 CodeLocation(block.addr, 0, block_idx=block.idx if isinstance(block, ailment.Block) else None),
                 node_parents,
             )
+        elif self.subject.type == SubjectType.Tuple:
+            node_parents = [
+                CodeLocation(pred.addr, 0, block_idx=pred.idx if isinstance(pred, ailment.Block) else None, block_id=pred.block_id)
+                for pred in self._graph_visitor.predecessors(node)
+            ]
+            if node.addr == self.subject.content[1].addr:
+                node_parents += [ExternalCodeLocation()]
+            self.model.at_new_block(
+                CodeLocation(block.addr, 0, block_idx=block.idx if isinstance(block, ailment.Block) else None, block_id=block_id),
+                node_parents,
+            )
 
         state = engine.process(
             state,
