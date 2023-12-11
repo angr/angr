@@ -2,7 +2,7 @@ import weakref
 from collections import defaultdict
 from functools import reduce
 import copy
-
+import logging
 import networkx
 
 import ailment
@@ -10,9 +10,10 @@ import claripy
 import pyvex
 from angr.utils.graph import GraphUtils
 from ..propagator.top_checker_mixin import TopCheckerMixin
-from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveRdTmp, DataSensitiveU64, DataSensitiveU32
+from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveU64, DataSensitiveU32
+from pyvex.expr import DataSensitiveRdTmp
 from ...engines.light import SimEngineLightVEXMixin
-from ...errors import SimUnsatError, SimValueError
+from ...errors import SimUnsatError, SimValueError, SimSolverError
 from ...code_location import CodeLocation
 from ...engines import HeavyVEXMixin
 
@@ -31,7 +32,10 @@ from ..forward_analysis import ForwardAnalysis
 from .values import TOP
 from ...storage import SimMemoryObject
 
+import time
+
 debug=False
+l = logging.getLogger(name=__name__)
 
 class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
     def __init__(self, *args, **kwargs):
@@ -62,13 +66,19 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 if var.startswith('precon_sp'):
                     skip = True
                     break
-            # if cur_abstract_state.is_top(result[0]):
-            #     skip = True
+
+            if skip:
+                # do additional simplification and verify that it's not the stack pointer
+                tmp_simp_result = self.state.solver.simplify(result[0])
+                if not self.state.solver.symbolic(tmp_simp_result):
+                    simp_result = tmp_simp_result
+                else:
+                    simp_result = result[0]
 
             if not skip:
                 try:
-                    eval_result = self.state.partial_symbolic_constraint_solver.eval_one(result[0])
-                    simp_result = claripy.BVV(eval_result, result[0].size())
+                    eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
+                    simp_result = claripy.BVV(eval_result, simp_result.size())
                 except SimValueError:
                     pass
 
@@ -82,7 +92,9 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         #symbolize the previously(previous analysis) found non constants and return that
         #if self.project.symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.symbolic_expr_locations_blockwise:
+        ## I THINK I CAN REMOVE THIS
         if not self.state.solver.symbolic(result[0]) and self.project.prev_symbolic_expr_locations_blockwise and self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
+            import ipdb;ipdb.set_trace()
             for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
                 for to_repl_expr in expr_list:
                     if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
@@ -124,6 +136,10 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
             #del cur_abstract_state._replacements[code_loc][expr]
             cur_abstract_state._replacements[code_loc][expr] = "TOP"
             # cur_abstract_state.symbolic_expr_locations[code_loc].append(expr)
+
+        ## This case checks for TOP that result from state merging that merged two concrete values, which means that this values should be symbolized
+        elif PropagatorState.is_top(simp_result):
+            cur_abstract_state._replacements[code_loc][expr] = "TOP"
 
 
         return [simp_result, result[1]]
@@ -589,6 +605,9 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=1,
                  load_callback=None, stack_pointer_tracker=None, start=None, graph=None, iropt_level=None):
         graph_visitor = EmulatedCFGVisitor(graph, self.project.entry if start is None else start)
+        self.debug = False
+        self.debug_two = False
+
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=False, allow_widening=False,
                                  graph_visitor=graph_visitor)
         self._graph=graph
@@ -629,8 +648,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         for key,value in self._states.items():
             self._states[key] = None
 
-        print(len(self.symbolic_expr_locations_blockwise))
-        print(len(self.replacements))
+        l.debug(len(self.symbolic_expr_locations_blockwise))
+        l.debug(len(self.replacements))
 
         # for block_key, iter in self._node_iterations.items():
         #     if iter<2:
@@ -711,13 +730,14 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     #     return successors_to_visit
 
     def _run_on_node(self, node, abstract_state):
-        print(node)
+        l.debug(node)
         # if str(node) == "<CFGENode 0x140061ee8 ()vm-vpc:5368833178 [2]>":
         #     import ipdb;ipdb.set_trace()
 
         concrete_states = abstract_state.get_concrete_state(node.block_id)
+        l.debug("Total concrete states: "+str(len(concrete_states)))
         if len(concrete_states) == 0:
-            print("No concrete state..... so no executing")
+            l.debug("No concrete state..... so no executing")
             # didn't find any state going here
             return False, abstract_state
 
@@ -736,6 +756,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             changed = True
 
         self._prev_input_states[node.block_id] = concrete_states
+        l.debug("Changed: "+str(changed))
 
 
         if not changed:
@@ -786,6 +807,13 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             # profiler = cProfile.Profile()
             # profiler.enable()
             sim_successors = engine.process(conc_state, opt_level=self._iropt_level, irsb=node.irsb)
+
+
+            # for my_succ in sim_successors.successors:
+            #     if my_succ.solver.symbolic(my_succ.scratch.guard):
+            #         for ast in my_succ.scratch.guard.leaf_asts():
+            #             if ast.args[0] == "unconstrained_ret_CopyFileA_65_32":
+            #                 import ipdb;ipdb.set_trace()
             # if PropagatorState.is_top(sim_successors.all_successors[0].regs.esp):
             #     import ipdb;ipdb.set_trace()
             # profiler.disable()
@@ -807,14 +835,14 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             #                 import ipdb;ipdb.set_trace()
             #                 break
 
-            print("The length of the constraints is: "+str(len(conc_state.solver.constraints)))
+            l.debug("The length of the constraints is: "+str(len(conc_state.solver.constraints)))
             # if node.addr == 0x1400d2181 and node.block_id.vm_vpc == 5368833050:
             #     profiler.disable()
             #     stats = pstats.Stats(profiler).sort_stats('tottime')
             #     stats.print_stats()
             #     import ipdb;
             #     ipdb.set_trace()
-            print(sim_successors)
+            l.debug(sim_successors)
 
             if False:#node.is_simprocedure:
                 if len(list(self._graph.successors(node))) > 1 and len(sim_successors.unconstrained_successors) > 0:
@@ -848,19 +876,28 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
             else:
 
-                if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) == 1 and len(list(self.graph.successors(node))) !=0:
+                if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0 and len(list(self.graph.successors(node))) !=0:
 
                     new_states = []
                     uncon_succ = sim_successors.unconstrained_successors[0]
                     #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver._replacement(uncon_succ.regs.ip)
                     poss_target = uncon_succ.regs.ip
 
+                    # if the ip has become top then just replace with successor ip
+                    if PropagatorState.is_top(uncon_succ.regs.ip):
+                        if len(list(self._graph.successors(node))) == 1:
+                            uncon_succ.regs.ip = list(self._graph.successors(node))[0].addr
+                            uncon_succ.scratch.target = uncon_succ.regs.ip
+                        else:
+                            l.debug("TOP ip and more than one successor..... create more than once successors")
+                            import ipdb;ipdb.set_trace()
+
                     # if it's till symbolic try to eval with the partial constraint solver
                     #if uncon_succ.solver.symbolic(poss_target):
                     try:
                         poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
                     except:
-                        print("more than one target?, possible going to split states now")
+                        l.debug("more than one target?, possible going to split states now")
 
                    # poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
 
@@ -932,7 +969,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                         if new_state.solver.eval_one(new_state.regs.ip) == node_succ.addr:
                                             new_state.globals['cur_block_id'] = node_succ.block_id
                                     except:
-                                        print("failed to set cur block id")
+                                        l.debug("failed to set cur block id")
                                         import ipdb;
                                         ipdb.set_trace()
 
@@ -1022,7 +1059,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                             sim_successors.artifacts['irsb_direct_next'] = True
 
                 elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
-                    print("More than one unconstrained successor?!")
+                    l.debug("More than one unconstrained successor?!")
                     import ipdb;ipdb.set_trace()
 
 
@@ -1034,8 +1071,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 symbolic_sim_successors = sim_successors
 
                 if len(sim_successors.all_successors) >1:
-                    print("Before:removing succs")
-                    print(sim_successors.all_successors)
+                    l.debug("Before:removing succs")
+                    l.debug(sim_successors.all_successors)
                     symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                     symbolic_sim_successors.artifacts = sim_successors.artifacts
                     symbolic_sim_successors.engine = sim_successors.engine
@@ -1068,12 +1105,25 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                         import ipdb;
                                         ipdb.set_trace()
                                 else:
-                                    symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                          successor.scratch.guard,
-                                                                          successor.history.jumpkind, True,
-                                                                          successor.scratch.exit_stmt_idx,
-                                                                          successor.scratch.exit_ins_addr,
-                                                                          successor.scratch.source)
+                                    # this is so that we do not keep the newly discovered from previous iter of symbolizer, since in the first iteration it's still Unsat(for loops)
+                                    # we will keep these branches once the guards become TOP after n iterations
+                                    try:
+                                        if successor.partial_symbolic_constraint_solver.eval_one(successor.scratch.guard):
+                                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                                  successor.scratch.guard,
+                                                                                  successor.history.jumpkind, True,
+                                                                                  successor.scratch.exit_stmt_idx,
+                                                                                  successor.scratch.exit_ins_addr,
+                                                                                  successor.scratch.source)
+                                    except SimUnsatError:
+                                        print("Drop this for now, we'll get it later.... after some merging causes TOPs")
+                                    except SimSolverError:
+                                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                              successor.scratch.guard,
+                                                                              successor.history.jumpkind, True,
+                                                                              successor.scratch.exit_stmt_idx,
+                                                                              successor.scratch.exit_ins_addr,
+                                                                              successor.scratch.source)
 
 
                             elif successor.scratch.guard.is_true():
@@ -1086,8 +1136,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                                                       successor.scratch.source)
 
 
-            print(symbolic_sim_successors.all_successors)
-            print(symbolic_sim_successors)
+            l.debug(symbolic_sim_successors.all_successors)
+            l.debug(symbolic_sim_successors)
 
             # If we don't do this it won't free the memory..... prolly due to cyclic references
             conc_state.globals['abstract_state'] = None
@@ -1117,8 +1167,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             # for succ in symbolic_sim_successors.all_successors:
             #     all_successors[succ.regs.ip].append(succ)
 
-        print("replacemtns: "+str(len(self.replacements)))
-        print("symb locs: "+str(len(self.symbolic_expr_locations_blockwise)))
+        l.debug("replacemtns: "+str(len(self.replacements)))
+        l.debug("symb locs: "+str(len(self.symbolic_expr_locations_blockwise)))
 
         #trying to merge same addr successors, this is part of the late mergning strategy
         merged_state_collection = []
@@ -1148,8 +1198,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         # this stores the last merged/normal state
         #self.replacements[block_key] = abstract_state._replacements
 
-        print(self._node_iterations[block_key])
-        print("Changed: "+str(changed))
+        l.debug(self._node_iterations[block_key])
 
         # if node.block_id in self._states and len(list(self.graph.predecessors(node))) > 1:
         #     changed = self.compare_concrete_states(abstract_state, self._states[node.block_id])

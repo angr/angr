@@ -8,21 +8,19 @@ import networkx as nx
 import re
 import copy
 import os
-import pickle
 from collections import defaultdict, OrderedDict
-from pyvex.stmt import Exit
 from angr.code_location import CodeLocation
 from angr.engines import UberEngine
-from angr.analyses.cfg.cfg_job_base import BlockID
 from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
-from ailment.manager import Manager
-
+from angr.errors import SimMemoryMissingError
+from pyvex.expr import DataSensitiveRdTmp
 from pyvex.const import U64, U32
 
+import pyvex.pyvex.expr
 from ..reaching_definitions.dep_graph import DepGraph
 from ..reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..analysis import Analysis
@@ -31,12 +29,8 @@ from ... import BP, BP_BEFORE, BP_AFTER, state_plugins
 from ...knowledge_plugins import Function
 from ...knowledge_plugins.key_definitions import atoms
 from ...engines.light.data import SpOffset
-from ...sim_type import SimTypeFunction, SimTypeInt, SimTypeArray, SimTypeLong, SimTypePointer, SimTypeTop
-from ...storage.memory_mixins import TopListPagesMemory, DefaultListPagesMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
-from multiprocessing import Process, Queue
-
+from ...utils.constants import DEFAULT_STATEMENT
 
 to_break = False
 #logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
@@ -47,6 +41,7 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
+l = logging.getLogger(name=__name__)
 
 class DataSensitiveU64(pyvex.const.U64):
     def __init__(self, value, block_id):
@@ -60,10 +55,6 @@ class DataSensitiveU32(pyvex.const.U32):
         self.block_id = block_id
 
 
-class DataSensitiveRdTmp(pyvex.expr.RdTmp):
-    def __init__(self, tmp, block_id):
-        super(DataSensitiveRdTmp, self).__init__(tmp)
-        self.block_id = block_id
 
 class IndSensitiveCodeLocation(CodeLocation):
     def __init__(self, block_addr: int, stmt_idx: int, ins_ind=None, sim_procedure=None, ins_addr=None,
@@ -139,6 +130,10 @@ class InputConcretizeEngine(UberEngine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def _handle_vex_expr_DataSensitiveRdTmp(self, expr):
+        return self._handle_vex_expr_RdTmp(expr)
+
+
     def _handle_vex_expr(self, expr):
         result = super()._handle_vex_expr(expr)
         ## Should we do at least _replacement() here so tht mbas will keep getting simplified, this will help if the mba is on stack and has not been replaced in _perform_vex_expr_Load
@@ -156,9 +151,9 @@ class InputConcretizeEngine(UberEngine):
         return [new_result, result[1]]
 
     def _handle_vex_expr_Load(self, expr: pyvex.expr.Load):
-        return self._perform_vex_expr_Load(self._analyze_vex_expr_Load_addr(expr.addr), expr.ty, expr.end, expr)
+        return self._perform_vex_expr_Load(self._analyze_vex_expr_Load_addr(expr.addr), expr.ty, expr.end, expr=expr)
 
-    def _perform_vex_expr_Load(self, addr, ty, endness, expr, **kwargs):
+    def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
         simplified_addr = addr[0]
         if self.state.solver.symbolic(addr[0]):
             try:
@@ -210,7 +205,7 @@ class InputConcretizeEngine(UberEngine):
                 ## This gets filled with the corresponding jump address for the each of the load address.... used for decomp results regex
                 self.project.load_addr_mba_to_jump_addr_mapping[addr_mba] = []
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], addr_mba)
-                self.state.scratch.temps[expr.addr.tmp] = addr_mba
+                self.state.scratch.temps[kwargs["expr"].addr.tmp] = addr_mba
                 to_return=claripy.If(state_split_cond, loaded_values[0], loaded_values[1])
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], to_return)
                 ## This to add addrs which are of the following form mba+offset, mba+4
@@ -274,17 +269,18 @@ def save_vm_vpc(state):
     # This is just a hack to make sure that when the VIP reg is being used for something else we don't track it ### NEED A BETTER AND GENERIC WAY
     expr_val = state.partial_symbolic_constraint_solver.eval_upto(state.inspect.reg_write_expr, 2)
     if len(expr_val) > 1:
-        print("More than one VIP, gonna add both values and create a new one")
+        l.debug("More than one VIP, gonna add both values and create a new one")
         #import ipdb;ipdb.set_trace()
         expr_val = expr_val[0]
     else:
         expr_val = expr_val[0]
     # expr_val = state.solver.eval_one(state.inspect.reg_write_expr)
     if state.project.loader.main_object.contains_addr(expr_val + state.globals['add_offset']):
-        state.globals['cur_vm_vpc'] = expr_val + state.globals['add_offset']
-        print("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(state.inspect.reg_write_offset))
+        if hex(expr_val).startswith("0x4"):
+            state.globals['cur_vm_vpc'] = expr_val + state.globals['add_offset']
+            l.debug("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(state.inspect.reg_write_offset))
     else:
-        print("The value of the PROBLEMATIC PROGRAM COUNTER is and the PROBLEMATIC REGISTER IS: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(
+        l.debug("The value of the PROBLEMATIC PROGRAM COUNTER is and the PROBLEMATIC REGISTER IS: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(
             state.inspect.reg_write_offset))
         #import ipdb;ipdb.set_trace()
     return
@@ -314,6 +310,35 @@ def activate_save_vm_vpc(state):
             import ipdb;ipdb.set_trace()
         state.globals['add_offset'] = 0
 
+#This is for execryptor
+def save_vpc_at_loc(state):
+    # # This is just a hack to make sure that when the VIP reg is being used for something else we don't track it ### NEED A BETTER AND GENERIC WAY
+    expr_val = state.partial_symbolic_constraint_solver.eval_upto(state.regs.esi, 2)
+    if len(expr_val) > 1:
+        l.debug("More than one VIP, gonna add both values and create a new one")
+        import ipdb;ipdb.set_trace()
+        expr_val = expr_val[0]
+    else:
+        expr_val = expr_val[0]
+        state.globals['cur_vm_vpc'] = expr_val
+
+    l.debug("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')) + " mem_address: " + str(state.regs.esi))
+    return
+
+#This is for Themida
+def save_vpc_at_mem_loc(state):
+    expr_val = state.partial_symbolic_constraint_solver.eval_upto(state.memory.load(state.inspect.mem_write_address,4, endness=state.arch.memory_endness), 2)
+    if len(expr_val) > 1:
+        l.debug("More than one VIP, gonna add both values and create a new one")
+        import ipdb;ipdb.set_trace()
+        expr_val = expr_val[0]
+    else:
+        expr_val = expr_val[0]
+        state.globals['cur_vm_vpc'] = expr_val
+
+    l.debug("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')) + " mem_address: " + str(state.inspect.mem_write_address))
+    return
+
 def remove_breakpoints(state):
     # if state.scratch.ins_addr in [0x474Fa5, 0x474Fa7, 0x439825, 0x407C28, 0x41C69A, 0x477F60, 0x4051E9, 0x4511ae]:
     #     print(hex(state.scratch.ins_addr))
@@ -334,7 +359,8 @@ class VMDeobfuscation(Analysis):
                  avoid_runs=None, vm_start_addr=None, verification_state=None, remove_insts=None,
                  constant_prop_func_replacements=None, semantic_verf_hooks=None, decomp_start_end_node_str=None,
                  decomp_function_addresses=None, decomp_function_prototypes=None,
-                 decomp_main_func_prototype=None,  keep_sp_changes_dae=False):
+                 decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
+                 vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -342,6 +368,9 @@ class VMDeobfuscation(Analysis):
         self.start_addr = start_addr
         self.verification_state = verification_state
         self.constant_prop_func_replacements = constant_prop_func_replacements
+        self.start_deobfuscation_immediately = start_deobfuscation_immediately
+        self.vpc_loc = vpc_loc
+        self.vpc_mem_loc = vpc_mem_loc
         calls_as_rets = {}
 
 
@@ -355,221 +384,422 @@ class VMDeobfuscation(Analysis):
         start_state.globals['vm_vip_regs'] = {}
         start_state.globals['vm_end_addrs'] = {}
         start_state.globals['cur_rm_bps'] = []
-        start_state.globals['call_stack_context_sensitivity_on'] = True
+
+        if start_deobfuscation_immediately:
+            # if we are starting the deobfuscation immediately then no need to have call stack sensitivity since it doesn't make sense for obfuscated code
+            start_state.globals['call_stack_context_sensitivity_on'] = False
+        else:
+            start_state.globals['call_stack_context_sensitivity_on'] = True
 
         # add breakpoints to activate and remove bps for each vm region
-        for vm_tuple in prev_unroll_vm_addrs:
-            vm_start_addr = vm_tuple[0]
-            vm_end_addrs = vm_tuple[1]
-            cur_vip_reg = vm_tuple[2]
-            start_state.globals['vm_vip_regs'][vm_start_addr] = cur_vip_reg
-            start_state.globals['vm_end_addrs'][vm_start_addr] = vm_end_addrs
+        if prev_unroll_vm_addrs:
+            for vm_tuple in prev_unroll_vm_addrs:
+                vm_start_addr = vm_tuple[0]
+                vm_end_addrs = vm_tuple[1]
+                cur_vip_reg = vm_tuple[2]
+                start_state.globals['vm_vip_regs'][vm_start_addr] = cur_vip_reg
+                start_state.globals['vm_end_addrs'][vm_start_addr] = vm_end_addrs
+                start_state.inspect.add_breakpoint('instruction',
+                                                   BP(BP_BEFORE, instruction=vm_start_addr, action=activate_save_vm_vpc))
+        elif vpc_loc:
             start_state.inspect.add_breakpoint('instruction',
-                                               BP(BP_BEFORE, instruction=vm_start_addr, action=activate_save_vm_vpc))
+                                               BP(BP_BEFORE, instruction=vpc_loc, action=save_vpc_at_loc))
+
+        elif vpc_mem_loc:
+            start_state.inspect.add_breakpoint('mem_write',
+                                           BP(BP_AFTER, mem_write_address=vpc_mem_loc, action=save_vpc_at_mem_loc))
+
 
         proj=self.project
         folder_name = os.path.dirname(self.project.filename)
         start_state_copy = start_state.copy()
-    #     cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
-    #     self.project.kb.cfgs.cfgs = {}
-    #     # clearing the saved states to save space
-    #     for node in cfg.graph.nodes():
-    #         node.input_state = None
-    #         node.final_states = None
+        #
+        # cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
+        # import ipdb;ipdb.set_trace()
+        # #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
+        # with open(pickled_file_name,'wb') as hunatcha_cfg:
+        #     pickle.dump(cfg, hunatcha_cfg)
+        #
+        # # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
+        # # with open(pickled_file_name,'rb') as hunatcha_cfg:
+        # #     cfg = pickle.load(hunatcha_cfg)
+        #
+        # self.project.kb.cfgs.cfgs = {}
+        # # clearing the saved states to save space
+        # for node in cfg.graph.nodes():
+        #     node.input_state = None
+        #     node.final_states = None
+        #
+        # # removing path terminators, cause...............they causing problems
+        # cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
+        #
+        # cfg = self.keep_only_one_graph(cfg, start_addr)
+        # #        start_state_copy = start_state.copy()
+        # cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
+        #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
+        # with open(pickled_file_name,'wb') as data_sens_cfg:
+        #     pickle.dump(cfg, data_sens_cfg)
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
+        # with open(pickled_file_name, 'rb') as data_sens_cfg:
+        #     cfg = pickle.load(data_sens_cfg)
+
+    # This analysis needs more work
+       #cfg = self.remove_non_local_variable_dep_branches(cfg, proj, start_state, start_addr, verification_input, cfg_fast_graph, avoid_runs)
+
+        # self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
+        # initial_cfg = self.new_model_graph(cfg.graph, proj, 'initial_cfg')
     #
-    #
-    #     # removing path terminators, cause...............they causing problems
-    #     cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
-    #
-    #     cfg = self.keep_only_one_graph(cfg, start_addr)
-    #
-    #     start_state_copy = start_state.copy()
-    #     cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
-    #
-    #
-    # # This analysis needs more work
-    #    #cfg = self.remove_non_local_variable_dep_branches(cfg, proj, start_state, start_addr, verification_input, cfg_fast_graph, avoid_runs)
-    #
-    #     self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
-    #     initial_cfg = self.new_model_graph(cfg.graph, proj, 'initial_cfg')
-    #
-    #     # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
-    #     new_cfg, symbolic_expr_locations_blockwise = self.symbolizer(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
-    #
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
-    #
-    #     start_state_copy = start_state.copy()
-    #     self.project.kb.cfgs.cfgs = {}
-    #
-    #     global debug
-    #     debug = True
-    #     cfg = None
-    #     new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(cfg, proj, symbolic_expr_locations_blockwise, start_addr=start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
-    #     to_use_symbolic_exprs = None
-    #     symbolic_expr_locations_blockwise=None
-    #
-    #     import pickle
-    #     pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
-    #     with open(pickled_file_name,'wb') as load_addr_mba_to_jump_addr_mapping:
-    #         pickle.dump(self.project.load_addr_mba_to_jump_addr_mapping, load_addr_mba_to_jump_addr_mapping)
-    #
-    #     print("DONE")
-    #
-    #     import gc
-    #     gc.collect()
-    #
-    #     self.project.kb.cfgs.cfgs = {}
-    #     # clearing the saved states to save space
-    #     for node in new_cfg.graph.nodes():
-    #         node.input_state = None
-    #         node.final_states = None
-    #
-    #     new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
-    #
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "symbolify_cfg.svg"))
-    #
-    #     start_state_copy = start_state.copy()
-    #     new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
-    #
-    #     import gc
-    #     gc.collect()
-    #     ## This is constant propgation along with finding non-constants
-    #     new_cfg, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
-    #     symbolic_expr_locations_blockwise = None
-    #     self.project.kb.cfgs.cfgs = {}
-    #
-    #     import pickle
-    #     pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
-    #     with open(pickled_file_name,'wb') as initial_full_cfg_pickle:
-    #         pickle.dump(new_cfg, initial_full_cfg_pickle)
-    #     #
-    #     # with open(pickled_file_name, 'rb') as initial_full_cfg_pickle:
-    #     #     new_cfg = pickle.load(initial_full_cfg_pickle)
-    #
-    #     import gc
-    #     gc.collect()
-    #
-    #     # clearing the saved states to save space
-    #     for node in new_cfg.graph.nodes():
-    #         node.input_state = None
-    #         node.final_states = None
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
-    #
-    #     # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
-    #     # calls_as_rets is used later during decompilation to adjust stack argument offset for cdcel because the ret has different offsets compared to a normal call
-    #     new_cfg, calls_as_rets = self.replace_jumpkinds(new_cfg)
-    #     import pickle
-    #     pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
-    #     with open(pickled_file_name,'wb') as calls_as_rets_pickle:
-    #         pickle.dump(calls_as_rets, calls_as_rets_pickle)
-    #
-    #     # # this is a simplification pass to remove all push x, ret to x type of jumps
-    #     new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "remove_push_ret.svg"))
-    #
-    #
-    #     # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
-    #     new_cfg = self.remove_useless_jump_instructions(new_cfg)
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "remove_useless_jump.svg"))
-    #
-    #     import pickle
-    #     pickled_file_name = os.path.dirname(self.project.filename) + "/mid_way_cfg"
-    #     with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
-    #         pickle.dump(new_cfg, mid_way_cfg_pickle)
-    #
-    #     # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
-    #     #     new_cfg = pickle.load(mid_way_cfg_pickle)
-    #
-    #
-    #     for i in range(4):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
-    #
-    #         new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
-    #             # commented this for test_vmp to show the add eax,1 result
-    #
-    #         new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
-    #
-    #
-    #     import pickle
-    #     pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
-    #     with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
-    #         pickle.dump(new_cfg, mid_way_cfg_pickle)
-    #
-    #     # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
-    #     #     new_cfg = pickle.load(mid_way_cfg_pickle)
-    #
-    #
-    #     #### These need to be after join basic blocks becasue of the way RDA considers a libc func call as internal instead of external
-    #     for i in range(4):
-    #         global to_break
-    #         to_break = True
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-    #
-    #     for i in range(4):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
-    #
-    #
-    #     new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
-    #
-    #     for i in range(2):
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-    #     for i in range(2):
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
-    #
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
-    #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
-    #
-    #
-    #     for i in range(8):
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-    #
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
-    #
-    #         new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
-    #
-    #         new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
-    #
-    #
-    #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-    #     self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
-    #
-    #     for i in range(3):
-    #         new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
-    #
-    #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-    #
-    #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-    #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+        # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
+        #_, symbolic_expr_locations_blockwise = self.symbolizer(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
+
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/symbolic_expr_locations_blockwise"
+        # with open(pickled_file_name,'wb') as symbolic:
+        #     pickle.dump(symbolic_expr_locations_blockwise, symbolic)
+
+        # with open(pickled_file_name,'rb') as symbolic:
+        #     symbolic_expr_locations_blockwise = pickle.load(symbolic)
+        #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_symbolizer_cfg_pickle"
+        # with open(pickled_file_name,'wb') as hunatcha_cfg:
+        #     pickle.dump(cfg, hunatcha_cfg)
+        # with open(pickled_file_name,'rb') as hunatcha_cfg:
+        #     cfg = pickle.load(hunatcha_cfg)
+        #self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
+
+        # start_state_copy = start_state.copy()
+        # self.project.kb.cfgs.cfgs = {}
+        #
+        # global debug
+        # debug = True
+        # cfg = None
+        # new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(proj, symbolic_expr_locations_blockwise,
+        #                                                       start_addr=start_addr, start_state=start_state_copy,
+        #                                                       cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
+        #                                                       remove_insts=remove_insts)
+        # to_use_symbolic_exprs = None
+        # symbolic_expr_locations_blockwise=None
+
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_symbolify_cfg_pickle_1"
+        # # with open(pickled_file_name,'wb') as hunatcha_cfg:
+        # #     pickle.dump(new_cfg, hunatcha_cfg)
+        # with open(pickled_file_name,'rb') as hunatcha_cfg:
+        #     new_cfg = pickle.load(hunatcha_cfg)
+        # # since the hash is not same after loading from pickle
+        # for node in new_cfg.nodes():
+        #     node.block_id._hash = None
+        #
+        #
+        # new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
+        #
+        # start_state_copy = start_state.copy()
+        # new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
+        #
+        # _, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/symbolic_expr_locations_blockwise_2"
+        # with open(pickled_file_name,'wb') as symbolic:
+        #     pickle.dump(symbolic_expr_locations_blockwise, symbolic)
+        # start_state_copy = start_state.copy()
+        # self.project.kb.cfgs.cfgs = {}
+        #
+        # new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(proj, symbolic_expr_locations_blockwise,
+        #                                                       start_addr=start_addr, start_state=start_state_copy,
+        #                                                       cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
+        #                                                       remove_insts=remove_insts)
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_symbolify_cfg_pickle_2"
+        # with open(pickled_file_name,'wb') as hunatcha_cfg:
+        #     pickle.dump(new_cfg, hunatcha_cfg)
+        # # with open(pickled_file_name,'rb') as hunatcha_cfg:
+        # #     new_cfg = pickle.load(hunatcha_cfg)
+        #
+        #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
+        # with open(pickled_file_name,'wb') as load_addr_mba_to_jump_addr_mapping:
+        #     pickle.dump(self.project.load_addr_mba_to_jump_addr_mapping, load_addr_mba_to_jump_addr_mapping)
+        #
+        # print("DONE")
+        #
+        # import gc
+        # gc.collect()
+        #
+        # self.project.kb.cfgs.cfgs = {}
+        # # clearing the saved states to save space
+        # for node in new_cfg.graph.nodes():
+        #     node.input_state = None
+        #     node.final_states = None
+        #
+        # new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
+        #
+        # #self.draw_graph(new_cfg, os.path.join(folder_name, "symbolify_cfg.svg"))
+        #
+        # start_state_copy = start_state.copy()
+        # new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
+        #
+        # import gc
+        # gc.collect()
+        # ## This is constant propgation along with finding non-constants
+        # new_cfg, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
+        # symbolic_expr_locations_blockwise = None
+        # self.project.kb.cfgs.cfgs = {}
+        #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
+        # # with open(pickled_file_name,'wb') as initial_full_cfg_pickle:
+        # #     pickle.dump(new_cfg, initial_full_cfg_pickle)
+        # #
+        # with open(pickled_file_name, 'rb') as initial_full_cfg_pickle:
+        #     new_cfg = pickle.load(initial_full_cfg_pickle)
+        #
+        # import gc
+        # gc.collect()
+        #
+        # # clearing the saved states to save space
+        # for node in new_cfg.graph.nodes():
+        #     node.input_state = None
+        #     node.final_states = None
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
+        #
+        # # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
+        # # calls_as_rets is used later during decompilation to adjust stack argument offset for cdcel because the ret has different offsets compared to a normal call
+        # new_cfg, calls_as_rets = self.replace_jumpkinds(new_cfg)
+
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
+        # with open(pickled_file_name,'wb') as calls_as_rets_pickle:
+        #     pickle.dump(calls_as_rets, calls_as_rets_pickle)
+        #
+        # # # this is a simplification pass to remove all push x, ret to x type of jumps
+        # new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "remove_push_ret.svg"))
+        #
+        #
+        # # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
+        # new_cfg = self.remove_useless_jump_instructions(new_cfg)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "remove_useless_jump.svg"))
+        #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/mid_way_cfg"
+        # # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
+        # # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
+        # #
+        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
+        #     new_cfg = pickle.load(mid_way_cfg_pickle)
+        # # since the hash is not same after loading from pickle
+        # for node in new_cfg.nodes():
+        #     node.block_id._hash = None
+        #
+        #
+        #
+        # print("start")
+        # for i in range(4):
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+        #
+        #     # new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+        #     # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
+        #         # commented this for test_vmp to show the add eax,1 result
+        #
+        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+        #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
+        # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
+        # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
+        #
+        #
+        #
+        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
+        #     new_cfg = pickle.load(mid_way_cfg_pickle)
+        # for node in new_cfg.nodes():
+        #     node.block_id._hash = None
+
+
+
+        #
+        #
+        # #### These need to be after join basic blocks becasue of the way RDA considers a libc func call as internal instead of external
+        # for i in range(4):
+        #     global to_break
+        #     to_break = True
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        #
+        #
+        # for i in range(4):
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+        #
+        #
+        # new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
+        #
+        # for i in range(2):
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        # for i in range(2):
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+        #
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
+        # new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
+
+
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/before_get_put"
+        # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
+        # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
+        # #
+        #
+        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
+        #     new_cfg = pickle.load(mid_way_cfg_pickle)
+        # for node in new_cfg.nodes():
+        #     node.block_id._hash = None
+
+
+        #
+        # for i in range(8):
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        #
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
+        #
+        #     # new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+        #     # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+        #
+        #
+        #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
+        #
+        #
+        #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/after_get_put"
+        # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
+        # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
+        #
+        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
+        #     new_cfg = pickle.load(mid_way_cfg_pickle)
+        # for node in new_cfg.nodes():
+        #     node.block_id._hash = None
+
+
+        #
+        #
+        # new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
+        #
+        # for i in range(3):
+        #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
+        #
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        #
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+        # #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
+        # # with open(pickled_file_name,'wb') as final_cfg_pickle:
+        # #     pickle.dump(new_cfg, final_cfg_pickle)
+        #
+        # with open(pickled_file_name, "rb") as final_cfg_pickle:
+        #     new_cfg = pickle.load(final_cfg_pickle)
+        # # since the hash is not same after loading from pickle
+        # for node in new_cfg.nodes():
+        #     node.block_id._hash = None
+
+        #
+        # new_cfg = self.remove_call_to_next_addr(new_cfg)
+        #
+        # new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
+        #
+        # for i in range(15):
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        #
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
+        #
+        #     # new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+        #     # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+        #
+        #     new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        #
+        #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        #
+        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+        #
+        #     new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
+        #
+        #
+        # import pickle
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_beyond_final_cfg"
+        # # with open(pickled_file_name,'wb') as final_cfg_pickle:
+        # #     pickle.dump(new_cfg, final_cfg_pickle)
+        #
+        # with open(pickled_file_name, "rb") as final_cfg_pickle:
+        #     new_cfg = pickle.load(final_cfg_pickle)
+        # # since the hash is not same after loading from pickle
+        # for node in new_cfg.nodes():
+        #     node.block_id._hash = None
+        #
+        #
+        #
+        #
+        # self.draw_graph(new_cfg,os.path.join(folder_name, "before_beyond.svg"))
+        #
+        # new_cfg = self.CAS_to_mov_simplification(new_cfg, proj)
+
+
+        #
+        # for i in range(15):
+        #     new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+        #
+        #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        #
+        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+        #
+        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,
+        #                                                                                 keep_sp_changes_dae=keep_sp_changes_dae)
+        #
+        #     new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        #
+        #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+        #
+        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+        #
+        #     self.draw_graph(new_cfg, os.path.join(folder_name,  str(i)+"block_arithmetic_simplifications_using_dep_graph.svg"))
 
         import pickle
-        pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
+        pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
         # with open(pickled_file_name,'wb') as final_cfg_pickle:
         #     pickle.dump(new_cfg, final_cfg_pickle)
 
         with open(pickled_file_name, "rb") as final_cfg_pickle:
             new_cfg = pickle.load(final_cfg_pickle)
+        # since the hash is not same after loading from pickle
+        for node in new_cfg.nodes():
+            node.block_id._hash = None
         #
         # verification_state_copy = verification_state.copy()
-        # import ipdb;ipdb.set_trace()
         # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
-        pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
-        with open(pickled_file_name,'rb') as load_addr_mba_to_jump_addr_mapping_pickle:
-            self.project.load_addr_mba_to_jump_addr_mapping = pickle.load(load_addr_mba_to_jump_addr_mapping_pickle)
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
+        # with open(pickled_file_name,'rb') as load_addr_mba_to_jump_addr_mapping_pickle:
+        #     self.project.load_addr_mba_to_jump_addr_mapping = pickle.load(load_addr_mba_to_jump_addr_mapping_pickle)
 
         pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
         with open(pickled_file_name, 'rb') as calls_as_rets_pickle:
@@ -579,20 +809,22 @@ class VMDeobfuscation(Analysis):
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
-                               decomp_main_func_prototype=decomp_main_func_prototype, calls_as_rets=calls_as_rets)
+                               decomp_main_func_prototype=decomp_main_func_prototype, calls_as_rets=calls_as_rets,
+                               allow_global_dead_ass_elim=allow_global_dead_ass_elim)
 
 
         verification_state_copy = verification_state.copy()
         # self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
-        import ipdb;ipdb.set_trace()
-        self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result_enc_addr.svg"))
+        import ipdb;ipdb.set_trace()
+
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
     def try_decompilation(self, new_cfg, decomp_start_end_node_str, decomp_function_addresses=None, decomp_function_prototypes=None,
-                          semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}):
+                          semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}, allow_global_dead_ass_elim=False):
         visited_nodes = {}
 
         traversal_start_node = decomp_start_end_node_str[0][0]
@@ -624,9 +856,9 @@ class VMDeobfuscation(Analysis):
         ## convert to new encoded addresses
         for node in new_cfg.nodes():
             if not node.is_simprocedure:
-                for stmt in node.irsb.statements:
+                for stmt_idx, stmt in enumerate(node.irsb.statements):
                     if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in calls_as_rets:
-                        calls_as_rets[self.convert_addr_to_int(stmt.addr, node.block_id)] = calls_as_rets[stmt.addr]
+                        calls_as_rets[self.convert_addr_to_int(stmt.addr, node.block_id, stmt_idx)] = calls_as_rets[stmt.addr]
 
         ## Populate nodes in the VM_1 func
         while len(node_stack) > 0:
@@ -677,7 +909,8 @@ class VMDeobfuscation(Analysis):
                         if succ_func.prototype._arch is None:
                             succ_func.prototype._arch = self.project.arch
                             succ_func.prototype.returnty._arch = self.project.arch
-                        succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
+                        if succ_func.calling_convention is None:
+                            succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
 
                     succ_func.returning = True
                     succ_func.is_simprocedure = True
@@ -759,11 +992,99 @@ class VMDeobfuscation(Analysis):
                 VM_1_func._ret_sites.add(node)
                 VM_1_func._ret_sites.add(list(VM_1_func.transition_graph.predecessors(node))[0])
 
-        dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets)
+        # self.create_virtualized_func_svg(VM_1_func, decomp_function_addresses)
+
+        self.project.new_block_id_embed_dict = new_block_id_embed_dict
+
+        dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim)
         print("Decompilation result:")
         print(dec.codegen.text)
         import ipdb;
         ipdb.set_trace()
+
+    def CAS_to_mov_simplification(self, cfg, proj):
+        # this is specifically for themida to convert CAS stmts to simple store stmts if the comparision is always True
+        # only for converting CAS from xchg to simple stores
+        print("CAS simplification")
+        for node in cfg.nodes():
+            if node.is_simprocedure:
+                continue
+            new_stmts = []
+            for stmt in node.irsb.statements:
+                if isinstance(stmt, pyvex.stmt.IMark):
+                    cur_ins_addr = stmt.addr
+                if isinstance(stmt, pyvex.stmt.CAS):
+                    bbl=self.project.factory.block(cur_ins_addr, num_inst=1)
+                    cas_ins = bbl.disassembly.insns[0]
+                    if cas_ins.mnemonic == "xchg":
+                        new_stmts.append(pyvex.stmt.WrTmp(stmt.oldLo, pyvex.expr.Load(stmt.endness, node.irsb.tyenv.lookup(stmt.oldLo), stmt.addr)))
+                        new_stmts.append(pyvex.stmt.Store(stmt.addr, stmt.dataLo, stmt.endness))
+                        continue
+
+                new_stmts.append(stmt)
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_stmts,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
+
+        return cfg
+    def emulated_stack_pointer_tracker(self, cfg, proj, start_state=None, start_addr=None):
+        start_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+        actual_stack_end = start_state.solver.eval(start_state.regs.sp)
+        start_state.regs.sp = start_state.solver.BVS("precon_sp", proj.arch.bits)
+        start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
+        print(start_state.regs.sp)
+        new_model = self.new_model_graph(cfg.graph, proj, 'stack_pointer_tracker')
+        new_model._nodes_by_addr[self.start_addr][0].input_state = start_state
+        spt = proj.analyses.EmulatedStackPointerTracker(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True)
+        return spt
+    def create_virtualized_func_svg(self, virt_func, decomp_function_addresses):
+        for i in range(1):
+            all_nodes = list(virt_func.transition_graph.nodes())
+            nodes_to_remove = []
+            for node in all_nodes:
+                preds = list(virt_func.transition_graph.predecessors(node))
+                succs = list(virt_func.transition_graph.successors(node))
+
+                if len(preds) == 1 and len(succs) == 1 and not node.is_simprocedure:
+                    succ_of_preds = list(virt_func.transition_graph.successors(preds[0]))
+                    pred_of_succs = list(virt_func.transition_graph.predecessors(succs[0]))
+                    if len(pred_of_succs) == 1 and len(succ_of_preds) == 1:
+                        nodes_to_remove.append(node)
+
+            for node in nodes_to_remove:
+                preds = list(virt_func.transition_graph.predecessors(node))
+                succs = list(virt_func.transition_graph.successors(node))
+
+                virt_func.transition_graph.remove_node(node)
+                virt_func.transition_graph.add_edge(preds[0], succs[0])
+
+        for edge in list(virt_func.transition_graph.edges()):
+            if 'type' in virt_func.transition_graph.get_edge_data(edge[0], edge[1]) \
+                    and virt_func.transition_graph.get_edge_data(edge[0], edge[1])['type'] == 'fake_return':
+                virt_func.transition_graph.remove_edge(edge[0],edge[1])
+
+        A = nx.nx_agraph.to_agraph(virt_func.transition_graph)
+
+        for node in virt_func.transition_graph.nodes():
+            graphviz_node = A.get_node(str(node))
+            if node.is_simprocedure:
+                graphviz_node.attr["label"] = node.name
+            elif node.addr in decomp_function_addresses:
+                import ipdb;ipdb.set_trace()
+                graphviz_node.attr["label"] = decomp_function_addresses[node.addr][1]
+            else:
+                graphviz_node.attr["label"] = ""
+            graphviz_node.attr["shape"] = "box"
+
+        A.layout(prog="dot")
+        A.draw(path="./graph_for_paper.svg", format="svg")
+
 
     def create_new_node_with_block_id_addr(self, old_node, new_model, old_graph, new_block_id_embed_dict, end_node_block_ids,
                                            decomp_function_addresses=[],
@@ -868,7 +1189,7 @@ class VMDeobfuscation(Analysis):
 
         for stmt_idx, stmt in enumerate(new_statements):
             if isinstance(stmt, pyvex.stmt.IMark):
-                stmt.addr = self.convert_addr_to_int(stmt.addr, old_node.block_id)
+                stmt.addr = self.convert_addr_to_int(stmt.addr, old_node.block_id, stmt_idx)
 
 
         block_id_int = self.convert_addr_to_int(old_node.addr, old_node.block_id)
@@ -907,8 +1228,26 @@ class VMDeobfuscation(Analysis):
         new_block_id_embed_dict[old_node.block_id] = new_cur_node
         return new_cur_node, calls_as_rets
 
-    def convert_addr_to_int(self, addr, block_id):
-        return int.from_bytes(bytes(str(block_id.vm_vpc)+str(addr), 'utf-8'), "big")
+    def convert_addr_to_int(self, addr, block_id, stmt_idx=0):
+        enc_addr = int.from_bytes(bytes(str(block_id.vm_vpc) + str(addr) + str(stmt_idx), 'utf-8'), "big")
+        self.project.enc_stmt_addr_to_original[enc_addr] = (addr, stmt_idx, block_id)
+        return enc_addr
+
+    def remove_call_to_next_addr(self, cfg):
+        #:0429040A call    $+5
+        #:0429040F push    [esp+1Ch+var_1C]
+        # In this case we just change the jumpkind from call to boring
+        # This call just jumps to the next address, the return address is still on the stack though
+
+        for node in cfg.nodes():
+            if node.is_simprocedure:
+                continue
+            if node.irsb.jumpkind == "Ijk_Call" and isinstance(node.irsb.statements[-1], pyvex.stmt.Store) and \
+                    isinstance(node.irsb.statements[-1].data, pyvex.expr.Const) and isinstance(node.irsb.next, pyvex.expr.Const):
+                if node.irsb.statements[-1].data.con.value == node.irsb.next.con.value:
+                    node.irsb.jumpkind = "Ijk_Boring"
+
+        return cfg
 
     def replace_jumpkinds(self, new_cfg):
         calls_as_rets = {}
@@ -973,10 +1312,13 @@ class VMDeobfuscation(Analysis):
 
             # preconstrain the stack pointer
             actual_stack_end = initial_input_state.solver.eval(initial_input_state.regs.sp)
-            initial_input_state.regs.sp = initial_input_state.solver.BVS("precon_sp", 64)
+            initial_input_state.regs.sp = initial_input_state.solver.BVS("precon_sp", self.project.arch.bits)
             initial_input_state.preconstrainer.preconstrain(actual_stack_end, initial_input_state.regs.sp)
 
             initial_input_state.partial_symbolic_constraint_solver.add(initial_input_state.regs.sp == actual_stack_end)
+            initial_input_state.partial_symbolic_constraint_solver._solver.add_replacement(initial_input_state.regs.sp,
+                                                 actual_stack_end,
+                                                 invalidate_cache=False)
 
             initial_input_state.globals['concretized_load_addr_dict'] = {}
             initial_input_state.globals['replaced_asts_str'] = {}
@@ -1060,7 +1402,7 @@ class VMDeobfuscation(Analysis):
         print("Done")
         return new_model, prop.symbolic_expr_locations_blockwise
 
-    def symbolify_exprs(self, cfg, proj, symbolic_expr_locations_blockwise, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None):
+    def symbolify_exprs(self, proj, symbolic_expr_locations_blockwise, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None):
         start_state.globals['to_use_symbolic_exprs'] = []
         start_state.globals['expr_loc_map'] = {}
         self.project.prev_symbolic_expr_locations_blockwise = symbolic_expr_locations_blockwise
@@ -1075,7 +1417,8 @@ class VMDeobfuscation(Analysis):
                                                iropt_level=1,
                                                cfg_fast_graph=cfg_fast_graph,
                                                avoid_runs=avoid_runs,
-                                               remove_insts=remove_insts
+                                               remove_insts=remove_insts,
+                                               start_deobfuscation_immediately=self.start_deobfuscation_immediately
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations_blockwise = None
@@ -1115,7 +1458,7 @@ class VMDeobfuscation(Analysis):
                                 rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                                                track_tmps=True,
                                                                                track_consts = False,
-                                                                               function_handler=CLibFunctionHandler(
+                                                                                  function_handler=CLibFunctionHandler(
                                                                                    self.project),
                                                                                observation_points=[
                                                                                    ('node', node.addr, OP_AFTER)]
@@ -1430,9 +1773,14 @@ class VMDeobfuscation(Analysis):
                             if isinstance(stmt, pyvex.stmt.WrTmp):
                                 tmps_used_cur_block.append(stmt.tmp)
                                 new_types[stmt.tmp] = node.irsb.tyenv.lookup(stmt.tmp)
+                            elif isinstance(stmt, pyvex.stmt.CAS):
+                                tmps_used_cur_block.append(stmt.oldLo)
+                                new_types[stmt.oldLo] = node.irsb.tyenv.lookup(stmt.oldLo)
                         for stmt in succ.irsb.statements:
                             if isinstance(stmt, pyvex.stmt.WrTmp):
                                 tmps_used_succ_block.append(stmt.tmp)
+                            elif isinstance(stmt, pyvex.stmt.CAS):
+                                tmps_used_succ_block.append(stmt.oldLo)
 
                         if len(tmps_used_cur_block+tmps_used_succ_block) == 0:
                             tmp_no_to_use = 0
@@ -1448,6 +1796,14 @@ class VMDeobfuscation(Analysis):
                                     tmp_no_to_use = tmp_no_to_use + 1
                                 else:
                                     new_types[stmt.tmp] = succ.irsb.tyenv.lookup(stmt.tmp)
+                            elif isinstance(stmt, pyvex.stmt.CAS):
+                                if stmt.oldLo in tmps_used_cur_block:
+                                    tmp_replace_map[pyvex.expr.RdTmp(stmt.oldLo)] = pyvex.expr.RdTmp(tmp_no_to_use)
+                                    new_types[tmp_no_to_use] = succ.irsb.tyenv.lookup(stmt.oldLo)
+                                    stmt.oldLo = tmp_no_to_use
+                                    tmp_no_to_use = tmp_no_to_use + 1
+                                else:
+                                    new_types[stmt.oldLo] = succ.irsb.tyenv.lookup(stmt.oldLo)
 
                             if not isinstance(stmt, pyvex.stmt.IMark):
                                 for rd_tmp in tmp_replace_map:
@@ -1610,6 +1966,7 @@ class VMDeobfuscation(Analysis):
                 new_model._nodes_by_addr[self.start_addr][0].input_state.registers.store(new_model._nodes_by_addr[self.start_addr][0].input_state.arch.registers['ss'][0], 0)
 
 
+        print("Initial SP value:"+str(hex(new_model._nodes_by_addr[self.start_addr][0].input_state.regs.sp.args[0])))
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
 
@@ -1694,9 +2051,6 @@ class VMDeobfuscation(Analysis):
         print("Remove redundant Get Put")
         #PUT(rsp) = t334        ===>      PUT(rsp) = t334
         #t116 = GET:I64(rsp)               t116 = t334
-        # or
-        #t83 = GET:I64(rsp)     ===>      t83 = GET:I64(rsp)
-        #PUT(rsp) = t83
 
         #dsa_new_model = self.new_model_graph(cfg.graph, proj, 'redun_Get_Put')
         dsa_new_model = cfg
@@ -1744,13 +2098,17 @@ class VMDeobfuscation(Analysis):
                             if isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.WrTmp) and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Get) and (node.irsb.statements[d.codeloc.stmt_idx].data.result_size(node.irsb.tyenv) == node.irsb.statements[use.stmt_idx].data.result_size(node.irsb.tyenv)):
                                 replace_get_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
 
-                elif isinstance(d.atom, atoms.Tmp) and isinstance(node.irsb.statements[d.codeloc.stmt_idx].data, pyvex.expr.Get):
-                    for use in uses:
-                        if use.stmt_idx is None:
-                            continue
-                        # This is an internal function or a sim procedure for which I have not written a rda handler
-                        if isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.Put) and node.irsb.statements[use.stmt_idx].offset == node.irsb.statements[d.codeloc.stmt_idx].data.offset and (node.irsb.statements[use.stmt_idx].data.result_size(node.irsb.tyenv) == node.irsb.statements[d.codeloc.stmt_idx].data.result_size(node.irsb.tyenv)):
-                            to_remove.append(use.stmt_idx)
+                # elif isinstance(d.atom, atoms.Tmp) and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.WrTmp) and isinstance(node.irsb.statements[d.codeloc.stmt_idx].data, pyvex.expr.Get):
+                #     ## THIS IS WRONG WE CANNOT REMOVE THE PUT WITHOUT CHANGING THE SEMANTICS. DO NOT USE THIS!
+                #     if node.irsb.statements[d.codeloc.stmt_idx].data.offset == self.project.arch.sp_offset:
+                #         # we skip this for sp since we need to keep the Put(rsp) as this is required by the sp tracker in the decompiler
+                #         continue
+                #     for use in uses:
+                #         if use.stmt_idx is None:
+                #             continue
+                #         # This is an internal function or a sim procedure for which I have not written a rda handler
+                #         if isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.Put) and node.irsb.statements[use.stmt_idx].offset == node.irsb.statements[d.codeloc.stmt_idx].data.offset and (node.irsb.statements[use.stmt_idx].data.result_size(node.irsb.tyenv) == node.irsb.statements[d.codeloc.stmt_idx].data.result_size(node.irsb.tyenv)):
+                #             to_remove.append(use.stmt_idx)
 
             new_statements = []
             for idx, stmt in enumerate(cur_block.vex.statements):
@@ -1924,21 +2282,41 @@ class VMDeobfuscation(Analysis):
             for d in all_defs:
                 if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                     continue
+                if d.codeloc.stmt_idx and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.CAS):
+                    continue
                 uses = rd.all_uses.get_uses(d)
 
                 if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                     for use in uses:
-                        # if d.codeloc.ins_addr == 0x6f98b3:
-                        #     import ipdb;ipdb.set_trace()
-                        # This is an enternal function or a sim procedure for which I have not written a rda handler
-                        if use.block_id is None:
+                        # # This is an enternal function or a sim procedure for which I have not written a rda handler
+                        # if use.block_id is None:
+                        #     continue
+                        if use.stmt_idx == DEFAULT_STATEMENT:
                             continue
+                        if isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.CAS):
+                            continue
+                        if use.sim_procedure:
+                            import ipdb;ipdb.set_trace()
                         if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
                             ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
                             if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
                                 replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
                             elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
                                 replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                elif isinstance(d.atom, atoms.MemoryLocation) and \
+                    isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
+                    isinstance(node.irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
+                    for use in uses:
+                        if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load) and \
+                                isinstance(node.irsb.statements[use.stmt_idx].data.addr, pyvex.expr.Const):
+                            ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
+                            if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
+                                replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                            elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
+                                replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+
+
+
 
 
             new_statements = []
@@ -1993,6 +2371,10 @@ class VMDeobfuscation(Analysis):
                 start_node = node
                 break
 
+        node_dict = {}
+        for node in cfg.nodes():
+            node_dict[node.block_id] = node
+
         leaf_nodes_list = []
         for node in list(dsa_new_model.graph.nodes()):
             if not node.is_simprocedure and len(list(dsa_new_model.graph.successors(node))) == 0:
@@ -2043,24 +2425,36 @@ class VMDeobfuscation(Analysis):
             # is entirely possible that at the end of the block, a register definition is not used.
             # however, it might be used in future blocks.
             # so we only remove a definition if the definition is not alive anymore at the end of the block
-            if isinstance(d.atom, atoms.Register) and not uses:
-                ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
-                if keep_sp_changes_dae:
-                    if d.atom.reg_offset == self.project.arch.sp_offset:
-                        continue
-                vs: 'MultiValues' = merged_live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
-            else:
-                continue
-            if vs is None:
-                continue
-            defs_ = set()
 
-            for values in vs.values():
-                for value in values:
-                    defs_.update(merged_live_defs.extract_defs(value))
+            if not uses:
+                if isinstance(d.atom, atoms.Register):
+                    ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
+                    if keep_sp_changes_dae:
+                        if d.atom.reg_offset == self.project.arch.sp_offset:
+                            continue
+                    vs: 'MultiValues' = merged_live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                elif isinstance(d.atom, atoms.MemoryLocation) and \
+                    isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
+                    isinstance(node_dict[d.codeloc.block_id].irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
+                    #Only for store at const address in the binary, cannot check d.atom.addr since it's values are not correct for whole cfg rda
 
-            if d not in defs_:
-                dead_defs_locs.add(d.codeloc)
+                    try:
+                        vs: 'MultiValues' = merged_live_defs.memory_definitions.load(d.atom.addr, size=d.atom.size,
+                                                                              endness=d.atom.endness)
+                    except SimMemoryMissingError:
+                        vs = None
+                else:
+                    continue
+                if vs is None:
+                    continue
+                defs_ = set()
+
+                for values in vs.values():
+                    for value in values:
+                        defs_.update(merged_live_defs.extract_defs(value))
+
+                if d not in defs_:
+                    dead_defs_locs.add(d.codeloc)
 
 
         #Remove dead assignments
@@ -2136,7 +2530,7 @@ class VMDeobfuscation(Analysis):
             live_defs = rd.one_result
 
             # Find dead assignments
-            dead_defs_stmt_idx = set()
+            dead_defs_stmt_idx = defaultdict(int)
             all_defs = rd.all_definitions
             for d in all_defs:
                 if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
@@ -2147,11 +2541,11 @@ class VMDeobfuscation(Analysis):
                     if not uses:
                         if isinstance(node.irsb.next, DataSensitiveRdTmp):
                             if node.irsb.next.tmp != d.atom.tmp_idx:
-                                dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                                dead_defs_stmt_idx[d.codeloc.stmt_idx] +=1
                             else:
                                 used_tmp_indices.add(d.atom.tmp_idx)
                         else:
-                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                            dead_defs_stmt_idx[d.codeloc.stmt_idx] += 1
 
                 else:
                     uses = rd.all_uses.get_uses(d)
@@ -2160,6 +2554,7 @@ class VMDeobfuscation(Analysis):
                         # however, it might be used in future blocks.
                         # so we only remove a definition if the definition is not alive anymore at the end of the block
                         defs_ = set()
+                        vs = None
                         if isinstance(d.atom, atoms.Register):
                             ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
                             if keep_sp_changes_dae:
@@ -2167,32 +2562,69 @@ class VMDeobfuscation(Analysis):
                                     continue
                             try:
                                 vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
-                            except:
-                                import ipdb;ipdb.set_trace()
+                            except SimMemoryMissingError:
+                                vs = None
 
                         elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                             stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
                             try:
                                 vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
                                                                                  endness=d.atom.endness)
-                            except:
-                                import ipdb;ipdb.set_trace()
+                            except SimMemoryMissingError:
+                                vs = None
+                        elif isinstance(d.atom, atoms.MemoryLocation) and \
+                            isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
+                            isinstance(node.irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
+                            try:
+                                vs: 'MultiValues' = live_defs.memory_definitions.load(d.atom.addr, size=d.atom.size,
+                                                                                 endness=d.atom.endness)
+                            except SimMemoryMissingError:
+                                vs = None
                         else:
                             continue
 
-                        for values in vs.values():
-                            for value in values:
-                                defs_.update(live_defs.extract_defs(value))
+                        if vs is not None:
+                            for values in vs.values():
+                                for value in values:
+                                    defs_.update(live_defs.extract_defs(value))
+                        else:
+                            continue
+
 
                         if d not in defs_:
-                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                            # additonal aliasing check for mem locs with const addr
+                            if isinstance(d.atom, atoms.MemoryLocation) and not isinstance(d.atom.addr,
+                                                                                           SpOffset):
+                                possible_alias = False
+                                #check if there is a symbolic load between the two defs, if so then do not eliminate the def
+                                for n_def in defs_:
+                                    assert d.codeloc.stmt_idx < n_def.codeloc.stmt_idx
+                                    for i in range(d.codeloc.stmt_idx, n_def.codeloc.stmt_idx):
+                                        if isinstance(node.irsb.statements[i], pyvex.stmt.WrTmp) and isinstance(node.irsb.statements[i].data, pyvex.expr.Load):
+                                            if not isinstance(node.irsb.statements[i].data.addr, pyvex.IRExpr.Const):
+                                                possible_alias = True
+                                                break
+                                if not possible_alias:
+                                    dead_defs_stmt_idx[d.codeloc.stmt_idx] += 1
+                            else:
+                                dead_defs_stmt_idx[d.codeloc.stmt_idx] += 1
 
             new_statements = []
             # Remove dead assignments
             for idx, stmt in enumerate(cur_block.vex.statements):
                 if isinstance(stmt, pyvex.stmt.WrTmp):
+                    # this does not affect CAS
                     if stmt.tmp not in used_tmp_indices:
                         continue
+
+                # special check for CAS stmt to make sure both defs are daed beore removing
+                if isinstance(stmt, pyvex.stmt.CAS):
+                    if dead_defs_stmt_idx[idx] >= 2:
+                        continue
+                    else:
+                        new_statements.append(stmt)
+                        continue
+
                 # is it a dead virgin?
                 if idx in dead_defs_stmt_idx:
                     continue
@@ -2224,9 +2656,9 @@ class VMDeobfuscation(Analysis):
                                 if succ.addr == node.irsb.next.con.value and node.irsb.next.con.block_id == succ.block_id:
                                     edge_to_remove_node = succ
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
-                        else:
-                            print("Hmmmmm")
-                            import ipdb;ipdb.set_trace()
+                        # else:
+                        #     print("Hmmmmm")
+                        #     import ipdb;ipdb.set_trace()
                         node.irsb.next = pyvex.expr.Const(stmt.dst)
                         continue
                 new_statements.append(stmt)
@@ -2294,6 +2726,252 @@ class VMDeobfuscation(Analysis):
                 if 0 < stmt_idx - ind < min_gap:
                     imark_ind = ind
         return imark_ind
+
+    def block_arithmetic_simplifications_using_dep_graph(self, cfg, proj):
+        print("Block arithmetic simplification using dep graph")
+        def check_stmt_add_sub(stmt):
+            if isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop):
+                add_sub_prefix = ("Iop_Add32", "Iop_Sub32", "Iop_Sub64", "Iop_Add64")
+                if stmt.data.op.startswith(add_sub_prefix):
+                    return True
+            return False
+
+        def get_single_pred_stmt(tmp_idx, statements):
+            cur_stmt_defs = dep_graph.find_definitions(tmp_idx=tmp_idx)
+            assert len(cur_stmt_defs) == 1
+            pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
+            if not len(pred_defs) == 1:
+                return False, None, None
+            return True, statements[pred_defs[0].codeloc.stmt_idx], pred_defs[0].codeloc.stmt_idx
+
+        def one_const(stmt):
+            #t465 = Add32(t667,t667)
+            # check for the above fails in onle_one_pred
+            for arg in stmt.data.args:
+                if isinstance(arg, pyvex.expr.Const):
+                    return True
+            return False
+
+        def get_constant_value_and_class(expr):
+            consts = []
+            for arg in expr.args:
+                if isinstance(arg, pyvex.expr.Const):
+                    consts.append(arg)
+            assert len(consts) == 1
+            return consts[0].con.__class__, consts[0].con.value
+
+
+        for node in list(cfg.nodes()):
+            if node.is_simprocedure:
+                continue
+
+            cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
+            result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, track_consts=False,
+                                                       observation_points=[('node', node.addr, OP_AFTER)],
+                                                       dep_graph=True)
+            dep_graph = result.dep_graph
+            new_stmts = []
+            changed_stmt_idx = []
+            for stmt_idx, stmt in enumerate(node.irsb.statements):
+                new_stmt = stmt
+                if check_stmt_add_sub(stmt):
+                    only_one_pred, pred_stmt, pred_stmt_idx = get_single_pred_stmt(stmt.tmp, node.irsb.statements)
+
+                    if only_one_pred and check_stmt_add_sub(pred_stmt) and one_const(stmt):
+                        #add sub simplifications, where atleast one argument is constant for both
+                        only_one_pred, _, _ = get_single_pred_stmt(pred_stmt.tmp, node.irsb.statements)
+
+                        if not only_one_pred or not one_const(pred_stmt):
+                            # make sure the pred_stmt has only one arg as tmp
+                            # it could have one predecessor but used twice e.g. t465 = Add32(t667,t667) so check for const alllso
+                            new_stmts.append(new_stmt)
+                            continue
+
+                        if pred_stmt_idx in changed_stmt_idx:
+                            # if the pred_stmt has been modified already then skip
+                            new_stmts.append(new_stmt)
+                            continue
+
+                        if stmt.data.op == pred_stmt.data.op:
+                            # make sure one of the args is constant
+                            # make sure that both the constnts are the second args if Sub
+                            # t1=add324(t2,4)
+                            # t3=sub324(t1,4)
+                            # both the operations are the same
+                            if stmt.data.op.startswith('Iop_Sub'):
+                                #make sure that both the constnts are the second args if Sub
+                                if not (isinstance(stmt.data.args[1], pyvex.expr.Const) and isinstance(pred_stmt.data.args[1], pyvex.expr.Const)):
+                                    new_stmts.append(new_stmt)
+                                    continue
+
+                            # this works for both Sub and Add
+                            const_class, const_0 = get_constant_value_and_class(stmt.data)
+                            _, const_1 = get_constant_value_and_class(pred_stmt.data)
+                            for arg in pred_stmt.data.args:
+                                if isinstance(arg, pyvex.expr.RdTmp):
+                                    pred_data_tmp_idx = arg.tmp
+                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Binop(stmt.data.op,
+                                                                            [pyvex.expr.RdTmp(pred_data_tmp_idx),
+                                                                             pyvex.expr.Const(const_class(((const_0+const_1)&(1<<self.project.arch.bits)-1)))]))
+                            changed_stmt_idx.append(stmt_idx)
+
+                        else:
+                            #both the operations are different, and const in the second arg for both
+                            #t14 = Add32(t11, 0xfffffff8)
+                            #t10 = Sub32(t11, 0x00000004)
+
+                             #make sure that both the second args are consts
+                            if not (isinstance(stmt.data.args[1], pyvex.expr.Const) and isinstance(pred_stmt.data.args[1], pyvex.expr.Const)):
+                                new_stmts.append(new_stmt)
+                                continue
+
+                            const_class = stmt.data.args[1].con.__class__
+
+                            if stmt.data.op.startswith("Iop_Sub"):
+                                const_0 = -stmt.data.args[1].con.value
+                            else:
+                                const_0 = stmt.data.args[1].con.value
+
+                            if pred_stmt.data.op.startswith("Iop_Sub"):
+                                const_1 = -pred_stmt.data.args[1].con.value
+                            else:
+                                const_1 = pred_stmt.data.args[1].con.value
+
+                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Binop("Iop_Add" + stmt.data.op[-2:],
+                                                                           [pyvex.expr.RdTmp(pred_stmt.data.args[0].tmp),
+                                                                            pyvex.expr.Const(const_class(((const_0 + const_1) & (1 << self.project.arch.bits) - 1)))]))
+                            changed_stmt_idx.append(stmt_idx)
+
+
+                    elif not only_one_pred:
+                        # t1492 = Sub32(t1491, t1458)
+                        # t1493 = Add32(t1492, t1458)
+                        # For Themida
+
+                        cur_stmt_tmp_arg1 = stmt.data.args[0].tmp
+                        cur_stmt_tmp_arg2 = stmt.data.args[1].tmp
+
+                        pred_stmt_idx = dep_graph.find_definitions(tmp_idx=cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
+                        pred_stmt = node.irsb.statements[pred_stmt_idx]
+
+
+                        if pred_stmt_idx in changed_stmt_idx:
+                            # if the pred_stmt has been modified already then skip
+                            new_stmts.append(new_stmt)
+                            continue
+
+                        #make sure both the pred args are tmps
+                        if check_stmt_add_sub(pred_stmt) and isinstance(pred_stmt.data.args[0], pyvex.expr.RdTmp) and \
+                                isinstance(pred_stmt.data.args[1], pyvex.expr.RdTmp):
+                            pred_stmt_tmp_arg1 = pred_stmt.data.args[0].tmp
+                            pred_stmt_tmp_arg2 = pred_stmt.data.args[1].tmp
+
+                            # check if the second tmp arg is same for both and the operations or opposites i.e add/sub
+                            if cur_stmt_tmp_arg2 == pred_stmt_tmp_arg2 and stmt.data.op != pred_stmt.data.op:
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_tmp_arg1))
+                                changed_stmt_idx.append(stmt_idx)
+
+                elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Xor"):
+                    # XOR simplification
+                    # t154 = Xor32(t151,t26)
+                    # t158 = Xor32(t26,t154)
+                    cur_stmt_defs = dep_graph.find_definitions(tmp_idx=stmt.tmp)
+                    assert len(cur_stmt_defs) == 1
+                    pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
+                    if len(pred_defs) == 1:
+                        # at least one arg is constant
+                        # t154 = Xor32(t151, 3)
+                        # t158 = Xor32(3 ,t154)
+                        pred_def = pred_defs[0]
+                        pred_stmt = node.irsb.statements[pred_def.codeloc.stmt_idx]
+
+                        if pred_def.codeloc.stmt_idx in changed_stmt_idx:
+                            # if the pred_stmt has been modified already then skip
+                            new_stmts.append(new_stmt)
+                            continue
+
+                        cur_stmt_const_arg = None
+                        for arg in stmt.data.args:
+                            if isinstance(arg, pyvex.expr.Const):
+                                cur_stmt_const_arg = arg.con.value
+
+                        if isinstance(pred_stmt, pyvex.stmt.WrTmp) and isinstance(pred_stmt.data, pyvex.expr.Binop) and \
+                            pred_stmt.data.op.startswith(stmt.data.op):
+                            #check if the pred stmt is also XOR
+
+                            pred_stmt_const_arg = None
+                            pred_stmt_tmp_arg = None
+                            for arg in pred_stmt.data.args:
+                                if isinstance(arg, pyvex.expr.Const):
+                                    pred_stmt_const_arg = arg.con.value
+                                elif isinstance(arg, pyvex.expr.RdTmp):
+                                    pred_stmt_tmp_arg = arg.tmp
+
+                            if pred_stmt_const_arg and pred_stmt_tmp_arg:
+                                #make sure one arg is tmp and one is constant
+                                if pred_stmt_const_arg == cur_stmt_const_arg:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_tmp_arg))
+                                    changed_stmt_idx.append(stmt_idx)
+
+                    elif len(pred_defs) == 2:
+                        # both args are temps
+                        # t154 = Xor32(t151,t26)
+                        # t158 = Xor32(t26,t154)
+                        pred_def_1 = pred_defs[0]
+                        pred_def_2 = pred_defs[1]
+
+                        pred_stmt_1_idx = pred_def_1.codeloc.stmt_idx
+                        pred_stmt_2_idx = pred_def_2.codeloc.stmt_idx
+
+                        pred_stmt_1 = node.irsb.statements[pred_stmt_1_idx]
+                        pred_stmt_2 = node.irsb.statements[pred_stmt_2_idx]
+
+
+                        if pred_stmt_1_idx in changed_stmt_idx or pred_stmt_2_idx in changed_stmt_idx:
+                            # if the pred_stmt has been modified already then skip
+                            new_stmts.append(new_stmt)
+                            continue
+
+
+                        if isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1.data, pyvex.expr.Binop) and \
+                            pred_stmt_1.data.op.startswith(stmt.data.op):
+                            #make sure its a XOR
+                            if isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
+                                    isinstance(pred_stmt_1.data.args[1], pyvex.expr.RdTmp):
+                                #make sure both the args are tmps as well
+                                if pred_stmt_2.tmp == pred_stmt_1.data.args[0].tmp:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_1.data.args[1].tmp))
+                                    changed_stmt_idx.append(stmt_idx)
+                                elif pred_stmt_2.tmp == pred_stmt_1.data.args[1].tmp:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_1.data.args[0].tmp))
+                                    changed_stmt_idx.append(stmt_idx)
+                        elif isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_2.data, pyvex.expr.Binop) and \
+                            pred_stmt_2.data.op.startswith(stmt.data.op):
+                            #make sure its a XOR
+                            if isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
+                                    isinstance(pred_stmt_2.data.args[1], pyvex.expr.RdTmp):
+                                #make sure both the args are tmps as well
+                                if pred_stmt_1.tmp == pred_stmt_2.data.args[0].tmp:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_2.data.args[1].tmp))
+                                    changed_stmt_idx.append(stmt_idx)
+                                elif pred_stmt_1.tmp == pred_stmt_2.data.args[1].tmp:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_2.data.args[0].tmp))
+                                    changed_stmt_idx.append(stmt_idx)
+
+                new_stmts.append(new_stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_stmts,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
+
+        return cfg
+
+
     def block_arithmetic_simplifications(self, cfg, proj, start_state=None):
         # Naming this this CFGEmulated so that certain other analysis can uses the results from this
         print("Block arithmetic simplification")
@@ -2303,7 +2981,7 @@ class VMDeobfuscation(Analysis):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
                 result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, track_consts=False, observation_points=[('node', node.addr, OP_AFTER)], dep_graph=DepGraph())
-
+                import ipdb;ipdb.set_trace()
                 ## create stmt dependency graph
                 stmt_graph = StatementGraph()
                 cur_ins_addr = None
@@ -2387,7 +3065,7 @@ class VMDeobfuscation(Analysis):
                 ## perform arithmetic simplifications on each component individually
                 simplified_statements = []
                 inst_grouped_simp_stmts = OrderedDict()
-                new_address_map = {}
+                orig_stmt_idx_to_stmt_node = {}
                 for sub_graph in sub_graphs:
                     to_simplify_sub_graph = nx.DiGraph(copy.deepcopy(sub_graph.graph))
                     stmt_node_queue = []
@@ -2489,7 +3167,7 @@ class VMDeobfuscation(Analysis):
                         # t3 = Add32(t0, 0x00000002)
                         # THIS IS ONLY IF THE SECOND ARG IS CONSTANT
                         successors = list(to_simplify_sub_graph.successors(cur_stmt_node))
-                        if isinstance(cur_stmt.data, pyvex.expr.Binop) and cur_stmt.data.op in ["Iop_Add32", "Iop_Add64", "Iop_Sub32", "Iop_Sub64"] and len(successors) == 1:
+                        if hasattr(cur_stmt, 'data') and isinstance(cur_stmt.data, pyvex.expr.Binop) and cur_stmt.data.op in ["Iop_Add32", "Iop_Add64", "Iop_Sub32", "Iop_Sub64"] and len(successors) == 1:
                             # skip nodes that possible don't exist anymore since they have been simplified away
                             if cur_stmt_node in simplified_statement_nodes:
                                 continue
@@ -2530,6 +3208,7 @@ class VMDeobfuscation(Analysis):
                                 new_simpl_stmt = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add" + cur_stmt.data.op[-2:],
                                                                                 [pyvex.expr.RdTmp(tmp_to_keep),
                                                                                  pyvex.expr.Const(cur_stmt_const_class(((const_0+const_1)&(1<<64)-1)))]))
+                                import ipdb;ipdb.set_trace()
                                 tmp_codeloc = IndSensitiveCodeLocation(successor.codeloc.block_addr,
                                                                        successor.codeloc.stmt_idx,
                                                                        ins_addr=cur_stmt_node.codeloc.ins_addr,
@@ -2551,57 +3230,69 @@ class VMDeobfuscation(Analysis):
                                 #simplified_statements.pop(-2)
                                 simp_flag = 1
 
+                    # add all the stmts to a dictionary using the original indx
+                    for stmt_node in to_simplify_sub_graph.nodes():
+                        if stmt_node.codeloc.stmt_idx:
+                            orig_stmt_idx_to_stmt_node[stmt_node.codeloc.stmt_idx] = stmt_node.stmt
 
                     ## reconstrcut the statements from the simplififed graph
                     stmt_node_queue = []
                     visited_stmt_nodes = {}
 
-                    # insert the leaf nodes into the queue and update the addresses of the modified instructions
-                    for stmt_node in to_simplify_sub_graph.nodes():
-                        # Updating the new code locs for the stmts
-                        # if not isinstance(stmt_node.codeloc, ExternalCodeLocation) and stmt_node in new_address_map:
-                        #     ins_tuple = new_address_map[stmt_node]
-                        #     new_stmt_node = StatementNode(stmt_node.stmt, )
-                        #     stmt_node.codeloc.ins_addr = ins_tuple[0]
-                        #     stmt_node.codeloc.ins_ind = ins_tuple[1]
-                        if to_simplify_sub_graph.out_degree(stmt_node) == 0:
-                            stmt_node_queue.append(stmt_node)
+                    # # insert the leaf nodes into the queue and update the addresses of the modified instructions
+                    # for stmt_node in to_simplify_sub_graph.nodes():
+                    #     # Updating the new code locs for the stmts
+                    #     # if not isinstance(stmt_node.codeloc, ExternalCodeLocation) and stmt_node in new_address_map:
+                    #     #     ins_tuple = new_address_map[stmt_node]
+                    #     #     new_stmt_node = StatementNode(stmt_node.stmt, )
+                    #     #     stmt_node.codeloc.ins_addr = ins_tuple[0]
+                    #     #     stmt_node.codeloc.ins_ind = ins_tuple[1]
+                    #     if to_simplify_sub_graph.out_degree(stmt_node) == 0:
+                    #         stmt_node_queue.append(stmt_node)
+                    #
+                    # while len(stmt_node_queue) > 0:
+                    #     skip = False
+                    #     cur_stmt_node = stmt_node_queue.pop(0)
+                    #     if cur_stmt_node in visited_stmt_nodes:
+                    #         continue
+                    #     succs = list(to_simplify_sub_graph.successors(cur_stmt_node))
+                    #
+                    #     # make sure that all the successors are visited before visiting a node
+                    #     for succ in succs:
+                    #         if succ not in visited_stmt_nodes:
+                    #             skip = True
+                    #     if skip:
+                    #         continue
+                    #     preds = list(to_simplify_sub_graph.predecessors(cur_stmt_node))
+                    #     stmt_node_queue = preds + stmt_node_queue
+                    #     visited_stmt_nodes[cur_stmt_node] = True
+                    #     if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
+                    #         continue
+                    #     #simplified_statements.append(cur_stmt_node.stmt)
+                    #     if (cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind) not in inst_grouped_simp_stmts:
+                    #         inst_grouped_simp_stmts[(cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind)] = []
+                    #     inst_grouped_simp_stmts[(cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind)].append(cur_stmt_node.stmt)
 
-                    while len(stmt_node_queue) > 0:
-                        skip = False
-                        cur_stmt_node = stmt_node_queue.pop(0)
-                        if cur_stmt_node in visited_stmt_nodes:
-                            continue
-                        succs = list(to_simplify_sub_graph.successors(cur_stmt_node))
-
-                        # make sure that all the successors are visited before visiting a node
-                        for succ in succs:
-                            if succ not in visited_stmt_nodes:
-                                skip = True
-                        if skip:
-                            continue
-                        preds = list(to_simplify_sub_graph.predecessors(cur_stmt_node))
-                        stmt_node_queue = preds + stmt_node_queue
-                        visited_stmt_nodes[cur_stmt_node] = True
-                        if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
-                            continue
-                        #simplified_statements.append(cur_stmt_node.stmt)
-                        if (cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind) not in inst_grouped_simp_stmts:
-                            inst_grouped_simp_stmts[(cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind)] = []
-                        inst_grouped_simp_stmts[(cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind)].append(cur_stmt_node.stmt)
-
-                # Making sure that the order of instructions is same as the original binary, though does not necessarily mean the best
-                ordered_ins_addrs = []
+                # add the IMarks also to the dictionary
                 for ind, stmt in enumerate(node.irsb.statements):
-                    if isinstance(stmt, pyvex.stmt.IMark) and (stmt.addr, ind) in inst_grouped_simp_stmts:
-                        ordered_ins_addrs.append((stmt.addr, ind))
+                    if isinstance(stmt, pyvex.stmt.IMark):
+                        orig_stmt_idx_to_stmt_node[ind] = stmt
 
-                for ins_tuple in ordered_ins_addrs:
-                    ins_addr = ins_tuple[0]
-                    ins_ind = ins_tuple[1]
-                    simplified_statements.append(pyvex.stmt.IMark(ins_addr, length=0, delta=0))
-                    for simp_stmt in inst_grouped_simp_stmts[(ins_addr, ins_ind)]:
-                        simplified_statements.append(simp_stmt)
+                for k in sorted(orig_stmt_idx_to_stmt_node.keys()):
+                    simplified_statements.append(orig_stmt_idx_to_stmt_node[k])
+
+                # # Making sure that the order of instructions is same as the original binary, though does not necessarily mean the best
+                # ordered_ins_addrs = []
+                # for ind, stmt in enumerate(node.irsb.statements):
+                #     if isinstance(stmt, pyvex.stmt.IMark) and (stmt.addr, ind) in inst_grouped_simp_stmts:
+                #         ordered_ins_addrs.append((stmt.addr, ind))
+                #
+                # for ins_tuple in ordered_ins_addrs:
+                #     ins_addr = ins_tuple[0]
+                #     ins_ind = ins_tuple[1]
+                #     simplified_statements.append(pyvex.stmt.IMark(ins_addr, length=0, delta=0))
+                #     for simp_stmt in inst_grouped_simp_stmts[(ins_addr, ins_ind)]:
+                #         simplified_statements.append(simp_stmt)
 
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                    node.irsb.addr,
@@ -2611,7 +3302,8 @@ class VMDeobfuscation(Analysis):
                                                    direct_next=node.irsb.direct_next,
                                                    jumpkind=node.irsb.jumpkind,
                                                    size=node.irsb.size)
-
+                if len(simplified_statements) != len(node.irsb.statements):
+                    import ipdb;ipdb.set_trace()
                 # if simp_flag == 1:
                 #     import ipdb;ipdb.set_trace()
                 #     pass
@@ -2811,7 +3503,8 @@ class VMDeobfuscation(Analysis):
                                         iropt_level=1,
                                         cfg_fast_graph=cfg_fast_graph,
                                         avoid_runs=avoid_runs,
-                                        remove_insts=remove_insts
+                                        remove_insts=remove_insts,
+                                        start_deobfuscation_immediately=self.start_deobfuscation_immediately
                                         # enable_advanced_backward_slicing=True
                                         )
         return cfg, proj
@@ -3166,18 +3859,52 @@ class VMDeobfuscation(Analysis):
         return new_cfg, changed
 
     ### Draw the graph with vex statements
-    def draw_graph(self, cfg, filename):
+    def draw_graph(self, cfg, filename, start_node_str=None):
+        node_limit = 10000
+        no_nodes = 0
         print("saving graph "+str(filename))
-        A = nx.nx_agraph.to_agraph(cfg.graph)
-        for node in cfg.graph.nodes():
-            stmt_str = str(node)
-            if node.irsb != None:
-                for ind, stmt in enumerate(node.irsb.statements):
-                    stmt_str = stmt_str + "\l" + stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
 
-            graphviz_node = A.get_node(str(node))
-            graphviz_node.attr["label"] = stmt_str
-            graphviz_node.attr["shape"] = "box"
+        if start_node_str:
+            sub_graph = nx.DiGraph()
+            for node in cfg.graph.nodes():
+                if str(node) == start_node_str:
+                    start_node = node
+            queue = [start_node]
+            while len(queue) != 0:# and no_nodes < node_limit:
+                print(no_nodes)
+                no_nodes+=1
+                node = queue.pop(0)
+                if str(node) == "<CFGENode sprintf0x4300108 ()vm-vpc:`69297812 >":
+                    break
+                sub_graph.add_node(node)
+                for succ in list(cfg.graph.successors(node)):
+                    sub_graph.add_edge(node, succ)
+
+                queue = queue + list(cfg.graph.successors(node))
+
+            A = nx.nx_agraph.to_agraph(sub_graph)
+
+            for node in sub_graph.nodes():
+                stmt_str = str(node)
+                if node.irsb != None:
+                    for ind, stmt in enumerate(node.irsb.statements):
+                        stmt_str = stmt_str + "\l" + stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
+
+                graphviz_node = A.get_node(str(node))
+                graphviz_node.attr["label"] = stmt_str
+                graphviz_node.attr["shape"] = "box"
+        else:
+            A = nx.nx_agraph.to_agraph(cfg.graph)
+
+            for node in cfg.graph.nodes():
+                stmt_str = str(node)
+                if node.irsb != None:
+                    for ind, stmt in enumerate(node.irsb.statements):
+                        stmt_str = stmt_str + "\l" + stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
+
+                graphviz_node = A.get_node(str(node))
+                graphviz_node.attr["label"] = stmt_str
+                graphviz_node.attr["shape"] = "box"
         A.layout(prog="dot")
         A.draw(path=filename, format="svg")
 
