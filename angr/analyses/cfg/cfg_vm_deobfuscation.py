@@ -358,7 +358,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                  state_add_options=None,
                  state_remove_options=None,
                  model=None,
-                 remove_insts=None
+                 remove_insts=None,
+                 start_deobfuscation_immediately=False,
                  ):
         """
         All parameters are optional.
@@ -412,10 +413,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self.cfg_fast_graph = cfg_fast_graph
         # these are the instructions to remove cause they cause problems
         self.remove_insts = remove_insts
+        self.start_deobfuscation_immediately = start_deobfuscation_immediately
         ##If an existing graph is being passed that needs to be analysed
         graph_visitor = None
         self._graph = None
         self._model = None
+
+        self.vm_pc_skip_list = set()
 
         # this is used only with symbolify analysis
         self.to_use_symbolic_exprs = set()
@@ -1506,13 +1510,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # if addr in [0x484E04, 0x407c28, 0x4462EE, 0x484DFF, 0x42C074]:
         #     import ipdb;ipdb.set_trace()
 
-
+        # if block_id.vm_vpc in [4594391]:
+        #     import ipdb;ipdb.set_trace(())
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
 
         if self.data_sensitive:
-            if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) == 1:
-
+            if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0:
+                # we drop all the unsat successors
                     new_states = []
                     uncon_succ = sim_successors.unconstrained_successors[0]
                     #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver._replacement(uncon_succ.regs.ip)
@@ -1624,7 +1629,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 import ipdb;ipdb.set_trace()
 
             l.debug("All possible successors: " + str(sim_successors.all_successors))
-        if job.block_id.vm_vpc is not None:
+        if job.block_id.vm_vpc is not None or self.start_deobfuscation_immediately:
             #### Keeping only symbolic and True successors
             if self.data_sensitive:
                 symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
@@ -1635,7 +1640,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 symbolic_sim_successors.sort = sim_successors.sort
                 for successor in sim_successors.all_successors:
                     l.debug("Successor: " + str(successor))
-                    l.debug("Guard: " + str(successor.scratch.guard))
+                    l.debug("Guard: " + str(successor.scratch.guard.shallow_repr()))
                     l.debug("Guard annotations: " + str(successor.scratch.guard.annotations))
 
                     # we don't add fake returns when in a vm because it could just be a random call that never returns
@@ -1704,25 +1709,49 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                     # Only add those successors which have symbolic guard or which evaluates to True, if the guard is not stack tainted
                     if is_stack_tainted is False and is_data_region_tainted is False:
-                        try:
-                            if successor.solver.eval(successor.scratch.guard):
-                                symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                      successor.scratch.guard,
-                                                                      successor.history.jumpkind, True,
-                                                                      successor.scratch.exit_stmt_idx,
-                                                                      successor.scratch.exit_ins_addr,
-                                                                      successor.scratch.source)
-                        except SimUnsatError:
-                            print("Unsat state so we not adding this!")
-                            import ipdb;ipdb.set_trace()
-                        # elif successor.solver.symbolic(successor.scratch.guard):
-                        #     import ipdb;ipdb.set_trace()
-                        #     symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                        #                                           successor.scratch.guard,
-                        #                                           successor.history.jumpkind, True,
-                        #                                           successor.scratch.exit_stmt_idx,
-                        #                                           successor.scratch.exit_ins_addr,
-                        #                                           successor.scratch.source)
+                        if successor.solver.symbolic(successor.scratch.guard):
+                            # special case to deal with preconstrained sp related guards
+                            if len(list(successor.scratch.guard.variables)) == 1 and list(successor.scratch.guard.variables)[0].startswith("precon_sp"):
+                                try:
+                                    if successor.solver.eval(successor.scratch.guard):
+                                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                              successor.scratch.guard,
+                                                                              successor.history.jumpkind, True,
+                                                                              successor.scratch.exit_stmt_idx,
+                                                                              successor.scratch.exit_ins_addr,
+                                                                              successor.scratch.source)
+                                except SimUnsatError:
+                                    print("Hmmmmmmmmmmm")
+                                    import ipdb;
+                                    ipdb.set_trace()
+                            else:
+                                # we try to simplify the symbolic guard using asolver with no constraints to check if it's a constant.... like an mba obfuscated constant
+                                try:
+                                    if successor.partial_symbolic_constraint_solver.eval_one(successor.scratch.guard):
+                                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                              successor.scratch.guard,
+                                                                              successor.history.jumpkind, True,
+                                                                              successor.scratch.exit_stmt_idx,
+                                                                              successor.scratch.exit_ins_addr,
+                                                                              successor.scratch.source)
+                                except:
+                                    symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                          successor.scratch.guard,
+                                                                          successor.history.jumpkind, True,
+                                                                          successor.scratch.exit_stmt_idx,
+                                                                          successor.scratch.exit_ins_addr,
+                                                                          successor.scratch.source)
+
+
+                        elif successor.scratch.guard.is_true():
+                            # only adding successors that are non-symbolic and true guard
+                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                  successor.scratch.guard,
+                                                                  successor.history.jumpkind, True,
+                                                                  successor.scratch.exit_stmt_idx,
+                                                                  successor.scratch.exit_ins_addr,
+                                                                  successor.scratch.source)
+
 
 
             sim_successors = symbolic_sim_successors
