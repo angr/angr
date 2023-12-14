@@ -1,6 +1,9 @@
-from typing import Dict, Optional, Set, Tuple, Iterator
+from typing import Dict, Optional, Set, Tuple, Iterator, Union
+import archinfo
 
 import claripy
+
+from angr.storage.memory_object import bv_slice
 
 
 class MultiValues:
@@ -16,18 +19,42 @@ class MultiValues:
         "_single_value",
     )
 
-    def __init__(self, v: Optional[claripy.ast.Base] = None, offset_to_values=None):
+    _single_value: Optional[claripy.ast.Bits]
+    _values: Optional[Dict[int, Set[claripy.ast.Bits]]]
+
+    def __init__(
+        self,
+        v: Union[claripy.ast.Bits, "MultiValues", None, Dict[int, Set[claripy.ast.Bits]]] = None,
+        offset_to_values=None,
+    ):
         if v is not None and offset_to_values is not None:
             raise TypeError("You cannot specify v and offset_to_values at the same time!")
 
-        self._single_value = v if v is not None else None
-        self._values: Optional[Dict[int, Set[claripy.ast.Base]]] = (
-            offset_to_values if offset_to_values is not None else None
+        self._single_value = (
+            None
+            if v is None
+            else v
+            if isinstance(v, claripy.ast.Bits)
+            else v._single_value
+            if isinstance(v, MultiValues)
+            else None
         )
+        self._values = (
+            offset_to_values
+            if offset_to_values is not None
+            else v
+            if isinstance(v, dict)
+            else v._values
+            if isinstance(v, MultiValues)
+            else None
+        )
+
+        if self._single_value is None and self._values is None:
+            self._values = {}
 
         # if only one value is passed in, assign it to self._single_value
         if self._values:
-            if len(self._values) == 0 and 0 in self._values and len(self._values[0]) == 0:
+            if len(self._values) == 1 and 0 in self._values and len(self._values[0]) == 1:
                 self._single_value = next(iter(self._values[0]))
                 self._values = None
 
@@ -37,8 +64,17 @@ class MultiValues:
                 if not isinstance(vs, set):
                     raise TypeError("Each value in offset_to_values must be a set!")
 
-    def add_value(self, offset: int, value: claripy.ast.Base) -> None:
+    def add_value(self, offset: int, value: claripy.ast.Bits) -> None:
+        if len(value) == 0:
+            return
         if self._single_value is not None:
+            if len(self._single_value) == 0:
+                if offset == 0:
+                    self._single_value = value
+                else:
+                    self._single_value = None
+                    self._values = {offset: {value}}
+                return
             self._values = {0: {self._single_value}}
             self._single_value = None
 
@@ -98,17 +134,30 @@ class MultiValues:
                 for v in remaining_values:
                     self.add_value(offset, v)
 
-    def one_value(self) -> Optional[claripy.ast.Base]:
+    def one_value(self, strip_annotations: bool = False) -> Optional[claripy.ast.Bits]:
         if self._single_value is not None:
             return self._single_value
 
+        assert self._values is not None
+
         if len(self._values) == 1 and len(self._values[0]) == 1:
             return next(iter(self._values[0]))
+        if strip_annotations:
+            all_values_wo_annotations = {
+                bv.remove_annotations(bv.annotations) if bv.annotations else bv for bv in self._values[0]
+            }
+            if len(all_values_wo_annotations) == 1:
+                return next(iter(all_values_wo_annotations))
         return None
 
     def __len__(self) -> int:
         if self._single_value is not None:
             return self._single_value.length
+
+        assert self._values is not None
+
+        if len(self._values) == 0:
+            return 0
 
         max_offset = max(self._values.keys())
         max_len = max(x.size() for x in self._values[max_offset])
@@ -132,6 +181,8 @@ class MultiValues:
             return False
         if self._single_value is None and other._single_value is not None:
             return False
+        assert self._values is not None
+        assert other._values is not None
         if set(self._values.keys()) != set(other._values.keys()):
             return False
         for k in self._values.keys():
@@ -149,7 +200,7 @@ class MultiValues:
             return offset == 0
         return False if not self._values else offset in self._values
 
-    def __getitem__(self, offset: int) -> Set[claripy.ast.Base]:
+    def __getitem__(self, offset: int) -> Set[claripy.ast.Bits]:
         if self._single_value is not None:
             if offset == 0:
                 return {self._single_value}
@@ -163,7 +214,7 @@ class MultiValues:
             return {0}
         return set() if not self._values else set(self._values.keys())
 
-    def values(self) -> Iterator[Set[claripy.ast.Base]]:
+    def values(self) -> Iterator[Set[claripy.ast.Bits]]:
         if self._single_value is not None:
             yield {self._single_value}
         else:
@@ -171,7 +222,7 @@ class MultiValues:
                 return
             yield from self._values.values()
 
-    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.Base]]]:
+    def items(self) -> Iterator[Tuple[int, Set[claripy.ast.Bits]]]:
         if self._single_value is not None:
             yield 0, {self._single_value}
         else:
@@ -186,6 +237,37 @@ class MultiValues:
         if self._values is None:
             return 0
         return len(self._values)
+
+    def extract(self, offset: int, length: int, endness: str) -> "MultiValues":
+        end = offset + length
+        result = MultiValues(claripy.BVV(b""))
+        for obj_offset, values in self.items():
+            if obj_offset >= end:
+                break
+            for value in values:
+                obj_length = len(value) // 8
+                if obj_offset + obj_length < offset:
+                    continue
+
+                slice_start = max(0, offset - obj_offset)
+                slice_end = min(obj_length, end - obj_offset)
+                sliced = bv_slice(value, slice_start, slice_end - slice_start, endness == archinfo.Endness.LE, 8)
+                if len(sliced):
+                    result.add_value(max(0, obj_offset - offset), sliced)
+
+        return result
+
+    def concat(self, other: Union["MultiValues", claripy.ast.Bits, bytes]) -> "MultiValues":
+        if isinstance(other, bytes):
+            other = claripy.BVV(other)
+        if isinstance(other, claripy.ast.Bits):
+            other = MultiValues(other)
+        offset = len(self) // 8
+        result = MultiValues(self)
+        for k, v in other.items():
+            for v2 in v:
+                result.add_value(k + offset, v2)
+        return result
 
     #
     # Private methods

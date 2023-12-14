@@ -69,13 +69,17 @@ class ExpressionReplacer(AILBlockWalker):
 
 class ITEExprConverter(OptimizationPass):
     """
-    Transform specific expressions into If-Then-Else expressions, or tertiary expressions in C.
+    Transform specific expressions into If-Then-Else expressions, or tertiary expressions in C when
+    given a single-use expression address. Requires outside analysis to provide the target expressions.
     """
 
     ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM", "MIPS32", "MIPS64"]
     PLATFORMS = ["windows", "linux", "cgc"]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
-    NAME = "Transform expressions that were assigned to in different If-Else branches into ternary expressions"
+    NAME = (
+        "Transform single-use expressions that were assigned to in different "
+        "If-Else branches into ternary expressions"
+    )
     DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, ite_exprs=None, **kwargs):

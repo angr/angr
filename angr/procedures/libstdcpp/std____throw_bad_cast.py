@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# std::__throw_bad_cast
-######################################
-
 
 class std____throw_bad_cast(angr.SimProcedure):  # pylint:disable=redefined-builtin
     # pylint:disable=arguments-differ

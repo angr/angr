@@ -11,3 +11,7 @@ jobs:
     with:
       nightly: true
     secrets: inherit
+  windows:
+    uses: ./.github/workflows/windows.yml
+  macos:
+    uses: ./.github/workflows/macos.yml

@@ -91,9 +91,6 @@ class RegionIdentifier(Analysis):
 
         self._start_node = self._get_start_node(graph)
 
-        # preprocess: find loop headers
-        self._loop_headers = self._find_loop_headers(graph)
-
         self.region = self._make_regions(graph)
 
         # make regions into block address lists
@@ -364,36 +361,48 @@ class RegionIdentifier(Analysis):
 
         # FIXME: _get_start_node() will fail if the graph is just a loop
 
-        # Find all loops
+        # iteratively find and make loop regions
         while True:
-            restart = False
+            # find loop headers
+            self._loop_headers = self._find_loop_headers(graph)
+            if not self._loop_headers:
+                break
 
-            self._start_node = self._get_start_node(graph)
+            # Find all loops
+            while True:
+                restart = False
 
-            # Start from loops
-            for node in list(reversed(self._loop_headers)):
-                if node in structured_loop_headers:
-                    continue
-                if node not in graph:
-                    continue
-                region = self._make_cyclic_region(node, graph)
-                if region is None:
-                    # failed to struct the loop region - remove the header node from loop headers
-                    l.debug(
-                        "Failed to structure a loop region starting at %#x. Remove it from loop headers.", node.addr
-                    )
-                    self._loop_headers.remove(node)
-                else:
-                    l.debug("Structured a loop region %r.", region)
-                    new_regions.append(region)
-                    structured_loop_headers.add(node)
-                    restart = True
+                self._start_node = self._get_start_node(graph)
+
+                # re-find loop headers
+                self._loop_headers = self._find_loop_headers(graph)
+                if not self._loop_headers:
                     break
 
-            if restart:
-                continue
+                # Start from loops
+                for node in list(reversed(self._loop_headers)):
+                    if node in structured_loop_headers:
+                        continue
+                    if node not in graph:
+                        continue
+                    region = self._make_cyclic_region(node, graph)
+                    if region is None:
+                        # failed to struct the loop region - remove the header node from loop headers
+                        l.debug(
+                            "Failed to structure a loop region starting at %#x. Remove it from loop headers.", node.addr
+                        )
+                        self._loop_headers.remove(node)
+                    else:
+                        l.debug("Structured a loop region %r.", region)
+                        new_regions.append(region)
+                        structured_loop_headers.add(node)
+                        restart = True
+                        break
 
-            break
+                if restart:
+                    continue
+
+                break
 
         new_regions.append(GraphRegion(self._get_start_node(graph), graph, None, None, False, None))
 

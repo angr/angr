@@ -1,4 +1,4 @@
-from typing import Set, Optional, Literal, TypeVar, Union, Generic
+from typing import Set, Optional, Literal, Type, TypeVar, Union, Generic
 from dataclasses import dataclass
 import logging
 
@@ -10,8 +10,8 @@ from angr.sim_variable import SimRegisterVariable
 from angr.misc.ux import once
 
 from ...engines.light import SpOffset
-from ...code_location import CodeLocation
-from .atoms import Atom, MemoryLocation, Register, Tmp, GuardUse, ConstantSrc, AtomKind
+from ...code_location import CodeLocation, ExternalCodeLocation
+from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping
 from .tag import Tag
 from ...sim_variable import SimVariable
 
@@ -25,7 +25,7 @@ class DefinitionMatchPredicate:
     internal class; don't worry about this.
     """
 
-    kind: Optional[AtomKind] = None
+    kind: Union[AtomKind, Type[Atom], None] = None
     bbl_addr: Optional[int] = None
     ins_addr: Optional[int] = None
     variable: Optional[SimVariable] = None
@@ -36,6 +36,7 @@ class DefinitionMatchPredicate:
     global_addr: Optional[int] = None
     tmp_idx: Optional[int] = None
     const_val: Optional[int] = None
+    extern: Optional[bool] = None
 
     @staticmethod
     def construct(predicate: Optional["DefinitionMatchPredicate"] = None, **kwargs) -> "DefinitionMatchPredicate":
@@ -96,10 +97,16 @@ class DefinitionMatchPredicate:
             return False
         if self.ins_addr is not None and defn.codeloc.ins_addr != self.ins_addr:
             return False
+        if self.extern is not None and isinstance(defn.codeloc, ExternalCodeLocation) != self.extern:
+            return False
+
+        if self.kind is not None:
+            if not isinstance(self.kind, type):
+                self.kind = atom_kind_mapping[self.kind]
+            if not isinstance(defn.atom, self.kind):
+                return False
 
         if isinstance(defn.atom, Register):
-            if self.kind not in (None, AtomKind.REGISTER):
-                return False
             if self.reg_name is not None:
                 if isinstance(self.reg_name, int):
                     if not defn.atom.reg_offset <= self.reg_name < defn.atom.reg_offset + defn.atom.size:
@@ -108,16 +115,14 @@ class DefinitionMatchPredicate:
                     if defn.atom.arch is not None:
                         if self.reg_name != defn.atom.name:
                             return False
-                        else:
-                            log.warning(
-                                "Attempting to match by register name against a definition which does not have an arch"
-                            )
-                            return False
+                    else:
+                        log.warning(
+                            "Attempting to match by register name against a definition which does not have an arch"
+                        )
+                        return False
                 else:
                     raise TypeError(self.reg_name)
         elif isinstance(defn.atom, MemoryLocation):
-            if self.kind not in (None, AtomKind.MEMORY):
-                return False
             if self.stack_offset is not None:
                 if (
                     not isinstance(defn.atom.addr, SpOffset)
@@ -126,18 +131,8 @@ class DefinitionMatchPredicate:
                 ):
                     return False
         elif isinstance(defn.atom, Tmp):
-            if self.kind not in (None, AtomKind.TMP):
-                return False
             if self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
                 return False
-        elif isinstance(defn.atom, GuardUse):
-            if self.kind not in (None, AtomKind.GUARD):
-                return False
-        elif isinstance(defn.atom, ConstantSrc):
-            if self.kind not in (None, AtomKind.CONSTANT):
-                return False
-        else:
-            raise TypeError(type(defn))
 
         return True
 
@@ -164,7 +159,7 @@ class Definition(Generic[A]):
         "_hash",
     )
 
-    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: Set[Tag] = None):
+    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: Optional[Set[Tag]] = None):
         self.atom: A = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy

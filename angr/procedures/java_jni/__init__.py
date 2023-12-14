@@ -6,7 +6,7 @@ import typing
 from archinfo import ArchSoot
 from claripy import BVV, StrSubstr
 
-from ...calling_conventions import DefaultCC
+from ...calling_conventions import default_cc
 from ...sim_procedure import SimProcedure
 from ...sim_type import SimTypeFunction
 from ...state_plugins.sim_action_object import SimActionObject
@@ -34,7 +34,7 @@ class JNISimProcedure(SimProcedure):
             prototype = SimTypeFunction(
                 args=self.prototype.args, returnty=state.project.simos.get_native_type(self.return_ty)
             )
-            self.cc = DefaultCC[state.arch.name](state.arch)
+            self.cc = default_cc(state.arch.name, platform=state.project.simos.name)(state.arch)
             self.prototype = prototype
         super().execute(state, successors, arguments, ret_to)
 

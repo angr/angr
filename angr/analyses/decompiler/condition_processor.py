@@ -13,6 +13,7 @@ from ...utils.lazy_import import lazy_import
 from ...utils import is_pyinstaller
 from ...utils.graph import dominates, inverted_idoms
 from ...block import Block, BlockNode
+from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .structuring.structurer_nodes import (
     MultiNode,
     EmptyBlockNotice,
@@ -28,7 +29,7 @@ from .structuring.structurer_nodes import (
     IncompleteSwitchCaseNode,
 )
 from .graph_region import GraphRegion
-from .utils import first_nonlabel_statement
+from .utils import first_nonlabel_statement, peephole_optimize_expr
 
 if is_pyinstaller():
     # PyInstaller is not happy with lazy import
@@ -68,8 +69,8 @@ def _op_with_unified_size(op, conv, operand0, operand1):
     return op(conv(operand0, nobool=True), conv(operand1, nobool=True))
 
 
-def _dummy_bvs(condition, condition_mapping):
-    var = claripy.BVS("ailexpr_%s" % repr(condition), condition.bits, explicit_name=True)
+def _dummy_bvs(condition, condition_mapping, name_suffix=""):
+    var = claripy.BVS(f"ailexpr_{repr(condition)}{name_suffix}", condition.bits, explicit_name=True)
     condition_mapping[var.args[0]] = condition
     return var
 
@@ -93,19 +94,23 @@ _ail2claripy_op_mapping = {
     "Div": lambda expr, conv, _: conv(expr.operands[0], nobool=True) / conv(expr.operands[1], nobool=True),
     "Mod": lambda expr, conv, _: conv(expr.operands[0], nobool=True) % conv(expr.operands[1], nobool=True),
     "Not": lambda expr, conv, _: claripy.Not(conv(expr.operand)),
-    "Neg": lambda expr, conv, _: ~conv(expr.operand),
+    "Neg": lambda expr, conv, _: -conv(expr.operand),
+    "BitwiseNeg": lambda expr, conv, _: ~conv(expr.operand),
     "Xor": lambda expr, conv, _: conv(expr.operands[0], nobool=True) ^ conv(expr.operands[1], nobool=True),
     "And": lambda expr, conv, _: conv(expr.operands[0], nobool=True) & conv(expr.operands[1], nobool=True),
     "Or": lambda expr, conv, _: conv(expr.operands[0], nobool=True) | conv(expr.operands[1], nobool=True),
     "Shr": lambda expr, conv, _: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
     "Shl": lambda expr, conv, _: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
     "Sar": lambda expr, conv, _: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
+    "Concat": lambda expr, conv, _: claripy.Concat(*[conv(operand) for operand in expr.operands]),
     # There are no corresponding claripy operations for the following operations
     "DivMod": lambda expr, _, m: _dummy_bvs(expr, m),
     "CmpF": lambda expr, _, m: _dummy_bvs(expr, m),
     "Mull": lambda expr, _, m: _dummy_bvs(expr, m),
     "Mulls": lambda expr, _, m: _dummy_bvs(expr, m),
     "Reinterpret": lambda expr, _, m: _dummy_bvs(expr, m),
+    "Rol": lambda expr, _, m: _dummy_bvs(expr, m),
+    "Ror": lambda expr, _, m: _dummy_bvs(expr, m),
 }
 
 #
@@ -126,6 +131,10 @@ class ConditionProcessor:
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
+
+        self._peephole_expr_optimizations = [
+            cls(None, None, None) for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions]
+        ]
 
     def clear(self):
         self._condition_mapping = {}
@@ -610,6 +619,8 @@ class ConditionProcessor:
         if cond._hash in memo:
             return memo[cond._hash]
         r = self.convert_claripy_bool_ast_core(cond, memo)
+        optimized_r = peephole_optimize_expr(r, self._peephole_expr_optimizations)
+        r = r if optimized_r is None else optimized_r
         memo[cond._hash] = r
         return r
 
@@ -642,7 +653,8 @@ class ConditionProcessor:
 
         _mapping = {
             "Not": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
-            "__invert__": lambda cond_, tags: _unary_op_reduce("Neg", cond_.args[0], tags),
+            "__neg__": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
+            "__invert__": lambda cond_, tags: _unary_op_reduce("BitwiseNeg", cond_.args[0], tags),
             "And": lambda cond_, tags: _binary_op_reduce("LogicalAnd", cond_.args, tags),
             "Or": lambda cond_, tags: _binary_op_reduce("LogicalOr", cond_.args, tags),
             "__le__": lambda cond_, tags: _binary_op_reduce("CmpLE", cond_.args, tags, signed=True),
@@ -675,6 +687,9 @@ class ConditionProcessor:
             if cond_.args[0] is True
             else ailment.Expr.Const(None, None, False, 1, **tags),
             "Extract": lambda cond_, tags: self._convert_extract(*cond_.args, tags, memo=memo),
+            "ZeroExt": lambda cond_, tags: _binary_op_reduce(
+                "Concat", [claripy.BVV(0, cond_.args[0]), cond_.args[1]], tags
+            ),
         }
 
         if cond.op in _mapping:
@@ -696,9 +711,11 @@ class ConditionProcessor:
 
         if isinstance(
             condition,
-            (ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE, ailment.Stmt.Call),
+            (ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE),
         ):
             return _dummy_bvs(condition, self._condition_mapping)
+        elif isinstance(condition, ailment.Stmt.Call):
+            return _dummy_bvs(condition, self._condition_mapping, name_suffix=hex(condition.tags.get("ins_addr", 0)))
         elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
             # does it have a variable associated?
             if condition.variable is not None:

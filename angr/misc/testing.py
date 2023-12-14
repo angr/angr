@@ -1,6 +1,6 @@
 import sys
 
-TESTER_MODULE_NAMES = ["unittest", "pytest", "nose", "nose2"]
+TESTER_MODULE_NAMES = ["unittest", "pytest", "_pytest", "nose", "nose2"]
 
 
 def detect_test_env():

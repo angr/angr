@@ -68,7 +68,42 @@ class BlockWalker(AILBlockWalker):
             return new_stmt
         return None
 
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional[Block]):
+        new_target = self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
+
+        new_args = None
+        if expr.args:
+            i = 0
+            new_exprs = []
+            while i < len(expr.args):
+                arg = expr.args[i]
+                new_expr = self._handle_expr(i, arg, stmt_idx, stmt, block)
+                new_exprs.append(new_expr)
+                i += 1
+            if any(expr_ is not None for expr_ in new_exprs):
+                # create new args
+                new_args = [
+                    (new_arg if new_arg is not None else old_arg) for new_arg, old_arg in zip(new_exprs, expr.args)
+                ]
+
+        if new_target is not None or new_args is not None:
+            # create a new call expr
+            new_expr = Call(
+                expr.idx,
+                expr.target if new_target is None else new_target,
+                calling_convention=expr.calling_convention,
+                prototype=expr.prototype,
+                args=new_args if new_args is not None else expr.args,
+                ret_expr=expr.ret_expr,
+                **expr.tags,
+            )
+            return new_expr
+        return None
+
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block):
+        new_target = self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
+
+        new_args = None
         if stmt.args:
             i = 0
             new_exprs = []
@@ -78,20 +113,23 @@ class BlockWalker(AILBlockWalker):
                 new_exprs.append(new_expr)
                 i += 1
             if any(expr is not None for expr in new_exprs):
-                # create a new statement
+                # create new args
                 new_args = [
                     (new_arg if new_arg is not None else old_arg) for new_arg, old_arg in zip(new_exprs, stmt.args)
                 ]
-                new_stmt = Call(
-                    stmt.idx,
-                    stmt.target,
-                    calling_convention=stmt.calling_convention,
-                    prototype=stmt.prototype,
-                    args=new_args,
-                    ret_expr=stmt.ret_expr,
-                    **stmt.tags,
-                )
-                return new_stmt
+
+        if new_target is not None or new_args is not None:
+            # create a new statement
+            new_stmt = Call(
+                stmt.idx,
+                stmt.target if new_target is None else new_target,
+                calling_convention=stmt.calling_convention,
+                prototype=stmt.prototype,
+                args=new_args if new_args is not None else stmt.args,
+                ret_expr=stmt.ret_expr,
+                **stmt.tags,
+            )
+            return new_stmt
         return None
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block):
@@ -99,11 +137,15 @@ class BlockWalker(AILBlockWalker):
             # *(const_addr)
             # does it belong to a read-only section/segment?
             if self._addr_belongs_to_got(expr.addr.value) or self._addr_belongs_to_ro_region(expr.addr.value):
-                w = self._project.loader.memory.unpack_word(
-                    expr.addr.value,
-                    expr.addr.bits // self._project.arch.byte_width,
-                    endness=self._project.arch.memory_endness,
-                )
+                try:
+                    w = self._project.loader.memory.unpack_word(
+                        expr.addr.value,
+                        expr.addr.bits // self._project.arch.byte_width,
+                        endness=self._project.arch.memory_endness,
+                    )
+                except KeyError:
+                    # we don't have enough bytes to read out
+                    w = None
                 if w is not None:
                     # nice! replace it with the actual value
                     return Const(None, None, w, expr.bits, **expr.tags)
@@ -182,6 +224,8 @@ class BlockWalker(AILBlockWalker):
                 new_cond if new_cond is not None else stmt.condition,
                 new_true_target if new_true_target is not None else stmt.true_target,
                 new_false_target if new_false_target is not None else stmt.false_target,
+                true_target_idx=stmt.true_target_idx,
+                false_target_idx=stmt.false_target_idx,
                 **stmt.tags,
             )
         return None
@@ -194,10 +238,9 @@ class ConstantDereferencesSimplifier(OptimizationPass):
         *(*(const_addr))  ==>  *(value) iff  *const_addr == value
     """
 
-    # TODO: This optimization pass may support more architectures and platforms
-    ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM", "MIPS32", "MIPS64"]
-    PLATFORMS = ["linux"]
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    ARCHES = None
+    PLATFORMS = None
+    STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Simplify constant dereferences"
     DESCRIPTION = __doc__.strip()
 

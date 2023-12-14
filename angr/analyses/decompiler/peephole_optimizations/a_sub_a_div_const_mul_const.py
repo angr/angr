@@ -9,7 +9,7 @@ class ASubADivConstMulConst(PeepholeOptimizationExprBase):
     NAME = "a - (a / N) * N => a % N"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         if (
             expr.op == "Sub"
             and len(expr.operands) == 2

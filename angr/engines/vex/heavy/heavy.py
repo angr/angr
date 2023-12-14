@@ -338,8 +338,13 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 extra_constraints=(claripy.Not(guard),)
             ):
                 exit_state = self.state
+            # one more step, when LAZY_SOLVES is enabled, ignore "bad" jumpkinds
+            elif o.LAZY_SOLVES in self.state.options and jumpkind.startswith("Ijk_Sig"):
+                cont_state = self.state
             else:
-                exit_state = self.state.copy()
+                if o.LAZY_SOLVES not in self.state.options or not jumpkind.startswith("Ijk_Sig"):
+                    # when LAZY_SOLVES is enabled, we ignore "bad" jumpkinds
+                    exit_state = self.state.copy()
                 cont_state = self.state
         else:
             exit_state = self.state.copy()

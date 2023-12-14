@@ -3,6 +3,7 @@ from typing import Optional, List, Callable
 from collections import defaultdict
 
 from .structuring import structurer_class_from_name
+from .structuring.phoenix import MultiStmtExprMode
 
 
 class DecompilationOption:
@@ -66,6 +67,16 @@ options = [
         default_value=False,
     ),
     O(
+        "Rewrite ITE expressions into diamond-shaped control-flow regions",
+        "Rewrite ITE expressions into diamond-shaped control-flow regions, which usually result in better decompilation"
+        " output.",
+        bool,
+        "clinic",
+        "rewrite_ites_to_diamonds",
+        category="Graph",
+        default_value=True,
+    ),
+    O(
         "Leave the largest loop successor tree outside the loop region",
         "During region identification, treating the largest successor tree of a loop as a member of the loop body "
         "sometimes leads to seemingly unnatural and gigantic loops. Enabling this option will treat such successor "
@@ -87,6 +98,15 @@ options = [
         default_value=True,
     ),
     O(
+        "Simplify if-else to remove terminating else scopes",
+        "Removes terminating else scopes to make the code appear more flat.",
+        bool,
+        "region_simplifier",
+        "simplify_ifelse",
+        category="Graph",
+        default_value=True,
+    ),
+    O(
         "Show casts",
         "Disabling this option will blindly remove all C typecast constructs from pseudocode output.",
         bool,
@@ -103,7 +123,7 @@ options = [
         "codegen",
         "comment_gotos",
         category="Display",
-        default_value=True,
+        default_value=False,
         clears_cache=False,
     ),
     O(
@@ -178,14 +198,58 @@ options = [
         default_value=True,
         clears_cache=True,
     ),
+    O(
+        "C-style null compares",
+        "Rewrites the (x == 0) => (!x) && (x != 0) => (x)",
+        bool,
+        "codegen",
+        "cstyle_null_cmp",
+        category="Display",
+        default_value=True,
+        clears_cache=True,
+    ),
+    O(
+        "Simplified else",
+        "Removes redundant else scopes",
+        bool,
+        "codegen",
+        "simplify_else_scope",
+        category="Display",
+        default_value=True,
+        clears_cache=True,
+    ),
+    O(
+        "C-style if statements",
+        "Omits braces for single statement if blocks that have no else",
+        bool,
+        "codegen",
+        "cstyle_ifs",
+        category="Display",
+        default_value=True,
+        clears_cache=True,
+    ),
+    O(
+        "Multi-expression statements generation",
+        "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
+        type,
+        "recursive_structurer",
+        "use_multistmtexprs",
+        category="Structuring",
+        default_value=MultiStmtExprMode.MAX_ONE_CALL.value,
+        candidate_values=[op.value for op in MultiStmtExprMode],
+        clears_cache=True,
+        convert=MultiStmtExprMode,
+    ),
 ]
 
 # NOTE: if you add a codegen option here, please add it to reapply_options
 
 options_by_category = defaultdict(list)
+PARAM_TO_OPTION = {}
 
 for o in options:
     options_by_category[o.category].append(o)
+    PARAM_TO_OPTION[o.param] = o
 
 
 #

@@ -1,7 +1,7 @@
 # pylint: disable=wildcard-import
 # pylint: disable=wrong-import-position
 
-__version__ = "9.2.51.dev0"
+__version__ = "9.2.82.dev0"
 
 if bytes is str:
     raise Exception(
@@ -57,7 +57,7 @@ from .state_plugins.inspect import BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPY
 from .state_plugins.inspect import BP
 from .state_plugins import SimStatePlugin
 
-from .project import *
+from .project import Project, load_shellcode
 from .errors import *
 from .blade import Blade
 from .simos import SimOS
@@ -73,7 +73,7 @@ from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
 from . import engines
-from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
+from .calling_conventions import default_cc, DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
 from .storage.file import (
     SimFileBase,
     SimFile,
@@ -87,9 +87,63 @@ from .state_plugins.filesystem import SimMount, SimHostFilesystem
 from .state_plugins.heap import SimHeapBrk, SimHeapPTMalloc, PTChunk
 from . import concretization_strategies
 from .distributed import Server
+from .knowledge_base import KnowledgeBase
 
 # for compatibility reasons
 from . import sim_manager as manager
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
+
+__all__ = (
+    "SimProcedure",
+    "SIM_PROCEDURES",
+    "SIM_LIBRARIES",
+    "sim_options",
+    "options",
+    "BP_BEFORE",
+    "BP_AFTER",
+    "BP_BOTH",
+    "BP_IPDB",
+    "BP_IPYTHON",
+    "BP",
+    "SimStatePlugin",
+    "Project",
+    "load_shellcode",
+    "Blade",
+    "SimOS",
+    "Block",
+    "SimulationManager",
+    "Analysis",
+    "register_analysis",
+    "analyses",
+    "knowledge_plugins",
+    "exploration_techniques",
+    "ExplorationTechnique",
+    "types",
+    "StateHierarchy",
+    "SimState",
+    "engines",
+    "DEFAULT_CC",
+    "default_cc",
+    "SYSCALL_CC",
+    "PointerWrapper",
+    "SimCC",
+    "SimFileBase",
+    "SimFile",
+    "SimPackets",
+    "SimFileStream",
+    "SimPacketsStream",
+    "SimFileDescriptor",
+    "SimFileDescriptorDuplex",
+    "SimMount",
+    "SimHostFilesystem",
+    "SimHeapBrk",
+    "SimHeapPTMalloc",
+    "PTChunk",
+    "concretization_strategies",
+    "Server",
+    "manager",
+    "SimProcedures",
+    "KnowledgeBase",
+)

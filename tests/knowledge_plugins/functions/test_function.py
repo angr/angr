@@ -1,4 +1,5 @@
-from unittest import TestCase
+#!/usr/bin/env python3
+from unittest import main, TestCase
 
 import networkx
 
@@ -84,3 +85,7 @@ class TestFunction(TestCase):
         )
 
         self.assertEqual(function.functions_called(), {function, C})
+
+
+if __name__ == "__main__":
+    main()

@@ -3,7 +3,7 @@ from typing import Optional, Iterable
 import claripy
 import logging
 
-from angr.calling_conventions import DEFAULT_CC, SimRegArg
+from angr.calling_conventions import DEFAULT_CC, default_cc, SimRegArg
 from angr.engines.engine import SuccessorsMixin, SimSuccessors
 from angr.misc.ux import once
 from ...utils.constants import DEFAULT_STATEMENT
@@ -198,7 +198,10 @@ class HeavyPcodeMixin(
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
                 # get the default calling convention for the architecture and retrieve the return value offset
                 if exit_state.arch.name in DEFAULT_CC:
-                    cc = DEFAULT_CC[exit_state.arch.name]
+                    cc = default_cc(
+                        exit_state.arch.name,
+                        platform=self.project.simos.name if self.project.simos is not None else None,
+                    )
                     ret_reg = cc.RETURN_VAL
                     if isinstance(ret_reg, SimRegArg):
                         ret_offset = exit_state.arch.registers[ret_reg.reg_name][0]

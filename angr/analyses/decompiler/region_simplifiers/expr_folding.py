@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring,unused-argument
 from collections import defaultdict
-from typing import Optional, Any, Dict, Set, Tuple, Iterable, DefaultDict, TYPE_CHECKING
+from typing import Optional, Any, Dict, Set, Tuple, Iterable, Union, DefaultDict, TYPE_CHECKING
 
 import ailment
 from ailment import Expression, Block, AILBlockWalker
@@ -18,6 +18,7 @@ from ..structuring.structurer_nodes import (
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+    from ailment.expression import MultiStatementExpression
 
 
 class LocationBase:
@@ -127,6 +128,23 @@ class ConditionalBreakLocation(LocationBase):
         return isinstance(other, ConditionalBreakLocation) and self.node_addr == other.node_addr
 
 
+class MultiStatementExpressionAssignmentFinder(AILBlockWalker):
+    """
+    Process statements in MultiStatementExpression objects and find assignments.
+    """
+
+    def __init__(self, stmt_handler):
+        super().__init__()
+        self._stmt_handler = stmt_handler
+
+    def _handle_MultiStatementExpression(
+        self, expr_idx, expr: "MultiStatementExpression", stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
+        for idx, stmt_ in enumerate(expr.stmts):
+            self._stmt_handler(idx, stmt_, block)
+        return super()._handle_MultiStatementExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class ExpressionUseFinder(AILBlockWalker):
     """
     Find where each variable is used.
@@ -208,38 +226,46 @@ class ExpressionCounter(SequenceWalker):
 
         return self._variable_manager.unified_variable(v)
 
+    def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: Union[ailment.Block, LoopNode]):
+        if isinstance(stmt, ailment.Stmt.Assignment):
+            if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
+                u = self._u(stmt.dst.variable)
+                if u is not None:
+                    # dependency
+                    dependency_finder = ExpressionUseFinder()
+                    dependency_finder.walk_expression(stmt.src)
+                    dependencies = tuple({self._u(v) for v in dependency_finder.uses})
+                    self.assignments[u].add(
+                        (
+                            stmt.src,
+                            dependencies,
+                            StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
+                            dependency_finder.has_load,
+                        )
+                    )
+        if (
+            isinstance(stmt, ailment.Stmt.Call)
+            and isinstance(stmt.ret_expr, ailment.Expr.Register)
+            and stmt.ret_expr.variable is not None
+        ):
+            u = self._u(stmt.ret_expr.variable)
+            if u is not None:
+                dependency_finder = ExpressionUseFinder()
+                dependency_finder.walk_expression(stmt)
+                dependencies = tuple({self._u(v) for v in dependency_finder.uses})
+                self.assignments[u].add(
+                    (
+                        stmt,
+                        dependencies,
+                        StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
+                        dependency_finder.has_load,
+                    )
+                )
+
     def _handle_Block(self, node: ailment.Block, **kwargs):
         # find assignments
         for idx, stmt in enumerate(node.statements):
-            if isinstance(stmt, ailment.Stmt.Assignment):
-                if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
-                    u = self._u(stmt.dst.variable)
-                    if u is not None:
-                        # dependency
-                        dependency_finder = ExpressionUseFinder()
-                        dependency_finder.walk_expression(stmt.src)
-                        dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                        self.assignments[u].add(
-                            (
-                                stmt.src,
-                                dependencies,
-                                StatementLocation(node.addr, node.idx, idx),
-                                dependency_finder.has_load,
-                            )
-                        )
-            if (
-                isinstance(stmt, ailment.Stmt.Call)
-                and isinstance(stmt.ret_expr, ailment.Expr.Register)
-                and stmt.ret_expr.variable is not None
-            ):
-                u = self._u(stmt.ret_expr.variable)
-                if u is not None:
-                    dependency_finder = ExpressionUseFinder()
-                    dependency_finder.walk_expression(stmt)
-                    dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                    self.assignments[u].add(
-                        (stmt, dependencies, StatementLocation(node.addr, node.idx, idx), dependency_finder.has_load)
-                    )
+            self._handle_Statement(idx, stmt, node)
 
         # walk the block and find uses of variables
         use_finder = ExpressionUseFinder()
@@ -251,6 +277,10 @@ class ExpressionCounter(SequenceWalker):
                 if u not in self.uses:
                     self.uses[u] = set()
                 self.uses[u] |= content
+
+    def _collect_assignments(self, expr: ailment.Expr, node) -> None:
+        finder = MultiStatementExpressionAssignmentFinder(self._handle_Statement)
+        finder.walk_expression(expr, None, None, node)
 
     def _collect_uses(self, expr: Expression, loc: LocationBase):
         use_finder = ExpressionUseFinder()
@@ -267,16 +297,19 @@ class ExpressionCounter(SequenceWalker):
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         # collect uses on the condition expression
+        self._collect_assignments(node.condition, node)
         self._collect_uses(node.condition, ConditionalBreakLocation(node.addr))
         return super()._handle_ConditionalBreak(node, **kwargs)
 
     def _handle_Condition(self, node: ConditionNode, **kwargs):
         # collect uses on the condition expression
+        self._collect_assignments(node.condition, node)
         self._collect_uses(node.condition, ConditionLocation(node.addr))
         return super()._handle_Condition(node, **kwargs)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
         for idx, (condition, _) in enumerate(node.condition_and_nodes):
+            self._collect_assignments(condition, node)
             self._collect_uses(condition, ConditionLocation(node.addr, idx))
         return super()._handle_CascadingCondition(node, **kwargs)
 
@@ -287,6 +320,7 @@ class ExpressionCounter(SequenceWalker):
         if node.iterator is not None:
             self._collect_uses(node.iterator, ConditionLocation(node.addr))
         if node.condition is not None:
+            self._collect_assignments(node.condition, node)
             self._collect_uses(node.condition, ConditionLocation(node.addr))
         return super()._handle_Loop(node, **kwargs)
 
@@ -308,6 +342,48 @@ class ExpressionReplacer(AILBlockWalker):
         """
         return self._variable_manager.unified_variable(v)
 
+    def _handle_MultiStatementExpression(
+        self, expr_idx, expr: "MultiStatementExpression", stmt_idx: int, stmt: Statement, block: Optional[Block]
+    ):
+        changed = False
+        new_statements = []
+        for idx, stmt_ in enumerate(expr.stmts):
+            if (
+                isinstance(stmt_, Assignment)
+                and isinstance(stmt_.dst, ailment.Expr.Register)
+                and stmt_.dst.variable is not None
+            ):
+                if stmt_.dst.variable in self._assignments:
+                    # remove this statement
+                    changed = True
+                    continue
+
+            new_stmt = self._handle_stmt(idx, stmt_, None)
+            if new_stmt is not None and new_stmt is not stmt_:
+                changed = True
+                if isinstance(new_stmt, Assignment) and new_stmt.src.likes(new_stmt.dst):
+                    # this statement is simplified into reg = reg. ignore it
+                    continue
+                new_statements.append(new_stmt)
+            else:
+                new_statements.append(stmt_)
+
+        new_expr = self._handle_expr(0, expr.expr, stmt_idx, stmt, block)
+        if new_expr is not None and new_expr is not expr.expr:
+            changed = True
+        else:
+            new_expr = expr.expr
+
+        if changed:
+            if not new_statements:
+                # it is no longer a multi-statement expression
+                return new_expr
+            expr_ = expr.copy()
+            expr_.expr = new_expr
+            expr_.stmts = new_statements
+            return expr_
+        return None
+
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Optional[Block]):
         # override the base handler and make sure we do not replace .dst with a Call expression
         changed = False
@@ -325,9 +401,12 @@ class ExpressionReplacer(AILBlockWalker):
             src = stmt.src
 
         if changed:
-            # update the statement directly in the block
             new_stmt = Assignment(stmt.idx, dst, src, **stmt.tags)
-            block.statements[stmt_idx] = new_stmt
+            if block is not None:
+                # update the statement directly in the block
+                block.statements[stmt_idx] = new_stmt
+            return new_stmt
+        return None
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
@@ -402,7 +481,7 @@ class ExpressionFolder(SequenceWalker):
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
         replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
-        for idx in range(len(node.condition_and_nodes)):
+        for idx in range(len(node.condition_and_nodes)):  # pylint:disable=consider-using-enumerate
             cond, _ = node.condition_and_nodes[idx]
             r = replacer.walk_expression(cond)
             if r is not None and r is not cond:

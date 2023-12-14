@@ -13,21 +13,24 @@ from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from ...misc.ux import deprecated
 from ..forward_analysis.visitors.graph import NodeType
 from ..analysis import Analysis
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
-from .subject import Subject
+from .rd_initializer import RDAStateInitializer
+from .subject import Subject, SubjectType
 from .function_handler import FunctionHandler, FunctionCallRelationships
 from .dep_graph import DepGraph
 
 if TYPE_CHECKING:
     from typing import Literal
 
-    ObservationPoint = Tuple[Literal["insn", "node", "stmt"], Union[int, Tuple[int, int, int]], ObservationPointType]
+    ObservationPoint = Tuple[
+        Literal["insn", "node", "stmt", "exit"], Union[int, Tuple[int, int], Tuple[int, int, int]], ObservationPointType
+    ]
 
 l = logging.getLogger(name=__name__)
 
@@ -58,6 +61,7 @@ class ReachingDefinitionsAnalysis(
         observation_points: "Iterable[ObservationPoint]" = None,
         init_state: ReachingDefinitionsState = None,
         init_context=None,
+        state_initializer: Optional["RDAStateInitializer"] = None,
         cc=None,
         function_handler: "Optional[FunctionHandler]" = None,
         observe_all=False,
@@ -66,6 +70,10 @@ class ReachingDefinitionsAnalysis(
         observe_callback=None,
         canonical_size=8,
         stack_pointer_tracker=None,
+        use_callee_saved_regs_at_return=True,
+        interfunction_level: int = 0,
+        track_liveness: bool = True,
+        func_addr: Optional[int] = None,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -95,6 +103,12 @@ class ReachingDefinitionsAnalysis(
                                                 for operations where sizes are necessary.
         :param dep_graph:                       Set this to True to generate a dependency graph for the subject. It will
                                                 be available as `result.dep_graph`.
+        :param interfunction_level:             The number of functions we should recurse into. This parameter is only
+                                                used if function_handler is not provided.
+        :param track_liveness:                  Whether to track liveness information. This can consume
+                                                sizeable amounts of RAM on large functions. (e.g. ~15GB for a function
+                                                with 4k nodes)
+
         """
 
         if isinstance(subject, str):
@@ -115,6 +129,8 @@ class ReachingDefinitionsAnalysis(
         self._observation_points = observation_points
         self._init_state = init_state
         self._canonical_size = canonical_size
+        self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        self._func_addr = func_addr
 
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
@@ -124,13 +140,20 @@ class ReachingDefinitionsAnalysis(
             self._dep_graph = dep_graph
 
         if function_handler is None:
-            self._function_handler = FunctionHandler().hook(self)
+            self._function_handler = FunctionHandler(interfunction_level).hook(self)
         else:
+            if interfunction_level != 0:
+                l.warning("RDA(interfunction_level=XXX) doesn't do anything if you provide a function handler")
             self._function_handler = function_handler.hook(self)
 
         if self._init_state is not None:
             self._init_state = self._init_state.copy()
             self._init_state.analysis = self
+            # There should never be an initializer needed then
+            self._state_initializer = None
+        else:
+            self._state_initializer = state_initializer
+
         self._init_context = init_context
 
         self._observe_all = observe_all
@@ -142,6 +165,24 @@ class ReachingDefinitionsAnalysis(
 
         self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
+        self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
+            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None,
+            track_liveness=track_liveness,
+        )
+
+        bp_as_gpr = False
+        the_func = None
+        if isinstance(self.subject.content, Function):
+            the_func = self.subject.content
+        else:
+            if self._func_addr is not None:
+                try:
+                    the_func = self.kb.functions.get_by_addr(self._func_addr)
+                except KeyError:
+                    pass
+        if the_func is not None:
+            bp_as_gpr = the_func.info.get("bp_as_gpr", False)
+
         self._engine_vex = SimEngineRDVEX(
             self.project,
             functions=self.kb.functions,
@@ -151,12 +192,11 @@ class ReachingDefinitionsAnalysis(
             self.project,
             function_handler=self._function_handler,
             stack_pointer_tracker=stack_pointer_tracker,
+            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            bp_as_gpr=bp_as_gpr,
         )
 
         self._visited_blocks: Set[Any] = visited_blocks or set()
-        self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(
-            func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None
-        )
         self.function_calls: Dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
@@ -223,11 +263,18 @@ class ReachingDefinitionsAnalysis(
 
         return self.observed_results[key]
 
-    def node_observe(self, node_addr: int, state: ReachingDefinitionsState, op_type: ObservationPointType) -> None:
+    def node_observe(
+        self,
+        node_addr: int,
+        state: ReachingDefinitionsState,
+        op_type: ObservationPointType,
+        node_idx: Optional[int] = None,
+    ) -> None:
         """
         :param node_addr:   Address of the node.
         :param state:       The analysis state.
-        :param op_type:     Type of the bbservation point. Must be one of the following: OP_BEFORE, OP_AFTER.
+        :param op_type:     Type of the observation point. Must be one of the following: OP_BEFORE, OP_AFTER.
+        :param node_idx:    ID of the node. Used in AIL to differentiate blocks with the same address.
         """
 
         key = None
@@ -236,15 +283,21 @@ class ReachingDefinitionsAnalysis(
 
         if self._observe_all:
             observe = True
-            key: ObservationPoint = ("node", node_addr, op_type)
+            key: ObservationPoint = (
+                ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
+            )
         elif self._observation_points is not None:
-            key: ObservationPoint = ("node", node_addr, op_type)
+            key: ObservationPoint = (
+                ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
+            )
             if key in self._observation_points:
                 observe = True
         elif self._observe_callback is not None:
-            observe = self._observe_callback("node", addr=node_addr, state=state, op_type=op_type)
+            observe = self._observe_callback("node", addr=node_addr, state=state, op_type=op_type, node_idx=node_idx)
             if observe:
-                key: ObservationPoint = ("node", node_addr, op_type)
+                key: ObservationPoint = (
+                    ("node", node_addr, op_type) if node_idx is None else ("node", (node_addr, node_idx), op_type)
+                )
 
         if observe:
             self.observed_results[key] = state.live_definitions
@@ -346,6 +399,52 @@ class ReachingDefinitionsAnalysis(
             # it's an AIL block
             self.observed_results[key] = state.live_definitions.copy()
 
+    def exit_observe(
+        self,
+        node_addr: int,
+        exit_stmt_idx: int,
+        block: Union[Block, ailment.Block],
+        state: ReachingDefinitionsState,
+        node_idx: Optional[int] = None,
+    ):
+        observe = False
+        key = None
+
+        if self._observe_all:
+            observe = True
+            key = (
+                ("exit", (node_addr, exit_stmt_idx), ObservationPointType.OP_AFTER)
+                if node_idx is None
+                else ("exit", (node_addr, node_idx, exit_stmt_idx), ObservationPointType.OP_AFTER)
+            )
+        elif self._observation_points is not None:
+            key = (
+                ("exit", (node_addr, exit_stmt_idx), ObservationPointType.OP_AFTER)
+                if node_idx is None
+                else ("exit", (node_addr, node_idx, exit_stmt_idx), ObservationPointType.OP_AFTER)
+            )
+            if key in self._observation_points:
+                observe = True
+        elif self._observe_callback is not None:
+            observe = self._observe_callback(
+                "exit",
+                node_addr=node_addr,
+                exit_stmt_idx=exit_stmt_idx,
+                block=block,
+                state=state,
+            )
+            if observe:
+                key = (
+                    ("exit", (node_addr, exit_stmt_idx), ObservationPointType.OP_AFTER)
+                    if node_idx is None
+                    else ("exit", (node_addr, node_idx, exit_stmt_idx), ObservationPointType.OP_AFTER)
+                )
+
+        if not observe:
+            return
+
+        self.observed_results[key] = state.live_definitions.copy()
+
     @property
     def subject(self):
         return self._subject
@@ -369,6 +468,7 @@ class ReachingDefinitionsAnalysis(
                 track_consts=self._track_consts,
                 analysis=self,
                 canonical_size=self._canonical_size,
+                initializer=self._state_initializer,
             )
 
     # pylint: disable=no-self-use,arguments-differ
@@ -398,23 +498,36 @@ class ReachingDefinitionsAnalysis(
             block_key = node.addr
         elif isinstance(node, CFGNode):
             if node.is_simprocedure or node.is_syscall:
-                return False, state.copy()
+                return False, state.copy(discard_tmpdefs=True)
             block = node.block
             engine = self._engine_vex
             block_key = node.addr
         else:
             l.warning("Unsupported node type %s.", node.__class__)
-            return False, state.copy()
+            return False, state.copy(discard_tmpdefs=True)
 
-        self.node_observe(node.addr, state, OP_BEFORE)
+        state = state.copy(discard_tmpdefs=True)
+        self.node_observe(node.addr, state.copy(), OP_BEFORE)
 
-        state = state.copy()
+        if self.subject.type == SubjectType.Function:
+            node_parents = [
+                CodeLocation(pred.addr, 0, block_idx=pred.idx if isinstance(pred, ailment.Block) else None)
+                for pred in self._graph_visitor.predecessors(node)
+            ]
+            if node.addr == self.subject.content.addr:
+                node_parents += [ExternalCodeLocation()]
+            self.model.at_new_block(
+                CodeLocation(block.addr, 0, block_idx=block.idx if isinstance(block, ailment.Block) else None),
+                node_parents,
+            )
+
         state = engine.process(
             state,
             block=block,
             fail_fast=self._fail_fast,
             visited_blocks=self._visited_blocks,
             dep_graph=self._dep_graph,
+            model=self.model,
         )
 
         self._node_iterations[block_key] += 1
@@ -423,9 +536,11 @@ class ReachingDefinitionsAnalysis(
 
         # update all definitions and all uses
         self.all_definitions |= state.all_definitions
-        state.downsize()
         for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
+
+        # drop definitions and uses because we will not need them anymore
+        state.downsize()
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state

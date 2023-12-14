@@ -1,8 +1,7 @@
-import binascii
 import functools
 import time
 import logging
-from typing import Type, TypeVar, overload, Any, Optional
+from typing import List, Type, TypeVar, overload, Optional, Union
 
 from claripy import backend_manager
 
@@ -771,16 +770,20 @@ class SimSolver(SimStatePlugin):
     # And some convenience stuff
     #
 
-    T = TypeVar("T", int, bytes)
+    CastType = TypeVar("CastType", int, bytes)
 
     @staticmethod
-    def _cast_to(e, solution, cast_to: Type[T]) -> T:
+    def _cast_to(
+        e: Union[claripy.ast.Bool, claripy.ast.BV, claripy.ast.FP],
+        solution: Union[bool, float, int],
+        cast_to: Optional[Type[CastType]],
+    ) -> CastType:
         """
         Casts a solution for the given expression to type `cast_to`.
 
-        :param e: The expression `value` is a solution for
-        :param value: The solution to be cast
-        :param cast_to: The type `value` should be cast to. Must be one of the currently supported types (bytes|int)
+        :param e: The expression `solution` is a solution for
+        :param solution: The solution to be cast
+        :param cast_to: The type `solution` should be cast to. Must be one of the currently supported types (bytes|int)
         :raise ValueError: If cast_to is a currently unsupported cast target.
         :return: The value of `solution` cast to type `cast_to`
         """
@@ -798,7 +801,9 @@ class SimSolver(SimStatePlugin):
         if cast_to is bytes:
             if len(e) == 0:
                 return b""
-            return binascii.unhexlify(f"{solution:x}".zfill(len(e) // 4))
+            if len(e) % 8:
+                raise ValueError("bit string length is not a multiple of 8")
+            return solution.to_bytes(len(e) // 8, byteorder="big")
 
         if cast_to is not int:
             raise ValueError(
@@ -808,15 +813,27 @@ class SimSolver(SimStatePlugin):
         return solution
 
     @overload
-    # pylint: disable=no-self-use
-    def eval_upto(self, e, n: int, cast_to: None = ..., **kwargs) -> Any:
+    def eval_upto(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> List[int]:
         ...
 
-    CastTarget = TypeVar("CastTarget")
+    @overload
+    def eval_upto(self, e: claripy.ast.BV, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
 
     @overload
-    # pylint: disable=no-self-use, undefined-variable
-    def eval_upto(self, e, n: int, cast_to: CastTarget = ..., **kwargs) -> CastTarget:
+    def eval_upto(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> List[bool]:
+        ...
+
+    @overload
+    def eval_upto(self, e: claripy.ast.Bool, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    @overload
+    def eval_upto(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> List[float]:
+        ...
+
+    @overload
+    def eval_upto(self, e: claripy.ast.FP, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
         ...
 
     def eval_upto(self, e, n, cast_to=None, **kwargs):
@@ -828,7 +845,7 @@ class SimSolver(SimStatePlugin):
         :param n: the number of desired solutions
         :param extra_constraints: extra constraints to apply to the solver
         :param exact: if False, returns approximate solutions
-        :param cast_to: A type to cast the resulting values to
+        :param cast_to: desired type of resulting values
         :return: a tuple of the solutions, in the form of Python primitives
         :rtype: tuple
         """
@@ -842,16 +859,30 @@ class SimSolver(SimStatePlugin):
         return cast_vals
 
     @overload
-    # pylint: disable=no-self-use
-    def eval(self, e, cast_to: None = ..., **kwargs) -> Any:
+    def eval(self, e: claripy.ast.BV, cast_to: None = ..., **kwargs) -> int:
         ...
 
-    # pylint: disable=no-self-use,undefined-variable
     @overload
-    def eval(self, e, cast_to: CastTarget = ..., **kwargs) -> CastTarget:
+    def eval(self, e: claripy.ast.BV, cast_to: Type[CastType], **kwargs) -> CastType:
         ...
 
-    def eval(self, e, cast_to: Optional[CastTarget] = None, **kwargs):
+    @overload
+    def eval(self, e: claripy.ast.Bool, cast_to: None = ..., **kwargs) -> bool:
+        ...
+
+    @overload
+    def eval(self, e: claripy.ast.Bool, cast_to: Type[CastType], **kwargs) -> CastType:
+        ...
+
+    @overload
+    def eval(self, e: claripy.ast.FP, cast_to: None = ..., **kwargs) -> float:
+        ...
+
+    @overload
+    def eval(self, e: claripy.ast.FP, cast_to: Type[CastType], **kwargs) -> CastType:
+        ...
+
+    def eval(self, e, cast_to=None, **kwargs):
         """
         Evaluate an expression to get any possible solution. The desired output types can be specified using the
         `cast_to` parameter. `extra_constraints` can be used to specify additional constraints the returned values
@@ -859,6 +890,7 @@ class SimSolver(SimStatePlugin):
 
         :param e: the expression to get a solution for
         :param kwargs: Any additional kwargs will be passed down to `eval_upto`
+        :param cast_to: desired type of resulting values
         :raise SimUnsatError: if no solution could be found satisfying the given constraints
         :return:
         """
@@ -867,14 +899,39 @@ class SimSolver(SimStatePlugin):
         if concrete_val is not None:
             return self._cast_to(e, concrete_val, cast_to)
 
-        return self.eval_upto(e, 1, cast_to=cast_to, **kwargs)[0]
+        return self.eval_upto(e, 1, cast_to, **kwargs)[0]
 
-    def eval_one(self, e, **kwargs):
+    @overload
+    def eval_one(self, e: claripy.ast.BV, cast_to: None = ..., **kwargs) -> int:
+        ...
+
+    @overload
+    def eval_one(self, e: claripy.ast.BV, cast_to: Type[CastType], **kwargs) -> CastType:
+        ...
+
+    @overload
+    def eval_one(self, e: claripy.ast.Bool, cast_to: None = ..., **kwargs) -> bool:
+        ...
+
+    @overload
+    def eval_one(self, e: claripy.ast.Bool, cast_to: Type[CastType], **kwargs) -> CastType:
+        ...
+
+    @overload
+    def eval_one(self, e: claripy.ast.FP, cast_to: None = ..., **kwargs) -> float:
+        ...
+
+    @overload
+    def eval_one(self, e: claripy.ast.FP, cast_to: Type[CastType], **kwargs) -> CastType:
+        ...
+
+    def eval_one(self, e, cast_to=None, **kwargs):
         """
         Evaluate an expression to get the only possible solution. Errors if either no or more than one solution is
         returned. A kwarg parameter `default` can be specified to be returned instead of failure!
 
         :param e: the expression to get a solution for
+        :param cast_to: desired type of resulting values
         :param default: A value can be passed as a kwarg here. It will be returned in case of failure.
         :param kwargs: Any additional kwargs will be passed down to `eval_upto`
         :raise SimUnsatError: if no solution could be found satisfying the given constraints
@@ -882,58 +939,133 @@ class SimSolver(SimStatePlugin):
         :return: The value for `e`
         """
         try:
-            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.items() if k != "default"})[0]
+            return self.eval_exact(e, 1, cast_to, **{k: v for (k, v) in kwargs.items() if k != "default"})[0]
         except (SimUnsatError, SimValueError, SimSolverModeError):
             if "default" in kwargs:
                 return kwargs.pop("default")
             raise
 
-    def eval_atmost(self, e, n, **kwargs):
+    @overload
+    def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> List[int]:
+        ...
+
+    @overload
+    def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    @overload
+    def eval_atmost(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> List[bool]:
+        ...
+
+    @overload
+    def eval_atmost(self, e: claripy.ast.Bool, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    @overload
+    def eval_atmost(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> List[float]:
+        ...
+
+    @overload
+    def eval_atmost(self, e: claripy.ast.FP, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    def eval_atmost(self, e, n, cast_to=None, **kwargs):
         """
         Evaluate an expression to get at most `n` possible solutions. Errors if either none or more than `n` solutions
         are returned.
 
         :param e: the expression to get a solution for
         :param n: the inclusive upper limit on the number of solutions
+        :param cast_to: desired type of resulting values
         :param kwargs: Any additional kwargs will be passed down to `eval_upto`
         :raise SimUnsatError: if no solution could be found satisfying the given constraints
         :raise SimValueError: if more than `n` solutions were found to satisfy the given constraints
         :return: The solutions for `e`
         """
-        r = self.eval_upto(e, n + 1, **kwargs)
+        r = self.eval_upto(e, n + 1, cast_to, **kwargs)
         if len(r) > n:
             raise SimValueError("Concretized %d values (must be at most %d) in eval_atmost" % (len(r), n))
         return r
 
-    def eval_atleast(self, e, n, **kwargs):
+    @overload
+    def eval_atleast(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> List[int]:
+        ...
+
+    @overload
+    def eval_atleast(self, e: claripy.ast.BV, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    @overload
+    def eval_atleast(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> List[bool]:
+        ...
+
+    @overload
+    def eval_atleast(self, e: claripy.ast.Bool, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    @overload
+    def eval_atleast(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> List[float]:
+        ...
+
+    @overload
+    def eval_atleast(self, e: claripy.ast.FP, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    def eval_atleast(self, e, n, cast_to=None, **kwargs):
         """
         Evaluate an expression to get at least `n` possible solutions. Errors if less than `n` solutions were found.
 
         :param e: the expression to get a solution for
         :param n: the inclusive lower limit on the number of solutions
+        :param cast_to: desired type of resulting values
         :param kwargs: Any additional kwargs will be passed down to `eval_upto`
         :raise SimUnsatError: if no solution could be found satisfying the given constraints
         :raise SimValueError: if less than `n` solutions were found to satisfy the given constraints
         :return: The solutions for `e`
         """
-        r = self.eval_upto(e, n, **kwargs)
+        r = self.eval_upto(e, n, cast_to, **kwargs)
         if len(r) != n:
             raise SimValueError("Concretized %d values (must be at least %d) in eval_atleast" % (len(r), n))
         return r
 
-    def eval_exact(self, e, n, **kwargs):
+    @overload
+    def eval_exact(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> List[int]:
+        ...
+
+    @overload
+    def eval_exact(self, e: claripy.ast.BV, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    @overload
+    def eval_exact(self, e: claripy.ast.Bool, n: int, cast_to: None = ..., **kwargs) -> List[bool]:
+        ...
+
+    @overload
+    def eval_exact(self, e: claripy.ast.Bool, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    @overload
+    def eval_exact(self, e: claripy.ast.FP, n: int, cast_to: None = ..., **kwargs) -> List[float]:
+        ...
+
+    @overload
+    def eval_exact(self, e: claripy.ast.FP, n: int, cast_to: Type[CastType], **kwargs) -> List[CastType]:
+        ...
+
+    def eval_exact(self, e, n, cast_to=None, **kwargs):
         """
         Evaluate an expression to get exactly the `n` possible solutions. Errors if any number of solutions other
         than `n` was found to exist.
 
         :param e: the expression to get a solution for
         :param n: the inclusive lower limit on the number of solutions
+        :param cast_to: desired type of resulting values
         :param kwargs: Any additional kwargs will be passed down to `eval_upto`
         :raise SimUnsatError: if no solution could be found satisfying the given constraints
         :raise SimValueError: if any number of solutions other than `n` were found to satisfy the given constraints
         :return: The solutions for `e`
         """
-        r = self.eval_upto(e, n + 1, **kwargs)
+        r = self.eval_upto(e, n + 1, cast_to, **kwargs)
         if len(r) != n:
             raise SimValueError("Concretized %d values (must be exactly %d) in eval_exact" % (len(r), n))
         return r
@@ -973,7 +1105,7 @@ class SimSolver(SimStatePlugin):
         """
         Returns True if the expression `e` is symbolic.
         """
-        if type(e) in (int, bytes, float, bool):
+        if isinstance(e, (int, bytes, float, bool)):
             return False
         return e.symbolic
 

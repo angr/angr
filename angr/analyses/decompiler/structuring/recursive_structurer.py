@@ -29,12 +29,14 @@ class RecursiveStructurer(Analysis):
         func: Optional["Function"] = None,
         structurer_cls: Optional[Type] = None,
         improve_structurer=True,
+        **kwargs,
     ):
         self._region = region
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.improve_structurer = improve_structurer
+        self.structurer_options = kwargs
 
         self.result = None
 
@@ -74,7 +76,7 @@ class RecursiveStructurer(Analysis):
                 # Get the parent region
                 parent_region = parent_map.get(current_region, None)
                 # structure this region
-                st = self.project.analyses[self.structurer_cls].prep()(
+                st: StructurerBase = self.project.analyses[self.structurer_cls].prep()(
                     current_region.copy(),
                     parent_map=parent_map,
                     condition_processor=self.cond_proc,
@@ -82,6 +84,7 @@ class RecursiveStructurer(Analysis):
                     func=self.function,
                     parent_region=parent_region,
                     improve_structurer=self.improve_structurer,
+                    **self.structurer_options,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
@@ -92,7 +95,9 @@ class RecursiveStructurer(Analysis):
                 if st.result is None:
                     self._replace_region_with_region(parent_region, current_region, st._region)
                 else:
-                    self._replace_region_with_node(parent_region, current_region, st._region, st.result)
+                    self._replace_region_with_node(
+                        parent_region, current_region, st._region, st.result, st.virtualized_edges
+                    )
 
         if self.structurer_cls is DreamStructurer:
             # rewrite conditions in the result to remove all jump table entry conditions
@@ -120,8 +125,8 @@ class RecursiveStructurer(Analysis):
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
     @staticmethod
-    def _replace_region_with_node(parent_region, sub_region, updated_sub_region, node):
-        parent_region.replace_region(sub_region, updated_sub_region, node)
+    def _replace_region_with_node(parent_region, sub_region, updated_sub_region, node, virtualized_edges):
+        parent_region.replace_region(sub_region, updated_sub_region, node, virtualized_edges)
 
     @staticmethod
     def _replace_region_with_region(parent_region, sub_region, new_region):

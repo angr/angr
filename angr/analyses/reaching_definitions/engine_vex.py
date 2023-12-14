@@ -16,9 +16,8 @@ from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, Parameter
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
-from ...code_location import CodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
-from .external_codeloc import ExternalCodeLocation
 from .function_handler import FunctionCallData
 
 if TYPE_CHECKING:
@@ -76,7 +75,7 @@ class SimEngineRDVEX(
             addr = self._expr(self.block.vex.next)
             addr_v = addr.one_value()
             if addr_v is not None and addr_v.concrete:
-                addr_int = addr_v._model_concrete.value
+                addr_int = addr_v.concrete_value
                 if addr_int in self.functions:
                     # yes it's a jump to a function
                     self._handle_function(addr)
@@ -90,9 +89,11 @@ class SimEngineRDVEX(
 
     def _set_codeloc(self):
         # TODO do we want a better mechanism to specify context updates?
-        self.state.move_codelocs(
-            CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self.state.codeloc.context)
+        new_codeloc = CodeLocation(
+            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self.state.codeloc.context
         )
+        self.state.move_codelocs(new_codeloc)
+        self.state.analysis.model.at_new_stmt(new_codeloc)
 
     #
     # VEX statement handlers
@@ -146,11 +147,11 @@ class SimEngineRDVEX(
                 if self.state.is_heap_address(d):
                     heap_offset = self.state.get_heap_offset(d)
                     if heap_offset is not None:
-                        self.state.add_heap_use(heap_offset, 1, "Iend_BE")
+                        self.state.add_heap_use(heap_offset, 1)
                 elif self.state.is_stack_address(d):
                     stack_offset = self.state.get_stack_offset(d)
                     if stack_offset is not None:
-                        self.state.add_stack_use(stack_offset, 1, "Iend_BE")
+                        self.state.add_stack_use(stack_offset, 1)
 
         if self.state.exit_observed and reg_offset == self.arch.sp_offset:
             return
@@ -193,7 +194,7 @@ class SimEngineRDVEX(
 
     def _store_core(
         self,
-        addr: Iterable[Union[int, HeapAddress, SpOffset]],
+        addr: Iterable[Union[int, claripy.ast.bv.BV]],
         size: int,
         data: MultiValues,
         data_old: Optional[MultiValues] = None,
@@ -211,7 +212,10 @@ class SimEngineRDVEX(
                     atom = MemoryLocation(a, size)
                     tags = None
                 elif self.state.is_stack_address(a):
-                    atom = MemoryLocation(SpOffset(self.arch.bits, self.state.get_stack_offset(a)), size)
+                    offset = self.state.get_stack_offset(a)
+                    if offset is None:
+                        continue
+                    atom = MemoryLocation(SpOffset(self.arch.bits, offset), size)
                     function_address = None  # we cannot get the function address in the middle of a store if a CFG
                     # does not exist. you should backpatch the function address later using
                     # the 'ins_addr' metadata entry.
@@ -223,11 +227,15 @@ class SimEngineRDVEX(
                     }
 
                 elif self.state.is_heap_address(a):
-                    atom = MemoryLocation(HeapAddress(self.state.get_heap_offset(a)), size)
-                    tags = None
+                    offset = self.state.get_heap_offset(a)
+                    if offset is not None:
+                        atom = MemoryLocation(HeapAddress(offset), size)
+                        tags = None
+                    else:
+                        continue
 
                 elif isinstance(a, claripy.ast.BV):
-                    addr_v = a._model_concrete.value
+                    addr_v = a.concrete_value
                     atom = MemoryLocation(addr_v, size)
                     tags = None
 
@@ -267,6 +275,14 @@ class SimEngineRDVEX(
         _ = self._expr(stmt.guard)
         target = stmt.dst.value
         self.state.mark_guard(target)
+        if self.state.analysis is not None:
+            self.state.analysis.exit_observe(
+                self.block.addr,
+                self.stmt_idx,
+                self.block,
+                self.state,
+                node_idx=self.block.block_idx if hasattr(self.block, "block_idx") else None,
+            )
         if (
             self.block.instruction_addrs
             and self.ins_addr in self.block.instruction_addrs
@@ -337,7 +353,7 @@ class SimEngineRDVEX(
 
         reg_atom = Register(reg_offset, size, self.arch)
         try:
-            values: MultiValues = self.state.register_definitions.load(reg_offset, size=size)
+            values: MultiValues = self.state.registers.load(reg_offset, size=size)
         except SimMemoryMissingError:
             top = self.state.top(size * self.arch.byte_width)
             # annotate it
@@ -403,7 +419,7 @@ class SimEngineRDVEX(
                     loaded_stack_offsets.add(stack_offset)
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
-                        vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=endness)
+                        vs: MultiValues = self.state.stack.load(stack_addr, size=size, endness=endness)
                         # extract definitions
                         defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                     except SimMemoryMissingError:
@@ -415,25 +431,24 @@ class SimEngineRDVEX(
             elif self.state.is_heap_address(addr):
                 # Load data from the heap
                 heap_offset = self.state.get_heap_offset(addr)
-                try:
-                    vs: MultiValues = self.state.heap_definitions.load(heap_offset, size=size, endness=endness)
-                    defs = set(LiveDefinitions.extract_defs_from_mv(vs))
-                except SimMemoryMissingError:
-                    continue
+                if heap_offset is not None:
+                    try:
+                        vs: MultiValues = self.state.heap.load(heap_offset, size=size, endness=endness)
+                        defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                    except SimMemoryMissingError:
+                        continue
 
-                self.state.add_heap_use_by_defs(defs)
-                result = result.merge(vs) if result is not None else vs
+                    self.state.add_heap_use_by_defs(defs)
+                    result = result.merge(vs) if result is not None else vs
 
             else:
-                addr_v = addr._model_concrete.value
+                addr_v = addr.concrete_value
 
                 # Load data from a global region
                 try:
-                    vs: MultiValues = self.state.memory_definitions.load(addr_v, size=size, endness=endness)
+                    vs: MultiValues = self.state.memory.load(addr_v, size=size, endness=endness)
                     defs = set(LiveDefinitions.extract_defs_from_mv(vs))
                 except SimMemoryMissingError:
-                    # try to load it from the static memory backer
-                    # TODO: Is this still required?
                     try:
                         val = self.project.loader.memory.unpack_word(addr_v, size=size)
                         section = self.project.loader.find_section_containing(addr_v)
@@ -445,9 +460,9 @@ class SimEngineRDVEX(
                         else:
                             v = self.state.annotate_with_def(claripy.BVV(val, size * self.arch.byte_width), missing_def)
                         vs = MultiValues(v)
-                        # write it back
-                        self.state.memory_definitions.store(addr_v, vs, size=size, endness=endness)
-                        self.state.all_definitions.add(missing_def)
+                        if not section or section.is_writable:
+                            self.state.memory.store(addr_v, vs, size=size, endness=endness)
+                            self.state.all_definitions.add(missing_def)
                         defs = {missing_def}
                     except KeyError:
                         continue
@@ -517,7 +532,7 @@ class SimEngineRDVEX(
         e0 = expr_0.one_value()
 
         if e0 is not None and not e0.symbolic:
-            return MultiValues(claripy.BVV(1, 1) if e0._model_concrete.value != 1 else claripy.BVV(0, 1))
+            return MultiValues(claripy.BVV(1, 1) if e0.concrete_value != 1 else claripy.BVV(0, 1))
 
         return MultiValues(self.state.top(1))
 
@@ -671,17 +686,19 @@ class SimEngineRDVEX(
             # we do not support division between two real multivalues
             r = MultiValues(self.state.top(bits))
         elif expr0_v is None and expr1_v is not None:
-            if expr0.count() == 1 and 0 in expr0:
+            if expr1_v.concrete and expr1_v.concrete_value == 0:
+                r = MultiValues(self.state.top(bits))
+            elif expr0.count() == 1 and 0 in expr0:
                 vs = {v / expr1_v for v in expr0[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             if expr1.count() == 1 and 0 in expr1:
-                vs = {v / expr0_v for v in expr1[0]}
+                vs = {expr0_v / v for v in expr1[0] if (not v.concrete) or v.concrete_value != 0}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                if expr1_v._model_concrete.value == 0:
+                if expr1_v.concrete_value == 0:
                     r = MultiValues(self.state.top(bits))
                 else:
                     r = MultiValues(expr0_v / expr1_v)
@@ -803,7 +820,10 @@ class SimEngineRDVEX(
             # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
             if e1.symbolic:
                 return self.state.top(bits)
-            e1 = e1._model_concrete.value
+            e1 = e1.concrete_value
+
+            if e1 > bits:
+                return claripy.BVV(0, bits)
 
             if claripy.is_true(e0 >> (bits - 1) == 0):
                 head = claripy.BVV(0, bits)
@@ -885,7 +905,7 @@ class SimEngineRDVEX(
             # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
             if e1.symbolic:
                 return self.state.top(bits)
-            e1 = e1._model_concrete.value
+            e1 = e1.concrete_value
             return e0 << e1
 
         if expr0_v is None and expr1_v is None:
@@ -920,9 +940,7 @@ class SimEngineRDVEX(
 
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(
-                    claripy.BVV(1, 1) if e0._model_concrete.value == e1._model_concrete.value else claripy.BVV(0, 1)
-                )
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value == e1.concrete_value else claripy.BVV(0, 1))
             elif e0 is e1:
                 return MultiValues(claripy.BVV(1, 1))
             return MultiValues(self.state.top(1))
@@ -938,9 +956,7 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(
-                    claripy.BVV(1, 1) if e0._model_concrete.value != e1._model_concrete.value else claripy.BVV(0, 1)
-                )
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value != e1.concrete_value else claripy.BVV(0, 1))
             elif e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
@@ -954,9 +970,7 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(
-                    claripy.BVV(1, 1) if e0._model_concrete.value < e1._model_concrete.value else claripy.BVV(0, 1)
-                )
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value < e1.concrete_value else claripy.BVV(0, 1))
             elif e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
@@ -970,9 +984,35 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
-                return MultiValues(
-                    claripy.BVV(1, 1) if e0._model_concrete.value <= e1._model_concrete.value else claripy.BVV(0, 1)
-                )
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value <= e1.concrete_value else claripy.BVV(0, 1))
+            elif e0 is e1:
+                return MultiValues(claripy.BVV(0, 1))
+        return MultiValues(self.state.top(1))
+
+    def _handle_CmpGT(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        e0 = expr_0.one_value()
+        e1 = expr_1.one_value()
+        if e0 is not None and e1 is not None:
+            if not e0.symbolic and not e1.symbolic:
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value > e1.concrete_value else claripy.BVV(0, 1))
+            elif e0 is e1:
+                return MultiValues(claripy.BVV(0, 1))
+        return MultiValues(self.state.top(1))
+
+    def _handle_CmpGE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        e0 = expr_0.one_value()
+        e1 = expr_1.one_value()
+        if e0 is not None and e1 is not None:
+            if not e0.symbolic and not e1.symbolic:
+                return MultiValues(claripy.BVV(1, 1) if e0.concrete_value >= e1.concrete_value else claripy.BVV(0, 1))
             elif e0 is e1:
                 return MultiValues(claripy.BVV(0, 1))
         return MultiValues(self.state.top(1))
@@ -989,6 +1029,8 @@ class SimEngineRDVEX(
 
         if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
+                e0 = e0.concrete_value
+                e1 = e1.concrete_value
                 if e0 < e1:
                     return MultiValues(claripy.BVV(0x8, bits))
                 elif e0 > e1:

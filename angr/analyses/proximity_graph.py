@@ -180,6 +180,33 @@ class ProximityGraphAnalysis(Analysis):
 
         self._work()
 
+    def _condense_blank_nodes(self, graph: networkx.DiGraph) -> None:
+        nodes = list(graph.nodes)
+        blank_nodes: List[BaseProxiNode] = []
+
+        for node in nodes:
+            if isinstance(node, BaseProxiNode) and node.type_ == ProxiNodeTypes.Empty:
+                blank_nodes.append(node)
+            else:
+                if blank_nodes:
+                    self._merge_nodes(graph, blank_nodes)
+                    blank_nodes = []
+
+        if blank_nodes:
+            self._merge_nodes(graph, blank_nodes)
+
+    def _merge_nodes(self, graph: networkx.DiGraph, nodes: List[BaseProxiNode]) -> None:
+        for node in nodes:
+            predecessors = set(graph.predecessors(node))
+            successors = set(graph.successors(node))
+
+            for pred in predecessors:
+                for succ in successors:
+                    edge_data = graph.get_edge_data(pred, node) or {}
+                    graph.add_edge(pred, succ, **edge_data)
+
+            graph.remove_node(node)
+
     def _work(self):
         self.graph = networkx.DiGraph()
 
@@ -209,6 +236,9 @@ class ProximityGraphAnalysis(Analysis):
             # merge subgraph into the original graph
             self.graph.add_nodes_from(subgraph.nodes())
             self.graph.add_edges_from(subgraph.edges())
+
+        # condense blank nodes after the graph has been constructed
+        self._condense_blank_nodes(self.graph)
 
     def _endnode_connector(self, func: "Function", subgraph: networkx.DiGraph):
         """

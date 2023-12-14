@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# recvfrom
-######################################
-
 
 class recvfrom(angr.SimProcedure):
     # pylint:disable=arguments-differ,unused-argument

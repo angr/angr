@@ -9,7 +9,7 @@ class BasePointerOffsetAndMask(PeepholeOptimizationExprBase):
     NAME = "Ptr & mask => Ptr"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         if expr.op == "And" and isinstance(expr.operands[0], BasePointerOffset) and isinstance(expr.operands[1], Const):
             # is it a mask?
             mask = expr.operands[1].value

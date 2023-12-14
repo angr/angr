@@ -1,9 +1,5 @@
 import angr
 
-######################################
-# access
-######################################
-
 
 class access(angr.SimProcedure):
     # pylint:disable=arguments-differ

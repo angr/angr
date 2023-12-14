@@ -498,6 +498,52 @@ class SimTypeChar(SimTypeReg):
         return self.__class__(signed=self.signed, label=self.label)
 
 
+class SimTypeWideChar(SimTypeReg):
+    """
+    SimTypeWideChar is a type that specifies a wide character (a UTF-16 character).
+    """
+
+    _base_name = "char"
+
+    def __init__(self, signed=True, label=None):
+        """
+        :param label: the type label.
+        """
+        SimTypeReg.__init__(self, 16, label=label)
+        self.signed = signed
+
+    def __repr__(self):
+        return "wchar"
+
+    def store(self, state, addr, value):
+        self._size = state.arch.byte_width
+        try:
+            super().store(state, addr, value)
+        except TypeError:
+            if isinstance(value, bytes) and len(value) == 2:
+                value = state.solver.BVV(value[0], state.arch.byte_width)
+                super().store(state, addr, value)
+            else:
+                raise
+
+    def extract(self, state, addr, concrete=False):
+        self._size = state.arch.byte_width
+
+        out = super().extract(state, addr, concrete)
+        if concrete:
+            return bytes([out])
+        return out
+
+    def _init_str(self):
+        return "{}({})".format(
+            self.__class__.__name__,
+            ('label="%s"' % self.label) if self.label is not None else "",
+        )
+
+    def copy(self):
+        return self.__class__(signed=self.signed, label=self.label)
+
+
 class SimTypeBool(SimTypeChar):
     _base_name = "bool"
 
@@ -849,7 +895,7 @@ class SimTypeFunction(SimType):
     _fields = ("args", "returnty")
     base = False
 
-    def __init__(self, args, returnty, label=None, arg_names=None, variadic=False):
+    def __init__(self, args: List[SimType], returnty: Optional[SimType], label=None, arg_names=None, variadic=False):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
@@ -857,10 +903,13 @@ class SimTypeFunction(SimType):
         :param variadic: Whether the function accepts varargs
         """
         super().__init__(label=label)
-        self.args = args
+        self.args: List[SimType] = args
         self.returnty: Optional[SimType] = returnty
         self.arg_names = arg_names if arg_names else ()
         self.variadic = variadic
+
+    def __hash__(self):
+        return hash(type(self)) ^ hash(tuple(self.args)) ^ hash(self.returnty)
 
     def __repr__(self):
         argstrs = [str(a) for a in self.args]
@@ -869,19 +918,14 @@ class SimTypeFunction(SimType):
         return "({}) -> {}".format(", ".join(argstrs), self.returnty)
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
-        name2 = name or ""
-        name3 = "({})({})".format(
-            name2,
-            ", ".join(
-                a.c_repr(n, full - 1, memo, indent)
-                for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
-            )
-            + ", ..."
-            if self.variadic
-            else "",
-        )
-        name4 = self.returnty.c_repr(name3, full, memo, indent) if self.returnty is not None else "void %s" % name3
-        return name4
+        formatted_args = [
+            a.c_repr(n, full - 1, memo, indent)
+            for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
+        ]
+        if self.variadic:
+            formatted_args.append("...")
+        proto = f"({name or ''})({', '.join(formatted_args)})"
+        return f"void {proto}" if self.returnty is None else self.returnty.c_repr(proto, full, memo, indent)
 
     @property
     def size(self):
@@ -3037,6 +3081,13 @@ def _cpp_decl_to_type(decl: Any, extra_types: Dict[str, SimType], opaque_classes
             subdecl = decl.rstrip("&").strip()
             subt = _cpp_decl_to_type(subdecl, extra_types, opaque_classes=opaque_classes)
             t = SimTypeReference(subt)
+            return t
+
+        if decl.endswith("*"):
+            # pointer
+            subdecl = decl.rstrip("*").strip()
+            subt = _cpp_decl_to_type(subdecl, extra_types, opaque_classes=opaque_classes)
+            t = SimTypePointer(subt)
             return t
 
         if decl.endswith(" const"):

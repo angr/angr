@@ -16,7 +16,7 @@ from .loop import LoopSimplifier
 from .expr_folding import ExpressionCounter, ExpressionFolder, StoreStatementFinder, ExpressionLocation
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .switch_expr_simplifier import SwitchExpressionSimplifier
-from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters
+from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters, simplify_lowered_switches
 
 
 class RegionSimplifier(Analysis):
@@ -24,11 +24,12 @@ class RegionSimplifier(Analysis):
     Simplifies a given region.
     """
 
-    def __init__(self, func, region, variable_kb=None, simplify_switches: bool = True):
+    def __init__(self, func, region, variable_kb=None, simplify_switches: bool = True, simplify_ifelse: bool = True):
         self.func = func
         self.region = region
         self.variable_kb = variable_kb
         self._simplify_switches = simplify_switches
+        self._should_simplify_ifelses = simplify_ifelse
 
         self.goto_manager: Optional[GotoManager] = None
         self.result = None
@@ -70,7 +71,8 @@ class RegionSimplifier(Analysis):
         # Remove empty nodes
         r = self._remove_empty_nodes(r)
         # Remove unnecessary else branches if the if branch will always return
-        r = self._simplify_ifelses(r)
+        if self._should_simplify_ifelses:
+            r = self._simplify_ifelses(r)
         #
         r = self._simplify_cascading_ifs(r)
         #
@@ -159,10 +161,14 @@ class RegionSimplifier(Analysis):
         SwitchExpressionSimplifier(region)
         return region
 
-    @staticmethod
-    def _simplify_switch_clusters(region):
+    def _simplify_switch_clusters(self, region):
         finder = SwitchClusterFinder(region)
         simplify_switch_clusters(region, finder.var2condnodes, finder.var2switches)
+        simplify_lowered_switches(
+            region,
+            {var: v for var, v in finder.var2condnodes.items() if var not in finder.var2switches},
+            self.kb.functions,
+        )
         return region
 
     @staticmethod
@@ -199,9 +205,8 @@ class RegionSimplifier(Analysis):
         CascadingIfsRemover(region)
         return region
 
-    @staticmethod
-    def _simplify_loops(region):
-        LoopSimplifier(region)
+    def _simplify_loops(self, region):
+        LoopSimplifier(region, self.kb.functions)
         return region
 
 

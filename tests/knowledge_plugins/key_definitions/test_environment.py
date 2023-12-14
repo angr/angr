@@ -1,4 +1,5 @@
-from unittest import TestCase
+#!/usr/bin/env python3
+from unittest import main, TestCase
 
 import claripy
 
@@ -119,3 +120,7 @@ class TestEnvironment(TestCase):
 
         env, _ = environment.merge(other_environment)
         self.assertEqual(env, expected_environment)
+
+
+if __name__ == "__main__":
+    main()

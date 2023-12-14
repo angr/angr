@@ -52,6 +52,9 @@ class AMD64ElfGotResolver(IndirectJumpResolver):
             l.warning("Address %# is not mapped.", slot)
             return False, []
 
+        if self.project.loader.find_symbol(target):
+            return True, [target]
+
         if not self.project.is_hooked(target):
             return False, []
 

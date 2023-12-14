@@ -1,16 +1,14 @@
 import angr
 
 
-######################################
-# __libc_init
-#
 # Refer to http://androidxref.com/5.1.1_r6/xref/bionic/libc/bionic/libc_init_dynamic.cpp
 # and http://androidxref.com/5.1.1_r6/xref/bionic/libc/private/KernelArgumentBlock.h
 # raw_args points to argc, *argv, and *envp located on the stack
 # unused is always zero
 # slingshot points to main()
 # structors points to PRE_INIT_ARRAY, INIT_ARRAY, and FINI_ARRAY
-######################################
+
+
 class __libc_init(angr.SimProcedure):
     # pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init,missing-class-docstring
 

@@ -1,7 +1,10 @@
+#!/usr/bin/env python3
+__package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:disable=redefined-builtin
+
 import os
 import random
 
-from unittest import mock, TestCase
+from unittest import main, mock, TestCase
 
 import archinfo
 
@@ -11,8 +14,10 @@ from angr.analyses.reaching_definitions.subject import SubjectType
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.code_location import CodeLocation
 
+from ...common import bin_location
 
-TESTS_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
+
+TESTS_LOCATION = os.path.join(bin_location, "tests")
 
 
 class _MockFunctionSubject:  # pylint:disable=too-few-public-methods
@@ -42,12 +47,12 @@ class TestReachingDefinitionsState(TestCase):
         )
 
         rtoc_offset = arch.registers["rtoc"][0]
-        rtoc_definition_value = state.register_definitions.load(rtoc_offset, size=8)
+        rtoc_definition_value = state.registers.load(rtoc_offset, size=8)
 
         self.assertIsNotNone(rtoc_definition_value.one_value())
         v = rtoc_definition_value.one_value()
         self.assertFalse(v.symbolic)
-        self.assertEqual(v._model_concrete.value, rtoc_value)
+        self.assertEqual(v.concrete_value, rtoc_value)
 
     def test_rd_state_gets_a_default_heap_allocator(self):
         arch = archinfo.arch_arm.ArchARM()
@@ -67,3 +72,7 @@ class TestReachingDefinitionsState(TestCase):
             state.get_sp()
 
             live_definitions_get_sp_mock.assert_called_once()
+
+
+if __name__ == "__main__":
+    main()

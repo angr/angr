@@ -14,7 +14,7 @@ static const uint8_t MAX_MEM_ACCESS_SIZE = 8;
 // The size of the longest register in archinfo's uc_regs for all architectures
 static const uint8_t MAX_REGISTER_BYTE_SIZE = 32;
 
-static const uint16_t PAGE_SIZE = 0x1000;
+static const uint16_t ANGR_PAGE_SIZE = 0x1000;
 static const uint8_t PAGE_SHIFT = 12;
 
 typedef uint64_t address_t;
@@ -479,7 +479,7 @@ struct caches_t {
 	PageCache *page_cache;
 };
 
-typedef taint_t PageBitmap[PAGE_SIZE];
+typedef taint_t PageBitmap[ANGR_PAGE_SIZE];
 typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
 std::map<uint64_t, caches_t> global_cache;
 
@@ -488,11 +488,13 @@ typedef std::unordered_set<vex_tmp_id_t> TempSet;
 
 struct fd_data {
 	char *bytes;
+	taint_t *taints;
 	uint64_t curr_pos;
 	uint64_t len;
 
-	fd_data(char *fd_bytes, uint64_t fd_len, uint64_t fd_read_pos) {
+	fd_data(char *fd_bytes, taint_t *fd_taints, uint64_t fd_len, uint64_t fd_read_pos) {
 		bytes = fd_bytes;
+		taints = fd_taints;
 		curr_pos = fd_read_pos;
 		len = fd_len;
 	}
@@ -763,6 +765,7 @@ class State {
 		uint64_t cgc_random_bbl;
 		int32_t cgc_receive_sysno;
 		uint64_t cgc_receive_bbl;
+		uint64_t cgc_receive_max_size;
 		int32_t cgc_transmit_sysno;
 		uint64_t cgc_transmit_bbl;
 		bool handle_symbolic_syscalls;
@@ -792,6 +795,10 @@ class State {
 
 		// Concrete writes to re-execute to avoid write-write conflicts
 		std::unordered_map<uint64_t, uint8_t> concrete_writes_to_reexecute;
+
+		// Concrete writes performed by syscalls. Used to determine if any write-write conflicts occur when syscall is
+		// re-executed.
+		std::unordered_set<address_t> syscall_concrete_writes;
 
 		// List of instructions that should be executed symbolically; used to store data to return
 		std::vector<sym_block_details_t> block_details_to_return;
@@ -897,9 +904,9 @@ class State {
 
 		address_t get_stack_pointer() const;
 
-		void fd_init_bytes(uint64_t fd, char *bytes, uint64_t len, uint64_t read_pos);
+		void fd_init_bytes(uint64_t fd, char *bytes, taint_t *taints, uint64_t len, uint64_t read_pos);
 
-		uint64_t fd_read(uint64_t fd, char *buf, uint64_t count);
+		uint64_t fd_read(uint64_t fd, char *buf, taint_t *&taints, uint64_t count);
 
 		// Set random syscall data for replaying
 		void init_random_bytes(uint64_t *values, uint64_t *sizes, uint64_t count);

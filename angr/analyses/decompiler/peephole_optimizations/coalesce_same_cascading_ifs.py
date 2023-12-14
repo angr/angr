@@ -10,7 +10,7 @@ class CoalesceSameCascadingIfs(PeepholeOptimizationStmtBase):
     NAME = "Coalescing cascading If constructs"
     stmt_classes = (ConditionalJump,)
 
-    def optimize(self, stmt: ConditionalJump):
+    def optimize(self, stmt: ConditionalJump, stmt_idx: int = None, block=None, **kwargs):
         cond = stmt.condition
 
         # if (cond) {ITE(cond, true_branch, false_branch)} else {} ==> if (cond) {true_branch} else {}
@@ -21,5 +21,7 @@ class CoalesceSameCascadingIfs(PeepholeOptimizationStmtBase):
 
         if cond is not stmt.condition or new_true_target is not stmt.true_target:
             # it's updated
-            return ConditionalJump(stmt.idx, cond, new_true_target, stmt.false_target, **stmt.tags)
+            return ConditionalJump(
+                stmt.idx, cond, new_true_target, stmt.false_target, false_target_idx=stmt.false_target_idx, **stmt.tags
+            )
         return None

@@ -9,7 +9,7 @@ from .arm_cmpf import ARMCmpF
 from .bswap import Bswap
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .constant_derefs import ConstantDereferences
-from .conv_const_mull_a_shift import ConvConstMullAShift
+from .const_mull_a_shift import ConstMullAShift
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .remove_empty_if_body import RemoveEmptyIfBody
 from .remove_redundant_ite_branch import RemoveRedundantITEBranches
@@ -37,10 +37,15 @@ from .rewrite_bit_extractions import RewriteBitExtractions
 from .remove_redundant_ite_comparisons import RemoveRedundantITEComparisons
 from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
 from .sar_to_signed_div import SarToSignedDiv
+from .tidy_stack_addr import TidyStackAddr
+from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
+from .rol_ror import RolRorRewriter
+from .inlined_strcpy import InlinedStrcpy
+from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
 
-from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
+from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
-
+MULTI_STMT_OPTS: List[Type[PeepholeOptimizationMultiStmtBase]] = []
 STMT_OPTS: List[Type[PeepholeOptimizationStmtBase]] = []
 EXPR_OPTS: List[Type[PeepholeOptimizationExprBase]] = []
 
@@ -51,5 +56,12 @@ for v in _g.values():
 
     if isinstance(v, type) and issubclass(v, PeepholeOptimizationStmtBase) and v is not PeepholeOptimizationStmtBase:
         STMT_OPTS.append(v)
+
+    if (
+        isinstance(v, type)
+        and issubclass(v, PeepholeOptimizationMultiStmtBase)
+        and v is not PeepholeOptimizationMultiStmtBase
+    ):
+        MULTI_STMT_OPTS.append(v)
 
 _g = None

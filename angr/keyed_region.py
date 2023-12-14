@@ -1,6 +1,6 @@
 import logging
 import weakref
-from typing import Union, TYPE_CHECKING
+from typing import Union, Optional, Tuple, TYPE_CHECKING
 
 from sortedcontainers import SortedDict
 
@@ -133,7 +133,7 @@ class KeyedRegion:
         self._storage, om, self._phi_node_contains = s
         self._object_mapping = weakref.WeakValueDictionary(om)
 
-    def _get_container(self, offset):
+    def _get_container(self, offset) -> Tuple[int, Optional[RegionObject]]:
         try:
             base_offset = next(self._storage.irange(maximum=offset, reverse=True))
         except StopIteration:
@@ -419,7 +419,23 @@ class KeyedRegion:
 
         # is there a region item that begins before the start and overlaps with this variable?
         floor_key, floor_item = self._get_container(start)
-        if floor_item is not None and floor_key not in overlapping_items:
+        if floor_item is None:
+            # fast path: just insert it
+            self._storage[start] = RegionObject(start, object_size, {stored_object})
+            return
+
+        # fast path: if there is a perfect overlap, just update the item
+        if len(overlapping_items) == 1 and floor_item.start == start and floor_item.end == end:
+            if overwrite:
+                floor_item.set_object(stored_object)
+            elif merge_to_top is False and top is None:
+                floor_item.add_object(stored_object)
+            else:
+                self._add_object_with_check(floor_item, stored_object, merge_to_top=merge_to_top, top=top)
+            return
+
+        # slower path: there are multiple overlapping items
+        if floor_key not in overlapping_items:
             # insert it into the beginning
             overlapping_items.insert(0, floor_key)
 

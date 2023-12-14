@@ -872,6 +872,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 				// address to later update concrete value to write.
 				block_concrete_writes_to_reexecute.emplace(byte_addr);
 			}
+			else if (syscall_concrete_writes.find(byte_addr) != syscall_concrete_writes.end()) {
+				// Mark write for re-execution since value will be overwritten by a previously executed syscall that
+				// will be re-executed.
+				block_concrete_writes_to_reexecute.emplace(byte_addr);
+			}
 			else if ((symbolic_mem_writes.count(byte_addr) > 0) || (block_symbolic_mem_writes.count(byte_addr) > 0)) {
 				// A previous symbolic write to same location will be re-executed and so re-execute concrete write.
 				block_concrete_writes_to_reexecute.emplace(byte_addr);
@@ -1922,7 +1927,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		// by this memory read. Let's process the block, rebuild its memory reads map and find the current instruction
 		// address
 		curr_block_details.vex_lift_result = lift_block(curr_block_details.block_addr, curr_block_details.block_size);
-		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0)) {
+		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0) ||
+		    (curr_block_details.vex_lift_result->size != curr_block_details.block_size)) {
 			// Failed to lift block to VEX.
 			if (is_mem_read_symbolic) {
 				// Since we are processing VEX block for the first time, there are no symbolic registers/VEX temps.
@@ -2306,7 +2312,8 @@ void State::start_propagating_taint() {
 	if ((arch == UC_ARCH_ARM) && (block_taint_cache.find(block_address) == block_taint_cache.end())) {
 		// Block was not lifted and processed before. So it could end in syscall
 		curr_block_details.vex_lift_result = lift_block(block_address, block_size);
-		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0)) {
+		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0) ||
+		    (curr_block_details.vex_lift_result->size != curr_block_details.block_size)) {
 			// Failed to lift block to VEX. We don't execute the block because it could end in a syscall.
 			stop(STOP_VEX_LIFT_FAILED);
 			return;
@@ -2330,16 +2337,10 @@ void State::start_propagating_taint() {
 			// Compute and cache taint sink-source relations for this block since there are symbolic registers.
 			if (curr_block_details.vex_lift_result == NULL) {
 				curr_block_details.vex_lift_result = lift_block(block_address, block_size);
-				if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0)) {
-					// Failed to lift block to VEX.
-					if (symbolic_registers.size() > 0) {
-						// There are symbolic registers but VEX lift failed so we can't propagate taint
-						stop(STOP_VEX_LIFT_FAILED);
-					}
-					else {
-						// There are no symbolic registers so let's attempt to execute the block.
-						curr_block_details.vex_lift_failed = true;
-					}
+				if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0) ||
+				    (curr_block_details.vex_lift_result->size != curr_block_details.block_size)) {
+					// There are symbolic registers but VEX lift failed so we can't propagate taint
+					stop(STOP_VEX_LIFT_FAILED);
 					return;
 				}
 			}
@@ -2445,12 +2446,12 @@ address_t State::get_stack_pointer() const {
 	return out;
 }
 
-void State::fd_init_bytes(uint64_t fd, char *bytes, uint64_t len, uint64_t read_pos) {
-	fd_details.emplace(fd, fd_data(bytes, len, read_pos));
+void State::fd_init_bytes(uint64_t fd, char *bytes, taint_t *taints, uint64_t len, uint64_t read_pos) {
+	fd_details.emplace(fd, fd_data(bytes, taints, len, read_pos));
 	return;
 }
 
-uint64_t State::fd_read(uint64_t fd, char *buf, uint64_t count) {
+uint64_t State::fd_read(uint64_t fd, char *buf, taint_t *&taints, uint64_t count) {
 	auto &fd_det = fd_details.at(fd);
 	if (fd_det.curr_pos >= fd_det.len) {
 		// No more bytes to read
@@ -2459,6 +2460,7 @@ uint64_t State::fd_read(uint64_t fd, char *buf, uint64_t count) {
 	// Truncate count of bytes to read if request exceeds number left in the "stream"
 	auto actual_count = std::min(count, fd_det.len - fd_det.curr_pos);
 	memcpy(buf, fd_det.bytes + fd_det.curr_pos, actual_count);
+	taints = fd_det.taints + fd_det.curr_pos;
 	fd_det.curr_pos += actual_count;
 	return actual_count;
 }
@@ -2603,20 +2605,54 @@ void State::perform_cgc_receive() {
 		return;
 	}
 
+	if ((cgc_receive_max_size != 0) && (count > cgc_receive_max_size)) {
+		count = cgc_receive_max_size;
+	}
+
 	// Perform read
 	char *tmp_buf = (char *)malloc(count);
-	auto actual_count = fd_read(fd, tmp_buf, count);
+	taint_t *tmp_taint_buf;
+	auto actual_count = fd_read(fd, tmp_buf, tmp_taint_buf, count);
 	if (stopped) {
 		// Possibly stopped when writing bytes read to memory. Treat as syscall failure.
 		free(tmp_buf);
 		return;
 	}
 	if (actual_count > 0) {
-		// Mark buf as symbolic
-		handle_write(buf, actual_count, true, true);
-		if (stopped) {
-			free(tmp_buf);
-			return;
+		// Update taint status. The taint status update tries to minimize updates by updating status of contiguous chunk
+		// of bytes with same taint
+		taint_t curr_taint_status = tmp_taint_buf[0];
+		uint64_t start_offset = 0, curr_offset = 1, slice_size = 1;
+		for (int i = 0; i < actual_count; i++) {
+			if (tmp_taint_buf[i] == TAINT_STATUS_CONCRETE) {
+				// Track address of concrete write by syscall for finding write-write conflicts with other concrete
+				// writes
+				syscall_concrete_writes.emplace(buf + i);
+			}
+		}
+		for (; curr_offset < actual_count; curr_offset++) {
+			if (tmp_taint_buf[curr_offset] != curr_taint_status) {
+				// Taint status of next byte differs. Update all previous ones
+				handle_write(buf + start_offset, slice_size, true, (curr_taint_status == TAINT_SYMBOLIC));
+				if (stopped) {
+					free(tmp_buf);
+					return;
+				}
+				start_offset = curr_offset;
+				curr_taint_status = tmp_taint_buf[curr_offset];
+				slice_size = 0;
+			}
+			else {
+				slice_size++;
+			}
+		}
+		if (start_offset != curr_offset) {
+			// Taint status of some more bytes need to be updated
+			handle_write(buf + start_offset, slice_size, true, (curr_taint_status == TAINT_SYMBOLIC));
+			if (stopped) {
+				free(tmp_buf);
+				return;
+			}
 		}
 		uc_mem_write(uc, buf, tmp_buf, actual_count);
 	}
@@ -3012,11 +3048,12 @@ bool simunicorn_is_interrupt_handled(State *state) {
 
 extern "C"
 void simunicorn_set_cgc_syscall_details(State *state, uint32_t transmit_num, uint64_t transmit_bbl,
-  uint32_t receive_num, uint64_t receive_bbl, uint32_t random_num, uint64_t random_bbl) {
+  uint32_t receive_num, uint64_t receive_bbl, uint64_t receive_size, uint32_t random_num, uint64_t random_bbl) {
 	state->cgc_random_sysno = random_num;
 	state->cgc_random_bbl = random_bbl;
 	state->cgc_receive_sysno = receive_num;
 	state->cgc_receive_bbl = receive_bbl;
+	state->cgc_receive_max_size = receive_size;
 	state->cgc_transmit_sysno = transmit_num;
 	state->cgc_transmit_bbl = transmit_bbl;
 }
@@ -3042,8 +3079,8 @@ transmit_record_t *simunicorn_process_transmit(State *state, uint32_t num) {
  */
 
 extern "C"
-void simunicorn_set_fd_bytes(State *state, uint64_t fd, char *input, uint64_t len, uint64_t read_pos) {
-	state->fd_init_bytes(fd, input, len, read_pos);
+void simunicorn_set_fd_bytes(State *state, uint64_t fd, char *input, taint_t *taints, uint64_t len, uint64_t read_pos) {
+	state->fd_init_bytes(fd, input, taints, len, read_pos);
 	return;
 }
 

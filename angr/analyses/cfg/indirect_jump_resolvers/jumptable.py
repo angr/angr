@@ -292,7 +292,7 @@ class JumpTableProcessor(
             elif len(expr.args) == 2 and expr.args[1].op == "BVV":
                 sp_offset = JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
                 if sp_offset is not None:
-                    delta = expr.args[1]._model_concrete.value
+                    delta = expr.args[1].concrete_value
                     sp_offset += delta
                     return sp_offset
         elif expr.op == "__and__":
@@ -323,7 +323,7 @@ class JumpTableProcessor(
             elif len(expr.args) == 2 and expr.args[1].op == "BVV":
                 reg_offset = JumpTableProcessor._extract_regoffset_from_expr(expr.args[0])
                 if reg_offset is not None:
-                    delta = expr.args[1]._model_concrete.value
+                    delta = expr.args[1].concrete_value
                     reg_offset += delta
                     return reg_offset
         elif expr.op == "__and__":

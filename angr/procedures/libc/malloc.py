@@ -1,9 +1,6 @@
 import angr
 import itertools
 
-######################################
-# malloc
-######################################
 
 malloc_mem_counter = itertools.count()
 

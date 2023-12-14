@@ -65,11 +65,9 @@ class SimState(PluginHub):
     # Type Annotations for default plugins to allow type inference
     solver: "SimSolver"
     posix: "SimSystemPosix"
-    registers: "MemoryMixin"
+    registers: "DefaultMemory"
     regs: "SimRegNameView"
-    memory: "MemoryMixin"
-    callstack: "CallStack"
-    mem: "SimMemView"
+    memory: "DefaultMemory"
     callstack: "CallStack"
     mem: "SimMemView"
     history: "SimStateHistory"
@@ -995,7 +993,7 @@ from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeEr
 
 # Type imports for annotations
 if TYPE_CHECKING:
-    from .storage import MemoryMixin
+    from .storage import DefaultMemory
     from .state_plugins.solver import SimSolver
     from .state_plugins.posix import SimSystemPosix
     from .state_plugins.view import SimRegNameView, SimMemView

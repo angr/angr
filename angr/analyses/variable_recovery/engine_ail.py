@@ -46,6 +46,12 @@ class SimEngineVRAIL(
             data = self._expr(stmt.src)
             size = stmt.src.bits // 8
 
+            if hasattr(stmt.dst, "write_size") and stmt.dst.write_size > size:
+                # zero-fill this register
+                self._assign_to_register(
+                    offset, RichR(self.state.top(stmt.dst.write_size * 8)), stmt.dst.write_size, create_variable=False
+                )
+
             self._assign_to_register(offset, data, size, src=stmt.src, dst=stmt.dst)
 
         elif dst_type is ailment.Expr.Tmp:
@@ -118,7 +124,7 @@ class SimEngineVRAIL(
             prototype = stmt.prototype
         elif isinstance(stmt.target, ailment.Expr.Const):
             func_addr = stmt.target.value
-            if func_addr in self.kb.functions:
+            if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
                 func = self.kb.functions[func_addr]
                 prototype = func.prototype
 
@@ -222,7 +228,9 @@ class SimEngineVRAIL(
                 ty = typeconsts.int_type(expr.size * self.state.arch.byte_width)
             v = claripy.BVV(expr.value, expr.bits)
         r = RichR(v, typevar=ty)
-        self._reference(r, self._codeloc())
+        codeloc = self._codeloc()
+        self._ensure_variable_existence(r, codeloc)
+        self._reference(r, codeloc)
         return r
 
     def _ail_handle_BinaryOp(self, expr):
@@ -275,6 +283,7 @@ class SimEngineVRAIL(
 
         value_v = self.state.stack_address(expr.offset)
         richr = RichR(value_v, typevar=typevar)
+        self._ensure_variable_existence(richr, self._codeloc(), src_expr=expr)
         if self._reference_spoffset:
             self._reference(richr, self._codeloc(), src=expr)
 
@@ -315,7 +324,7 @@ class SimEngineVRAIL(
 
         if r1.data.concrete:
             # addition with constants. create a derived type variable
-            typevar = typevars.DerivedTypeVariable(r0_typevar, typevars.AddN(r1.data._model_concrete.value))
+            typevar = typevars.DerivedTypeVariable(r0_typevar, typevars.AddN(r1.data.concrete_value))
         elif r1.typevar is not None:
             typevar = typevars.TypeVariable()
             type_constraints.add(typevars.Add(r0_typevar, r1.typevar, typevar))
@@ -340,7 +349,7 @@ class SimEngineVRAIL(
 
         type_constraints = set()
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data._model_concrete.value))
+            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data.concrete_value))
         else:
             typevar = typevars.TypeVariable()
             if r0.typevar is not None and r1.typevar is not None:
@@ -504,7 +513,7 @@ class SimEngineVRAIL(
                 typevar=r0.typevar,
             )
 
-        shiftamount = r1.data._model_concrete.value
+        shiftamount = r1.data.concrete_value
 
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
@@ -523,7 +532,7 @@ class SimEngineVRAIL(
                 typevar=r0.typevar,
             )
 
-        shiftamount = r1.data._model_concrete.value
+        shiftamount = r1.data.concrete_value
 
         return RichR(
             claripy.LShR(r0.data, shiftamount), typevar=typeconsts.int_type(result_size), type_constraints=None
@@ -544,7 +553,7 @@ class SimEngineVRAIL(
                 typevar=r0.typevar,
             )
 
-        shiftamount = r1.data._model_concrete.value
+        shiftamount = r1.data.concrete_value
 
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
@@ -563,7 +572,7 @@ class SimEngineVRAIL(
                 typevar=r0.typevar,
             )
 
-        shiftamount = r1.data._model_concrete.value
+        shiftamount = r1.data.concrete_value
 
         return RichR(r0.data >> shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
@@ -601,6 +610,26 @@ class SimEngineVRAIL(
         r = self.state.top(expr.bits)
         return RichR(r, typevar=r0.typevar)
 
+    def _ail_handle_Rol(self, expr):
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        _ = self._expr(arg1)
+        result_size = arg0.bits
+
+        r = self.state.top(result_size)
+        return RichR(r, typevar=r0.typevar)
+
+    def _ail_handle_Ror(self, expr):
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        _ = self._expr(arg1)
+        result_size = arg0.bits
+
+        r = self.state.top(result_size)
+        return RichR(r, typevar=r0.typevar)
+
     def _ail_handle_Concat(self, expr):
         arg0, arg1 = expr.operands
 
@@ -635,6 +664,22 @@ class SimEngineVRAIL(
         if expr.data.concrete:
             return RichR(
                 -expr.data,
+                typevar=typeconsts.int_type(result_size),
+                type_constraints=None,
+            )
+
+        r = self.state.top(result_size)
+        return RichR(r, typevar=expr.typevar)
+
+    def _ail_handle_BitwiseNeg(self, expr):
+        arg = expr.operands[0]
+        expr = self._expr(arg)
+
+        result_size = arg.bits
+
+        if expr.data.concrete:
+            return RichR(
+                ~expr.data,
                 typevar=typeconsts.int_type(result_size),
                 type_constraints=None,
             )

@@ -4,10 +4,6 @@ from angr.procedures.stubs.format_parser import FormatParser
 
 l = logging.getLogger(name=__name__)
 
-######################################
-# sprintf
-######################################
-
 
 class sprintf(FormatParser):
     # pylint:disable=arguments-differ

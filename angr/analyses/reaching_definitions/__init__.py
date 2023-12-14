@@ -15,7 +15,6 @@ from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import register_analysis
 from .reaching_definitions import ReachingDefinitionsAnalysis, ReachingDefinitionsModel
 from .function_handler import FunctionHandler, FunctionCallData
-from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
 
 if TYPE_CHECKING:
@@ -40,7 +39,6 @@ __all__ = (
     "FunctionHandler",
     "FunctionCallData",
     "get_all_definitions",
-    "ExternalCodeLocation",
 )
 
 
@@ -55,7 +53,7 @@ def get_all_definitions(region: "MultiValuedMemory") -> Set["Definition"]:
             cnt_set: Optional[Union["SimMemoryObject", Set["SimMemoryObject"]]] = page.content[idx]
             if cnt_set is None:
                 continue
-            elif type(cnt_set) is not set:
+            if type(cnt_set) is not set:
                 cnt_set = {cnt_set}
             for cnt in cnt_set:
                 for def_ in LiveDefinitions.extract_defs(cnt.object):

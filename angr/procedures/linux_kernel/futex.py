@@ -1,9 +1,6 @@
 import logging
 import angr
 
-######################################
-# futex
-######################################
 
 l = logging.getLogger(name=__name__)
 

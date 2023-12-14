@@ -13,7 +13,7 @@ class RemoveRedundantITEComparisons(PeepholeOptimizationExprBase):
     NAME = "Remove redundant ITE comparisons"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         # ITE(cond, a, b) == a  ==>  cond
         # ITE(cond, a, b) == b  ==>  !cond
         # ITE(cond, a, b) != a  ==>  !cond

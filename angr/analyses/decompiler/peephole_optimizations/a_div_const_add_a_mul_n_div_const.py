@@ -9,7 +9,7 @@ class ADivConstAddAMulNDivConst(PeepholeOptimizationExprBase):
     NAME = "a / N0 + (a * N1) / N0 => a * (N1 + 1) / N0"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         if expr.op == "Add" and len(expr.operands) == 2:
             op0, op1 = expr.operands
             if isinstance(op0, BinaryOp) and op0.op == "Div" and isinstance(op0.operands[1], Const):

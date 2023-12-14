@@ -2,8 +2,8 @@ name: Install Smoketest
 
 on:
   push:
-    paths:
-      - "**"
+    branches:
+      - master
   pull_request:
   workflow_dispatch:
 

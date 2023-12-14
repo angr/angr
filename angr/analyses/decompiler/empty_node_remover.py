@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 import claripy
 import ailment
+from ailment.expression import negate
 
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import (
@@ -127,12 +128,14 @@ class EmptyNodeRemover:
         if true_node is None and false_node is None:
             # empty node
             return None
-        if true_node is None and false_node is not None and self._claripy_ast_conditions:
+        if true_node is None and false_node is not None:
             # swap them
             return ConditionNode(
                 node.addr,
                 node.reaching_condition,
-                ConditionProcessor.simplify_condition(claripy.Not(node.condition)),
+                ConditionProcessor.simplify_condition(claripy.Not(node.condition))
+                if self._claripy_ast_conditions
+                else negate(node.condition),
                 false_node,
                 false_node=None,
             )

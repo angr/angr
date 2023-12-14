@@ -4,6 +4,7 @@ from typing import Dict, List
 
 import ailment
 
+from ..condition_processor import ConditionProcessor, EmptyBlockNotice
 from ..sequence_walker import SequenceWalker
 from ..structuring.structurer_nodes import (
     SequenceNode,
@@ -14,6 +15,7 @@ from ..structuring.structurer_nodes import (
     ContinueNode,
     CascadingConditionNode,
 )
+from ..utils import is_statement_terminating
 
 
 class LoopSimplifier(SequenceWalker):
@@ -21,7 +23,7 @@ class LoopSimplifier(SequenceWalker):
     Simplifies loops.
     """
 
-    def __init__(self, node):
+    def __init__(self, node, functions):
         handlers = {
             SequenceNode: self._handle_sequencenode,
             CodeNode: self._handle_codenode,
@@ -33,6 +35,7 @@ class LoopSimplifier(SequenceWalker):
         }
 
         super().__init__(handlers)
+        self.functions = functions
         self.continue_preludes: Dict[LoopNode, List[ailment.Block]] = defaultdict(list)
         self.walk(node)
 
@@ -123,4 +126,11 @@ class LoopSimplifier(SequenceWalker):
         self, block, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs
     ):  # pylint:disable=no-self-use
         if isinstance(successor, ContinueNode) or successor is loop_successor:
+            # ensure this block is not returning or exiting
+            try:
+                last_stmt = ConditionProcessor.get_last_statement(block)
+            except EmptyBlockNotice:
+                last_stmt = None
+            if last_stmt is not None and is_statement_terminating(last_stmt, self.functions):
+                return
             self.continue_preludes[loop].append(block)

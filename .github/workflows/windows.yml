@@ -1,0 +1,50 @@
+name: Test on Windows
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  windows:
+    name: Test Windows
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        runner_id: [1, 2, 3, 4, 5]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: angr
+      - uses: actions/checkout@v3
+        with:
+          repository: angr/binaries
+          path: binaries
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+      - run: python -m venv $HOME/venv
+        name: Create venv
+        shell: bash
+      - run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          call %USERPROFILE%\venv\Scripts\activate
+          pip install "setuptools>=59" wheel cffi "unicorn==2.0.1.post1"
+          pip install git+https://github.com/angr/archinfo.git
+          pip install git+https://github.com/angr/pyvex.git
+          pip install git+https://github.com/angr/cle.git
+          pip install git+https://github.com/angr/claripy.git
+          pip install git+https://github.com/angr/ailment.git
+        name: Install dependencies
+        shell: cmd
+      - run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          call %USERPROFILE%\venv\Scripts\activate
+          pip install --no-build-isolation ./angr[testing]
+        name: Install angr
+        shell: cmd
+      - run: |
+          call %USERPROFILE%\venv\Scripts\activate
+          pytest -n auto --splits 5 --group ${{ matrix.runner_id }} --durations=10 angr
+        name: Run pytest
+        shell: cmd

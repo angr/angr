@@ -41,7 +41,7 @@ class strncmp(angr.SimProcedure):
                 l.debug("lengths < limit and unmatched")
 
             concrete_run = True
-            maxlen = min(c_a_len, c_b_len, c_limit)
+            maxlen = min(c_a_len + 1, c_b_len + 1, c_limit)
         else:
             if self.state.solver.single_valued(limit):
                 c_limit = self.state.solver.eval(limit)
@@ -141,11 +141,11 @@ class strncmp(angr.SimProcedure):
                             ),
                         ),
                         self.state.solver.ULT(a_len, i),
-                        self.state.solver.ULT(limit, i),
+                        self.state.solver.ULE(limit, i),
                     )
                 else:
                     byte_constraint = self.state.solver.Or(
-                        a_byte == b_byte, self.state.solver.ULT(a_len, i), self.state.solver.ULT(limit, i)
+                        a_byte == b_byte, self.state.solver.ULT(a_len, i), self.state.solver.ULE(limit, i)
                     )
                 match_constraints.append(byte_constraint)
 

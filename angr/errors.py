@@ -85,6 +85,10 @@ class AngrAssemblyError(AngrError):
     pass
 
 
+class AngrTypeError(AngrError, TypeError):
+    pass
+
+
 # Congruency check failure
 class AngrIncongruencyError(AngrAnalysisError):
     pass

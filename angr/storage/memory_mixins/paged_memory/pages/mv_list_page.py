@@ -275,6 +275,11 @@ class MVListPage(
 
     def changed_bytes(self, other: "MVListPage", page_addr: int = None):
         candidates: Set[int] = super().changed_bytes(other)
+        if candidates is not None:
+            # using the result from the history tracking mixin as an approximation
+            return candidates
+
+        # slower path
         if candidates is None:
             candidates: Set[int] = set()
             # resort to the slower solution

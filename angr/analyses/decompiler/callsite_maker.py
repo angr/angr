@@ -8,7 +8,7 @@ from ailment import Stmt, Expr
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.errors import SimMemoryMissingError
 from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar, SimTypeInt
-from angr.calling_conventions import SimRegArg, SimStackArg, SimCC
+from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
 
@@ -120,6 +120,8 @@ class CallSiteMaker(Analysis):
                         args.append(the_arg)
                     else:
                         args.append(None)
+                elif isinstance(arg_loc, SimStructArg):
+                    l.warning("SimStructArg is not yet supported")
 
                 else:
                     raise NotImplementedError("Not implemented yet.")
@@ -241,14 +243,14 @@ class CallSiteMaker(Analysis):
                 return set()
 
             try:
-                vs: "MultiValues" = rd.register_definitions.load(offset, size=size)
+                vs: "MultiValues" = rd.registers.load(offset, size=size)
             except SimMemoryMissingError:
                 return set()
             values_and_defs_ = set()
             for values in vs.values():
                 for value in values:
                     if value.concrete:
-                        concrete_value = value._model_concrete.value
+                        concrete_value = value.concrete_value
                     else:
                         concrete_value = None
                     for def_ in rd.extract_defs(value):

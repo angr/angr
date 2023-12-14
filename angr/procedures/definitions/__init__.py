@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-SIM_LIBRARIES: Dict[str,'SimLibrary'] = {}
+SIM_LIBRARIES: Dict[str, "SimLibrary"] = {}
 
 
 class SimLibrary:
@@ -36,10 +36,11 @@ class SimLibrary:
     :ivar fallback_proc:    A SimProcedure class that should be used to provide stub procedures. By default,
                             ``ReturnUnconstrained``.
     """
+
     def __init__(self):
         self.procedures = {}
         self.non_returning = set()
-        self.prototypes: Dict[str,SimTypeFunction] = {}
+        self.prototypes: Dict[str, SimTypeFunction] = {}
         self.default_ccs = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
@@ -75,7 +76,7 @@ class SimLibrary:
         """
         The first common name of this library, e.g. libc.so.6, or '??????' if none are known.
         """
-        return self.names[0] if self.names else '??????'
+        return self.names[0] if self.names else "??????"
 
     def set_library_names(self, *names):
         """
@@ -135,7 +136,7 @@ class SimLibrary:
         parsed = parse_file(c_decl)
         parsed_decl = parsed[0]
         if not parsed_decl:
-            raise ValueError('Cannot parse the function prototype.')
+            raise ValueError("Cannot parse the function prototype.")
         func_name, func_proto = next(iter(parsed_decl.items()))
 
         self.set_prototype(func_name, func_proto)
@@ -180,12 +181,11 @@ class SimLibrary:
             if name in self.non_returning:
                 self.non_returning.add(alt)
 
-
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
         if proc.cc is None and arch.name in self.fallback_cc:
-            proc.cc = self.fallback_cc[arch.name](arch)
+            proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
         if proc.display_name in self.prototypes:
             proc.prototype = self.prototypes[proc.display_name].with_arch(arch)
             proc.guessed_prototype = False
@@ -253,9 +253,7 @@ class SimLibrary:
         :param name:    The name of the function as a string
         :return:        A bool indicating if anything is known about the function
         """
-        return self.has_implementation(name) or \
-            name in self.non_returning or \
-            name in self.prototypes
+        return self.has_implementation(name) or name in self.non_returning or name in self.prototypes
 
     def has_implementation(self, name):
         """
@@ -406,12 +404,13 @@ class SimSyscallLibrary(SimLibrary):
     All the SimLibrary methods for adding functions still work, but now there's an additional layer on top that
     associates them with numbers.
     """
+
     def __init__(self):
         super().__init__()
-        self.syscall_number_mapping: Dict[str,Dict[int,str]] = defaultdict(dict)  # keyed by abi
-        self.syscall_name_mapping: Dict[str,Dict[str,int]] = defaultdict(dict)  # keyed by abi
-        self.default_cc_mapping: Dict[str,Type['SimCCSyscall']] = {}  # keyed by abi
-        self.syscall_prototypes: Dict[str,Dict[str,SimTypeFunction]] = defaultdict(dict)  # keyed by abi
+        self.syscall_number_mapping: Dict[str, Dict[int, str]] = defaultdict(dict)  # keyed by abi
+        self.syscall_name_mapping: Dict[str, Dict[str, int]] = defaultdict(dict)  # keyed by abi
+        self.default_cc_mapping: Dict[str, Type["SimCCSyscall"]] = {}  # keyed by abi
+        self.syscall_prototypes: Dict[str, Dict[str, SimTypeFunction]] = defaultdict(dict)  # keyed by abi
         self.fallback_proc = stub_syscall
 
     def copy(self):
@@ -421,10 +420,10 @@ class SimSyscallLibrary(SimLibrary):
         o.prototypes = dict(self.prototypes)
         o.default_ccs = dict(self.default_ccs)
         o.names = list(self.names)
-        o.syscall_number_mapping = defaultdict(dict, self.syscall_number_mapping) # {abi: {number: name}}
-        o.syscall_name_mapping = defaultdict(dict, self.syscall_name_mapping) # {abi: {name: number}}
-        o.syscall_prototypes = defaultdict(dict, self.syscall_prototypes) # as above
-        o.default_cc_mapping = dict(self.default_cc_mapping) # {abi: cc}
+        o.syscall_number_mapping = defaultdict(dict, self.syscall_number_mapping)  # {abi: {number: name}}
+        o.syscall_name_mapping = defaultdict(dict, self.syscall_name_mapping)  # {abi: {name: number}}
+        o.syscall_prototypes = defaultdict(dict, self.syscall_prototypes)  # as above
+        o.default_cc_mapping = dict(self.default_cc_mapping)  # {abi: cc}
         return o
 
     def update(self, other):
@@ -438,8 +437,7 @@ class SimSyscallLibrary(SimLibrary):
         :param abi: The abi to evaluate
         :return:    The smallest syscall number known for the given abi
         """
-        if abi not in self.syscall_number_mapping or \
-                not self.syscall_number_mapping[abi]:
+        if abi not in self.syscall_number_mapping or not self.syscall_number_mapping[abi]:
             return 0
         return min(self.syscall_number_mapping[abi])
 
@@ -448,8 +446,7 @@ class SimSyscallLibrary(SimLibrary):
         :param abi: The abi to evaluate
         :return:    The largest syscall number known for the given abi
         """
-        if abi not in self.syscall_number_mapping or \
-                not self.syscall_number_mapping[abi]:
+        if abi not in self.syscall_number_mapping or not self.syscall_number_mapping[abi]:
             return 0
         return max(self.syscall_number_mapping[abi])
 
@@ -493,7 +490,7 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.syscall_prototypes[abi][name] = proto
 
-    def set_prototypes(self, abi: str, protos: Dict[str,SimTypeFunction]) -> None:  # pylint: disable=arguments-differ
+    def set_prototypes(self, abi: str, protos: Dict[str, SimTypeFunction]) -> None:  # pylint: disable=arguments-differ
         """
         Set the prototypes of many syscalls.
 
@@ -511,7 +508,7 @@ class SimSyscallLibrary(SimLibrary):
             mapping = self.syscall_number_mapping[abi]
             if number in mapping:
                 return mapping[number], arch, abi
-        return 'sys_%d' % number, arch, None
+        return "sys_%d" % number, arch, None
 
     def _apply_numerical_metadata(self, proc, number, arch, abi):
         proc.syscall_number = number
@@ -631,34 +628,39 @@ _DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
 
 
 def load_win32api_definitions():
-    if once('load_win32api_definitions'):
-        for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR,
-                                                filter_func=lambda module_name: module_name.startswith("win32_"),
-                                                ):
+    if once("load_win32api_definitions"):
+        for _ in autoimport.auto_import_modules(
+            "angr.procedures.definitions",
+            _DEFINITIONS_BASEDIR,
+            filter_func=lambda module_name: module_name.startswith("win32_")
+            or module_name in {"ntoskrnl", "ntdll", "user32"},
+        ):
             pass
 
 
 def load_all_definitions():
-    if once('load_all_definitions'):
-        for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR):
+    if once("load_all_definitions"):
+        for _ in autoimport.auto_import_modules("angr.procedures.definitions", _DEFINITIONS_BASEDIR):
             pass
 
 
 COMMON_LIBRARIES = {
     # CGC
-    'cgc',
+    "cgc",
     # (mostly) Linux
-    'glibc',
-    'gnulib',  # really just for .o files in coreutils
-    'libstdcpp',
-    'linux_kernel',
-    'linux_loader',
+    "glibc",
+    "gnulib",  # really just for .o files in coreutils
+    "libstdcpp",
+    "linux_kernel",
+    "linux_loader",
     # Windows
-    'msvcr',
+    "msvcr",
 }
 
 
-for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR,
-                                        filter_func=lambda module_name: module_name in COMMON_LIBRARIES,
-                                        ):
+for _ in autoimport.auto_import_modules(
+    "angr.procedures.definitions",
+    _DEFINITIONS_BASEDIR,
+    filter_func=lambda module_name: module_name in COMMON_LIBRARIES,
+):
     pass

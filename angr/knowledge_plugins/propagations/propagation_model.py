@@ -17,6 +17,7 @@ class PropagationModel(Serializable):
         "key",
         "node_iterations",
         "states",
+        "input_states",
         "block_initial_reg_values",
         "replacements",
         "equivalence",
@@ -35,9 +36,11 @@ class PropagationModel(Serializable):
         replacements: Optional[DefaultDict[Any, Dict]] = None,
         equivalence: Optional[Set] = None,
         function: Optional[Function] = None,
+        input_states: Optional[Dict] = None,
     ):
         self.key = prop_key
         self.node_iterations = node_iterations if node_iterations is not None else defaultdict(int)
+        self.input_states = input_states if input_states is not None else {}
         self.states = states if states is not None else {}
         self.block_initial_reg_values = block_initial_reg_values if block_initial_reg_values is not None else {}
         self.replacements = replacements
@@ -51,6 +54,7 @@ class PropagationModel(Serializable):
         self.node_iterations = None
         self.block_initial_reg_values = None
         self.states = None
+        self.input_states = None
         self.graph_visitor = None
 
     def block_beginning_state(self, block_addr) -> PropagatorState:

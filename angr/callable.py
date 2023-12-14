@@ -1,6 +1,6 @@
 import pycparser
 
-from .calling_conventions import DEFAULT_CC, SimCC
+from .calling_conventions import default_cc, SimCC
 
 
 class Callable:
@@ -15,7 +15,17 @@ class Callable:
     """
 
     def __init__(
-        self, project, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None
+        self,
+        project,
+        addr,
+        prototype=None,
+        concrete_only=False,
+        perform_merge=True,
+        base_state=None,
+        toc=None,
+        cc=None,
+        add_options=None,
+        remove_options=None,
     ):
         """
         :param project:         The project to operate on
@@ -37,9 +47,17 @@ class Callable:
         self._perform_merge = perform_merge
         self._base_state = base_state
         self._toc = toc
-        self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
+        self._cc = (
+            cc
+            if cc is not None
+            else default_cc(project.arch.name, platform=project.simos.name if project.simos is not None else None)(
+                project.arch
+            )
+        )
         self._deadend_addr = project.simos.return_deadend
         self._func_ty = prototype
+        self._add_options = add_options if add_options else set()
+        self._remove_options = remove_options if remove_options else set()
 
         self.result_path_group = None
         self.result_state = None
@@ -56,10 +74,10 @@ class Callable:
         self.perform_call(*args, prototype=prototype)
         if self.result_state is not None and prototype.returnty is not None:
             loc = self._cc.return_val(prototype.returnty)
-            val = loc.get_value(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF)
-            return self.result_state.solver.simplify(val)
-        else:
-            return None
+            if loc is not None:
+                val = loc.get_value(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF)
+                return self.result_state.solver.simplify(val)
+        return None
 
     def perform_call(self, *args, prototype=None):
         prototype = SimCC.guess_prototype(args, prototype or self._func_ty).with_arch(self._project.arch)
@@ -71,6 +89,8 @@ class Callable:
             base_state=self._base_state,
             ret_addr=self._deadend_addr,
             toc=self._toc,
+            add_options=self._add_options,
+            remove_options=self._remove_options,
         )
 
         def step_func(pg):

@@ -1,10 +1,5 @@
 import angr
 
-######################################
-# openat
-# Based on posix open SimProcedure
-######################################
-
 
 class openat(angr.SimProcedure):
     # pylint:disable=arguments-differ,unused-argument

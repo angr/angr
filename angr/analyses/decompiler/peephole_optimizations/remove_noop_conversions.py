@@ -10,7 +10,7 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
     NAME = "Remove no-op conversions"
     expr_classes = (Convert,)
 
-    def optimize(self, expr: Convert):
+    def optimize(self, expr: Convert, **kwargs):
         if expr.from_bits == expr.to_bits:
             return expr.operand
 

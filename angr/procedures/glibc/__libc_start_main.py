@@ -7,9 +7,6 @@ import angr
 l = logging.getLogger(name=__name__)
 
 
-######################################
-# __libc_start_main
-######################################
 class __libc_start_main(angr.SimProcedure):
     # pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init,missing-class-docstring
 
@@ -245,7 +242,9 @@ class __libc_start_main(angr.SimProcedure):
             else:
                 break
 
-        cc = angr.DEFAULT_CC[self.arch.name](self.arch)
+        cc = angr.default_cc(
+            self.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+        )(self.arch)
         ty = angr.sim_type.parse_signature("void x(void*, void*, void*, void*, void*)").with_arch(self.arch)
         args = cc.get_args(state, ty)
         main, _, _, init, fini = self._extract_args(blank_state, *args)

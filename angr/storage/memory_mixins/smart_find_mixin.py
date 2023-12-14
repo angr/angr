@@ -5,10 +5,14 @@ from ...errors import SimSegfaultException
 
 
 class SmartFindMixin(MemoryMixin):
+    """
+    Memory mixin providing basic searching over concrete and symbolic data.
+    """
+
     def find(
         self,
         addr,
-        needle,
+        data,
         max_search,
         default=None,
         endness=None,
@@ -23,6 +27,7 @@ class SmartFindMixin(MemoryMixin):
             if endness is None:
                 endness = "Iend_BE"
 
+        needle = data
         char_num = self._calc_char_num(needle, char_size)
 
         # chunk_size is the number of bytes to cache in memory for comparison
@@ -39,7 +44,7 @@ class SmartFindMixin(MemoryMixin):
                     addr, char_num, char_size, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs
                 )
             ):
-                comparison, concrete_comparison = self._find_compare(element, needle, **kwargs)
+                comparison, concrete_comparison = self._find_compare(element, needle)
 
                 if concrete_comparison is False:
                     continue
@@ -70,9 +75,6 @@ class SmartFindMixin(MemoryMixin):
                     **kwargs,
                 )
             raise
-
-        if len(cases) == 1:
-            return cases[0][1], constraints, match_indices
 
         return self._find_process_cases(cases, match_indices, constraints, default, **kwargs)
 
@@ -109,7 +111,7 @@ class SmartFindMixin(MemoryMixin):
                     subaddr,
                     size=char_size * (chunk_size + char_num),
                     endness=endness,
-                    condition=condition & self._find_condition(addr + i, **kwargs),
+                    condition=condition & self._find_condition(addr + i),
                     **kwargs,
                 )
                 chunk_progress = 0
@@ -134,11 +136,11 @@ class SmartFindMixin(MemoryMixin):
             return True
         return len(self.state.solver.eval_upto(b, 2)) > 1
 
-    def _find_condition(self, target_addr, **kwargs):
+    def _find_condition(self, target_addr):  # pylint:disable=unused-argument,no-self-use
         # TODO: fill this in in order to make each load have the correct condition associated with it
         return claripy.true
 
-    def _find_compare(self, element, target, **kwargs):
+    def _find_compare(self, element, target):
         comparison = element == target
         if self.state.solver.is_true(comparison):
             concrete_comparison = True
@@ -148,7 +150,7 @@ class SmartFindMixin(MemoryMixin):
             concrete_comparison = None
         return comparison, concrete_comparison
 
-    def _find_process_cases(self, cases, match_indices, constraints, default, **kwargs):
+    def _find_process_cases(self, cases, match_indices, constraints, default):
         if default is None:
             default = claripy.BVV(0, self.state.arch.bits)
         if cases and cases[-1][0].is_true():

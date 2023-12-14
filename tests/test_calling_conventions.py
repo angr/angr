@@ -1,17 +1,18 @@
-from unittest import TestCase
+#!/usr/bin/env python3
+__package__ = __package__ or "tests"  # pylint:disable=redefined-builtin
+
+import os
+from unittest import TestCase, main
 
 import archinfo
+
 from angr.calling_conventions import SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64, SimTypeFunction, SimRegArg
 from angr.sim_type import parse_file, SimStructValue
 from angr import Project, load_shellcode
 
-import logging
+from .common import bin_location
 
-l = logging.getLogger("angr.tests.test_simcc")
-
-import os
-
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
+test_location = os.path.join(bin_location, "tests")
 
 
 class TestCallingConvention(TestCase):
@@ -79,3 +80,7 @@ class TestCallingConvention(TestCase):
             [SimRegArg("rsi", 8)],
             [SimRegArg("rdx", 8)],
         ]
+
+
+if __name__ == "__main__":
+    main()

@@ -499,7 +499,7 @@ class SimIROp:
 
     def _translate_rm(self, rm_num):
         if not rm_num.symbolic:
-            return rm_map[rm_num._model_concrete.value]
+            return rm_map[rm_num.concrete_value]
         else:
             l.warning("symbolic rounding mode found, using default")
             return claripy.fp.RM.default()

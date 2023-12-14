@@ -1,4 +1,5 @@
-from unittest import TestCase
+#!/usr/bin/env python3
+from unittest import main, TestCase
 
 from angr.analyses.reaching_definitions.heap_allocator import HeapAllocator
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
@@ -39,3 +40,7 @@ class TestHeapAllocator(TestCase):
         self.heap_allocator.free(address)
 
         self.assertFalse(address in self.heap_allocator.allocated_addresses)
+
+
+if __name__ == "__main__":
+    main()

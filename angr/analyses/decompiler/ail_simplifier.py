@@ -2,9 +2,9 @@ from typing import Set, Dict, List, Tuple, Any, Optional, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
-from ailment import AILBlockWalkerBase, AILBlockWalker
+from ailment import AILBlockWalker
 from ailment.block import Block
-from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump
+from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement
 from ailment.expression import (
     Register,
     Convert,
@@ -18,10 +18,8 @@ from ailment.expression import (
     BinaryOp,
 )
 
-from ...errors import SimMemoryMissingError
 from ...engines.light import SpOffset
-from ...code_location import CodeLocation
-from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from ...code_location import CodeLocation, ExternalCodeLocation
 from ...sim_variable import SimStackVariable, SimMemoryVariable
 from ...knowledge_plugins.propagations.states import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
@@ -32,10 +30,11 @@ from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExpressionNarrowingWalker
 from .block_simplifier import BlockSimplifier
 from .ccall_rewriters import CCALL_REWRITERS
+from .expression_counters import SingleExpressionCounter
 
 if TYPE_CHECKING:
     from ailment.manager import Manager
-    from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+    from angr.analyses.reaching_definitions import ReachingDefinitionsModel
 
 
 _l = logging.getLogger(__name__)
@@ -63,25 +62,6 @@ class AILBlockTempCollector(AILBlockWalker):
             self.temps.add(expr)
 
 
-class ExpressionCounter(AILBlockWalkerBase):
-    """
-    Count the occurrence of subexpr in expr.
-    """
-
-    def __init__(self, stmt, subexpr):
-        super().__init__()
-        self.subexpr = subexpr
-        self.count = 0
-        self.walk_statement(stmt)
-
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement], block: Optional[Block]
-    ) -> Any:
-        if expr == self.subexpr:
-            self.count += 1
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
-
-
 class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
@@ -99,10 +79,11 @@ class AILSimplifier(Analysis):
         narrow_expressions=False,
         only_consts=False,
         fold_callexprs_into_conditions=False,
+        use_callee_saved_regs_at_return=True,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
+        self._reaching_definitions: Optional["ReachingDefinitionsModel"] = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
@@ -113,6 +94,7 @@ class AILSimplifier(Analysis):
         self._narrow_expressions = narrow_expressions
         self._only_consts = only_consts
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
+        self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
 
         self._calls_to_remove: Set[CodeLocation] = set()
         self._assignments_to_remove: Set[CodeLocation] = set()
@@ -189,7 +171,7 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
-    def _compute_reaching_definitions(self) -> "ReachingDefinitionsAnalysis":
+    def _compute_reaching_definitions(self) -> "ReachingDefinitionsModel":
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
             return self._reaching_definitions
@@ -197,17 +179,14 @@ class AILSimplifier(Analysis):
             subject=self.func,
             func_graph=self.func_graph,
             # init_context=(),    <-- in case of fire break glass
-            observe_all=True,  # observe_callback=self._simplify_function_rd_observe_callback
-        )
+            observe_all=False,
+            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            track_tmps=True,
+        ).model
         self._reaching_definitions = rd
         return rd
 
-    @staticmethod
-    # pylint:disable=unused-argument
-    def _simplify_function_rd_observe_callback(ob_type, **kwargs):
-        return ob_type == "node" or (ob_type == "insn" and kwargs.get("op_type", None) == OP_BEFORE)
-
-    def _compute_propagation(self):
+    def _compute_propagation(self, immediate_stmt_removal: bool = False):
         # Propagate expressions or return the existing result
         if self._propagator is not None:
             return self._propagator
@@ -217,6 +196,7 @@ class AILSimplifier(Analysis):
             gp=self._gp,
             only_consts=self._only_consts,
             reaching_definitions=self._compute_reaching_definitions(),
+            immediate_stmt_removal=immediate_stmt_removal,
         )
         self._propagator = prop
         return prop
@@ -270,6 +250,7 @@ class AILSimplifier(Analysis):
                             tags["reg_name"] = self.project.arch.translate_register_name(
                                 def_.atom.reg_offset, size=to_size
                             )
+                            tags["write_size"] = stmt.dst.size
                             new_assignment_dst = Register(
                                 stmt.dst.idx,
                                 None,
@@ -318,7 +299,7 @@ class AILSimplifier(Analysis):
                         self.blocks[old_block] = new_block
 
                     # replace all uses if necessary
-                    for use_loc, use_expr_tpl in use_exprs:
+                    for use_loc, (use_type, use_expr_tpl) in use_exprs:
                         if isinstance(use_expr_tpl[0], Register) and to_size == use_expr_tpl[0].size:
                             # don't replace registers to the same registers
                             continue
@@ -326,68 +307,131 @@ class AILSimplifier(Analysis):
                         old_block = addr_and_idx_to_block.get((use_loc.block_addr, use_loc.block_idx))
                         the_block = self.blocks.get(old_block, old_block)
 
-                        # the first used expr
-                        use_expr_0 = use_expr_tpl[0]
-                        tags = dict(use_expr_0.tags)
-                        tags["reg_name"] = self.project.arch.translate_register_name(def_.atom.reg_offset, size=to_size)
-                        new_use_expr_0 = Register(
-                            use_expr_0.idx,
-                            None,
-                            def_.atom.reg_offset,
-                            to_size * self.project.arch.byte_width,
-                            **tags,
-                        )
+                        if use_type in {"expr", "mask", "convert"}:
+                            # the first used expr
+                            use_expr_0 = use_expr_tpl[0]
+                            tags = dict(use_expr_0.tags)
+                            tags["reg_name"] = self.project.arch.translate_register_name(
+                                def_.atom.reg_offset, size=to_size
+                            )
+                            new_use_expr_0 = Register(
+                                use_expr_0.idx,
+                                None,
+                                def_.atom.reg_offset,
+                                to_size * self.project.arch.byte_width,
+                                **tags,
+                            )
 
-                        # the second used expr (if it exists)
-                        if len(use_expr_tpl) == 2:
-                            use_expr_1 = use_expr_tpl[1]
-                            assert isinstance(use_expr_1, BinaryOp)
-                            con = use_expr_1.operands[1]
-                            assert isinstance(con, Const)
+                            # the second used expr (if it exists)
+                            if len(use_expr_tpl) == 2:
+                                use_expr_1 = use_expr_tpl[1]
+                                assert isinstance(use_expr_1, BinaryOp)
+                                con = use_expr_1.operands[1]
+                                assert isinstance(con, Const)
+                                new_use_expr_1 = BinaryOp(
+                                    use_expr_1.idx,
+                                    use_expr_1.op,
+                                    [
+                                        new_use_expr_0,
+                                        Const(con.idx, con.variable, con.value, new_use_expr_0.bits, **con.tags),
+                                    ],
+                                    use_expr_1.signed,
+                                    floating_point=use_expr_1.floating_point,
+                                    rounding_mode=use_expr_1.rounding_mode,
+                                    **use_expr_1.tags,
+                                )
+
+                                if use_expr_1.size > new_use_expr_1.size:
+                                    new_use_expr_1 = Convert(
+                                        None,
+                                        new_use_expr_1.bits,
+                                        use_expr_1.bits,
+                                        False,
+                                        new_use_expr_1,
+                                        **new_use_expr_1.tags,
+                                    )
+
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    the_block, {use_loc: {use_expr_1: new_use_expr_1}}
+                                )
+                            elif len(use_expr_tpl) == 1:
+                                if use_expr_0.size > new_use_expr_0.size:
+                                    new_use_expr_0 = Convert(
+                                        None,
+                                        new_use_expr_0.bits,
+                                        use_expr_0.bits,
+                                        False,
+                                        new_use_expr_0,
+                                        **new_use_expr_0.tags,
+                                    )
+
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    the_block, {use_loc: {use_expr_0: new_use_expr_0}}
+                                )
+                            else:
+                                _l.warning("Nothing to replace at %s.", use_loc)
+                                r = False
+                                new_block = None
+                        elif use_type == "binop-convert":
+                            use_expr_0 = use_expr_tpl[0]
+                            tags = dict(use_expr_0.tags)
+                            tags["reg_name"] = self.project.arch.translate_register_name(
+                                def_.atom.reg_offset, size=to_size
+                            )
+                            new_use_expr_0 = Register(
+                                use_expr_0.idx,
+                                None,
+                                def_.atom.reg_offset,
+                                to_size * self.project.arch.byte_width,
+                                **tags,
+                            )
+
+                            use_expr_1: BinaryOp = use_expr_tpl[1]
+                            # build the new use_expr_1
+                            new_use_expr_1_operands = {}
+                            if use_expr_1.operands[0] is use_expr_0:
+                                new_use_expr_1_operands[0] = new_use_expr_0
+                                other_operand = use_expr_1.operands[1]
+                            else:
+                                new_use_expr_1_operands[1] = new_use_expr_0
+                                other_operand = use_expr_1.operands[0]
+                            use_expr_2: Convert = use_expr_tpl[2]
+                            if other_operand.bits == use_expr_2.from_bits:
+                                new_other_operand = Convert(
+                                    None, use_expr_2.from_bits, use_expr_2.to_bits, False, other_operand
+                                )
+                            else:
+                                # Some operations, like Sar and Shl, have operands with different sizes
+                                new_other_operand = other_operand
+
+                            if 0 in new_use_expr_1_operands:
+                                new_use_expr_1_operands[1] = new_other_operand
+                            else:
+                                new_use_expr_1_operands[0] = new_other_operand
+
+                            # build new use_expr_1
                             new_use_expr_1 = BinaryOp(
                                 use_expr_1.idx,
                                 use_expr_1.op,
-                                [
-                                    new_use_expr_0,
-                                    Const(con.idx, con.variable, con.value, new_use_expr_0.bits, **con.tags),
-                                ],
+                                [new_use_expr_1_operands[0], new_use_expr_1_operands[1]],
                                 use_expr_1.signed,
+                                bits=to_size * 8,
                                 floating_point=use_expr_1.floating_point,
                                 rounding_mode=use_expr_1.rounding_mode,
                                 **use_expr_1.tags,
                             )
 
-                            if use_expr_1.size > new_use_expr_1.size:
-                                new_use_expr_1 = Convert(
-                                    None,
-                                    new_use_expr_1.bits,
-                                    use_expr_1.bits,
-                                    False,
-                                    new_use_expr_1,
-                                    **new_use_expr_1.tags,
-                                )
-
+                            # first remove the old conversion
                             r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {use_loc: {use_expr_1: new_use_expr_1}}
+                                the_block, {use_loc: {use_expr_2: use_expr_2.operand}}
                             )
-                        elif len(use_expr_tpl) == 1:
-                            if use_expr_0.size > new_use_expr_0.size:
-                                new_use_expr_0 = Convert(
-                                    None,
-                                    new_use_expr_0.bits,
-                                    use_expr_0.bits,
-                                    False,
-                                    new_use_expr_0,
-                                    **new_use_expr_0.tags,
+                            # then replace use_expr_1
+                            if r:
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    new_block, {use_loc: {use_expr_1: new_use_expr_1}}
                                 )
-
-                            r, new_block = BlockSimplifier._replace_and_build(
-                                the_block, {use_loc: {use_expr_0: new_use_expr_0}}
-                            )
                         else:
-                            _l.warning("Nothing to replace at %s.", use_loc)
-                            r = False
-                            new_block = None
+                            raise TypeError(f'Unsupported use_type value "{use_type}"')
 
                         if not r:
                             _l.warning("Failed to replace use-expr at %s.", use_loc)
@@ -400,13 +444,13 @@ class AILSimplifier(Analysis):
 
     def _narrowing_needed(
         self, def_, rd, addr_and_idx_to_block
-    ) -> Tuple[bool, Optional[int], Optional[List[Tuple[CodeLocation, Tuple[Expression, ...]]]]]:
+    ) -> Tuple[bool, Optional[int], Optional[List[Tuple[CodeLocation, Tuple[str, Tuple[Expression, ...]]]]]]:
         def_size = def_.size
         # find its uses
         use_and_exprs = rd.all_uses.get_uses_with_expr(def_)
 
         all_used_sizes = set()
-        used_by: List[Tuple[CodeLocation, Tuple[Expression, ...]]] = []
+        used_by: List[Tuple[CodeLocation, Tuple[str, Tuple[Expression, ...]]]] = []
 
         for loc, expr in use_and_exprs:
             old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
@@ -435,7 +479,7 @@ class AILSimplifier(Analysis):
 
     def _extract_expression_effective_size(
         self, statement, expr
-    ) -> Tuple[Optional[int], Optional[Tuple[Expression, ...]]]:
+    ) -> Tuple[Optional[int], Optional[Tuple[str, Tuple[Expression, ...]]]]:
         """
         Determine the effective size of an expression when it's used.
         """
@@ -445,18 +489,15 @@ class AILSimplifier(Analysis):
         if not walker.operations:
             if expr is None:
                 return None, None
-            return expr.size, (expr,)
+            return expr.size, ("expr", (expr,))
 
         first_op = walker.operations[0]
         if isinstance(first_op, Convert):
-            return first_op.to_bits // self.project.arch.byte_width, (first_op,)
+            return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
-            if len(walker.operations) == 2:
+            if len(walker.operations) >= 2:
                 second_op = walker.operations[1]
-            elif len(walker.operations) > 2:
-                # unsupported
-                return None, None
             if (
                 first_op.op == "And"
                 and isinstance(first_op.operands[1], Const)
@@ -464,15 +505,25 @@ class AILSimplifier(Analysis):
             ):
                 mask = first_op.operands[1].value
                 if mask == 0xFF:
-                    return 1, (first_op, second_op) if second_op is not None else (first_op,)
+                    return 1, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
                 if mask == 0xFFFF:
-                    return 2, (first_op, second_op) if second_op is not None else (first_op,)
+                    return 2, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
                 if mask == 0xFFFF_FFFF:
-                    return 4, (first_op, second_op) if second_op is not None else (first_op,)
+                    return 4, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
+            if (
+                (first_op.operands[0] is expr or first_op.operands[1] is expr)
+                and first_op.op not in {"Shr", "Sar"}
+                and isinstance(second_op, Convert)
+                and second_op.from_bits == expr.bits
+            ):
+                return min(expr.bits, second_op.to_bits) // self.project.arch.byte_width, (
+                    "binop-convert",
+                    (expr, first_op, second_op),
+                )
 
         if expr is None:
             return None, None
-        return expr.size, (expr,)
+        return expr.size, ("expr", (expr,))
 
     #
     # Expression folding
@@ -484,7 +535,7 @@ class AILSimplifier(Analysis):
         """
 
         # propagator
-        propagator = self._compute_propagation()
+        propagator = self._compute_propagation(immediate_stmt_removal=True)
         replacements = propagator.replacements
 
         # take replacements and rebuild the corresponding blocks
@@ -498,10 +549,21 @@ class AILSimplifier(Analysis):
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
 
+        if self._stack_arg_offsets:
+            insn_addrs_using_stack_args = {ins_addr for ins_addr, _ in self._stack_arg_offsets}
+        else:
+            insn_addrs_using_stack_args = None
+
         replaced = False
         for (block_addr, block_idx), reps in replacements_by_block_addrs_and_idx.items():
             block = blocks_by_addr_and_idx[(block_addr, block_idx)]
-            r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp)
+
+            # only replace loads if there are stack arguments in this block
+            replace_loads = insn_addrs_using_stack_args is not None and {
+                stmt.ins_addr for stmt in block.statements
+            }.intersection(insn_addrs_using_stack_args)
+
+            r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp, replace_loads=replace_loads)
             replaced |= r
             self.blocks[block] = new_block
 
@@ -622,7 +684,7 @@ class AILSimplifier(Analysis):
             if isinstance(the_def.codeloc, ExternalCodeLocation):
                 # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
                 # argument if
-                # (a) the on-stack copy of it has never been modified in this function
+                # (a) the on-stack or in-register copy of it has never been modified in this function
                 # (b) the function argument register has never been updated.
                 #     TODO: we may loosen requirement (b) once we have real register versioning in AIL.
                 defs = [def_ for def_ in rd.all_definitions if def_.codeloc == eq.codeloc]
@@ -631,40 +693,44 @@ class AILSimplifier(Analysis):
                 remove_initial_assignment = None
 
                 if defs and len(defs) == 1:
-                    stackvar_def = defs[0]
-                    if isinstance(stackvar_def.atom, atoms.MemoryLocation) and isinstance(
-                        stackvar_def.atom.addr, SpOffset
+                    arg_copy_def = defs[0]
+                    if (
+                        isinstance(arg_copy_def.atom, atoms.MemoryLocation)
+                        and isinstance(arg_copy_def.atom.addr, SpOffset)
+                        or isinstance(arg_copy_def.atom, atoms.Register)
                     ):
-                        # found the stack variable
-                        # Make sure there is no other write to this location
-                        if any(
-                            (def_ != stackvar_def and def_.atom == stackvar_def.atom)
-                            for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.MemoryLocation)
-                        ):
-                            continue
+                        # found the copied definition (either a stack variable or a register variable)
 
-                        # Make sure the register is never updated across this function
-                        if any(
-                            (def_ != the_def and def_.atom == the_def.atom)
-                            for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
-                        ):
-                            continue
+                        # Make sure there is no other write to this stack location if the copy is a stack variable
+                        if isinstance(arg_copy_def.atom, atoms.MemoryLocation):
+                            if any(
+                                (def_ != arg_copy_def and def_.atom == arg_copy_def.atom)
+                                for def_ in rd.all_definitions
+                                if isinstance(def_.atom, atoms.MemoryLocation)
+                            ):
+                                continue
+
+                            # Make sure the register is never updated across this function
+                            if any(
+                                (def_ != the_def and def_.atom == the_def.atom)
+                                for def_ in rd.all_definitions
+                                if isinstance(def_.atom, atoms.Register) and rd.all_uses.get_uses(def_)
+                            ):
+                                continue
 
                         # find all its uses
-                        all_stackvar_uses: Set[Tuple[CodeLocation, Any]] = set(
-                            rd.all_uses.get_uses_with_expr(stackvar_def)
+                        all_arg_copy_var_uses: Set[Tuple[CodeLocation, Any]] = set(
+                            rd.all_uses.get_uses_with_expr(arg_copy_def)
                         )
                         all_uses_with_def = set()
 
                         should_abort = False
-                        for use in all_stackvar_uses:
+                        for use in all_arg_copy_var_uses:
                             used_expr = use[1]
-                            if used_expr is not None and used_expr.size != stackvar_def.size:
+                            if used_expr is not None and used_expr.size != arg_copy_def.size:
                                 should_abort = True
                                 break
-                            all_uses_with_def.add((stackvar_def, use))
+                            all_uses_with_def.add((arg_copy_def, use))
                         if should_abort:
                             continue
 
@@ -677,6 +743,30 @@ class AILSimplifier(Analysis):
                     continue
 
             else:
+                if (
+                    eq.codeloc.block_addr == the_def.codeloc.block_addr
+                    and eq.codeloc.block_idx == the_def.codeloc.block_idx
+                ):
+                    # the definition and the eq location are within the same block, and the definition is before
+                    # the eq location.
+                    if eq.codeloc.stmt_idx < the_def.codeloc.stmt_idx:
+                        continue
+                else:
+                    # the definition is in the predecessor block of the eq
+                    eq_block = next(
+                        iter(
+                            bb
+                            for bb in self.func_graph
+                            if bb.addr == eq.codeloc.block_addr and bb.idx == eq.codeloc.block_idx
+                        )
+                    )
+                    eq_block_preds = set(self.func_graph.predecessors(eq_block))
+                    if not any(
+                        pred.addr == the_def.codeloc.block_addr and pred.idx == the_def.codeloc.block_idx
+                        for pred in eq_block_preds
+                    ):
+                        continue
+
                 if isinstance(eq.atom0, SimStackVariable):
                     # create the memory loading expression
                     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
@@ -727,6 +817,16 @@ class AILSimplifier(Analysis):
                     # only when all uses are determined by the same definition will we continue with the simplification
                     continue
 
+                # one more check: there can be at most one assignment in all these use locations
+                assignment_ctr = 0
+                for use_loc, used_expr in all_uses:
+                    block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                    stmt = block.statements[use_loc.stmt_idx]
+                    if isinstance(stmt, Assignment):
+                        assignment_ctr += 1
+                if assignment_ctr > 1:
+                    continue
+
                 all_uses_with_def = {(to_replace_def, use_and_expr) for use_and_expr in all_uses}
 
                 remove_initial_assignment = False  # expression folding will take care of it
@@ -769,7 +869,7 @@ class AILSimplifier(Analysis):
                 # ensure the expression that we want to replace with is still up-to-date
                 replace_with_original_def = self._find_atom_def_at(replace_with, rd, def_.codeloc)
                 if replace_with_original_def is not None and not self._check_atom_last_def(
-                    replace_with, used_expr.size, u.ins_addr, rd, replace_with_original_def
+                    replace_with, u, rd, replace_with_original_def
                 ):
                     all_uses_replaced = False
                     continue
@@ -810,26 +910,18 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _find_atom_def_at(atom, rd, codeloc: CodeLocation) -> Optional[Definition]:
         if isinstance(atom, Register):
-            observ = rd.observed_results[("insn", codeloc.ins_addr, OP_BEFORE)]
-            try:
-                reg_vals = observ.register_definitions.load(atom.reg_offset, size=atom.size)
-                defs = list(observ.extract_defs_from_mv(reg_vals))
-                return defs[0] if len(defs) == 1 else None
-            except SimMemoryMissingError:
-                pass
+            defs = rd.get_defs(atom, codeloc, OP_BEFORE)
+            return next(iter(defs)) if len(defs) == 1 else None
+
         return None
 
     @staticmethod
-    def _check_atom_last_def(atom, size, ins_addr, rd, the_def) -> bool:
+    def _check_atom_last_def(atom, codeloc, rd, the_def) -> bool:
         if isinstance(atom, Register):
-            observ = rd.observed_results[("insn", ins_addr, OP_BEFORE)]
-            try:
-                reg_vals = observ.register_definitions.load(atom.reg_offset, size=size)
-                for existing_def in observ.extract_defs_from_mv(reg_vals):
-                    if existing_def.codeloc != the_def.codeloc:
-                        return False
-            except SimMemoryMissingError:
-                pass
+            defs = rd.get_defs(atom, codeloc, OP_BEFORE)
+            for d in defs:
+                if d.codeloc != the_def.codeloc:
+                    return False
 
         return True
 
@@ -952,19 +1044,27 @@ class AILSimplifier(Analysis):
                 if u.block_addr not in {b.addr for b in super_node_blocks}:
                     continue
 
+                # check if the register has been overwritten by statements in between the def site and the use site
+                usesite_atom_defs = set(rd.get_defs(the_def.atom, u, OP_BEFORE))
+                if len(usesite_atom_defs) != 1:
+                    continue
+                usesite_atom_def = next(iter(usesite_atom_defs))
+                if usesite_atom_def != the_def:
+                    continue
+
                 # check if any atoms that the call relies on has been overwritten by statements in between the def site
                 # and the use site.
                 defsite_all_expr_uses = set(rd.all_uses.get_uses_by_location(the_def.codeloc))
-                defsite_defs_per_atom = defaultdict(set)
+                defsite_used_atoms = set()
                 for dd in defsite_all_expr_uses:
-                    defsite_defs_per_atom[dd.atom].add(dd)
-                usesite_rdstate = rd.observed_results[("stmt", (u.block_addr, u.block_idx, u.stmt_idx), 0)]
+                    defsite_used_atoms.add(dd.atom)
                 usesite_expr_def_outdated = False
-                for defsite_expr_atom, defsite_expr_uses in defsite_defs_per_atom.items():
-                    usesite_expr_uses = set(usesite_rdstate.get_definitions(defsite_expr_atom))
+                for defsite_expr_atom in defsite_used_atoms:
+                    usesite_expr_uses = set(rd.get_defs(defsite_expr_atom, u, OP_BEFORE))
                     if not usesite_expr_uses:
                         # the atom is not defined at the use site - it's fine
                         continue
+                    defsite_expr_uses = set(rd.get_defs(defsite_expr_atom, the_def.codeloc, OP_BEFORE))
                     if usesite_expr_uses != defsite_expr_uses:
                         # special case: ok if this atom is assigned to at the def site and has not been overwritten
                         if len(usesite_expr_uses) == 1:
@@ -1002,7 +1102,7 @@ class AILSimplifier(Analysis):
                     continue
 
                 # ensure what we are going to replace only appears once
-                expr_ctr = ExpressionCounter(stmt, src)
+                expr_ctr = SingleExpressionCounter(stmt, src)
                 if expr_ctr.count > 1:
                     continue
 
@@ -1061,9 +1161,12 @@ class AILSimplifier(Analysis):
         stmts_to_remove_per_block: Dict[Tuple[int, int], Set[int]] = defaultdict(set)
 
         # Find all statements that should be removed
+        mask = (1 << self.project.arch.bits) - 1
 
         rd = self._compute_reaching_definitions()
-        stackarg_offsets = {tpl[1] for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
+        stackarg_offsets = (
+            {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
+        )
         def_: Definition
         for def_ in rd.all_definitions:
             if def_.dummy:
@@ -1075,7 +1178,7 @@ class AILSimplifier(Analysis):
                 if not self._remove_dead_memdefs:
                     # we always remove definitions for stack arguments
                     if stackarg_offsets is not None and isinstance(def_.atom.addr, atoms.SpOffset):
-                        if def_.atom.addr.offset not in stackarg_offsets:
+                        if (def_.atom.addr.offset & mask) not in stackarg_offsets:
                             continue
                     else:
                         continue
@@ -1112,7 +1215,7 @@ class AILSimplifier(Analysis):
                 continue
 
             for idx, stmt in enumerate(block.statements):
-                if idx in stmts_to_remove:
+                if idx in stmts_to_remove and not isinstance(stmt, DirtyStatement):
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove

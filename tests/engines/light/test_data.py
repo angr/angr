@@ -1,4 +1,5 @@
-from unittest import TestCase
+#!/usr/bin/env python3
+from unittest import main, TestCase
 
 from angr.engines.light.data import SpOffset
 
@@ -10,3 +11,7 @@ class TestSpOffset(TestCase):
         second_offset = SpOffset(size, 20)
 
         self.assertEqual(first_offset - second_offset, -10)
+
+
+if __name__ == "__main__":
+    main()

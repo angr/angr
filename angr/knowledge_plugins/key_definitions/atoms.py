@@ -64,7 +64,9 @@ class Atom:
         raise TypeError(f"Expression type {type(expr)} is not yet supported")
 
     @staticmethod
-    def from_argument(argument: SimFunctionArgument, arch: Arch, full_reg=False) -> Union["Register", "MemoryLocation"]:
+    def from_argument(
+        argument: SimFunctionArgument, arch: Arch, full_reg=False, sp: Optional[int] = None
+    ) -> Union["Register", "MemoryLocation"]:
         """
         Instanciate an `Atom` from a given argument.
 
@@ -72,6 +74,7 @@ class Atom:
         :param registers: A mapping representing the registers of a given architecture.
         :param full_reg: Whether to return an atom indicating the entire register if the argument only specifies a
                         slice of the register.
+        :param sp:      The current stack offset. Optional. Only used when argument is a SimStackArg.
         """
         if isinstance(argument, SimRegArg):
             if full_reg:
@@ -79,8 +82,9 @@ class Atom:
             else:
                 return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size, arch)
         elif isinstance(argument, SimStackArg):
-            # XXX why are we adding a stack offset to a register offset. wtf
-            return MemoryLocation(arch.registers["sp"][0] + argument.stack_offset, argument.size)
+            if sp is None:
+                raise ValueError("You must provide a stack pointer to translate a SimStackArg")
+            return MemoryLocation(SpOffset(arch.bits, argument.stack_offset + sp), argument.size)
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
@@ -297,3 +301,12 @@ class MemoryLocation(Atom):
 
     def _identity(self):
         return self.addr, self.size, self.endness
+
+
+atom_kind_mapping = {
+    AtomKind.REGISTER: Register,
+    AtomKind.MEMORY: MemoryLocation,
+    AtomKind.TMP: Tmp,
+    AtomKind.GUARD: GuardUse,
+    AtomKind.CONSTANT: ConstantSrc,
+}

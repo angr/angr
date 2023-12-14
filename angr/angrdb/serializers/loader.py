@@ -21,7 +21,7 @@ class LoaderSerializer:
                 obj,
                 (
                     cle.ExternObject,
-                    cle.backends.tls.elf_tls.ELFTLSObject,
+                    cle.TLSObject,
                     cle.KernelObject,
                 ),
             ):

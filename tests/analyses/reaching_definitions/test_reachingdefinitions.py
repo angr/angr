@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Disable some pylint warnings: no-self-use, missing-docstring
 # pylint: disable=R0201,C0111,bad-builtin
 
@@ -10,15 +11,14 @@ import claripy
 
 import angr
 from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
-from angr.code_location import CodeLocation
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
-from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.atoms import AtomKind, GuardUse, Tmp, Register, MemoryLocation
+from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, OP_BEFORE, OP_AFTER
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_object import SimMemoryObject
@@ -33,7 +33,7 @@ class InsnAndNodeObserveTestingUtils:
                 lambda attr: {
                     assertion(getattr(live_definition_1, attr)._pages, getattr(live_definition_2, attr)._pages)
                 },
-                ["register_definitions", "stack_definitions", "memory_definitions"],
+                ["registers", "stack", "memory"],
             )
         )
         assertion(getattr(live_definition_1, "tmps"), getattr(live_definition_2, "tmps"))
@@ -89,8 +89,8 @@ class TestReachingDefinitions(TestCase):
         result = _extract_result(reaching_definition)
 
         # Uncomment these to regenerate the reference results... if you dare
-        with open(result_path, "wb") as result_file:
-            pickle.dump(result, result_file)
+        # with open(result_path, "wb") as result_file:
+        #    pickle.dump(result, result_file)
         with open(result_path, "rb") as result_file:
             expected_result = pickle.load(result_file)
 
@@ -120,9 +120,9 @@ class TestReachingDefinitions(TestCase):
             unsorted_result = map(
                 lambda x: {
                     "key": x[0],
-                    "register_definitions": self._extract_all_definitions_from_storage(x[1].register_definitions),
-                    "stack_definitions": self._extract_all_definitions_from_storage(x[1].stack_definitions),
-                    "memory_definitions": self._extract_all_definitions_from_storage(x[1].memory_definitions),
+                    "register_definitions": self._extract_all_definitions_from_storage(x[1].registers),
+                    "stack_definitions": self._extract_all_definitions_from_storage(x[1].stack),
+                    "memory_definitions": self._extract_all_definitions_from_storage(x[1].memory),
                 },
                 [(k, v) for k, v in rda.observed_results.items() if k[0] != "stmt"],
             )
@@ -410,7 +410,7 @@ class TestReachingDefinitions(TestCase):
         project = angr.Project(bin_path, auto_load_libs=False)
         cfg = project.analyses[CFGFast].prep()()
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=cfg.kb.functions["main"], observe_all=True)
-        mv = rda.model.observed_results[("insn", 0x400765, OP_BEFORE)].register_definitions.load(
+        mv = rda.model.observed_results[("insn", 0x400765, OP_BEFORE)].registers.load(
             project.arch.registers["edx"][0],
             size=4,
             endness=project.arch.register_endness,
@@ -422,17 +422,41 @@ class TestReachingDefinitions(TestCase):
         project = angr.Project(bin_path, auto_load_libs=False)
         cfg = project.analyses[CFGFast].prep()(normalize=True)
         rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=cfg.kb.functions[0x93E0], observe_all=True)
-        sp_0 = rda.model.observed_results[("insn", 0x9410, OP_BEFORE)].register_definitions.load(
+        sp_0 = rda.model.observed_results[("insn", 0x9410, OP_BEFORE)].registers.load(
             project.arch.sp_offset,
             size=4,
             endness=project.arch.register_endness,
         )
-        sp_1 = rda.model.observed_results[("insn", 0x9410, OP_AFTER)].register_definitions.load(
+        sp_1 = rda.model.observed_results[("insn", 0x9410, OP_AFTER)].registers.load(
             project.arch.sp_offset,
             size=4,
             endness=project.arch.register_endness,
         )
         assert sp_0 == sp_1
+
+    def test_constants_not_stored_to_live_memory_defs(self):
+        # Ensure constants loaded from read-only sections are not stored back to memory definitions. If they are stored,
+        # we may accidentally pair them with TOP during state merging.
+        project = angr.Project(_binary_path("two_cond_func_call_with_const_arg", "armel"), auto_load_libs=False)
+        project.analyses.CFGFast()
+        project.analyses.CompleteCallingConventions(recover_variables=True)
+        rda = project.analyses.ReachingDefinitions("main", observe_all=True)
+
+        for info in rda.callsites_to("f"):
+            (defn,) = info.args_defns[0]
+            ld = rda.model.get_observation_by_insn(info.callsite, ObservationPointType.OP_BEFORE)
+
+            # Expect a singular mem predecessor
+            preds = rda.dep_graph.find_all_predecessors(defn, kind=AtomKind.MEMORY)
+            assert len(preds) == 1
+
+            # Verify not stored
+            with self.assertRaises(angr.errors.SimMemoryMissingError):
+                atom = preds[0].atom
+                ld.memory.load(atom.addr, atom.size)
+
+            # Verify expected constant value
+            assert ld.get_concrete_value_from_definition(defn) == 1337
 
 
 if __name__ == "__main__":

@@ -3,18 +3,27 @@ import logging
 from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call, Store, Jump
-from ailment.expression import Expression, Tmp, Load, Const, Register, Convert
-from ailment import AILBlockWalker
+from ailment.expression import Tmp, Load, Const, Register, Convert
+from ailment import AILBlockWalkerBase
+
+from angr.code_location import ExternalCodeLocation
 
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
-from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from ...analyses.propagator import PropagatorAnalysis
 from ...analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from ...errors import SimMemoryMissingError
 from .. import Analysis, register_analysis
-from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
+from .peephole_optimizations import (
+    MULTI_STMT_OPTS,
+    STMT_OPTS,
+    EXPR_OPTS,
+    PeepholeOptimizationStmtBase,
+    PeepholeOptimizationExprBase,
+    PeepholeOptimizationMultiStmtBase,
+)
+from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_optimize_multistmts
 
 if TYPE_CHECKING:
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -23,6 +32,24 @@ if TYPE_CHECKING:
 
 
 _l = logging.getLogger(name=__name__)
+
+
+class HasCallExprWalker(AILBlockWalkerBase):
+    """
+    Test if an expression contains a call expression inside.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.has_call_expr = False
+
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Optional["Block"]):  # pylint:disable=unused-argument
+        self.has_call_expr = True
+
+    def _handle_CallExpr(  # pylint:disable=unused-argument
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional["Block"]
+    ):
+        self.has_call_expr = True
 
 
 class BlockSimplifier(Analysis):
@@ -58,6 +85,7 @@ class BlockSimplifier(Analysis):
         if peephole_optimizations is None:
             self._expr_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in EXPR_OPTS]
             self._stmt_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in STMT_OPTS]
+            self._multistmt_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in MULTI_STMT_OPTS]
         else:
             self._expr_peephole_opts = [
                 cls(self.project, self.kb, self.func_addr)
@@ -68,6 +96,11 @@ class BlockSimplifier(Analysis):
                 cls(self.project, self.kb, self.func_addr)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationStmtBase)
+            ]
+            self._multistmt_peephole_opts = [
+                cls(self.project, self.kb, self.func_addr)
+                for cls in peephole_optimizations
+                if issubclass(cls, PeepholeOptimizationMultiStmtBase)
             ]
 
         self.result_block = None
@@ -123,15 +156,20 @@ class BlockSimplifier(Analysis):
 
     def _compute_reaching_definitions(self, block):
         def observe_callback(ob_type, addr=None, op_type=None, **kwargs) -> bool:  # pylint:disable=unused-argument
-            return ob_type == "stmt" or ob_type == "node" and addr == block.addr and op_type == OP_AFTER
+            return ob_type == "node" and addr == block.addr and op_type == OP_AFTER
 
         if self._reaching_definitions is None:
-            self._reaching_definitions = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
-                subject=block,
-                track_tmps=True,
-                stack_pointer_tracker=self._stack_pointer_tracker,
-                observe_all=False,
-                observe_callback=observe_callback,
+            self._reaching_definitions = (
+                self.project.analyses[ReachingDefinitionsAnalysis]
+                .prep()(
+                    subject=block,
+                    track_tmps=True,
+                    stack_pointer_tracker=self._stack_pointer_tracker,
+                    observe_all=False,
+                    observe_callback=observe_callback,
+                    func_addr=self.func_addr,
+                )
+                .model
             )
         return self._reaching_definitions
 
@@ -148,6 +186,8 @@ class BlockSimplifier(Analysis):
         return sum(1 for stmt in block.statements if not (isinstance(stmt, Jump) and isinstance(stmt.target, Const)))
 
     def _simplify_block_once(self, block):
+        block = self._peephole_optimize(block)
+
         nonconstant_stmts = self._count_nonconstant_statements(block)
         has_propagatable_assignments = self._has_propagatable_assignments(block)
 
@@ -184,8 +224,14 @@ class BlockSimplifier(Analysis):
         new_statements = block.statements[::]
         replaced = False
 
+        stmts_to_remove = set()
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
+                stmt_to_remove = None
+                if isinstance(new, dict):
+                    stmt_to_remove = new["stmt_to_remove"]
+                    new = new["expr"]
+
                 stmt = new_statements[codeloc.stmt_idx]
                 if (
                     not replace_loads
@@ -226,9 +272,17 @@ class BlockSimplifier(Analysis):
                 if r:
                     replaced = True
                     new_statements[codeloc.stmt_idx] = new_stmt
+                    if stmt_to_remove is not None:
+                        stmts_to_remove.add(stmt_to_remove)
 
         if not replaced:
             return False, block
+
+        if stmts_to_remove:
+            stmt_ids_to_remove = {a.stmt_idx for a in stmts_to_remove}
+            all_stmts = {idx: stmt for idx, stmt in enumerate(new_statements) if idx not in stmt_ids_to_remove}
+            filtered_stmts = sorted(all_stmts.items(), key=lambda x: x[0])
+            new_statements = [stmt for _, stmt in filtered_stmts]
 
         new_block = block.copy()
         new_block.statements = new_statements
@@ -270,7 +324,10 @@ class BlockSimplifier(Analysis):
         # Find dead assignments
         dead_defs_stmt_idx = set()
         all_defs: Iterable["Definition"] = rd.all_definitions
-        stackarg_offsets = {tpl[1] for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
+        mask = (1 << self.project.arch.bits) - 1
+        stackarg_offsets = (
+            {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
+        )
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
@@ -278,7 +335,7 @@ class BlockSimplifier(Analysis):
                 if not self._remove_dead_memdefs:
                     # we always remove definitions for stack arguments
                     if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
-                        if d.atom.addr.offset not in stackarg_offsets:
+                        if (d.atom.addr.offset & mask) not in stackarg_offsets:
                             continue
                     else:
                         continue
@@ -296,13 +353,13 @@ class BlockSimplifier(Analysis):
                     defs_ = set()
                     if isinstance(d.atom, atoms.Register):
                         try:
-                            vs: "MultiValues" = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                            vs: "MultiValues" = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
                         except SimMemoryMissingError:
                             vs = None
                     elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                         stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
                         try:
-                            vs: "MultiValues" = live_defs.stack_definitions.load(
+                            vs: "MultiValues" = live_defs.stack.load(
                                 stack_addr, size=d.atom.size, endness=d.atom.endness
                             )
                         except SimMemoryMissingError:
@@ -328,13 +385,18 @@ class BlockSimplifier(Analysis):
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
+                # tmps can't execute new code
                 if type(stmt.dst) is Tmp:
                     if stmt.dst.tmp_idx not in used_tmps:
                         continue
 
                 # is it a dead virgin?
                 if idx in dead_defs_stmt_idx:
-                    continue
+                    # does .src involve any Call expressions? if so, we cannot remove it
+                    walker = HasCallExprWalker()
+                    walker.walk_expression(stmt.src)
+                    if not walker.has_call_expr:
+                        continue
 
                 if stmt.src == stmt.dst:
                     continue
@@ -350,77 +412,22 @@ class BlockSimplifier(Analysis):
 
     def _peephole_optimize(self, block):
         # expressions are updated in place
-        self._peephole_optimize_exprs(block, self._expr_peephole_opts)
+        peephole_optimize_exprs(block, self._expr_peephole_opts)
 
-        statements, stmts_updated = self._peephole_optimize_stmts(block, self._stmt_peephole_opts)
+        # run statement-level optimizations
+        statements, stmts_updated = peephole_optimize_stmts(block, self._stmt_peephole_opts)
 
-        if not stmts_updated:
-            return block
-        new_block = block.copy(statements=statements)
+        if stmts_updated:
+            new_block = block.copy(statements=statements)
+        else:
+            new_block = block
+
+        statements, multi_stmts_updated = peephole_optimize_multistmts(new_block, self._multistmt_peephole_opts)
+
+        if not multi_stmts_updated:
+            return new_block
+        new_block = new_block.copy(statements=statements)
         return new_block
-
-    @staticmethod
-    def _peephole_optimize_exprs(block, expr_opts):
-        class _any_update:
-            v = False
-
-        def _handle_expr(
-            expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block
-        ) -> Optional[Expression]:
-            old_expr = expr
-
-            redo = True
-            while redo:
-                redo = False
-                for expr_opt in expr_opts:
-                    if isinstance(expr, expr_opt.expr_classes):
-                        r = expr_opt.optimize(expr)
-                        if r is not None and r is not expr:
-                            expr = r
-                            redo = True
-                            break
-
-            if expr is not old_expr:
-                _any_update.v = True
-                # continue to process the expr
-                r = AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-                return expr if r is None else r
-
-            return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-
-        # run expression optimizers
-        walker = AILBlockWalker()
-        walker._handle_expr = _handle_expr
-        walker.walk(block)
-
-        return _any_update.v
-
-    @staticmethod
-    def _peephole_optimize_stmts(block, stmt_opts):
-        any_update = False
-        statements = []
-
-        # run statement optimizers
-        for stmt in block.statements:
-            old_stmt = stmt
-            redo = True
-            while redo:
-                redo = False
-                for opt in stmt_opts:
-                    if isinstance(stmt, opt.stmt_classes):
-                        r = opt.optimize(stmt)
-                        if r is not None and r is not stmt:
-                            stmt = r
-                            redo = True
-                            break
-
-            if stmt is not None and stmt is not old_stmt:
-                statements.append(stmt)
-                any_update = True
-            else:
-                statements.append(old_stmt)
-
-        return statements, any_update
 
 
 register_analysis(BlockSimplifier, "AILBlockSimplifier")

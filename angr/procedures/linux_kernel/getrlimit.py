@@ -1,9 +1,6 @@
 import logging
 import angr
 
-######################################
-# getrlimit
-######################################
 
 l = logging.getLogger(name=__name__)
 

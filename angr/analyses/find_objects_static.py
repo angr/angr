@@ -74,8 +74,8 @@ class NewFunctionHandler(FunctionHandler):
             else:
                 size_arg_reg_offset = self.project.arch.registers["rdi"][0]
                 size_arg_reg_size = word_size
-            v0 = state.register_definitions.load(size_arg_reg_offset, size_arg_reg_size).one_value()
-            size = v0._model_concrete.value if v0 is not None and v0.concrete else None
+            v0 = state.registers.load(size_arg_reg_offset, size_arg_reg_size).one_value()
+            size = v0.concrete_value if v0 is not None and v0.concrete else None
 
             if size is not None:
                 # None since we do not know it's class yet, it is a possible this pointer
@@ -108,8 +108,8 @@ class NewFunctionHandler(FunctionHandler):
             # check if rdi has a possible this pointer/ object address, if so then we can assign this object this class
             # also if the func is a constructor(not stripped binaries)
             for addr, possible_object in self.possible_objects_dict.items():
-                v1 = state.register_definitions.load(72, state.arch.bits // state.arch.byte_width).one_value()
-                obj_addr = v1._model_concrete.value if v1 is not None and v1.concrete else None
+                v1 = state.registers.load(72, state.arch.bits // state.arch.byte_width).one_value()
+                obj_addr = v1.concrete_value if v1 is not None and v1.concrete else None
                 if obj_addr is not None and addr == obj_addr:
                     col_ind = self.project.kb.functions[function_address].demangled_name.rfind("::")
                     class_name = self.project.kb.functions[function_address].demangled_name[:col_ind]
@@ -172,8 +172,8 @@ class StaticObjectFinder(Analysis):
                     else:
                         ret_val_reg_offset = self.project.arch.registers["rax"][0]
                         ret_val_reg_size = word_size
-                    v0 = rd_before_node.register_definitions.load(ret_val_reg_offset, ret_val_reg_size).one_value()
-                    addr_of_new_obj = v0._model_concrete.value if v0 is not None and v0.concrete else None
+                    v0 = rd_before_node.registers.load(ret_val_reg_offset, ret_val_reg_size).one_value()
+                    addr_of_new_obj = v0.concrete_value if v0 is not None and v0.concrete else None
 
                     # we need the state right before the call
                     if ret_node.vex.jumpkind == "Ijk_Call" and ret_node.vex.instruction_addresses:
@@ -188,8 +188,8 @@ class StaticObjectFinder(Analysis):
                     else:
                         this_ptr_reg_offset = self.project.arch.registers["rdi"][0]
                         this_ptr_reg_size = word_size
-                    v1 = rd_after_node.register_definitions.load(this_ptr_reg_offset, this_ptr_reg_size).one_value()
-                    addr_in_rdi = v1._model_concrete.value if v1 is not None and v1.concrete else None
+                    v1 = rd_after_node.registers.load(this_ptr_reg_offset, this_ptr_reg_size).one_value()
+                    addr_in_rdi = v1.concrete_value if v1 is not None and v1.concrete else None
 
                     if addr_of_new_obj is not None and addr_of_new_obj == addr_in_rdi:
                         self.possible_constructors[call_after_new_addr].append(self.possible_objects[addr_of_new_obj])

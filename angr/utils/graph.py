@@ -3,6 +3,7 @@ from collections import defaultdict
 import logging
 
 import networkx
+import networkx.algorithms
 
 
 def shallow_reverse(g) -> networkx.DiGraph:
@@ -711,7 +712,7 @@ class GraphUtils:
         ordered_nodes = []
         for n in tmp_nodes:
             if isinstance(n, SCCPlaceholder):
-                GraphUtils._append_scc(graph, ordered_nodes, sccs[n.scc_id], loop_heads=loop_heads)
+                GraphUtils._append_scc(graph, ordered_nodes, sccs[n.scc_id], loop_head_candidates=loop_heads)
             else:
                 ordered_nodes.append(n)
 
@@ -730,7 +731,9 @@ class GraphUtils:
         return None
 
     @staticmethod
-    def _append_scc(graph: networkx.DiGraph, ordered_nodes: List, scc: Set, loop_heads: Optional[List] = None) -> None:
+    def _append_scc(
+        graph: networkx.DiGraph, ordered_nodes: List, scc: Set, loop_head_candidates: Optional[List] = None
+    ) -> None:
         """
         Append all nodes from a strongly connected component to a list of ordered nodes and ensure the topological
         order.
@@ -742,23 +745,36 @@ class GraphUtils:
 
         loop_head = None
 
-        if loop_heads is not None:
+        if loop_head_candidates is not None:
             # find the first node that appears in loop_heads
+            loop_head_candidates = set(loop_head_candidates)
             for n in scc:
-                if n in loop_heads:
+                if n in loop_head_candidates:
                     loop_head = n
                     break
 
         if loop_head is None:
-            # find the first node in the strongly connected component that is the successor to any node in
-            # ordered_nodes
             for parent_node in reversed(ordered_nodes):
-                for n in scc:
-                    if n in graph[parent_node]:
-                        loop_head = n
-                        break
-
-                if loop_head is not None:
+                # find all successors to this node
+                succs = set(graph.successors(parent_node))
+                scc_succs = scc.intersection(succs)
+                if len(scc_succs) == 1:
+                    loop_head = next(iter(scc_succs))
+                    break
+                if len(scc_succs) > 1:
+                    # calculate the distance between each pair of nodes within scc_succs, pick the one with the
+                    # shortest total distance
+                    scc_node_distance = defaultdict(int)
+                    for scc_succ in scc_succs:
+                        for other_node in scc_succs:
+                            if other_node is scc_succ:
+                                continue
+                            scc_node_distance[scc_succ] += networkx.algorithms.shortest_path_length(
+                                graph, scc_succ, other_node
+                            )
+                    distance_to_node = {v: k for k, v in scc_node_distance.items()}
+                    lowest_distance = min(distance_to_node)
+                    loop_head = distance_to_node[lowest_distance]
                     break
 
         if loop_head is None:
@@ -768,5 +784,18 @@ class GraphUtils:
         subgraph: networkx.DiGraph = graph.subgraph(scc).copy()
         for src, _ in list(subgraph.in_edges(loop_head)):
             subgraph.remove_edge(src, loop_head)
+
+        # panic mode: if the strongly connected component has too many edges (imagine an almost complete graph), it
+        # will take too long to converge if we only remove one node out of the component each time. we introduce a
+        # panic mode that will aggressively remove edges
+
+        if len(subgraph) > 3000 and len(subgraph.edges) > len(subgraph) * 1.4:
+            for n in scc:
+                if subgraph.in_degree[n] >= 1 and subgraph.out_degree[n] >= 1:
+                    for src in list(subgraph.predecessors(n)):
+                        if src is not n:
+                            subgraph.remove_edge(src, n)
+                            if len(subgraph.edges) <= len(subgraph) * 1.4:
+                                break
 
         ordered_nodes.extend(GraphUtils.quasi_topological_sort_nodes(subgraph))

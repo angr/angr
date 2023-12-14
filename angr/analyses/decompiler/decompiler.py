@@ -12,7 +12,7 @@ from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
 from ...utils import timethis
 from .. import Analysis, AnalysesHub
-from .structuring import RecursiveStructurer, DreamStructurer, PhoenixStructurer
+from .structuring import RecursiveStructurer, PhoenixStructurer
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .optimization_passes import get_default_optimization_passes
@@ -90,6 +90,7 @@ class Decompiler(Analysis):
         self.cache: Optional[DecompilationCache] = None
         self.options_by_class = None
         self.seq_node = None
+        self.unmodified_clinic_graph = None
 
         if decompile:
             self._decompile()
@@ -138,7 +139,7 @@ class Decompiler(Analysis):
         self._complete_successors = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
-            self._recursive_structurer_params["structurer_cls"] = DreamStructurer
+            self._recursive_structurer_params["structurer_cls"] = PhoenixStructurer
         if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
             self._force_loop_single_exit = False
             self._complete_successors = True
@@ -183,6 +184,9 @@ class Decompiler(Analysis):
             # the function is empty
             return
 
+        # expose a copy of the graph before structuring optimizations happen
+        # use this graph if you need a reference of exact mapping of instructions to AIL statements
+        self.unmodified_clinic_graph = clinic.copy_graph()
         cond_proc = ConditionProcessor(self.project.arch)
 
         clinic.graph = self._run_graph_simplification_passes(
@@ -231,7 +235,7 @@ class Decompiler(Analysis):
         )
         seq_node = s.result
         seq_node = self._run_post_structuring_simplification_passes(
-            seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager
+            seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
         )
         self._update_progress(85.0, text="Generating code")
 
@@ -243,6 +247,7 @@ class Decompiler(Analysis):
             self.func,
             seq_node,
             cfg=self._cfg,
+            ail_graph=clinic.graph,
             flavor=self._flavor,
             func_args=clinic.arg_list,
             kb=self.kb,

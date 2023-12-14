@@ -174,6 +174,9 @@ class Block(Serializable):
         if self.arch is None:
             raise ValueError('Either "project" or "arch" has to be specified.')
 
+        if project is not None and backup_state is None and project.kb.patches.values():
+            backup_state = project.kb.patches.patched_entry_state
+
         if isinstance(self.arch, ArchARM):
             if addr & 1 == 1:
                 thumb = True
@@ -424,6 +427,10 @@ class Block(Serializable):
 
     @property
     def instruction_addrs(self):
+        if self.size == 0:
+            # hooks and other pseudo-functions
+            return []
+
         if not self._instruction_addrs and self._vex is None:
             # initialize instruction addrs
             _ = self.vex

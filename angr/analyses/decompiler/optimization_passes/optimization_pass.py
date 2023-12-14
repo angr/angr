@@ -35,11 +35,12 @@ class OptimizationPassStage(Enum):
 
     AFTER_AIL_GRAPH_CREATION = 0
     AFTER_SINGLE_BLOCK_SIMPLIFICATION = 1
-    AFTER_GLOBAL_SIMPLIFICATION = 2
-    AFTER_VARIABLE_RECOVERY = 3
-    BEFORE_REGION_IDENTIFICATION = 4
-    DURING_REGION_IDENTIFICATION = 5
-    AFTER_STRUCTURING = 6
+    AFTER_MAKING_CALLSITES = 2
+    AFTER_GLOBAL_SIMPLIFICATION = 3
+    AFTER_VARIABLE_RECOVERY = 4
+    BEFORE_REGION_IDENTIFICATION = 5
+    DURING_REGION_IDENTIFICATION = 6
+    AFTER_STRUCTURING = 7
 
 
 class BaseOptimizationPass:
@@ -53,6 +54,8 @@ class BaseOptimizationPass:
     STRUCTURING: Optional[
         str
     ] = None  # specifies if this optimization pass is specific to a certain structuring algorithm
+    NAME = "N/A"
+    DESCRIPTION = "N/A"
 
     def __init__(self, func):
         self._func: "Function" = func
@@ -114,6 +117,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
+        self._new_block_addrs = set()
 
         # output
         self.out_graph: Optional[networkx.DiGraph] = None
@@ -129,6 +133,19 @@ class OptimizationPass(BaseOptimizationPass):
     #
     # Util methods
     #
+
+    def new_block_addr(self) -> int:
+        """
+        Return a block address that does not conflict with any existing blocks.
+
+        :return:    The block address.
+        """
+        if self._new_block_addrs:
+            new_addr = max(self._new_block_addrs) + 1
+        else:
+            new_addr = max(self.blocks_by_addr) + 2048
+        self._new_block_addrs.add(new_addr)
+        return new_addr
 
     def _get_block(self, addr, idx=None) -> Optional[ailment.Block]:
         if not self._blocks_by_addr:

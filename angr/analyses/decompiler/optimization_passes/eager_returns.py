@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Dict, List
+from typing import Any, Tuple, Dict, List, TYPE_CHECKING
 from itertools import count
 import copy
 import logging
@@ -6,11 +6,15 @@ import inspect
 
 import networkx
 
-from ailment.statement import Jump
+from ailment.statement import Jump, ConditionalJump
 from ailment.expression import Const
 
 from ..condition_processor import ConditionProcessor, EmptyBlockNotice
+from ..call_counter import AILCallCounter
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+if TYPE_CHECKING:
+    from ailment import Block
 
 
 _l = logging.getLogger(name=__name__)
@@ -33,15 +37,8 @@ class EagerReturnsSimplifier(OptimizationPass):
                             same hash.
     """
 
-    # TODO: This optimization pass may support more architectures and platforms
-    ARCHES = [
-        "X86",
-        "AMD64",
-        "ARMCortexM",
-        "ARMHF",
-        "ARMEL",
-    ]
-    PLATFORMS = ["cgc", "linux"]
+    ARCHES = None
+    PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_AIL_GRAPH_CREATION
     NAME = "Duplicate return blocks to reduce goto statements"
     DESCRIPTION = inspect.cleandoc(__doc__[: __doc__.index(":ivar")])  # pylint:disable=unsubscriptable-object
@@ -57,6 +54,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         # settings
         max_level=2,
         min_indegree=2,
+        max_calls_in_regions=2,
         reaching_definitions=None,
         **kwargs,
     ):
@@ -68,6 +66,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         self.min_indegree = min_indegree
         self.node_idx = count(start=node_idx_start)
         self._rd = reaching_definitions
+        self.max_calls_in_region = max_calls_in_regions
 
         self.analyze()
 
@@ -137,6 +136,14 @@ class EagerReturnsSimplifier(OptimizationPass):
                 # does not meet the threshold
                 continue
 
+            if any(self._is_indirect_jump_ailblock(src) for src, _ in in_edges):
+                continue
+
+            # to assure we are not copying like crazy, set a max amount of code (which is estimated in calls)
+            # that can be copied in a region
+            if self._number_of_calls_in(region) > self.max_calls_in_region:
+                continue
+
             to_update[region_head] = in_edges, region
 
         for region_head, (in_edges, region) in to_update.items():
@@ -156,13 +163,24 @@ class EagerReturnsSimplifier(OptimizationPass):
                         node_copy.idx = next(self.node_idx)
                         copies[node] = node_copy
 
-                    # modify Jump.target_idx accordingly
+                    # modify Jump.target_idx and ConditionalJump.{true,false}_target_idx accordingly
                     graph.add_edge(pred, node_copy)
                     try:
                         last_stmt = ConditionProcessor.get_last_statement(pred)
-                        if isinstance(last_stmt, Jump) and isinstance(last_stmt.target, Const):
-                            if last_stmt.target.value == node_copy.addr:
+                        if isinstance(last_stmt, Jump):
+                            if isinstance(last_stmt.target, Const) and last_stmt.target.value == node_copy.addr:
                                 last_stmt.target_idx = node_copy.idx
+                        elif isinstance(last_stmt, ConditionalJump):
+                            if (
+                                isinstance(last_stmt.true_target, Const)
+                                and last_stmt.true_target.value == node_copy.addr
+                            ):
+                                last_stmt.true_target_idx = node_copy.idx
+                            elif (
+                                isinstance(last_stmt.false_target, Const)
+                                and last_stmt.false_target.value == node_copy.addr
+                            ):
+                                last_stmt.false_target_idx = node_copy.idx
                     except EmptyBlockNotice:
                         pass
 
@@ -176,6 +194,14 @@ class EagerReturnsSimplifier(OptimizationPass):
             graph_changed = True
 
         return graph_changed
+
+    @staticmethod
+    def _number_of_calls_in(graph: networkx.DiGraph) -> int:
+        counter = AILCallCounter()
+        for node in graph.nodes:
+            counter.walk(node)
+
+        return counter.calls
 
     @staticmethod
     def _single_entry_region(graph, end_node) -> Tuple[networkx.DiGraph, Any]:
@@ -248,3 +274,12 @@ class EagerReturnsSimplifier(OptimizationPass):
             region_head = pred_node
 
         return region, region_head
+
+    @staticmethod
+    def _is_indirect_jump_ailblock(block: "Block") -> bool:
+        if block.statements and isinstance(block.statements[-1], Jump):
+            last_stmt = block.statements[-1]
+            if not isinstance(last_stmt.target, Const):
+                # it's an indirect jump (assuming the AIL block is properly optimized)
+                return True
+        return False

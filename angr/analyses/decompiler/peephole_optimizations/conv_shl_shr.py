@@ -9,7 +9,7 @@ class ConvShlShr(PeepholeOptimizationExprBase):
     NAME = "(expr << P) >> Q => (expr & mask) >> R"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         # (Conv(M->N, expr) << P) >> Q  ==>  (Conv(M->N, expr) & bitmask) >> (Q-P), where
         #       Q >= P, and
         #       M < N, and

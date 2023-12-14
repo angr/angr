@@ -53,6 +53,7 @@ class StructurerBase(Analysis):
         case_entry_to_switch_head: Optional[Dict[int, int]] = None,
         parent_region=None,
         improve_structurer=True,
+        **kwargs,
     ):
         self._region: "GraphRegion" = region
         self._parent_map = parent_map
@@ -67,6 +68,9 @@ class StructurerBase(Analysis):
 
         # intermediate states
         self._new_sequences = []
+
+        # store all virtualized edges (edges that are removed and replaced with a goto)
+        self.virtualized_edges = set()
 
         self.result = None
 
@@ -283,6 +287,7 @@ class StructurerBase(Analysis):
                                 ailment.Expr.UnaryOp(None, "Not", jump_stmt.condition),
                                 jump_stmt.false_target,
                                 None,
+                                true_target_idx=jump_stmt.false_target_idx,
                                 **jump_stmt.tags,
                             )
                         elif (
@@ -295,6 +300,7 @@ class StructurerBase(Analysis):
                                 jump_stmt.condition,
                                 jump_stmt.true_target,
                                 None,
+                                true_target_idx=jump_stmt.true_target_idx,
                                 **jump_stmt.tags,
                             )
 
@@ -343,6 +349,7 @@ class StructurerBase(Analysis):
                                 ailment.Expr.UnaryOp(None, "Not", jump_stmt.condition),
                                 jump_stmt.false_target,
                                 None,
+                                true_target_idx=jump_stmt.false_target_idx,
                                 **jump_stmt.tags,
                             )
                         elif (
@@ -355,6 +362,7 @@ class StructurerBase(Analysis):
                                 jump_stmt.condition,
                                 jump_stmt.true_target,
                                 None,
+                                true_target_idx=jump_stmt.false_target_idx,
                                 **jump_stmt.tags,
                             )
 
@@ -838,6 +846,7 @@ class StructurerBase(Analysis):
                         ailment.Expr.UnaryOp(None, "Not", last_stmt.condition),
                         last_stmt.false_target,
                         None,
+                        true_target_idx=last_stmt.false_target_idx,
                         **last_stmt.tags,
                     )
                     last_node.statements[-1] = new_stmt
@@ -850,6 +859,7 @@ class StructurerBase(Analysis):
                         last_stmt.condition,
                         last_stmt.true_target,
                         None,
+                        true_target_idx=last_stmt.true_target_idx,
                         **last_stmt.tags,
                     )
                     last_node.statements[-1] = new_stmt

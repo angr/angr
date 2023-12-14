@@ -141,10 +141,18 @@ class GotoSimplifier(SequenceWalker):
                     block.statements = block.statements[:-1]
         # if {goto label_1;} else {goto label_2;}
         elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-            if last_stmt.true_target and isinstance(last_stmt.true_target.value, int):
+            if (
+                last_stmt.true_target
+                and isinstance(last_stmt.true_target, ailment.Expr.Const)
+                and isinstance(last_stmt.true_target.value, int)
+            ):
                 self._handle_irreducible_goto(block, last_stmt, branch_target=True)
 
-            if last_stmt.false_target and isinstance(last_stmt.false_target.value, int):
+            if (
+                last_stmt.false_target
+                and isinstance(last_stmt.false_target, ailment.Expr.Const)
+                and isinstance(last_stmt.false_target.value, int)
+            ):
                 self._handle_irreducible_goto(block, last_stmt, branch_target=False)
 
     def _handle_irreducible_goto(

@@ -500,7 +500,7 @@ def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
     af = claripy.BVV(0, 1)
     zf = calc_zerobit(remaining)
     sf = remaining[nbits - 1]
-    of = (remaining[0] ^ shifted[0])[0]
+    of = (remaining[nbits - 1] ^ shifted[nbits - 1])[0]
     return pc_make_rdata(data[platform]["size"], cf, pf, af, zf, sf, of, platform=platform)
 
 

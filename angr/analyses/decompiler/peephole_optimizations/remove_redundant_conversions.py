@@ -10,7 +10,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     NAME = "Remove redundant conversions around binary operators"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         # TODO make this lhs/rhs agnostic
         if isinstance(expr.operands[0], Convert):
             # check: is the lhs convert an up-cast and is rhs a const?
@@ -51,7 +51,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     ):
                         con = Const(None, None, expr.operands[1].value, from_bits, **expr.operands[1].tags)
                         new_expr = BinaryOp(
-                            expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed, bits=from_bits, **expr.tags
+                            expr.idx, expr.op, (expr.operands[0].operand, con), expr.signed, bits=1, **expr.tags
                         )
                         return new_expr
 

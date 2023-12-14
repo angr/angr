@@ -1,9 +1,6 @@
 import angr
 
 
-######################################
-# arch_prctl
-######################################
 class arch_prctl(angr.SimProcedure):
     """
     Sets the architecture specific thread state based on the subfunction selected

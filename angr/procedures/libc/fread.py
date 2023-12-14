@@ -2,10 +2,6 @@ import angr
 
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
-######################################
-# fread
-######################################
-
 
 class fread(angr.SimProcedure):
     # pylint:disable=arguments-differ

@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 # pylint: disable=missing-class-docstring
-from unittest import TestCase
+from unittest import main, TestCase
 
 from archinfo import ArchMIPS32
 
@@ -17,3 +18,7 @@ class TestAtoms(TestCase):
         self.assertTrue(isinstance(result, Register))
         self.assertEqual(result.reg_offset, arch.registers["r0"][0])
         self.assertEqual(result.size, 4)
+
+
+if __name__ == "__main__":
+    main()

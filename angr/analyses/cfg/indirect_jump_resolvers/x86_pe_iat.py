@@ -1,5 +1,7 @@
 import logging
 
+from capstone.x86_const import X86_OP_MEM
+
 from ....simos import SimWindows
 from .resolver import IndirectJumpResolver
 
@@ -20,9 +22,15 @@ class X86PeIatResolver(IndirectJumpResolver):
         if jumpkind != "Ijk_Call":
             return False
 
-        opnd = self.project.factory.block(addr).capstone.insns[-1].insn.operands[0]
+        insns = self.project.factory.block(addr).capstone.insns
+        if not insns:
+            return False
+        if not insns[-1].insn.operands:
+            return False
+
+        opnd = insns[-1].insn.operands[0]
         # Must be of the form: call ds:0xABCD
-        if opnd.mem and opnd.mem.disp and not opnd.mem.base and not opnd.mem.index:
+        if opnd.type == X86_OP_MEM and opnd.mem.disp and not opnd.mem.base and not opnd.mem.index:
             return True
         return False
 

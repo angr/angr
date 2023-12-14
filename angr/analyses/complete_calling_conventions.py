@@ -5,6 +5,8 @@ import time
 import logging
 from collections import defaultdict
 
+import networkx
+
 import claripy
 
 from angr.utils.graph import GraphUtils
@@ -13,10 +15,11 @@ from ..knowledge_plugins.cfg import CFGModel
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
 
 if TYPE_CHECKING:
-    import networkx
     from angr.calling_conventions import SimCC
     from angr.sim_type import SimTypeFunction
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+    from angr.knowledge_plugins.functions.function_manager import Function
+
 
 _l = logging.getLogger(name=__name__)
 
@@ -102,13 +105,15 @@ class CompleteCallingConventionsAnalysis(Analysis):
         """
 
         # get an ordering of functions based on the call graph
-        sorted_funcs = GraphUtils.quasi_topological_sort_nodes(self.kb.functions.callgraph)
+        # note that the call graph is a multi-digraph. we convert it to a digraph to speed up topological sort
+        directed_callgraph = networkx.DiGraph(self.kb.functions.callgraph)
+        sorted_funcs = GraphUtils.quasi_topological_sort_nodes(directed_callgraph)
 
         total_funcs = 0
         for func_addr in reversed(sorted_funcs):
             func = self.kb.functions.get_by_addr(func_addr)
             if (func.calling_convention is None or func.prototype is None) or self._force:
-                if func.alignment:
+                if func.is_alignment:
                     # skip all alignments
                     continue
 
@@ -149,6 +154,11 @@ class CompleteCallingConventionsAnalysis(Analysis):
             self.prioritize_functions(self._prioritize_func_addrs)
         self._prioritize_func_addrs = None  # no longer useful
 
+    def _set_function_prototype(self, func: "Function", prototype: Optional["SimTypeFunction"]) -> None:
+        if func.prototype is None or func.is_prototype_guessed or self._force:
+            func.is_prototype_guessed = True
+            func.prototype = prototype
+
     def work(self):
         total_funcs = self._total_funcs
         if self._workers == 0:
@@ -160,8 +170,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
                     func.calling_convention = cc
-                    func.prototype = proto
-                    func.is_prototype_guessed = True
+                    self._set_function_prototype(func, proto)
 
                 if self._cc_callback is not None:
                     self._cc_callback(func_addr)
@@ -220,8 +229,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
                     func.calling_convention = cc
-                    func.prototype = proto
-                    func.is_prototype_guessed = True
+                    self._set_function_prototype(func, proto)
+
                 if varman is not None:
                     self.kb.variables.function_managers[func_addr] = varman
                     varman.set_manager(self.kb.variables)
@@ -266,7 +275,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 for callee, (callee_cc, callee_proto) in callee_info.items():
                     callee_func = self.kb.functions.get_by_addr(callee)
                     callee_func.calling_convention = callee_cc
-                    callee_func.prototype = callee_proto
+                    self._set_function_prototype(callee_func, callee_proto)
 
             idx += 1
             if self._low_priority:
@@ -288,6 +297,12 @@ class CompleteCallingConventionsAnalysis(Analysis):
             return func.calling_convention, func.prototype, self.kb.variables.get_function_manager(func_addr)
 
         if self._recover_variables and self.function_needs_variable_recovery(func):
+            # special case: we don't have a PCode-engine variable recovery analysis for PCode architectures!
+            if ":" in self.project.arch.name:
+                # this is a pcode architecture
+                if not self._func_graphs or func.addr not in self._func_graphs:
+                    return None, None, None
+
             _l.info("Performing variable recovery on %r...", func)
             try:
                 _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(

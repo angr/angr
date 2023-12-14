@@ -22,9 +22,19 @@ class SequenceWalker:
     Walks a SequenceNode and all its nodes, recursively.
     """
 
-    def __init__(self, handlers=None, exception_on_unsupported=False, update_seqnode_in_place=True):
+    def __init__(
+        self,
+        handlers=None,
+        exception_on_unsupported=False,
+        update_seqnode_in_place=True,
+        force_forward_scan: bool = False,
+    ):
         self._update_seqnode_in_place = update_seqnode_in_place
         self._exception_on_unsupported = exception_on_unsupported
+        self._force_forward_scan = force_forward_scan
+
+        if self._force_forward_scan and self._update_seqnode_in_place:
+            raise TypeError("force_forward_scan and update_seqnode_in_place cannot be enabled at the same time")
 
         default_handlers = {
             # Structurer nodes
@@ -69,20 +79,27 @@ class SequenceWalker:
         nodes_copy = list(node.nodes)
         changed = False
 
-        # we iterate backwards because users of this function may invoke insert_node() directly to insert nodes to the
-        # parent node, either before the current node or after the current node. iterating backwards allows us to
-        # ensure `i` always points to the right index in node.nodes, even after custom insertions.
-        i = len(nodes_copy) - 1
-        while i > -1:
-            node_ = nodes_copy[i]
-            new_node = self._handle(node_, parent=node, index=i)
-            if new_node is not None:
-                changed = True
-                if self._update_seqnode_in_place:
-                    node.nodes[i] = new_node
-                else:
+        if self._force_forward_scan:
+            for i, node_ in enumerate(nodes_copy):
+                new_node = self._handle(node_, parent=node, index=i)
+                if new_node is not None:
+                    changed = True
                     nodes_copy[i] = new_node
-            i -= 1
+        else:
+            # we iterate backwards because users of this function may invoke insert_node() directly to insert nodes
+            # to the parent node, either before the current node or after the current node. iterating backwards allows
+            # us to ensure `i` always points to the right index in node.nodes, even after custom insertions.
+            i = len(nodes_copy) - 1
+            while i > -1:
+                node_ = nodes_copy[i]
+                new_node = self._handle(node_, parent=node, index=i)
+                if new_node is not None:
+                    changed = True
+                    if self._update_seqnode_in_place:
+                        node.nodes[i] = new_node
+                    else:
+                        nodes_copy[i] = new_node
+                i -= 1
 
         if not changed:
             return None
@@ -94,14 +111,21 @@ class SequenceWalker:
         changed = False
         nodes_copy = list(node.nodes)
 
-        i = len(nodes_copy) - 1
-        while i > -1:
-            node_ = nodes_copy[i]
-            new_node = self._handle(node_, parent=node, index=i)
-            if new_node is not None:
-                changed = True
-                node.nodes[i] = new_node
-            i -= 1
+        if self._force_forward_scan:
+            for i, node_ in enumerate(nodes_copy):
+                new_node = self._handle(node_, parent=node, index=i)
+                if new_node is not None:
+                    changed = True
+                    node.nodes[i] = new_node
+        else:
+            i = len(nodes_copy) - 1
+            while i > -1:
+                node_ = nodes_copy[i]
+                new_node = self._handle(node_, parent=node, index=i)
+                if new_node is not None:
+                    changed = True
+                    node.nodes[i] = new_node
+                i -= 1
         return None if not changed else node
 
     def _handle_SwitchCase(self, node, **kwargs):
@@ -162,7 +186,7 @@ class SequenceWalker:
             self._handle(node.iterator)
         if node.condition is not None:
             self._handle(node.condition, parent=node, label="condition")
-        seq_node = self._handle(node.sequence_node, **kwargs)
+        seq_node = self._handle(node.sequence_node, parent=node, label="body", index=0)
         if seq_node is not None:
             return LoopNode(
                 node.sort,
