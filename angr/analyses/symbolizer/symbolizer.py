@@ -41,6 +41,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def _handle_vex_expr_DataSensitiveRdTmp(self, expr):
+        return self._handle_vex_expr_RdTmp(expr)
 
     def is_symbolized(self, expr):
         if 'symbolified_expr' in expr.variables:

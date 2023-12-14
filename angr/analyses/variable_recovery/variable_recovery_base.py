@@ -483,22 +483,22 @@ class VariableRecoveryStateBase:
         #         for var2 in mos_self.variables:
         #             if var2 != "top":
         #                 import ipdb;ipdb.set_trace()
-        if mos_self == mos_other:
-            return True
-        elif type(mos_other) != type(mos_self):
-            return False
-        elif isinstance(mos_self, set):
-            if len(mos_self) != len(mos_other):
-                return False
-            else:
-                mos_self_no_annotations = _remove_annotations_from_all_mo(mos_self)
-                mos_other_no_annotations = _remove_annotations_from_all_mo(mos_self)
-                import ipdb;ipdb.set_trace()
-                return mos_other_no_annotations == mos_self_no_annotations
-        else:
-            return mos_self.base == mos_other.base and compare_object_without_annotations(mos_self, mos_other) and mos_self._length_equals(mos_other)
+        # if mos_self == mos_other:
+        #     return True
+        # elif type(mos_other) != type(mos_self):
+        #     return False
+        # elif isinstance(mos_self, set):
+        #     if len(mos_self) != len(mos_other):
+        #         return False
+        #     else:
+        #         mos_self_no_annotations = _remove_annotations_from_all_mo(mos_self)
+        #         mos_other_no_annotations = _remove_annotations_from_all_mo(mos_self)
+        #         import ipdb;ipdb.set_trace()
+        #         return mos_other_no_annotations == mos_self_no_annotations
+        # else:
+        #     return mos_self.base == mos_other.base and compare_object_without_annotations(mos_self, mos_other) and mos_self._length_equals(mos_other)
 
-        # return mos_self == mos_other
+        return mos_self == mos_other
 
     def _make_phi_variable(self, values: set[claripy.ast.BV | claripy.ast.FP]) -> claripy.ast.Base | None:
         # we create a new phi variable if:

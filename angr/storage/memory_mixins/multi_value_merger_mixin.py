@@ -67,6 +67,24 @@ class MultiValueMergerMixin(MemoryMixin):
             merged_val = {ret_val}
         else:
             merged_val = values_set
+
+        # This is to deal with values that are the same but have different annotations, and only one value exists
+        # This was added because of issues in variable recovery and reaching defs after merging when two stack pointers have same value but different annots
+        stripped_values_set = {v._apply_to_annotations(lambda alist: None) for v in values_set}
+        if len(stripped_values_set) == 1:
+            ret_val = next(iter(stripped_values_set))
+            # migrate annotations
+            annotations = []
+            annotations_set = set()
+            for v in values_set:
+                for anno in v.annotations:
+                    if anno not in annotations_set:
+                        annotations.append(anno)
+                        annotations_set.add(anno)
+            if annotations:
+                ret_val = ret_val.annotate(*annotations[: self._annotation_limit])
+            merged_val = {ret_val}
+
         return merged_val
 
     def copy(self, memo=None):
