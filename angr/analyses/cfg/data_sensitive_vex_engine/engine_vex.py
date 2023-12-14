@@ -23,5 +23,4 @@ class DataSensitiveHeavyVEXMixin(HeavyVEXMixin):
             self.state.globals['cur_block_id'] = stmt.dst.block_id
 
     def _handle_vex_expr_DataSensitiveRdTmp(self, expr):
-        import ipdb;ipdb.set_trace()
         return self._handle_vex_expr_RdTmp(expr)
