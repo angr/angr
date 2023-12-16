@@ -121,6 +121,19 @@ class TestFunctionManager(unittest.TestCase):
         assert 0x400000 in self.project.kb.functions.keys()
         assert 0x400420 in self.project.kb.functions.keys()
 
+    def test_query(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        assert proj.kb.functions["::read"].addr == 0x400530
+        assert proj.kb.functions["::0x400530::read"].addr == 0x400530
+        assert proj.kb.functions["::libc.so.0::read"].addr == 0x700010
+        with self.assertRaises(KeyError):
+            proj.kb.functions["::0x400531::read"]  # pylint:disable=pointless-statement
+        with self.assertRaises(KeyError):
+            proj.kb.functions["::bad::read"]  # pylint:disable=pointless-statement
+
 
 if __name__ == "__main__":
     unittest.main()

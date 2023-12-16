@@ -2,6 +2,7 @@
 from typing import Dict, Set, Optional
 import logging
 import collections.abc
+import re
 from sortedcontainers import SortedDict
 
 import networkx
@@ -13,6 +14,9 @@ from ..plugin import KnowledgeBasePlugin
 from .function import Function
 from .soot_function import SootFunction
 
+
+QUERY_PATTERN = re.compile(r"^(::(.+?))?::(.+)$")
+ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 
 l = logging.getLogger(name=__name__)
 
@@ -406,6 +410,37 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         except KeyError:
             return None
 
+    def query(self, query: str) -> Optional[Function]:
+        """
+        Query for a function using selectors to disambiguate. Supported variations:
+
+            ::<name>           Function <name> in the main object
+            ::<addr>::<name>   Function <name> at <addr>
+            ::<obj>::<name>    Function <name> in <obj>
+
+        """
+        # FIXME: Proper mangle handling
+        matches = QUERY_PATTERN.match(query)
+        if matches:
+            selector = matches.group(2)
+            name = matches.group(3)
+
+            if selector is not None and ADDR_PATTERN.fullmatch(selector):
+                addr = int(matches.group(2), 0)
+                try:
+                    func = self._function_map.get(addr)
+                    if func.name == name:
+                        return func
+                except KeyError:
+                    pass
+
+            obj_name = selector or self._kb._project.loader.main_object.binary_basename
+            for func in self.get_by_name(name):
+                if func.binary_name == obj_name:
+                    return func
+
+        return None
+
     def function(self, addr=None, name=None, create=False, syscall=False, plt=None) -> Optional[Function]:
         """
         Get a function object from the function manager.
@@ -436,10 +471,13 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                         f.is_syscall = True
                     return f
         elif name is not None:
-            for func in self._function_map.values():
-                if func.name == name:
-                    if plt is None or func.is_plt == plt:
-                        return func
+            func = self.query(name)
+            if func is not None:
+                return func
+
+            for func in self.get_by_name(name):
+                if plt is None or func.is_plt == plt:
+                    return func
 
         return None
 
