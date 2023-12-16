@@ -1177,6 +1177,7 @@ class CFunctionCall(CStatement, CExpression):
         "tags",
         "is_expr",
         "show_demangled_name",
+        "show_disambiguated_name",
     )
 
     def __init__(
@@ -1189,6 +1190,7 @@ class CFunctionCall(CStatement, CExpression):
         tags=None,
         is_expr: bool = False,
         show_demangled_name=True,
+        show_disambiguated_name: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -1201,6 +1203,7 @@ class CFunctionCall(CStatement, CExpression):
         self.tags = tags
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
+        self.show_disambiguated_name = show_disambiguated_name
 
     @property
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
@@ -1215,6 +1218,23 @@ class CFunctionCall(CStatement, CExpression):
             return self.prototype.returnty or SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
         else:
             raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
+
+    def _is_target_ambiguous(self, func_name: str) -> bool:
+        """
+        Check for call target name ambiguity.
+        """
+        caller, callee = self.codegen._func, self.callee_func
+
+        for var in self.codegen._variables_in_use.values():
+            if func_name == var.name:
+                return True
+
+        # FIXME: Handle name mangle
+        for func in self.codegen.kb.functions.get_by_name(callee.name):
+            if func is not callee and (caller.binary is not callee.binary or func.binary is callee.binary):
+                return True
+
+        return False
 
     def c_repr_chunks(self, indent=0, asexpr: bool = False):
         """
@@ -1235,6 +1255,8 @@ class CFunctionCall(CStatement, CExpression):
                 func_name = get_cpp_function_name(self.callee_func.demangled_name, specialized=False, qualified=True)
             else:
                 func_name = self.callee_func.name
+            if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
+                func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
             yield func_name, self
         else:
             yield from CExpression._try_c_repr_chunks(self.callee_target)
@@ -2276,6 +2298,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         externs=None,
         const_formats=None,
         show_demangled_name=True,
+        show_disambiguated_name=True,
         ail_graph=None,
         simplify_else_scope=True,
         cstyle_ifs=True,
@@ -2342,6 +2365,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.externs = externs or set()
         self.show_externs = show_externs
         self.show_demangled_name = show_demangled_name
+        self.show_disambiguated_name = show_disambiguated_name
         self.ail_graph = ail_graph
         self.simplify_else_scope = simplify_else_scope
         self.cstyle_ifs = cstyle_ifs
@@ -3119,6 +3143,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=stmt.tags,
             is_expr=is_expr,
             show_demangled_name=self.show_demangled_name,
+            show_disambiguated_name=self.show_disambiguated_name,
             codegen=self,
         )
 
