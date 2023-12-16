@@ -3270,6 +3270,15 @@ class TestDecompiler(unittest.TestCase):
         # bad_matches = re.findall(r'\bif\s*\(\s*[^!].*\)', text)
         # assert len(bad_matches) == 0
 
+    def test_plt_stub_annotation(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        func = proj.kb.functions.function(name="puts", plt=True)
+        d = proj.analyses[Decompiler](func, cfg=cfg.model)
+        assert "PLT stub" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

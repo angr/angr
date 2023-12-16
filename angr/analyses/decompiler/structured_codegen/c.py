@@ -543,6 +543,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             header_cmt = self._line_wrap_comment("".join(header_comments))
             yield header_cmt, None
 
+        if self.codegen._func.is_plt:
+            yield "// attributes: PLT stub\n", None
+
         # return type
         yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
         yield " ", None
