@@ -177,6 +177,16 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Show disambiguated names",
+        "Disambiguate function names when they conflict with variables and other functions",
+        bool,
+        "codegen",
+        "show_disambiguated_name",
+        category="Display",
+        default_value=True,
+        clears_cache=True,
+    ),
+    O(
         "Structuring algorithm",
         "Select a structuring algorithm. Currently supports Dream and Phoenix.",
         type,
