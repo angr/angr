@@ -1579,6 +1579,34 @@ class Function(Serializable):
                 return ast.__str__()
         return self.name
 
+    def get_unambiguous_name(self, display_name: Optional[str] = None) -> str:
+        """
+        Get a disambiguated function name.
+
+        :param display_name: Name to display, otherwise the function name.
+        :return: The function name in the form:
+            ::<name>           when the function binary is the main object.
+            ::<obj>::<name>    when the function binary is not the main object.
+            ::<addr>::<name>   when the function binary is an unnamed non-main object, or when multiple functions with
+                               the same name are defined in the function binary.
+        """
+        must_disambiguate_by_addr = self.binary is not self.project.loader.main_object and self.binary_name is None
+
+        # If there are multiple functions with the same name in the same object, disambiguate by address
+        if not must_disambiguate_by_addr:
+            for func in self._function_manager.get_by_name(self.name):
+                if func is not self and func.binary is self.binary:
+                    must_disambiguate_by_addr = True
+                    break
+
+        separator = "::"
+        n = separator
+        if must_disambiguate_by_addr:
+            n += hex(self.addr) + separator
+        elif self.binary is not self.project.loader.main_object:
+            n += self.binary_name + separator
+        return n + (display_name or self.name)
+
     def apply_definition(self, definition: str, calling_convention: Optional[Union[SimCC, Type[SimCC]]] = None) -> None:
         if not definition.endswith(";"):
             definition += ";"
