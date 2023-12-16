@@ -1443,15 +1443,19 @@ class CVariable(CExpression):
     def type(self):
         return self.variable_type
 
-    def c_repr_chunks(self, indent=0, asexpr=False):
+    @property
+    def name(self):
         v = self.variable if self.unified_variable is None else self.unified_variable
 
         if v.name:
-            yield v.name, self
+            return v.name
         elif isinstance(v, SimTemporaryVariable):
-            yield "tmp_%d" % v.tmp_id, self
+            return "tmp_%d" % v.tmp_id
         else:
-            yield str(v), self
+            return str(v)
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        yield self.name, self
 
 
 class CIndexedVariable(CExpression):
