@@ -35,7 +35,10 @@ class BoyScout(Analysis):
         for arch in all_arches:
             regexes = set()
             if not arch.function_prologs:
+                l.debug("%s %s: Skipping", arch.name, arch.memory_endness)
                 continue
+            else:
+                l.debug("%s %s: Has %s function prologs", arch.name, arch.memory_endness, len(arch.function_prologs))
             # TODO: BoyScout does not support Thumb-only / Cortex-M binaries yet.
 
             for ins_regex in set(arch.function_prologs).union(arch.function_epilogs):
