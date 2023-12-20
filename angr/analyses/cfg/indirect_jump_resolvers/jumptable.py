@@ -2058,9 +2058,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 display = stmt_taken if in_slice_stmts_only else True
                 if display:
                     s = "%s %x:%02d | " % ("+" if stmt_taken else " ", addr, i)
-                    s += "%s " % stmt.pp_str(
-                        arch=self.project.arch, tyenv=irsb.tyenv
-                    )
+                    s += "%s " % stmt.pp_str(arch=self.project.arch, tyenv=irsb.tyenv)
                     if stmt_taken:
                         s += "IN: %d" % blade.slice.in_degree((addr, i))
                     print(s)
