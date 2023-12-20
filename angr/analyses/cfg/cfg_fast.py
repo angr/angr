@@ -3634,7 +3634,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             if func.returning is False:
                 continue
 
-            func_addr_str = hex(func_addr) if type(func_addr) is int else str(func_addr)
+            func_addr_str = hex(func_addr) if isinstance(func_addr, int) else str(func_addr)
 
             # get the node on CFG
             if func.startpoint is None:
