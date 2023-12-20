@@ -3634,15 +3634,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             if func.returning is False:
                 continue
 
+            func_addr_str = hex(func_addr) if isinstance(func_addr, int) else str(func_addr)
+
             # get the node on CFG
             if func.startpoint is None:
-                l.warning("Function %#x does not have a startpoint (yet).", func_addr)
+                l.warning("Function %s does not have a startpoint (yet).", func_addr_str)
                 continue
 
             startpoint = self.model.get_any_node(func.startpoint.addr)
             if startpoint is None:
                 # weird...
-                l.warning("No CFGNode is found for function %#x in _make_return_edges().", func_addr)
+                l.warning("No CFGNode is found for function %s in _make_return_edges().", func_addr_str)
                 continue
 
             endpoints = self._get_return_sources(func)
@@ -3652,7 +3654,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
             # handle callers for tailcall optimizations if flag is enabled
             if self._detect_tail_calls and startpoint.addr in self._tail_calls:
-                l.debug("Handling return address for tail call for func %x", func_addr)
+                l.debug("Handling return address for tail call for func %s", func_addr_str)
                 seen = set()
                 tail_callers = self._get_tail_caller(startpoint, seen)
                 callers.extend(tail_callers)
