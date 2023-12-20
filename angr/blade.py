@@ -1,4 +1,3 @@
-# pylint:disable=unnecessary-dunder-call
 import itertools
 
 import networkx
@@ -135,10 +134,10 @@ class Blade:
                 if arch is not None:
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         reg_name = arch.translate_register_name(stmt.offset)
-                        stmt_str = stmt.__str__(reg_name=reg_name)
+                        stmt_str = stmt.pp_str(reg_name=reg_name)
                     elif isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Get):
                         reg_name = arch.translate_register_name(stmt.data.offset)
-                        stmt_str = stmt.__str__(reg_name=reg_name)
+                        stmt_str = stmt.pp_str(reg_name=reg_name)
                     else:
                         stmt_str = str(stmt)
                 else:
