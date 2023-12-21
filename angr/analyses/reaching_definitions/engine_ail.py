@@ -475,7 +475,7 @@ class SimEngineRDAIL(
             top = self.state.top(size * self.state.arch.byte_width)
             # annotate it
             extloc = self._external_codeloc()
-            top = self.state.annotate_with_def(top, Definition(reg_atom, extloc))
+            top = self.state.annotate_with_def(top, Definition(reg_atom, extloc, dummy=True))
             value = MultiValues(top)
             # write it back
             self.state.kill_and_add_definition(reg_atom, value, override_codeloc=extloc)
