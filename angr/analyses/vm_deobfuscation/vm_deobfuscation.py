@@ -8,6 +8,7 @@ import networkx as nx
 import re
 import copy
 import os
+import pickle
 from collections import defaultdict, OrderedDict
 from angr.code_location import CodeLocation
 from angr.engines import UberEngine
@@ -125,7 +126,6 @@ class StatementGraph:
     def subgraph(self, nodes):
         return self._graph.subgraph(nodes)
 
-debug=False
 class InputConcretizeEngine(UberEngine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -276,9 +276,8 @@ def save_vm_vpc(state):
         expr_val = expr_val[0]
     # expr_val = state.solver.eval_one(state.inspect.reg_write_expr)
     if state.project.loader.main_object.contains_addr(expr_val + state.globals['add_offset']):
-        if hex(expr_val).startswith("0x4"):
-            state.globals['cur_vm_vpc'] = expr_val + state.globals['add_offset']
-            l.debug("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(state.inspect.reg_write_offset))
+        state.globals['cur_vm_vpc'] = expr_val + state.globals['add_offset']
+        l.debug("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(state.inspect.reg_write_offset))
     else:
         l.debug("The value of the PROBLEMATIC PROGRAM COUNTER is and the PROBLEMATIC REGISTER IS: " + str(state.globals.get('cur_vm_vpc')) + " reg_offset: " + str(
             state.inspect.reg_write_offset))
@@ -360,7 +359,7 @@ class VMDeobfuscation(Analysis):
                  constant_prop_func_replacements=None, semantic_verf_hooks=None, decomp_start_end_node_str=None,
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
-                 vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False):
+                 vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False, max_symbolizer_iterations=None):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -373,6 +372,9 @@ class VMDeobfuscation(Analysis):
         self.vpc_mem_loc = vpc_mem_loc
         calls_as_rets = {}
 
+        DUMP = "dump"
+        LOAD = "load"
+        THEMIDA = True
 
         if self.project.arch.bits == 32:
             start_state.registers.store(start_state.arch.registers['ss'][0], 0)
@@ -413,18 +415,10 @@ class VMDeobfuscation(Analysis):
         proj=self.project
         folder_name = os.path.dirname(self.project.filename)
         start_state_copy = start_state.copy()
-        #
         # cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
-        # import ipdb;ipdb.set_trace()
-        # #
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
-        # with open(pickled_file_name,'wb') as hunatcha_cfg:
-        #     pickle.dump(cfg, hunatcha_cfg)
         #
-        # # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
-        # # with open(pickled_file_name,'rb') as hunatcha_cfg:
-        # #     cfg = pickle.load(hunatcha_cfg)
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
+        # cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
         #
         # self.project.kb.cfgs.cfgs = {}
         # # clearing the saved states to save space
@@ -439,147 +433,88 @@ class VMDeobfuscation(Analysis):
         # #        start_state_copy = start_state.copy()
         # cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
         #
-        # import pickle
         # pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
-        # with open(pickled_file_name,'wb') as data_sens_cfg:
-        #     pickle.dump(cfg, data_sens_cfg)
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
-        # with open(pickled_file_name, 'rb') as data_sens_cfg:
-        #     cfg = pickle.load(data_sens_cfg)
-
-    # This analysis needs more work
-       #cfg = self.remove_non_local_variable_dep_branches(cfg, proj, start_state, start_addr, verification_input, cfg_fast_graph, avoid_runs)
-
-        # self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
-        # initial_cfg = self.new_model_graph(cfg.graph, proj, 'initial_cfg')
-    #
-        # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
-        #_, symbolic_expr_locations_blockwise = self.symbolizer(cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
-
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/symbolic_expr_locations_blockwise"
-        # with open(pickled_file_name,'wb') as symbolic:
-        #     pickle.dump(symbolic_expr_locations_blockwise, symbolic)
-
-        # with open(pickled_file_name,'rb') as symbolic:
-        #     symbolic_expr_locations_blockwise = pickle.load(symbolic)
-        #
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_symbolizer_cfg_pickle"
-        # with open(pickled_file_name,'wb') as hunatcha_cfg:
-        #     pickle.dump(cfg, hunatcha_cfg)
-        # with open(pickled_file_name,'rb') as hunatcha_cfg:
-        #     cfg = pickle.load(hunatcha_cfg)
-        #self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
-
-        # start_state_copy = start_state.copy()
-        # self.project.kb.cfgs.cfgs = {}
-        #
-        # global debug
-        # debug = True
-        # cfg = None
-        # new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(proj, symbolic_expr_locations_blockwise,
-        #                                                       start_addr=start_addr, start_state=start_state_copy,
-        #                                                       cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
-        #                                                       remove_insts=remove_insts)
-        # to_use_symbolic_exprs = None
-        # symbolic_expr_locations_blockwise=None
-
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_symbolify_cfg_pickle_1"
-        # # with open(pickled_file_name,'wb') as hunatcha_cfg:
-        # #     pickle.dump(new_cfg, hunatcha_cfg)
-        # with open(pickled_file_name,'rb') as hunatcha_cfg:
-        #     new_cfg = pickle.load(hunatcha_cfg)
-        # # since the hash is not same after loading from pickle
-        # for node in new_cfg.nodes():
-        #     node.block_id._hash = None
+        # cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
+        # #cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
         #
         #
-        # new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
+        # #self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         #
-        # start_state_copy = start_state.copy()
-        # new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
+        # new_cfg=cfg
+        # # THe symbolizer should be run till all branches are explored.. Constant loops determine this
+        # for symb_iter in range(max_symbolizer_iterations):
+        #     #this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
+        #     #symbolizer here tells us which values to symbolize during next cfg exploration stage, it does not discover new nodes
+        #     _, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
         #
-        # _, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/symbolic_expr_locations_blockwise_2"
-        # with open(pickled_file_name,'wb') as symbolic:
-        #     pickle.dump(symbolic_expr_locations_blockwise, symbolic)
-        # start_state_copy = start_state.copy()
-        # self.project.kb.cfgs.cfgs = {}
+        #     self.project.kb.cfgs.cfgs = {}
+        #     # clearing the saved states to save space
+        #     for node in new_cfg.graph.nodes():
+        #         node.input_state = None
+        #         node.final_states = None
         #
-        # new_cfg, to_use_symbolic_exprs = self.symbolify_exprs(proj, symbolic_expr_locations_blockwise,
-        #                                                       start_addr=start_addr, start_state=start_state_copy,
-        #                                                       cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
-        #                                                       remove_insts=remove_insts)
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_symbolify_cfg_pickle_2"
-        # with open(pickled_file_name,'wb') as hunatcha_cfg:
-        #     pickle.dump(new_cfg, hunatcha_cfg)
-        # # with open(pickled_file_name,'rb') as hunatcha_cfg:
-        # #     new_cfg = pickle.load(hunatcha_cfg)
+        #     pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_symbolizer_cfg_pickle"
+        #     new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
         #
+        #     start_state_copy = start_state.copy()
+        #     #here we discover new nodes based on the values to symbolize from the symbolizer
+        #     #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
+        #     #TO DO: there is a way to do this together in one analysis, by allowing to visit the blocks more than once in CFGEmulated(max_iter)
+        #     #and also changing the way merging of values happens
+        #     new_cfg, _ = self.symbolify_exprs(proj, symbolic_expr_locations_blockwise,
+        #                                                           start_addr=start_addr, start_state=start_state_copy,
+        #                                                           cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
+        #                                                           remove_insts=remove_insts)
+        #
+        #     self.project.kb.cfgs.cfgs = {}
+        #     # clearing the saved states to save space
+        #     for node in new_cfg.graph.nodes():
+        #         node.input_state = None
+        #         node.final_states = None
+        #
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
+        #
+        #
+        #     new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
+        #
+        #     start_state_copy = start_state.copy()
+        #     new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
         #
         # import pickle
         # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
         # with open(pickled_file_name,'wb') as load_addr_mba_to_jump_addr_mapping:
         #     pickle.dump(self.project.load_addr_mba_to_jump_addr_mapping, load_addr_mba_to_jump_addr_mapping)
         #
-        # print("DONE")
-        #
-        # import gc
-        # gc.collect()
-        #
-        # self.project.kb.cfgs.cfgs = {}
-        # # clearing the saved states to save space
-        # for node in new_cfg.graph.nodes():
-        #     node.input_state = None
-        #     node.final_states = None
-        #
-        # new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
-        #
-        # #self.draw_graph(new_cfg, os.path.join(folder_name, "symbolify_cfg.svg"))
-        #
-        # start_state_copy = start_state.copy()
-        # new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
         #
         # import gc
         # gc.collect()
         # ## This is constant propgation along with finding non-constants
-        # new_cfg, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
-        # symbolic_expr_locations_blockwise = None
+        # new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
         # self.project.kb.cfgs.cfgs = {}
-        #
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
-        # # with open(pickled_file_name,'wb') as initial_full_cfg_pickle:
-        # #     pickle.dump(new_cfg, initial_full_cfg_pickle)
-        # #
-        # with open(pickled_file_name, 'rb') as initial_full_cfg_pickle:
-        #     new_cfg = pickle.load(initial_full_cfg_pickle)
-        #
-        # import gc
-        # gc.collect()
-        #
         # # clearing the saved states to save space
         # for node in new_cfg.graph.nodes():
         #     node.input_state = None
         #     node.final_states = None
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
+        #
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
+        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+        #
+        # import gc
+        # gc.collect()
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "full_cp_result.svg"))
+        #
         #
         # # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
         # # calls_as_rets is used later during decompilation to adjust stack argument offset for cdcel because the ret has different offsets compared to a normal call
         # new_cfg, calls_as_rets = self.replace_jumpkinds(new_cfg)
-
+        #
         # import pickle
         # pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
         # with open(pickled_file_name,'wb') as calls_as_rets_pickle:
         #     pickle.dump(calls_as_rets, calls_as_rets_pickle)
         #
-        # # # this is a simplification pass to remove all push x, ret to x type of jumps
-        # new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
+        # # this is a simplification pass to remove all push x, ret to x type of jumps
+        # new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
         # self.draw_graph(new_cfg, os.path.join(folder_name, "remove_push_ret.svg"))
         #
         #
@@ -587,17 +522,8 @@ class VMDeobfuscation(Analysis):
         # new_cfg = self.remove_useless_jump_instructions(new_cfg)
         # self.draw_graph(new_cfg, os.path.join(folder_name, "remove_useless_jump.svg"))
         #
-        # import pickle
         # pickled_file_name = os.path.dirname(self.project.filename) + "/mid_way_cfg"
-        # # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
-        # # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
-        # #
-        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
-        #     new_cfg = pickle.load(mid_way_cfg_pickle)
-        # # since the hash is not same after loading from pickle
-        # for node in new_cfg.nodes():
-        #     node.block_id._hash = None
-        #
+        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
         #
         #
         # print("start")
@@ -605,26 +531,15 @@ class VMDeobfuscation(Analysis):
         #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
         #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
         #
-        #     # new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
-        #     # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
-        #         # commented this for test_vmp to show the add eax,1 result
+        #     new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
         #
         #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
         #
-        # import pickle
         # pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
         # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
         # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
         #
-        #
-        #
-        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
-        #     new_cfg = pickle.load(mid_way_cfg_pickle)
-        # for node in new_cfg.nodes():
-        #     node.block_id._hash = None
-
-
-
         #
         #
         # #### These need to be after join basic blocks becasue of the way RDA considers a libc func call as internal instead of external
@@ -653,20 +568,12 @@ class VMDeobfuscation(Analysis):
         # self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
         # new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
         # self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
-
-
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/before_get_put"
-        # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
-        # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
-        # #
         #
-        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
-        #     new_cfg = pickle.load(mid_way_cfg_pickle)
-        # for node in new_cfg.nodes():
-        #     node.block_id._hash = None
-
-
+        #
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/before_get_put"
+        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+        #
+        #
         #
         # for i in range(8):
         #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
@@ -675,8 +582,8 @@ class VMDeobfuscation(Analysis):
         #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
         #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
         #
-        #     # new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
-        #     # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+        #     new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
         #
         #
         #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
@@ -684,17 +591,8 @@ class VMDeobfuscation(Analysis):
         #
         #
         #
-        # import pickle
         # pickled_file_name = os.path.dirname(self.project.filename) + "/after_get_put"
-        # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
-        # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
-        #
-        # with open(pickled_file_name, 'rb') as mid_way_cfg_pickle:
-        #     new_cfg = pickle.load(mid_way_cfg_pickle)
-        # for node in new_cfg.nodes():
-        #     node.block_id._hash = None
-
-
+        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
         #
         #
         # new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
@@ -709,91 +607,71 @@ class VMDeobfuscation(Analysis):
         #
         #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
         #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
-        # #
-        # import pickle
+        #
+        #
         # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
-        # # with open(pickled_file_name,'wb') as final_cfg_pickle:
-        # #     pickle.dump(new_cfg, final_cfg_pickle)
+        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
         #
-        # with open(pickled_file_name, "rb") as final_cfg_pickle:
-        #     new_cfg = pickle.load(final_cfg_pickle)
-        # # since the hash is not same after loading from pickle
-        # for node in new_cfg.nodes():
-        #     node.block_id._hash = None
+        #
+        #
+        # if THEMIDA:
+        #     new_cfg = self.remove_call_to_next_addr(new_cfg)
+        #
+        #     new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
+        #
+        #     for i in range(15):
+        #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        #
+        #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+        #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
+        #
+        #         # new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+        #         # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+        #
+        #         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        #
+        #         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        #
+        #         new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+        #
+        #         new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
+        #
+        #
+        #     pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_beyond_final_cfg"
+        #     new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+        #
+        #
+        #     self.draw_graph(new_cfg,os.path.join(folder_name, "before_beyond.svg"))
+        #
+        #     new_cfg = self.CAS_to_mov_simplification(new_cfg, proj)
+        #
+        #     for i in range(15):
+        #         new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+        #
+        #         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        #
+        #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+        #
+        #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,
+        #                                                                                     keep_sp_changes_dae=keep_sp_changes_dae)
+        #
+        #         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        #
+        #         new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+        #
+        #         new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+        #
+        #         self.draw_graph(new_cfg, os.path.join(folder_name,  str(i)+"block_arithmetic_simplifications_using_dep_graph.svg"))
+        #
+        #     pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
+        #     new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
-        #
-        # new_cfg = self.remove_call_to_next_addr(new_cfg)
-        #
-        # new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
-        #
-        # for i in range(15):
-        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-        #
-        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
-        #
-        #     # new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
-        #     # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
-        #
-        #     new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
-        #
-        #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-        #
-        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
-        #
-        #     new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None)
-        #
-        #
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_beyond_final_cfg"
-        # # with open(pickled_file_name,'wb') as final_cfg_pickle:
-        # #     pickle.dump(new_cfg, final_cfg_pickle)
-        #
-        # with open(pickled_file_name, "rb") as final_cfg_pickle:
-        #     new_cfg = pickle.load(final_cfg_pickle)
-        # # since the hash is not same after loading from pickle
-        # for node in new_cfg.nodes():
-        #     node.block_id._hash = None
-        #
-        #
-        #
-        #
-        # self.draw_graph(new_cfg,os.path.join(folder_name, "before_beyond.svg"))
-        #
-        # new_cfg = self.CAS_to_mov_simplification(new_cfg, proj)
-
-
-        #
-        # for i in range(15):
-        #     new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
-        #
-        #     new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-        #
-        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-        #
-        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,
-        #                                                                                 keep_sp_changes_dae=keep_sp_changes_dae)
-        #
-        #     new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
-        #
-        #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-        #
-        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
-        #
-        #     self.draw_graph(new_cfg, os.path.join(folder_name,  str(i)+"block_arithmetic_simplifications_using_dep_graph.svg"))
-
-        import pickle
         pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
-        # with open(pickled_file_name,'wb') as final_cfg_pickle:
-        #     pickle.dump(new_cfg, final_cfg_pickle)
+        new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
-        with open(pickled_file_name, "rb") as final_cfg_pickle:
-            new_cfg = pickle.load(final_cfg_pickle)
-        # since the hash is not same after loading from pickle
-        for node in new_cfg.nodes():
-            node.block_id._hash = None
-        #
+        new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
+
         # verification_state_copy = verification_state.copy()
         # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
 
@@ -813,9 +691,9 @@ class VMDeobfuscation(Analysis):
                                allow_global_dead_ass_elim=allow_global_dead_ass_elim)
 
 
-        verification_state_copy = verification_state.copy()
-        # self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
-        #self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+        # verification_state_copy = verification_state.copy()
+        # # self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
+        # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result_enc_addr.svg"))
         import ipdb;ipdb.set_trace()
 
@@ -823,6 +701,48 @@ class VMDeobfuscation(Analysis):
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
+    def remove_segment_selector_vex_inst(self, cfg):
+        if self.project.arch.bits == 32:
+            for node in cfg.nodes():
+                if node.is_simprocedure:
+                    continue
+
+                new_statements = []
+                for stmt in node.irsb.statements:
+                    new_stmt = stmt
+                    if isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.CCall) and stmt.data.cee.name == "x86g_use_seg_selector":
+                        if stmt.data.args[2].con.value == 0 and isinstance(stmt.data.args[3], pyvex.expr.RdTmp):
+                            if node.irsb.tyenv.lookup(stmt.data.args[3].tmp) == "Ity_I32" and stmt.data.ret_type == "Ity_I64":
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Unop("Iop_32Uto64", [stmt.data.args[3]]))
+                    new_statements.append(new_stmt)
+
+
+                node.irsb.statements = new_statements
+
+        return cfg
+
+    def pickle_dump_load_cfg(self, cfg, pickled_file_name, dump_or_load=None,):
+        if dump_or_load is None:
+            return
+
+        if dump_or_load == "dump":
+            try:
+                with open(pickled_file_name,'wb') as final_cfg_pickle:
+                    pickle.dump(cfg, final_cfg_pickle)
+            except:
+                import ipdb;ipdb.set_trace()
+            return cfg
+        elif dump_or_load == "load":
+            try:
+                with open(pickled_file_name, "rb") as final_cfg_pickle:
+                    new_cfg = pickle.load(final_cfg_pickle)
+            except:
+                print("error while loading")
+                import ipdb;ipdb.set_trace()
+            # since the hash is not same after loading from pickle
+            for node in new_cfg.nodes():
+                node.block_id._hash = None
+            return new_cfg
     def try_decompilation(self, new_cfg, decomp_start_end_node_str, decomp_function_addresses=None, decomp_function_prototypes=None,
                           semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}, allow_global_dead_ass_elim=False):
         visited_nodes = {}
@@ -1250,6 +1170,7 @@ class VMDeobfuscation(Analysis):
         return cfg
 
     def replace_jumpkinds(self, new_cfg):
+        # TO DO: replace the instructions, can't just replace return with call, semantics change
         calls_as_rets = {}
         for node in new_cfg.nodes():
             succs = list(new_cfg.get_successors(node))
@@ -1276,7 +1197,7 @@ class VMDeobfuscation(Analysis):
                              prev_symbolic_expr_locations_blockwise=None, vm_vpc=None,
                              return_symbolic_expr_locations_blockwise=None, new_cfg=None, prev_unroll_vm_addrs=None, do_replacements=False):
         self.project.prev_symbolic_expr_locations_blockwise = prev_symbolic_expr_locations_blockwise
-        print("Doing constant propagation")
+        print("Doing constant propagation or symbolizing")
         # old_graph = cfg.graph
         # new_model = self.new_model_graph(old_graph, proj, "temporary1")
         # new_cfg_graph = new_model.graph
@@ -1316,9 +1237,11 @@ class VMDeobfuscation(Analysis):
             initial_input_state.preconstrainer.preconstrain(actual_stack_end, initial_input_state.regs.sp)
 
             initial_input_state.partial_symbolic_constraint_solver.add(initial_input_state.regs.sp == actual_stack_end)
-            initial_input_state.partial_symbolic_constraint_solver._solver.add_replacement(initial_input_state.regs.sp,
-                                                 actual_stack_end,
-                                                 invalidate_cache=False)
+            # We do not add this to replacements so that it does not replace sp in symbolizer(making it a constant), when performing the replacemnts
+            # on the regs and temps to replace the symb_unconstained to state_split_cond variables (in _perform_vex_expr_Load)
+            # initial_input_state.partial_symbolic_constraint_solver._solver.add_replacement(initial_input_state.regs.sp,
+            #                                      actual_stack_end,
+            #                                      invalidate_cache=False)
 
             initial_input_state.globals['concretized_load_addr_dict'] = {}
             initial_input_state.globals['replaced_asts_str'] = {}
@@ -1425,7 +1348,7 @@ class VMDeobfuscation(Analysis):
 
         return cfg, cfg.to_use_symbolic_exprs
 
-    def remove_push_ret(self, cfg, proj, start_addr, start_state=None,options=None):
+    def remove_push_ret(self, cfg, proj, start_addr, start_state=None,options=None, decomp_function_addresses=None):
         # this pass is to simplify push x, retn to x kind of jumps
         for node in cfg.graph.nodes():
             # this is to replace any indirect jumps to a simprocedure with a direct jump, should I do this for all jumps/calls?
@@ -1446,6 +1369,8 @@ class VMDeobfuscation(Analysis):
                 if len(list(cfg.graph.successors(node))) == 1 and node.irsb.jumpkind == "Ijk_Ret":
                     new_jumpkind = node.irsb.jumpkind
                     next_node_addr = list(cfg.graph.successors(node))[0].addr
+                    if next_node_addr in decomp_function_addresses:
+                        continue
                     new_statements = []
                     cur_ins_addr = None
                     for stmt in node.irsb.statements:
