@@ -1,8 +1,11 @@
-import angr
-
 import logging
 
+from unique_log_filter import UniqueLogFilter
+
+import angr
+
 l = logging.getLogger(name=__name__)
+l.addFilter(UniqueLogFilter())
 
 
 class deallocate(angr.SimProcedure):

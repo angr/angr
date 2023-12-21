@@ -4,6 +4,7 @@ import logging
 
 import claripy
 from ailment import Stmt, Expr
+from unique_log_filter import UniqueLogFilter
 
 from angr.knowledge_plugins.propagations.prop_value import PropValue, Detail
 from angr.knowledge_plugins.key_definitions.atoms import Register
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from angr.code_location import CodeLocation
 
 l = logging.getLogger(name=__name__)
+l.addFilter(UniqueLogFilter())
 
 
 class SimEnginePropagatorAIL(

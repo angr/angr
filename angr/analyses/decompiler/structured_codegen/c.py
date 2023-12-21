@@ -6,6 +6,7 @@ from functools import reduce
 
 from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
+from unique_log_filter import UniqueLogFilter
 
 from ....sim_type import (
     SimTypeLongLong,
@@ -57,6 +58,8 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
+l.addFilter(UniqueLogFilter())
+
 
 INDENT_DELTA = 4
 

@@ -2,8 +2,9 @@
 from typing import Optional, TYPE_CHECKING
 import logging
 
-import claripy
 import ailment
+import claripy
+from unique_log_filter import UniqueLogFilter
 
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
+l.addFilter(UniqueLogFilter())
 
 
 class SimEngineVRAIL(
