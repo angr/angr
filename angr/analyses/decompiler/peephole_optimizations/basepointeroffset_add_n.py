@@ -31,5 +31,21 @@ class BasePointerOffsetAddN(PeepholeOptimizationExprBase):
             r = expr.operands[0].copy()
             r.offset = offset
             return r
+        elif (
+                expr.op in ("Add")
+                and isinstance(expr.operands[1], BasePointerOffset)
+                and isinstance(expr.operands[0], Const)
+        ):
+            offset = expr.operands[1].offset
+            offset += expr.operands[0].value
+            # convert offset to a signed integer
+            max_int = (1 << (self.project.arch.bits - 1)) - 1
+            if offset > max_int:
+                offset -= 1 << self.project.arch.bits
+
+            r = expr.operands[1].copy()
+            r.offset = offset
+            return r
+
 
         return None
