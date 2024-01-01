@@ -14,7 +14,7 @@ class ThemidaCondCheck(PeepholeOptimizationStmtBase):
     NAME = "Themida inside flag check stmt"
     stmt_classes = (ConditionalJump,)
 
-    def optimize(self, stmt: ConditionalJump):
+    def optimize(self, stmt: ConditionalJump, **kwargs):
         cond = stmt.condition
         if (
                 isinstance(stmt.condition, Convert) and isinstance(stmt.condition.operands[0], DirtyExpression)
