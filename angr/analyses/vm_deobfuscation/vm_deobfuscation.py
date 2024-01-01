@@ -10,7 +10,7 @@ import copy
 import os
 import pickle
 from collections import defaultdict, OrderedDict
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines import UberEngine
 from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.subject import Subject
@@ -21,9 +21,7 @@ from angr.errors import SimMemoryMissingError
 from pyvex.expr import DataSensitiveRdTmp
 from pyvex.const import U64, U32
 
-import pyvex.pyvex.expr
 from ..reaching_definitions.dep_graph import DepGraph
-from ..reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements, VMStackVariableAnnotation
 from ... import BP, BP_BEFORE, BP_AFTER, state_plugins
@@ -63,25 +61,6 @@ class IndSensitiveCodeLocation(CodeLocation):
         super(IndSensitiveCodeLocation, self).__init__(block_addr, stmt_idx, sim_procedure, ins_addr,
                  context, block_idx, block_id, **kwargs)
         self.ins_ind = ins_ind
-
-
-class CLibFunctionHandler(FunctionHandler):
-    def __init__(self, project):
-        self.project = project
-
-    # def hook(self, analysis):
-    #     return self
-    #
-    # def handle_local_function(self, state, function_address, call_stack,
-    #                           maximum_local_call_depth, visited_blocks, dep_graph,
-    #                           src_ins_addr=None,
-    #                           codeloc=None):
-    #    # We skip local functions that we have a CFG for, this is only for lib functions that we are hooking e.g.printf scanf in windows binaries that seem to be statically compiled
-    #     if self.project.is_hooked(codeloc.block_addr):
-    #         executed_rda = False
-    #     else:
-    #         executed_rda = True
-    #     return executed_rda, state, visited_blocks, dep_graph
 
 
 class StatementNode:
@@ -524,7 +503,6 @@ class VMDeobfuscation(Analysis):
         #
         # pickled_file_name = os.path.dirname(self.project.filename) + "/mid_way_cfg"
         # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
-        #
         #
         # print("start")
         # for i in range(4):
@@ -1383,8 +1361,6 @@ class VMDeobfuscation(Analysis):
                                 rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                                                track_tmps=True,
                                                                                track_consts = False,
-                                                                                  function_handler=CLibFunctionHandler(
-                                                                                   self.project),
                                                                                observation_points=[
                                                                                    ('node', node.addr, OP_AFTER)]
                                                                                )
@@ -1991,7 +1967,6 @@ class VMDeobfuscation(Analysis):
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
                                                            track_consts=False,
-                                                           function_handler=CLibFunctionHandler(self.project),
                                                            observation_points=[('node', node.addr, OP_AFTER)]
                                                            )
 
@@ -2197,7 +2172,6 @@ class VMDeobfuscation(Analysis):
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
                                                            track_consts=False,
-                                                           function_handler=CLibFunctionHandler(self.project),
                                                            observation_points=[('node', node.addr, OP_AFTER)]
                                                            )
 
@@ -2308,7 +2282,6 @@ class VMDeobfuscation(Analysis):
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
                                                        track_tmps=True,
                                                        track_consts=False,
-                                                       function_handler=CLibFunctionHandler(self.project),
                                                        max_iterations=3,
                                                        observation_points=leaf_nodes_list
                                                        )
@@ -2445,7 +2418,6 @@ class VMDeobfuscation(Analysis):
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
                                                            track_consts=False,
-                                                           function_handler=CLibFunctionHandler(self.project),
                                                            observation_points=[('node', node.addr, OP_AFTER)]
                                                            )
             rd.model.liveness.def_to_liveness = None
@@ -3813,7 +3785,7 @@ class VMDeobfuscation(Analysis):
                 stmt_str = str(node)
                 if node.irsb != None:
                     for ind, stmt in enumerate(node.irsb.statements):
-                        stmt_str = stmt_str + "\l" + stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
+                        stmt_str = stmt_str + "\l" + stmt.pp_str(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
 
                 graphviz_node = A.get_node(str(node))
                 graphviz_node.attr["label"] = stmt_str
@@ -3825,7 +3797,7 @@ class VMDeobfuscation(Analysis):
                 stmt_str = str(node)
                 if node.irsb != None:
                     for ind, stmt in enumerate(node.irsb.statements):
-                        stmt_str = stmt_str + "\l" + stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
+                        stmt_str = stmt_str + "\l" + stmt.pp_str(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
 
                 graphviz_node = A.get_node(str(node))
                 graphviz_node.attr["label"] = stmt_str
