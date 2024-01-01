@@ -1,7 +1,6 @@
 from ailment.expression import ITE, Convert, DirtyExpression, VEXCCallExpression, Tmp, BinaryOp, Const
 
 
-import ailment.ailment.expression
 from .base import PeepholeOptimizationExprBase
 
 
@@ -11,7 +10,7 @@ class ThemidaCondSimplify(PeepholeOptimizationExprBase):
     NAME = "Themida flag check simplifications"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
-    def optimize(self, expr: BinaryOp):
+    def optimize(self, expr: BinaryOp, **kwargs):
         if (
                 isinstance(expr.operands[0], DirtyExpression)
                 and expr.operands[0].dirty_expr.cee_name == "x86g_calculate_eflags_all"
