@@ -4,10 +4,6 @@ __package__ = __package__ or "tests.engines"  # pylint:disable=redefined-builtin
 import os
 import unittest
 
-import angr
-from angr.storage.memory_mixins import JavaVmMemory, DefaultMemory, KeyValueMemory
-from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
-from angr.engines.soot.method_dispatcher import resolve_method
 from archinfo.arch_amd64 import ArchAMD64
 from archinfo.arch_soot import (
     ArchSoot,
@@ -17,6 +13,11 @@ from archinfo.arch_soot import (
     SootAddressTerminator,
 )
 from claripy.backends.backend_smtlib_solvers import z3str_popen  # noqa: F401
+
+import angr
+from angr.storage.memory_mixins import JavaVmMemory, DefaultMemory, KeyValueMemory
+from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
+from angr.engines.soot.method_dispatcher import resolve_method
 
 try:
     import pysoot
