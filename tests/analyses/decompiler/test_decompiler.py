@@ -1256,6 +1256,7 @@ class TestDecompiler(unittest.TestCase):
     @slow_test
     @for_all_structuring_algos
     def test_decompiling_x8664_cvs(self, decompiler_options=None):
+        # TODO: this is broken, but not shown in CI b/c slow, and tracked by https://github.com/angr/angr/issues/4406
         bin_path = os.path.join(test_location, "x86_64", "cvs")
         p = angr.Project(bin_path, auto_load_libs=False)
 
@@ -1277,7 +1278,7 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses.CFGFast(normalize=True)
 
-        # disable eager returns simplifier
+        # disable return duplicator
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
             "AMD64", "linux"
         )
