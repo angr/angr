@@ -25,10 +25,10 @@ except ModuleNotFoundError:
 
 from ..common import bin_location
 
+
 class TestJava(unittest.TestCase):
     test_location = os.path.join(bin_location, "tests", "java")
     sdk_path = os.path.join(os.path.expanduser("~"), "Android", "Sdk", "platforms")
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_fauxware(self):
@@ -51,7 +51,6 @@ class TestJava(unittest.TestCase):
         password = state.solver.eval(cmd_line_args[0])
         assert password == "SOSNEAKY"
 
-
     @unittest.skipUnless(os.path.exists(sdk_path), "Android SDK found")
     def test_apk_loading(self):
         loading_opts = {
@@ -59,7 +58,9 @@ class TestJava(unittest.TestCase):
             "entry_point": "com.example.antoniob.android1.MainActivity.onCreate",
             "entry_point_params": ("android.os.Bundle",),
         }
-        project = angr.Project(os.path.join(self.test_location, "android1.apk"), main_opts=loading_opts, auto_load_libs=False)
+        project = angr.Project(
+            os.path.join(self.test_location, "android1.apk"), main_opts=loading_opts, auto_load_libs=False
+        )
 
         blank_state = project.factory.blank_state()
         a1 = SimSootValue_ThisRef.new_object(blank_state, "com.example.antoniob.android1.MainActivity")
@@ -76,11 +77,9 @@ class TestJava(unittest.TestCase):
         assert len(simgr.deadended) == 1
         assert type(simgr.deadended[0].addr) is SootAddressTerminator
 
-
     #
     # Command line arguments
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_cmd_line_args(self):
@@ -102,11 +101,9 @@ class TestJava(unittest.TestCase):
         str2 = state2.solver.eval(args0_strval)
         assert "secret_value" in [str1, str2]
 
-
     #
     # JNI Version Information
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_jni_version_information(self):
@@ -114,11 +111,9 @@ class TestJava(unittest.TestCase):
 
         self.run_method(project=project, method="MixedJava.test_jni_get_version", assert_locals={"i0": 0x10008})
 
-
     #
     # JNI Global and Local References
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_jni_global_and_local_refs(self):
@@ -129,11 +124,9 @@ class TestJava(unittest.TestCase):
             project=project, method="MixedJava.test_jni_global_refs", assert_locals={"i0": 0xA}, assertions=assertions
         )
 
-
     #
     # JNI Object Operations
     #
-
 
     def test_jni_object_operations(self):
         project = self.create_project("jni_object_operations")
@@ -145,16 +138,16 @@ class TestJava(unittest.TestCase):
         self.run_method(project=project, method="MixedJava.test_jni_new_subclass_object", assert_locals={"i0": 2})
 
         self.run_method(
-            project=project, method="MixedJava.test_jni_isinstanceof", assert_locals={"i0": 1, "i1": 1, "i2": 0, "i3": 1}
+            project=project,
+            method="MixedJava.test_jni_isinstanceof",
+            assert_locals={"i0": 1, "i1": 1, "i2": 0, "i3": 1},
         )
 
         self.run_method(project=project, method="MixedJava.test_jni_issameobject", assert_locals={"i0": 0, "i1": 1})
 
-
     #
     # JNI String Operations
     #
-
 
     def test_jni_string_operations(self):
         project = self.create_project("jni_string_operations")
@@ -170,11 +163,9 @@ class TestJava(unittest.TestCase):
             assertions=assertions,
         )
 
-
     #
     # JNI Field Access
     #
-
 
     def test_jni_field_access(self):
         project = self.create_project("jni_field_access")
@@ -185,7 +176,9 @@ class TestJava(unittest.TestCase):
             assert_locals={"i0": 0x0, "i1": 0x1, "i2": 0xA, "i3": 0xB, "i4": 0x7, "i5": 0xB, "i6": 0x0, "i7": 0x9},
         )
 
-        self.run_method(project=project, method="MixedJava.test_jni_static_field_access", assert_locals={"i0": 0, "i1": 5})
+        self.run_method(
+            project=project, method="MixedJava.test_jni_static_field_access", assert_locals={"i0": 0, "i1": 5}
+        )
 
         self.run_method(
             project=project,
@@ -205,24 +198,26 @@ class TestJava(unittest.TestCase):
             assert_locals={"i0": 0, "i1": 1, "i2": 10, "i3": 4, "i4": 4, "i5": 1},
         )
 
-
     #
     # JNI Method Calls
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_jni_method_calls(self):
         project = self.create_project("jni_method_calls")
 
-        self.run_method(project=project, method="MixedJava.test_jni_non_virtual_instance_method_call", assert_locals={"i0": 5})
+        self.run_method(
+            project=project, method="MixedJava.test_jni_non_virtual_instance_method_call", assert_locals={"i0": 5}
+        )
 
         self.run_method(
             project=project, method="MixedJava.test_jni_instance_method_calls_basic", assert_locals={"i0": 7, "i1": 7}
         )
 
         self.run_method(
-            project=project, method="MixedJava.test_jni_instance_method_calls_subclass", assert_locals={"i0": 2, "i1": 2}
+            project=project,
+            method="MixedJava.test_jni_instance_method_calls_subclass",
+            assert_locals={"i0": 2, "i1": 2},
         )
 
         self.run_method(
@@ -231,27 +226,33 @@ class TestJava(unittest.TestCase):
             assert_locals={"i0": 8, "i1": 2},
         )
 
-        self.run_method(project=project, method="MixedJava.test_jni_instance_method_calls_args", assert_locals={"i0": 11})
+        self.run_method(
+            project=project, method="MixedJava.test_jni_instance_method_calls_args", assert_locals={"i0": 11}
+        )
 
         self.run_method(project=project, method="MixedJava.test_jni_static_method_call", assert_locals={"i0": 10})
 
-        self.run_method(project=project, method="MixedJava.test_jni_static_method_call_return_obj", assert_locals={"i0": 7})
-
+        self.run_method(
+            project=project, method="MixedJava.test_jni_static_method_call_return_obj", assert_locals={"i0": 7}
+        )
 
     #
     # JNI Primitive Datatypes
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_jni_primitive_datatypes(self):
         project = self.create_project("jni_primitive_datatypes")
 
         self.run_method(
-            project=project, method="MixedJava.test_boolean", assert_locals={"z0": 1, "z1": 0, "z2": 1, "z3": 0, "z4": 1}
+            project=project,
+            method="MixedJava.test_boolean",
+            assert_locals={"z0": 1, "z1": 0, "z2": 1, "z3": 0, "z4": 1},
         )
 
-        self.run_method(project=project, method="MixedJava.test_byte", assert_locals={"b5": 30, "b8": 0xFFFFFF80, "b11": 0})
+        self.run_method(
+            project=project, method="MixedJava.test_byte", assert_locals={"b5": 30, "b8": 0xFFFFFF80, "b11": 0}
+        )
 
         self.run_method(project=project, method="MixedJava.test_char", assert_locals={"c4": 21, "c6": 0, "c9": 1})
 
@@ -267,8 +268,9 @@ class TestJava(unittest.TestCase):
             assert_locals={"i1": 0xFFFFFFF6, "i3": 0, "i5": 0x80000001, "i7": 0x7FFFFFFF},
         )
 
-        self.run_method(project=project, method="MixedJava.test_long", assert_locals={"l1": 0xFFFFFFFFFFFFFFFF, "l3": 1})
-
+        self.run_method(
+            project=project, method="MixedJava.test_long", assert_locals={"l1": 0xFFFFFFFFFFFFFFFF, "l3": 1}
+        )
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_jni_object_arrays(self):
@@ -278,11 +280,9 @@ class TestJava(unittest.TestCase):
 
         self.run_method(project=project, method="MixedJava.test_jni_new_object_array", assert_locals={"i0": 10})
 
-
     #
     # JNI Array Operations
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_jni_array_operations(self):
@@ -328,7 +328,9 @@ class TestJava(unittest.TestCase):
         assert 3 not in idx_value
 
         # test_jni_getarrayelements_symbolic
-        winning_path = self.get_winning_path(project=project, method_fullname="MixedJava.test_jni_getarrayelements_symbolic")
+        winning_path = self.get_winning_path(
+            project=project, method_fullname="MixedJava.test_jni_getarrayelements_symbolic"
+        )
         stdin_packets = winning_path.posix.stdin.content
         idx = winning_path.solver.eval_one(stdin_packets[0][0])
         min_length = winning_path.solver.min(stdin_packets[1][0])
@@ -368,11 +370,9 @@ class TestJava(unittest.TestCase):
         assert state.solver.min(b) == 0
         assert state.solver.max(b) == 255
 
-
     #
     # Method Calls
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_method_calls(self):
@@ -400,11 +400,9 @@ class TestJava(unittest.TestCase):
 
         self.run_method(project=project, method="MixedJava.test_special_invoke_1", assert_locals={"i0": 4})
 
-
     #
     # Array Operations
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_array_operations(self):
@@ -483,11 +481,9 @@ class TestJava(unittest.TestCase):
         assert self.load_value_from_stack(state, "i2") is not None
         assert self.load_value_from_stack(state, "i3") is None
 
-
     #
     # MultiArray Operations
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_multiarray_operations(self):
@@ -495,11 +491,9 @@ class TestJava(unittest.TestCase):
 
         self.run_method(project=project, method="MixedJava.basic_multiarray_ops", assert_locals={"d1": 4})
 
-
     #
     # Loading
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_loading(self):
@@ -521,11 +515,9 @@ class TestJava(unittest.TestCase):
         loaded_libs = [lib.provides for lib in project.loader.all_elf_objects]
         assert "libmixedjava.so" in loaded_libs
 
-
     #
     # SimStates
     #
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_toggling_of_simstate(self):
@@ -562,7 +554,6 @@ class TestJava(unittest.TestCase):
         assert isinstance(state_copy.arch, ArchAMD64)
         assert isinstance(state_copy.memory, DefaultMemory)
         assert isinstance(state_copy.registers, DefaultMemory)
-
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def test_object_tracking(self):
@@ -615,11 +606,9 @@ class TestJava(unittest.TestCase):
         assert ("myArray", "int[]") in mylib_object.attributes
         assert ("myObject", "java.lang.Object") in mylib_object.attributes
 
-
     #
     # Helper
     #
-
 
     def run_method(self, project, method, assert_locals=None, assertions=None):
         end_state = self.get_last_state_of_method(project, method)
@@ -637,7 +626,6 @@ class TestJava(unittest.TestCase):
 
         return end_state
 
-
     @unittest.skipUnless(pysoot, "pysoot not available")
     def create_project(self, binary_dir, load_native_libs=True):
         jar_path = os.path.join(self.test_location, binary_dir, "mixedjava.jar")
@@ -648,18 +636,15 @@ class TestJava(unittest.TestCase):
             project = angr.Project(jar_path)
         return project
 
-
     def load_string(self, state, local_name):
         str_ref = self.load_value_from_stack(state, local_name)
         return state.memory.load(str_ref)
-
 
     def load_value_from_stack(self, state, symbol_name):
         try:
             return state.memory.stack.load(symbol_name)
         except KeyError:
             return None
-
 
     def get_entry_state_of_method(self, project, method_fullname):
         # get SootAddressDescriptor of method entry
@@ -668,7 +653,6 @@ class TestJava(unittest.TestCase):
         addr = SootAddressDescriptor(method, 0, 0)
         # create call state
         return project.factory.blank_state(addr=addr, add_options={angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY})
-
 
     def get_last_state_of_method(self, project, method_fullname):
         state = self.get_entry_state_of_method(project, method_fullname)
@@ -682,7 +666,6 @@ class TestJava(unittest.TestCase):
         # last state is the 'Terminator' state
         # => return the state before
         return states[-2]
-
 
     def get_winning_paths(self, project, method_fullname):
         state = self.get_entry_state_of_method(project, method_fullname)
@@ -701,7 +684,6 @@ class TestJava(unittest.TestCase):
                 winnning_paths.append(pp)
 
         return winnning_paths
-
 
     def get_winning_path(self, project, method_fullname):
         winning_paths = self.get_winning_paths(project, method_fullname)
