@@ -4,6 +4,7 @@ import copy
 import logging
 import inspect
 
+import ailment.expression
 import networkx
 
 from ailment import Block
@@ -19,7 +20,6 @@ from ..structuring.structurer_nodes import MultiNode
 
 if TYPE_CHECKING:
     from ailment.statement import Call
-
 
 _l = logging.getLogger(name=__name__)
 
@@ -313,7 +313,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
         return updated_regions
 
     @staticmethod
-    def _is_simple_return_graph(graph: networkx.DiGraph):
+    def _is_simple_return_graph(graph: networkx.DiGraph, max_assigns=1):
         """
         Checks if the graph is a single block, or a series of simple assignments, that ends
         in a return statement. This is used to know when we MUST duplicate the return block.
@@ -327,7 +327,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
         if not all(labeless_graph.out_degree(n) <= 1 for n in nodes):
             return False
 
-        # collect the statements from the top node
+        # collect the statements from the top node, make sure one exists
         root_nodes = [n for n in nodes if labeless_graph.in_degree(n) == 0]
         if len(root_nodes) != 1:
             return False
@@ -343,14 +343,15 @@ class ReturnDuplicator(StructuringOptimizationPass):
                 stmts += node.statements
 
         # all statements must be either a return, a jump, or an assignment
-        ok_stmts = [s for s in stmts if isinstance(s, (Return, Jump, Assignment))]
-        if len(ok_stmts) != len(stmts):
-            return False
+        type_white_list = (Return, Jump, Assignment)
+        for stmt in stmts:
+            if not isinstance(stmt, type_white_list):
+                return False
 
         # gather all assignments
         assignments = [s for s in stmts if isinstance(s, Assignment)]
         has_assign = len(assignments) > 0
-        if len(assignments) > 1:
+        if len(assignments) > max_assigns:
             return False
 
         # gather return stmts
@@ -365,12 +366,22 @@ class ReturnDuplicator(StructuringOptimizationPass):
         if not has_assign:
             return True
 
-        # check if the assignment is assigning a constant
         assign: Assignment = assignments[0]
-        if not isinstance(assign.src, Const):
-            return False
+        # const assignments are valid
+        if isinstance(assign.src, Const):
+            valid_assignment = ret_expr and ret_expr.likes(assign.dst)
+        # assignments to registers from the stack are valid, since cases of these assignments
+        # pop up across optimized binaries
+        elif (
+            isinstance(assign.dst, ailment.expression.Register)
+            and isinstance(assign.src, ailment.expression.Load)
+            and isinstance(assign.src.addr, ailment.expression.StackBaseOffset)
+        ):
+            valid_assignment = True
+        else:
+            valid_assignment = False
 
-        return ret_expr and ret_expr.likes(assign.dst)
+        return valid_assignment
 
     @staticmethod
     def _number_of_calls_in(graph: networkx.DiGraph) -> int:

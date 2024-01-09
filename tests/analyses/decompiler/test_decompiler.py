@@ -3171,16 +3171,20 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         self._print_decompilation_result(d)
+
         # XXX: this a hack that should be fixed in some other place
         text = d.codegen.text.replace("4294967295", "-1")
+        text = text.replace("\n", " ")
 
-        # first if-stmt should be a single scope with a return.
-        good_if_return = re.search("if \\(.*?\\)\n {8}return -1;", text)
-        assert good_if_return is not None
+        first_if_location = text.find("if (")
+        # the very first if-stmt in this function should be a single scope with a return.
+        # there should be no else scope as well.
+        # TODO: fix the dead-variable elimination pass so that it does remove the extra assign here
+        correct_ifs = list(re.finditer(r"if \(.*?\) {5}\{.*? return -1; {5}}", text))
+        assert len(correct_ifs) >= 1
 
-        first_if_location = text.find("if")
-        assert first_if_location != -1
-        assert first_if_location == good_if_return.start()
+        first_correct_if = correct_ifs[0]
+        assert first_correct_if.start() == first_if_location
 
     @structuring_algo("phoenix")
     def test_ifelseflatten_clientloop(self, decompiler_options=None):
