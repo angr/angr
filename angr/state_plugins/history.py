@@ -111,8 +111,10 @@ class SimStateHistory(SimStatePlugin):
         addr = self.addr
         if addr is None:
             addr_str = "Unknown"
-        else:
+        elif isinstance(addr, int):
             addr_str = "%#x" % addr
+        else:
+            addr_str = repr(addr)
 
         return "<StateHistory @ %s>" % addr_str
 
