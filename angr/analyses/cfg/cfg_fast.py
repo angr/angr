@@ -1399,6 +1399,28 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
     def _post_job_handling(self, job, new_jobs, successors):
         pass
 
+    def _function_completed(self, func_addr: int):
+        if self._collect_data_ref and self.project is not None and ":" in self.project.arch.name:
+            # this is a pcode arch - use Clinic to recover data references
+
+            if not self.kb.functions.contains_addr(func_addr):
+                return
+
+            # we add an arbitrary limit to function sizes for now to ensure we are now slowing down CFG recovery by too
+            # much. we can remove this limit once we significantly speed up RDA and Propagator.
+
+            func = self.kb.functions.get_by_addr(func_addr)
+            if func.is_plt or func.is_simprocedure or func.is_syscall:
+                return
+            if not (1 <= len(func.block_addrs_set) < 15):
+                return
+
+            from angr.analyses.decompiler.clinic import ClinicMode  # pylint:disable=wrong-import-position
+
+            clinic = self.project.analyses.Clinic(func, mode=ClinicMode.COLLECT_DATA_REFS)
+            for irsb_addr, refs in clinic.data_refs.items():
+                self._process_irsb_data_refs(irsb_addr, refs)
+
     def _job_queue_empty(self):
         if self._pending_jobs:
             # fastpath
@@ -2635,14 +2657,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         """
 
         if irsb.data_refs:
-            self._process_irsb_data_refs(irsb)
+            self._process_irsb_data_refs(irsb.addr, irsb.data_refs)
         elif irsb.statements:
             # for each statement, collect all constants that are referenced or used.
             self._collect_data_references_by_scanning_stmts(irsb, irsb_addr)
 
-    def _process_irsb_data_refs(self, irsb):
-        assumption = self._decoding_assumptions.get(irsb.addr & ~1)
-        for ref in irsb.data_refs:
+    def _process_irsb_data_refs(self, irsb_addr, data_refs):
+        assumption = self._decoding_assumptions.get(irsb_addr & ~1)
+        for ref in data_refs:
             if ref.data_type_str == "integer(store)":
                 data_type_str = "integer"
                 is_store = True
@@ -2658,7 +2680,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         assumption.add_data_seg(ref.data_addr, ref.data_size)
 
             self._add_data_reference(
-                irsb.addr,
+                irsb_addr,
                 ref.stmt_idx,
                 ref.ins_addr,
                 ref.data_addr,
@@ -2667,9 +2689,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             )
 
             if ref.data_size == self.project.arch.bytes and is_arm_arch(self.project.arch):
-                self._process_irsb_data_ref_inlined_data(irsb, ref)
+                self._process_irsb_data_ref_inlined_data(irsb_addr, ref)
 
-    def _process_irsb_data_ref_inlined_data(self, irsb, ref):
+    def _process_irsb_data_ref_inlined_data(self, irsb_addr: int, ref):
         # ARM (and maybe a few other architectures as well) has inline pointers
         sec = self.project.loader.find_section_containing(ref.data_addr)
         if sec is not None and sec.is_readable and not sec.is_writable:
@@ -2682,7 +2704,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             if sec_2nd is not None and sec_2nd.is_readable and not sec_2nd.is_writable:
                 # found it!
                 self._add_data_reference(
-                    irsb.addr,
+                    irsb_addr,
                     ref.stmt_idx,
                     ref.ins_addr,
                     v,
@@ -2717,7 +2739,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # - For all other instructions that use labels, the value of the PC is the address of the current
             #   instruction plus 4 bytes, with bit[1] of the result cleared to 0 to make it word-aligned.
             #
-            if (irsb.addr & 1) == 1:
+            if (irsb_addr & 1) == 1:
                 actual_ref_ins_addr = ref.ins_addr + 2
                 v += 4 + actual_ref_ins_addr
                 v &= 0xFFFF_FFFF_FFFF_FFFE
@@ -2728,7 +2750,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             if sec_3rd is not None and sec_3rd.is_readable and not sec_3rd.is_writable:
                 # found it!
                 self._add_data_reference(
-                    irsb.addr, ref.stmt_idx, actual_ref_ins_addr, v, data_size=None, data_type=MemoryDataSort.Unknown
+                    irsb_addr, ref.stmt_idx, actual_ref_ins_addr, v, data_size=None, data_type=MemoryDataSort.Unknown
                 )
 
     def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):

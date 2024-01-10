@@ -308,6 +308,9 @@ class CFGBase(Analysis):
         self._jobs_to_analyze_per_function = defaultdict(set)
         self._completed_functions = set()
 
+    def _function_completed(self, func_addr: int):
+        pass
+
     def _post_analysis(self):
         if self._normalize:
             if not self.normalized:
@@ -1478,6 +1481,8 @@ class CFGBase(Analysis):
 
         finished = self._get_finished_functions()
         for func_addr in finished:
+            if func_addr not in self._completed_functions:
+                self._function_completed(func_addr)
             self._completed_functions.add(func_addr)
         self._cleanup_analysis_jobs(finished_func_addrs=finished)
 

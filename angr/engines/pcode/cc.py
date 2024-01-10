@@ -98,6 +98,7 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
             "68000:BE:32:default": SimCCM68k,
             "RISCV:LE:64:RV64G": SimCCRISCV,
             "RISCV:LE:64:RV64GC": SimCCRISCV,
+            "sparc:BE:32:default": SimCCSPARC,
             "sparc:BE:64:default": SimCCSPARC,
             "SuperH4:LE:32:default": SimCCSH4,
             "pa-risc:BE:32:default": SimCCPARISC,
