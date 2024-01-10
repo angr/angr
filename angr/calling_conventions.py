@@ -6,6 +6,7 @@ from collections import defaultdict
 import claripy
 import archinfo
 from archinfo import RegisterName
+from unique_log_filter import UniqueLogFilter
 
 from .errors import AngrTypeError
 from .sim_type import (
@@ -32,6 +33,7 @@ from .state_plugins.sim_action_object import SimActionObject
 from .engines.soot.engine import SootMixin
 
 l = logging.getLogger(name=__name__)
+l.addFilter(UniqueLogFilter())
 
 
 class PointerWrapper:

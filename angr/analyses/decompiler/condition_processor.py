@@ -3,10 +3,11 @@ from typing import Generator, Dict, Any, Optional, Set, List
 import operator
 import logging
 
-import networkx
-
-import claripy
 import ailment
+import claripy
+import networkx
+from unique_log_filter import UniqueLogFilter
+
 
 from angr.utils.graph import GraphUtils
 from ...utils.lazy_import import lazy_import
@@ -39,6 +40,7 @@ else:
 
 
 l = logging.getLogger(__name__)
+l.addFilter(UniqueLogFilter())
 
 
 _UNIFIABLE_COMPARISONS = {
