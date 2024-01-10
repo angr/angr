@@ -1,5 +1,5 @@
 # pylint:disable=raise-missing-from
-from typing import Dict, Set, Optional
+from typing import Dict, Generator, Optional, Set
 import logging
 import collections.abc
 import re
@@ -351,8 +351,10 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     def get_by_addr(self, addr) -> Function:
         return self._function_map.get(addr)
 
-    def get_by_name(self, name: str) -> Set[Function]:
-        return {f for f in self._function_map.values() if f.name == name}
+    def get_by_name(self, name: str) -> Generator[Function, None, None]:
+        for f in self._function_map.values():
+            if f.name == name:
+                yield f
 
     def _function_added(self, func: Function):
         """
