@@ -4,6 +4,7 @@ __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-b
 
 import os
 import tempfile
+import shutil
 import unittest
 
 import angr
@@ -161,6 +162,35 @@ class TestDb(unittest.TestCase):
         # attempt 4
         proj1 = AngrDB().load(db_file)
         assert proj1.kb.comments[proj.entry] == "Comment 22222222222222222222222"
+
+    def test_angrdb_save_without_binary_existence(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "proj.adb")
+
+            with tempfile.TemporaryDirectory() as td0:
+                tmp_path = os.path.join(td0, os.path.basename(bin_path))
+                shutil.copy(bin_path, tmp_path)
+                proj = angr.Project(tmp_path, auto_load_libs=False)
+
+                AngrDB(proj).dump(db_file)
+
+                del proj
+                os.remove(tmp_path)
+
+            # now that the binary file no longer exists, we should be able to open the angr DB and save it without
+            # raising exceptions.
+
+            proj = AngrDB().load(db_file)
+            os.remove(db_file)
+
+            db_file_new = os.path.join(td, "proj_new.adb")
+            AngrDB(proj).dump(db_file_new)
+
+            # we should be able to load it back!
+            proj_new = AngrDB().load(db_file_new)
+            assert os.path.basename(proj_new.loader.main_object.binary) == "fauxware"
 
 
 if __name__ == "__main__":
