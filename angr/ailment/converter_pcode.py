@@ -290,7 +290,7 @@ class PCodeIRSBConverter(Converter):
                         break
                 assert unique_offset is not None, "Cannot find the source unique variable"
                 # TODO: Check size
-                ori_tmp_idx, ori_tmp_size = self._unique_tracker[unique_offset]
+                _, ori_tmp_size = self._unique_tracker[unique_offset]
                 t = Tmp(self._manager.next_atom(), None, unique_offset, ori_tmp_size * 8)
                 # FIXME: Asserting BE
                 right_shift_amount = varnode.offset + varnode.size - (unique_offset + ori_tmp_size)
