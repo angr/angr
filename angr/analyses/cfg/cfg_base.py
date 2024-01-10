@@ -1483,7 +1483,7 @@ class CFGBase(Analysis):
         for func_addr in finished:
             if func_addr not in self._completed_functions:
                 self._function_completed(func_addr)
-            self._completed_functions.add(func_addr)
+                self._completed_functions.add(func_addr)
         self._cleanup_analysis_jobs(finished_func_addrs=finished)
 
     #
