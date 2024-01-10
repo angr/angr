@@ -1654,6 +1654,7 @@ class Clinic(Analysis):
 
     @staticmethod
     def _collect_data_refs(ail_graph) -> Dict[int, List[DataRefDesc]]:
+        # pylint:disable=unused-argument
         walker = ailment.AILBlockWalker()
         data_refs: Dict[int, List[DataRefDesc]] = defaultdict(list)
 
@@ -1706,7 +1707,7 @@ class Clinic(Analysis):
                             MemoryDataSort.Integer if expr.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                return
+                return None
 
             return ailment.AILBlockWalker._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
 
@@ -1735,7 +1736,7 @@ class Clinic(Analysis):
                             MemoryDataSort.Integer if stmt.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                return
+                return None
 
             return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
 

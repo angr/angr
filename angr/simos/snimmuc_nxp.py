@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from io import BytesIO
 
 from cle.backends import Blob
@@ -5,13 +7,16 @@ from cle.backends import Blob
 from angr.knowledge_base import KnowledgeBase
 from .simos import SimOS
 
+if TYPE_CHECKING:
+    from angr import Project
+
 
 class SimSnimmucNxp(SimOS):
     """
     This class implements the "OS" for a bare-metal firmware used at an imaginary company.
     """
 
-    def __init__(self, project: "angr.Project", name=None, **kwargs):
+    def __init__(self, project: "Project", name=None, **kwargs):  # pylint:disable=unused-argument
         super().__init__(project, name=name)
 
     def configure_project(self):
@@ -68,7 +73,7 @@ class SimSnimmucNxp(SimOS):
         # this is just CRAZY...
         # TODO: Better resilience
         tmp_kb = KnowledgeBase(self.project)
-        cfg_0 = self.project.analyses.CFG(
+        self.project.analyses.CFG(
             regions=[(self.project.entry, self.project.entry + 180)], data_references=False, kb=tmp_kb
         )
         # take the last function
@@ -89,7 +94,7 @@ class SimSnimmucNxp(SimOS):
         if not isinstance(section_init_func_addr, int):
             return
 
-        cfg_1 = self.project.analyses.CFG(
+        self.project.analyses.CFG(
             regions=[(section_init_func_addr, section_init_func_addr + 0x324)], data_references=False, kb=tmp_kb
         )
         section_init_func = tmp_kb.functions[section_init_func_addr]
