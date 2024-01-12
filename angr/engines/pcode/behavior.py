@@ -1,11 +1,15 @@
 import operator
 from typing import Callable, Iterable, Tuple
 
-from pypcode import OpCode
 import claripy
 from claripy.ast.bv import BV
 
 from ...errors import AngrError
+
+try:
+    from pypcode import OpCode
+except ImportError:
+    OpCode = None
 
 # pylint:disable=abstract-method
 
@@ -889,7 +893,8 @@ class BehaviorFactory:
 
     def __init__(self):
         self._behaviors = {}
-        self._register_behaviors()
+        if OpCode:
+            self._register_behaviors()
 
     def get_behavior_for_opcode(self, opcode: int) -> OpBehavior:
         return self._behaviors[opcode]
