@@ -16,7 +16,7 @@ from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import IndirectJump
 
-from ...common import bin_location, compile_c, has_32_bit_compiler_support, skip_if_not_linux
+from ...common import bin_location, compile_c, has_32_bit_compiler_support, skip_if_not_linux, slow_test
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -2796,6 +2796,7 @@ class TestJumpTableResolver(unittest.TestCase):
     # Some jump tables are in fact vtables
     #
 
+    @slow_test
     def test_vtable_amd64_libc_ubuntu_2004(self):
         p = angr.Project(
             os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004_stripped"), auto_load_libs=False
