@@ -1178,6 +1178,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
 
+    @slow_test
     @for_all_structuring_algos
     def test_decompiling_newburry_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
@@ -2519,6 +2520,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 0
 
+    @slow_test
     @structuring_algo("phoenix")
     def test_eager_returns_simplifier_no_duplication_of_default_case(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
@@ -3033,6 +3035,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
         assert dec.codegen.text == saved
 
+    @slow_test
     @for_all_structuring_algos
     def test_function_pointer_identification(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "rust_hello_world")
