@@ -3,7 +3,7 @@ from typing import List
 
 import cle
 
-from ...errors import AngrCorruptDBError
+from ...errors import AngrCorruptDBError, AngrDBError
 from ..models import DbObject
 
 
@@ -34,13 +34,20 @@ class LoaderSerializer:
                 # it exists. skip.
                 continue
 
-            # FIXME: We assume the binary and its libraries all still exist on the disk
+            try:
+                content = obj.cached_content if hasattr(obj, "cached_content") else None
+                if content is None:
+                    # fall back to loading the file again from disk
+                    with open(obj.binary, "rb") as the_file:
+                        content = the_file.read()
+            except OSError as ex:
+                raise AngrDBError(f"Failed to load content for file {obj.binary}.") from ex
 
             # save the object
             o = DbObject(
                 main_object=loader.main_object is obj,
                 path=obj.binary,
-                content=open(obj.binary, "rb").read(),
+                content=content,
                 backend=LoaderSerializer.backend2name.get(obj.__class__),
                 backend_args="",  # TODO: We will need support from CLE to store loader arguments
             )
