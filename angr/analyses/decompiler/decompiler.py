@@ -12,7 +12,8 @@ from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
 from ...utils import timethis
 from .. import Analysis, AnalysesHub
-from .structuring import RecursiveStructurer, PhoenixStructurer
+from .structuring import RecursiveStructurer, PhoenixStructurer, DreamStructurer, CombingStructurer
+from .structuring.variable_creator import VariableCreator
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .optimization_passes import get_default_optimization_passes
@@ -138,12 +139,17 @@ class Decompiler(Analysis):
         self._force_loop_single_exit = True
         self._complete_successors = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
+        loop_successor_tree_type = None
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = PhoenixStructurer
         if self._recursive_structurer_params["structurer_cls"] == PhoenixStructurer:
             self._force_loop_single_exit = False
             self._complete_successors = True
             fold_callexprs_into_conditions = True
+        elif self._recursive_structurer_params["structurer_cls"] == DreamStructurer:
+            loop_successor_tree_type = "conditions"
+        elif self._recursive_structurer_params["structurer_cls"] == CombingStructurer:
+            loop_successor_tree_type = "state_vars"
 
         cache = DecompilationCache(self.func.addr)
         cache.ite_exprs = ite_exprs
@@ -195,6 +201,8 @@ class Decompiler(Analysis):
             ite_exprs=ite_exprs,
         )
 
+        variable_creator = VariableCreator()
+
         # recover regions
         ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self.func,
@@ -202,6 +210,8 @@ class Decompiler(Analysis):
             cond_proc=cond_proc,
             force_loop_single_exit=self._force_loop_single_exit,
             complete_successors=self._complete_successors,
+            variable_creator=variable_creator,
+            loop_successor_tree_type=loop_successor_tree_type,
             **self.options_to_params(self.options_by_class["region_identifier"]),
         )
         # run optimizations that may require re-RegionIdentification
@@ -221,6 +231,7 @@ class Decompiler(Analysis):
             ri.region,
             cond_proc=cond_proc,
             func=self.func,
+            variable_creator=variable_creator,
             **self._recursive_structurer_params,
         )
         self._update_progress(80.0, text="Simplifying regions")

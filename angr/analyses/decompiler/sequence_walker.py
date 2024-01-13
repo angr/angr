@@ -126,7 +126,11 @@ class SequenceWalker:
                     changed = True
                     node.nodes[i] = new_node
                 i -= 1
-        return None if not changed else node
+        if not changed:
+            return None
+        if self._update_seqnode_in_place:
+            return node
+        return MultiNode(nodes_copy, addr=node.addr, idx=node.idx)
 
     def _handle_SwitchCase(self, node, **kwargs):
         self._handle(node.switch_expr, parent=node, label="switch_expr")

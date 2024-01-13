@@ -11,6 +11,7 @@ from ..jump_target_collector import JumpTargetCollector
 from ..redundant_label_remover import RedundantLabelRemover
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
+from .node_id_manager import NodeIdManager
 
 
 if TYPE_CHECKING:
@@ -29,6 +30,7 @@ class RecursiveStructurer(Analysis):
         func: Optional["Function"] = None,
         structurer_cls: Optional[Type] = None,
         improve_structurer=True,
+        variable_creator=None,
         **kwargs,
     ):
         self._region = region
@@ -37,6 +39,8 @@ class RecursiveStructurer(Analysis):
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.improve_structurer = improve_structurer
         self.structurer_options = kwargs
+        self.variable_creator = variable_creator
+        self.node_id_manager = NodeIdManager()
 
         self.result = None
 
@@ -84,6 +88,8 @@ class RecursiveStructurer(Analysis):
                     func=self.function,
                     parent_region=parent_region,
                     improve_structurer=self.improve_structurer,
+                    variable_creator=self.variable_creator,
+                    node_id_manager=self.node_id_manager,
                     **self.structurer_options,
                 )
                 # replace this region with the resulting node in its parent region... if it's not an orphan
