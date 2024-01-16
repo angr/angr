@@ -114,6 +114,8 @@ class PhoenixStructurer(StructurerBase):
         self._edge_virtualization_hints = []
 
         self._use_multistmtexprs = use_multistmtexprs
+        if not self._phoenix_improved:
+            self._use_multistmtexprs = MultiStmtExprMode.NEVER
 
         self._analyze()
 
@@ -2141,7 +2143,7 @@ class PhoenixStructurer(StructurerBase):
             pass
         else:
             # insert a Jump at the end
-            stmt_addr = last_stmt.ins_addr if last_stmt is not None else src.addr
+            stmt_addr = src.addr
             goto_node = Block(
                 stmt_addr,
                 0,
