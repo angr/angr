@@ -1253,7 +1253,7 @@ class TestDecompiler(unittest.TestCase):
         )
         assert "\"For complete documentation, run: info coreutils '%s invocation'\\n\"" in d.codegen.text
 
-    @slow_test
+    @unittest.skip("Disabled until https://github.com/angr/angr/issues/4406 fixed")
     @for_all_structuring_algos
     def test_decompiling_x8664_cvs(self, decompiler_options=None):
         # TODO: this is broken, but not shown in CI b/c slow, and tracked by https://github.com/angr/angr/issues/4406
