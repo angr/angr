@@ -5,13 +5,19 @@ from dataclasses import dataclass
 from typing import Optional, List
 
 import claripy
-from pypcode import OpCode
 
 import angr
 from angr.engines.pcode.behavior import BehaviorFactory
 from angr.engines.pcode.emulate import PcodeEmulatorMixin
 from angr.sim_state import SimState
 from angr.engines import SimSuccessors
+
+
+try:
+    import pypcode
+    from pypcode import OpCode
+except ImportError:
+    pypcode = None
 
 
 log = logging.getLogger(__name__)
@@ -58,7 +64,7 @@ class MockPcodeOp:
     Mock P-Code Op
     """
 
-    opcode: OpCode
+    opcode: "OpCode"
     output: Optional[MockVarnode]
     inputs: List[MockVarnode]
 
@@ -81,6 +87,7 @@ OP = MockPcodeOp
 VN = MockVarnode
 
 
+@unittest.skipUnless(pypcode, "pypcode is not available")
 class TestPcodeEmulatorMixin(unittest.TestCase):
     """
     Test P-Code engine emulator mixin
@@ -101,7 +108,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         emulator.successors.processed = True
         return emulator.successors
 
-    def _test_branch_and_call_common(self, opcode: OpCode):
+    def _test_branch_and_call_common(self, opcode: "OpCode"):
         target_addr = 0x12345678
         successors = self._step_irsb(
             MockIRSB(
@@ -130,7 +137,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
     def test_call(self):
         self._test_branch_and_call_common(OpCode.CALL)
 
-    def _test_branchind_and_callind_common(self, opcode: OpCode):
+    def _test_branchind_and_callind_common(self, opcode: "OpCode"):
         target_addr = 0x12345678
         target_pointer_addr = 0x100000
         target_pointer_size = 8
@@ -343,7 +350,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         new_state = successors.successors[0]
         assert new_state.solver.is_true(new_state.memory.load(addr2, 8) == value)
 
-    def _test_single_arith_binary_op(self, opcode: OpCode):
+    def _test_single_arith_binary_op(self, opcode: "OpCode"):
         opcode_to_operation = {
             OpCode.BOOL_AND: operator.and_,
             OpCode.BOOL_OR: operator.or_,
@@ -453,7 +460,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             with self.subTest(opcode):
                 self._test_single_arith_binary_op(opcode)
 
-    def _test_single_arith_unary_op(self, opcode: OpCode):
+    def _test_single_arith_unary_op(self, opcode: "OpCode"):
         opcode_to_operation = {
             OpCode.INT_NEGATE: operator.inv,
             OpCode.INT_2COMP: operator.neg,

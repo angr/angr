@@ -1,7 +1,6 @@
 import logging
 from typing import Optional
 
-from pypcode import OpCode, Varnode, PcodeOp
 import claripy
 from claripy.ast.bv import BV
 
@@ -12,6 +11,11 @@ from .behavior import OpBehavior
 from ...errors import AngrError
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
 
+try:
+    from pypcode import OpCode, Varnode, PcodeOp
+except ImportError:
+    pass
+
 
 l = logging.getLogger(__name__)
 
@@ -21,7 +25,7 @@ class PcodeEmulatorMixin(SimEngineBase):
     Mixin for p-code execution.
     """
 
-    _current_op: Optional[PcodeOp]
+    _current_op: Optional["PcodeOp"]
     _current_op_idx: int
     _current_behavior: Optional[OpBehavior]
 
@@ -125,7 +129,7 @@ class PcodeEmulatorMixin(SimEngineBase):
 
         self._current_behavior = None
 
-    def _map_register_name(self, varnode: Varnode) -> int:
+    def _map_register_name(self, varnode: "Varnode") -> int:
         """
         Map SLEIGH register offset to ArchInfo register offset based on name.
 
@@ -159,7 +163,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         else:
             return v_in
 
-    def _set_value(self, varnode: Varnode, value: BV) -> None:
+    def _set_value(self, varnode: "Varnode", value: BV) -> None:
         """
         Store a value for a given varnode.
 
@@ -190,7 +194,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         else:
             raise AngrError(f"Attempted write to unhandled address space '{space.name}'")
 
-    def _get_value(self, varnode: Varnode) -> BV:
+    def _get_value(self, varnode: "Varnode") -> BV:
         """
         Get a value for a given varnode.
 

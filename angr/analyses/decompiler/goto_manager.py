@@ -1,5 +1,4 @@
 from typing import Set
-from collections import defaultdict
 
 import ailment
 
@@ -10,31 +9,27 @@ class Goto:
     will differ).
     """
 
-    def __init__(self, block_addr=None, ins_addr=None, target_addr=None):
-        """
-        :param block_addr:  The block address this goto is contained in
-        :param ins_addr:    The instruction address this goto is at
-        :param target_addr: The target this goto will jump to
-        """
-        self.block_addr = block_addr
-        self.ins_addr = ins_addr
-        self.target_addr = target_addr
+    def __init__(self, src_addr, dst_addr, src_idx=None, dst_idx=None, src_ins_addr=None):
+        self.src_addr = src_addr
+        self.dst_addr = dst_addr
+        self.src_idx = src_idx
+        self.dst_idx = dst_idx
+        self.src_ins_addr = src_ins_addr
 
     def __hash__(self):
-        return hash(f"{self.block_addr}{self.ins_addr}{self.target_addr}")
+        return hash(f"{self.src_addr}{self.dst_addr}{self.src_idx}{self.dst_idx}")
 
     def __str__(self):
-        if not self.addr or not self.target_addr:
+        if self.src_addr is None or self.dst_addr is None:
             return f"<Goto {self.__hash__()}>"
 
-        return f"<Goto: [{hex(self.addr)}] -> {hex(self.target_addr)}>"
+        src_idx_str = "" if self.src_idx is None else f".{self.src_idx}"
+        dst_idx_str = "" if self.dst_idx is None else f".{self.dst_idx}"
+        src_ins_addr_str = "" if self.src_ins_addr is None else f"{hex(self.src_ins_addr)}"
+        return f"<Goto: [{hex(self.src_addr)}@{src_ins_addr_str}{src_idx_str}] -> {hex(self.dst_addr)}{dst_idx_str}>"
 
     def __repr__(self):
         return self.__str__()
-
-    @property
-    def addr(self):
-        return self.block_addr or self.ins_addr
 
 
 class GotoManager:
@@ -55,38 +50,26 @@ class GotoManager:
     def __repr__(self):
         return self.__str__()
 
-    def gotos_by_addr(self, force_refresh=False):
-        """
-        Returns a dictionary of gotos by addresses. This set can CONTAIN DUPLICATES, so don't trust
-        this for a valid number of gotos. If you need the real number of gotos, just get the size of
-        self.gotos. This set should mostly be used when checking if a block contains a goto, since recording
-        can be recorded on null-addr blocks.
-
-        :param force_refresh: Don't use the cached self._gotos_by_addr
-        :return:
-        """
-
-        if not force_refresh and self._gotos_by_addr:
-            return self._gotos_by_addr
-
-        self._gotos_by_addr = defaultdict(set)
-        for goto in self.gotos:
-            if goto.block_addr is not None:
-                self._gotos_by_addr[goto.block_addr].add(goto)
-
-            if goto.ins_addr is not None:
-                self._gotos_by_addr[goto.ins_addr].add(goto)
-
-        return self._gotos_by_addr
-
     def gotos_in_block(self, block: ailment.Block) -> Set[Goto]:
-        gotos_by_addr = self.gotos_by_addr()
-        gotos = set()
-        if block.addr in gotos_by_addr:
-            gotos.update(gotos_by_addr[block.addr])
+        gotos_found = set()
+        for goto in self.gotos:
+            if goto.src_addr == block.addr:
+                gotos_found.add(goto)
+            else:
+                block_addrs = {stmt.ins_addr for stmt in block.statements if "ins_addr" in stmt.tags}
+                if goto.src_ins_addr in block_addrs:
+                    gotos_found.add(goto)
 
-        for stmt in block.statements:
-            if stmt.ins_addr in gotos_by_addr:
-                gotos.update(gotos_by_addr[stmt.ins_addr])
+        return gotos_found
 
-        return gotos
+    def is_goto_edge(self, src: ailment.Block, dst: ailment.Block):
+        src_gotos = self.gotos_in_block(src)
+        for goto in src_gotos:
+            if goto.dst_addr == dst.addr:
+                return True
+            else:
+                block_addrs = {stmt.ins_addr for stmt in dst.statements if "ins_addr" in stmt.tags}
+                if goto.dst_addr in block_addrs:
+                    return True
+
+        return False

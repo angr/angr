@@ -3,6 +3,7 @@ import logging
 from collections import defaultdict
 from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any, TYPE_CHECKING
 
+import networkx
 from cle import SymbolType
 import ailment
 
@@ -195,15 +196,12 @@ class Decompiler(Analysis):
             ite_exprs=ite_exprs,
         )
 
-        # recover regions
-        ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
-            self.func,
-            graph=clinic.graph,
-            cond_proc=cond_proc,
-            force_loop_single_exit=self._force_loop_single_exit,
-            complete_successors=self._complete_successors,
-            **self.options_to_params(self.options_by_class["region_identifier"]),
+        # recover regions, delay updating when we have optimizations that may update regions themselves
+        delay_graph_updates = any(
+            pass_.STAGE == OptimizationPassStage.DURING_REGION_IDENTIFICATION for pass_ in self._optimization_passes
         )
+        ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
+
         # run optimizations that may require re-RegionIdentification
         clinic.graph, ri = self._run_region_simplification_passes(
             clinic.graph,
@@ -264,6 +262,17 @@ class Decompiler(Analysis):
         self.codegen = codegen
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
+
+    def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
+        return self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
+            self.func,
+            graph=graph,
+            cond_proc=condition_processor,
+            update_graph=update_graph,
+            force_loop_single_exit=self._force_loop_single_exit,
+            complete_successors=self._complete_successors,
+            **self.options_to_params(self.options_by_class["region_identifier"]),
+        )
 
     @timethis
     def _run_graph_simplification_passes(self, ail_graph, reaching_definitions, **kwargs):
@@ -364,16 +373,9 @@ class Decompiler(Analysis):
 
                 cond_proc = ConditionProcessor(self.project.arch)
                 # always update RI on graph change
-                ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
-                    self.func,
-                    graph=ail_graph,
-                    cond_proc=cond_proc,
-                    force_loop_single_exit=self._force_loop_single_exit,
-                    complete_successors=self._complete_successors,
-                    **self.options_to_params(self.options_by_class["region_identifier"]),
-                )
+                ri = self._recover_regions(ail_graph, cond_proc, update_graph=False)
 
-        return ail_graph, ri
+        return ail_graph, self._recover_regions(ail_graph, ConditionProcessor(self.project.arch), update_graph=True)
 
     @timethis
     def _run_post_structuring_simplification_passes(self, seq_node, **kwargs):

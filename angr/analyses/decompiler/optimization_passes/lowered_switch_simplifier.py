@@ -139,7 +139,7 @@ class LoweredSwitchSimplifier(OptimizationPass):
         "AMD64",
     ]
     PLATFORMS = ["linux", "windows"]
-    STAGE = OptimizationPassStage.BEFORE_REGION_IDENTIFICATION
+    STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Convert lowered switch-cases (if-else) to switch-cases"
     DESCRIPTION = (
         "Convert lowered switch-cases (if-else) to switch-cases. Only works when the Phoenix structuring "

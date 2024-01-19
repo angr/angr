@@ -6,7 +6,7 @@ from ailment import Block
 from ailment.statement import ConditionalJump, Return
 
 from ....utils.graph import subgraph_between_nodes
-from ..utils import remove_labels, to_ail_supergraph
+from ..utils import remove_labels, to_ail_supergraph, update_labels
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -26,7 +26,7 @@ class ReturnDeduplicator(OptimizationPass):
 
     ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM", "MIPS32", "MIPS64"]
     PLATFORMS = ["windows", "linux", "cgc"]
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Deduplicates return statements that may have been duplicated"
     DESCRIPTION = __doc__.strip()
 
@@ -44,7 +44,7 @@ class ReturnDeduplicator(OptimizationPass):
             graph_updated |= self._fix_if_ret_region(region_head, true_child, false_child, super_true, super_false)
 
         if graph_updated:
-            self.out_graph = self._graph
+            self.out_graph = update_labels(self._graph)
 
     def _fix_if_ret_region(self, region_head, true_child, false_child, super_true, super_false):
         """

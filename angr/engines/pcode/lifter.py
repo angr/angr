@@ -10,7 +10,6 @@ from typing import Union, Optional, Iterable, Sequence, Tuple
 
 import archinfo
 from archinfo import ArchARM, ArchPcode
-import pypcode
 import cle
 from cachetools import LRUCache
 
@@ -26,6 +25,13 @@ from ...misc.ux import once
 from ...errors import SimEngineError, SimTranslationError, SimError
 from ... import sim_options as o
 from ...block import DisassemblerBlock, DisassemblerInsn
+
+
+try:
+    import pypcode
+except ImportError:
+    pypcode = None
+
 
 l = logging.getLogger(__name__)
 
@@ -122,7 +128,7 @@ class IRSB:
     _direct_next: Optional[bool]
     _exit_statements: Sequence[Tuple[int, int, ExitStatement]]
     _instruction_addresses: Optional[Sequence[int]]
-    _ops: Sequence[pypcode.PcodeOp]  # FIXME: Merge into _statements
+    _ops: Sequence["pypcode.PcodeOp"]  # FIXME: Merge into _statements
     _size: Optional[int]
     _statements: Iterable  # Note: currently unused
     _disassembly: Optional[PcodeDisassemblerBlock]
@@ -456,7 +462,7 @@ class IRSB:
         jumpkind: Optional[str] = None,
         direct_next: Optional[bool] = None,
         size: Optional[int] = None,
-        ops: Optional[Sequence[pypcode.PcodeOp]] = None,
+        ops: Optional[Sequence["pypcode.PcodeOp"]] = None,
         instruction_addresses: Optional[Iterable[int]] = None,
         exit_statements: Sequence[Tuple[int, int, ExitStatement]] = None,
         default_exit_target: Optional = None,
@@ -807,7 +813,7 @@ class PcodeBasicBlockLifter:
     Lifts basic blocks to P-code
     """
 
-    context: pypcode.Context
+    context: "pypcode.Context"
     behaviors: BehaviorFactory
 
     def __init__(self, arch: archinfo.Arch):

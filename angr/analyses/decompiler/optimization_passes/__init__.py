@@ -13,7 +13,7 @@ from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .multi_simplifier import MultiSimplifier
 from .div_simplifier import DivSimplifier
 from .mod_simplifier import ModSimplifier
-from .eager_returns import EagerReturnsSimplifier
+from .return_duplicator import ReturnDuplicator
 from .const_derefs import ConstantDereferencesSimplifier
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier
 from .ret_addr_save_simplifier import RetAddrSaveSimplifier
@@ -22,7 +22,7 @@ from .flip_boolean_cmp import FlipBooleanCmp
 from .ret_deduplicator import ReturnDeduplicator
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
 
-
+# order matters!
 _all_optimization_passes = [
     (RegisterSaveAreaSimplifier, True),
     (StackCanarySimplifier, True),
@@ -35,11 +35,11 @@ _all_optimization_passes = [
     (RetAddrSaveSimplifier, True),
     (X86GccGetPcSimplifier, True),
     (ITERegionConverter, True),
-    (ReturnDeduplicator, True),
-    (LoweredSwitchSimplifier, False),
-    (EagerReturnsSimplifier, True),
     (ITEExprConverter, True),
     (ExprOpSwapper, True),
+    (ReturnDuplicator, True),
+    (LoweredSwitchSimplifier, False),
+    (ReturnDeduplicator, True),
     (FlipBooleanCmp, True),
 ]
 

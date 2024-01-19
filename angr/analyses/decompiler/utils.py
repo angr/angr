@@ -1,4 +1,6 @@
+# pylint:disable=wrong-import-position
 import pathlib
+import copy
 from typing import Optional, Tuple, Any, Union, List, Iterable
 import logging
 
@@ -378,6 +380,30 @@ def remove_labels(graph: networkx.DiGraph):
     return new_graph
 
 
+def add_labels(graph: networkx.DiGraph):
+    new_graph = networkx.DiGraph()
+    nodes_map = {}
+    for node in graph:
+        lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
+        node_copy = node.copy()
+        node_copy.statements = [lbl] + node_copy.statements
+        nodes_map[node] = node_copy
+
+    new_graph.add_nodes_from(nodes_map.values())
+    for src, dst in graph.edges:
+        new_graph.add_edge(nodes_map[src], nodes_map[dst])
+
+    return new_graph
+
+
+def update_labels(graph: networkx.DiGraph):
+    """
+    A utility function to recreate the labels for every node in an AIL graph. This useful when you are working with
+    a graph where only _some_ of the nodes have labels.
+    """
+    return add_labels(remove_labels(graph))
+
+
 def structured_node_is_simple_return(node: Union["SequenceNode", "MultiNode"], graph: networkx.DiGraph) -> bool:
     """
     Will check if a "simple return" is contained within the node a simple returns looks like this:
@@ -508,6 +534,30 @@ def peephole_optimize_expr(expr, expr_opts):
     new_expr = walker._handle_expr(0, expr, 0, None, None)
 
     return new_expr
+
+
+def copy_graph(graph: networkx.DiGraph):
+    """
+    Copy AIL Graph.
+
+    :return: A copy of the AIl graph.
+    """
+    graph_copy = networkx.DiGraph()
+    block_mapping = {}
+    # copy all blocks
+    for block in graph.nodes():
+        new_block = copy.copy(block)
+        new_stmts = copy.copy(block.statements)
+        new_block.statements = new_stmts
+        block_mapping[block] = new_block
+        graph_copy.add_node(new_block)
+
+    # copy all edges
+    for src, dst, data in graph.edges(data=True):
+        new_src = block_mapping[src]
+        new_dst = block_mapping[dst]
+        graph_copy.add_edge(new_src, new_dst, **data)
+    return graph_copy
 
 
 def peephole_optimize_stmts(block, stmt_opts):
