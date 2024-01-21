@@ -515,7 +515,10 @@ class ReachingDefinitionsAnalysis(
             return False, state.copy(discard_tmpdefs=True)
 
         state = state.copy(discard_tmpdefs=True)
-        self.node_observe(node.addr, state.copy(), OP_BEFORE)
+        if isinstance(node, CFGNode):
+            self.node_observe(node.addr, state.copy(), OP_BEFORE, node.block_id)
+        else:
+            self.node_observe(node.addr, state.copy(), OP_BEFORE)
 
         if self.subject.type == SubjectType.Function:
             node_parents = [
@@ -552,7 +555,11 @@ class ReachingDefinitionsAnalysis(
 
         self._node_iterations[block_key] += 1
 
-        self.node_observe(node.addr, state, OP_AFTER)
+        if isinstance(node, CFGNode):
+            self.node_observe(node.addr, state, OP_AFTER, node.block_id)
+        else:
+            self.node_observe(node.addr, state, OP_AFTER)
+
 
         # update all definitions and all uses
         self.all_definitions |= state.all_definitions
