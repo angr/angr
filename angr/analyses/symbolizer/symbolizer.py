@@ -77,6 +77,20 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 else:
                     simp_result = result[0]
 
+                # additional check to see if the eval value is actually a stack pointer or not
+                # only for 1 bit results specifically in a condition check
+                # conditional jumps that aalways evaluate to the same jump, but somehow depend on sp
+                # also make sure thats there's more than one variable other than sp
+                if isinstance(self.state.scratch.irsb.statements[self.stmt_idx], pyvex.stmt.Exit) and \
+                        not len(list(simp_result.variables)) == 1:
+                    try:
+                        eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
+                        if eval_result in [0,1]:
+                            simp_result = claripy.BVV(eval_result, simp_result.size())
+                    except SimValueError:
+                        pass
+
+
             if not skip:
                 try:
                     eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
@@ -1119,6 +1133,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                                                                   successor.scratch.source)
                                     except SimUnsatError:
                                         print("Drop this for now, we'll get it later.... after some merging causes TOPs")
+                                    except claripy.UnsatError:
+                                        pass
                                     except SimSolverError:
                                         symbolic_sim_successors.add_successor(successor, successor.scratch.target,
                                                                               successor.scratch.guard,
@@ -1126,6 +1142,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                                                               successor.scratch.exit_stmt_idx,
                                                                               successor.scratch.exit_ins_addr,
                                                                               successor.scratch.source)
+                                    except Exception as e:
+                                        import ipdb;ipdb.set_trace()
 
 
                             elif successor.scratch.guard.is_true():
