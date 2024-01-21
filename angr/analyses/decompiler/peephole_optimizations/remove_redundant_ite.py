@@ -11,5 +11,5 @@ class RedundantITE(PeepholeOptimizationExprBase):
 
     def optimize(self, expr: ITE, **kwargs):
         if expr.iffalse.likes(expr.iftrue):
-            import ipdb;ipdb.set_trace()
+            return expr.iftrue
         return None
