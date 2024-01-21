@@ -1,3 +1,4 @@
+import ipdb
 import networkx
 
 import angr
@@ -21,6 +22,7 @@ from angr.errors import SimMemoryMissingError
 from pyvex.expr import DataSensitiveRdTmp
 from pyvex.const import U64, U32
 
+from ..cfg.cfg_job_base import BlockID
 from ..reaching_definitions.dep_graph import DepGraph
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements, VMStackVariableAnnotation
@@ -305,7 +307,7 @@ def save_vpc_at_loc(state):
 
 #This is for Themida
 def save_vpc_at_mem_loc(state):
-    expr_val = state.partial_symbolic_constraint_solver.eval_upto(state.memory.load(state.inspect.mem_write_address,4, endness=state.arch.memory_endness), 2)
+    expr_val = state.partial_symbolic_constraint_solver.eval_upto(state.memory.load(state.inspect.mem_write_address, state.arch.bytes, endness=state.arch.memory_endness), 2)
     if len(expr_val) > 1:
         l.debug("More than one VIP, gonna add both values and create a new one")
         import ipdb;ipdb.set_trace()
@@ -394,259 +396,275 @@ class VMDeobfuscation(Analysis):
         proj=self.project
         folder_name = os.path.dirname(self.project.filename)
         start_state_copy = start_state.copy()
-        # cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
-        #
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
-        # cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
-        #
-        # self.project.kb.cfgs.cfgs = {}
-        # # clearing the saved states to save space
-        # for node in cfg.graph.nodes():
-        #     node.input_state = None
-        #     node.final_states = None
-        #
-        # # removing path terminators, cause...............they causing problems
-        # cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
-        #
-        # cfg = self.keep_only_one_graph(cfg, start_addr)
-        # #        start_state_copy = start_state.copy()
-        # cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
-        #
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
-        # cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
-        # #cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
-        #
-        #
-        # #self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
-        #
-        # new_cfg=cfg
-        # # THe symbolizer should be run till all branches are explored.. Constant loops determine this
-        # for symb_iter in range(max_symbolizer_iterations):
-        #     #this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
-        #     #symbolizer here tells us which values to symbolize during next cfg exploration stage, it does not discover new nodes
-        #     _, symbolic_expr_locations_blockwise = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs)
-        #
-        #     self.project.kb.cfgs.cfgs = {}
-        #     # clearing the saved states to save space
-        #     for node in new_cfg.graph.nodes():
-        #         node.input_state = None
-        #         node.final_states = None
-        #
-        #     pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_symbolizer_cfg_pickle"
-        #     new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
-        #
-        #     start_state_copy = start_state.copy()
-        #     #here we discover new nodes based on the values to symbolize from the symbolizer
-        #     #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
-        #     #TO DO: there is a way to do this together in one analysis, by allowing to visit the blocks more than once in CFGEmulated(max_iter)
-        #     #and also changing the way merging of values happens
-        #     new_cfg, _ = self.symbolify_exprs(proj, symbolic_expr_locations_blockwise,
-        #                                                           start_addr=start_addr, start_state=start_state_copy,
-        #                                                           cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
-        #                                                           remove_insts=remove_insts)
-        #
-        #     self.project.kb.cfgs.cfgs = {}
-        #     # clearing the saved states to save space
-        #     for node in new_cfg.graph.nodes():
-        #         node.input_state = None
-        #         node.final_states = None
-        #
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
-        #
-        #
-        #     new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
-        #
-        #     start_state_copy = start_state.copy()
-        #     new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
-        #
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
-        # with open(pickled_file_name,'wb') as load_addr_mba_to_jump_addr_mapping:
-        #     pickle.dump(self.project.load_addr_mba_to_jump_addr_mapping, load_addr_mba_to_jump_addr_mapping)
-        #
-        #
-        # import gc
-        # gc.collect()
-        # ## This is constant propgation along with finding non-constants
-        # new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
-        # self.project.kb.cfgs.cfgs = {}
-        # # clearing the saved states to save space
-        # for node in new_cfg.graph.nodes():
-        #     node.input_state = None
-        #     node.final_states = None
-        #
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
-        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
-        #
-        # import gc
-        # gc.collect()
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "full_cp_result.svg"))
-        #
-        #
-        # # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
-        # # calls_as_rets is used later during decompilation to adjust stack argument offset for cdcel because the ret has different offsets compared to a normal call
-        # new_cfg, calls_as_rets = self.replace_jumpkinds(new_cfg)
-        #
-        # import pickle
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
-        # with open(pickled_file_name,'wb') as calls_as_rets_pickle:
-        #     pickle.dump(calls_as_rets, calls_as_rets_pickle)
-        #
-        # # this is a simplification pass to remove all push x, ret to x type of jumps
-        # new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "remove_push_ret.svg"))
-        #
-        #
-        # # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
-        # new_cfg = self.remove_useless_jump_instructions(new_cfg)
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "remove_useless_jump.svg"))
-        #
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/mid_way_cfg"
-        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
-        #
-        # print("start")
-        # for i in range(4):
-        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
-        #
-        #     new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
-        #
-        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
-        #
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
-        # # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
-        # #     pickle.dump(new_cfg, mid_way_cfg_pickle)
-        #
-        #
-        #
-        # #### These need to be after join basic blocks becasue of the way RDA considers a libc func call as internal instead of external
-        # for i in range(4):
-        #     global to_break
-        #     to_break = True
-        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-        #
-        #
-        # for i in range(4):
-        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
-        #
-        #
-        # new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
-        #
-        # for i in range(2):
-        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-        # for i in range(2):
-        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
-        #
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
-        # new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
-        #
-        #
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/before_get_put"
-        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
-        #
-        #
-        #
-        # for i in range(8):
-        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-        #
-        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
-        #
-        #     new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
-        #
-        #
-        #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
-        #
-        #
-        #
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/after_get_put"
-        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
-        #
-        #
-        # new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
-        #
-        # for i in range(3):
-        #     new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
-        #
-        #     new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-        #
-        #     new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
-        #
-        #
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
-        # new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
-        #
-        #
-        #
-        # if THEMIDA:
-        #     new_cfg = self.remove_call_to_next_addr(new_cfg)
-        #
-        #     new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
-        #
-        #     for i in range(15):
-        #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #         self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
-        #
-        #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-        #         self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
-        #
-        #         # new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
-        #         # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
-        #
-        #         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
-        #
-        #         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-        #
-        #         new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
-        #
-        #         new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
-        #
-        #
-        #     pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_beyond_final_cfg"
-        #     new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
-        #
-        #
-        #     self.draw_graph(new_cfg,os.path.join(folder_name, "before_beyond.svg"))
-        #
-        #     new_cfg = self.CAS_to_mov_simplification(new_cfg, proj)
-        #
-        #     for i in range(15):
-        #         new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
-        #
-        #         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-        #
-        #         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-        #
-        #         new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,
-        #                                                                                     keep_sp_changes_dae=keep_sp_changes_dae)
-        #
-        #         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
-        #
-        #         new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-        #
-        #         new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
-        #
-        #         self.draw_graph(new_cfg, os.path.join(folder_name,  str(i)+"block_arithmetic_simplifications_using_dep_graph.svg"))
-        #
-        #     pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
-        #     new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+        cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
 
-        pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
-        new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
+        pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
+        cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
+
+
+        self.project.kb.cfgs.cfgs = {}
+        # clearing the saved states to save space
+        for node in cfg.graph.nodes():
+            node.input_state = None
+            node.final_states = None
+
+        # removing path terminators, cause...............they causing problems
+        cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
+
+        cfg = self.keep_only_one_graph(cfg, start_addr)
+        start_state_copy = start_state.copy()
+        cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
+
+        pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
+        cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
+
+        self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
+        new_cfg=cfg
+
+        #THe symbolizer should be run till all branches are explored.. Constant loops determine this
+        for symb_iter in range(max_symbolizer_iterations):
+            to_split_nodes = self.split_redundant_branch_themida(new_cfg)
+            new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
+            self.draw_graph(new_cfg, os.path.join(folder_name, "after_all_split.svg"))
+
+            # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
+            # symbolizer here tells us which values to symbolize during next cfg exploration stage, it does not discover new nodes
+            _, symbolic_expr_locations_blockwise= self.symbolizer(new_cfg, proj,
+                                                                  start_addr, None,
+                                                                  start_state=None,
+                                                                  prev_symbolic_expr_locations_blockwise=None,
+                                                                  prev_unroll_vm_addrs=prev_unroll_vm_addrs)
+            self.project.kb.cfgs.cfgs = {}
+            # clearing the saved states to save space
+            for node in new_cfg.graph.nodes():
+                node.input_state = None
+                node.final_states = None
+
+            start_state_copy = start_state.copy()
+            #here we discover new nodes based on the values to symbolize from the symbolizer
+            #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
+            #TO DO: there is a way to do this together in one analysis, by allowing to visit the blocks more than once in CFGEmulated(max_iter)
+            #and also changing the way merging of values happens
+            new_cfg, _ = self.symbolify_exprs(proj, symbolic_expr_locations_blockwise,
+                                                                  start_addr=start_addr, start_state=start_state_copy,
+                                                                  cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
+                                                                  remove_insts=remove_insts)
+
+            self.project.kb.cfgs.cfgs = {}
+            # clearing the saved states to save space
+            for node in new_cfg.graph.nodes():
+                node.input_state = None
+                node.final_states = None
+
+            new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
+
+            start_state_copy = start_state.copy()
+            new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
+
+            pickled_file_name = os.path.dirname(self.project.filename) +"/"+str(symb_iter)+ "_symbolizer_cfg_pickle"
+            new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
+
+
+        to_split_nodes = self.split_redundant_branch_themida(new_cfg)
+        new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
+
+        new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, None)
+
+        self.draw_graph(new_cfg, os.path.join(folder_name, "after_all_symb_and_split.svg"))
+
+        import pickle
+        pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_load_addr_mba_to_jump_addr_mapping"
+        with open(pickled_file_name,'wb') as load_addr_mba_to_jump_addr_mapping:
+            pickle.dump(self.project.load_addr_mba_to_jump_addr_mapping, load_addr_mba_to_jump_addr_mapping)
+
+
+        import gc
+        gc.collect()
+        ## This is constant propgation along with finding non-constants
+        new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations_blockwise=None, prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True)
+        self.project.kb.cfgs.cfgs = {}
+        # clearing the saved states to save space
+        for node in new_cfg.graph.nodes():
+            node.input_state = None
+            node.final_states = None
+
+        pickled_file_name = os.path.dirname(self.project.filename) + "/initial_full_cfg"
+        new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+
+
+        import gc
+        gc.collect()
+        self.draw_graph(new_cfg, os.path.join(folder_name, "full_cp_result.svg"))
+
+        # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
+        # calls_as_rets is used later during decompilation to adjust stack argument offset for cdcel because the ret has different offsets compared to a normal call
+        new_cfg, calls_as_rets = self.replace_jumpkinds(new_cfg)
+
+        import pickle
+        pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
+        with open(pickled_file_name,'wb') as calls_as_rets_pickle:
+            pickle.dump(calls_as_rets, calls_as_rets_pickle)
+
+        # this is a simplification pass to remove all push x, ret to x type of jumps
+        new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "remove_push_ret.svg"))
+
+
+        # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
+        new_cfg = self.remove_useless_jump_instructions(new_cfg, keep_sp_changes_dae=keep_sp_changes_dae)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "remove_useless_jump.svg"))
+
+        pickled_file_name = os.path.dirname(self.project.filename) + "/mid_way_cfg"
+        new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+
+        print("start")
+        for i in range(4):
+            new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+
+            new_cfg = self.remove_useless_jump_instructions(new_cfg, keep_sp_changes_dae=keep_sp_changes_dae)
+
+            new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"block_arithmetic_simplifications.svg"))
+
+            new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+
+        pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
+        # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
+        #     pickle.dump(new_cfg, mid_way_cfg_pickle)
+
+
+
+        #### These need to be after join basic blocks becasue of the way RDA considers a libc func call as internal instead of external
+        for i in range(4):
+            global to_break
+            to_break = True
+            new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+
+
+        for i in range(4):
+            new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+
+
+        new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
+
+        for i in range(2):
+            new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+        for i in range(2):
+            new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+
+        self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
+        new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
+
+
+        pickled_file_name = os.path.dirname(self.project.filename) + "/before_get_put"
+        new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+
+        for i in range(8):
+            new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+
+            new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
+
+            new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+
+
+            new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
+
+
+
+        pickled_file_name = os.path.dirname(self.project.filename) + "/after_get_put"
+        new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+
+
+        new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
+
+        for i in range(3):
+            new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"remove_redun_get_put.svg"))
+
+            new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+
+            new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+            self.draw_graph(new_cfg, os.path.join(folder_name, "dae_"+str(i)+"_result.svg"))
+
+            new_cfg = self.remove_useless_jump_instructions(new_cfg, keep_sp_changes_dae=keep_sp_changes_dae)
+
+
+
+        pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
+        new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+
+
+
+        if THEMIDA:
+            new_cfg = self.remove_call_to_next_addr(new_cfg)
+
+            new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
+
+            for i in range(15):
+                new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+                self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
+
+                new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
+                self.draw_graph(new_cfg, os.path.join(folder_name, "dae_cake_"+str(i)+"_result.svg"))
+
+                # new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+                # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+
+                new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+
+                new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+
+                new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+
+                new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
+
+
+            pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_beyond_final_cfg"
+            new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+
+
+            self.draw_graph(new_cfg,os.path.join(folder_name, "before_beyond.svg"))
+
+            new_cfg = self.CAS_to_mov_simplification(new_cfg, proj)
+
+            for i in range(15):
+                new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
+
+                new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+
+                new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+
+                new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,
+                                                                                            keep_sp_changes_dae=keep_sp_changes_dae)
+
+                new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+
+                new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
+
+                new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None)
+
+                self.draw_graph(new_cfg, os.path.join(folder_name,  str(i)+"block_arithmetic_simplifications_using_dep_graph.svg"))
+
+            pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
+            new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
+
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
+        # new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
         new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
 
@@ -679,6 +697,213 @@ class VMDeobfuscation(Analysis):
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
+    def remove_redundant_ip_assignement(self, cfg):
+        #
+        # 16 | PUT(rip) = 0x00007ff6b5c21414    # remove this stmt
+        # NEXT: PUT(rip) = 0x00007ff6b5c21414;
+        #
+        for node in cfg.graph.nodes():
+            if not node.is_simprocedure:
+                last_stmt = node.irsb.statements[-1]
+                if isinstance(last_stmt, pyvex.stmt.Put) and \
+                    last_stmt.offset == self.project.arch.registers['ip'][0] and \
+                    isinstance(last_stmt.data, pyvex.expr.Const) and \
+                    isinstance(node.irsb.next, pyvex.expr.Const) and \
+                    last_stmt.data.result_size(node.irsb.tyenv) == self.project.arch.bits:
+
+                    new_statements = node.irsb.statements[:-1]
+                    node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                       node.irsb.addr,
+                                                       statements=new_statements,
+                                                       tyenv=node.irsb.tyenv,
+                                                       nxt=node.irsb.next,
+                                                       direct_next=node.irsb.direct_next,
+                                                       jumpkind=node.irsb.jumpkind,
+                                                       size=node.irsb.size)
+
+
+        return cfg
+    def split_redundant_branch_themida(self, cfg):
+        #                     node_A (guard_cond_A)
+        #                     /\
+        #               l_obfs  r_obfs
+        #                     \/
+        #              merge_point_node
+        #                      |
+        #                      |
+        #                     node_B (guard_cond_A) same guard as before
+        #                     /\
+        #          l_undo_obfs  r_undo_obfs
+        #                     \/
+        #                      |
+        #
+        # in this pass we split the the above mergepoint node into two copies such that we dont merge and loose information
+        # we can do this since the guard for both the branch points are the same
+
+        # the start_node, the end_node and the offset to add to the vm_vpc
+        to_split_nodes =[]
+
+        for node in cfg.graph.nodes():
+            exit_flag = False
+            merge_point_node = None
+            succs = list(cfg.graph.successors(node))
+            cur_vm_vpc = node.vm_vpc
+            l_branch = []
+            r_branch = []
+            # find the left branch and right branch start nodes
+            if len(succs) == 2:
+                for succ in succs:
+                    cur_node = succ
+                    no_nodes_in_branch = 0
+                    while (len(list(cfg.graph.predecessors(cur_node))) < 2):
+                        if len(list(cfg.graph.successors(cur_node))) == 0:
+                            exit_flag = True
+                            break
+                        no_nodes_in_branch+=1
+                        cur_node = list(cfg.graph.successors(cur_node))[0]
+                    if exit_flag:
+                        break
+
+                    if len(list(cfg.graph.predecessors(cur_node))) == 2:
+                        merge_point_node = cur_node
+                        if no_nodes_in_branch == 2:
+                            l_branch.append(succ)
+                        elif no_nodes_in_branch == 1:
+                            r_branch.append(succ)
+                    else:
+                        exit_flag = True
+                        break
+                if exit_flag:
+                    continue
+                # go till the next branch point with two successors
+                cur_node = merge_point_node
+                while len(list(cfg.graph.successors(cur_node))) < 2 and cur_vm_vpc == cur_node.vm_vpc:
+                    if len(list(cfg.graph.successors(cur_node))) == 0:
+                        exit_flag = True
+                        break
+                    cur_node = list(cfg.graph.successors(cur_node))[0]
+
+                if exit_flag:
+                    continue
+
+                if len(list(cfg.graph.successors(cur_node))) == 2:
+                    succs = list(cfg.graph.successors(cur_node))
+                    # again find the left branch and right branch start nodes for this branch point and add to corresponding list
+                    if len(succs) == 2:
+                        for succ in succs:
+                            cur_node = succ
+                            no_nodes_in_branch = 0
+                            while (len(list(cfg.graph.predecessors(cur_node))) < 2):
+                                no_nodes_in_branch+=1
+                                if len(list(cfg.graph.successors(cur_node))) == 0:
+                                    exit_flag = True
+                                    break
+                                cur_node = list(cfg.graph.successors(cur_node))[0]
+
+                            if exit_flag:
+                                break
+
+                            if len(list(cfg.graph.predecessors(cur_node))) == 2:
+                                if no_nodes_in_branch == 2:
+                                    l_branch.append(succ)
+                                elif no_nodes_in_branch == 1:
+                                    r_branch.append(succ)
+
+                        if len(l_branch) == 2 and len(r_branch) == 2:
+                            l_branch.append('l')
+                            r_branch.append('r')
+                            to_split_nodes.append(l_branch)
+                            to_split_nodes.append(r_branch)
+
+        return to_split_nodes
+
+    def split_redundant_branch_obf(self, cfg, saved_same_guard_cond_to_merge):
+        def get_new_node(old_node, new_vm_vpc, cfg):
+            new_block_id = BlockID(old_node.block_id.addr, old_node.block_id.callsite_tuples,
+                                   old_node.block_id.jump_type, new_vm_vpc)
+            new_cur_node = CFGENode(old_node.addr,
+                                    old_node.size,
+                                    cfg,
+                                    simprocedure_name=old_node.simprocedure_name,
+                                    no_ret=old_node.no_ret,
+                                    function_address=old_node.function_address,
+                                    block_id=new_block_id,
+                                    vm_vpc=new_vm_vpc,
+                                    irsb=copy.deepcopy(old_node.irsb),
+                                    instruction_addrs=copy.copy(old_node.instruction_addrs),
+                                    thumb=copy.copy(old_node.thumb),
+                                    byte_string=copy.copy(old_node.byte_string),
+                                    is_syscall=old_node.is_syscall,
+                                    name=copy.copy(old_node.name))
+            return new_cur_node
+
+        def remove_if_stmt(node):
+            new_stmts = []
+            for stmt in node.irsb.statements:
+                if not str(stmt).startswith("If"):
+                    import ipdb;ipdb.set_trace()
+                    new_stmts.append(stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_stmts,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
+
+
+        nodes_to_remove = set()
+
+        for start_node, end_node, vpc_offset in saved_same_guard_cond_to_merge:
+            vpc_offset = ord(vpc_offset)
+            assert len(list(cfg.graph.predecessors(start_node))) == 1
+            cur_node = list(cfg.graph.predecessors(start_node))[0]
+            old_node = list(cfg.graph.predecessors(start_node))[0]
+
+            exit = False
+            while True:
+                succs = list(cfg.graph.successors(old_node))
+                succ = None
+                if len(succs) == 2:
+                    for succ in succs:
+                        if succ == end_node:
+                            succ = end_node
+                            exit = True
+                            break
+                        elif succ == start_node:
+                            succ = start_node
+                            break
+                else:
+                    succ = succs[0]
+                nodes_to_remove.add(succ)
+                new_succ = get_new_node(succ, succ.block_id.vm_vpc + vpc_offset, cfg)
+                # if exit:
+                #     remove_if_stmt(new_succ)
+                prev_edge_data = cfg.graph.get_edge_data(old_node, succ)
+                cfg.graph.add_edge(cur_node, new_succ, jumpkind=prev_edge_data['jumpkind'])
+                ## add to _nodes and _node_by_addr
+                cfg.add_node(new_succ.block_id, new_succ)
+
+                if succ == start_node:
+                    cfg.graph.remove_edge(old_node, succ)
+
+                cur_node = new_succ
+                old_node = succ
+                if exit:
+                    break
+            assert len(list(cfg.graph.successors(old_node))) == 1
+
+            prev_edge_data = cfg.graph.get_edge_data(succ, list(cfg.graph.successors(old_node))[0])
+            cfg.graph.add_edge(cur_node, list(cfg.graph.successors(old_node))[0], jumpkind=prev_edge_data['jumpkind'])
+
+        for node in nodes_to_remove:
+            cfg.graph.remove_node(node)
+            # remove from _nodes
+            cfg.remove_node(node.block_id, node)
+
+        return cfg
     def remove_segment_selector_vex_inst(self, cfg):
         if self.project.arch.bits == 32:
             for node in cfg.nodes():
@@ -809,6 +1034,9 @@ class VMDeobfuscation(Analysis):
                             succ_func.prototype.returnty._arch = self.project.arch
                         if succ_func.calling_convention is None:
                             succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
+
+                        if self.project.hooked_by(succ_func.addr).display_name:
+                            succ_func.name = self.project.hooked_by(succ_func.addr).display_name
 
                     succ_func.returning = True
                     succ_func.is_simprocedure = True
@@ -1220,7 +1448,7 @@ class VMDeobfuscation(Analysis):
             # initial_input_state.partial_symbolic_constraint_solver._solver.add_replacement(initial_input_state.regs.sp,
             #                                      actual_stack_end,
             #                                      invalidate_cache=False)
-
+            initial_input_state.globals['sp_constraint'] = initial_input_state.regs.sp == actual_stack_end
             initial_input_state.globals['concretized_load_addr_dict'] = {}
             initial_input_state.globals['replaced_asts_str'] = {}
             initial_input_state.globals['existing_mba_split_constraints'] = []
@@ -1275,9 +1503,13 @@ class VMDeobfuscation(Analysis):
             proj.unhook(func_addr)
             proj.hook(func_addr, orig_sim_proc)
 
+        node_dict = {}
+        for node in new_cfg_graph.nodes():
+            node_dict[node.block_id] = node
+
         if do_replacements:
             for key, value in prop.replacements.items():
-                node = new_model._nodes[key]
+                node = node_dict[key]
                 if not node.is_simprocedure:
                     new_stmts = node.irsb.statements
 
@@ -1541,9 +1773,11 @@ class VMDeobfuscation(Analysis):
         return cfg
 
     # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
-    def remove_useless_jump_instructions(self, cfg):
+    def remove_useless_jump_instructions(self, cfg, keep_sp_changes_dae=None):
         print("Remove useless jmp insts")
         #new_model = self.new_model_graph(cfg.graph, proj, 'remove_useless_jumps')
+
+        cfg = self.remove_redundant_ip_assignement(cfg)
         new_model = cfg
         for node in list(new_model.graph.nodes()):
             if node.is_simprocedure:
@@ -2277,8 +2511,8 @@ class VMDeobfuscation(Analysis):
         leaf_nodes_list = []
         for node in list(dsa_new_model.graph.nodes()):
             if not node.is_simprocedure and len(list(dsa_new_model.graph.successors(node))) == 0:
-                leaf_nodes_list.append(('node', node.addr, OP_AFTER))
-
+                leaf_nodes_list.append(('node', (node.addr, node.block_id), OP_AFTER))
+        self.project.breakpoint_flag = True
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
                                                        track_tmps=True,
                                                        track_consts=False,
@@ -2637,9 +2871,16 @@ class VMDeobfuscation(Analysis):
             cur_stmt_defs = dep_graph.find_definitions(tmp_idx=tmp_idx)
             assert len(cur_stmt_defs) == 1
             pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
-            if not len(pred_defs) == 1:
+            no_pred_defs = 0
+            pred_def_to_return = None
+            for pred_def in pred_defs:
+                if isinstance(pred_def.atom, atoms.Tmp):
+                    no_pred_defs +=1
+                    pred_def_to_return = pred_def
+
+            if no_pred_defs != 1:
                 return False, None, None
-            return True, statements[pred_defs[0].codeloc.stmt_idx], pred_defs[0].codeloc.stmt_idx
+            return True, statements[pred_def_to_return.codeloc.stmt_idx], pred_def_to_return.codeloc.stmt_idx
 
         def one_const(stmt):
             #t465 = Add32(t667,t667)
@@ -3756,7 +3997,7 @@ class VMDeobfuscation(Analysis):
         return new_cfg, changed
 
     ### Draw the graph with vex statements
-    def draw_graph(self, cfg, filename, start_node_str=None):
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=False):
         node_limit = 10000
         no_nodes = 0
         print("saving graph "+str(filename))
@@ -3783,7 +4024,7 @@ class VMDeobfuscation(Analysis):
 
             for node in sub_graph.nodes():
                 stmt_str = str(node)
-                if node.irsb != None:
+                if not without_insts and node.irsb != None:
                     for ind, stmt in enumerate(node.irsb.statements):
                         stmt_str = stmt_str + "\l" + stmt.pp_str(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
 
@@ -3795,7 +4036,7 @@ class VMDeobfuscation(Analysis):
 
             for node in cfg.graph.nodes():
                 stmt_str = str(node)
-                if node.irsb != None:
+                if not without_insts and node.irsb != None:
                     for ind, stmt in enumerate(node.irsb.statements):
                         stmt_str = stmt_str + "\l" + stmt.pp_str(arch=node.irsb.arch, tyenv=node.irsb.tyenv)
 
