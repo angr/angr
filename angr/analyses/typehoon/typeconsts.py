@@ -3,7 +3,7 @@
 All type constants used in type inference. They can be mapped, translated, or rewritten to C-style types.
 """
 
-from typing import Optional
+from typing import List, Optional, Set, Any
 
 
 class TypeConstant:
@@ -12,11 +12,14 @@ class TypeConstant:
     def pp_str(self, mapping) -> str:  # pylint:disable=unused-argument
         return repr(self)
 
+    def _hash(self, visited: Set[int]):
+        return hash(type(self))
+
     def __eq__(self, other):
-        return type(self) == type(other)
+        return type(self) is type(other)
 
     def __hash__(self):
-        return hash(type(self))
+        return self._hash(set())
 
     @property
     def size(self) -> int:
@@ -99,17 +102,22 @@ class Double(FloatBase):
 
 
 class Pointer(TypeConstant):
-    def __init__(self, basetype):
-        self.basetype = basetype
+    def __init__(self, basetype: Optional[TypeConstant]):
+        self.basetype: Optional[TypeConstant] = basetype
 
     def __eq__(self, other):
         return type(self) is type(other) and self.basetype == other.basetype
 
-    def __hash__(self):
-        return hash((type(self), hash(self.basetype)))
+    def _hash(self, visited: Set[int]):
+        if self.basetype is None:
+            return hash(type(self))
+        return hash((type(self), self.basetype._hash(visited)))
 
     def new(self, basetype):
         return self.__class__(basetype)
+
+    def __hash__(self):
+        return self._hash(set())
 
 
 class Pointer32(Pointer, Int32):
@@ -117,7 +125,7 @@ class Pointer32(Pointer, Int32):
     32-bit pointers.
     """
 
-    def __init__(self, basetype):
+    def __init__(self, basetype=None):
         Pointer.__init__(self, basetype)
 
     def __repr__(self):
@@ -129,7 +137,7 @@ class Pointer64(Pointer, Int64):
     64-bit pointers.
     """
 
-    def __init__(self, basetype):
+    def __init__(self, basetype=None):
         Pointer.__init__(self, basetype)
 
     def __repr__(self):
@@ -150,17 +158,29 @@ class Array(TypeConstant):
     def __eq__(self, other):
         return type(other) is type(self) and self.element == other.element and self.count == other.count
 
-    def __hash__(self):
+    def _hash(self, visited: Set[int]):
+        if id(self) in visited:
+            return 0
+        visited.add(id(self))
         return hash((type(self), self.element, self.count))
+
+    def __hash__(self):
+        return self._hash(set())
 
 
 class Struct(TypeConstant):
     def __init__(self, fields=None):
         self.fields = {} if fields is None else fields  # offset to type
 
-    def _hash_fields(self):
+    def _hash(self, visited: Set[int]):
+        if id(self) in visited:
+            return 0
+        visited.add(id(self))
+        return hash((type(self), self._hash_fields(visited)))
+
+    def _hash_fields(self, visited: Set[int]):
         keys = sorted(self.fields.keys())
-        tpl = tuple((k, self.fields[k]) for k in keys)
+        tpl = tuple((k, self.fields[k]._hash(visited)) for k in keys)
         return hash(tpl)
 
     def __repr__(self):
@@ -170,7 +190,35 @@ class Struct(TypeConstant):
         return type(other) is type(self) and self.fields == other.fields
 
     def __hash__(self):
-        return hash((type(self), self._hash_fields()))
+        return self._hash(set())
+
+
+class Function(TypeConstant):
+    def __init__(self, params: List, outputs: List):
+        self.params = params
+        self.outputs = outputs
+
+    def __repr__(self):
+        param_str = ", ".join(repr(param) for param in self.params)
+        outputs_str = ", ".join(repr(output) for output in self.outputs)
+        return f"func({param_str}) -> {outputs_str}"
+
+    def __eq__(self, other):
+        if not isinstance(other, Function):
+            return False
+        return self.params == other.params and self.outputs == other.outputs
+
+    def _hash(self, visited: Set[int]):
+        if id(self) in visited:
+            return 0
+        visited.add(id(self))
+
+        params_hash = tuple(param._hash(visited) for param in self.params)
+        outputs_hash = tuple(out._hash(visited) for out in self.outputs)
+        return hash((Function, params_hash, outputs_hash))
+
+    def __hash__(self):
+        return self._hash(set())
 
 
 class TypeVariableReference(TypeConstant):

@@ -1,5 +1,19 @@
-from ...sim_type import SimType, SimTypeChar, SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypePointer
-from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64
+from typing import Union, TYPE_CHECKING
+
+from ...sim_type import (
+    SimType,
+    SimTypeChar,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypePointer,
+    SimStruct,
+)
+from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64, Struct
+
+if TYPE_CHECKING:
+    from .typeconsts import TypeConstant
 
 
 class TypeLifter:
@@ -40,6 +54,14 @@ class TypeLifter:
             return Pointer64(self.lift(ty.pts_to))
         raise ValueError("Unsupported bits %s." % self.bits)
 
+    def _lift_SimStruct(self, ty: SimStruct) -> Union["TypeConstant", BottomType]:
+        converted_fields = {}
+        for field_name, simtype in ty.fields.items():
+            if field_name not in ty.offsets:
+                return BottomType()
+            converted_fields[ty.offsets[field_name]] = self.lift(simtype)
+        return Struct(fields=converted_fields)
+
 
 _mapping = {
     SimTypeChar: TypeLifter._lift_SimTypeChar,
@@ -48,4 +70,5 @@ _mapping = {
     SimTypeLong: TypeLifter._lift_SimTypeInt,
     SimTypeLongLong: TypeLifter._lift_SimTypeLongLong,
     SimTypePointer: TypeLifter._lift_SimTypePointer,
+    SimStruct: TypeLifter._lift_SimStruct,
 }

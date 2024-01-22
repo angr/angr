@@ -6,6 +6,17 @@ import os
 import unittest
 
 import angr
+from angr.analyses.typehoon.typevars import (
+    TypeVariable,
+    DerivedTypeVariable,
+    Subtype,
+    FuncIn,
+    FuncOut,
+    Load,
+    Store,
+    HasField,
+)
+from angr.analyses.typehoon.typeconsts import Int32
 
 from ..common import bin_location
 
@@ -50,6 +61,47 @@ class TestTypehoon(unittest.TestCase):
         assert "->field_8 = 808464432;" in dec.codegen.text
         assert "->field_c = 0;" in dec.codegen.text
 
+    def test_function_call_argument_type_propagation(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "windows", "sioctl.sys"), auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        main_func = cfg.kb.functions[0x140006000]
+        proj.analyses.VariableRecoveryFast(main_func)
+        proj.analyses.CompleteCallingConventions()
+
+        dec = proj.analyses.Decompiler(main_func)
+        print(dec.codegen.text)
+
+    def test_type_inference_basic_case_0(self):
+        func_f = TypeVariable(name="F")
+        v0 = TypeVariable(name="v0")
+        type_constraints = {func_f: {Subtype(v0, Int32())}}
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        typehoon = proj.analyses.Typehoon(type_constraints)
+
+    def test_type_inference_basic_case_1(self):
+        func_f = TypeVariable(name="F")
+        func_close = TypeVariable(name="close")
+        t0 = TypeVariable(name="t0")
+        t1 = TypeVariable(name="t1")
+        t2 = TypeVariable(name="t2")
+        type_constraints = {
+            func_f: {
+                Subtype(DerivedTypeVariable(func_f, FuncIn(0)), t2),
+                Subtype(t1, t0),
+                Subtype(t2, t0),
+                Subtype(DerivedTypeVariable(t0, None, labels=[Load(), HasField(32, 0)]), t1),
+                Subtype(DerivedTypeVariable(t0, None, labels=[Load(), HasField(32, 4)]), Int32()),
+                Subtype(Int32(), DerivedTypeVariable(func_f, FuncOut(0))),
+            },
+            # func_close: set(),
+        }
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        typehoon = proj.analyses.Typehoon(type_constraints)
+
+        print(typehoon.simtypes_solution)
+        print(typehoon.structs)
+
 
 if __name__ == "__main__":
-    unittest.main()
+    # unittest.main()
+    TestTypehoon().test_type_inference_basic_case_1()

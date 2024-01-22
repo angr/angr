@@ -139,11 +139,13 @@ class SimEngineVRBase(SimEngineLight):
     # Logic
     #
 
-    def _ensure_variable_existence(self, richr_addr: RichR, codeloc: CodeLocation, src_expr=None):
+    def _ensure_variable_existence(
+        self, richr_addr: RichR, codeloc: CodeLocation, src_expr=None
+    ) -> Optional[List[Tuple[SimVariable, int]]]:
         data: claripy.ast.Base = richr_addr.data
 
         if data is None:
-            return
+            return None
 
         if self.state.is_stack_address(data):
             # this is a stack address
@@ -226,13 +228,15 @@ class SimEngineVRBase(SimEngineLight):
                 existing_vars = [(variable, 0)]
 
         else:
-            return
+            return None
 
         # record all variables
         for var, offset in existing_vars:
             if offset == 0:
                 offset = None
             variable_manager.record_variable(codeloc, var, offset, atom=src_expr)
+
+        return existing_vars
 
     def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
         data: claripy.ast.Base = richr.data
@@ -535,14 +539,14 @@ class SimEngineVRBase(SimEngineLight):
             if offset.concrete and elem_size.concrete:
                 concrete_offset = offset.concrete_value * elem_size.concrete_value
                 store_typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                    typevars.HasField(size * self.state.arch.byte_width, concrete_offset),
+                    typevar,
+                    None,
+                    labels=(typevars.Store(), typevars.HasField(size * self.state.arch.byte_width, concrete_offset)),
                 )
                 self.state.add_type_constraint(typevars.Existence(store_typevar))
             else:
                 store_typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                    typevars.HasField(size * self.state.arch.byte_width, 0),
+                    typevar, None, labels=(typevars.Store(), typevars.HasField(size * self.state.arch.byte_width, 0))
                 )
                 self.state.add_type_constraint(typevars.Existence(store_typevar))
             # FIXME: This is a hack so that we can interpret the target as an array
@@ -557,8 +561,7 @@ class SimEngineVRBase(SimEngineLight):
             # however, since it's a global address, we still treat it as writing to a location
             if data.typevar is not None:
                 store_typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                    typevars.HasField(size * self.state.arch.byte_width, 0),
+                    typevar, None, labels=(typevars.Store(), typevars.HasField(size * self.state.arch.byte_width, 0))
                 )
                 self.state.add_type_constraint(typevars.Existence(store_typevar))
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
@@ -578,9 +581,9 @@ class SimEngineVRBase(SimEngineLight):
             typevar = richr_addr.typevar
 
         if typevar is not None:
-            if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.label, typevars.AddN):
+            if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.one_label, typevars.AddN):
                 base_typevar = typevar.type_var
-                field_offset = typevar.label.n
+                field_offset = typevar.one_label.n
             else:
                 base_typevar = typevar
                 field_offset = 0
@@ -589,8 +592,9 @@ class SimEngineVRBase(SimEngineLight):
             #     self.variable_manager[self.func_addr].reference_at(addr_variable, field_offset, codeloc, atom=stmt)
 
             store_typevar = typevars.DerivedTypeVariable(
-                typevars.DerivedTypeVariable(base_typevar, typevars.Store()),
-                typevars.HasField(size * self.state.arch.byte_width, field_offset),
+                base_typevar,
+                None,
+                labels=(typevars.Store(), typevars.HasField(size * self.state.arch.byte_width, field_offset)),
             )
             if addr_variable is not None:
                 self.state.typevars.add_type_variable(addr_variable, codeloc, typevar)
@@ -758,9 +762,9 @@ class SimEngineVRBase(SimEngineLight):
         # parse the loading offset
         offset = 0
         if isinstance(richr_addr.typevar, typevars.DerivedTypeVariable) and isinstance(
-            richr_addr.typevar.label, typevars.AddN
+            richr_addr.typevar.one_label, typevars.AddN
         ):
-            offset = richr_addr.typevar.label.n
+            offset = richr_addr.typevar.one_label.n
             richr_addr_typevar = richr_addr.typevar.type_var  # unpack
         else:
             richr_addr_typevar = richr_addr.typevar
@@ -768,8 +772,9 @@ class SimEngineVRBase(SimEngineLight):
         if richr_addr_typevar is not None:
             # create a type constraint
             typevar = typevars.DerivedTypeVariable(
-                typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
-                typevars.HasField(size * self.state.arch.byte_width, offset),
+                richr_addr_typevar,
+                None,
+                labels=(typevars.Load(), typevars.HasField(size * self.state.arch.byte_width, offset)),
             )
             self.state.add_type_constraint(typevars.Existence(typevar))
 
@@ -833,8 +838,9 @@ class SimEngineVRBase(SimEngineLight):
             if offset.concrete and elem_size.concrete:
                 concrete_offset = offset.concrete_value * elem_size.concrete_value
                 load_typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                    typevars.HasField(size * self.state.arch.byte_width, concrete_offset),
+                    typevar,
+                    None,
+                    labels=(typevars.Store(), typevars.HasField(size * self.state.arch.byte_width, concrete_offset)),
                 )
                 self.state.add_type_constraint(typevars.Existence(load_typevar))
             else:
@@ -842,8 +848,12 @@ class SimEngineVRBase(SimEngineLight):
                 for i in range(0, 4):
                     concrete_offset = size * i
                     load_typevar = typevars.DerivedTypeVariable(
-                        typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                        typevars.HasField(size * self.state.arch.byte_width, concrete_offset),
+                        typevar,
+                        None,
+                        labels=(
+                            typevars.Store(),
+                            typevars.HasField(size * self.state.arch.byte_width, concrete_offset),
+                        ),
                     )
                     self.state.add_type_constraint(typevars.Existence(load_typevar))
 
