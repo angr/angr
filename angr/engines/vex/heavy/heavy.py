@@ -221,6 +221,9 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                     else ret_state.solver.false
                 )
                 ret_target = ret_state.solver.BVV(successors.addr + irsb.size, ret_state.arch.bits)
+                ret_state.registers.store(
+                    ret_state.arch.ret_offset, ret_state.solver.Unconstrained("fake_ret_value", ret_state.arch.bits)
+                )
                 if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith("Ijk_Sys"):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(
