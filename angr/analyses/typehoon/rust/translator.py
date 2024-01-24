@@ -36,6 +36,12 @@ class RustTypeTranslator(TypeTranslator):
     def _translate_Pointer32(self, tc):
         return self._translate_Pointer64(tc)
 
+    def _translate_Int8(self, tc):  # pylint:disable=unused-argument
+        return RustSimTypeInt(size=8, signed=False).with_arch(self.arch)
+
+    def _translate_Int16(self, tc):  # pylint:disable=unused-argument
+        return RustSimTypeInt(size=16, signed=False).with_arch(self.arch)
+
     def _translate_Int32(self, tc):  # pylint:disable=unused-argument
         return RustSimTypeInt(size=32, signed=False).with_arch(self.arch)
 

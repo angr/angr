@@ -1176,6 +1176,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         "tags",
         "is_expr",
         "show_demangled_name",
+        "show_disambiguated_name",
     )
 
     def __init__(
@@ -1188,6 +1189,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         tags=None,
         is_expr: bool = False,
         show_demangled_name=True,
+        show_disambiguated_name: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -1199,6 +1201,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         self.tags = tags
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
+        self.show_disambiguated_name = show_disambiguated_name
 
     @property
     def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
@@ -2260,6 +2263,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         externs=None,
         const_formats=None,
         show_demangled_name=True,
+        show_disambiguated_name=True,
         ail_graph=None,
         simplify_else_scope=True,
         cstyle_ifs=True,
@@ -3320,13 +3324,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
         if 64 >= expr.to_bits > 32:
-            dst_type: Union[RustSimTypeInt, SimTypeChar] = SimTypeLongLong()
+            dst_type: Union[RustSimTypeInt, SimTypeChar] = RustSimTypeInt(64)
         elif 32 >= expr.to_bits > 16:
-            dst_type = RustSimTypeInt()
+            dst_type = RustSimTypeInt(32)
         elif 16 >= expr.to_bits > 8:
-            dst_type = SimTypeShort()
+            dst_type = RustSimTypeInt(16)
         elif 8 >= expr.to_bits > 1:
-            dst_type = SimTypeChar()
+            dst_type = RustSimTypeInt(8)
         elif expr.to_bits == 1:
             dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
         else:
