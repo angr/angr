@@ -119,7 +119,9 @@ class AllocSimplifier(OptimizationPass):
             init_block.statements = new_statements
             alloc_block.statements = alloc_block.statements[:-1]
             self._remove_block(error_block)
-            init_block.statements.insert(0, VecInitialization(0, alloc_call.ret_expr, init_values))
+            init_block.statements.insert(
+                0, VecInitialization(0, alloc_call.ret_expr, init_values, ins_addr=alloc_call.ins_addr)
+            )
             return True
         return False
 
@@ -143,19 +145,3 @@ class AllocSimplifier(OptimizationPass):
                                 elif self._is_handle_alloc_error_call(self._get_tail_call(block2)):
                                     error_block, init_block = block2, block1
                                 self._try_vec_initialization(alloc_block, alloc_call, if_block, error_block, init_block)
-
-                        # print(f"{br=}")
-                        # self._remove_block(next(iter(self.blocks_by_addr[br.true_target.value])))
-                        # branch: ailment.statement.ConditionalJump = pred.statements[-1]
-                        # # pred.statements.insert(0, VecInitialization(0))
-                        # succ.statements[-1] = ailment.statement.Jump(br.idx, br.false_target, ins_addr=br.ins_addr)
-                        # self._remove_block(block)
-            # new_block = block
-            # old_block = None
-            #
-            # while new_block != old_block:
-            #     old_block = new_block
-            #     # new_block = self.engine.process(state=self.state.copy(), block=old_block.copy())
-            #     # _l.debug("new block: %s", new_block.statements)
-            #
-            # self._update_block(block, new_block)
