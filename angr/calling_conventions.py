@@ -1423,7 +1423,15 @@ class SimCCSystemVAMD64(SimCC):
             ex_arg = arg
             # attempt to coerce the argument into a form that might show up in these lists
             if type(ex_arg) is SimRegArg:
-                regfile_offset = arch.registers[ex_arg.reg_name][0]
+                if ex_arg.reg_name not in arch.registers:
+                    # danger!
+                    # if the register name is a digit-only string, we use it as an offset
+                    try:
+                        regfile_offset = int(ex_arg.reg_name)
+                    except ValueError:
+                        return False
+                else:
+                    regfile_offset = arch.registers[ex_arg.reg_name][0]
                 while regfile_offset not in arch.register_names:
                     regfile_offset -= 1
                 ex_arg.reg_name = arch.register_names[regfile_offset]
