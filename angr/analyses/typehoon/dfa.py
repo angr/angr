@@ -53,7 +53,7 @@ class DFAConstraintSolver:
             # print("End transition", end, "----->", END_STATE)
             enfa.add_transition(State(end), Symbol(end), END_STATE)
 
-        networkx.drawing.nx_pydot.write_dot(graph, "d:/enfa.dot")
+        # networkx.drawing.nx_pydot.write_dot(graph, "d:/enfa.dot")
 
         if enfa.is_empty():
             raise EmptyEpsilonNFAError()
