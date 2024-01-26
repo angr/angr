@@ -249,7 +249,9 @@ class SimEngineVRAIL(
         r = self._expr(expr.operand)
         typevar = None
         if r.typevar is not None:
-            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(r.typevar.one_label, typevars.ConvertTo):
+            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
+                r.typevar.one_label, typevars.ConvertTo
+            ):
                 # there is already a conversion - overwrite it
                 if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
                     typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ConvertTo(expr.to_bits))

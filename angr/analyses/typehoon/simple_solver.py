@@ -1,5 +1,5 @@
 # pylint:disable=missing-class-docstring
-from typing import Union, Type, Callable, Set, Dict, Optional, Tuple, List, DefaultDict
+from typing import Union, Type, Set, Dict, Optional, Tuple, List, DefaultDict
 import itertools
 import enum
 from collections import defaultdict
@@ -427,7 +427,7 @@ class SimpleSolver:
                 last_node = prefix
 
         # compute the constraint graph modulo ~
-        equivalence_classes = dict((node, node) for node in g)
+        equivalence_classes = {node: node for node in g}
 
         load = Load()
         store = Store()

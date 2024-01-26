@@ -3,7 +3,7 @@
 All type constants used in type inference. They can be mapped, translated, or rewritten to C-style types.
 """
 
-from typing import List, Optional, Set, Any
+from typing import List, Optional, Set
 
 
 class TypeConstant:

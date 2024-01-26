@@ -333,7 +333,7 @@ class DerivedTypeVariable(TypeVariable):
             self.labels: Tuple["BaseLabel"] = tuple(labels)
 
         if not self.labels:
-            raise ValueError(f"A DerivedTypeVariable must have at least one label")
+            raise ValueError("A DerivedTypeVariable must have at least one label")
 
     def one_label(self) -> Optional["BaseLabel"]:
         return self.labels[0] if len(self.labels) == 1 else None
