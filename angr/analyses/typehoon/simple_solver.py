@@ -718,6 +718,9 @@ class SimpleSolver:
             if node.typevar in ends and node.tag == ConstraintGraphTag.RIGHT:
                 end_nodes.add(node)
 
+        assert start_nodes, "Start nodes cannot be empty"
+        assert end_nodes, "End nodes cannot be empty"
+
         dfa_solver = DFAConstraintSolver()
         return dfa_solver.generate_constraints_between(graph, start_nodes, end_nodes)
 

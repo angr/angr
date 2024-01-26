@@ -299,10 +299,13 @@ class TypeVariable:
             return self.name == other.name
         return self.idx == other.idx
 
-    def __hash__(self):
+    def _hash(self, visited=None):
         if self.name:
             return hash((TypeVariable, self.name))
         return hash((TypeVariable, self.idx))
+
+    def __hash__(self):
+        return self._hash()
 
     def __repr__(self):
         if self.name:
@@ -353,8 +356,11 @@ class DerivedTypeVariable(TypeVariable):
             isinstance(other, DerivedTypeVariable) and self.type_var == other.type_var and self.labels == other.labels
         )
 
-    def __hash__(self):
+    def _hash(self, visited=None):
         return hash((DerivedTypeVariable, self.type_var, self.labels))
+
+    def __hash__(self):
+        return self._hash()
 
     def __repr__(self):
         return ".".join([repr(self.type_var)] + [repr(lbl) for lbl in self.labels])

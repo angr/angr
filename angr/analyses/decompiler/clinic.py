@@ -1140,6 +1140,7 @@ class Clinic(Analysis):
         try:
             tp = self.project.analyses.Typehoon(
                 vr.type_constraints,
+                vr.func_typevar,
                 kb=tmp_kb,
                 var_mapping=vr.var_to_typevars,
                 must_struct=must_struct,

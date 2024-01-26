@@ -1,5 +1,5 @@
 # pylint:disable=wrong-import-position,wrong-import-order
-from typing import Optional, List, Tuple, Union, DefaultDict, Set
+from typing import Optional, List, Tuple, Union, DefaultDict, Set, Dict, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -21,6 +21,9 @@ from ..typehoon.typevars import Equivalence, TypeVariable, TypeVariables
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
+
+if TYPE_CHECKING:
+    from angr.analyses.typehoon.typevars import TypeConstraint
 
 l = logging.getLogger(name=__name__)
 
@@ -44,6 +47,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         global_region=None,
         typevars=None,
         type_constraints=None,
+        func_typevar=None,
         delayed_type_constraints=None,
         stack_offset_typevars=None,
         project=None,
@@ -59,6 +63,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             global_region=global_region,
             typevars=typevars,
             type_constraints=type_constraints,
+            func_typevar=func_typevar,
             delayed_type_constraints=delayed_type_constraints,
             stack_offset_typevars=stack_offset_typevars,
             project=project,
@@ -88,6 +93,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             global_region=self.global_region.copy(),
             typevars=self.typevars,
             type_constraints=self.type_constraints,
+            func_typevar=self.func_typevar,
             delayed_type_constraints=self.delayed_type_constraints,
             stack_offset_typevars=dict(self.stack_offset_typevars),
             project=self.project,
@@ -186,6 +192,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             global_region=merged_global_region,
             typevars=typevars,
             type_constraints=type_constraints,
+            func_typevar=self.func_typevar,
             delayed_type_constraints=delayed_typeconstraints,
             stack_offset_typevars=stack_offset_typevars,
             project=self.project,
@@ -271,7 +278,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._node_to_cc = {}
         self.var_to_typevars: DefaultDict[SimVariable, Set[TypeVariable]] = defaultdict(set)
         self.typevars = None
-        self.type_constraints = None
+        self.type_constraints: Optional[Dict["TypeVariable", Set["TypeConstraint"]]] = None
+        self.func_typevar = TypeVariable(name=func.name)
         self.delayed_type_constraints = None
         self.ret_val_size = None
 
@@ -288,7 +296,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
     def _pre_analysis(self):
         self.typevars = TypeVariables()
-        self.type_constraints = set()
+        self.type_constraints = defaultdict(set)
         self.delayed_type_constraints = defaultdict(set)
 
         self.initialize_dominance_frontiers()
@@ -319,6 +327,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             project=self.project,
             typevars=self.typevars,
             type_constraints=self.type_constraints,
+            func_typevar=self.func_typevar,
             delayed_type_constraints=self.delayed_type_constraints,
         )
         initial_sp = state.stack_address(self.project.arch.bytes if self.project.arch.call_pushes_ret else 0)

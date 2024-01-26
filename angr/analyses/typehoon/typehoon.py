@@ -30,6 +30,7 @@ class Typehoon(Analysis):
     def __init__(
         self,
         constraints,
+        func_var,
         ground_truth=None,
         var_mapping: Optional[Dict["SimVariable", Set["TypeVariable"]]] = None,
         must_struct: Optional[Set["TypeVariable"]] = None,
@@ -43,7 +44,8 @@ class Typehoon(Analysis):
         :param must_struct:
         """
 
-        self._constraints: Set["TypeConstraint"] = constraints
+        self.func_var: "TypeVariable" = func_var
+        self._constraints: Dict["TypeVariable", Set["TypeConstraint"]] = constraints
         self._ground_truth: Optional[Dict["TypeVariable", "SimType"]] = ground_truth
         self._var_mapping = var_mapping  # variable mapping is only used for debugging purposes
         self._must_struct = must_struct
@@ -95,9 +97,11 @@ class Typehoon(Analysis):
             for tv in typevars:
                 typevar_to_var[tv] = k
 
-        print(f"### {len(self._constraints)} constraints")
-        for constraint in self._constraints:
-            print("    " + constraint.pp_str(typevar_to_var))
+        print(f"### {sum(self._constraints.values())} constraints")
+        for func_var in self._constraints:
+            print(f"{func_var}:")
+            for constraint in self._constraints[func_var]:
+                print("    " + constraint.pp_str(typevar_to_var))
         print("### end of constraints ###")
 
     def pp_solution(self) -> None:
@@ -133,7 +137,7 @@ class Typehoon(Analysis):
         if self._ground_truth:
             translator = TypeTranslator(arch=self.project.arch)
             for tv, sim_type in self._ground_truth.items():
-                self._constraints.add(Equivalence(tv, translator.simtype2tc(sim_type)))
+                self._constraints[self.func_var].add(Equivalence(tv, translator.simtype2tc(sim_type)))
 
         self._solve()
         self._specialize()
