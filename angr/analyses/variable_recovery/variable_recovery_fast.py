@@ -168,7 +168,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             else:
                 typevar = TypeVariable()
                 for orig_typevar in all_typevars:
-                    type_constraints.add(Equivalence(orig_typevar, typevar))
+                    type_constraints[self.func_typevar].add(Equivalence(orig_typevar, typevar))
             stack_offset_typevars[offset] = typevar
 
         ret_val_size = self.ret_val_size

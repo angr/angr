@@ -47,7 +47,7 @@ class Typehoon(Analysis):
         self.func_var: "TypeVariable" = func_var
         self._constraints: Dict["TypeVariable", Set["TypeConstraint"]] = constraints
         self._ground_truth: Optional[Dict["TypeVariable", "SimType"]] = ground_truth
-        self._var_mapping = var_mapping  # variable mapping is only used for debugging purposes
+        self._var_mapping = var_mapping
         self._must_struct = must_struct
 
         self.bits = self.project.arch.bits
@@ -148,7 +148,11 @@ class Typehoon(Analysis):
             self.simtypes_solution.update(self._ground_truth)
 
     def _solve(self):
-        solver = SimpleSolver(self.bits, self._constraints)
+        typevars = set()
+        if self._var_mapping:
+            for variable_typevars in self._var_mapping.values():
+                typevars |= variable_typevars
+        solver = SimpleSolver(self.bits, self._constraints, typevars)
         self.solution = solver.solution
 
     def _specialize(self):

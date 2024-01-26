@@ -7,6 +7,7 @@ from pyformlang.finite_automaton import Epsilon, EpsilonNFA, State, Symbol
 
 from .typevars import BaseLabel, Subtype
 from .variance import Variance
+from angr.errors import AngrError
 
 if TYPE_CHECKING:
     from pyformlang.finite_automaton import DeterministicFiniteAutomaton
@@ -16,6 +17,10 @@ START_STATE = State("START")
 END_STATE = State("END")
 
 
+class EmptyEpsilonNFAError(AngrError):
+    pass
+
+
 class DFAConstraintSolver:
     """
     Implements a DFA-based graph solver.
@@ -23,6 +28,8 @@ class DFAConstraintSolver:
 
     def graph_to_epsilon_nfa(self, graph: networkx.DiGraph, starts: Set, ends: Set) -> EpsilonNFA:
         enfa = EpsilonNFA()
+
+        # print("Converting graph to eNFA")
 
         for src, dst, data in graph.edges(data=True):
             if not data:
@@ -38,13 +45,18 @@ class DFAConstraintSolver:
         enfa.add_start_state(START_STATE)
 
         for start in starts:
+            # print("Start transition", START_STATE, "----->", start)
             enfa.add_transition(START_STATE, Symbol(start), State(start))
 
         enfa.add_final_state(END_STATE)
         for end in ends:
+            # print("End transition", end, "----->", END_STATE)
             enfa.add_transition(State(end), Symbol(end), END_STATE)
 
-        assert not enfa.is_empty()
+        networkx.drawing.nx_pydot.write_dot(graph, "d:/enfa.dot")
+
+        if enfa.is_empty():
+            raise EmptyEpsilonNFAError()
         return enfa
 
     def generate_constraints_between(self, graph: networkx.DiGraph, starts: Set, ends: Set) -> Set:
