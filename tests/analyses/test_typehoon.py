@@ -96,7 +96,7 @@ class TestTypehoon(unittest.TestCase):
             # func_close: set(),
         }
         proj = angr.load_shellcode(b"\x90\x90", "AMD64")
-        typehoon = proj.analyses.Typehoon(type_constraints)
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f)
 
         print(typehoon.simtypes_solution)
         print(typehoon.structs)
