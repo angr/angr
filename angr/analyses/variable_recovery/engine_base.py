@@ -917,7 +917,7 @@ class SimEngineVRBase(SimEngineLight):
         return RichR(r_value, variable=var, typevar=typevar)
 
     def _create_access_typevar(
-        self, typevar: Union[TypeVariable, DerivedTypeVariable], is_load: bool, size: int, offset: int
+        self, typevar: Union[TypeVariable, DerivedTypeVariable], is_store: bool, size: int, offset: int
     ) -> DerivedTypeVariable:
         if isinstance(typevar, DerivedTypeVariable):
             if isinstance(typevar.labels[-1], AddN):
@@ -932,7 +932,7 @@ class SimEngineVRBase(SimEngineLight):
                     typevar = typevar.type_var
                 else:
                     typevar = DerivedTypeVariable(typevar.type_var, None, labels=typevar.labels[:-1])
-        lbl = Load() if is_load else Store()
+        lbl = Store() if is_store else Load()
         return DerivedTypeVariable(
             typevar,
             None,

@@ -120,6 +120,19 @@ class SimEngineVRAIL(
             if stmt.ret_expr is not None:
                 ret_expr_bits = stmt.ret_expr.bits
 
+        if not isinstance(target, ailment.Expr.Const):
+            # this is a dynamically calculated call target
+            target_expr = self._expr(target)
+            funcaddr_typevar = target_expr.typevar
+            self.state.add_type_constraint(
+                typevars.Subtype(
+                    funcaddr_typevar,
+                    typeconsts.Pointer64(typeconsts.Function([], []))
+                    if self.arch.bits == 64
+                    else typeconsts.Pointer32(typeconsts.Function([], [])),
+                )
+            )
+
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
         if stmt.prototype is not None:

@@ -4,7 +4,7 @@ from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Struct, Pointer, TypeConstant, Array
+from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
 from .typevars import Equivalence
 
 if TYPE_CHECKING:
@@ -197,7 +197,10 @@ class Typehoon(Analysis):
                 if all(off % alignment == 0 for off in offsets):
                     # yeah!
                     max_offset = offsets[-1]
-                    count = (max_offset + field0.size) // alignment
+                    field0_size = 1
+                    if not isinstance(field0, TopType):
+                        field0_size = field0.size
+                    count = (max_offset + field0_size) // alignment
                     return Array(field0, count=count)
 
         return None

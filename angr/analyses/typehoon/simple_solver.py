@@ -36,6 +36,7 @@ from .typeconsts import (
     Pointer64,
     Struct,
     Function,
+    int_type,
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -890,6 +891,8 @@ class SimpleSolver:
 
             for offset, child_nodes in node_by_offset.items():
                 sol = self._determine(equivalent_classes, the_typevar, sketch, solution, nodes=child_nodes)
+                if isinstance(sol, TopType):
+                    sol = int_type(min(candidate_bases[offset]) * 8)
                 fields[offset] = sol
 
             if not fields:

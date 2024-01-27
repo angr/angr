@@ -1247,6 +1247,8 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, ret_expr)
 
     def _link_variables_on_call(self, variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False):
+        if not isinstance(stmt.target, ailment.Expr.Const):
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.target)
         if stmt.args:
             for arg in stmt.args:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, arg)
