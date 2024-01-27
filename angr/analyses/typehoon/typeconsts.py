@@ -4,6 +4,24 @@ All type constants used in type inference. They can be mapped, translated, or re
 """
 
 from typing import List, Optional, Set
+import functools
+
+
+def memoize(f):
+    @functools.wraps(f)
+    def wrapped_repr(self, *args, **kwargs):
+        if not kwargs or "memo" not in kwargs:
+            memo = set()
+        else:
+            memo = kwargs.pop("memo")
+        if self in memo:
+            return "..."
+        memo.add(self)
+        r = f(self, *args, memo=memo, **kwargs)
+        memo.remove(self)
+        return r
+
+    return wrapped_repr
 
 
 class TypeConstant:
@@ -29,7 +47,7 @@ class TypeConstant:
 
 
 class TopType(TypeConstant):
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "TOP"
 
 
@@ -39,7 +57,7 @@ class BottomType(TypeConstant):
 
 
 class Int(TypeConstant):
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "intbase"
 
 
@@ -50,54 +68,54 @@ class Int1(Int):
 class Int8(Int):
     SIZE = 1
 
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "int8"
 
 
 class Int16(Int):
     SIZE = 2
 
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "int16"
 
 
 class Int32(Int):
     SIZE = 4
 
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "int32"
 
 
 class Int64(Int):
     SIZE = 8
 
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "int64"
 
 
 class Int128(Int):
     SIZE = 16
 
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "int128"
 
 
 class FloatBase(TypeConstant):
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "floatbase"
 
 
 class Float(FloatBase):
     SIZE = 4
 
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "float"
 
 
 class Double(FloatBase):
     SIZE = 8
 
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "double"
 
 
@@ -128,8 +146,9 @@ class Pointer32(Pointer, Int32):
     def __init__(self, basetype=None):
         Pointer.__init__(self, basetype)
 
-    def __repr__(self):
-        return "ptr32(%r)" % self.basetype
+    @memoize
+    def __repr__(self, memo=None):
+        return f"ptr32({self.basetype.__repr__(memo=memo)})"
 
 
 class Pointer64(Pointer, Int64):
@@ -140,8 +159,9 @@ class Pointer64(Pointer, Int64):
     def __init__(self, basetype=None):
         Pointer.__init__(self, basetype)
 
-    def __repr__(self):
-        return "ptr64(%r)" % self.basetype
+    @memoize
+    def __repr__(self, memo=None):
+        return f"ptr64({self.basetype.__repr__(memo=memo)})"
 
 
 class Array(TypeConstant):
@@ -149,7 +169,8 @@ class Array(TypeConstant):
         self.element: TypeConstant = element
         self.count: Optional[int] = count
 
-    def __repr__(self):
+    @memoize
+    def __repr__(self, memo=None):
         if self.count is None:
             return "%r[?]" % self.element
         else:
@@ -184,11 +205,12 @@ class Struct(TypeConstant):
         tpl = tuple((k, self.fields[k]._hash(visited)) for k in keys)
         return hash(tpl)
 
-    def __repr__(self):
+    @memoize
+    def __repr__(self, memo=None):
         prefix = "struct"
         if self.name:
             prefix = f"struct {self.name}"
-        return prefix + "{" + ", ".join(f"{k}:{v}" for k, v in self.fields.items()) + "}"
+        return prefix + "{" + ", ".join(f"{k}:{v.__repr__(memo=memo)}" for k, v in self.fields.items()) + "}"
 
     def __eq__(self, other):
         return type(other) is type(self) and self.fields == other.fields
@@ -202,7 +224,8 @@ class Function(TypeConstant):
         self.params = params
         self.outputs = outputs
 
-    def __repr__(self):
+    @memoize
+    def __repr__(self, memo=None):
         param_str = ", ".join(repr(param) for param in self.params)
         outputs_str = ", ".join(repr(output) for output in self.outputs)
         return f"func({param_str}) -> {outputs_str}"
@@ -229,7 +252,7 @@ class TypeVariableReference(TypeConstant):
     def __init__(self, typevar):
         self.typevar = typevar
 
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "ref(%s)" % self.typevar
 
     def __eq__(self, other):

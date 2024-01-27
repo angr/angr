@@ -38,7 +38,7 @@ class TestTypehoon(unittest.TestCase):
         # pprint.pprint(vr._outstates[0x4005b2].typevars._typevars)
         # pprint.pprint(tcons)
 
-        _ = p.analyses.Typehoon(tcons)
+        _ = p.analyses.Typehoon(tcons, vr.func_typevar)
         # pprint.pprint(t.simtypes_solution)
 
         # convert function blocks to AIL blocks
@@ -75,7 +75,7 @@ class TestTypehoon(unittest.TestCase):
         v0 = TypeVariable(name="v0")
         type_constraints = {func_f: {Subtype(v0, Int32())}}
         proj = angr.load_shellcode(b"\x90\x90", "AMD64")
-        typehoon = proj.analyses.Typehoon(type_constraints)
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f)
 
     def test_type_inference_basic_case_1(self):
         func_f = TypeVariable(name="F")
