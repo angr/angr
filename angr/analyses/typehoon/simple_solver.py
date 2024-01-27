@@ -164,7 +164,7 @@ class Sketch:
             return self.node_mapping[typevar]
         node = None
         if isinstance(typevar, DerivedTypeVariable):
-            node = self.node_mapping[typevar.type_var]
+            node = self.node_mapping[SimpleSolver._to_typevar_or_typeconst(typevar.type_var)]
             for label in typevar.labels:
                 succs = []
                 for _, dst, data in self.graph.out_edges(node, data=True):
@@ -699,7 +699,7 @@ class SimpleSolver:
         obj: Union[TypeVariable, DerivedTypeVariable, TypeConstant]
     ) -> Union[TypeVariable, TypeConstant]:
         if isinstance(obj, DerivedTypeVariable):
-            return obj.type_var
+            return SimpleSolver._to_typevar_or_typeconst(obj.type_var)
         elif isinstance(obj, TypeVariable):
             return obj
         elif isinstance(obj, TypeConstant):
@@ -729,9 +729,15 @@ class SimpleSolver:
         end_nodes = set()
         for node in graph.nodes:
             node: ConstraintGraphNode
-            if self._typevar_inside_set(node.typevar, starts) and node.tag == ConstraintGraphTag.LEFT:
+            if (
+                self._typevar_inside_set(self._to_typevar_or_typeconst(node.typevar), starts)
+                and node.tag == ConstraintGraphTag.LEFT
+            ):
                 start_nodes.add(node)
-            if self._typevar_inside_set(node.typevar, ends) and node.tag == ConstraintGraphTag.RIGHT:
+            if (
+                self._typevar_inside_set(self._to_typevar_or_typeconst(node.typevar), ends)
+                and node.tag == ConstraintGraphTag.RIGHT
+            ):
                 end_nodes.add(node)
 
         if not start_nodes or not end_nodes:
@@ -882,8 +888,8 @@ class SimpleSolver:
                     else:
                         node_by_offset[last_label.offset].add(succ)
 
-            for offset, nodes in node_by_offset.items():
-                sol = self._determine(equivalent_classes, the_typevar, sketch, solution, nodes=nodes)
+            for offset, child_nodes in node_by_offset.items():
+                sol = self._determine(equivalent_classes, the_typevar, sketch, solution, nodes=child_nodes)
                 fields[offset] = sol
 
             if not fields:
@@ -949,6 +955,7 @@ class SimpleSolver:
         raise NotImplementedError("Unsupported bits %d" % self.bits)
 
     def _convert_arrays(self, constraints):
+        # TODO: FIXME
         for constraint in constraints:
             if not isinstance(constraint, Existence):
                 continue

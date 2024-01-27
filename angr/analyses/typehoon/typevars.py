@@ -314,23 +314,33 @@ class TypeVariable:
 
 
 class DerivedTypeVariable(TypeVariable):
-    __slots__ = (
-        "type_var",
-        "labels",
-    )
+    __slots__ = ("type_var", "labels")
+
+    type_var: Union[TypeVariable, "TypeConstant"]
 
     def __init__(
-        self, type_var: Optional[TypeVariable], label, labels: Optional[Iterable["BaseLabel"]] = None, idx=None
+        self,
+        type_var: Optional[Union[TypeVariable, "DerivedTypeVariable"]],
+        label,
+        labels: Optional[Iterable["BaseLabel"]] = None,
+        idx=None,
     ):
         super().__init__(idx=idx)
-        self.type_var = type_var
+        if isinstance(type_var, DerivedTypeVariable):
+            existing_labels = type_var.labels
+            self.type_var = type_var.type_var
+            assert not isinstance(self.type_var, DerivedTypeVariable)
+        else:
+            existing_labels = ()
+            self.type_var = type_var
+
         if label is not None and labels:
             raise TypeError("You cannot specify both label and labels at the same time")
 
         if label is not None:
-            self.labels = (label,)
+            self.labels = existing_labels + (label,)
         else:
-            self.labels: Tuple["BaseLabel"] = tuple(labels)
+            self.labels: Tuple["BaseLabel"] = existing_labels + tuple(labels)
 
         if not self.labels:
             raise ValueError("A DerivedTypeVariable must have at least one label")

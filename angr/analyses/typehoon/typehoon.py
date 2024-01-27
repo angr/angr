@@ -97,7 +97,7 @@ class Typehoon(Analysis):
             for tv in typevars:
                 typevar_to_var[tv] = k
 
-        print(f"### {sum(self._constraints.values())} constraints")
+        print(f"### {sum(map(len, self._constraints.values()))} constraints")
         for func_var in self._constraints:
             print(f"{func_var}:")
             for constraint in self._constraints[func_var]:
