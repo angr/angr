@@ -7,6 +7,7 @@ import logging
 
 import networkx
 
+from angr.utils.constants import MAX_POINTSTO_BITS
 from .typevars import (
     Existence,
     Subtype,
@@ -44,7 +45,18 @@ from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
 _l = logging.getLogger(__name__)
 
 
-PRIMITIVE_TYPES = {TopType(), Int(), Int8(), Int16(), Int32(), Int64(), Pointer32(), Pointer64(), BottomType()}
+PRIMITIVE_TYPES = {
+    TopType(),
+    Int(),
+    Int8(),
+    Int16(),
+    Int32(),
+    Int64(),
+    Pointer32(),
+    Pointer64(),
+    BottomType(),
+    Struct(),
+}
 
 Top_ = TopType()
 Int_ = Int()
@@ -55,6 +67,7 @@ Int8_ = Int8()
 Bottom_ = BottomType()
 Pointer64_ = Pointer64()
 Pointer32_ = Pointer32()
+Struct_ = Struct()
 
 # lattice for 64-bit binaries
 BASE_LATTICE_64 = networkx.DiGraph()
@@ -115,6 +128,12 @@ class SketchNode(SketchNodeBase):
 
     def __repr__(self):
         return f"{self.lower_bound} <: {self.typevar} <: {self.upper_bound}"
+
+    def __eq__(self, other):
+        return isinstance(other, SketchNode) and self.typevar == other.typevar
+
+    def __hash__(self):
+        return hash((SketchNode, self.typevar))
 
 
 _ref_node_ctr = itertools.count()
@@ -180,23 +199,43 @@ class Sketch:
         return node
 
     def add_edge(self, src: SketchNodeBase, dst: SketchNodeBase, label):
-        assert not self.graph.has_edge(src, dst)
         self.graph.add_edge(src, dst, label=label)
 
     def add_constraint(self, constraint: TypeConstraint) -> None:
         # sub <: super
         if not isinstance(constraint, Subtype):
             return
-        subtype = constraint.sub_type
-        supertype = constraint.super_type
-        if subtype in PRIMITIVE_TYPES and supertype not in PRIMITIVE_TYPES:
+        subtype = self.flatten_typevar(constraint.sub_type)
+        supertype = self.flatten_typevar(constraint.super_type)
+        if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
+            supertype, PRIMITIVE_TYPES
+        ):
             super_node: Optional[SketchNode] = self.lookup(supertype)
             assert super_node is not None
             super_node.lower_bound = self.solver.join(super_node.lower_bound, subtype)
-        elif supertype in PRIMITIVE_TYPES and subtype not in PRIMITIVE_TYPES:
+        elif SimpleSolver._typevar_inside_set(supertype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
+            subtype, PRIMITIVE_TYPES
+        ):
             sub_node: Optional[SketchNode] = self.lookup(subtype)
             assert sub_node is not None
             sub_node.upper_bound = self.solver.meet(sub_node.upper_bound, supertype)
+
+    @staticmethod
+    def flatten_typevar(
+        derived_typevar: Union[TypeVariable, TypeConstant, DerivedTypeVariable]
+    ) -> Union[DerivedTypeVariable, TypeVariable, TypeConstant]:
+        if (
+            isinstance(derived_typevar, DerivedTypeVariable)
+            and isinstance(derived_typevar.type_var, Pointer)
+            and SimpleSolver._typevar_inside_set(derived_typevar.type_var.basetype, PRIMITIVE_TYPES)
+            and len(derived_typevar.labels) == 2
+            and isinstance(derived_typevar.labels[0], Load)
+            and isinstance(derived_typevar.labels[1], HasField)
+            and derived_typevar.labels[1].offset == 0
+            and derived_typevar.labels[1].bits == MAX_POINTSTO_BITS
+        ):
+            return derived_typevar.type_var.basetype
+        return derived_typevar
 
 
 #
@@ -239,7 +278,10 @@ class ConstraintGraphNode:
         else:
             tag_str = "U"
         forgotten_str = "PRE" if FORGOTTEN.PRE_FORGOTTEN else "POST"
-        return f"{self.typevar}#{variance_str}.{tag_str}.{forgotten_str}"
+        s = f"{self.typevar}#{variance_str}.{tag_str}.{forgotten_str}"
+        if ":" in s:
+            return '"' + s + '"'
+        return s
 
     def __eq__(self, other):
         if not isinstance(other, ConstraintGraphNode):
@@ -711,13 +753,19 @@ class SimpleSolver:
     # Graph solver
     #
 
-    def _typevar_inside_set(
-        self, typevar, typevar_set: Set[Union[TypeConstant, TypeVariable, DerivedTypeVariable]]
-    ) -> bool:
+    @staticmethod
+    def _typevar_inside_set(typevar, typevar_set: Set[Union[TypeConstant, TypeVariable, DerivedTypeVariable]]) -> bool:
         if typevar in typevar_set:
             return True
-        if isinstance(typevar, self._pointer_class()) and (Pointer32_ in typevar_set or Pointer64_ in typevar_set):
-            return self._typevar_inside_set(typevar.basetype, typevar_set)
+        if isinstance(typevar, Struct) and Struct_ in typevar_set:
+            if not typevar.fields:
+                return True
+            return all(
+                SimpleSolver._typevar_inside_set(field_typevar, typevar_set)
+                for field_typevar in typevar.fields.values()
+            )
+        if isinstance(typevar, Pointer) and (Pointer32_ in typevar_set or Pointer64_ in typevar_set):
+            return SimpleSolver._typevar_inside_set(typevar.basetype, typevar_set)
         return False
 
     def _solve_constraints_between(
@@ -754,11 +802,23 @@ class SimpleSolver:
     # Type lattice
     #
 
-    def join(self, t1: Union[TypeConstant, TypeVariable], t2: Union[TypeConstant, TypeVariable]) -> Type:
-        return networkx.lowest_common_ancestor(self._base_lattice, t1, t2)
+    def join(self, t1: Union[TypeConstant, TypeVariable], t2: Union[TypeConstant, TypeVariable]) -> TypeConstant:
+        if t1 in self._base_lattice and t2 in self._base_lattice:
+            return networkx.lowest_common_ancestor(self._base_lattice, t1, t2)
+        if t1 == Bottom_:
+            return t2
+        if t2 == Bottom_:
+            return t1
+        return Bottom_
 
-    def meet(self, t1: Union[TypeConstant, TypeVariable], t2: Union[TypeConstant, TypeVariable]) -> Type:
-        return networkx.lowest_common_ancestor(self._base_lattice_inverted, t1, t2)
+    def meet(self, t1: Union[TypeConstant, TypeVariable], t2: Union[TypeConstant, TypeVariable]) -> TypeConstant:
+        if t1 in self._base_lattice_inverted and t2 in self._base_lattice_inverted:
+            return networkx.lowest_common_ancestor(self._base_lattice_inverted, t1, t2)
+        if t1 == Top_:
+            return t2
+        if t2 == Top_:
+            return t1
+        return Top_
 
     def determine(self, equivalent_classes, sketches, solution: Dict, nodes: Optional[Set[SketchNode]] = None):
         for typevar, sketch in sketches.items():

@@ -67,7 +67,7 @@ class TestTypehoon(unittest.TestCase):
         proj.analyses.VariableRecoveryFast(main_func)
         proj.analyses.CompleteCallingConventions()
 
-        dec = proj.analyses.Decompiler(main_func)
+        dec = proj.analyses.Decompiler(main_func, cfg=cfg.model)
         print(dec.codegen.text)
 
     def test_type_inference_basic_case_0(self):

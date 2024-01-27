@@ -6,6 +6,7 @@ import ailment
 import claripy
 from unique_log_filter import UniqueLogFilter
 
+from angr.utils.constants import MAX_POINTSTO_BITS
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction
 from ...engines.light import SimEngineLightAILMixin
@@ -124,14 +125,8 @@ class SimEngineVRAIL(
             # this is a dynamically calculated call target
             target_expr = self._expr(target)
             funcaddr_typevar = target_expr.typevar
-            self.state.add_type_constraint(
-                typevars.Subtype(
-                    funcaddr_typevar,
-                    typeconsts.Pointer64(typeconsts.Function([], []))
-                    if self.arch.bits == 64
-                    else typeconsts.Pointer32(typeconsts.Function([], [])),
-                )
-            )
+            load_typevar = self._create_access_typevar(target_expr.typevar, False, self.arch.bytes, 0)
+            self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
 
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
@@ -307,10 +302,8 @@ class SimEngineVRAIL(
         for var, off_in_var in var_and_offsets:
             if self.state.typevars.has_type_variable_for(var, codeloc):
                 var_typevar = self.state.typevars.get_type_variable(var, codeloc)
-                ptr_typevar = (
-                    typeconsts.Pointer64(var_typevar) if self.arch.bits == 64 else typeconsts.Pointer32(var_typevar)
-                )
-                type_constraint = typevars.Subtype(ref_typevar, ptr_typevar)
+                load_typevar = self._create_access_typevar(ref_typevar, False, MAX_POINTSTO_BITS // 8, 0)
+                type_constraint = typevars.Subtype(var_typevar, load_typevar)
                 self.state.add_type_constraint(type_constraint)
 
         return richr

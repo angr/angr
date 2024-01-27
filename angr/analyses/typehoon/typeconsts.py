@@ -169,8 +169,9 @@ class Array(TypeConstant):
 
 
 class Struct(TypeConstant):
-    def __init__(self, fields=None):
+    def __init__(self, fields=None, name=None):
         self.fields = {} if fields is None else fields  # offset to type
+        self.name = name
 
     def _hash(self, visited: Set[int]):
         if id(self) in visited:
@@ -184,7 +185,10 @@ class Struct(TypeConstant):
         return hash(tpl)
 
     def __repr__(self):
-        return "struct%r" % self.fields
+        prefix = "struct"
+        if self.name:
+            prefix = f"struct {self.name}"
+        return prefix + "{" + ", ".join(f"{k}:{v}" for k, v in self.fields.items()) + "}"
 
     def __eq__(self, other):
         return type(other) is type(self) and self.fields == other.fields

@@ -60,7 +60,7 @@ class TypeLifter:
             if field_name not in ty.offsets:
                 return BottomType()
             converted_fields[ty.offsets[field_name]] = self.lift(simtype)
-        return Struct(fields=converted_fields)
+        return Struct(fields=converted_fields, name=ty.name)
 
 
 _mapping = {

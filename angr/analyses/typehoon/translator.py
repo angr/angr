@@ -99,7 +99,12 @@ class TypeTranslator:
         if tc in self.structs:
             return self.structs[tc]
 
-        s = sim_type.SimStruct({}, name=self.struct_name()).with_arch(self.arch)
+        if tc.name:
+            name = tc.name
+        else:
+            name = self.struct_name()
+
+        s = sim_type.SimStruct({}, name=name).with_arch(self.arch)
         self.structs[tc] = s
 
         next_offset = 0
