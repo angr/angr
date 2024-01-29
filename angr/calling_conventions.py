@@ -565,12 +565,12 @@ class SimCC:
     CALLER_SAVED_REGS: List[str] = []  # Caller-saved registers
     RETURN_ADDR: SimFunctionArgument = None  # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL: SimFunctionArgument = None  # The location where the return value is stored, as a SimFunctionArgument
-    OVERFLOW_RETURN_VAL: Optional[
-        SimFunctionArgument
-    ] = None  # The second half of the location where a double-length return value is stored
-    FP_RETURN_VAL: Optional[
-        SimFunctionArgument
-    ] = None  # The location where floating-point argument return values are stored
+    OVERFLOW_RETURN_VAL: Optional[SimFunctionArgument] = (
+        None  # The second half of the location where a double-length return value is stored
+    )
+    FP_RETURN_VAL: Optional[SimFunctionArgument] = (
+        None  # The location where floating-point argument return values are stored
+    )
     ARCH = None  # The archinfo.Arch class that this CC must be used for, if relevant
     CALLEE_CLEANUP = False  # Whether the callee has to deallocate the stack space for the arguments
 

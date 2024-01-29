@@ -179,9 +179,11 @@ class PhoenixStructurer(StructurerBase):
                 removed_edge = self._last_resort_refinement(
                     self._region.head,
                     self._region.graph,
-                    self._region.graph_with_successors
-                    if self._region.graph_with_successors is not None
-                    else networkx.DiGraph(self._region.graph),
+                    (
+                        self._region.graph_with_successors
+                        if self._region.graph_with_successors is not None
+                        else networkx.DiGraph(self._region.graph)
+                    ),
                 )
                 self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
                 if not removed_edge:
@@ -204,9 +206,11 @@ class PhoenixStructurer(StructurerBase):
                 node,
                 self._region.head,
                 self._region.graph,
-                self._region.graph_with_successors
-                if self._region.graph_with_successors is not None
-                else networkx.DiGraph(self._region.graph),
+                (
+                    self._region.graph_with_successors
+                    if self._region.graph_with_successors is not None
+                    else networkx.DiGraph(self._region.graph)
+                ),
             )
             l.debug("... matching cyclic schemas: %s at %r", matched, node)
             any_matches |= matched
@@ -911,9 +915,11 @@ class PhoenixStructurer(StructurerBase):
             try:
                 any_matches_this_iteration = self._match_acyclic_schemas(
                     self._region.graph,
-                    self._region.graph_with_successors
-                    if self._region.graph_with_successors is not None
-                    else networkx.DiGraph(self._region.graph),
+                    (
+                        self._region.graph_with_successors
+                        if self._region.graph_with_successors is not None
+                        else networkx.DiGraph(self._region.graph)
+                    ),
                     self._region.head,
                 )
             except GraphChangedNotification:

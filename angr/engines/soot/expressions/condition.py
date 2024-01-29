@@ -29,6 +29,6 @@ class SimSootExpr_Condition(SimSootExpr):
         "ge": claripy.SGE,
         "gt": claripy.SGT,
         "le": claripy.SLE,
-        "lt": claripy.SLT
+        "lt": claripy.SLT,
         # TODO others...
     }

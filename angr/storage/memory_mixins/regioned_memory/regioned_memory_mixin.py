@@ -307,12 +307,12 @@ class RegionedMemoryMixin(MemoryMixin):
                 self.state,
                 related_function_addr,
                 self.endness,
-                cle_memory_backer=self._cle_memory_backer.get(key, None)
-                if self._cle_memory_backer is not None
-                else None,
-                dict_memory_backer=self._dict_memory_backer.get(key, None)
-                if self._dict_memory_backer is not None
-                else None,
+                cle_memory_backer=(
+                    self._cle_memory_backer.get(key, None) if self._cle_memory_backer is not None else None
+                ),
+                dict_memory_backer=(
+                    self._dict_memory_backer.get(key, None) if self._dict_memory_backer is not None else None
+                ),
             )
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr, **kwargs)
@@ -324,12 +324,12 @@ class RegionedMemoryMixin(MemoryMixin):
                 self.state,
                 related_function_addr,
                 self.endness,
-                cle_memory_backer=self._cle_memory_backer.get(key, None)
-                if self._cle_memory_backer is not None
-                else None,
-                dict_memory_backer=self._dict_memory_backer.get(key, None)
-                if self._dict_memory_backer is not None
-                else None,
+                cle_memory_backer=(
+                    self._cle_memory_backer.get(key, None) if self._cle_memory_backer is not None else None
+                ),
+                dict_memory_backer=(
+                    self._dict_memory_backer.get(key, None) if self._dict_memory_backer is not None else None
+                ),
             )
 
         self._regions[key].store(

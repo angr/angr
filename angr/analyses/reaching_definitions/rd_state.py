@@ -496,14 +496,12 @@ class ReachingDefinitionsState:
     @overload
     def get_concrete_value(
         self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Type[int] = ...
-    ) -> Optional[int]:
-        ...
+    ) -> Optional[int]: ...
 
     @overload
     def get_concrete_value(
         self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Type[bytes] = ...
-    ) -> Optional[bytes]:
-        ...
+    ) -> Optional[bytes]: ...
 
     def get_concrete_value(
         self, spec: Union[Atom, Definition[Atom], Iterable[Atom]], cast_to: Union[Type[int], Type[bytes]] = int
@@ -574,8 +572,7 @@ class ReachingDefinitionsState:
         pointer: Union[int, claripy.ast.bv.BV, HeapAddress, SpOffset],
         size: Union[int, DerefSize],
         endness: str = ...,
-    ) -> Optional[MemoryLocation]:
-        ...
+    ) -> Optional[MemoryLocation]: ...
 
     @overload
     def deref(
@@ -583,8 +580,7 @@ class ReachingDefinitionsState:
         pointer: Union[MultiValues, Atom, Definition, Iterable[Atom], Iterable[Definition]],
         size: Union[int, DerefSize],
         endness: str = ...,
-    ) -> Set[MemoryLocation]:
-        ...
+    ) -> Set[MemoryLocation]: ...
 
     def deref(
         self,

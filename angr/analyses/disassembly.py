@@ -1168,18 +1168,20 @@ class Disassembly(Analysis):
 
         if formatting is None:
             formatting = {
-                "colors": {
-                    "address": "gray",
-                    "bytes": "cyan",
-                    "edge": "yellow",
-                    Label: "bright_yellow",
-                    ConstantOperand: "cyan",
-                    MemoryOperand: "yellow",
-                    Comment: "gray",
-                    Hook: "green",
-                }
-                if ansi_color_enabled and color
-                else {},
+                "colors": (
+                    {
+                        "address": "gray",
+                        "bytes": "cyan",
+                        "edge": "yellow",
+                        Label: "bright_yellow",
+                        ConstantOperand: "cyan",
+                        MemoryOperand: "yellow",
+                        Comment: "gray",
+                        Hook: "green",
+                    }
+                    if ansi_color_enabled and color
+                    else {}
+                ),
                 "format_callback": lambda item, s: ansi_color(s, formatting["colors"].get(type(item), None)),
             }
 

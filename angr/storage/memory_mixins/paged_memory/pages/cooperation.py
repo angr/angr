@@ -77,9 +77,11 @@ class MemoryObjectMixin(CooperationBase):
             elements = [
                 o.bytes_at(
                     a,
-                    ((c_objects[i + 1][0] - a) & mask)
-                    if i != len(c_objects) - 1
-                    else ((c_objects[0][0] + size - a) & mask),
+                    (
+                        ((c_objects[i + 1][0] - a) & mask)
+                        if i != len(c_objects) - 1
+                        else ((c_objects[0][0] + size - a) & mask)
+                    ),
                     endness=endness,
                 )
                 for i, (a, o) in enumerate(c_objects)
@@ -184,9 +186,11 @@ class MemoryObjectSetMixin(CooperationBase):
                 if o.includes(a):
                     chopped = o.bytes_at(
                         a,
-                        ((c_objects[i + 1][0] - a) & mask)
-                        if i != len(c_objects) - 1
-                        else ((c_objects[0][0] + size - a) & mask),
+                        (
+                            ((c_objects[i + 1][0] - a) & mask)
+                            if i != len(c_objects) - 1
+                            else ((c_objects[0][0] + size - a) & mask)
+                        ),
                         endness=endness,
                     )
                     chopped_set.add(chopped)

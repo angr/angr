@@ -139,14 +139,14 @@ class ReachingDefinitionsModel:
             return self.observed_results.get(key, None)
 
     @overload
-    def get_observation_by_stmt(self, codeloc: "CodeLocation", kind: ObservationPointType) -> Optional[LiveDefinitions]:
-        ...
+    def get_observation_by_stmt(
+        self, codeloc: "CodeLocation", kind: ObservationPointType
+    ) -> Optional[LiveDefinitions]: ...
 
     @overload
     def get_observation_by_stmt(
         self, node_addr: int, stmt_idx: int, kind: ObservationPointType, *, block_idx: Optional[int] = None
-    ):
-        ...
+    ): ...
 
     def get_observation_by_stmt(self, arg1, arg2, arg3=None, *, block_idx=None):
         if isinstance(arg1, int):

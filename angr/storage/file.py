@@ -438,15 +438,19 @@ class SimPackets(SimFileBase):
             self.content = []
         else:
             self.content = [
-                x
-                if type(x) is tuple
-                else (x, len(x) // 8)
-                if isinstance(x, claripy.Bits)
-                else (x.ast, len(x) // 8)
-                if isinstance(x, SimActionObject)
-                else (claripy.BVV(x), len(x))
-                if type(x) is bytes
-                else None
+                (
+                    x
+                    if type(x) is tuple
+                    else (
+                        (x, len(x) // 8)
+                        if isinstance(x, claripy.Bits)
+                        else (
+                            (x.ast, len(x) // 8)
+                            if isinstance(x, SimActionObject)
+                            else (claripy.BVV(x), len(x)) if type(x) is bytes else None
+                        )
+                    )
+                )
                 for x in self.content
             ]
             if any(x is None for x in self.content):

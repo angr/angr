@@ -289,8 +289,7 @@ class AngrObjectFactory:
         cross_insn_opt=True,
         load_from_ro_regions=False,
         initial_regs=None,
-    ) -> "Block":
-        ...
+    ) -> "Block": ...
 
     # pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
@@ -312,8 +311,7 @@ class AngrObjectFactory:
         strict_block_end=None,
         collect_data_refs=False,
         cross_insn_opt=True,
-    ) -> "SootBlock":
-        ...
+    ) -> "SootBlock": ...
 
     def block(
         self,
