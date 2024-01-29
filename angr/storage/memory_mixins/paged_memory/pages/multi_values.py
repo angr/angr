@@ -33,20 +33,12 @@ class MultiValues:
         self._single_value = (
             None
             if v is None
-            else v
-            if isinstance(v, claripy.ast.Bits)
-            else v._single_value
-            if isinstance(v, MultiValues)
-            else None
+            else v if isinstance(v, claripy.ast.Bits) else v._single_value if isinstance(v, MultiValues) else None
         )
         self._values = (
             offset_to_values
             if offset_to_values is not None
-            else v
-            if isinstance(v, dict)
-            else v._values
-            if isinstance(v, MultiValues)
-            else None
+            else v if isinstance(v, dict) else v._values if isinstance(v, MultiValues) else None
         )
 
         if self._single_value is None and self._values is None:

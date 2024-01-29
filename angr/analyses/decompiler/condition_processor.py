@@ -309,9 +309,11 @@ class ConditionProcessor:
         elif isinstance(node, CodeNode):
             node = CodeNode(
                 self.remove_claripy_bool_asts(node.node, memo=memo),
-                None
-                if node.reaching_condition is None
-                else self.convert_claripy_bool_ast(node.reaching_condition, memo=memo),
+                (
+                    None
+                    if node.reaching_condition is None
+                    else self.convert_claripy_bool_ast(node.reaching_condition, memo=memo)
+                ),
             )
             return node
 
@@ -325,9 +327,11 @@ class ConditionProcessor:
         elif isinstance(node, ConditionNode):
             return ConditionNode(
                 node.addr,
-                None
-                if node.reaching_condition is None
-                else self.convert_claripy_bool_ast(node.reaching_condition, memo=memo),
+                (
+                    None
+                    if node.reaching_condition is None
+                    else self.convert_claripy_bool_ast(node.reaching_condition, memo=memo)
+                ),
                 self.convert_claripy_bool_ast(node.condition, memo=memo),
                 self.remove_claripy_bool_asts(node.true_node, memo=memo),
                 self.remove_claripy_bool_asts(node.false_node, memo=memo),
@@ -689,9 +693,11 @@ class ConditionProcessor:
             "__mod__": lambda cond_, tags: _binary_op_reduce("Mod", cond_.args, tags),
             "LShR": lambda cond_, tags: _binary_op_reduce("Shr", cond_.args, tags),
             "BVV": lambda cond_, tags: ailment.Expr.Const(None, None, cond_.args[0], cond_.size(), **tags),
-            "BoolV": lambda cond_, tags: ailment.Expr.Const(None, None, True, 1, **tags)
-            if cond_.args[0] is True
-            else ailment.Expr.Const(None, None, False, 1, **tags),
+            "BoolV": lambda cond_, tags: (
+                ailment.Expr.Const(None, None, True, 1, **tags)
+                if cond_.args[0] is True
+                else ailment.Expr.Const(None, None, False, 1, **tags)
+            ),
             "Extract": lambda cond_, tags: self._convert_extract(*cond_.args, tags, memo=memo),
             "ZeroExt": lambda cond_, tags: _binary_op_reduce(
                 "Concat", [claripy.BVV(0, cond_.args[0]), cond_.args[1]], tags

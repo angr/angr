@@ -2861,11 +2861,15 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             ()
             if decl.args is None
             else [
-                ...
-                if type(x) is pycparser.c_ast.EllipsisParam
-                else SimTypeBottom().with_arch(arch)
-                if type(x) is pycparser.c_ast.ID
-                else _decl_to_type(x.type, extra_types, arch=arch)
+                (
+                    ...
+                    if type(x) is pycparser.c_ast.EllipsisParam
+                    else (
+                        SimTypeBottom().with_arch(arch)
+                        if type(x) is pycparser.c_ast.ID
+                        else _decl_to_type(x.type, extra_types, arch=arch)
+                    )
+                )
                 for x in decl.args.params
             ]
         )

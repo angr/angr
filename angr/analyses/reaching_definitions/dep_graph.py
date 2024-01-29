@@ -240,8 +240,7 @@ class DepGraph:
         *,
         kind: Type[A],
         **kwargs: Any,
-    ) -> List[Definition[A]]:
-        ...
+    ) -> List[Definition[A]]: ...
 
     @overload
     def find_all_predecessors(
@@ -250,8 +249,7 @@ class DepGraph:
         *,
         kind: Literal[AtomKind.REGISTER] = AtomKind.REGISTER,
         **kwargs: Any,
-    ) -> List[Definition[Register]]:
-        ...
+    ) -> List[Definition[Register]]: ...
 
     @overload
     def find_all_predecessors(
@@ -260,8 +258,7 @@ class DepGraph:
         *,
         kind: Literal[AtomKind.MEMORY] = AtomKind.MEMORY,
         **kwargs: Any,
-    ) -> List[Definition[MemoryLocation]]:
-        ...
+    ) -> List[Definition[MemoryLocation]]: ...
 
     @overload
     def find_all_predecessors(
@@ -270,8 +267,7 @@ class DepGraph:
         *,
         kind: Literal[AtomKind.TMP] = AtomKind.TMP,
         **kwargs: Any,
-    ) -> List[Definition[Tmp]]:
-        ...
+    ) -> List[Definition[Tmp]]: ...
 
     @overload
     def find_all_predecessors(
@@ -280,8 +276,7 @@ class DepGraph:
         *,
         kind: Literal[AtomKind.CONSTANT] = AtomKind.CONSTANT,
         **kwargs: Any,
-    ) -> List[Definition[ConstantSrc]]:
-        ...
+    ) -> List[Definition[ConstantSrc]]: ...
 
     @overload
     def find_all_predecessors(
@@ -290,8 +285,7 @@ class DepGraph:
         *,
         kind: Literal[AtomKind.GUARD] = AtomKind.GUARD,
         **kwargs: Any,
-    ) -> List[Definition[GuardUse]]:
-        ...
+    ) -> List[Definition[GuardUse]]: ...
 
     @overload
     def find_all_predecessors(
@@ -300,26 +294,22 @@ class DepGraph:
         *,
         reg_name: Union[int, str] = ...,
         **kwargs: Any,
-    ) -> List[Definition[Register]]:
-        ...
+    ) -> List[Definition[Register]]: ...
 
     @overload
     def find_all_predecessors(
         self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], *, stack_offset: int = ..., **kwargs: Any
-    ) -> List[Definition[MemoryLocation]]:
-        ...
+    ) -> List[Definition[MemoryLocation]]: ...
 
     @overload
     def find_all_predecessors(
         self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], *, const_val: int = ..., **kwargs: Any
-    ) -> List[Definition[ConstantSrc]]:
-        ...
+    ) -> List[Definition[ConstantSrc]]: ...
 
     @overload
     def find_all_predecessors(
         self, starts: Union[Definition[Atom], Iterable[Definition[Atom]]], **kwargs: Any
-    ) -> List[Definition[Atom]]:
-        ...
+    ) -> List[Definition[Atom]]: ...
 
     def find_all_predecessors(self, starts, **kwargs):
         """

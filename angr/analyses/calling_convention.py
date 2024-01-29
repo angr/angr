@@ -166,9 +166,11 @@ class CallingConventionAnalysis(Analysis):
                     )
                     cc_cls = default_cc(
                         self.project.arch.name,
-                        platform=self.project.simos.name
-                        if self.project is not None and self.project.simos is not None
-                        else None,
+                        platform=(
+                            self.project.simos.name
+                            if self.project is not None and self.project.simos is not None
+                            else None
+                        ),
                     )
                     if cc_cls is not None:
                         cc = cc_cls(self.project.arch)
@@ -224,9 +226,9 @@ class CallingConventionAnalysis(Analysis):
             ]
             cc_cls = default_cc(
                 self.project.arch.name,
-                platform=self.project.simos.name
-                if self.project is not None and self.project.simos is not None
-                else None,
+                platform=(
+                    self.project.simos.name if self.project is not None and self.project.simos is not None else None
+                ),
             )
             if cc_cls is not None:
                 cc = cc_cls(self.project.arch)

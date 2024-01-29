@@ -52,9 +52,9 @@ class BaseOptimizationPass:
     ARCHES = []  # strings of supported architectures
     PLATFORMS = []  # strings of supported platforms. Can be one of the following: "win32", "linux"
     STAGE: int = None  # Specifies when this optimization pass should be executed
-    STRUCTURING: Optional[
-        str
-    ] = None  # specifies if this optimization pass is specific to a certain structuring algorithm
+    STRUCTURING: Optional[str] = (
+        None  # specifies if this optimization pass is specific to a certain structuring algorithm
+    )
     NAME = "N/A"
     DESCRIPTION = "N/A"
 

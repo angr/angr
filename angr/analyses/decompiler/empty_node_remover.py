@@ -133,9 +133,11 @@ class EmptyNodeRemover:
             return ConditionNode(
                 node.addr,
                 node.reaching_condition,
-                ConditionProcessor.simplify_condition(claripy.Not(node.condition))
-                if self._claripy_ast_conditions
-                else negate(node.condition),
+                (
+                    ConditionProcessor.simplify_condition(claripy.Not(node.condition))
+                    if self._claripy_ast_conditions
+                    else negate(node.condition)
+                ),
                 false_node,
                 false_node=None,
             )

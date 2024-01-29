@@ -1,4 +1,5 @@
 """Defines analysis that will generate a dynamic data-dependency graph"""
+
 import logging
 import math
 from typing import Optional, List, Union, Dict, Set, Tuple, TYPE_CHECKING

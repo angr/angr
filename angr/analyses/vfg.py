@@ -370,9 +370,9 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
         self._record_function_final_states = record_function_final_states
 
         self._nodes: Dict[BlockID, VFGNode] = {}  # all the vfg nodes, keyed on block IDs
-        self._normal_states: Dict[
-            BlockID, SimState
-        ] = {}  # Last available state for each program point without widening
+        self._normal_states: Dict[BlockID, SimState] = (
+            {}
+        )  # Last available state for each program point without widening
         self._widened_states: Dict[BlockID, SimState] = {}  # States on which widening has occurred
 
         # Initial states of each function, which is context sensitive
@@ -398,9 +398,9 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
 
         self._thumb_addrs: Set[int] = set()  # set of all addresses that are code in thumb mode
 
-        self._final_address: Optional[
-            int
-        ] = None  # Address of the very last instruction. The analysis is terminated there.
+        self._final_address: Optional[int] = (
+            None  # Address of the very last instruction. The analysis is terminated there.
+        )
 
         self._function_merge_points: Dict[int, List[int]] = {}
         self._function_widening_points: Dict[int, List[int]] = {}

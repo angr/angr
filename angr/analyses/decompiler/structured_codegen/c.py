@@ -2801,18 +2801,24 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             result = reduce(
                 lambda a1, a2: CBinaryOp("Add", a1, a2, codegen=self),
                 (
-                    CBinaryOp(
-                        "Mul",
-                        CConstant(c, t.type, codegen=self),
-                        t
-                        if not isinstance(t.type, SimTypePointer)
-                        else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self),
-                        codegen=self,
+                    (
+                        CBinaryOp(
+                            "Mul",
+                            CConstant(c, t.type, codegen=self),
+                            (
+                                t
+                                if not isinstance(t.type, SimTypePointer)
+                                else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
+                            ),
+                            codegen=self,
+                        )
+                        if c != 1
+                        else (
+                            t
+                            if not isinstance(t.type, SimTypePointer)
+                            else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
+                        )
                     )
-                    if c != 1
-                    else t
-                    if not isinstance(t.type, SimTypePointer)
-                    else CTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
                     for c, t in o_terms
                 ),
             )
