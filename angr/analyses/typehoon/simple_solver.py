@@ -483,7 +483,9 @@ class SimpleSolver:
 
         for constraint in constraints:
             if isinstance(constraint, Subtype):
-                if constraint.super_type in PRIMITIVE_TYPES or constraint.sub_type in PRIMITIVE_TYPES:
+                if self._typevar_inside_set(constraint.super_type, PRIMITIVE_TYPES) or self._typevar_inside_set(
+                    constraint.sub_type, PRIMITIVE_TYPES
+                ):
                     continue
                 self._unify(equivalence_classes, constraint.super_type, constraint.sub_type, g)
 
@@ -496,7 +498,7 @@ class SimpleSolver:
             if label is not None and out_graph.has_edge(src_cls, dst_cls):
                 # do not add the same edge twice
                 existing_labels = {
-                    data["label"]
+                    data_["label"]
                     for _, dst_cls_, data_ in out_graph.out_edges(src_cls, data=True)
                     if dst_cls_ == dst_cls and data
                 }
