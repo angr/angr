@@ -121,7 +121,7 @@ class SimEngineVRAIL(
             if stmt.ret_expr is not None:
                 ret_expr_bits = stmt.ret_expr.bits
 
-        if not isinstance(target, ailment.Expr.Const):
+        if isinstance(target, ailment.Expr.Expression) and not isinstance(target, ailment.Expr.Const):
             # this is a dynamically calculated call target
             target_expr = self._expr(target)
             funcaddr_typevar = target_expr.typevar
