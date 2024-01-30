@@ -2,6 +2,7 @@
 from typing import Dict, Any, Optional, Set, Iterable, Tuple, Union, TYPE_CHECKING
 from itertools import count
 
+from angr.utils.constants import MAX_POINTSTO_BITS
 from .variance import Variance
 
 if TYPE_CHECKING:
@@ -553,7 +554,9 @@ class HasField(BaseLabel):
         self.offset = offset
 
     def __repr__(self):
-        return "<%d>@%d" % (self.bits, self.offset)
+        if self.bits == MAX_POINTSTO_BITS:
+            return f"<MAX_POINTSTO_BITS>@{self.offset}"
+        return f"<{self.bits} bits>@{self.offset}"
 
 
 class IsArray(BaseLabel):
