@@ -182,7 +182,7 @@ class Sketch:
     def lookup(self, typevar: Union[TypeVariable, DerivedTypeVariable]) -> Optional[SketchNodeBase]:
         if typevar in self.node_mapping:
             return self.node_mapping[typevar]
-        node = None
+        node: Optional[SketchNodeBase] = None
         if isinstance(typevar, DerivedTypeVariable):
             node = self.node_mapping[SimpleSolver._to_typevar_or_typeconst(typevar.type_var)]
             for label in typevar.labels:
@@ -195,7 +195,7 @@ class Sketch:
                     return None
                 node = succs[0]
                 if isinstance(node, RecursiveRefNode):
-                    node = node.target
+                    node = self.lookup(node.target)
         return node
 
     def add_edge(self, src: SketchNodeBase, dst: SketchNodeBase, label):
