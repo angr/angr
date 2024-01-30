@@ -29,7 +29,7 @@ from ...typehoon.rust.sim_type import RustSimType, RustSimTypeInt, RustSimTypeFu
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
-from ....utils.library import get_cpp_function_name
+from ....utils.library import get_rust_function_name
 from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
 from ..utils import structured_node_is_simple_return
 from ....errors import UnsupportedNodeTypeError
@@ -550,7 +550,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         yield "fn ", None
         # function name
         if self.demangled_name and self.show_demangled_name:
-            normalized_name = get_cpp_function_name(self.demangled_name, specialized=False, qualified=False)
+            normalized_name = get_rust_function_name(self.demangled_name)
         else:
             normalized_name = self.name
         yield normalized_name, self
@@ -682,10 +682,50 @@ class RustAILBlock(RustStatement):
 
 class RustLoop(RustStatement):  # pylint:disable=abstract-method
     """
-    Represents a loop in C.
+    Represents a loop in Rust.
     """
 
     __slots__ = ()
+
+
+class RustInfiniteLoop(RustLoop):
+    """
+    Represents an infinite loop in C.
+    """
+
+    __slots__ = (
+        "condition",
+        "body",
+        "tags",
+    )
+
+    def __init__(self, body, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.body = body
+        self.tags = tags
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+
+        yield indent_str, None
+        yield "loop", None
+        brace = RustClosingObject("{")
+        if self.codegen.braces_on_own_lines:
+            yield "\n", None
+            yield indent_str, None
+        else:
+            yield " ", None
+        if self.body is None:
+            yield ";", None
+            yield "\n", None
+        else:
+            yield "{", brace
+            yield "\n", None
+            yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}", brace
+            yield "\n", None
 
 
 class RustWhileLoop(RustLoop):
@@ -1234,7 +1274,7 @@ class RustFunctionCall(RustStatement, RustExpression):
 
         if self.callee_func is not None:
             if self.callee_func.demangled_name and self.show_demangled_name:
-                func_name = get_cpp_function_name(self.callee_func.demangled_name, specialized=False, qualified=True)
+                func_name = get_rust_function_name(self.callee_func.demangled_name)
             else:
                 func_name = self.callee_func.name
             yield func_name, self
@@ -2032,7 +2072,7 @@ class RustConstant(RustExpression):
                     yield RustConstant.str_to_c_str(v.content.decode("utf-8")), self
                     return
                 elif isinstance(v, Function):
-                    yield get_cpp_function_name(v.demangled_name, specialized=False, qualified=True), self
+                    yield get_rust_function_name(v.demangled_name), self
                     return
 
         if self.reference_values is not None and self._type is not None and self._type in self.reference_values:
@@ -2905,6 +2945,12 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         tags = {"ins_addr": loop_node.addr}
 
         if loop_node.sort == "while":
+            if loop_node.condition is None or loop_node.condition.value is True:
+                return RustInfiniteLoop(
+                    None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
+                    tags=tags,
+                    codegen=self,
+                )
             return RustWhileLoop(
                 None if loop_node.condition is None else self._handle(loop_node.condition),
                 None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),

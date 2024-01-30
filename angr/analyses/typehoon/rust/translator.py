@@ -48,6 +48,9 @@ class RustTypeTranslator(TypeTranslator):
     def _translate_Int64(self, tc):  # pylint:disable=unused-argument
         return RustSimTypeInt(size=64, signed=False).with_arch(self.arch)
 
+    def _translate_Int128(self, tc):  # pylint:disable=unused-argument
+        return RustSimTypeInt(size=128, signed=False).with_arch(self.arch)
+
     def _tc2simtype(self, tc):
         if tc is None:
             return sim_type.SimTypeBottom().with_arch(self.arch)
