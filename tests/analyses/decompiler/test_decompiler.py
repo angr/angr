@@ -2135,6 +2135,7 @@ class TestDecompiler(unittest.TestCase):
         # order of edge virtualization matters. the default edge virtualization order (post-ordering) will lead to two
         # gotos. virtualizing 0x401361 -> 0x4012b5 will lead to only one goto (because it's the edge that the
         # compiler's optimizations created).
+        # After only a single goto is remaining, Cross Jump Reverter can remove it.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "who.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -2143,14 +2144,9 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        # it should make somewhat sense
-        assert d.codegen.text.count("goto ") == 2
-
-        # a bug in propagator was leading to the removal of the comparison at 0x4012b8
-        lines = d.codegen.text.split("\n")
-        label_4012b8_index = lines.index("LABEL_4012b8:")
-        assert label_4012b8_index != -1
-        assert lines[label_4012b8_index + 1].endswith("== 2)")
+        # there are no gotos in the source code, and all structures that lead to gotos
+        # should be removed in CrossJumpReverter
+        assert d.codegen.text.count("goto ") == 0
 
     @structuring_algo("phoenix")
     def test_decompiling_tr_build_spec_list(self, decompiler_options=None):
