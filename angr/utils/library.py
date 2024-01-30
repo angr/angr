@@ -232,3 +232,14 @@ def get_cpp_function_name(demangled_name: str) -> str:
     :return:               The qualified function name, excluding return type and parameters.
     """
     return get_cpp_function_name_and_metadata(demangled_name)[0]
+
+def get_rust_function_name(demangled_name):
+    name = demangled_name
+    chunks = name.split("::")
+    name = "::".join(chunks[:-1])
+
+    # remove arguments
+    if "(" in name:
+        name = name[: name.find("(")]
+
+    return name
