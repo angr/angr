@@ -2,14 +2,10 @@ from typing import Optional, Dict, Any, Tuple, List, Union
 
 import claripy
 
-from ....sim_type import SimType, SimTypeBottom, SimTypeArray
+from ....sim_type import SimType, SimTypeBottom, SimTypeInt, SimTypeFunction, SimTypePointer
 
 
-class RustSimType(SimType):
-    def __init__(self, label=None):
-        super().__init__()
-        self.label = label
-
+class RustSimType:
     def repr(self, name=None, full=0, memo=None, indent=0):
         raise NotImplementedError()
 
@@ -17,64 +13,19 @@ class RustSimType(SimType):
         return self.repr(name, full, memo, indent)
 
 
-class RustSimTypeReg(RustSimType):
-    """
-    SimTypeReg is the base type for all types that are register-sized.
-    """
-
-    _fields = ("size",)
-
-    def __init__(self, size, label=None):
-        """
-        :param label: the type label.
-        :param size: the size of the type (e.g. 32bit, 8bit, etc.).
-        """
-        SimType.__init__(self, label=label)
-        self._size = size
-
-    def __repr__(self):
-        return f"reg{self.size}_t"
-
-    def extract(self, state, addr, concrete=False):
-        # TODO: EDG says this looks dangerously closed-minded. Just in case...
-        assert self.size % state.arch.byte_width == 0
-
-        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
-        if not concrete:
-            return out
-        return state.solver.eval(out)
-
-    def store(self, state, addr, value):
-        store_endness = state.arch.memory_endness
-        try:
-            value = value.ast
-        except AttributeError:
-            pass
-        if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
-            if value.size() != self.size:
-                raise ValueError("size of expression is wrong size for type")
-        elif isinstance(value, int):
-            value = state.solver.BVV(value, self.size)
-        elif isinstance(value, bytes):
-            store_endness = "Iend_BE"
-        else:
-            raise TypeError(f"unrecognized expression type for SimType {type(self).__name__}")
-
-        state.memory.store(addr, value, endness=store_endness)
-
-    def copy(self):
-        return self.__class__(self.size, label=self.label)
-
-
-class RustSimTypeInt(RustSimTypeReg):
+class RustSimTypeInt(RustSimType, SimTypeInt):
     def __init__(self, size=32, signed=True, label=None):
-        super().__init__(size, label)
-        self.signed = signed
+        super().__init__(signed, label)
+        self._size = size
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         if name is None or len(name) == 0:
             return self.__repr__()
         return f"let {name}: {self.__repr__()}"
+
+    @property
+    def size(self):
+        return self._size
 
     def __repr__(self):
         name = "i" if self.signed else "u"
@@ -82,7 +33,7 @@ class RustSimTypeInt(RustSimTypeReg):
         return name
 
 
-class RustSimTypeFunction(RustSimType):
+class RustSimTypeFunction(RustSimType, SimTypeFunction):
     """
     SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and
     a certain return value.
@@ -91,20 +42,14 @@ class RustSimTypeFunction(RustSimType):
     _fields = ("args", "returnty")
     base = False
 
-    def __init__(
-        self, args: List[RustSimType], returnty: Optional[RustSimType], label=None, arg_names=None, variadic=False
-    ):
+    def __init__(self, args: List[SimType], returnty: Optional[SimType], label=None, arg_names=None, variadic=False):
         """
         :param label:    The type label
         :param args:     A tuple of types representing the arguments to the function
         :param returnty: The return type of the function, or none for void
         :param variadic: Whether the function accepts varargs
         """
-        super().__init__(label=label)
-        self.args: List[RustSimType] = args
-        self.returnty: Optional[RustSimType] = returnty
-        self.arg_names = arg_names if arg_names else ()
-        self.variadic = variadic
+        super().__init__(args, returnty, label, arg_names, variadic)
 
     def __repr__(self):
         argstrs = [str(a) for a in self.args]
@@ -112,7 +57,7 @@ class RustSimTypeFunction(RustSimType):
             argstrs.append("...")
         return "({}) -> {}".format(", ".join(argstrs), self.returnty)
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def _repr(self, name=None, full=0, memo=None, indent=0):
         formatted_args = [
             a.c_repr(n, full - 1, memo, indent)
             for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
@@ -159,27 +104,22 @@ class RustSimTypeFunction(RustSimType):
         )
 
 
-class RustSimTypePointer(RustSimTypeReg):
+class RustSimTypePointer(RustSimType, SimTypePointer):
     """
     SimTypePointer is a type that specifies a pointer to some other type.
     """
-
-    _fields = tuple(x for x in RustSimTypeReg._fields if x != "size") + ("pts_to",)
 
     def __init__(self, pts_to, label=None, offset=0):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points.
         """
-        super().__init__(None, label=label)
-        self.pts_to = pts_to
-        self.signed = False
-        self.offset = offset
+        super().__init__(pts_to, label, offset)
 
     def __repr__(self):
         return f"{self.pts_to}*"
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def repr(self, name=None, full=0, memo=None, indent=0):
         # if pts_to is SimTypeBottom, we return a void*
         if isinstance(self.pts_to, SimTypeBottom):
             out = "void*"
@@ -192,29 +132,10 @@ class RustSimTypePointer(RustSimTypeReg):
             return out
         return f"{name}: {out}"
 
-    def make(self, pts_to):
-        new = type(self)(pts_to)
-        new._arch = self._arch
-        return new
-
-    @property
-    def size(self):
-        if self._arch is None:
-            raise ValueError("Can't tell my size without an arch!")
-        return self._arch.bits
-
     def _with_arch(self, arch):
         out = RustSimTypePointer(self.pts_to.with_arch(arch), self.label)
         out._arch = arch
         return out
-
-    def _init_str(self):
-        return "%s(%s%s, offset=%d)" % (
-            self.__class__.__name__,
-            self.pts_to._init_str(),
-            (', label="%s"' % self.label) if self.label is not None else "",
-            self.offset,
-        )
 
     def copy(self):
         return RustSimTypePointer(self.pts_to, label=self.label, offset=self.offset)
