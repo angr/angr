@@ -556,7 +556,7 @@ class SimpleSolver:
                     labels = curr_node.typevar.labels
                 elif isinstance(curr_node.typevar, TypeVariable):
                     base_typevar = curr_node.typevar
-                    labels = tuple()
+                    labels = ()
                 else:
                     raise TypeError("Unexpected")
                 labels += (label,)
