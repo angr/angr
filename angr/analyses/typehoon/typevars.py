@@ -300,7 +300,7 @@ class TypeVariable:
             return self.name == other.name
         return self.idx == other.idx
 
-    def _hash(self, visited=None):
+    def _hash(self, visited=None):  # pylint:disable=unused-argument
         if self.name:
             return hash((TypeVariable, self.name))
         return hash((TypeVariable, self.idx))

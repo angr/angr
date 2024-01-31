@@ -30,7 +30,7 @@ class TypeConstant:
     def pp_str(self, mapping) -> str:  # pylint:disable=unused-argument
         return repr(self)
 
-    def _hash(self, visited: Set[int]):
+    def _hash(self, visited: Set[int]):  # pylint:disable=unused-argument
         return hash(type(self))
 
     def __eq__(self, other):
@@ -213,7 +213,7 @@ class Struct(TypeConstant):
         return prefix + "{" + ", ".join(f"{k}:{v.__repr__(memo=memo)}" for k, v in self.fields.items()) + "}"
 
     def __eq__(self, other):
-        return type(other) is type(self) and self.fields == other.fields
+        return type(other) is type(self) and hash(self) == hash(other)
 
     def __hash__(self):
         return self._hash(set())

@@ -1,3 +1,4 @@
+# pylint:disable=bad-builtin
 from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
 
 from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
@@ -5,12 +6,12 @@ from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
-from .typevars import Equivalence
+from .typevars import Equivalence, Subtype, TypeVariable
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
     from angr.sim_type import SimType
-    from .typevars import TypeVariable, TypeConstraint
+    from .typevars import TypeConstraint
 
 
 class Typehoon(Analysis):

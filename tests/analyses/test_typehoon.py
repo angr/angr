@@ -15,7 +15,7 @@ from angr.analyses.typehoon.typevars import (
     Load,
     HasField,
 )
-from angr.analyses.typehoon.typeconsts import Int32
+from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64
 
 from ..common import bin_location
 
@@ -75,7 +75,12 @@ class TestTypehoon(unittest.TestCase):
         v0 = TypeVariable(name="v0")
         type_constraints = {func_f: {Subtype(v0, Int32())}}
         proj = angr.load_shellcode(b"\x90\x90", "AMD64")
-        typehoon = proj.analyses.Typehoon(type_constraints, func_f)
+        typehoon = proj.analyses.Typehoon(
+            type_constraints,
+            func_f,
+        )
+
+        assert isinstance(typehoon.solution[v0], Int32)
 
     def test_type_inference_basic_case_1(self):
         func_f = TypeVariable(name="F")
@@ -92,13 +97,21 @@ class TestTypehoon(unittest.TestCase):
                 Subtype(DerivedTypeVariable(t0, None, labels=[Load(), HasField(32, 4)]), Int32()),
                 Subtype(Int32(), DerivedTypeVariable(func_f, FuncOut(0))),
             },
-            # func_close: set(),
+            func_close: set(),
         }
         proj = angr.load_shellcode(b"\x90\x90", "AMD64")
         typehoon = proj.analyses.Typehoon(type_constraints, func_f)
 
-        print(typehoon.simtypes_solution)
-        print(typehoon.structs)
+        # print(typehoon.simtypes_solution)
+        # print(typehoon.structs)
+        t0_solution = typehoon.solution[t0]
+        assert isinstance(t0_solution, Pointer64)
+        assert isinstance(t0_solution.basetype, Struct)
+        assert 0 in t0_solution.basetype.fields
+        assert 4 in t0_solution.basetype.fields
+        assert isinstance(t0_solution.basetype.fields[0], Pointer64)
+        assert t0_solution.basetype.fields[0].basetype is t0_solution.basetype
+        assert isinstance(t0_solution.basetype.fields[4], Int32)
 
 
 if __name__ == "__main__":

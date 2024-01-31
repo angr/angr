@@ -302,7 +302,9 @@ class SimEngineVRAIL(
         for var, off_in_var in var_and_offsets:
             if self.state.typevars.has_type_variable_for(var, codeloc):
                 var_typevar = self.state.typevars.get_type_variable(var, codeloc)
-                load_typevar = self._create_access_typevar(ref_typevar, False, MAX_POINTSTO_BITS // 8, 0)
+                load_typevar = self._create_access_typevar(
+                    ref_typevar, False, MAX_POINTSTO_BITS // 8, 0 if off_in_var is None else off_in_var
+                )
                 type_constraint = typevars.Subtype(var_typevar, load_typevar)
                 self.state.add_type_constraint(type_constraint)
 

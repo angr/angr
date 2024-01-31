@@ -5,9 +5,9 @@ import networkx
 # FIXME: Remove the dependency on pyformlang
 from pyformlang.finite_automaton import Epsilon, EpsilonNFA, State, Symbol
 
+from angr.errors import AngrError
 from .typevars import BaseLabel, Subtype
 from .variance import Variance
-from angr.errors import AngrError
 
 if TYPE_CHECKING:
     from pyformlang.finite_automaton import DeterministicFiniteAutomaton
@@ -18,7 +18,9 @@ END_STATE = State("END")
 
 
 class EmptyEpsilonNFAError(AngrError):
-    pass
+    """
+    A notification exception generated when the epsilon NFA is empty.
+    """
 
 
 class DFAConstraintSolver:
@@ -26,7 +28,8 @@ class DFAConstraintSolver:
     Implements a DFA-based graph solver.
     """
 
-    def graph_to_epsilon_nfa(self, graph: networkx.DiGraph, starts: Set, ends: Set) -> EpsilonNFA:
+    @staticmethod
+    def graph_to_epsilon_nfa(graph: networkx.DiGraph, starts: Set, ends: Set) -> EpsilonNFA:
         enfa = EpsilonNFA()
 
         # print("Converting graph to eNFA")
@@ -82,7 +85,8 @@ class DFAConstraintSolver:
 
         return constraints
 
-    def _check_constraint(self, src, dst, string: List[Tuple[BaseLabel, str]]) -> Optional[Subtype]:
+    @staticmethod
+    def _check_constraint(src, dst, string: List[Tuple[BaseLabel, str]]) -> Optional[Subtype]:
         forgets = []
         recalls = []
         for label, kind in string:

@@ -225,7 +225,7 @@ class Sketch:
     @staticmethod
     def flatten_typevar(
         derived_typevar: Union[TypeVariable, TypeConstant, DerivedTypeVariable]
-    ) -> Union[DerivedTypeVariable, TypeVariable, TypeConstant]:
+    ) -> Union[DerivedTypeVariable, TypeVariable, TypeConstant]:  # pylint:disable=too-many-boolean-expressions
         if (
             isinstance(derived_typevar, DerivedTypeVariable)
             and isinstance(derived_typevar.type_var, Pointer)
@@ -397,7 +397,7 @@ class SimpleSolver:
             if self._constraints[typevar]:
                 self._constraints[typevar] |= self._eq_constraints_from_add(typevar)
                 self._constraints[typevar] = self._handle_equivalence(typevar)
-        equ_classes, sketches, type_schemes = self.solve()
+        equ_classes, sketches, _ = self.solve()
         self.solution = {}
         self._solution_cache = {}
         self.determine(equ_classes, sketches, self.solution)
@@ -418,7 +418,8 @@ class SimpleSolver:
         typevars = set(self._constraints) | self._typevars
         constraints = set()
         for tv in typevars:
-            constraints |= self._constraints[tv]
+            if tv in self._constraints:
+                constraints |= self._constraints[tv]
         equivalence_classes, sketches = self.infer_shapes(typevars, constraints)
         # TODO: Handle global variables
 
@@ -721,7 +722,8 @@ class SimpleSolver:
         self._constraint_graph_recall_forget_split(graph)
         return graph
 
-    def _constraint_graph_add_recall_edges(self, graph: networkx.DiGraph, node: ConstraintGraphNode) -> None:
+    @staticmethod
+    def _constraint_graph_add_recall_edges(graph: networkx.DiGraph, node: ConstraintGraphNode) -> None:
         while True:
             r = node.forget_last_label()
             if r is None:
@@ -730,7 +732,8 @@ class SimpleSolver:
             graph.add_edge(prefix, node, label=(last_label, "recall"))
             node = prefix
 
-    def _constraint_graph_add_forget_edges(self, graph: networkx.DiGraph, node: ConstraintGraphNode) -> None:
+    @staticmethod
+    def _constraint_graph_add_forget_edges(graph: networkx.DiGraph, node: ConstraintGraphNode) -> None:
         while True:
             r = node.forget_last_label()
             if r is None:
@@ -770,7 +773,8 @@ class SimpleSolver:
         self._constraint_graph_add_recall_edges(graph, backward_src)
         self._constraint_graph_add_forget_edges(graph, backward_dst)
 
-    def _constraint_graph_saturate(self, graph: networkx.DiGraph) -> None:
+    @staticmethod
+    def _constraint_graph_saturate(graph: networkx.DiGraph) -> None:
         """
         The saturation algorithm D.2 as described in Appendix of the retypd paper.
         """
@@ -819,12 +823,14 @@ class SimpleSolver:
                             changed = True
                             R[x_inverse].add(d)
 
-    def _constraint_graph_remove_self_loops(self, graph: networkx.DiGraph):
+    @staticmethod
+    def _constraint_graph_remove_self_loops(graph: networkx.DiGraph):
         for node in list(graph.nodes):
             if graph.has_edge(node, node):
                 graph.remove_edge(node, node)
 
-    def _constraint_graph_recall_forget_split(self, graph: networkx.DiGraph):
+    @staticmethod
+    def _constraint_graph_recall_forget_split(graph: networkx.DiGraph):
         """
         Ensure that recall edges are not reachable after traversing a forget node.
         """
@@ -1093,9 +1099,8 @@ class SimpleSolver:
         # pprint.pprint(result)
         return result
 
-    def _collect_sketch_paths(
-        self, node: SketchNodeBase, sketch: Sketch
-    ) -> List[Tuple[List[BaseLabel], SketchNodeBase]]:
+    @staticmethod
+    def _collect_sketch_paths(node: SketchNodeBase, sketch: Sketch) -> List[Tuple[List[BaseLabel], SketchNodeBase]]:
         """
         Collect all paths that go from `typevar` to its leaves.
         """
@@ -1113,7 +1118,7 @@ class SimpleSolver:
             for _, succ, data in out_edges:
                 if isinstance(succ, RecursiveRefNode):
                     ref = succ
-                    succ = sketch.lookup(succ.target)
+                    succ: Optional[SketchNode] = sketch.lookup(succ.target)
                     if succ is None:
                         # failed to resolve...
                         _l.warning(
