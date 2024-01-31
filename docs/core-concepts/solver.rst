@@ -84,7 +84,7 @@ Now, let's introduce some symbols into the mix.
    <BV64 y_10_64>
 
 ``x`` and ``y`` are now *symbolic variables*, which are kind of like the variables you learned to work with in 7th grade algebra.
-Notice that the name you provided has been been mangled by appending an incrementing counter and
+Notice that the name you provided has been mangled by appending an incrementing counter and
 You can do as much arithmetic as you want with them, but you won't get a number back, you'll get an AST instead.
 
 .. code-block:: python
