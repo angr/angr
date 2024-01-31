@@ -11,6 +11,8 @@ from angr.utils.constants import MAX_POINTSTO_BITS
 from .typevars import (
     Existence,
     Subtype,
+    Equivalence,
+    Add,
     TypeVariable,
     DerivedTypeVariable,
     HasField,
@@ -390,22 +392,27 @@ class SimpleSolver:
         #
         # Solving state
         #
-        # self._equivalence = {}
-        # self._lower_bounds = defaultdict(BottomType)
-        # self._upper_bounds = defaultdict(TopType)
-        # self._recursive_types = defaultdict(set)
-
+        self._equivalence = defaultdict(dict)
+        for typevar in list(self._constraints):
+            if self._constraints[typevar]:
+                self._constraints[typevar] |= self._eq_constraints_from_add(typevar)
+                self._constraints[typevar] = self._handle_equivalence(typevar)
         equ_classes, sketches, type_schemes = self.solve()
         self.solution = {}
         self._solution_cache = {}
         self.determine(equ_classes, sketches, self.solution)
+        for typevar in list(self._constraints):
+            self._convert_arrays(self._constraints[typevar])
 
     def solve(self):
         """
         Steps:
 
-        - Infer shapes
-        -
+        For each type variable,
+        - Infer the shape in its sketch
+        - Build the constraint graph
+        - Collect all constraints
+        - Apply constraints to derive the lower and upper bounds
         """
 
         typevars = set(self._constraints) | self._typevars
@@ -415,7 +422,6 @@ class SimpleSolver:
         equivalence_classes, sketches = self.infer_shapes(typevars, constraints)
         # TODO: Handle global variables
 
-        # TODO: Generate function-specific type schemes
         type_schemes = constraints
 
         for tv in typevars:
@@ -596,6 +602,101 @@ class SimpleSolver:
                             SimpleSolver._unify(
                                 equivalence_classes, equivalence_classes[dst0], equivalence_classes[dst1], graph
                             )
+
+    def _eq_constraints_from_add(self, typevar: TypeVariable):
+        """
+        Handle Add constraints.
+        """
+        new_constraints = set()
+        for constraint in self._constraints[typevar]:
+            if isinstance(constraint, Add):
+                if (
+                    isinstance(constraint.type_0, TypeVariable)
+                    and not isinstance(constraint.type_0, DerivedTypeVariable)
+                    and isinstance(constraint.type_r, TypeVariable)
+                    and not isinstance(constraint.type_r, DerivedTypeVariable)
+                ):
+                    new_constraints.add(Equivalence(constraint.type_0, constraint.type_r))
+                if (
+                    isinstance(constraint.type_1, TypeVariable)
+                    and not isinstance(constraint.type_1, DerivedTypeVariable)
+                    and isinstance(constraint.type_r, TypeVariable)
+                    and not isinstance(constraint.type_r, DerivedTypeVariable)
+                ):
+                    new_constraints.add(Equivalence(constraint.type_1, constraint.type_r))
+        return new_constraints
+
+    def _handle_equivalence(self, typevar: TypeVariable):
+        graph = networkx.Graph()
+
+        replacements = {}
+        constraints = set()
+
+        # collect equivalence relations
+        for constraint in self._constraints[typevar]:
+            if isinstance(constraint, Equivalence):
+                # | type_a == type_b
+                # we apply unification and removes one of them
+                ta, tb = constraint.type_a, constraint.type_b
+                if isinstance(ta, TypeConstant) and isinstance(tb, TypeVariable):
+                    # replace tb with ta
+                    replacements[tb] = ta
+                elif isinstance(ta, TypeVariable) and isinstance(tb, TypeConstant):
+                    # replace ta with tb
+                    replacements[ta] = tb
+                else:
+                    # they are both type variables. we will determine a representative later
+                    graph.add_edge(ta, tb)
+
+        for components in networkx.connected_components(graph):
+            components_lst = list(sorted(components, key=lambda x: str(x)))  # pylint:disable=unnecessary-lambda
+            representative = components_lst[0]
+            for tv in components_lst[1:]:
+                replacements[tv] = representative
+
+        # replace
+        for constraint in self._constraints[typevar]:
+            if isinstance(constraint, Existence):
+                replaced, new_constraint = constraint.replace(replacements)
+
+                if replaced:
+                    constraints.add(new_constraint)
+                else:
+                    constraints.add(constraint)
+
+            elif isinstance(constraint, Subtype):
+                # subtype <: supertype
+                # replace type variables
+                replaced, new_constraint = constraint.replace(replacements)
+
+                if replaced:
+                    constraints.add(new_constraint)
+                else:
+                    constraints.add(constraint)
+
+        # import pprint
+        # print("Replacements")
+        # pprint.pprint(replacements)
+        # print("Constraints (after replacement)")
+        # pprint.pprint(constraints)
+
+        self._equivalence = replacements
+        return constraints
+
+    def _convert_arrays(self, constraints):
+        for constraint in constraints:
+            if not isinstance(constraint, Existence):
+                continue
+            inner = constraint.type_
+            if isinstance(inner, DerivedTypeVariable) and isinstance(inner.one_label(), IsArray):
+                if inner.type_var in self.solution:
+                    curr_type = self.solution[inner.type_var]
+                    if isinstance(curr_type, Pointer) and isinstance(curr_type.basetype, Struct):
+                        # replace all fields with the first field
+                        if 0 in curr_type.basetype.fields:
+                            first_field = curr_type.basetype.fields[0]
+                            for offset in curr_type.basetype.fields.keys():
+                                curr_type.basetype.fields[offset] = first_field
 
     #
     # Constraint graph
@@ -822,9 +923,29 @@ class SimpleSolver:
             return t1
         return Top_
 
-    def determine(self, equivalent_classes, sketches, solution: Dict, nodes: Optional[Set[SketchNode]] = None):
+    def determine(
+        self,
+        equivalent_classes: Dict[TypeVariable, TypeVariable],
+        sketches,
+        solution: Dict,
+        nodes: Optional[Set[SketchNode]] = None,
+    ) -> None:
+        """
+        Determine C-like types from sketches.
+
+        :param equivalent_classes:  A dictionary mapping each type variable from its representative in the equivalence
+                                    class over ~.
+        :param sketches:            A dictionary storing sketches for each type variable.
+        :param solution:            The dictionary storing C-like types for each type variable. Output.
+        :param nodes:               Optional. Nodes that should be considered in the sketch.
+        :return:                    None
+        """
         for typevar, sketch in sketches.items():
             self._determine(equivalent_classes, typevar, sketch, solution, nodes=nodes)
+
+        for v, e in self._equivalence.items():
+            if v not in solution and e in solution:
+                solution[v] = solution[e]
 
     def _determine(
         self, equivalent_classes, the_typevar, sketch, solution: Dict, nodes: Optional[Set[SketchNode]] = None
@@ -1018,19 +1139,3 @@ class SimpleSolver:
         elif self.bits == 64:
             return Pointer64
         raise NotImplementedError("Unsupported bits %d" % self.bits)
-
-    def _convert_arrays(self, constraints):
-        # TODO: FIXME
-        for constraint in constraints:
-            if not isinstance(constraint, Existence):
-                continue
-            inner = constraint.type_
-            if isinstance(inner, DerivedTypeVariable) and isinstance(inner.label, IsArray):
-                if inner.type_var in self._lower_bounds:
-                    curr_type = self._lower_bounds[inner.type_var]
-                    if isinstance(curr_type, Pointer) and isinstance(curr_type.basetype, Struct):
-                        # replace all fields with the first field
-                        if 0 in curr_type.basetype.fields:
-                            first_field = curr_type.basetype.fields[0]
-                            for offset in curr_type.basetype.fields.keys():
-                                curr_type.basetype.fields[offset] = first_field
