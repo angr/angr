@@ -68,7 +68,7 @@ operation on bitvectors of differing lengths. You can, however, extend
 
 ``zero_extend`` will pad the bitvector on the left with the given number of zero
 bits. You can also use ``sign_extend`` to pad with a duplicate of the highest
-bit, preserving the value of the bitvector under two's compliment signed integer
+bit, preserving the value of the bitvector under two's complement signed integer
 semantics.
 
 Now, let's introduce some symbols into the mix.
@@ -84,7 +84,7 @@ Now, let's introduce some symbols into the mix.
    <BV64 y_10_64>
 
 ``x`` and ``y`` are now *symbolic variables*, which are kind of like the variables you learned to work with in 7th grade algebra.
-Notice that the name you provided has been been mangled by appending an incrementing counter and
+Notice that the name you provided has been mangled by appending an incrementing counter and
 You can do as much arithmetic as you want with them, but you won't get a number back, you'll get an AST instead.
 
 .. code-block:: python
