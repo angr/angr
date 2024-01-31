@@ -63,6 +63,8 @@ from .optimization_passes import (
 )
 from .utils import first_nonlabel_statement_id
 from ..typehoon import Typehoon
+from ..typehoon.rust.typehoon import RustTypehoon
+from ..typehoon.rust.sim_type import RustSimTypeInt
 from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
@@ -2173,7 +2175,10 @@ class Clinic(Analysis):
         bottype = SimTypeBottom().with_arch(self.project.arch)
         for var in var_manager._variables:
             if var not in var_manager.variable_to_types:
-                var_manager.set_variable_type(var, bottype)
+                if self._typehoon_cls == RustTypehoon:
+                    var_manager.set_variable_type(var, RustSimTypeInt(var.size * self.project.arch.byte_width))
+                else:
+                    var_manager.set_variable_type(var, bottype)
 
         # Unify SSA variables
         tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
