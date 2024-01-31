@@ -153,6 +153,14 @@ class Typehoon(Analysis):
         if self._var_mapping:
             for variable_typevars in self._var_mapping.values():
                 typevars |= variable_typevars
+        else:
+            # collect type variables from constraints
+            for constraint in self._constraints[self.func_var]:
+                if isinstance(constraint, Subtype):
+                    if isinstance(constraint.sub_type, TypeVariable):
+                        typevars.add(constraint.sub_type)
+                    if isinstance(constraint.super_type, TypeVariable):
+                        typevars.add(constraint.super_type)
         solver = SimpleSolver(self.bits, self._constraints, typevars)
         self.solution = solver.solution
 
