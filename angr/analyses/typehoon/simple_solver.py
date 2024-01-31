@@ -1,6 +1,5 @@
 # pylint:disable=missing-class-docstring
 from typing import Union, Type, Set, Dict, Optional, Tuple, List, DefaultDict
-import itertools
 import enum
 from collections import defaultdict
 import logging
@@ -138,9 +137,6 @@ class SketchNode(SketchNodeBase):
         return hash((SketchNode, self.typevar))
 
 
-_ref_node_ctr = itertools.count()
-
-
 class RecursiveRefNode(SketchNodeBase):
     """
     Represents a cycle in a sketch graph.
@@ -150,13 +146,12 @@ class RecursiveRefNode(SketchNodeBase):
 
     def __init__(self, target: DerivedTypeVariable):
         self.target: DerivedTypeVariable = target
-        self.idx: int = next(_ref_node_ctr)
 
     def __hash__(self):
-        return hash((RecursiveRefNode, self.idx))
+        return hash((RecursiveRefNode, self.target))
 
     def __eq__(self, other):
-        return type(other) is RecursiveRefNode and other.target is self.target and other.idx == self.idx
+        return type(other) is RecursiveRefNode and other.target == self.target
 
 
 class Sketch:
@@ -213,14 +208,15 @@ class Sketch:
             supertype, PRIMITIVE_TYPES
         ):
             super_node: Optional[SketchNode] = self.lookup(supertype)
-            assert super_node is not None
-            super_node.lower_bound = self.solver.join(super_node.lower_bound, subtype)
+            if super_node is not None:
+                super_node.lower_bound = self.solver.join(super_node.lower_bound, subtype)
         elif SimpleSolver._typevar_inside_set(supertype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             subtype, PRIMITIVE_TYPES
         ):
             sub_node: Optional[SketchNode] = self.lookup(subtype)
-            assert sub_node is not None
-            sub_node.upper_bound = self.solver.meet(sub_node.upper_bound, supertype)
+            # assert sub_node is not None
+            if sub_node is not None:
+                sub_node.upper_bound = self.solver.meet(sub_node.upper_bound, supertype)
 
     @staticmethod
     def flatten_typevar(
@@ -1085,8 +1081,9 @@ class SimpleSolver:
                 fields[offset] = sol
 
             if not fields:
+                result = Top_
                 for node in nodes:
-                    del self._solution_cache[node.typevar]
+                    self._solution_cache[node.typevar] = result
             else:
                 # back-patch
                 struct_type.fields = fields

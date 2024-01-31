@@ -38,7 +38,7 @@ class TestTypehoon(unittest.TestCase):
         # pprint.pprint(vr._outstates[0x4005b2].typevars._typevars)
         # pprint.pprint(tcons)
 
-        _ = p.analyses.Typehoon(tcons, vr.func_typevar)
+        _ = p.analyses.Typehoon(tcons, vr.func_typevar, var_mapping=vr.var_to_typevars)
         # pprint.pprint(t.simtypes_solution)
 
         # convert function blocks to AIL blocks

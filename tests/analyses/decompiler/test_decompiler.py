@@ -2410,7 +2410,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
         assert (
-            re.search(r"if \(\(unsigned int\)v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
+            re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
             or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
         )
 
