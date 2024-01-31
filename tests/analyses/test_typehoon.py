@@ -61,6 +61,7 @@ class TestTypehoon(unittest.TestCase):
         assert "->field_c = 0;" in dec.codegen.text
 
     def test_function_call_argument_type_propagation(self):
+        # ensure that UNICODE_STRING is propagated to stack variables from calls to RtlInitUnicodeString
         proj = angr.Project(os.path.join(test_location, "x86_64", "windows", "sioctl.sys"), auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
         main_func = cfg.kb.functions[0x140006000]
@@ -68,7 +69,7 @@ class TestTypehoon(unittest.TestCase):
         proj.analyses.CompleteCallingConventions()
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg.model)
-        print(dec.codegen.text)
+        assert dec.codegen.text.count("UNICODE_STRING v") == 2
 
     def test_type_inference_basic_case_0(self):
         func_f = TypeVariable(name="F")
