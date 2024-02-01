@@ -638,6 +638,19 @@ class Clinic(Analysis):
             return block_node
 
         block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
+        if block.vex.jumpkind not in {"Ijk_Call", "Ijk_Boring", "Ijk_Ret"} and not block.vex.jumpkind.startswith(
+            "Ijk_Sys"
+        ):
+            # we don't support lifting this block. use a dummy block instead
+            statements = [
+                ailment.Stmt.DirtyStatement(
+                    self._ail_manager.next_atom(),
+                    f"Unsupported jumpkind {block.vex.jumpkind} at address {block_node.addr}",
+                    ins_addr=block_node.addr,
+                )
+            ]
+            ail_block = ailment.Block(block_node.addr, block_node.size, statements=statements)
+            return ail_block
 
         ail_block = ailment.IRSBConverter.convert(block.vex, self._ail_manager)
         return ail_block
