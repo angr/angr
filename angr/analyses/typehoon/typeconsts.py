@@ -52,7 +52,7 @@ class TopType(TypeConstant):
 
 
 class BottomType(TypeConstant):
-    def __repr__(self):
+    def __repr__(self, memo=None):
         return "BOT"
 
 
