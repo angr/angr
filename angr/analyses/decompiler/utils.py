@@ -7,7 +7,9 @@ import logging
 import networkx
 
 import ailment
+
 import angr
+from .call_counter import AILBlockCallCounter
 
 _l = logging.getLogger(__name__)
 
@@ -710,6 +712,17 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
             decompilation += dec.codegen.text + "\n"
 
     return decompilation
+
+
+def calls_in_graph(graph: networkx.DiGraph) -> int:
+    """
+    Counts the number of calls in an graph full of AIL Blocks
+    """
+    counter = AILBlockCallCounter()
+    for node in graph.nodes:
+        counter.walk(node)
+
+    return counter.calls
 
 
 # delayed import

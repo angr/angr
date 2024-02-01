@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Dict, List, TYPE_CHECKING, Optional
+from typing import Any, Tuple, Dict, List
 from itertools import count
 import copy
 import logging
@@ -8,36 +8,16 @@ import ailment.expression
 import networkx
 
 from ailment import Block
-from ailment.statement import Jump, ConditionalJump, Assignment, Statement, Return, Label
+from ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
 from ailment.expression import Const
-from ailment.block_walker import AILBlockWalkerBase
 
 from .optimization_pass import StructuringOptimizationPass
 from ..condition_processor import ConditionProcessor, EmptyBlockNotice
 from ..graph_region import GraphRegion
-from ..utils import remove_labels, to_ail_supergraph
+from ..utils import remove_labels, to_ail_supergraph, calls_in_graph
 from ..structuring.structurer_nodes import MultiNode
 
-if TYPE_CHECKING:
-    from ailment.statement import Call
-
 _l = logging.getLogger(name=__name__)
-
-
-class AILCallCounter(AILBlockWalkerBase):
-    """
-    Helper class to count AIL Calls in a block.
-    """
-
-    calls = 0
-
-    def _handle_Call(self, stmt_idx: int, stmt: "Call", block: Optional["Block"]):
-        self.calls += 1
-        super()._handle_Call(stmt_idx, stmt, block)
-
-    def _handle_CallExpr(self, expr_idx: int, expr: "Call", stmt_idx: int, stmt: Statement, block: Optional[Block]):
-        self.calls += 1
-        super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class ReturnDuplicator(StructuringOptimizationPass):
@@ -207,7 +187,7 @@ class ReturnDuplicator(StructuringOptimizationPass):
 
             # to assure we are not copying like crazy, set a max amount of code (which is estimated in calls)
             # that can be copied in a region
-            if self._number_of_calls_in(region) > self._max_calls_in_region:
+            if calls_in_graph(region) > self._max_calls_in_region:
                 continue
 
             end_node_regions[region_head] = in_edges, region
@@ -382,14 +362,6 @@ class ReturnDuplicator(StructuringOptimizationPass):
             valid_assignment = False
 
         return valid_assignment
-
-    @staticmethod
-    def _number_of_calls_in(graph: networkx.DiGraph) -> int:
-        counter = AILCallCounter()
-        for node in graph.nodes:
-            counter.walk(node)
-
-        return counter.calls
 
     @staticmethod
     def _single_entry_region(graph, end_node) -> Tuple[networkx.DiGraph, Any]:

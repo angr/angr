@@ -21,6 +21,7 @@ from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp
 from .ret_deduplicator import ReturnDeduplicator
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
+from .cross_jump_reverter import CrossJumpReverter
 
 # order matters!
 _all_optimization_passes = [
@@ -40,6 +41,7 @@ _all_optimization_passes = [
     (ReturnDuplicator, True),
     (LoweredSwitchSimplifier, False),
     (ReturnDeduplicator, True),
+    (CrossJumpReverter, True),
     (FlipBooleanCmp, True),
 ]
 
