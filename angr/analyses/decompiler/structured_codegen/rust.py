@@ -176,7 +176,7 @@ def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
     return None
 
 
-def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
+def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
     """
@@ -195,7 +195,7 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
             ) + indent_str  # TODO: hardcoded as 4 character space indents, which is same as SimStruct.c_repr
             for k, v in ty.fields.items():
                 yield new_indent_str, None
-                yield from type_to_c_repr_chunks(
+                yield from type_to_rust_repr_chunks(
                     v, name=k, name_type=RustStructFieldNameDef(k), full=False, indent_str=""
                 )
                 yield ";\n", None
@@ -213,26 +213,14 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
             yield " ", None
             if name:
                 yield name, name_type
-    elif isinstance(ty, SimType):
+    elif isinstance(ty, RustSimType):
         assert name
         assert name_type
-        raw_type_str = ty.c_repr(name=name)
-        assert name in raw_type_str
-
-        type_pre, type_post = raw_type_str.split(name, 1)
-
-        if type_pre.endswith(" "):
-            type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
-            type_pre = type_pre.rstrip(" ")
-        else:
-            type_pre_spaces = ""
 
         yield indent_str, None
-        yield type_pre, ty
-        if type_pre_spaces:
-            yield type_pre_spaces, None
+        yield ty.repr(), ty
+        yield ": ", None
         yield name, name_type
-        yield type_post, RustArrayTypeLength(type_post)
     # This case was used when generating externs, apparently there can be cases where the name is not known
     elif ty is None:
         assert name
@@ -491,7 +479,8 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:
-                    yield from type_to_c_repr_chunks(var_type, name=name, name_type=cvariable)
+                    yield "let ", None
+                    yield from type_to_rust_repr_chunks(var_type, name=name, name_type=cvariable)
                     yield ";  // ", None
                     yield variable.loc_repr(self.codegen.project.arch), None
                 # multiple types
@@ -525,7 +514,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
                         if isinstance(field, SimStruct) and field not in local_types:
                             local_types.append(field)
 
-                yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
+                yield from type_to_rust_repr_chunks(ty, full=True, indent_str=indent_str)
 
         if self.codegen.show_externs and self.codegen.cexterns:
             for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
@@ -534,7 +523,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
                 else:
                     varname = v.variable.name
                 yield "extern ", None
-                yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
+                yield from type_to_rust_repr_chunks(v.type, name=varname, name_type=v, full=False)
                 yield ";\n", None
             yield "\n", None
 
@@ -563,7 +552,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
                 yield ", ", None
 
             variable = cvariable.unified_variable or cvariable.variable
-            yield from type_to_c_repr_chunks(arg_type, name=variable.name, name_type=cvariable, full=False)
+            yield from type_to_rust_repr_chunks(arg_type, name=variable.name, name_type=cvariable, full=False)
 
         yield ")", paren
         yield " -> ", None

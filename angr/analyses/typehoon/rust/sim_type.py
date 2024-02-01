@@ -21,7 +21,7 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
     def repr(self, name=None, full=0, memo=None, indent=0):
         if name is None or len(name) == 0:
             return self.__repr__()
-        return f"let {name}: {self.__repr__()}"
+        return f"{name}: {self.__repr__()}"
 
     @property
     def size(self):

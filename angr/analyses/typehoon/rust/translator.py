@@ -4,7 +4,7 @@ from itertools import count
 from ..translator import TypeTranslator
 from .... import sim_type
 from ....sim_type import SimType
-from .sim_type import RustSimTypeInt, RustSimTypePointer
+from .sim_type import RustSimTypeInt, RustSimTypePointer, RustSimType
 from .. import typeconsts
 from ..typeconsts import TypeConstant
 
@@ -63,7 +63,9 @@ class RustTypeTranslator(TypeTranslator):
         translated = handler(self, tc)
         return translated
 
-    def ctype2rust(self, simtype: sim_type.SimType):
+    def ctype2rust(self, simtype: Union[sim_type.SimType, RustSimType]):
+        if isinstance(simtype, RustSimType):
+            return simtype
         tc = self.simtype2tc(simtype)
         return self.tc2simtype(tc)[0]
 
