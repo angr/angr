@@ -91,7 +91,7 @@ class TypeTranslator:
             internal = self._tc2simtype(tc.basetype)
         return sim_type.SimTypePointer(internal).with_arch(self.arch)
 
-    def _translate_Array(self, tc: typeconsts.Array):
+    def _translate_Array(self, tc: typeconsts.Array) -> sim_type.SimTypeArray:
         elem_type = self._tc2simtype(tc.element)
         return sim_type.SimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
 

@@ -37,6 +37,7 @@ from .typeconsts import (
     Pointer32,
     Pointer64,
     Struct,
+    Array,
     Function,
     int_type,
 )
@@ -57,6 +58,7 @@ PRIMITIVE_TYPES = {
     Pointer64(),
     BottomType(),
     Struct(),
+    Array(),
 }
 
 Top_ = TopType()
@@ -69,6 +71,7 @@ Bottom_ = BottomType()
 Pointer64_ = Pointer64()
 Pointer32_ = Pointer32()
 Struct_ = Struct()
+Array_ = Array()
 
 # lattice for 64-bit binaries
 BASE_LATTICE_64 = networkx.DiGraph()
@@ -869,6 +872,8 @@ class SimpleSolver:
                 SimpleSolver._typevar_inside_set(field_typevar, typevar_set)
                 for field_typevar in typevar.fields.values()
             )
+        if isinstance(typevar, Array) and Array_ in typevar_set:
+            return SimpleSolver._typevar_inside_set(typevar.element, typevar_set)
         if isinstance(typevar, Pointer) and (Pointer32_ in typevar_set or Pointer64_ in typevar_set):
             return SimpleSolver._typevar_inside_set(typevar.basetype, typevar_set)
         return False

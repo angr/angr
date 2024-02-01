@@ -9,8 +9,9 @@ from ...sim_type import (
     SimTypeLongLong,
     SimTypePointer,
     SimStruct,
+    SimTypeArray,
 )
-from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64, Struct
+from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64, Struct, Array
 
 if TYPE_CHECKING:
     from .typeconsts import TypeConstant
@@ -57,12 +58,17 @@ class TypeLifter:
     def _lift_SimStruct(self, ty: SimStruct) -> Union["TypeConstant", BottomType]:
         converted_fields = {}
         field_names = {}
+        ty_offsets = ty.offsets
         for field_name, simtype in ty.fields.items():
-            if field_name not in ty.offsets:
+            if field_name not in ty_offsets:
                 return BottomType()
-            converted_fields[ty.offsets[field_name]] = self.lift(simtype)
-            field_names[ty.offsets[field_name]] = field_name
+            converted_fields[ty_offsets[field_name]] = self.lift(simtype)
+            field_names[ty_offsets[field_name]] = field_name
         return Struct(fields=converted_fields, name=ty.name, field_names=field_names)
+
+    def _lift_SimTypeArray(self, ty: SimTypeArray) -> Array:
+        elem_type = self.lift(ty.elem_type)
+        return Array(elem_type, count=ty.length)
 
 
 _mapping = {
@@ -73,4 +79,5 @@ _mapping = {
     SimTypeLongLong: TypeLifter._lift_SimTypeLongLong,
     SimTypePointer: TypeLifter._lift_SimTypePointer,
     SimStruct: TypeLifter._lift_SimStruct,
+    SimTypeArray: TypeLifter._lift_SimTypeArray,
 }
