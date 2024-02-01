@@ -614,6 +614,8 @@ def pc_actions_SMULQ(*args, **kwargs):
 
 def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform: Platform):
     # sanity check
+    if not isinstance(cc_op, int) and cc_op.depth > 400 and cc_op.symbolic:
+        return state.solver.BVS("symbolized_flag_"+str(state.globals['cur_block_id']), state.arch.bits)
     cc_op = op_concretize(cc_op)
 
     if cc_op == data[platform]["OpTypes"]["G_CC_OP_COPY"]:

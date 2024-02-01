@@ -108,17 +108,13 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         #symbolize the previously(previous analysis) found non constants and return that
         #if self.project.symbolic_expr_locations_blockwise and not self.state.solver.symbolic(result[0]) and self.state.globals['cur_block_id'] in self.project.symbolic_expr_locations_blockwise:
-        ## I THINK I CAN REMOVE THIS
-        if not self.state.solver.symbolic(result[0]) and self.project.prev_symbolic_expr_locations_blockwise and self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
-            import ipdb;ipdb.set_trace()
+        if not self.state.solver.symbolic(simp_result) and self.project.prev_symbolic_expr_locations_blockwise and \
+                self.state.globals['cur_block_id'] in self.project.prev_symbolic_expr_locations_blockwise:
             for codeloc, expr_list in self.project.prev_symbolic_expr_locations_blockwise[self.state.globals['cur_block_id']].items():
                 for to_repl_expr in expr_list:
                     if codeloc.stmt_idx == self.state.scratch.stmt_idx and to_repl_expr == expr:
-                        sym_result = self.state.solver.BVS("symbolified_expr", result[0].size())
-
-                        #sym_result = annotate_with_new_replacements(start_state, sym_result, )
-                        #self.state.preconstrainer.preconstrain(self.state.solver.eval(result[0]), sym_result)
-                        new_result = sym_result
+                        #sym_result = self.state.solver.BVS("symbolified_expr", simp_result.size())
+                        sym_result = PropagatorState.top(simp_result.size())
                         return [sym_result, result[1]]
 
         ## Do we still need this stack touched thingy?? Not very accurate, we should actually be tracking local variables on the stack, since junk values can always be pushed and popped from the stack
@@ -168,6 +164,9 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr[0])
             except SimValueError:
                 pass
+            except claripy.ClaripyError:
+                import ipdb;ipdb.set_trace()
+                simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr[0])
         result = super()._perform_vex_expr_Load((simplified_addr, addr[1]), ty, endness, **kwargs)
 
 
