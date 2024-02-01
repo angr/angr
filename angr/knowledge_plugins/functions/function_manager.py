@@ -352,7 +352,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
     def get_by_name(self, name: str, check_previous_names: bool=False) -> Generator[Function, None, None]:
         for f in self._function_map.values():
-            if f.name == name or (check_previous_names and name in func.previous_names):
+            if f.name == name or (check_previous_names and name in f.previous_names):
                 yield f
 
     def _function_added(self, func: Function):
