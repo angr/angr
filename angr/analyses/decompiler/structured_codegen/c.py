@@ -472,7 +472,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield indent_str, None
 
             # pick the first cvariable
-            # this is enough since highlighting works on the unified variable
+            # picking any cvariable is enough since highlighting works on the unified variable
             try:
                 cvariable = next(iter(cvar_and_vartypes))[0]
             except StopIteration:
@@ -486,9 +486,19 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             else:
                 name = str(variable)
 
-            # sort by number of occurrences
+            # sort by number of occurrences, with a preference of non-basic types
+            # TODO: The type selection should actually happen during variable unification
             vartypes = [x[1] for x in cvar_and_vartypes]
+            nonprimitive_vartypes = [
+                vt for vt in vartypes if not isinstance(vt, (SimTypeChar, SimTypeInt, SimTypeFloat))
+            ]
             vartypes = list(dict.fromkeys(sorted(vartypes, key=vartypes.count, reverse=True)))
+            if nonprimitive_vartypes:
+                nonprimitive_vartypes = list(
+                    dict.fromkeys(sorted(nonprimitive_vartypes, key=nonprimitive_vartypes.count, reverse=True))
+                )
+                vartypes.remove(nonprimitive_vartypes[0])
+                vartypes.insert(0, nonprimitive_vartypes[0])
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:

@@ -908,8 +908,16 @@ class SimpleSolver:
     #
 
     def join(self, t1: Union[TypeConstant, TypeVariable], t2: Union[TypeConstant, TypeVariable]) -> TypeConstant:
-        if t1 in self._base_lattice and t2 in self._base_lattice:
-            return networkx.lowest_common_ancestor(self._base_lattice, t1, t2)
+        abstract_t1 = self.abstract(t1)
+        abstract_t2 = self.abstract(t2)
+        if abstract_t1 in self._base_lattice and abstract_t2 in self._base_lattice:
+            ancestor = networkx.lowest_common_ancestor(self._base_lattice, abstract_t1, abstract_t2)
+            if ancestor == abstract_t1:
+                return t1
+            elif ancestor == abstract_t2:
+                return t2
+            else:
+                return ancestor
         if t1 == Bottom_:
             return t2
         if t2 == Bottom_:
@@ -917,13 +925,28 @@ class SimpleSolver:
         return Bottom_
 
     def meet(self, t1: Union[TypeConstant, TypeVariable], t2: Union[TypeConstant, TypeVariable]) -> TypeConstant:
-        if t1 in self._base_lattice_inverted and t2 in self._base_lattice_inverted:
-            return networkx.lowest_common_ancestor(self._base_lattice_inverted, t1, t2)
+        abstract_t1 = self.abstract(t1)
+        abstract_t2 = self.abstract(t2)
+        if abstract_t1 in self._base_lattice_inverted and abstract_t2 in self._base_lattice_inverted:
+            ancestor = networkx.lowest_common_ancestor(self._base_lattice_inverted, abstract_t1, abstract_t2)
+            if ancestor == abstract_t1:
+                return t1
+            elif ancestor == abstract_t2:
+                return t2
+            else:
+                return ancestor
         if t1 == Top_:
             return t2
         if t2 == Top_:
             return t1
         return Top_
+
+    def abstract(self, t: Union[TypeConstant, TypeVariable]) -> Union[TypeConstant, TypeVariable]:
+        if isinstance(t, Pointer32):
+            return Pointer32()
+        elif isinstance(t, Pointer64):
+            return Pointer64()
+        return t
 
     def determine(
         self,
@@ -1037,6 +1060,24 @@ class SimpleSolver:
                 self._solution_cache[node.typevar] = result
 
         else:
+            if len(nodes) == 1:
+                the_node = next(iter(nodes))
+                if (
+                    isinstance(the_node.upper_bound, self._pointer_class())
+                    and isinstance(the_node.upper_bound.basetype, Struct)
+                    and the_node.upper_bound.basetype.name
+                ):
+                    # handle pointers to known struct types
+                    result = (
+                        the_node.lower_bound
+                        if not isinstance(the_node.lower_bound, BottomType)
+                        else the_node.upper_bound
+                    )
+                    for node in nodes:
+                        solution[node.typevar] = result
+                        self._solution_cache[node.typevar] = result
+                    return result
+
             # create a dummy result and shove it into the cache
             struct_type = Struct(fields={})
             result = self._pointer_class()(struct_type)

@@ -45,6 +45,9 @@ class TypeConstant:
             raise NotImplementedError()
         return self.SIZE
 
+    def __repr__(self, memo=None):
+        raise NotImplementedError()
+
 
 class TopType(TypeConstant):
     def __repr__(self, memo=None):
@@ -148,7 +151,7 @@ class Pointer32(Pointer, Int32):
 
     @memoize
     def __repr__(self, memo=None):
-        return f"ptr32({self.basetype.__repr__(memo=memo)})"
+        return f"ptr32({self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)})"
 
 
 class Pointer64(Pointer, Int64):
@@ -161,7 +164,7 @@ class Pointer64(Pointer, Int64):
 
     @memoize
     def __repr__(self, memo=None):
-        return f"ptr64({self.basetype.__repr__(memo=memo)})"
+        return f"ptr64({self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)})"
 
 
 class Array(TypeConstant):
