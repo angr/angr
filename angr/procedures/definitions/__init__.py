@@ -1,12 +1,14 @@
+# pylint:disable=arguments-renamed,global-statement
 import copy
 import os
-import archinfo
-from collections import defaultdict
 import logging
 import inspect
+from collections import defaultdict
 from typing import Optional, Dict, Type, List, TYPE_CHECKING
 
 import itanium_demangler
+
+import archinfo
 
 from ...sim_type import parse_cpp_file, SimTypeFunction
 from ...calling_conventions import DEFAULT_CC
