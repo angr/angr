@@ -80,7 +80,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
         updates = False
         for target_node, goto_node in to_update.items():
-            if goto_node not in self.out_graph:
+            if (target_node, goto_node) not in self.out_graph.edges:
                 continue
 
             # always make a copy if there is a goto edge
