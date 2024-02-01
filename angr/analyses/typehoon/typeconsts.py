@@ -195,9 +195,10 @@ class Array(TypeConstant):
 
 
 class Struct(TypeConstant):
-    def __init__(self, fields=None, name=None):
+    def __init__(self, fields=None, name=None, field_names=None):
         self.fields = {} if fields is None else fields  # offset to type
         self.name = name
+        self.field_names = field_names
 
     def _hash(self, visited: Set[int]):
         if id(self) in visited:
