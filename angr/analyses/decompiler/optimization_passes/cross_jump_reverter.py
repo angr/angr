@@ -4,7 +4,7 @@ import logging
 import inspect
 
 from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
-from ..utils import AILCallCounter
+from ..call_counter import AILBlockCallCounter
 
 l = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
             if self.out_graph.out_degree(goto_target) != 1:
                 continue
 
-            counter = AILCallCounter()
+            counter = AILBlockCallCounter()
             counter.walk(goto_target)
             if counter.calls > self._max_call_dup:
                 continue

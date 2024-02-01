@@ -9,6 +9,7 @@ import networkx
 import ailment
 
 import angr
+from .call_counter import AILBlockCallCounter
 
 _l = logging.getLogger(__name__)
 
@@ -713,34 +714,11 @@ def decompile_functions(path, functions=None, structurer=None, catch_errors=Fals
     return decompilation
 
 
-class AILCallCounter(ailment.AILBlockWalkerBase):
-    """
-    Helper class to count AIL Calls in a block.
-    """
-
-    calls = 0
-
-    def _handle_Call(self, stmt_idx: int, stmt: ailment.statement.Call, block: Optional[ailment.Block]):
-        self.calls += 1
-        super()._handle_Call(stmt_idx, stmt, block)
-
-    def _handle_CallExpr(
-        self,
-        expr_idx: int,
-        expr: ailment.statement.Call,
-        stmt_idx: int,
-        stmt: ailment.statement.Statement,
-        block: Optional[ailment.Block],
-    ):
-        self.calls += 1
-        super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
-
-
 def calls_in_graph(graph: networkx.DiGraph) -> int:
     """
     Counts the number of calls in an graph full of AIL Blocks
     """
-    counter = AILCallCounter()
+    counter = AILBlockCallCounter()
     for node in graph.nodes:
         counter.walk(node)
 
