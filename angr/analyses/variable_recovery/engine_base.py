@@ -1,4 +1,4 @@
-from typing import Optional, Set, List, Tuple, TYPE_CHECKING
+from typing import Optional, Set, List, Tuple, Union, TYPE_CHECKING
 import logging
 
 import claripy
@@ -9,6 +9,7 @@ from ...errors import SimEngineError, SimMemoryMissingError
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...code_location import CodeLocation
 from ..typehoon import typevars, typeconsts
+from ..typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
 
 if TYPE_CHECKING:
     from .variable_recovery_base import VariableRecoveryStateBase
@@ -139,11 +140,13 @@ class SimEngineVRBase(SimEngineLight):
     # Logic
     #
 
-    def _ensure_variable_existence(self, richr_addr: RichR, codeloc: CodeLocation, src_expr=None):
+    def _ensure_variable_existence(
+        self, richr_addr: RichR, codeloc: CodeLocation, src_expr=None
+    ) -> Optional[List[Tuple[SimVariable, int]]]:
         data: claripy.ast.Base = richr_addr.data
 
         if data is None:
-            return
+            return None
 
         if self.state.is_stack_address(data):
             # this is a stack address
@@ -226,13 +229,15 @@ class SimEngineVRBase(SimEngineLight):
                 existing_vars = [(variable, 0)]
 
         else:
-            return
+            return None
 
         # record all variables
         for var, offset in existing_vars:
             if offset == 0:
                 offset = None
             variable_manager.record_variable(codeloc, var, offset, atom=src_expr)
+
+        return existing_vars
 
     def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
         data: claripy.ast.Base = richr.data
@@ -534,17 +539,11 @@ class SimEngineVRBase(SimEngineLight):
             # it's an array!
             if offset.concrete and elem_size.concrete:
                 concrete_offset = offset.concrete_value * elem_size.concrete_value
-                store_typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                    typevars.HasField(size * self.state.arch.byte_width, concrete_offset),
-                )
-                self.state.add_type_constraint(typevars.Existence(store_typevar))
+                store_typevar = self._create_access_typevar(typevar, True, size, concrete_offset)
+                self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
             else:
-                store_typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                    typevars.HasField(size * self.state.arch.byte_width, 0),
-                )
-                self.state.add_type_constraint(typevars.Existence(store_typevar))
+                store_typevar = self._create_access_typevar(typevar, True, size, 0)
+                self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
             # FIXME: This is a hack so that we can interpret the target as an array
             is_array = typevars.DerivedTypeVariable(typevar, typevars.IsArray())
             self.state.add_type_constraint(typevars.Existence(is_array))
@@ -556,11 +555,8 @@ class SimEngineVRBase(SimEngineLight):
             # it's just a variable
             # however, since it's a global address, we still treat it as writing to a location
             if data.typevar is not None:
-                store_typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                    typevars.HasField(size * self.state.arch.byte_width, 0),
-                )
-                self.state.add_type_constraint(typevars.Existence(store_typevar))
+                store_typevar = self._create_access_typevar(typevar, True, size, 0)
+                self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
 
     def _store_to_variable(self, richr_addr: RichR, size: int, stmt=None):  # pylint:disable=unused-argument
@@ -578,9 +574,9 @@ class SimEngineVRBase(SimEngineLight):
             typevar = richr_addr.typevar
 
         if typevar is not None:
-            if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.label, typevars.AddN):
+            if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.one_label, typevars.AddN):
                 base_typevar = typevar.type_var
-                field_offset = typevar.label.n
+                field_offset = typevar.one_label.n
             else:
                 base_typevar = typevar
                 field_offset = 0
@@ -588,13 +584,10 @@ class SimEngineVRBase(SimEngineLight):
             # if addr_variable is not None:
             #     self.variable_manager[self.func_addr].reference_at(addr_variable, field_offset, codeloc, atom=stmt)
 
-            store_typevar = typevars.DerivedTypeVariable(
-                typevars.DerivedTypeVariable(base_typevar, typevars.Store()),
-                typevars.HasField(size * self.state.arch.byte_width, field_offset),
-            )
+            store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
             if addr_variable is not None:
                 self.state.typevars.add_type_variable(addr_variable, codeloc, typevar)
-            self.state.add_type_constraint(typevars.Existence(store_typevar))
+            self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
 
     def _load(self, richr_addr: RichR, size: int, expr=None):
         """
@@ -758,20 +751,17 @@ class SimEngineVRBase(SimEngineLight):
         # parse the loading offset
         offset = 0
         if isinstance(richr_addr.typevar, typevars.DerivedTypeVariable) and isinstance(
-            richr_addr.typevar.label, typevars.AddN
+            richr_addr.typevar.one_label, typevars.AddN
         ):
-            offset = richr_addr.typevar.label.n
+            offset = richr_addr.typevar.one_label.n
             richr_addr_typevar = richr_addr.typevar.type_var  # unpack
         else:
             richr_addr_typevar = richr_addr.typevar
 
         if richr_addr_typevar is not None:
             # create a type constraint
-            typevar = typevars.DerivedTypeVariable(
-                typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
-                typevars.HasField(size * self.state.arch.byte_width, offset),
-            )
-            self.state.add_type_constraint(typevars.Existence(typevar))
+            typevar = self._create_access_typevar(richr_addr_typevar, False, size, offset)
+            self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.TopType()))
 
         return RichR(self.state.top(size * self.state.arch.byte_width), typevar=typevar)
 
@@ -832,20 +822,14 @@ class SimEngineVRBase(SimEngineLight):
             # it's an array!
             if offset.concrete and elem_size.concrete:
                 concrete_offset = offset.concrete_value * elem_size.concrete_value
-                load_typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                    typevars.HasField(size * self.state.arch.byte_width, concrete_offset),
-                )
-                self.state.add_type_constraint(typevars.Existence(load_typevar))
+                load_typevar = self._create_access_typevar(typevar, True, size, concrete_offset)
+                self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))
             else:
                 # FIXME: This is a hack
                 for i in range(0, 4):
                     concrete_offset = size * i
-                    load_typevar = typevars.DerivedTypeVariable(
-                        typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                        typevars.HasField(size * self.state.arch.byte_width, concrete_offset),
-                    )
-                    self.state.add_type_constraint(typevars.Existence(load_typevar))
+                    load_typevar = self._create_access_typevar(typevar, True, size, concrete_offset)
+                    self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))
 
         return RichR(self.state.top(size * self.state.arch.byte_width), typevar=typevar)
 
@@ -931,3 +915,26 @@ class SimEngineVRBase(SimEngineLight):
             # ignore the variable and the associated type if we are only reading part of the variable
             return RichR(r_value, variable=var)
         return RichR(r_value, variable=var, typevar=typevar)
+
+    def _create_access_typevar(
+        self, typevar: Union[TypeVariable, DerivedTypeVariable], is_store: bool, size: int, offset: int
+    ) -> DerivedTypeVariable:
+        if isinstance(typevar, DerivedTypeVariable):
+            if isinstance(typevar.labels[-1], AddN):
+                offset += typevar.labels[-1].n
+                if len(typevar.labels) == 1:
+                    typevar = typevar.type_var
+                else:
+                    typevar = DerivedTypeVariable(typevar.type_var, None, labels=typevar.labels[:-1])
+            elif isinstance(typevar.labels[-1], SubN):
+                offset -= typevar.labels[-1].n
+                if len(typevar.labels) == 1:
+                    typevar = typevar.type_var
+                else:
+                    typevar = DerivedTypeVariable(typevar.type_var, None, labels=typevar.labels[:-1])
+        lbl = Store() if is_store else Load()
+        return DerivedTypeVariable(
+            typevar,
+            None,
+            labels=(lbl, typevars.HasField(size * self.state.arch.byte_width, offset)),
+        )

@@ -6,6 +6,7 @@ import ailment
 import claripy
 from unique_log_filter import UniqueLogFilter
 
+from angr.utils.constants import MAX_POINTSTO_BITS
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction
 from ...engines.light import SimEngineLightAILMixin
@@ -119,6 +120,13 @@ class SimEngineVRAIL(
             # this is a call expression. we just return the value at the end of this method
             if stmt.ret_expr is not None:
                 ret_expr_bits = stmt.ret_expr.bits
+
+        if isinstance(target, ailment.Expr.Expression) and not isinstance(target, ailment.Expr.Const):
+            # this is a dynamically calculated call target
+            target_expr = self._expr(target)
+            funcaddr_typevar = target_expr.typevar
+            load_typevar = self._create_access_typevar(target_expr.typevar, False, self.arch.bytes, 0)
+            self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
 
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
@@ -249,7 +257,9 @@ class SimEngineVRAIL(
         r = self._expr(expr.operand)
         typevar = None
         if r.typevar is not None:
-            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(r.typevar.label, typevars.ConvertTo):
+            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
+                r.typevar.one_label, typevars.ConvertTo
+            ):
                 # there is already a conversion - overwrite it
                 if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
                     typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ConvertTo(expr.to_bits))
@@ -264,7 +274,7 @@ class SimEngineVRAIL(
         typevar = None
         if r.typevar is not None:
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
-                r.typevar.label, typevars.ReinterpretAs
+                r.typevar.one_label, typevars.ReinterpretAs
             ):
                 # there is already a reinterpretas - overwrite it
                 typevar = typevars.DerivedTypeVariable(
@@ -276,18 +286,27 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
-        typevar = self.state.stack_offset_typevars.get(expr.offset, None)
+        ref_typevar = self.state.stack_offset_typevars.get(expr.offset, None)
 
-        if typevar is None:
+        if ref_typevar is None:
             # allocate a new type variable
-            typevar = typevars.TypeVariable()
-            self.state.stack_offset_typevars[expr.offset] = typevar
+            ref_typevar = typevars.TypeVariable()
+            self.state.stack_offset_typevars[expr.offset] = ref_typevar
 
         value_v = self.state.stack_address(expr.offset)
-        richr = RichR(value_v, typevar=typevar)
-        self._ensure_variable_existence(richr, self._codeloc(), src_expr=expr)
+        richr = RichR(value_v, typevar=ref_typevar)
+        codeloc = self._codeloc()
+        var_and_offsets = self._ensure_variable_existence(richr, codeloc, src_expr=expr)
         if self._reference_spoffset:
-            self._reference(richr, self._codeloc(), src=expr)
+            self._reference(richr, codeloc, src=expr)
+        for var, off_in_var in var_and_offsets:
+            if self.state.typevars.has_type_variable_for(var, codeloc):
+                var_typevar = self.state.typevars.get_type_variable(var, codeloc)
+                load_typevar = self._create_access_typevar(
+                    ref_typevar, False, MAX_POINTSTO_BITS // 8, 0 if off_in_var is None else off_in_var
+                )
+                type_constraint = typevars.Subtype(var_typevar, load_typevar)
+                self.state.add_type_constraint(type_constraint)
 
         return richr
 

@@ -1,16 +1,17 @@
+# pylint:disable=bad-builtin
 from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
 
 from ...sim_type import SimStruct, SimTypePointer, SimTypeArray
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Struct, Pointer, TypeConstant, Array
-from .typevars import Equivalence
+from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
+from .typevars import Equivalence, Subtype, TypeVariable
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
     from angr.sim_type import SimType
-    from .typevars import TypeVariable, TypeConstraint
+    from .typevars import TypeConstraint
 
 
 class Typehoon(Analysis):
@@ -30,6 +31,7 @@ class Typehoon(Analysis):
     def __init__(
         self,
         constraints,
+        func_var,
         ground_truth=None,
         var_mapping: Optional[Dict["SimVariable", Set["TypeVariable"]]] = None,
         must_struct: Optional[Set["TypeVariable"]] = None,
@@ -43,9 +45,10 @@ class Typehoon(Analysis):
         :param must_struct:
         """
 
-        self._constraints: Set["TypeConstraint"] = constraints
+        self.func_var: "TypeVariable" = func_var
+        self._constraints: Dict["TypeVariable", Set["TypeConstraint"]] = constraints
         self._ground_truth: Optional[Dict["TypeVariable", "SimType"]] = ground_truth
-        self._var_mapping = var_mapping  # variable mapping is only used for debugging purposes
+        self._var_mapping = var_mapping
         self._must_struct = must_struct
 
         self.bits = self.project.arch.bits
@@ -95,9 +98,11 @@ class Typehoon(Analysis):
             for tv in typevars:
                 typevar_to_var[tv] = k
 
-        print(f"### {len(self._constraints)} constraints")
-        for constraint in self._constraints:
-            print("    " + constraint.pp_str(typevar_to_var))
+        print(f"### {sum(map(len, self._constraints.values()))} constraints")
+        for func_var in self._constraints:
+            print(f"{func_var}:")
+            for constraint in self._constraints[func_var]:
+                print("    " + constraint.pp_str(typevar_to_var))
         print("### end of constraints ###")
 
     def pp_solution(self) -> None:
@@ -133,7 +138,7 @@ class Typehoon(Analysis):
         if self._ground_truth:
             translator = TypeTranslator(arch=self.project.arch)
             for tv, sim_type in self._ground_truth.items():
-                self._constraints.add(Equivalence(tv, translator.simtype2tc(sim_type)))
+                self._constraints[self.func_var].add(Equivalence(tv, translator.simtype2tc(sim_type)))
 
         self._solve()
         self._specialize()
@@ -144,7 +149,19 @@ class Typehoon(Analysis):
             self.simtypes_solution.update(self._ground_truth)
 
     def _solve(self):
-        solver = SimpleSolver(self.bits, self._constraints)
+        typevars = set()
+        if self._var_mapping:
+            for variable_typevars in self._var_mapping.values():
+                typevars |= variable_typevars
+        else:
+            # collect type variables from constraints
+            for constraint in self._constraints[self.func_var]:
+                if isinstance(constraint, Subtype):
+                    if isinstance(constraint.sub_type, TypeVariable):
+                        typevars.add(constraint.sub_type)
+                    if isinstance(constraint.super_type, TypeVariable):
+                        typevars.add(constraint.super_type)
+        solver = SimpleSolver(self.bits, self._constraints, typevars)
         self.solution = solver.solution
 
     def _specialize(self):
@@ -189,7 +206,10 @@ class Typehoon(Analysis):
                 if all(off % alignment == 0 for off in offsets):
                     # yeah!
                     max_offset = offsets[-1]
-                    count = (max_offset + field0.size) // alignment
+                    field0_size = 1
+                    if not isinstance(field0, TopType):
+                        field0_size = field0.size
+                    count = (max_offset + field0_size) // alignment
                     return Array(field0, count=count)
 
         return None

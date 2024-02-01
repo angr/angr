@@ -157,6 +157,7 @@ class VariableRecoveryStateBase:
         global_region=None,
         typevars=None,
         type_constraints=None,
+        func_typevar=None,
         delayed_type_constraints=None,
         stack_offset_typevars=None,
         project=None,
@@ -211,7 +212,8 @@ class VariableRecoveryStateBase:
         self.phi_variables: Dict[SimVariable, SimVariable] = {}
 
         self.typevars = TypeVariables() if typevars is None else typevars
-        self.type_constraints = set() if type_constraints is None else type_constraints
+        self.type_constraints = defaultdict(set) if type_constraints is None else type_constraints
+        self.func_typevar = func_typevar
         self.delayed_type_constraints = (
             DefaultChainMapCOW(set, collapse_threshold=25)
             if delayed_type_constraints is None
@@ -362,7 +364,18 @@ class VariableRecoveryStateBase:
         :return:
         """
 
-        self.type_constraints.add(constraint)
+        self.type_constraints[self.func_typevar].add(constraint)
+
+    def add_type_constraint_for_function(self, func_typevar, constraint):
+        """
+        Add a new type constraint for a specified function.
+
+        :param func_typevar:
+        :param constraint:
+        :return:
+        """
+
+        self.type_constraints[func_typevar].add(constraint)
 
     def downsize(self) -> None:
         """
@@ -370,7 +383,7 @@ class VariableRecoveryStateBase:
 
         :return:    None
         """
-        self.type_constraints = set()
+        self.type_constraints = defaultdict(set)
 
     @staticmethod
     def downsize_region(region: MultiValuedMemory) -> MultiValuedMemory:

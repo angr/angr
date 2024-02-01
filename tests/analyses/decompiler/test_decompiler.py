@@ -2011,7 +2011,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         condensed = d.codegen.text.replace(" ", "").replace("\n", "")
-        assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=input_seek_errno;", condensed)
+        assert re.search(r"v\d=__errno_location\(\);\*\(v\d\)=[^\n]*input_seek_errno[^\n]*;", condensed)
 
     @structuring_algo("phoenix")
     def test_decompiling_dd_iwrite(self, decompiler_options=None):
@@ -2410,7 +2410,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
         assert (
-            re.search(r"if \(\(unsigned int\)v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
+            re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
             or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
         )
 
@@ -2968,13 +2968,16 @@ class TestDecompiler(unittest.TestCase):
         ]
 
         # always use multi-statement expressions
-        decompiler_options.append((PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.ALWAYS))
+        decompiler_options_0 = decompiler_options + [
+            (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.ALWAYS),
+            (PARAM_TO_OPTION["show_casts"], False),
+        ]
         dec = p.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+            f, cfg=cfg.model, options=decompiler_options_0, optimization_passes=all_optimization_passes
         )
         assert (
             re.search(
-                r"v\d+ = in_stream, v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n]+, in_stream\)",
+                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n]+, [^\n]*in_stream\)",
                 dec.codegen.text,
             )
             is not None
@@ -2982,23 +2985,30 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
 
         # never use multi-statement expressions
-        decompiler_options.append((PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.NEVER))
+        decompiler_options_1 = decompiler_options + [
+            (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.NEVER),
+            (PARAM_TO_OPTION["show_casts"], False),
+        ]
         dec = p.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+            f, cfg=cfg.model, options=decompiler_options_1, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(dec)
         assert (
             re.search(
-                r"v\d+ = in_stream;\n\s+v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n;]+;", dec.codegen.text
+                r"v\d+ = [^\n]*in_stream[^\n]*;\n\s+v\d+ = [^\n]+check_and_close\([^\n]+open_next_file\([^\n;]+;",
+                dec.codegen.text,
             )
             is not None
         )
         saved = dec.codegen.text
 
         # less than one call statement/expression
-        decompiler_options.append((PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.MAX_ONE_CALL))
+        decompiler_options_2 = decompiler_options + [
+            (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.MAX_ONE_CALL),
+            (PARAM_TO_OPTION["show_casts"], False),
+        ]
         dec = p.analyses[Decompiler].prep()(
-            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+            f, cfg=cfg.model, options=decompiler_options_2, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(dec)
         assert dec.codegen.text == saved
