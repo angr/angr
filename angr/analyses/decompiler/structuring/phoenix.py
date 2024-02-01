@@ -55,6 +55,15 @@ class GraphChangedNotification(Exception):
     """
 
 
+class EdgeVirtualizationStrategy(str, Enum):
+    """
+    Strategy for virtualizing edges during 'Last Resort Refinement', as defined in the Phoenix paper.
+    """
+
+    FISH_ORDERING = "Fish ordering"
+    GHIDRA_ORDERING = "Ghidra ordering"
+
+
 class MultiStmtExprMode(str, Enum):
     """
     Mode of multi-statement expression creation during structuring.
@@ -84,6 +93,7 @@ class PhoenixStructurer(StructurerBase):
         parent_region=None,
         improve_structurer=True,
         use_multistmtexprs: MultiStmtExprMode = MultiStmtExprMode.MAX_ONE_CALL,
+        edge_virtualization_strategy: EdgeVirtualizationStrategy = EdgeVirtualizationStrategy.FISH_ORDERING,
         **kwargs,
     ):
         super().__init__(
@@ -113,6 +123,7 @@ class PhoenixStructurer(StructurerBase):
         self._phoenix_improved = self._improve_structurer
         self._edge_virtualization_hints = []
 
+        self._edge_virt_strategy = edge_virtualization_strategy
         self._use_multistmtexprs = use_multistmtexprs
         if not self._phoenix_improved:
             self._use_multistmtexprs = MultiStmtExprMode.NEVER
@@ -2089,7 +2100,7 @@ class PhoenixStructurer(StructurerBase):
         node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
 
         if all_edges_wo_dominance:
-            all_edges_wo_dominance = self._chick_order_edges(all_edges_wo_dominance, node_seq)
+            all_edges_wo_dominance = self._fish_edge_ordering(all_edges_wo_dominance, node_seq)
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -2097,7 +2108,7 @@ class PhoenixStructurer(StructurerBase):
             return True
 
         if secondary_edges:
-            secondary_edges = self._chick_order_edges(secondary_edges, node_seq)
+            secondary_edges = self._fish_edge_ordering(secondary_edges, node_seq)
             # virtualize the first edge
             src, dst = secondary_edges[0]
             self._virtualize_edge(graph, full_graph, src, dst)
@@ -2441,8 +2452,21 @@ class PhoenixStructurer(StructurerBase):
                 break
         return None
 
+    def _order_virtualizable_edges(self, edges: List, node_seq: Dict[Any, int]):
+        if self._edge_virt_strategy == EdgeVirtualizationStrategy.FISH_ORDERING:
+            edges = self._fish_edge_ordering(edges, node_seq)
+        elif self._edge_virt_strategy == EdgeVirtualizationStrategy.GHIDRA_ORDERING:
+            edges = self._ghidra_badedge_ordering(edges, node_seq)
+        else:
+            raise ValueError(f"Unsupported edge virtualization strategy {self._edge_virt_strategy}")
+
+        return edges
+
+    def _ghidra_badedge_ordering(self, edges: List, node_seq: Dict[Any, int]) -> List:
+        return edges
+
     @staticmethod
-    def _chick_order_edges(edges: List, node_seq: Dict[Any, int]) -> List:
+    def _fish_edge_ordering(edges: List, node_seq: Dict[Any, int]) -> List:
         graph = networkx.DiGraph()
         graph.add_edges_from(edges)
 
