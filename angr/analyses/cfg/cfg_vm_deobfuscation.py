@@ -360,6 +360,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                  model=None,
                  remove_insts=None,
                  start_deobfuscation_immediately=False,
+                 deobfuscation_start_addr = None
                  ):
         """
         All parameters are optional.
@@ -414,6 +415,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # these are the instructions to remove cause they cause problems
         self.remove_insts = remove_insts
         self.start_deobfuscation_immediately = start_deobfuscation_immediately
+        self.deobfuscation_start_addr = deobfuscation_start_addr
         ##If an existing graph is being passed that needs to be analysed
         graph_visitor = None
         self._graph = None
@@ -1515,6 +1517,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
 
+        if self.deobfuscation_start_addr and addr == self.deobfuscation_start_addr:
+            for succ in sim_successors.all_successors:
+                succ.globals['call_stack_context_sensitivity_on'] = False
+                succ.globals['start_deobfuscation'] = True
+
+            job.state.globals['start_deobfuscation'] = True
+
         if self.data_sensitive:
             if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0:
                 # we drop all the unsat successors
@@ -1629,7 +1638,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 import ipdb;ipdb.set_trace()
 
             l.debug("All possible successors: " + str(sim_successors.all_successors))
-        if job.block_id.vm_vpc is not None or self.start_deobfuscation_immediately:
+        if job.block_id.vm_vpc is not None or self.start_deobfuscation_immediately or job.state.globals['start_deobfuscation']:
             #### Keeping only symbolic and True successors
             if self.data_sensitive:
                 symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
