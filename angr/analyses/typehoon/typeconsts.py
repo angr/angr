@@ -151,7 +151,8 @@ class Pointer32(Pointer, Int32):
 
     @memoize
     def __repr__(self, memo=None):
-        return f"ptr32({self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)})"
+        bt = self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)
+        return f"ptr32({bt})"
 
 
 class Pointer64(Pointer, Int64):
@@ -164,7 +165,8 @@ class Pointer64(Pointer, Int64):
 
     @memoize
     def __repr__(self, memo=None):
-        return f"ptr64({self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)})"
+        bt = self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)
+        return f"ptr64({bt})"
 
 
 class Array(TypeConstant):
