@@ -1,5 +1,7 @@
 import os
 import importlib
+import importlib.machinery
+import importlib.util
 import logging
 from typing import Optional, Callable
 
@@ -61,3 +63,27 @@ def filter_module(mod, type_req=None, subclass_req=None):
         if subclass_req is not None and not issubclass(val, subclass_req):
             continue
         yield name, val
+
+
+def auto_import_source_files(base_path, ignore_files=(), filter_func: Optional[Callable] = None):
+    for proc_file_name in os.listdir(base_path):
+        if not proc_file_name.endswith(".py"):
+            continue
+        if proc_file_name in ignore_files or proc_file_name == "__init__.py":
+            continue
+
+        proc_module_name = proc_file_name[:-3]
+        if filter_func is not None and not filter_func(proc_file_name):
+            continue
+
+        proc_path = os.path.join(base_path, proc_file_name)
+        try:
+            loader = importlib.machinery.SourceFileLoader(proc_module_name, proc_path)
+            spec = importlib.util.spec_from_loader(proc_module_name, loader)
+            proc_module = importlib.util.module_from_spec(spec)
+            loader.exec_module(proc_module)
+        except ImportError:
+            l.warning("Unable to autoimport module from file %s", proc_path, exc_info=True)
+            continue
+        else:
+            yield proc_module_name, proc_module

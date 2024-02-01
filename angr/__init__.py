@@ -88,12 +88,15 @@ from .state_plugins.heap import SimHeapBrk, SimHeapPTMalloc, PTChunk
 from . import concretization_strategies
 from .distributed import Server
 from .knowledge_base import KnowledgeBase
+from .procedures.definitions import load_external_definitions
 
 # for compatibility reasons
 from . import sim_manager as manager
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
+
+load_external_definitions()
 
 __all__ = (
     "SimProcedure",
