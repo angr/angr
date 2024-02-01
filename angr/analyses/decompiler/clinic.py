@@ -62,6 +62,8 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
+from .utils import first_nonlabel_statement_id
+from ..typehoon import Typehoon
 from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
@@ -159,6 +161,7 @@ class Clinic(Analysis):
         force_loop_single_exit: bool = True,
         refine_loops_with_single_successor: bool = False,
         complete_successors: bool = False,
+        typehoon_cls=Typehoon,
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
         ail_graph: networkx.DiGraph | None = None,
@@ -218,6 +221,10 @@ class Clinic(Analysis):
         self.vvar_to_vvar: dict[int, int] | None = None
         self._stackarg_offsets: set[tuple[int, int]] | None = None
         self._removed_vvar_ids = None
+        # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
+        # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
+        self.secondary_stackvars: set[int] = set()
+        self._typehoon_cls = typehoon_cls
 
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
@@ -2137,10 +2144,7 @@ class Clinic(Analysis):
             )
         else:
             try:
-                tp = self.project.analyses[Typehoon].prep(
-                    kb=tmp_kb,
-                    fail_fast=self._fail_fast,
-                )(
+                tp = self.project.analyses[self._typehoon_cls].prep(kb=tmp_kb, fail_fast=self._fail_fast)(
                     vr.type_constraints,
                     vr.func_typevar,
                     var_mapping=vr.var_to_typevars,
