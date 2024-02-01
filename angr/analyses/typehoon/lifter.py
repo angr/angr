@@ -56,11 +56,13 @@ class TypeLifter:
 
     def _lift_SimStruct(self, ty: SimStruct) -> Union["TypeConstant", BottomType]:
         converted_fields = {}
+        field_names = {}
         for field_name, simtype in ty.fields.items():
             if field_name not in ty.offsets:
                 return BottomType()
             converted_fields[ty.offsets[field_name]] = self.lift(simtype)
-        return Struct(fields=converted_fields, name=ty.name)
+            field_names[ty.offsets[field_name]] = field_name
+        return Struct(fields=converted_fields, name=ty.name, field_names=field_names)
 
 
 _mapping = {
