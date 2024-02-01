@@ -223,9 +223,13 @@ class VEXExprConverter(Converter):
             operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
 
         signed = False
-        if op_name in {"CmpLE", "CmpLT", "CmpGE", "CmpGT", "Div", "DivMod", "Mod", "Mul", "Mull"}:
+        if op._vector_count is not None and op._vector_size is not None:
+            # SIMD conversions
+            op_name += "V"  # vectorized
+        elif op_name in {"CmpLE", "CmpLT", "CmpGE", "CmpGT", "Div", "DivMod", "Mod", "Mul", "Mull"}:
             if op.is_signed:
                 signed = True
+
         if op_name == "Cmp" and op._float:
             # Rename Cmp to CmpF
             op_name = "CmpF"

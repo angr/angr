@@ -551,7 +551,7 @@ class BinaryOp(Op):
             self.bits = bits
         elif self.op == "CmpF":
             self.bits = 32  # floating point comparison
-        elif self.op.startswith("Cmp"):
+        elif self.op in {"CmpEQ", "CmpNE", "CmpLT", "CmpGE", "CmpLE", "CmpGT"}:
             self.bits = 1
         elif self.op in {"Carry", "SCarry", "SBorrow"}:
             self.bits = 8
