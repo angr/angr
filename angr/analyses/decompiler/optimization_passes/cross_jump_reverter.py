@@ -11,7 +11,13 @@ l = logging.getLogger(__name__)
 
 class CrossJumpReverter(StructuringOptimizationPass):
     """
-    Copies bad blocks
+    This is an implementation to revert the compiler optimization Cross Jumping, and ISC optimization discussed
+    in the USENIX 2024 paper SAILR. This optimization is somewhat aggressive and as such should be run last in your
+    decompiler deoptimization chain. This deoptimization will take any goto it finds and attempt to duplicate its
+    target block if its target only has one outgoing edge.
+
+    There are some heuristics in place to prevent duplication everywhere. First, this deoptimization will only run
+    a max of max_opt_iters times. Second, it will not duplicate a block with too many calls.
     """
 
     ARCHES = None
@@ -26,10 +32,11 @@ class CrossJumpReverter(StructuringOptimizationPass):
         # internal parameters that should be used by Clinic
         node_idx_start: int = 0,
         # settings
+        max_opt_iters: int = 3,
         max_call_duplications: int = 2,
         **kwargs,
     ):
-        super().__init__(func, **kwargs)
+        super().__init__(func, max_opt_iters=max_opt_iters, **kwargs)
 
         self.node_idx = count(start=node_idx_start)
         self._max_call_dup = max_call_duplications
@@ -71,7 +78,11 @@ class CrossJumpReverter(StructuringOptimizationPass):
         if not to_update:
             return False
 
+        updates = False
         for target_node, goto_node in to_update.items():
+            if goto_node not in self.out_graph:
+                continue
+
             # always make a copy if there is a goto edge
             cp = copy.deepcopy(goto_node)
             cp.idx = next(self.node_idx)
@@ -90,7 +101,6 @@ class CrossJumpReverter(StructuringOptimizationPass):
             if self.out_graph.in_degree(goto_node) == 0:
                 self.out_graph.remove_node(goto_node)
 
-        # TODO: add single chain later:
-        # i.e., we need to copy the entire chain of single successor nodes in
-        # this goto chain.
-        return True
+            updates = True
+
+        return updates

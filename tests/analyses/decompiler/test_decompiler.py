@@ -2131,11 +2131,18 @@ class TestDecompiler(unittest.TestCase):
         assert "putchar_unlocked(eolbyte)" in d.codegen.text
 
     @structuring_algo("phoenix")
-    def test_decompiling_who_scan_entries(self, decompiler_options=None):
-        # order of edge virtualization matters. the default edge virtualization order (post-ordering) will lead to two
-        # gotos. virtualizing 0x401361 -> 0x4012b5 will lead to only one goto (because it's the edge that the
-        # compiler's optimizations created).
-        # After only a single goto is remaining, Cross Jump Reverter can remove it.
+    def test_who_condensing_opt_reversion(self, decompiler_options=None):
+        """
+        This testcase verifies that all the Irreducible Statement Condensing (ISC) optimizations are reverted by
+        the ReturnDuplicator and the CrossJumpReverter optimizations passes. These optimization passes implement
+        the deoptimization techniques described in the SAILR paper for dealing with ISC opts.
+
+        Additionally, there is some special ordering to edge virtualization that is required to make this testcase
+        work. The default edge virtualization order (post-ordering) will lead to two gotos.
+        virtualizing 0x401361 -> 0x4012b5 will lead to only one goto (because it's the edge that the
+        compiler's optimizations created). Either way, these gotos can be eliminated by the CrossJumpReverter
+        duplicating the statement at the end of the goto, after ReturnDuplicator has fixed up the return statements.
+        """
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "who.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
@@ -2144,8 +2151,6 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep()(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        # there are no gotos in the source code, and all structures that lead to gotos
-        # should be removed in CrossJumpReverter
         assert d.codegen.text.count("goto ") == 0
 
     @structuring_algo("phoenix")
