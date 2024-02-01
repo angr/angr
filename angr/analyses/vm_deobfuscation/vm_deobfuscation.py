@@ -340,7 +340,8 @@ class VMDeobfuscation(Analysis):
                  constant_prop_func_replacements=None, semantic_verf_hooks=None, decomp_start_end_node_str=None,
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
-                 vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False, max_symbolizer_iterations=None):
+                 deobfuscation_start_addr=None, vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
+                 max_symbolizer_iterations=None):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -349,6 +350,7 @@ class VMDeobfuscation(Analysis):
         self.verification_state = verification_state
         self.constant_prop_func_replacements = constant_prop_func_replacements
         self.start_deobfuscation_immediately = start_deobfuscation_immediately
+        self.deobfuscation_start_addr = deobfuscation_start_addr
         self.vpc_loc = vpc_loc
         self.vpc_mem_loc = vpc_mem_loc
         calls_as_rets = {}
@@ -373,6 +375,8 @@ class VMDeobfuscation(Analysis):
             start_state.globals['call_stack_context_sensitivity_on'] = False
         else:
             start_state.globals['call_stack_context_sensitivity_on'] = True
+
+        start_state.globals['start_deobfuscation'] = False
 
         # add breakpoints to activate and remove bps for each vm region
         if prev_unroll_vm_addrs:
@@ -421,19 +425,29 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         new_cfg=cfg
 
+        all_symbolic_expr_locations_blockwise = {}
+        import pickle
+
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         for symb_iter in range(max_symbolizer_iterations):
             to_split_nodes = self.split_redundant_branch_themida(new_cfg)
             new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
-            self.draw_graph(new_cfg, os.path.join(folder_name, "after_all_split.svg"))
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"after_all_split.svg"))
+
+            pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_"+str(symb_iter) + "_all_symbolic_expr_locations_blockwise"
+            with open(pickled_file_name, 'wb') as f:
+                pickle.dump(all_symbolic_expr_locations_blockwise, f)
 
             # this constant prop is just used to get the symbolic_expr_locations_blockwise not to actually do constant prop
             # symbolizer here tells us which values to symbolize during next cfg exploration stage, it does not discover new nodes
             _, symbolic_expr_locations_blockwise= self.symbolizer(new_cfg, proj,
                                                                   start_addr, None,
                                                                   start_state=None,
-                                                                  prev_symbolic_expr_locations_blockwise=None,
+                                                                  prev_symbolic_expr_locations_blockwise=all_symbolic_expr_locations_blockwise,
                                                                   prev_unroll_vm_addrs=prev_unroll_vm_addrs)
+
+            self.merge_symbolic_expr_locations_blockwise(all_symbolic_expr_locations_blockwise, symbolic_expr_locations_blockwise)
+
             self.project.kb.cfgs.cfgs = {}
             # clearing the saved states to save space
             for node in new_cfg.graph.nodes():
@@ -445,7 +459,7 @@ class VMDeobfuscation(Analysis):
             #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
             #TO DO: there is a way to do this together in one analysis, by allowing to visit the blocks more than once in CFGEmulated(max_iter)
             #and also changing the way merging of values happens
-            new_cfg, _ = self.symbolify_exprs(proj, symbolic_expr_locations_blockwise,
+            new_cfg, _ = self.symbolify_exprs(proj, all_symbolic_expr_locations_blockwise,
                                                                   start_addr=start_addr, start_state=start_state_copy,
                                                                   cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
                                                                   remove_insts=remove_insts)
@@ -466,6 +480,8 @@ class VMDeobfuscation(Analysis):
 
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
 
+        # pickled_file_name = os.path.dirname(self.project.filename) + "/3_symbolizer_cfg_pickle"
+        # new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
         to_split_nodes = self.split_redundant_branch_themida(new_cfg)
         new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
@@ -696,6 +712,23 @@ class VMDeobfuscation(Analysis):
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
+
+    def merge_symbolic_expr_locations_blockwise(self, all_symbolic_expr_locations_blockwise, cur_symbolic_expr_locations_blockwise):
+        for block_id, codeloc_dict in cur_symbolic_expr_locations_blockwise.items():
+            if block_id not in all_symbolic_expr_locations_blockwise:
+                all_symbolic_expr_locations_blockwise[block_id] = codeloc_dict
+
+            else:
+                for codeloc, expr_list in codeloc_dict.items():
+                    if codeloc not in all_symbolic_expr_locations_blockwise[block_id]:
+                        all_symbolic_expr_locations_blockwise[block_id] = codeloc_dict
+                    elif set(expr_list) != set(all_symbolic_expr_locations_blockwise[block_id][codeloc]):
+                        all_expr_set = set()
+                        for expr in expr_list:
+                            all_expr_set.add(expr)
+                        for expr in all_symbolic_expr_locations_blockwise[block_id][codeloc]:
+                            all_expr_set.add(expr)
+                        all_symbolic_expr_locations_blockwise[codeloc] = list(all_expr_set)
 
     def remove_redundant_ip_assignement(self, cfg):
         #
@@ -1029,9 +1062,11 @@ class VMDeobfuscation(Analysis):
                         succ_func=self.project.kb.functions.function(succ.addr, create=True)
                         # get the prototype from the hooks
                         succ_func.prototype = self.project.hooked_by(succ_func.addr).prototype
+                        succ_func.calling_convention = self.project.hooked_by(succ_func.addr).cc
                         if succ_func.prototype._arch is None:
                             succ_func.prototype._arch = self.project.arch
-                            succ_func.prototype.returnty._arch = self.project.arch
+                            if succ_func.prototype.returnty:
+                                succ_func.prototype.returnty._arch = self.project.arch
                         if succ_func.calling_convention is None:
                             succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
 
@@ -1430,7 +1465,7 @@ class VMDeobfuscation(Analysis):
 
             initial_input_state.register_plugin('partial_symbolic_constraint_solver',
                                                 angr.state_plugins.solver.SimSolver(
-                                                    claripy.solvers.SolverReplacement(claripy.Solver(),
+                                                    claripy.solvers.SolverReplacement(claripy.Solver(timeout=500000),
                                                                                       unsafe_replacement=True,
                                                                                       auto_replace=False)))  # auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
 
@@ -1551,7 +1586,8 @@ class VMDeobfuscation(Analysis):
                                                cfg_fast_graph=cfg_fast_graph,
                                                avoid_runs=avoid_runs,
                                                remove_insts=remove_insts,
-                                               start_deobfuscation_immediately=self.start_deobfuscation_immediately
+                                               start_deobfuscation_immediately=self.start_deobfuscation_immediately,
+                                               deobfuscation_start_addr=self.deobfuscation_start_addr
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations_blockwise = None
@@ -2034,8 +2070,14 @@ class VMDeobfuscation(Analysis):
                 succs = cfg.get_successors(node)
                 if len(succs) == 0: # Last node in the graph
                     block_id_for_next = None
-                else:
+                elif len(succs) == 1:
                     block_id_for_next = succs[0].block_id
+                elif len(succs) == 2:
+                    for succ in succs:
+                        if succ.block_id != branch_block_id:
+                            block_id_for_next = succ.block_id
+                else:
+                    import ipdb;ipdb.set_trace()
 
             if isinstance(node.irsb.next, pyvex.expr.RdTmp):
                 new_next = DataSensitiveRdTmp(node.irsb.next.tmp, block_id_for_next)
@@ -3642,7 +3684,8 @@ class VMDeobfuscation(Analysis):
                                         cfg_fast_graph=cfg_fast_graph,
                                         avoid_runs=avoid_runs,
                                         remove_insts=remove_insts,
-                                        start_deobfuscation_immediately=self.start_deobfuscation_immediately
+                                        start_deobfuscation_immediately=self.start_deobfuscation_immediately,
+                                        deobfuscation_start_addr=self.deobfuscation_start_addr
                                         # enable_advanced_backward_slicing=True
                                         )
         return cfg, proj
