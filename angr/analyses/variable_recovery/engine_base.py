@@ -546,7 +546,7 @@ class SimEngineVRBase(SimEngineLight):
                 self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
             # FIXME: This is a hack so that we can interpret the target as an array
             is_array = typevars.DerivedTypeVariable(typevar, typevars.IsArray())
-            self.state.add_type_constraint(typevars.Subtype(is_array, typeconsts.TopType()))
+            self.state.add_type_constraint(typevars.Existence(is_array))
 
             if data.typevar is not None:
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))

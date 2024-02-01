@@ -1126,6 +1126,8 @@ class SimpleSolver:
                 if isinstance(label, ConvertTo):
                     # drop conv labels for now
                     continue
+                if isinstance(label, IsArray):
+                    continue
                 new_labels = curr_labels + [label]
                 succ: SketchNode
                 if isinstance(succ.typevar, DerivedTypeVariable) and isinstance(succ.typevar.labels[-1], (Load, Store)):
