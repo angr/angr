@@ -4,7 +4,7 @@ import archinfo
 from collections import defaultdict
 import logging
 import inspect
-from typing import Optional, Dict, Type, TYPE_CHECKING
+from typing import Optional, Dict, Type, List, TYPE_CHECKING
 
 import itanium_demangler
 
@@ -625,6 +625,29 @@ class SimSyscallLibrary(SimLibrary):
 # - We will load all APIs when load_all_definitions() is called.
 
 _DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
+_EXTERNAL_DEFINITIONS_DIRS: Optional[List[str]] = None
+
+
+def load_external_definitions():
+    """
+    Load library definitions from specific directories. By default it parses ANGR_EXTERNAL_DEFINITIONS_DIRS as a
+    semi-colon separated list of directory paths. Then it loads all .py files in each directory. These .py files should
+    declare SimLibrary() objects and call .set_library_names() to register themselves in angr.SIM_LIBRARIES.
+    """
+
+    global _EXTERNAL_DEFINITIONS_DIRS
+
+    if _EXTERNAL_DEFINITIONS_DIRS is None and "ANGR_EXTERNAL_DEFINITIONS_DIRS" in os.environ:
+        _EXTERNAL_DEFINITIONS_DIRS = os.environ["ANGR_EXTERNAL_DEFINITIONS_DIRS"].strip('"').split(";")
+        l.debug("Using external library definitions from %s", _EXTERNAL_DEFINITIONS_DIRS)
+        for d in _EXTERNAL_DEFINITIONS_DIRS:
+            if not os.path.isdir(d):
+                l.warning("External library definitions directory %s does not exist or is not a directory.", d)
+
+    if _EXTERNAL_DEFINITIONS_DIRS:
+        for d in _EXTERNAL_DEFINITIONS_DIRS:
+            for _ in autoimport.auto_import_source_files(d):
+                pass
 
 
 def load_win32api_definitions():
