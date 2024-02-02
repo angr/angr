@@ -21,6 +21,7 @@ from angr.analyses import (
     Decompiler,
 )
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+from angr.analyses.decompiler.optimization_passes import DUPLICATING_OPTS
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
@@ -393,13 +394,12 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep(show_progressbar=not WORKER)(normalize=True, data_references=True)
 
-        # disable eager returns simplifier
+        # disable any optimization which may duplicate code to remove gotos since we need them for the switch
+        # structure to be recovered
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
             "AMD64", "linux"
         )
-        all_optimization_passes = [
-            p for p in all_optimization_passes if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicator
-        ]
+        all_optimization_passes = [p for p in all_optimization_passes if p not in DUPLICATING_OPTS]
 
         f = cfg.functions[0x401E60]
         dec = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(

@@ -45,6 +45,9 @@ _all_optimization_passes = [
     (FlipBooleanCmp, True),
 ]
 
+# these passes may duplicate code to remove gotos or improve the structure of the graph
+DUPLICATING_OPTS = [ReturnDuplicator, CrossJumpReverter]
+
 
 def get_optimization_passes(arch, platform):
     if isinstance(arch, Arch):

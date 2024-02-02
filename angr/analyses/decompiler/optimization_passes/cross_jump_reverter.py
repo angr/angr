@@ -1,3 +1,4 @@
+from collections import defaultdict
 from itertools import count
 import copy
 import logging
@@ -46,14 +47,15 @@ class CrossJumpReverter(StructuringOptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-        to_update = {}
+        to_update = defaultdict(list)
         for node in self.out_graph.nodes:
             gotos = self._goto_manager.gotos_in_block(node)
             # TODO: support if-stmts
             if not gotos or len(gotos) >= 2:
                 continue
 
-            # only single reaching gotos
+            # only blocks that have a single outgoing goto are candidates
+            # for duplicates
             goto = list(gotos)[0]
             for goto_target in self.out_graph.successors(node):
                 if goto_target.addr == goto.dst_addr:
@@ -61,46 +63,43 @@ class CrossJumpReverter(StructuringOptimizationPass):
             else:
                 goto_target = None
 
-            if goto_target is None:
+            # the target goto block should only have a single outgoing edge
+            # this prevents duplication of conditions
+            if goto_target is None or self.out_graph.out_degree(goto_target) != 1:
                 continue
 
-            if self.out_graph.out_degree(goto_target) != 1:
-                continue
-
+            # minimize the number of calls in the target block that can be duplicated
+            # to prevent duplication of big blocks
             counter = AILBlockCallCounter()
             counter.walk(goto_target)
             if counter.calls > self._max_call_dup:
                 continue
 
-            # og_block -> suc_block (goto target)
-            to_update[node] = goto_target
+            # [goto_target] = (pred1, pred2, ...)
+            to_update[goto_target].append(node)
 
         if not to_update:
             return False
 
         updates = False
-        for target_node, goto_node in to_update.items():
-            if (target_node, goto_node) not in self.out_graph.edges:
+        for goto_target, pred_to_update in to_update.items():
+            # do some sanity checks
+            update_edges = [(pred, goto_target) for pred in pred_to_update]
+            if not all(self.out_graph.has_edge(*edge) for edge in update_edges):
                 continue
 
-            # always make a copy if there is a goto edge
-            cp = copy.deepcopy(goto_node)
-            cp.idx = next(self.node_idx)
+            current_preds = list(self.out_graph.predecessors(goto_target))
+            delete_original = len(current_preds) == len(pred_to_update)
 
-            # remove this goto edge from original
-            self.out_graph.remove_edge(target_node, goto_node)
-
-            # add a new edge to the copy
-            self.out_graph.add_edge(target_node, cp)
-
-            # make sure the copy has the same successor as before!
-            suc = list(self.out_graph.successors(goto_node))[0]
-            self.out_graph.add_edge(cp, suc)
-
-            # kill the original if we made enough copies to drain in-degree
-            if self.out_graph.in_degree(goto_node) == 0:
-                self.out_graph.remove_node(goto_node)
+            # update the edges
+            for src, goto_blk in update_edges:
+                cp = copy.deepcopy(goto_blk)
+                cp.idx = next(self.node_idx)
+                self.out_graph.remove_edge(src, goto_blk)
+                self.out_graph.add_edge(src, cp)
 
             updates = True
+            if delete_original:
+                self.out_graph.remove_node(goto_target)
 
         return updates
