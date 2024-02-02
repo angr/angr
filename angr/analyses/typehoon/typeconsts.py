@@ -170,8 +170,8 @@ class Pointer64(Pointer, Int64):
 
 
 class Array(TypeConstant):
-    def __init__(self, element, count=None):
-        self.element: TypeConstant = element
+    def __init__(self, element=None, count=None):
+        self.element: Optional[TypeConstant] = element
         self.count: Optional[int] = count
 
     @memoize
