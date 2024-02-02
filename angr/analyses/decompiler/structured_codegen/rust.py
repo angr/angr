@@ -3469,6 +3469,11 @@ class RustStructuredCodeWalker:
         return obj
 
     @classmethod
+    def handle_RustInfiniteLoop(cls, obj):
+        obj.body = cls.handle(obj.body)
+        return obj
+
+    @classmethod
     def handle_RustDoWhileLoop(cls, obj):
         obj.condition = cls.handle(obj.condition)
         obj.body = cls.handle(obj.body)
@@ -3636,6 +3641,7 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
         if inner is not obj.expr:
             obj.src_type = inner.type
             obj.expr = inner
+
         if obj.src_type == obj.dst_type or qualifies_for_implicit_cast(obj.src_type, obj.dst_type):
             return obj.expr
         return obj
