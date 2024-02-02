@@ -4,7 +4,14 @@ from itertools import count
 from ..translator import TypeTranslator
 from .... import sim_type
 from ....sim_type import SimType
-from .sim_type import RustSimTypeInt, RustSimTypePointer, RustSimType
+from .sim_type import (
+    RustSimTypeInt,
+    RustSimTypePointer,
+    RustSimType,
+    RustSimTypeArray,
+    RustSimStruct,
+    RustSimTypeTempRef,
+)
 from .. import typeconsts
 from ..typeconsts import TypeConstant
 
@@ -50,6 +57,43 @@ class RustTypeTranslator(TypeTranslator):
 
     def _translate_Int128(self, tc):  # pylint:disable=unused-argument
         return RustSimTypeInt(size=128, signed=False).with_arch(self.arch)
+
+    def _translate_Array(self, tc: typeconsts.Array):
+        elem_type = self._tc2simtype(tc.element)
+        return RustSimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
+
+    def _translate_Struct(self, tc):
+        if tc in self.structs:
+            return self.structs[tc]
+
+        if tc.name:
+            name = tc.name
+        else:
+            name = self.struct_name()
+
+        s = RustSimStruct({}, name=name).with_arch(self.arch)
+        self.structs[tc] = s
+
+        next_offset = 0
+        for offset, typ in sorted(tc.fields.items(), key=lambda item: item[0]):
+            if offset > next_offset:
+                # we need padding!
+                padding_size = offset - next_offset
+                s.fields["padding_%x" % next_offset] = RustSimTypeArray(
+                    RustSimTypeInt(size=8, signed=False).with_arch(self.arch), padding_size
+                ).with_arch(self.arch)
+
+            translated_type = self._tc2simtype(typ)
+            assert not isinstance(translated_type, sim_type.SimTypeBottom)
+
+            s.fields["field_%x" % offset] = translated_type
+
+            if isinstance(translated_type, RustSimTypeTempRef):
+                next_offset = self.arch.bytes + offset
+            else:
+                next_offset = translated_type.size // self.arch.byte_width + offset
+
+        return s
 
     def _tc2simtype(self, tc):
         if tc is None:

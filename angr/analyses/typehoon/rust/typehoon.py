@@ -16,11 +16,12 @@ class RustTypehoon(Typehoon):
     def __init__(
         self,
         constraints,
+        func_var,
         ground_truth=None,
         var_mapping: Optional[Dict["SimVariable", Set["TypeVariable"]]] = None,
         must_struct: Optional[Set["TypeVariable"]] = None,
     ):
-        super().__init__(constraints, ground_truth, var_mapping, must_struct)
+        super().__init__(constraints, func_var, ground_truth, var_mapping, must_struct)
 
     def update_variable_types(self, func_addr: Union[int, str], var_to_typevars):
         for var, typevars in var_to_typevars.items():

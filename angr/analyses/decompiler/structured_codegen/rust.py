@@ -184,7 +184,7 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
         if full:
             # struct def preamble
             yield indent_str, None
-            yield "typedef struct ", None
+            yield "struct ", None
             yield ty.name, ty
             yield " {\n", None
 
@@ -203,7 +203,7 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
             # struct def postamble
             yield "} ", None
             yield ty.name, ty
-            yield ";\n\n", None
+            yield "\n\n", None
 
         else:
             assert name
@@ -218,9 +218,9 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
         assert name_type
 
         yield indent_str, None
-        yield ty.repr(), ty
-        yield ": ", None
         yield name, name_type
+        yield ": ", None
+        yield ty.repr(), ty
     # This case was used when generating externs, apparently there can be cases where the name is not known
     elif ty is None:
         assert name
