@@ -349,6 +349,9 @@ class Decompiler(Analysis):
             # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.DURING_REGION_IDENTIFICATION:
                 continue
+            if pass_.STRUCTURING:
+                if self._recursive_structurer_params["structurer_cls"].NAME not in pass_.STRUCTURING:
+                    continue
 
             a = pass_(
                 self.func,

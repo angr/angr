@@ -298,7 +298,7 @@ class StructuringOptimizationPass(OptimizationPass):
             # this should not (TM) change the structure of the graph but is needed for later optimizations
             self.out_graph = self._simplify_ail_graph(self.out_graph)
 
-        if self._prevent_new_gotos and (len(self._goto_manager.gotos) > len(initial_gotos)):
+        if self._prevent_new_gotos and (len(self._goto_manager.gotos) >= len(initial_gotos)):
             self.out_graph = None
             return
 
