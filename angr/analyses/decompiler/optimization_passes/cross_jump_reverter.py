@@ -83,7 +83,9 @@ class CrossJumpReverter(StructuringOptimizationPass):
             return False
 
         updates = False
-        for goto_target, pred_to_update in to_update.items():
+        sorted_targets = sorted(to_update.items(), key=lambda x: x[0].addr)
+        for goto_target, pred_to_update in sorted_targets:
+            pred_to_update = sorted(pred_to_update, key=lambda x: x.addr)
             # do some sanity checks
             update_edges = [(pred, goto_target) for pred in pred_to_update]
             if not all(self.out_graph.has_edge(*edge) for edge in update_edges):

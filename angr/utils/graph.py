@@ -684,7 +684,8 @@ class GraphUtils:
         sccs = [scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1]
 
         # collapse all strongly connected components
-        for src, dst in graph.edges():
+        edges = sorted(list(graph.edges()), key=lambda x: x[0].addr + x[1].addr)
+        for src, dst in edges:
             scc_index = GraphUtils._components_index_node(sccs, src)
             if scc_index is not None:
                 src = SCCPlaceholder(scc_index)
