@@ -1,8 +1,20 @@
 from typing import Optional, Dict, Any, Tuple, List, Union
+from collections import OrderedDict
 
 import claripy
 
-from ....sim_type import SimType, SimTypeBottom, SimTypeInt, SimTypeFunction, SimTypePointer
+from ..translator import SimTypeTempRef
+from ....sim_type import (
+    SimType,
+    SimTypeBottom,
+    SimTypeInt,
+    SimTypeFunction,
+    SimTypePointer,
+    SimTypeArray,
+    SimStruct,
+    SimTypeNumOffset,
+    SimTypeNum,
+)
 
 
 class RustSimType:
@@ -139,3 +151,101 @@ class RustSimTypePointer(RustSimType, SimTypePointer):
 
     def copy(self):
         return RustSimTypePointer(self.pts_to, label=self.label, offset=self.offset)
+
+
+class RustSimTypeArray(RustSimType, SimTypeArray):
+    """
+    SimTypeArray is a type that specifies a series of data laid out in sequence.
+    """
+
+    _fields = ("elem_type", "length")
+
+    def __init__(self, elem_type, length=None, label=None):
+        """
+        :param label:       The type label.
+        :param elem_type:   The type of each element in the array.
+        :param length:      An expression of the length of the array, if known.
+        """
+        super().__init__(elem_type, length, label)
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None:
+            return repr(self)
+
+        name = "{}[{}]".format(name, self.length if self.length is not None else "")
+        return self.elem_type.c_repr(name, full, memo, indent)
+
+    def _with_arch(self, arch):
+        out = RustSimTypeArray(self.elem_type.with_arch(arch), self.length, self.label)
+        out._arch = arch
+        return out
+
+    def copy(self):
+        return RustSimTypeArray(self.elem_type, length=self.length, label=self.label)
+
+
+class RustSimStruct(RustSimType, SimStruct):
+    _fields = ("name", "fields")
+
+    def __init__(self, fields: Union[Dict[str, SimType], OrderedDict], name=None, pack=False, align=None):
+        super().__init__(fields, name, pack, align)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = RustSimStruct(None, name=self.name, pack=self._pack, align=self._align)
+        out._arch = arch
+        self._arch_memo[arch.name] = out
+
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+
+        # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
+        offset_so_far = 0
+        for name, ty in out.fields.items():
+            if isinstance(ty, RustSimTypeNumOffset):
+                out._pack = True
+                ty.offset = offset_so_far % arch.byte_width
+                offset_so_far += ty.size
+        return out
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        if not full or (memo is not None and self in memo):
+            if name is None:
+                return repr(self)
+            else:
+                return f"{name}: {repr(self)}"
+
+        indented = " " * indent if indent is not None else ""
+        new_indent = indent + 4 if indent is not None else None
+        new_indented = " " * new_indent if indent is not None else ""
+        newline = "\n" if indent is not None else " "
+        new_memo = (self,) + (memo if memo is not None else ())
+        members = newline.join(
+            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.fields.items()
+        )
+        return "struct {} {{{}{}{}{}}}{}".format(
+            self.name, newline, members, newline, indented, "" if name is None else " " + name
+        )
+
+
+class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
+    """
+    like SimTypeNum, but supports an offset of 1 to 7 to a byte aligned address to allow structs with bitfields
+    """
+
+    _fields = SimTypeNum._fields + ("offset",)
+
+    def __init__(self, size, signed=True, label=None, offset=0):
+        super().__init__(size, signed, label, offset)
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        super(SimTypeNumOffset, self).c_repr(name, full, memo, indent)
+
+
+class RustSimTypeTempRef(RustSimType, SimTypeTempRef):
+    def __init__(self, typevar):
+        super().__init__(typevar)
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        return "<RustSimTypeTempRef>"
