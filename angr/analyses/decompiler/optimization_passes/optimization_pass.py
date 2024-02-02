@@ -249,10 +249,18 @@ class StructuringOptimizationPass(OptimizationPass):
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
 
     def __init__(
-        self, func, prevent_new_gotos=True, recover_structure_fails=True, max_opt_iters=1, simplify_ail=True, **kwargs
+        self,
+        func,
+        prevent_new_gotos=True,
+        strictly_less_gotos=False,
+        recover_structure_fails=True,
+        max_opt_iters=1,
+        simplify_ail=True,
+        **kwargs,
     ):
         super().__init__(func, **kwargs)
         self._prevent_new_gotos = prevent_new_gotos
+        self._strictly_less_gotos = strictly_less_gotos
         self._recover_structure_fails = recover_structure_fails
         self._max_opt_iters = max_opt_iters
         self._simplify_ail = simplify_ail
@@ -298,9 +306,14 @@ class StructuringOptimizationPass(OptimizationPass):
             # this should not (TM) change the structure of the graph but is needed for later optimizations
             self.out_graph = self._simplify_ail_graph(self.out_graph)
 
-        if self._prevent_new_gotos and (len(self._goto_manager.gotos) >= len(initial_gotos)):
-            self.out_graph = None
-            return
+        if self._prevent_new_gotos:
+            prev_gotos = len(initial_gotos)
+            new_gotos = len(self._goto_manager.gotos)
+            if (self._strictly_less_gotos and (new_gotos >= prev_gotos)) or (
+                not self._strictly_less_gotos and (new_gotos > prev_gotos)
+            ):
+                self.out_graph = None
+                return
 
     def _fixed_point_analyze(self, cache=None):
         for _ in range(self._max_opt_iters):

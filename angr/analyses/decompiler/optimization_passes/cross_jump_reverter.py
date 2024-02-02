@@ -38,7 +38,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
         max_call_duplications: int = 2,
         **kwargs,
     ):
-        super().__init__(func, max_opt_iters=max_opt_iters, **kwargs)
+        super().__init__(func, max_opt_iters=max_opt_iters, strictly_less_gotos=True, **kwargs)
 
         self.node_idx = count(start=node_idx_start)
         self._max_call_dup = max_call_duplications
