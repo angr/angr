@@ -21,6 +21,7 @@ from angr.analyses import (
     Decompiler,
 )
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+from angr.analyses.decompiler.optimization_passes import DUPLICATING_OPTS
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
@@ -385,7 +386,6 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
-    @slow_test
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_0(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
@@ -393,13 +393,12 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep(show_progressbar=not WORKER)(normalize=True, data_references=True)
 
-        # disable eager returns simplifier
+        # disable any optimization which may duplicate code to remove gotos since we need them for the switch
+        # structure to be recovered
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
             "AMD64", "linux"
         )
-        all_optimization_passes = [
-            p for p in all_optimization_passes if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicator
-        ]
+        all_optimization_passes = [p for p in all_optimization_passes if p not in DUPLICATING_OPTS]
 
         f = cfg.functions[0x401E60]
         dec = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(
@@ -1681,9 +1680,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
             "AMD64", "linux"
         )
-        all_optimization_passes = [
-            p for p in all_optimization_passes if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicator
-        ]
+        all_optimization_passes = [p for p in all_optimization_passes if p not in DUPLICATING_OPTS]
 
         dec = proj.analyses.Decompiler(
             proj.kb.functions["foo"], cfg=cfg, options=decompiler_options, optimization_passes=all_optimization_passes
@@ -2556,16 +2553,28 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test_sensitive_eager_returns")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
-
         # eager returns should trigger here
         f1 = proj.kb.functions["bar"]
-        d = proj.analyses[Decompiler](f1, cfg=cfg.model, options=decompiler_options)
+
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.CrossJumpReverter
+        ]
+        d = proj.analyses[Decompiler](
+            f1, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         self._print_decompilation_result(d)
         assert d.codegen.text.count("goto ") == 0
 
         # eager returns should not trigger here
         f2 = proj.kb.functions["foo"]
-        d = proj.analyses[Decompiler](f2, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler](
+            f2, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         self._print_decompilation_result(d)
         assert d.codegen.text.count("goto ") == 1
 
