@@ -683,8 +683,26 @@ class GraphUtils:
         # find all strongly connected components in the graph
         sccs = [scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1]
 
+        def _sort_edge(edge):
+            """
+            A sorter to make a deterministic order of edges.
+            """
+            _src, _dst = edge
+            src_addr, dst_addr = 0, 0
+            if hasattr(_src, "addr"):
+                src_addr = _src.addr
+            elif isinstance(_src, int):
+                src_addr = _src
+
+            if hasattr(_dst, "addr"):
+                dst_addr = _dst.addr
+            elif isinstance(_dst, int):
+                dst_addr = _dst
+
+            return src_addr + dst_addr
+
         # collapse all strongly connected components
-        edges = sorted(list(graph.edges()), key=lambda x: x[0].addr + x[1].addr)
+        edges = sorted(list(graph.edges()), key=_sort_edge)
         for src, dst in edges:
             scc_index = GraphUtils._components_index_node(sccs, src)
             if scc_index is not None:
