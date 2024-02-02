@@ -1681,9 +1681,7 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
             "AMD64", "linux"
         )
-        all_optimization_passes = [
-            p for p in all_optimization_passes if p is not angr.analyses.decompiler.optimization_passes.ReturnDuplicator
-        ]
+        all_optimization_passes = [p for p in all_optimization_passes if p not in DUPLICATING_OPTS]
 
         dec = proj.analyses.Decompiler(
             proj.kb.functions["foo"], cfg=cfg, options=decompiler_options, optimization_passes=all_optimization_passes
@@ -2556,16 +2554,28 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test_sensitive_eager_returns")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
-
         # eager returns should trigger here
         f1 = proj.kb.functions["bar"]
-        d = proj.analyses[Decompiler](f1, cfg=cfg.model, options=decompiler_options)
+
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
+            "AMD64", "linux"
+        )
+        all_optimization_passes = [
+            p
+            for p in all_optimization_passes
+            if p is not angr.analyses.decompiler.optimization_passes.CrossJumpReverter
+        ]
+        d = proj.analyses[Decompiler](
+            f1, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         self._print_decompilation_result(d)
         assert d.codegen.text.count("goto ") == 0
 
         # eager returns should not trigger here
         f2 = proj.kb.functions["foo"]
-        d = proj.analyses[Decompiler](f2, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler](
+            f2, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         self._print_decompilation_result(d)
         assert d.codegen.text.count("goto ") == 1
 
