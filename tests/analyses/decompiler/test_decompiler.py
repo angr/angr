@@ -386,7 +386,6 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
-    @slow_test
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_0(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
