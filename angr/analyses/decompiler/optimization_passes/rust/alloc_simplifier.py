@@ -49,7 +49,7 @@ class AllocSimplifier(OptimizationPass):
         return None
 
     def _is_rust_alloc_call(self, call):
-        if call is None:
+        if call is None or not isinstance(call.target, ailment.expression.Const):
             return False
         addr = call.target.value
         if addr in self.project.kb.functions:

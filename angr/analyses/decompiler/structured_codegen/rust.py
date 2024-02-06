@@ -228,7 +228,11 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
         yield "<missing-type> ", None
         yield name, name_type
     else:
-        assert False
+        yield "<error>", None
+        # import ipdb
+        #
+        # ipdb.set_trace()
+        # assert False
 
 
 #
