@@ -647,6 +647,10 @@ def load_external_definitions():
                 l.warning("External library definitions directory %s does not exist or is not a directory.", d)
 
     if _EXTERNAL_DEFINITIONS_DIRS:
+        # we must load all definitions prior to any external definitions are loaded. otherwise external definitions may
+        # be overwritten by embedded definitions in angr, which is undesirable
+        load_all_definitions()
+
         for d in _EXTERNAL_DEFINITIONS_DIRS:
             for _ in autoimport.auto_import_source_files(d):
                 pass
