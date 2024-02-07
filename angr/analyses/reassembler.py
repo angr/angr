@@ -730,7 +730,7 @@ class Instruction:
             elif operand.type == capstone.CS_OP_MEM:
                 operand_offsets.append(capstone_instr.disp_offset)
             else:
-                operand_offsets.append(None)
+                operand_offsets.append(0)
 
         if self.addr is not None:
             self._initialize(capstone_instr.operands, operand_offsets)
