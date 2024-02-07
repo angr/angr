@@ -153,7 +153,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                         start_bits, end_bits = len(data.object) - end_bits - 1, len(data.object) - start_bits - 1
 
                     concrete_data: bytes = data.concrete_bytes(
-                        (full_bits - start_bits - 1) // byte_width, (start_bits - end_bits) // byte_width
+                        (full_bits - start_bits - 1) // byte_width, (start_bits - end_bits + 1) // byte_width
                     )
                     data = int.from_bytes(concrete_data, "big")
 
