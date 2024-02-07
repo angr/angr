@@ -2,10 +2,12 @@
 from typing import Set, Optional
 
 from angr.storage.memory_mixins import MemoryMixin
+from angr.utils.segment_list import SegmentList
 from .refcount_mixin import RefcountMixin
 
 
 MAX_HISTORY_DEPTH = 50
+DUMMY_SORT = ""
 
 
 class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
@@ -17,11 +19,11 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
         super().__init__(*args, **kwargs)
         self._parent = None
         self._history_depth = 0
-        self._changed_offsets = set()
+        self._changed_offsets: SegmentList = SegmentList()
 
     def store(self, addr, data, size=None, **kwargs):
-        for i in range(size):
-            self._changed_offsets.add(addr + i)
+        if size > 0:
+            self._changed_offsets.occupy(addr, size, DUMMY_SORT)
         return super().store(addr, data, **kwargs)
 
     def copy(self, memo):
@@ -39,7 +41,7 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
                 page._history_depth = 0
             else:
                 page._parent = self
-                page._changed_offsets = set()
+                page._changed_offsets = SegmentList()
         return page
 
     def parents(self):
@@ -66,18 +68,21 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
                 j -= 1
 
             for page_ in self_history_list[: i + 1]:
-                candidates |= page_._changed_offsets
+                for seg in page_._changed_offsets._list:
+                    candidates.update(range(seg.start, seg.end))
             for page_ in other_history_list[: j + 1]:
-                candidates |= page_._changed_offsets
+                for seg in page_._changed_offsets._list:
+                    candidates.update(range(seg.start, seg.end))
             return candidates
 
         return None
 
-    def all_bytes_changed_in_history(self) -> Set[int]:
-        changed_bytes: Set[int] = self._changed_offsets.copy()
+    def all_bytes_changed_in_history(self) -> SegmentList:
+        changed_bytes: SegmentList = self._changed_offsets.copy()
 
-        parent = self._parent
-        while parent is not None:
-            changed_bytes |= parent._changed_offsets
-            parent = parent._parent
+        mem = self._parent
+        while mem is not None:
+            for seg in mem._changed_offsets._list:
+                changed_bytes.occupy(seg.start, seg.end - seg.start, DUMMY_SORT)
+            mem = mem._parent
         return changed_bytes

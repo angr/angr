@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, Tuple, List
 
-from ...errors import AngrCFGError
+from angr.errors import AngrCFGError
 
 
 l = logging.getLogger(name=__name__)
@@ -218,8 +218,8 @@ class SegmentList:
                             i += 1
 
                     # Put new segments into self._list
-                    old_size = sum([seg.size for seg in self._list[previous_segment_pos : segment_pos + 1]])
-                    new_size = sum([seg.size for seg in new_segments])
+                    old_size = sum(seg.size for seg in self._list[previous_segment_pos : segment_pos + 1])
+                    new_size = sum(seg.size for seg in new_segments)
                     bytes_changed = new_size - old_size
 
                     self._list = self._list[:previous_segment_pos] + new_segments + self._list[segment_pos + 1 :]
@@ -522,12 +522,11 @@ class SegmentList:
 
         # self._debug_check()
 
-    def copy(self):
+    def copy(self) -> "SegmentList":
         """
         Make a copy of the SegmentList.
 
         :return: A copy of the SegmentList instance.
-        :rtype: angr.analyses.cfg_fast.SegmentList
         """
         n = SegmentList()
 
