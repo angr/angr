@@ -47,9 +47,9 @@ from angr.utils.funcid import (
     is_function_likely_security_init_cookie,
 )
 from angr.analyses import ForwardAnalysis
+from angr.utils.segment_list import SegmentList
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
-from .segment_list import SegmentList
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
 
 

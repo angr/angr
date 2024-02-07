@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, Tuple, List
 
-from ...errors import AngrCFGError
+from angr.errors import AngrCFGError
 
 
 l = logging.getLogger(name=__name__)
@@ -522,12 +522,11 @@ class SegmentList:
 
         # self._debug_check()
 
-    def copy(self):
+    def copy(self) -> "SegmentList":
         """
         Make a copy of the SegmentList.
 
         :return: A copy of the SegmentList instance.
-        :rtype: angr.analyses.cfg_fast.SegmentList
         """
         n = SegmentList()
 

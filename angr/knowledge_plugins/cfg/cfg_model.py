@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from angr.knowledge_base.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
-    from angr.analyses.cfg.segment_list import SegmentList
+    from angr.utils.segment_list import SegmentList
 
 
 l = logging.getLogger(name=__name__)
