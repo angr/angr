@@ -69,10 +69,10 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
 
             for page_ in self_history_list[: i + 1]:
                 for seg in page_._changed_offsets._list:
-                    candidates |= range(seg.start, seg.end)
+                    candidates.update(range(seg.start, seg.end))
             for page_ in other_history_list[: j + 1]:
                 for seg in page_._changed_offsets._list:
-                    candidates |= range(seg.start, seg.end)
+                    candidates.update(range(seg.start, seg.end))
             return candidates
 
         return None
