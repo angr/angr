@@ -218,8 +218,8 @@ class SegmentList:
                             i += 1
 
                     # Put new segments into self._list
-                    old_size = sum([seg.size for seg in self._list[previous_segment_pos : segment_pos + 1]])
-                    new_size = sum([seg.size for seg in new_segments])
+                    old_size = sum(seg.size for seg in self._list[previous_segment_pos : segment_pos + 1])
+                    new_size = sum(seg.size for seg in new_segments)
                     bytes_changed = new_size - old_size
 
                     self._list = self._list[:previous_segment_pos] + new_segments + self._list[segment_pos + 1 :]
