@@ -1,4 +1,7 @@
+from typing import Optional
+
 import claripy
+
 from ..errors import SimMemoryError
 
 
@@ -24,6 +27,7 @@ class SimMemoryObject:
         "object",
         "length",
         "endness",
+        "_concrete_bytes",
     )
 
     def __init__(self, obj, base, endness, length=None, byte_width=8):
@@ -41,6 +45,7 @@ class SimMemoryObject:
         self.object = obj
         self.length = obj_bit_size(obj) // self._byte_width if length is None else length
         self.endness = endness
+        self._concrete_bytes: Optional[bytes] = None
 
     def size(self):
         return self.length * self._byte_width
@@ -63,6 +68,16 @@ class SimMemoryObject:
     @property
     def last_addr(self):
         return self.base + self.length - 1
+
+    def concrete_bytes(self, offset: int, size: int) -> Optional[bytes]:
+        if self._concrete_bytes is None:
+            if isinstance(self.object, claripy.ast.Bits) and self.object.op == "BVV" and not self.object.annotations:
+                self._concrete_bytes = self.object.concrete_value.to_bytes(len(self.object) // self._byte_width, "big")
+
+        if self._concrete_bytes is None:
+            return None
+
+        return self._concrete_bytes[offset : offset + size]
 
     def includes(self, x):
         return 0 <= x - self.base < self.length

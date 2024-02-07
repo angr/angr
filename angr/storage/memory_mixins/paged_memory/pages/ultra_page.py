@@ -136,6 +136,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
         if size >= memory.page_size - addr:
             size = memory.page_size - addr
 
+        byte_width = memory.state.arch.byte_width
+
         if type(data) is not int:
             if data.object.op == "BVV" and not data.object.annotations:
                 # trim the unnecessary leading bytes if there are any
@@ -143,14 +145,17 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 start = (page_addr + addr - data.base) & ((1 << memory.state.arch.bits) - 1)
                 if start >= data.base + data.length:
                     raise SimMemoryError("Not enough bytes to store.")
-                start_bits = full_bits - start * memory.state.arch.byte_width - 1
+                start_bits = full_bits - start * byte_width - 1
                 # trim the overflowing bytes if there are any
-                end_bits = start_bits + 1 - size * memory.state.arch.byte_width
+                end_bits = start_bits + 1 - size * byte_width
                 if start_bits != full_bits - 1 or end_bits != 0:
                     if endness == "Iend_LE":
                         start_bits, end_bits = len(data.object) - end_bits - 1, len(data.object) - start_bits - 1
-                    obj = data.object[start_bits:end_bits]
-                    data = obj.args[0]
+
+                    concrete_data: bytes = data.concrete_bytes(
+                        (full_bits - start_bits - 1) // byte_width, (start_bits - end_bits) // byte_width
+                    )
+                    data = int.from_bytes(concrete_data, "big")
 
         if type(data) is int or (data.object.op == "BVV" and not data.object.annotations):
             # mark range as not symbolic
