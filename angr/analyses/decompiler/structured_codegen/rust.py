@@ -25,7 +25,13 @@ from ....sim_type import (
     SimTypeLength,
     SimTypeReg,
 )
-from ...typehoon.rust.sim_type import RustSimType, RustSimTypeInt, RustSimTypeFunction, RustSimTypePointer
+from ...typehoon.rust.sim_type import (
+    RustSimType,
+    RustSimTypeInt,
+    RustSimTypeFunction,
+    RustSimTypePointer,
+    RustSimTypeStr,
+)
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
@@ -50,6 +56,7 @@ from ..structuring.structurer_nodes import (
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ...typehoon.rust.translator import RustTypeTranslator
 from ..optimization_passes.rust.alloc_simplifier import VecInitialization
+from ....rust.optimization_passes import Str
 
 if TYPE_CHECKING:
     import archinfo
@@ -2044,7 +2051,7 @@ class RustConstant(RustExpression):
         return self._type
 
     @staticmethod
-    def str_to_c_str(_str, prefix: str = ""):
+    def str_to_rust_str(_str, prefix: str = ""):
         repr_str = repr(_str)
         base_str = repr_str[1:-1]
         if repr_str[0] == "'":
@@ -2062,7 +2069,7 @@ class RustConstant(RustExpression):
         if self.reference_values is not None:
             for ty, v in self.reference_values.items():  # pylint:disable=unused-variable
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
-                    yield RustConstant.str_to_c_str(v.content.decode("utf-8")), self
+                    yield RustConstant.str_to_rust_str(v.content.decode("utf-8")), self
                     return
                 elif isinstance(v, Function):
                     yield get_rust_function_name(v.demangled_name), self
@@ -2074,12 +2081,12 @@ class RustConstant(RustExpression):
                     yield self.fmt_int(self.reference_values[self._type]), self
                     return
                 yield hex(self.reference_values[self._type]), self
-            elif isinstance(self._type, RustSimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
+            elif isinstance(self._type, RustSimTypePointer) and isinstance(self._type.pts_to, RustSimTypeStr):
                 refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
-                yield RustConstant.str_to_c_str(refval.content.decode("utf-8")), self
+                yield RustConstant.str_to_rust_str(refval.content.decode("utf-8")), self
             elif isinstance(self._type, RustSimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                 refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
-                yield RustConstant.str_to_c_str(refval.content.decode("utf_16_le"), prefix="L"), self
+                yield RustConstant.str_to_rust_str(refval.content.decode("utf_16_le"), prefix="L"), self
             else:
                 if isinstance(self.reference_values[self._type], int):
                     yield self.fmt_int(self.reference_values[self._type]), self
@@ -2337,6 +2344,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
+            Str: self._handle_Expr_Str,
         }
 
         self._func = func
@@ -3331,6 +3339,11 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             offset = getattr(expr, "reference_variable_offset", 0)
             return self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
+        return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Str(self, expr: Str, **kwargs):
+        type_ = RustSimTypePointer(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
+        reference_values = {type_: expr.data}
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, **kwargs):
