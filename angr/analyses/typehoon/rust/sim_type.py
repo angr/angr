@@ -45,6 +45,23 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         return name
 
 
+class RustSimTypeStr(RustSimType, SimType):
+    def __init__(self, label=None):
+        super().__init__(label)
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None or len(name) == 0:
+            return self.__repr__()
+        return f"{name}: {self.__repr__()}"
+
+    @property
+    def size(self):
+        return 0
+
+    def __repr__(self):
+        return "str"
+
+
 class RustSimTypeFunction(RustSimType, SimTypeFunction):
     """
     SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and
@@ -129,7 +146,7 @@ class RustSimTypePointer(RustSimType, SimTypePointer):
         super().__init__(pts_to, label, offset)
 
     def __repr__(self):
-        return f"{self.pts_to}*"
+        return f"&{self.pts_to}"
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         # if pts_to is SimTypeBottom, we return a void*

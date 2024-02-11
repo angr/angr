@@ -4,8 +4,8 @@ import ailment
 import archinfo
 from ailment.utils import stable_hash
 
-from ..optimization_pass import OptimizationPass, OptimizationPassStage
-from ..engine_base import SimplifierAILState
+from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
+from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 
 class VecInitialization(ailment.statement.Statement):
@@ -27,7 +27,7 @@ class VecInitialization(ailment.statement.Statement):
         raise NotImplementedError()
 
 
-class AllocSimplifier(OptimizationPass):
+class VecSimplifier(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
