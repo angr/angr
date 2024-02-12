@@ -35,7 +35,7 @@ from .notes import DecompilationNote
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from ..typehoon.typehoon import Typehoon
-from ..typehoon.rust.typehoon import RustTypehoon
+from ...rust.typehoon.typehoon import RustTypehoon
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel

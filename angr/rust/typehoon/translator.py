@@ -1,10 +1,12 @@
 from typing import Dict, Union
 from itertools import count
 
-from ..translator import TypeTranslator
-from .... import sim_type
-from ....sim_type import SimType
-from ....rust.sim_type import (
+from ...analyses.typehoon.translator import TypeTranslator
+from ...analyses.typehoon import typeconsts
+from ...analyses.typehoon.typeconsts import TypeConstant
+from ... import sim_type
+from ...sim_type import SimType
+from ..sim_type import (
     RustSimTypeInt,
     RustSimTypePointer,
     RustSimType,
@@ -12,8 +14,6 @@ from ....rust.sim_type import (
     RustSimStruct,
     RustSimTypeTempRef,
 )
-from .. import typeconsts
-from ..typeconsts import TypeConstant
 
 
 class RustTypeTranslator(TypeTranslator):

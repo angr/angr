@@ -1,14 +1,14 @@
 from typing import Set, Optional, Dict, Union, TYPE_CHECKING
 
-from ..typehoon import Typehoon
-from ...analysis import AnalysesHub
-from ..rust.translator import RustTypeTranslator
-from ....rust.sim_type import RustSimTypeInt
-from angr.sim_type import SimTypePointer, SimTypeArray, SimStruct, SimTypeBottom
+from ...analyses.typehoon.typehoon import Typehoon
+from ...analyses.analysis import AnalysesHub
+from ..typehoon.translator import RustTypeTranslator
+from ..sim_type import RustSimTypeInt
+from ...sim_type import SimTypePointer, SimTypeArray, SimStruct, SimTypeBottom
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
-    from ..typevars import TypeVariable
+    from angr.analyses.typehoon.typevars import TypeVariable
 
 
 class RustTypehoon(Typehoon):

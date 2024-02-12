@@ -53,7 +53,7 @@ from ..structuring.structurer_nodes import (
     CascadingConditionNode,
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
-from ...typehoon.rust.translator import RustTypeTranslator
+from ....rust.typehoon.translator import RustTypeTranslator
 from ....rust.ailment.expression import Str, VecInitialization
 
 if TYPE_CHECKING:
