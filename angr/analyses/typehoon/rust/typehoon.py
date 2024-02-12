@@ -3,13 +3,12 @@ from typing import Set, Optional, Dict, Union, TYPE_CHECKING
 from ..typehoon import Typehoon
 from ...analysis import AnalysesHub
 from ..rust.translator import RustTypeTranslator
-from ..rust.sim_type import RustSimTypeInt
+from ....rust.sim_type import RustSimTypeInt
 from angr.sim_type import SimTypePointer, SimTypeArray, SimStruct, SimTypeBottom
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
-    from angr.sim_type import SimType
-    from ..typevars import TypeVariable, TypeConstraint
+    from ..typevars import TypeVariable
 
 
 class RustTypehoon(Typehoon):

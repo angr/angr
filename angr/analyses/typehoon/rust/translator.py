@@ -4,7 +4,7 @@ from itertools import count
 from ..translator import TypeTranslator
 from .... import sim_type
 from ....sim_type import SimType
-from .sim_type import (
+from ....rust.sim_type import (
     RustSimTypeInt,
     RustSimTypePointer,
     RustSimType,

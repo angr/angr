@@ -9,7 +9,6 @@ from ailment.expression import StackBaseOffset, BinaryOp
 
 from ....sim_type import (
     SimTypeLongLong,
-    SimTypeShort,
     SimTypeChar,
     SimTypeWideChar,
     SimStruct,
@@ -25,7 +24,7 @@ from ....sim_type import (
     SimTypeLength,
     SimTypeReg,
 )
-from ...typehoon.rust.sim_type import (
+from ....rust.sim_type import (
     RustSimType,
     RustSimTypeInt,
     RustSimTypeFunction,

@@ -3,7 +3,7 @@ import ailment
 from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
 from ...knowledge_plugins.cfg import MemoryDataSort
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ...analyses.typehoon.rust.sim_type import RustSimTypeStr, RustSimTypePointer
+from ..sim_type import RustSimTypeStr, RustSimTypePointer
 from ..ailment.expression import Str
 
 
