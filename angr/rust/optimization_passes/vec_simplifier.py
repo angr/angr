@@ -2,29 +2,10 @@ from typing import Optional
 
 import ailment
 import archinfo
-from ailment.utils import stable_hash
 
 from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-
-
-class VecInitialization(ailment.statement.Statement):
-    def __init__(self, idx, dst, init_values, **kwargs):
-        super().__init__(idx, **kwargs)
-        self.dst = dst
-        self.init_values = init_values
-
-    def __repr__(self):
-        return f"vec!{self.init_values}"
-
-    def __str__(self):
-        return f"vec!{self.init_values}"
-
-    def _hash_core(self):
-        return stable_hash((VecInitialization, self.idx))
-
-    def replace(self, old_expr, new_expr):
-        raise NotImplementedError()
+from ..ailment.expression import VecInitialization
 
 
 class VecSimplifier(OptimizationPass):

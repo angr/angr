@@ -55,8 +55,7 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ...typehoon.rust.translator import RustTypeTranslator
-from ..optimization_passes.rust.alloc_simplifier import VecInitialization
-from ....rust.optimization_passes import Str
+from ....rust.ailment.expression import Str, VecInitialization
 
 if TYPE_CHECKING:
     import archinfo
