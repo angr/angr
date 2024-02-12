@@ -1,35 +1,10 @@
-from typing import Optional
-
 import ailment
 
 from ...analyses.decompiler.optimization_passes.engine_base import SimplifierAILState
-from ...knowledge_plugins.cfg import MemoryDataSort, MemoryData
+from ...knowledge_plugins.cfg import MemoryDataSort
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...analyses.typehoon.rust.sim_type import RustSimTypeStr, RustSimTypePointer
-
-
-class Str(ailment.Const):
-    def __init__(self, idx, variable, value, bits, data: MemoryData, **kwargs):
-        super().__init__(idx, variable, value, bits, **kwargs)
-
-        self.data = data
-
-    @property
-    def size(self):
-        return self.bits // 8
-
-    @property
-    def length(self):
-        return self.data.size
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return f'"{self.data.content.decode()}"'
-
-    def copy(self) -> "Str":
-        return Str(self.idx, self.variable, self.value, self.bits, self.data, **self.tags)
+from ..ailment.expression import Str
 
 
 class StringSimplifier(OptimizationPass):
