@@ -3,8 +3,8 @@ from collections import OrderedDict
 
 import claripy
 
-from ..translator import SimTypeTempRef
-from ....sim_type import (
+from ..analyses.typehoon.translator import SimTypeTempRef
+from ..sim_type import (
     SimType,
     SimTypeBottom,
     SimTypeInt,

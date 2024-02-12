@@ -65,8 +65,8 @@ from .optimization_passes import (
 from .utils import first_nonlabel_statement_id
 from ..typehoon import Typehoon
 from ..typehoon.rust.typehoon import RustTypehoon
-from ..typehoon.rust.sim_type import RustSimTypeInt
 from .semantic_naming import SemanticNamingOrchestrator
+from ...rust.sim_type import RustSimTypeInt
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
