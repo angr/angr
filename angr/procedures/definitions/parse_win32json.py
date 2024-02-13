@@ -691,16 +691,22 @@ def do_it(in_dir, out_file):
 import logging
 from collections import OrderedDict
 
-from ...sim_type import SimTypeFunction, \
-    SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat, \
-    SimTypePointer, \
-    SimTypeChar, \
-    SimStruct, \
-    SimTypeArray, \
-    SimTypeBottom, \
-    SimUnion, \
-    SimTypeBool, \
-    SimTypeRef
+from ...sim_type import (SimTypeFunction,
+    SimTypeShort,
+    SimTypeInt,
+    SimTypeLong,
+    SimTypeLongLong,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeArray,
+    SimTypeBottom,
+    SimUnion,
+    SimTypeBool,
+    SimTypeRef,
+)
 from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
