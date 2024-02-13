@@ -33,6 +33,7 @@ class SimTypeCollection:
     """
     A type collection is the mechanism for describing types. Types in a type collection can be referenced using
     """
+
     def __init__(self):
         self.names: Optional[List[str]] = None
         self.types: Dict[str, "SimType"] = {}
@@ -74,7 +75,7 @@ class SimTypeCollection:
         ]
         for name in sorted(self.types):
             t = self.types[name]
-            lines.append(f"    \"{name}\": {t._init_str()},")
+            lines.append(f'    "{name}": {t._init_str()},')
         lines.append("}")
 
         return "\n".join(lines)
@@ -688,19 +689,32 @@ _DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
 _EXTERNAL_DEFINITIONS_DIRS: Optional[List[str]] = None
 
 
-def load_type_collections() -> None:
+def load_type_collections(skip=None) -> None:
+    if skip is None:
+        skip = set()
+
     for _ in autoimport.auto_import_modules(
-            "angr.procedures.definitions",
-            _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name.startswith("types_"),
+        "angr.procedures.definitions",
+        _DEFINITIONS_BASEDIR,
+        filter_func=lambda module_name: module_name.startswith("types_") and module_name not in skip,
     ):
         pass
+
+
+def load_win32_type_collections() -> None:
+    if once("load_win32_type_collections"):
+        for _ in autoimport.auto_import_modules(
+            "angr.procedures.definitions",
+            _DEFINITIONS_BASEDIR,
+            filter_func=lambda module_name: module_name == "types_win32",
+        ):
+            pass
 
 
 def load_external_definitions():
     """
     Load library definitions from specific directories. By default it parses ANGR_EXTERNAL_DEFINITIONS_DIRS as a
-    semi-colon separated list of directory paths. Then it loads all .py files in each directory. These .py files should
+    semicolon separated list of directory paths. Then it loads all .py files in each directory. These .py files should
     declare SimLibrary() objects and call .set_library_names() to register themselves in angr.SIM_LIBRARIES.
     """
 
@@ -724,17 +738,20 @@ def load_external_definitions():
 
 
 def load_win32api_definitions():
+    load_win32_type_collections()
     if once("load_win32api_definitions"):
         for _ in autoimport.auto_import_modules(
             "angr.procedures.definitions",
             _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name.startswith("win32_") or module_name.startswith("wdk_")
+            filter_func=lambda module_name: module_name.startswith("win32_")
+            or module_name.startswith("wdk_")
             or module_name in {"ntoskrnl", "ntdll", "user32"},
         ):
             pass
 
 
 def load_all_definitions():
+    load_type_collections(skip=set())
     if once("load_all_definitions"):
         for _ in autoimport.auto_import_modules("angr.procedures.definitions", _DEFINITIONS_BASEDIR):
             pass
@@ -754,12 +771,14 @@ COMMON_LIBRARIES = {
 }
 
 
+# Load common types
+load_type_collections(skip={"types_win32"})
+
+
+# Load common definitions
 for _ in autoimport.auto_import_modules(
     "angr.procedures.definitions",
     _DEFINITIONS_BASEDIR,
     filter_func=lambda module_name: module_name in COMMON_LIBRARIES,
 ):
     pass
-
-
-load_type_collections()
